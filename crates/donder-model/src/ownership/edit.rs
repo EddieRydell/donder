@@ -7,9 +7,11 @@ use crate::{
     controller::Controller,
     fixture::{FixtureDefinitionId, FixtureSource},
     identity::{ObjectIdentity, OwnedObjectSlot, SourceIdentity},
+    input_device::{InputDevice, InputDeviceId},
     layout::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId},
     patch::{Patch, PatchId},
     project::DonderProject,
+    rig::{Rig, RigId},
     sequence::{Sequence, SequenceId},
     setup::{Setup, SetupId},
 };
@@ -20,9 +22,14 @@ pub use link::use_existing;
 pub enum OwnershipSite {
     ProjectSetup,
     ProjectSequence(usize),
+    ProjectRig(usize),
     SetupLayout(SetupId),
     SetupPatch(SetupId),
     SetupController {
+        setup: SetupId,
+        index: usize,
+    },
+    SetupInputDevice {
         setup: SetupId,
         index: usize,
     },
@@ -45,6 +52,11 @@ impl Rebase for Controller {
         self.id.0.rebase(from, to);
     }
 }
+impl Rebase for InputDevice {
+    fn rebase(&mut self, from: &ObjectIdentity, to: &ObjectIdentity) {
+        self.id.0.rebase(from, to);
+    }
+}
 impl Rebase for Patch {
     fn rebase(&mut self, from: &ObjectIdentity, to: &ObjectIdentity) {
         self.id.0.rebase(from, to);
@@ -63,6 +75,12 @@ impl Rebase for Sequence {
         rebase_effect_layouts(&mut self.effects, from, to);
     }
 }
+impl Rebase for Rig {
+    fn rebase(&mut self, from: &ObjectIdentity, to: &ObjectIdentity) {
+        self.id.0.rebase(from, to);
+        rebase_rig(self, from, to);
+    }
+}
 impl Rebase for Setup {
     fn rebase(&mut self, from: &ObjectIdentity, to: &ObjectIdentity) {
         self.id.0.rebase(from, to);
@@ -77,22 +95,55 @@ impl Rebase for Setup {
                 controller.rebase(from, to);
             }
         }
+        for device in &mut self.input_devices {
+            if let ValueSource::Inline(device) = device {
+                device.rebase(from, to);
+            }
+        }
     }
 }
 
-/// A name for a newly owned sequence or controller, unique among its owner's
+/// Rebase what a rig refers to: its targets' layouts and its buttons' devices.
+fn rebase_rig(rig: &mut Rig, from: &ObjectIdentity, to: &ObjectIdentity) {
+    for effect in rig.effects_mut() {
+        effect.target.layout.0.rebase(from, to);
+    }
+    for input in rig.inputs_mut() {
+        input.device.0.rebase(from, to);
+    }
+}
+
+/// The owned collection a member slot belongs to.
+#[derive(Clone, Copy, PartialEq)]
+enum Member {
+    Controller,
+    InputDevice,
+    Sequence,
+    Rig,
+}
+
+impl Member {
+    fn name(self, slot: &OwnedObjectSlot) -> Option<&donder_runtime_types::Identifier> {
+        match (self, slot) {
+            (Self::Controller, OwnedObjectSlot::Controller(name))
+            | (Self::InputDevice, OwnedObjectSlot::InputDevice(name))
+            | (Self::Sequence, OwnedObjectSlot::Sequence(name))
+            | (Self::Rig, OwnedObjectSlot::Rig(name)) => Some(name),
+            _ => None,
+        }
+    }
+}
+
+/// A name for a newly owned collection member, unique among its owner's
 /// owned members of that kind.
 fn next_local_name<'a>(
     identities: impl Iterator<Item = &'a ObjectIdentity>,
-    sequence: bool,
+    member: Member,
     prefix: &str,
 ) -> donder_runtime_types::Identifier {
     let taken = identities
-        .filter_map(|id| match id.owned_path().last() {
-            Some(OwnedObjectSlot::Sequence(name)) if sequence => Some(name.as_str()),
-            Some(OwnedObjectSlot::Controller(name)) if !sequence => Some(name.as_str()),
-            _ => None,
-        })
+        .filter_map(|id| member.name(id.owned_path().last()?))
+        .map(donder_runtime_types::Identifier::as_str)
         .collect::<std::collections::HashSet<_>>();
     donder_language::unique_name(prefix, |name| taken.contains(name))
 }
@@ -122,6 +173,9 @@ fn retarget(project: &mut DonderProject, from: &ObjectIdentity, to: &ObjectIdent
             clip.row_target.layout.0.rebase(from, to);
         }
         rebase_effect_layouts(&mut sequence.effects, from, to);
+    }
+    for rig in project.rigs_mut() {
+        rebase_rig(rig, from, to);
     }
 }
 
@@ -160,11 +214,15 @@ fn make_reusable_candidate(
         OwnershipSite::ProjectSequence(_) => {
             project.sequences.contains_key(&SequenceId(to.clone()))
         }
+        OwnershipSite::ProjectRig(_) => project.rigs.contains_key(&RigId(to.clone())),
         OwnershipSite::SetupLayout(_) => project.layouts.contains_key(&LayoutId(to.clone())),
         OwnershipSite::SetupPatch(_) => project.patches.contains_key(&PatchId(to.clone())),
         OwnershipSite::SetupController { .. } => project
             .controllers
             .contains_key(&crate::controller::ControllerId(to.clone())),
+        OwnershipSite::SetupInputDevice { .. } => project
+            .input_devices
+            .contains_key(&InputDeviceId(to.clone())),
         OwnershipSite::LayoutFixture { .. } => project
             .definitions
             .fixtures
@@ -190,6 +248,17 @@ fn make_reusable_candidate(
             let from = source.id().0.clone();
             let value = promote(source, SequenceId(to.clone()))?;
             project.sequences.insert(value.id.clone(), *value);
+            from
+        }
+        OwnershipSite::ProjectRig(index) => {
+            let source = project
+                .root
+                .rigs
+                .get_mut(*index)
+                .ok_or("Rig was not found.")?;
+            let from = source.id().0.clone();
+            let value = promote(source, RigId(to.clone()))?;
+            project.rigs.insert(value.id.clone(), *value);
             from
         }
         OwnershipSite::SetupLayout(setup) => {
@@ -222,6 +291,18 @@ fn make_reusable_candidate(
             let from = source.id().0.clone();
             let value = promote(source, crate::controller::ControllerId(to.clone()))?;
             project.controllers.insert(value.id.clone(), *value);
+            from
+        }
+        OwnershipSite::SetupInputDevice { setup, index } => {
+            let source = project
+                .setup_mut(setup)
+                .ok_or("Setup was not found.")?
+                .input_devices
+                .get_mut(*index)
+                .ok_or("Input device was not found.")?;
+            let from = source.id().0.clone();
+            let value = promote(source, InputDeviceId(to.clone()))?;
+            project.input_devices.insert(value.id.clone(), *value);
             from
         }
         OwnershipSite::LayoutFixture { layout, fixture } => {
@@ -302,11 +383,15 @@ fn make_independent_candidate(
                 }
             }
             if old_layout != new_layout {
-                retarget_active_sequences(project, &old_layout, &new_layout)?;
+                retarget_active_members(project, &old_layout, &new_layout)?;
             }
+            retarget_active_rig_inputs(project, &from, &to)?;
         }
         OwnershipSite::ProjectSequence(index) => {
             copy_sequence(project, *index)?;
+        }
+        OwnershipSite::ProjectRig(index) => {
+            copy_rig(project, *index)?;
         }
         OwnershipSite::SetupPatch(setup) => {
             copy_patch(project, setup)?;
@@ -331,7 +416,36 @@ fn make_independent_candidate(
                 route.target.layout.0.rebase(&from.0, &to.0);
             }
             if project.root.setup.id() == setup {
-                retarget_active_sequences(project, &from, &to)?;
+                retarget_active_members(project, &from, &to)?;
+            }
+        }
+        OwnershipSite::SetupInputDevice { setup, index } => {
+            let current = project.setup(setup).ok_or("Setup was not found.")?;
+            let source = current
+                .input_devices
+                .get(*index)
+                .ok_or("Input device was not found.")?;
+            let ValueSource::Reference(id) = source else {
+                return Err("This input device is already independent.".into());
+            };
+            let from = id.0.clone();
+            let next = next_local_name(
+                current.input_devices.iter().map(|source| &source.id().0),
+                Member::InputDevice,
+                from.root_source().object(),
+            );
+            let to = setup.0.owned(OwnedObjectSlot::InputDevice(next));
+            let mut value = project
+                .input_device(id)
+                .ok_or("Input device was not found.")?
+                .clone();
+            value.rebase(&from, &to);
+            project
+                .setup_mut(setup)
+                .ok_or("Setup was not found.")?
+                .input_devices[*index] = ValueSource::Inline(Box::new(value));
+            if project.root.setup.id() == setup {
+                retarget_active_rig_inputs(project, &from, &to)?;
             }
         }
         OwnershipSite::SetupController { setup, index } => {
@@ -346,7 +460,7 @@ fn make_independent_candidate(
             let from = id.0.clone();
             let next = next_local_name(
                 current.controllers.iter().map(|source| &source.id().0),
-                false,
+                Member::Controller,
                 from.root_source().object(),
             );
             let to = setup.0.owned(OwnedObjectSlot::Controller(next));
@@ -434,7 +548,7 @@ fn copy_sequence(project: &mut DonderProject, index: usize) -> Result<(), String
     let from = id.0.clone();
     let next = next_local_name(
         project.root.sequences.iter().map(|source| &source.id().0),
-        true,
+        Member::Sequence,
         from.root_source().object(),
     );
     let to = ObjectIdentity::from(project.root.id.0.clone()).owned(OwnedObjectSlot::Sequence(next));
@@ -446,11 +560,78 @@ fn copy_sequence(project: &mut DonderProject, index: usize) -> Result<(), String
     project.root.sequences[index] = ValueSource::Inline(Box::new(value));
     Ok(())
 }
-fn retarget_active_sequences(
+fn copy_rig(project: &mut DonderProject, index: usize) -> Result<(), String> {
+    let source = project.root.rigs.get(index).ok_or("Rig was not found.")?;
+    let ValueSource::Reference(id) = source else {
+        return Err("This rig is already independent.".into());
+    };
+    let from = id.0.clone();
+    let next = next_local_name(
+        project.root.rigs.iter().map(|source| &source.id().0),
+        Member::Rig,
+        from.root_source().object(),
+    );
+    let to = ObjectIdentity::from(project.root.id.0.clone()).owned(OwnedObjectSlot::Rig(next));
+    let mut value = project.rig(id).ok_or("Rig was not found.")?.clone();
+    value.rebase(&from, &to);
+    project.root.rigs[index] = ValueSource::Inline(Box::new(value));
+    Ok(())
+}
+/// Follow input devices that moved within the active setup: active rigs that
+/// read one become independent before their buttons change.
+fn retarget_active_rig_inputs(
+    project: &mut DonderProject,
+    from: &ObjectIdentity,
+    to: &ObjectIdentity,
+) -> Result<(), String> {
+    let moved = |input: &crate::input_device::ButtonRef| {
+        let mut device = input.device.0.clone();
+        device.rebase(from, to);
+        device != input.device.0
+    };
+    for index in 0..project.root.rigs.len() {
+        let id = project.root.rigs[index].id();
+        let rig = project.rig(id).ok_or("Rig was not found.")?;
+        if !rig.inputs().any(moved) {
+            continue;
+        }
+        if matches!(project.root.rigs[index], ValueSource::Reference(_)) {
+            copy_rig(project, index)?;
+        }
+        let value = project.root.rigs[index]
+            .inline_mut()
+            .ok_or("Independent rig was not found.")?;
+        for input in value.inputs_mut() {
+            input.device.0.rebase(from, to);
+        }
+    }
+    Ok(())
+}
+/// Follow a copied layout of the active setup: active sequences and rigs that
+/// target it become independent before their targets change.
+fn retarget_active_members(
     project: &mut DonderProject,
     from: &LayoutId,
     to: &LayoutId,
 ) -> Result<(), String> {
+    for index in 0..project.root.rigs.len() {
+        let id = project.root.rigs[index].id();
+        let rig = project.rig(id).ok_or("Rig was not found.")?;
+        if !rig.effects().any(|effect| &effect.target.layout == from) {
+            continue;
+        }
+        if matches!(project.root.rigs[index], ValueSource::Reference(_)) {
+            copy_rig(project, index)?;
+        }
+        let value = project.root.rigs[index]
+            .inline_mut()
+            .ok_or("Independent rig was not found.")?;
+        for effect in value.effects_mut() {
+            if &effect.target.layout == from {
+                effect.target.layout = to.clone();
+            }
+        }
+    }
     for index in 0..project.root.sequences.len() {
         let id = project.root.sequences[index].id();
         let sequence = project.sequence(id).ok_or("Sequence was not found.")?;
@@ -508,17 +689,17 @@ fn add_sequence_candidate(
     }
     let next = next_local_name(
         project.root.sequences.iter().map(|source| &source.id().0),
-        true,
+        Member::Sequence,
         "sequence",
     );
     let id = SequenceId(
         ObjectIdentity::from(project.root.id.0.clone()).owned(OwnedObjectSlot::Sequence(next)),
     );
-    let layer_id = SequenceLayerId(0);
     let name = |text: &str| {
         donder_runtime_types::Identifier::new(text.to_string())
             .unwrap_or_else(|_| unreachable!("literal names are valid"))
     };
+    let (layers, composition_graph) = default_composition(color);
     let sequence = Sequence {
         id: id.clone(),
         description: None,
@@ -533,34 +714,9 @@ fn add_sequence_candidate(
             display_color: color,
             marks: Vec::new(),
         }],
-        layers: vec![SequenceLayer {
-            id: layer_id.clone(),
-            name: name("default"),
-            description: None,
-            color,
-            enabled: true,
-        }],
+        layers,
         effects: Vec::new(),
-        composition_graph: SequenceCompositionGraph {
-            nodes: vec![
-                CompositionGraphNode {
-                    id: CompositionGraphNodeId(1),
-                    position: GraphNodePosition { x: 80.0, y: 80.0 },
-                    kind: CompositionGraphNodeKind::Layer { layer_id },
-                },
-                CompositionGraphNode {
-                    id: CompositionGraphNodeId(2),
-                    position: GraphNodePosition { x: 420.0, y: 80.0 },
-                    kind: CompositionGraphNodeKind::Output,
-                },
-            ],
-            edges: vec![EffectGraphEdge {
-                from: CompositionGraphNodeId(1),
-                from_port: GraphPortId("output".to_string()),
-                to: CompositionGraphNodeId(2),
-                to_port: GraphPortId("input".to_string()),
-            }],
-        },
+        composition_graph,
         automation_clips: Vec::new(),
     };
     project
@@ -568,6 +724,78 @@ fn add_sequence_candidate(
         .sequences
         .push(ValueSource::Inline(Box::new(sequence)));
     Ok(id)
+}
+
+/// Add an independently owned rig to the active project.
+pub fn add_rig(
+    project: &mut DonderProject,
+    frame_rate: u32,
+    color: donder_runtime_types::Color,
+) -> Result<RigId, String> {
+    project.checked_edit(|project| {
+        let next = next_local_name(
+            project.root.rigs.iter().map(|source| &source.id().0),
+            Member::Rig,
+            "rig",
+        );
+        let id = RigId(
+            ObjectIdentity::from(project.root.id.0.clone()).owned(OwnedObjectSlot::Rig(next)),
+        );
+        let (layers, composition_graph) = default_composition(color);
+        project.root.rigs.push(ValueSource::Inline(Box::new(Rig {
+            id: id.clone(),
+            description: None,
+            frame_rate,
+            live_marks: Vec::new(),
+            layers,
+            voices: Vec::new(),
+            switches: Vec::new(),
+            mappings: Vec::new(),
+            composition_graph,
+        })));
+        Ok(id)
+    })
+}
+
+/// A new sequence's or rig's composition: the default layer drawn straight
+/// to the output.
+fn default_composition(
+    color: donder_runtime_types::Color,
+) -> (
+    Vec<crate::sequence::SequenceLayer>,
+    crate::sequence::SequenceCompositionGraph,
+) {
+    use crate::sequence::*;
+    let layer_id = SequenceLayerId(0);
+    let layers = vec![SequenceLayer {
+        id: layer_id.clone(),
+        name: donder_runtime_types::Identifier::new("default".to_string())
+            .unwrap_or_else(|_| unreachable!("literal names are valid")),
+        description: None,
+        color,
+        enabled: true,
+    }];
+    let graph = SequenceCompositionGraph {
+        nodes: vec![
+            CompositionGraphNode {
+                id: CompositionGraphNodeId(1),
+                position: GraphNodePosition { x: 80.0, y: 80.0 },
+                kind: CompositionGraphNodeKind::Layer { layer_id },
+            },
+            CompositionGraphNode {
+                id: CompositionGraphNodeId(2),
+                position: GraphNodePosition { x: 420.0, y: 80.0 },
+                kind: CompositionGraphNodeKind::Output,
+            },
+        ],
+        edges: vec![EffectGraphEdge {
+            from: CompositionGraphNodeId(1),
+            from_port: GraphPortId("output".to_string()),
+            to: CompositionGraphNodeId(2),
+            to_port: GraphPortId("input".to_string()),
+        }],
+    };
+    (layers, graph)
 }
 
 /// Rebase clip targets, detaching only the clips whose layout moves.

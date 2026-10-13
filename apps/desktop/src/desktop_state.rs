@@ -56,6 +56,7 @@ pub(crate) struct DesktopServices {
     audio: Arc<Mutex<crate::audio::AudioEngine>>,
     sequence_render: Arc<Mutex<crate::rendering::SequenceRenderService>>,
     live_output: Mutex<crate::output::LiveOutputService>,
+    perform: Mutex<perform::PerformService>,
     device_playback: crate::device::playback::DevicePlaybackService,
     discovery: crate::device::discovery::DeviceDiscovery,
     device_reconcile: LatestScheduler<()>,
@@ -69,6 +70,7 @@ pub(crate) struct DesktopServices {
     autosave_generation: std::sync::atomic::AtomicU32,
     audio_poll_running: AtomicBool,
     live_output_poll_running: AtomicBool,
+    perform_poll_running: AtomicBool,
 }
 
 pub(crate) fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -142,6 +144,7 @@ impl DesktopState {
                     audio,
                     sequence_render,
                     live_output: Mutex::new(output),
+                    perform: Mutex::new(perform::PerformService::default()),
                     device_playback: crate::device::playback::DevicePlaybackService::new({
                         let weak = weak.clone();
                         move |error| {
@@ -179,6 +182,7 @@ impl DesktopState {
                     autosave_generation: std::sync::atomic::AtomicU32::new(0),
                     audio_poll_running: AtomicBool::new(false),
                     live_output_poll_running: AtomicBool::new(false),
+                    perform_poll_running: AtomicBool::new(false),
                 }
             },
         ))
@@ -229,6 +233,14 @@ impl DesktopState {
     pub(crate) fn release_live_output_poll(&self) {
         self.live_output_poll_running
             .store(false, Ordering::Release);
+    }
+
+    pub(crate) fn claim_perform_poll(&self) -> bool {
+        !self.perform_poll_running.swap(true, Ordering::AcqRel)
+    }
+
+    pub(crate) fn release_perform_poll(&self) {
+        self.perform_poll_running.store(false, Ordering::Release);
     }
 
     fn merged_audio_snapshot(&self, previous: &AudioTransportSnapshot) -> AudioTransportSnapshot {
@@ -346,44 +358,64 @@ impl DesktopState {
                         })
                         .collect::<Vec<_>>()
                 });
-            let render_ready = lock_unpoisoned(&self.sequence_render)
-                .active_target()
-                .is_some();
-            let Some(active) = active.filter(|active| render_ready && !active.is_empty()) else {
-                return Err(
-                    "Live output requires a prepared sequence and at least one E1.31 or Art-Net controller."
-                        .into(),
-                );
-            };
-            let mut service = lock_unpoisoned(&self.live_output);
-            if service.snapshot().state == donder_sequence_api::LiveOutputState::Stopping {
-                return Err("Wait for output to finish stopping before starting it again.".into());
-            }
-            service.enable(
-                project
-                    .project
-                    .controllers()
-                    .map(|controller| (controller.id.clone(), controller.clone()))
-                    .collect(),
-                active,
-            )
+            let controllers = project
+                .project
+                .controllers()
+                .map(|controller| (controller.id.clone(), controller.clone()))
+                .collect();
+            // A performance in progress plays in place of the sequence.
+            self.perform_live_output(|performance| {
+                let render_ready = performance.is_some()
+                    || lock_unpoisoned(&self.sequence_render)
+                        .active_target()
+                        .is_some();
+                let Some(active) = active.filter(|active| render_ready && !active.is_empty())
+                else {
+                    return Err(
+                        "Live output requires a prepared sequence or a performance and at least one E1.31 or Art-Net controller."
+                            .to_string(),
+                    );
+                };
+                let mut service = lock_unpoisoned(&self.live_output);
+                if service.snapshot().state == donder_sequence_api::LiveOutputState::Stopping {
+                    return Err(
+                        "Wait for output to finish stopping before starting it again.".into(),
+                    );
+                }
+                Ok(match performance {
+                    Some(output) => service.perform(controllers, active, output),
+                    None => service.enable(controllers, active),
+                })
+            })?
         } else {
             lock_unpoisoned(&self.live_output).disable()
         };
         Ok(self.update_snapshot(|snapshot| snapshot.live_output = output))
     }
 
+    // A performance owns live output while it runs, so the sequence's
+    // preparation neither suspends, stops nor resumes it.
+
     pub(super) fn suspend_live_output(&self) {
+        if self.is_performing() {
+            return;
+        }
         let output = lock_unpoisoned(&self.live_output).suspend();
         lock_unpoisoned(&self.workspace).view.live_output = output;
     }
 
     pub(super) fn disable_live_output(&self) {
+        if self.is_performing() {
+            return;
+        }
         let output = lock_unpoisoned(&self.live_output).disable();
         lock_unpoisoned(&self.workspace).view.live_output = output;
     }
 
     pub(super) fn resume_live_output_after_prepare(&self) {
+        if self.is_performing() {
+            return;
+        }
         lock_unpoisoned(&self.live_output).mark_prepared();
         self.resume_live_output_if_ready();
     }
@@ -409,6 +441,7 @@ mod device_playback;
 mod filesystem;
 mod gui_editing;
 mod output_test;
+mod perform;
 mod project_lifecycle;
 mod rendering;
 mod search;

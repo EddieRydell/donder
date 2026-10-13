@@ -42,14 +42,18 @@ fn data() -> ProjectData {
                     routes: vec![],
                 })),
                 controllers: vec![],
+                input_devices: vec![],
             })),
             sequences: vec![],
+            rigs: vec![],
         },
         setups: IndexMap::new(),
         layouts: IndexMap::new(),
         patches: IndexMap::new(),
         controllers: IndexMap::new(),
+        input_devices: IndexMap::new(),
         sequences: IndexMap::new(),
+        rigs: IndexMap::new(),
         definitions: ProjectDefinitionStores::default(),
     }
 }

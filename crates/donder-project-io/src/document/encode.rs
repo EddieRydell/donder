@@ -14,6 +14,13 @@ use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProt
 use donder_model::{
     AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio,
 };
+use donder_model::{
+    ButtonInput, ButtonRef, InputControlKind, InputDevice, InputDriver, SequenceCompositionGraph,
+    SequenceLayer,
+};
+use donder_model::{
+    ControlTarget, MappingAction, Rig, RigEffect, TriggerLength, VoicePolicy, When,
+};
 use donder_model::{CurveSource, EffectParamValue, GradientSource};
 use donder_model::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
 use donder_model::{FixtureDefinition, FixtureShape, FixtureSource, FixtureTransform};
@@ -123,8 +130,16 @@ impl Encoder<'_> {
                     reference.segments.push(segment("controllers")?);
                     reference.segments.push(segment(member.as_str())?);
                 }
+                OwnedObjectSlot::InputDevice(member) => {
+                    reference.segments.push(segment("input_devices")?);
+                    reference.segments.push(segment(member.as_str())?);
+                }
                 OwnedObjectSlot::Sequence(member) => {
                     reference.segments.push(segment("sequences")?);
+                    reference.segments.push(segment(member.as_str())?);
+                }
+                OwnedObjectSlot::Rig(member) => {
+                    reference.segments.push(segment("rigs")?);
                     reference.segments.push(segment(member.as_str())?);
                 }
                 OwnedObjectSlot::Fixture(_) => {
@@ -192,7 +207,10 @@ impl Encoder<'_> {
             ValueSource::Inline(value) => {
                 let member = match identity(value).owned_path().last() {
                     Some(
-                        OwnedObjectSlot::Controller(member) | OwnedObjectSlot::Sequence(member),
+                        OwnedObjectSlot::Controller(member)
+                        | OwnedObjectSlot::InputDevice(member)
+                        | OwnedObjectSlot::Sequence(member)
+                        | OwnedObjectSlot::Rig(member),
                     ) => member.clone(),
                     _ => return Err(self.error("", "an owned member has no name")),
                 };
@@ -223,6 +241,18 @@ impl Encoder<'_> {
                     )
                 })
                 .collect::<Result<_, _>>()?,
+            rigs: root
+                .rigs
+                .iter()
+                .map(|source| {
+                    self.named_source(
+                        SourceObjectKind::Rig,
+                        source,
+                        |rig| &rig.id.0,
+                        |rig| self.rig(rig),
+                    )
+                })
+                .collect::<Result<_, _>>()?,
         })
     }
 
@@ -244,6 +274,18 @@ impl Encoder<'_> {
                         source,
                         |controller| &controller.id.0,
                         |controller| Ok(controller_document(controller)),
+                    )
+                })
+                .collect::<Result<_, _>>()?,
+            input_devices: setup
+                .input_devices
+                .iter()
+                .map(|source| {
+                    self.named_source(
+                        SourceObjectKind::InputDevice,
+                        source,
+                        |device| &device.id.0,
+                        |device| Ok(input_device_document(device)),
                     )
                 })
                 .collect::<Result<_, _>>()?,
@@ -350,15 +392,289 @@ impl Encoder<'_> {
 
     fn layer_name(
         &self,
-        sequence: &Sequence,
+        layers: &[SequenceLayer],
         id: &donder_model::SequenceLayerId,
     ) -> Result<Name, ExportProjectError> {
-        sequence
-            .layers
+        layers
             .iter()
             .find(|layer| &layer.id == id)
             .map(|layer| name(&layer.name))
             .ok_or_else(|| self.error("", "a layer is missing"))
+    }
+
+    /// A graph node's name: its operator's, its layer's, or `output`.
+    fn node_name(
+        &self,
+        layers: &[SequenceLayer],
+        graph: &SequenceCompositionGraph,
+        id: &donder_model::CompositionGraphNodeId,
+    ) -> Result<Name, ExportProjectError> {
+        let node = graph
+            .nodes
+            .iter()
+            .find(|node| &node.id == id)
+            .ok_or_else(|| self.error("", "a graph node is missing"))?;
+        match &node.kind {
+            CompositionGraphNodeKind::Layer { layer_id } => self.layer_name(layers, layer_id),
+            CompositionGraphNodeKind::Operator(operator) => Ok(name(&operator.name)),
+            CompositionGraphNodeKind::Output => Ok(name(&donder_language::object_name("output"))),
+        }
+    }
+
+    /// The layers of a sequence or rig.
+    fn layers(layers: &[SequenceLayer]) -> Vec<types::Layer> {
+        layers
+            .iter()
+            .map(|layer| types::Layer {
+                name: name(&layer.name),
+                description: layer.description.clone(),
+                color: layer.color,
+                enabled: layer.enabled,
+            })
+            .collect()
+    }
+
+    /// The composition graph of a sequence or rig.
+    fn graph(
+        &self,
+        layers: &[SequenceLayer],
+        graph: &SequenceCompositionGraph,
+    ) -> Result<types::Graph, ExportProjectError> {
+        Ok(types::Graph {
+            nodes: graph
+                .nodes
+                .iter()
+                .map(|node| {
+                    let position = (node.position.x, node.position.y);
+                    Ok(match &node.kind {
+                        CompositionGraphNodeKind::Layer { layer_id } => types::Node::LayerNode {
+                            layer: self.layer_name(layers, layer_id)?,
+                            position,
+                        },
+                        CompositionGraphNodeKind::Operator(operator) => {
+                            let donder_model::OperatorRef::Custom(definition) = &operator.operator;
+                            let declarations = self
+                                .session
+                                .project
+                                .definitions()
+                                .operators
+                                .definitions
+                                .get(definition)
+                                .map(|definition| definition.params().to_vec())
+                                .ok_or_else(|| {
+                                    self.error(definition.0.object(), "the operator is missing")
+                                })?;
+                            types::Node::OperatorNode {
+                                name: name(&operator.name),
+                                operator: self.source_reference(
+                                    SourceObjectKind::OperatorDefinition,
+                                    &definition.0,
+                                )?,
+                                params: self.params(&declarations, &operator.params)?,
+                                position,
+                            }
+                        }
+                        CompositionGraphNodeKind::Output => types::Node::OutputNode { position },
+                    })
+                })
+                .collect::<Result<_, ExportProjectError>>()?,
+            edges: graph
+                .edges
+                .iter()
+                .map(|edge| {
+                    let to = graph
+                        .nodes
+                        .iter()
+                        .find(|node| node.id == edge.to)
+                        .ok_or_else(|| self.error("", "an edge's node is missing"))?;
+                    let mut segments = vec![self.node_name(layers, graph, &edge.to)?.0.value];
+                    if !matches!(to.kind, CompositionGraphNodeKind::Output) {
+                        segments.push(
+                            Identifier::new(edge.to_port.0.clone())
+                                .map_err(|_| self.error(&edge.to_port.0, "invalid input name"))?,
+                        );
+                    }
+                    Ok(types::Edge {
+                        from: self.node_name(layers, graph, &edge.from)?,
+                        to: Reference::new(segments),
+                    })
+                })
+                .collect::<Result<_, ExportProjectError>>()?,
+        })
+    }
+
+    /// An effect's parameter declarations.
+    fn effect_declarations(
+        &self,
+        definition: &donder_model::EffectDefinitionId,
+    ) -> Result<Vec<ParamDecl>, ExportProjectError> {
+        self.session
+            .project
+            .definitions()
+            .effects
+            .definitions
+            .get(definition)
+            .map(|definition| definition.params().to_vec())
+            .ok_or_else(|| self.error(definition.0.object(), "the effect is missing"))
+    }
+
+    /// The parts of a rig effect, as a voice or trigger writes them.
+    fn rig_effect(
+        &self,
+        rig: &Rig,
+        effect: &RigEffect,
+    ) -> Result<(Name, Reference, types::Scope, Reference, Params), ExportProjectError> {
+        let donder_model::EffectRef::Custom(definition) = &effect.definition;
+        let declarations = self.effect_declarations(definition)?;
+        Ok((
+            self.layer_name(&rig.layers, &effect.layer_id)?,
+            self.fixture_target(&effect.target)?,
+            scope_document(&effect.scope),
+            self.source_reference(SourceObjectKind::EffectDefinition, &definition.0)?,
+            self.params(&declarations, &effect.param_overrides)?,
+        ))
+    }
+
+    /// `device.control`: a button's device reference and the control's name.
+    fn button(&self, input: &ButtonRef) -> Result<Reference, ExportProjectError> {
+        let mut reference =
+            self.object_reference(SourceObjectKind::InputDevice, &input.device.0)?;
+        let control = self
+            .session
+            .project
+            .input_device(&input.device)
+            .and_then(|device| device.control(input.control))
+            .ok_or_else(|| self.error(&reference.text(), "the input control is missing"))?;
+        reference.segments.push(Spanned::new(
+            control.name.clone(),
+            donder_language::data::NO_SPAN,
+        ));
+        Ok(reference)
+    }
+
+    pub(crate) fn rig(&self, rig: &Rig) -> Result<types::Rig, ExportProjectError> {
+        let switch_name = |id: &donder_model::RigSwitchId| {
+            rig.switches
+                .iter()
+                .find(|switch| &switch.id == id)
+                .map(|switch| name(&switch.name))
+                .ok_or_else(|| self.error("", "a switch is missing"))
+        };
+        let voice_name = |target: &ControlTarget| match target {
+            ControlTarget::Voice(id) => rig
+                .voices
+                .iter()
+                .find(|voice| &voice.id == id)
+                .map(|voice| name(&voice.name))
+                .ok_or_else(|| self.error("", "a controlled voice is missing")),
+            ControlTarget::Trigger(id) => rig
+                .mappings
+                .iter()
+                .find(|mapping| &mapping.id == id)
+                .map(|mapping| name(&mapping.name))
+                .ok_or_else(|| self.error("", "a controlled trigger is missing")),
+        };
+        Ok(types::Rig {
+            description: rig.description.clone(),
+            frame_rate: rig.frame_rate,
+            marks: rig
+                .live_marks
+                .iter()
+                .map(|marks| types::LiveMarks {
+                    name: name(&marks.key.name),
+                    description: marks.description.clone(),
+                    color: marks.display_color,
+                })
+                .collect(),
+            layers: Self::layers(&rig.layers),
+            scene: rig
+                .voices
+                .iter()
+                .map(|voice| {
+                    let (layer, target, scope, effect, params) =
+                        self.rig_effect(rig, &voice.effect)?;
+                    Ok(types::Voice {
+                        name: name(&voice.name),
+                        description: voice.description.clone(),
+                        layer,
+                        target,
+                        scope,
+                        effect,
+                        params,
+                    })
+                })
+                .collect::<Result<_, ExportProjectError>>()?,
+            switches: rig
+                .switches
+                .iter()
+                .map(|switch| {
+                    Ok(types::Switch {
+                        name: name(&switch.name),
+                        description: switch.description.clone(),
+                        input: self.button(&switch.input)?,
+                    })
+                })
+                .collect::<Result<_, ExportProjectError>>()?,
+            mappings: rig
+                .mappings
+                .iter()
+                .map(|mapping| {
+                    Ok(types::Mapping {
+                        name: name(&mapping.name),
+                        description: mapping.description.clone(),
+                        input: self.button(&mapping.input)?,
+                        when: match &mapping.when {
+                            None => None,
+                            Some(When::On(switch)) => Some(types::When::On {
+                                switch: switch_name(switch)?,
+                            }),
+                            Some(When::Off(switch)) => Some(types::When::Off {
+                                switch: switch_name(switch)?,
+                            }),
+                        },
+                        action: match &mapping.action {
+                            MappingAction::Trigger(trigger) => {
+                                let (layer, target, scope, effect, params) =
+                                    self.rig_effect(rig, &trigger.effect)?;
+                                types::MappingAction::Trigger {
+                                    layer,
+                                    target,
+                                    scope,
+                                    effect,
+                                    params,
+                                    length: match &trigger.length {
+                                        TriggerLength::Fixed(duration) => {
+                                            types::TriggerLength::Fixed {
+                                                duration: duration.0,
+                                            }
+                                        }
+                                        TriggerLength::Held => types::TriggerLength::Held,
+                                        TriggerLength::Latched => types::TriggerLength::Latched,
+                                    },
+                                    voices: match trigger.voices {
+                                        VoicePolicy::Retrigger => types::VoicePolicy::Retrigger,
+                                        VoicePolicy::Stack { count } => {
+                                            types::VoicePolicy::Stack { count }
+                                        }
+                                        VoicePolicy::Mono => types::VoicePolicy::Mono,
+                                    },
+                                }
+                            }
+                            MappingAction::Mark(key) => types::MappingAction::Mark {
+                                marks: name(&key.name),
+                            },
+                            MappingAction::Control { target, param } => {
+                                types::MappingAction::Control {
+                                    voice: voice_name(target)?,
+                                    param: name(param),
+                                }
+                            }
+                        },
+                    })
+                })
+                .collect::<Result<_, ExportProjectError>>()?,
+            graph: self.graph(&rig.layers, &rig.composition_graph)?,
+        })
     }
 
     /// One clip of `sequence`. Its text depends only on the clip, the
@@ -370,26 +686,15 @@ impl Encoder<'_> {
         effect: &donder_model::EffectInst,
     ) -> Result<types::Clip, ExportProjectError> {
         let donder_model::EffectRef::Custom(definition) = &effect.definition;
-        let declarations = self
-            .session
-            .project
-            .definitions()
-            .effects
-            .definitions
-            .get(definition)
-            .map(|definition| definition.params().to_vec())
-            .ok_or_else(|| self.error(definition.0.object(), "the effect is missing"))?;
+        let declarations = self.effect_declarations(definition)?;
         Ok(types::Clip {
             name: name(&effect.name),
             description: effect.description.clone(),
-            layer: self.layer_name(sequence, &effect.layer_id)?,
+            layer: self.layer_name(&sequence.layers, &effect.layer_id)?,
             start: effect.start.0,
             duration: effect.duration.0,
             target: self.fixture_target(&effect.target)?,
-            scope: match effect.scope {
-                donder_model::EffectScope::PerFixture => types::Scope::PerFixture,
-                donder_model::EffectScope::WholeTarget => types::Scope::WholeTarget,
-            },
+            scope: scope_document(&effect.scope),
             effect: self.source_reference(SourceObjectKind::EffectDefinition, &definition.0)?,
             params: self.params(&declarations, &effect.param_overrides)?,
         })
@@ -401,21 +706,8 @@ impl Encoder<'_> {
         &self,
         sequence: &Sequence,
     ) -> Result<types::Sequence, ExportProjectError> {
-        let layer_name = |id: &donder_model::SequenceLayerId| self.layer_name(sequence, id);
         let node_name = |id: &donder_model::CompositionGraphNodeId| {
-            let node = sequence
-                .composition_graph
-                .nodes
-                .iter()
-                .find(|node| &node.id == id)
-                .ok_or_else(|| self.error("", "a graph node is missing"))?;
-            match &node.kind {
-                CompositionGraphNodeKind::Layer { layer_id } => layer_name(layer_id),
-                CompositionGraphNodeKind::Operator(operator) => Ok(name(&operator.name)),
-                CompositionGraphNodeKind::Output => {
-                    Ok(name(&donder_language::object_name("output")))
-                }
-            }
+            self.node_name(&sequence.layers, &sequence.composition_graph, id)
         };
         let binding = |target: &AutomationTarget| -> Result<types::Binding, ExportProjectError> {
             Ok(match target {
@@ -470,87 +762,9 @@ impl Encoder<'_> {
                         .collect(),
                 })
                 .collect(),
-            layers: sequence
-                .layers
-                .iter()
-                .map(|layer| types::Layer {
-                    name: name(&layer.name),
-                    description: layer.description.clone(),
-                    color: layer.color,
-                    enabled: layer.enabled,
-                })
-                .collect(),
+            layers: Self::layers(&sequence.layers),
             clips: Vec::new(),
-            graph: types::Graph {
-                nodes: sequence
-                    .composition_graph
-                    .nodes
-                    .iter()
-                    .map(|node| {
-                        let position = (node.position.x, node.position.y);
-                        Ok(match &node.kind {
-                            CompositionGraphNodeKind::Layer { layer_id } => {
-                                types::Node::LayerNode {
-                                    layer: layer_name(layer_id)?,
-                                    position,
-                                }
-                            }
-                            CompositionGraphNodeKind::Operator(operator) => {
-                                let donder_model::OperatorRef::Custom(definition) =
-                                    &operator.operator;
-                                let declarations = self
-                                    .session
-                                    .project
-                                    .definitions()
-                                    .operators
-                                    .definitions
-                                    .get(definition)
-                                    .map(|definition| definition.params().to_vec())
-                                    .ok_or_else(|| {
-                                        self.error(definition.0.object(), "the operator is missing")
-                                    })?;
-                                types::Node::OperatorNode {
-                                    name: name(&operator.name),
-                                    operator: self.source_reference(
-                                        SourceObjectKind::OperatorDefinition,
-                                        &definition.0,
-                                    )?,
-                                    params: self.params(&declarations, &operator.params)?,
-                                    position,
-                                }
-                            }
-                            CompositionGraphNodeKind::Output => {
-                                types::Node::OutputNode { position }
-                            }
-                        })
-                    })
-                    .collect::<Result<_, ExportProjectError>>()?,
-                edges: sequence
-                    .composition_graph
-                    .edges
-                    .iter()
-                    .map(|edge| {
-                        let to = sequence
-                            .composition_graph
-                            .nodes
-                            .iter()
-                            .find(|node| node.id == edge.to)
-                            .ok_or_else(|| self.error("", "an edge's node is missing"))?;
-                        let mut segments = vec![node_name(&edge.to)?.0.value];
-                        if !matches!(to.kind, CompositionGraphNodeKind::Output) {
-                            segments.push(
-                                Identifier::new(edge.to_port.0.clone()).map_err(|_| {
-                                    self.error(&edge.to_port.0, "invalid input name")
-                                })?,
-                            );
-                        }
-                        Ok(types::Edge {
-                            from: node_name(&edge.from)?,
-                            to: Reference::new(segments),
-                        })
-                    })
-                    .collect::<Result<_, ExportProjectError>>()?,
-            },
+            graph: self.graph(&sequence.layers, &sequence.composition_graph)?,
             automation: sequence
                 .automation_clips
                 .iter()
@@ -643,6 +857,37 @@ impl Encoder<'_> {
                     .collect::<Result<_, _>>()?,
             ),
         })
+    }
+}
+
+fn scope_document(scope: &donder_model::EffectScope) -> types::Scope {
+    match scope {
+        donder_model::EffectScope::PerFixture => types::Scope::PerFixture,
+        donder_model::EffectScope::WholeTarget => types::Scope::WholeTarget,
+    }
+}
+
+pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice {
+    types::InputDevice {
+        description: device.description.clone(),
+        driver: match device.driver {
+            InputDriver::Keyboard => types::InputDriver::Keyboard,
+        },
+        controls: device
+            .controls
+            .iter()
+            .map(|control| match control.kind {
+                InputControlKind::Button(input) => types::InputControl::Button {
+                    name: name(&control.name),
+                    description: control.description.clone(),
+                    input: match input {
+                        ButtonInput::Key(code) => types::ButtonInput::Key {
+                            code: types::KeyCode(code),
+                        },
+                    },
+                },
+            })
+            .collect(),
     }
 }
 

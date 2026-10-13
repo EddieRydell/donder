@@ -136,6 +136,7 @@ impl BrowserSession {
                 routes: Vec::new(),
             })),
             controllers: Vec::<ValueSource<Box<donder_model::Controller>, ControllerId>>::new(),
+            input_devices: Vec::new(),
         };
         let data = ProjectData {
             root: ProjectRoot {
@@ -143,12 +144,15 @@ impl BrowserSession {
                 id: ProjectId(project_source.clone()),
                 setup: ValueSource::Inline(Box::new(setup)),
                 sequences: Vec::new(),
+                rigs: Vec::new(),
             },
             setups: IndexMap::new(),
             layouts: IndexMap::new(),
             patches: IndexMap::new(),
             controllers: IndexMap::new(),
+            input_devices: IndexMap::new(),
             sequences: IndexMap::new(),
+            rigs: IndexMap::new(),
             definitions: ProjectDefinitionStores::default(),
         };
         let mut project = DonderProject::try_new(data).map_err(|error| {

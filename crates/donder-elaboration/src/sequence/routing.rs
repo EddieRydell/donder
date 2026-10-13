@@ -5,8 +5,8 @@ use donder_runtime::{FixtureHandle, SequenceBuilder};
 use donder_runtime_types::{FixtureGeometry, TargetGeometry, TargetScope};
 use indexmap::IndexMap;
 
-pub(super) fn targets(
-    selected: &Selection<'_>,
+pub(crate) fn targets<S>(
+    selected: &Selection<'_, S>,
     geometry: &[FixtureGeometry],
     members: &IndexMap<FixtureInstanceId, Vec<usize>>,
 ) -> IndexMap<PixelRouteId, TargetGeometry> {
@@ -38,9 +38,9 @@ pub(super) fn targets(
         .collect()
 }
 
-pub(super) fn prepare<'id>(
+pub(crate) fn prepare<'id, S>(
     builder: &mut SequenceBuilder<'id>,
-    selected: &Selection<'_>,
+    selected: &Selection<'_, S>,
     geometry: &[FixtureGeometry],
     targets: &IndexMap<FixtureInstanceId, Vec<usize>>,
     cells: &[Vec<u32>],

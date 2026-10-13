@@ -147,7 +147,7 @@ macro_rules! definition_api {
             /// Positional `values` respect every declared range and the
             /// iteration limit of reductions bounded by parameter lengths.
             pub fn check_values(&self, values: &[Value]) -> Result<(), BindingError> {
-                check_values(&self.0, values)
+                check_values(&self.0, values, &[])
             }
 
             /// Bind validated positional values and automation.
@@ -156,7 +156,19 @@ macro_rules! definition_api {
                 values: Vec<Value>,
                 automation: Box<[PreparedAutomation]>,
             ) -> Result<Invocation, BindingError> {
-                invoke(&self.0, values, automation)
+                invoke(&self.0, values, automation, Box::new([]))
+            }
+
+            /// Bind values and automation, with `live` marks parameters that
+            /// playback rebinds as marks arrive. Their length is unknown, so
+            /// no reduction may be bounded by it.
+            pub fn invoke_live(
+                &self,
+                values: Vec<Value>,
+                automation: Box<[PreparedAutomation]>,
+                live: Box<[u16]>,
+            ) -> Result<Invocation, BindingError> {
+                invoke(&self.0, values, automation, live)
             }
 
             /// Bind values by name, with declared defaults for the rest.
@@ -180,7 +192,11 @@ impl CompiledOperator {
     }
 }
 
-fn check_values(definition: &Definition, values: &[Value]) -> Result<(), BindingError> {
+fn check_values(
+    definition: &Definition,
+    values: &[Value],
+    live: &[u16],
+) -> Result<(), BindingError> {
     check_ranges(&definition.params, values)?;
     if definition.length_bounds.is_empty() {
         return Ok(());
@@ -200,7 +216,9 @@ fn check_values(definition: &Definition, values: &[Value]) -> Result<(), Binding
         .collect();
     let lengths: Vec<_> = values
         .iter()
-        .map(|value| match value {
+        .enumerate()
+        .map(|(index, value)| match value {
+            _ if live.iter().any(|&param| usize::from(param) == index) => None,
             Value::Array(items) => Some(items.len()),
             Value::Marks(marks) => Some(marks.len()),
             _ => None,
@@ -233,8 +251,9 @@ fn invoke(
     definition: &Arc<Definition>,
     values: Vec<Value>,
     automation: Box<[PreparedAutomation]>,
+    live: Box<[u16]>,
 ) -> Result<Invocation, BindingError> {
-    check_values(definition, &values)?;
+    check_values(definition, &values, &live)?;
     let types: Vec<_> = definition
         .params
         .iter()
@@ -246,10 +265,22 @@ fn invoke(
             message: "automation does not match its declaration".into(),
         });
     }
+    let marks = |&param: &u16| {
+        definition
+            .params
+            .get(usize::from(param))
+            .is_some_and(|declared| declared.ty == Type::Marks)
+    };
+    if !live.iter().all(marks) {
+        return Err(BindingError {
+            message: "live mark collections bind marks parameters only".into(),
+        });
+    }
     Ok(Invocation {
         definition: Arc::clone(definition),
         params,
         automation,
+        live,
     })
 }
 
@@ -259,6 +290,7 @@ pub struct Invocation {
     definition: Arc<Definition>,
     params: BoundParams,
     automation: Box<[PreparedAutomation]>,
+    live: Box<[u16]>,
 }
 
 /// How a definition addresses the pixels it samples.
@@ -297,8 +329,14 @@ impl Invocation {
     /// This invocation at one place in a prepared sequence.
     pub fn instance(&self, constants: ProgramConstants) -> Instance {
         Instance(
-            instance::Instance::new(&self.definition, &self.params, &self.automation, constants)
-                .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance")),
+            instance::Instance::new(
+                &self.definition,
+                &self.params,
+                &self.automation,
+                &self.live,
+                constants,
+            )
+            .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance")),
         )
     }
 
@@ -319,6 +357,7 @@ impl Invocation {
                 .iter()
                 .zip(other.automation.iter())
                 .all(|(a, b)| a.same(b))
+            && self.live == other.live
     }
 
     /// A hash consistent with [`Self::same`].
@@ -334,6 +373,7 @@ impl Invocation {
         for automation in self.automation.iter() {
             automation.hash_same(state);
         }
+        self.live.hash(state);
     }
 }
 
@@ -378,15 +418,22 @@ impl Instance {
     }
 
     pub fn sample(&self) -> SampleInvocation {
+        self.sample_live().0
+    }
+
+    /// The program, and its parameter indices of the live marks parameters
+    /// in invocation order.
+    pub fn sample_live(&self) -> (SampleInvocation, Box<[u16]>) {
         let lowered = self
             .0
             .lower()
             .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"));
         let program = SampleProgram::admit(lowered.bytecode)
             .unwrap_or_else(|| unreachable!("lowering emits admissible effect programs"));
-        SampleInvocation::bind(program, lowered.values)
+        let invocation = SampleInvocation::bind(program, lowered.values)
             .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
-            .unwrap_or_else(|_| unreachable!("lowered values match their program"))
+            .unwrap_or_else(|_| unreachable!("lowered values match their program"));
+        (invocation, lowered.live.into())
     }
 
     pub fn operator(&self) -> OperatorInvocation {

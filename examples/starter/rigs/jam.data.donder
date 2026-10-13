@@ -1,0 +1,92 @@
+import elements from <layouts/outputs.data.donder>;
+import effects from <effects/standard.donder>;
+import curves from <curves/basic_curves.data.donder>;
+import gradients from <gradients/basic_gradients.data.donder>;
+import devices from <input_devices/keyboard.data.donder>;
+
+Rig jam {
+  description: "Play the outputs live from the keyboard.",
+  frame_rate: 100,
+  marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
+  layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+  scene: [
+    Voice {
+      name: background,
+      description: "Pulses on every tapped beat.",
+      layer: default,
+      target: elements.outputs_layout.all_outputs,
+      scope: WholeTarget,
+      effect: effects.MarkPulse,
+      params: { beats: beat, accent: gradients.cool_gradient, pulse_shape: curves.ease_down },
+    },
+  ],
+  switches: [Switch { name: page_two, description: none, input: devices.keyboard.shift }],
+  mappings: [
+    Mapping {
+      name: flash,
+      description: none,
+      input: devices.keyboard.kick,
+      when: Off { switch: page_two },
+      action: Trigger {
+        layer: default,
+        target: elements.outputs_layout.all_outputs,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
+        length: Fixed { duration: 0.4s },
+        voices: Retrigger,
+      },
+    },
+    Mapping {
+      name: burst,
+      description: none,
+      input: devices.keyboard.kick,
+      when: On { switch: page_two },
+      action: Trigger {
+        layer: default,
+        target: elements.outputs_layout.all_outputs,
+        scope: PerFixture,
+        effect: effects.Pulse,
+        params: { gradient: gradients.fire_gradient, pulse_shape: curves.soft_pulse },
+        length: Fixed { duration: 1s },
+        voices: Stack { count: 4 },
+      },
+    },
+    Mapping {
+      name: wash,
+      description: none,
+      input: devices.keyboard.swell,
+      when: none,
+      action: Trigger {
+        layer: default,
+        target: elements.outputs_layout.all_outputs,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
+        length: Held,
+        voices: Mono,
+      },
+    },
+    Mapping {
+      name: tap,
+      description: none,
+      input: devices.keyboard.tap,
+      when: none,
+      action: Mark { marks: beat },
+    },
+    Mapping {
+      name: boost,
+      description: none,
+      input: devices.keyboard.boost,
+      when: none,
+      action: Control { voice: background, param: decay_seconds },
+    },
+  ],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 120.0) },
+      OutputNode { position: (420.0, 120.0) },
+    ],
+    edges: [Edge { from: default, to: output }],
+  },
+}

@@ -38,5 +38,6 @@ export const VIEW_MENU: AppMenuEntry[] = [
   item("view.toggleMarksLaneOnly"),
   item("view.openLayerGraph"),
   separator,
-  item("project.reload")
+  item("project.reload"),
+  item("perform.stop")
 ];

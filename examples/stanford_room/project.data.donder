@@ -11,4 +11,5 @@ Project stanford_room {
   description: none,
   setup: setups.main,
   sequences: [sequences.main, sequences_2.sequence_2, sequences_3.hidden_daggers],
+  rigs: [],
 }

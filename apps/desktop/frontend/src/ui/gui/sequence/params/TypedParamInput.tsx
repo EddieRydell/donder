@@ -54,7 +54,7 @@ function TypedParamValue({
   commitParam: (name: string, value: SequenceEffectParamValue) => Promise<void>;
   curveLibrary: SequenceCurveLibraryItem[];
   gradientLibrary: SequenceGradientLibraryItem[];
-  markCollections: SequenceMarkCollection[];
+  markCollections: Pick<SequenceMarkCollection, "key">[];
   automation?: ParamAutomationControls | null;
 }) {
   const host = useSequenceEditorHost();

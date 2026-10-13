@@ -10,6 +10,14 @@ It should feel closer to a professional IDE than a visualizer. The interface exi
 
 > The UI should stay quieter than the show being created.
 
+### 1.1 Logo
+
+- The mark is a gray cloud: four circles on a flat base, cloud `#646b75`.
+- The cloud alone is the small logo: app icon, favicon, tray. The icon is the cloud on a `#16191d` rounded tile; its master is `apps/desktop/assets/icons/icon.svg`.
+- In larger spaces the lockup sets lowercase `donder` in Nunito ExtraBold, outlined, with `do` on the cloud and a gap cut around the letters. The website's `src/components/brand-logo.tsx` holds it.
+- Running text says Donder, capitalized; the lowercase form belongs to the lockup.
+- Regenerate the bundled icons with `pnpm tauri icon apps/desktop/assets/icons/icon.svg -o target/icons`, then copy `icon.png`, `icon.ico` and `icon.icns` into `apps/desktop/assets/icons/`.
+
 ## 2. Brand Principles
 
 ### 2.1 Editor First

@@ -15,10 +15,13 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Keyboard,
   LayoutGrid,
   Lightbulb,
   Pencil,
+  Play,
   RefreshCw,
+  SlidersHorizontal,
   Sparkles,
   SquareStack,
   Trash2,
@@ -44,6 +47,7 @@ import type {
 } from "../types";
 import type { AppStaticSnapshot } from "../store";
 import { buildSemanticTree, type WorkspaceTreeNode } from "./helpers";
+import { startPerforming, usePerformStore } from "../perform";
 
 type InlineEdit =
   | { mode: "createFile" | "createDirectory"; parent: string; value: string; error: string | null }
@@ -207,6 +211,8 @@ function TreeRow({
   onDelete: (node: WorkspaceTreeNode) => void;
 }) {
   const isRenaming = editing?.mode === "rename" && editing.path === node.data.path;
+  const rigs = usePerformStore((store) => store.perform?.rigs);
+  const performable = node.data.kind === "file" ? (rigs ?? []).filter((rig) => rig.path === node.data.path) : [];
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
@@ -237,6 +243,12 @@ function TreeRow({
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="menu-content">
+          {performable.map((rig) => (
+            <ContextMenu.Item key={rig.index} className="menu-item" onSelect={() => { startPerforming(rig.index); }}>
+              <Play size={THEME_METRICS.iconSizeSmall} /> Perform {rig.name}
+            </ContextMenu.Item>
+          ))}
+          {performable.length > 0 && <ContextMenu.Separator className="menu-separator" />}
           {node.data.kind === "directory" && hasOperation(node.data, "create") && (
             <>
               <ContextMenu.Item className="menu-item" onSelect={() => { onBeginCreate(node.data.path, false); }}>
@@ -355,6 +367,7 @@ function roleIcon(role: WorkspaceEntryRole, open: boolean) {
     case "entrypoint": return <Workflow size={size} />;
     case "setup": return <Boxes size={size} />;
     case "controller": return <CircuitBoard size={size} />;
+    case "inputDevice": return <Keyboard size={size} />;
     case "layout": return <LayoutGrid size={size} />;
     case "fixture": return <Lightbulb size={size} />;
     case "patch": return <Cable size={size} />;
@@ -363,6 +376,7 @@ function roleIcon(role: WorkspaceEntryRole, open: boolean) {
     case "effect": return <Sparkles size={size} />;
     case "operator": return <Workflow size={size} />;
     case "sequence": return <SquareStack size={size} />;
+    case "rig": return <SlidersHorizontal size={size} />;
     case "file": return <File size={size} />;
   }
 }

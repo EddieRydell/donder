@@ -24,6 +24,7 @@ mod app;
 mod audio;
 mod editor;
 mod output;
+mod perform;
 mod preview;
 mod project;
 mod sequence;
@@ -33,6 +34,7 @@ pub(crate) use app::*;
 pub(crate) use audio::*;
 pub(crate) use editor::*;
 pub(crate) use output::*;
+pub(crate) use perform::*;
 pub(crate) use preview::*;
 pub(crate) use project::*;
 pub(crate) use sequence::*;
@@ -112,6 +114,11 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         set_live_output_active,
         start_output_test,
         set_preview_window_open,
+        get_perform_snapshot,
+        start_performing,
+        stop_performing,
+        perform_key,
+        perform_release_all,
     ])
 }
 

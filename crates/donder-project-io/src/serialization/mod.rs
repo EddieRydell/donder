@@ -146,6 +146,12 @@ pub(super) fn validate_source_inventory(
         )
         .chain(
             project
+                .reusable_input_devices()
+                .keys()
+                .map(|id| (SourceObjectKind::InputDevice, id.0.root_source())),
+        )
+        .chain(
+            project
                 .reusable_layouts()
                 .keys()
                 .map(|id| (SourceObjectKind::Layout, id.0.root_source())),
@@ -161,6 +167,12 @@ pub(super) fn validate_source_inventory(
                 .reusable_sequences()
                 .keys()
                 .map(|id| (SourceObjectKind::Sequence, id.0.root_source())),
+        )
+        .chain(
+            project
+                .reusable_rigs()
+                .keys()
+                .map(|id| (SourceObjectKind::Rig, id.0.root_source())),
         )
         .chain(
             project

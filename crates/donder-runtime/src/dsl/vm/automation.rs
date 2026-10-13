@@ -37,6 +37,9 @@ struct Binding {
     duration: SampleDuration,
     curve: Arc<Curve>,
     destination: Destination,
+    /// Normalized area an integral adds to its curve's, so a live value set
+    /// mid-session keeps the integral continuous. Zero for authored curves.
+    area_offset: f32,
 }
 
 /// Words and resources are banks of the program's parameter layout.
@@ -82,6 +85,10 @@ struct Window {
 impl AutomationPlan {
     pub(crate) fn is_empty(&self) -> bool {
         self.bindings.is_empty()
+    }
+
+    pub(crate) fn binding_count(&self) -> usize {
+        self.bindings.len()
     }
 
     /// Metadata retained by one plan. Shared authored curves retain only
@@ -232,6 +239,7 @@ impl AutomationPlan {
                 duration: binding.duration,
                 curve: Arc::clone(&binding.curve),
                 destination,
+                area_offset: 0.0,
             });
         }
         Self {
@@ -257,6 +265,38 @@ impl AutomationPlan {
         params
     }
 
+    /// Measure the program's time from `origin`, as when its clip starts there.
+    pub(crate) fn restart_at(&mut self, origin: SampleTime) {
+        self.origin = origin;
+        for binding in &mut self.bindings {
+            binding.area_offset = 0.0;
+        }
+    }
+
+    /// Make `binding` hold `value` (in `0..=1`) from `time` on. Its curve
+    /// becomes that constant; an integral keeps the area it had reached.
+    pub(crate) fn set_value(&mut self, binding: usize, value: f32, time: SampleTime) {
+        let origin = self.origin;
+        let binding = &mut self.bindings[binding];
+        let ticks = binding.duration.as_ticks() as f32;
+        let start = binding.start;
+        let position = |at: SampleTime| {
+            (i64::from(at.as_ticks()) - i64::from(start.as_ticks())) as f32 / ticks
+        };
+        let integral = matches!(binding.destination, Destination::FloatIntegral { .. });
+        let before = integral.then(|| curve_area(&binding.curve, position(origin), position(time)));
+        let curve = Arc::make_mut(&mut binding.curve);
+        curve.points.clear();
+        curve.points.push(donder_runtime_types::CurvePoint {
+            position: 0.0,
+            value,
+        });
+        if let Some(before) = before {
+            binding.area_offset +=
+                before - curve_area(&binding.curve, position(origin), position(time));
+        }
+    }
+
     /// Apply in authored order, preserving last-binding-wins behavior, to
     /// this plan's detached copy.
     pub(crate) fn apply(&self, params: &mut BoundParams, time: SampleTime) {
@@ -276,7 +316,8 @@ impl AutomationPlan {
                         (i64::from(at.as_ticks()) - i64::from(binding.start.as_ticks())) as f32
                             / ticks
                     };
-                    let area = curve_area(&binding.curve, position(self.origin), position(time));
+                    let area = curve_area(&binding.curve, position(self.origin), position(time))
+                        + binding.area_offset;
                     let elapsed = (i64::from(time.as_ticks()) - i64::from(self.origin.as_ticks()))
                         as f32
                         * SECONDS_PER_TICK;

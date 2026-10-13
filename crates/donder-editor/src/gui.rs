@@ -20,6 +20,7 @@ mod document;
 mod edit;
 mod fixture;
 mod graph;
+mod input_device;
 mod layout;
 mod library;
 pub(crate) mod model;
@@ -27,6 +28,7 @@ mod ownership;
 mod patch;
 mod project;
 mod projection;
+mod rig;
 mod selection;
 mod setup;
 

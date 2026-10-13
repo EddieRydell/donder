@@ -88,6 +88,12 @@ impl DesktopState {
     }
 
     pub fn audio_play(&self) -> AppSnapshot {
+        // A rig never plays on top of a sequence.
+        if self.is_performing() {
+            return self.update_snapshot(|snapshot| {
+                snapshot.status = "Stop performing to play a sequence.".into();
+            });
+        }
         if self.device_playback.has_devices() || self.has_setup_devices() {
             return self
                 .device_audio_play()
@@ -284,7 +290,14 @@ impl DesktopState {
             project_revision: self.project_revision(),
             sequence_generation: lock_unpoisoned(&self.sequence_render).session_generation(),
             project_loaded: self.project_session().is_some(),
+            performance: self.performance_generation(),
         }
+    }
+
+    /// The clock the Preview plays on: the performance's while performing.
+    pub(crate) fn preview_clock(&self) -> crate::preview::PreviewClock {
+        self.performance_clock()
+            .unwrap_or_else(|| self.audio_snapshot().into())
     }
 
     pub(crate) fn preview_content(&self) -> Result<crate::preview::PreviewContent, String> {
@@ -293,10 +306,21 @@ impl DesktopState {
         let Some(session) = self.project_session() else {
             return Ok(crate::preview::PreviewContent {
                 instances: Vec::new(),
-                sequence: None,
+                archive: None,
+                performance: None,
             });
         };
         let geometry = crate::preview::PreviewGeometry::from_project(&session.project)?;
+        if let Some(performance) = self.preview_performance() {
+            if performance.fixtures != geometry.fixtures {
+                return Err("The performed rig does not match the active layout.".to_string());
+            }
+            return Ok(crate::preview::PreviewContent {
+                instances: geometry.instances,
+                archive: Some(crate::preview::PreviewArchive::Rig(performance.archive)),
+                performance: Some(performance.generation),
+            });
+        }
         let sequence = lock_unpoisoned(&self.sequence_render)
             .encode_preview_sequence()
             .map_err(|error| format!("Cannot encode prepared Preview sequence: {error}"))?;
@@ -308,7 +332,9 @@ impl DesktopState {
 
         Ok(crate::preview::PreviewContent {
             instances: geometry.instances,
-            sequence: sequence.map(|sequence| sequence.bytes),
+            archive: sequence
+                .map(|sequence| crate::preview::PreviewArchive::Sequence(sequence.bytes)),
+            performance: None,
         })
     }
 }

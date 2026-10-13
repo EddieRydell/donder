@@ -1,11 +1,13 @@
 import layouts from <layouts/outputs.data.donder>;
 import patches from <patches/outputs.data.donder>;
+import devices from <input_devices/keyboard.data.donder>;
 
 Setup main {
   description: none,
   layout: layouts.outputs_layout,
   patch: patches.outputs,
   controllers: [output_controller],
+  input_devices: [devices.keyboard],
 }
 
 Controller output_controller {

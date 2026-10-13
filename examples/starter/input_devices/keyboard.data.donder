@@ -1,0 +1,11 @@
+InputDevice keyboard {
+  description: "The computer keyboard, for playing the jam rig.",
+  driver: Keyboard,
+  controls: [
+    Button { name: kick, description: none, input: Key { code: KeyA } },
+    Button { name: swell, description: none, input: Key { code: KeyS } },
+    Button { name: boost, description: none, input: Key { code: KeyD } },
+    Button { name: tap, description: "Tap along to the beat.", input: Key { code: Space } },
+    Button { name: shift, description: none, input: Key { code: ShiftLeft } },
+  ],
+}

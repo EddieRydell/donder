@@ -1,8 +1,8 @@
 mod params;
-use params::{
-    curve_library, effect_params, gradient_library, graph_node_id,
-    graph_operator_definition_to_gui, sequence_composition_graph_node,
+pub(super) use params::{
+    composition_graph, curve_library, gradient_library, invocation_params, layers_to_gui,
 };
+use params::{effect_params, graph_node_id};
 
 /// The inspector's view of `effect_ids` in the requested sequence, in the
 /// requested order; ids the sequence does not have are skipped.
@@ -81,37 +81,12 @@ pub(super) fn project_sequence_clips(
             kind: SequenceTimelineClipKind::Effect,
         })
         .collect();
-    let composition_graph = SequenceCompositionGraph {
-        id: 0,
-        operator_catalog: session
-            .project
-            .definitions()
-            .operators
-            .definitions
-            .iter()
-            .filter(|(id, _)| session.source.is_project_owned(id.0.document_id()))
-            .map(|(id, definition)| {
-                graph_operator_definition_to_gui(OperatorRef::Custom(id.clone()), definition)
-            })
-            .collect(),
-        nodes: sequence
-            .composition_graph
-            .nodes
-            .iter()
-            .map(|node| sequence_composition_graph_node(session, sequence, node))
-            .collect(),
-        edges: sequence
-            .composition_graph
-            .edges
-            .iter()
-            .map(|edge| SequenceGraphEdge {
-                from_node: graph_node_id(&edge.from),
-                from_port: edge.from_port.0.clone(),
-                to_node: graph_node_id(&edge.to),
-                to_port: edge.to_port.0.clone(),
-            })
-            .collect(),
-    };
+    let composition_graph = composition_graph(
+        session,
+        &sequence.layers,
+        &sequence.composition_graph,
+        Some(sequence),
+    );
     GuiDocument::Sequence {
         document: SequenceGuiDocument {
             description: sequence.description.clone(),
@@ -144,18 +119,7 @@ pub(super) fn project_sequence_clips(
             effect_definitions: effect_definitions(session),
             curve_library: curve_library(session, resolved.identity.document_id()),
             gradient_library: gradient_library(session, resolved.identity.document_id()),
-            layers: sequence
-                .layers
-                .iter()
-                .map(|layer| SequenceLayer {
-                    id: layer.id.0,
-                    name: layer.name.as_str().to_string(),
-                    description: layer.description.clone(),
-                    color: layer.color.to_hex(),
-                    enabled: layer.enabled,
-                    is_default: layer.id.0 == 0,
-                })
-                .collect(),
+            layers: layers_to_gui(&sequence.layers),
             effects,
             composition_graph,
             automation_clips: automation_clips(sequence),
@@ -269,7 +233,7 @@ pub(crate) fn lane_walk(layout: &donder_model::Layout) -> Vec<(&donder_model::La
 }
 
 /// Lanes with the hierarchy depth and how many lanes share each target.
-fn layout_lanes(layout: &donder_model::Layout) -> Vec<SequenceLane> {
+pub(super) fn layout_lanes(layout: &donder_model::Layout) -> Vec<SequenceLane> {
     let mut lanes = lane_walk(layout)
         .into_iter()
         .map(|(fixture, depth)| SequenceLane {
@@ -295,13 +259,16 @@ fn layout_lanes(layout: &donder_model::Layout) -> Vec<SequenceLane> {
     lanes
 }
 
-fn effect_target(target: &DomainFixtureTarget) -> FixtureTarget {
+pub(super) fn effect_target(target: &DomainFixtureTarget) -> FixtureTarget {
     FixtureTarget {
         fixture: target.fixture.0,
     }
 }
 
-fn effect_target_label(session: &ProjectSession, target: &DomainFixtureTarget) -> String {
+pub(super) fn effect_target_label(
+    session: &ProjectSession,
+    target: &DomainFixtureTarget,
+) -> String {
     session
         .project
         .layout(&target.layout)
@@ -310,7 +277,7 @@ fn effect_target_label(session: &ProjectSession, target: &DomainFixtureTarget) -
         .unwrap_or_else(|| format!("Missing fixture {}", target.fixture.0))
 }
 
-fn effect_ref_to_gui(reference: &EffectRef) -> SequenceEffectReference {
+pub(super) fn effect_ref_to_gui(reference: &EffectRef) -> SequenceEffectReference {
     match reference {
         EffectRef::Custom(id) => SequenceEffectReference::Custom {
             module_id: id.0.module_id().to_string(),
@@ -320,7 +287,7 @@ fn effect_ref_to_gui(reference: &EffectRef) -> SequenceEffectReference {
     }
 }
 
-fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition> {
+pub(super) fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition> {
     session
         .project
         .definitions()
@@ -339,7 +306,6 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
         })
         .collect()
 }
-use donder_model::OperatorRef;
 use donder_model::{AutomationDetachmentReason, AutomationTarget, SequenceId};
 use donder_model::{EffectRef, EffectScope};
 use donder_model::{FixtureTarget as DomainFixtureTarget, Layout};
@@ -349,10 +315,9 @@ mod spatial;
 use super::{ResolvedGuiObject, blocked, gui_diagnostic};
 use donder_sequence_api::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCompositionGraph,
-    SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,
-    SequenceEffectDefinition, SequenceEffectDetails, SequenceEffectReference, SequenceEffectScope,
-    SequenceGraphEdge, SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer,
-    SequenceMarkCollection, SequenceTimelineClipKind,
+    SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCurvePoint,
+    SequenceDetachedAutomationBinding, SequenceEffect, SequenceEffectDefinition,
+    SequenceEffectDetails, SequenceEffectReference, SequenceEffectScope, SequenceGuiDocument,
+    SequenceLane, SequenceLaneKind, SequenceMarkCollection, SequenceTimelineClipKind,
 };
 pub(super) use spatial::{project_fixture, project_layout};

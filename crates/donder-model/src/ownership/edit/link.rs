@@ -32,7 +32,7 @@ fn use_existing_candidate(
                 if retires_layout {
                     retarget(project, &from.0, &to.0);
                 } else {
-                    retarget_active_sequences(project, &from, &to)?;
+                    retarget_active_members(project, &from, &to)?;
                 }
             }
             project.root.setup = ValueSource::Reference(id);
@@ -47,6 +47,40 @@ fn use_existing_candidate(
                 .sequences
                 .get_mut(*index)
                 .ok_or("Sequence was not found.")? = ValueSource::Reference(id);
+        }
+        OwnershipSite::ProjectRig(index) => {
+            let id = RigId(target);
+            if !project.rigs.contains_key(&id) {
+                return Err("Choose a reusable rig.".into());
+            }
+            *project
+                .root
+                .rigs
+                .get_mut(*index)
+                .ok_or("Rig was not found.")? = ValueSource::Reference(id);
+        }
+        OwnershipSite::SetupInputDevice { setup, index } => {
+            let id = InputDeviceId(target);
+            if !project.input_devices.contains_key(&id) {
+                return Err("Choose a reusable input device.".into());
+            }
+            let current = project.setup(setup).ok_or("Setup was not found.")?;
+            let current = current
+                .input_devices
+                .get(*index)
+                .ok_or("Input device was not found.")?;
+            let from = current.id().0.clone();
+            if from == id.0 {
+                return Ok(());
+            }
+            let retires_device = matches!(current, ValueSource::Inline(_));
+            project
+                .setup_mut(setup)
+                .ok_or("Setup was not found.")?
+                .input_devices[*index] = ValueSource::Reference(id.clone());
+            if retires_device {
+                retarget(project, &from, &id.0);
+            }
         }
         OwnershipSite::SetupPatch(setup) => {
             let id = PatchId(target);
@@ -83,7 +117,7 @@ fn use_existing_candidate(
             if retires_layout {
                 retarget(project, &from.0, &id.0);
             } else if project.root.setup.id() == setup {
-                retarget_active_sequences(project, &from, &id)?;
+                retarget_active_members(project, &from, &id)?;
             }
         }
         OwnershipSite::SetupController { setup, index } => {

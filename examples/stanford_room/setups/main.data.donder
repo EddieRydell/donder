@@ -6,6 +6,7 @@ Setup main {
   layout: layout.main,
   patch: patches.main,
   controllers: [dig_quad],
+  input_devices: [],
 }
 
 Controller dig_quad {

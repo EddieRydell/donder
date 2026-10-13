@@ -46,4 +46,5 @@ Project rydell_house {
     tiny_tree.tiny_tree,
     trans_siberian_mix.trans_siberian_mix,
   ],
+  rigs: [],
 }

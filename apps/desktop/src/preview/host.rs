@@ -11,7 +11,7 @@ use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::keyboard::{Key, ModifiersState};
+use winit::keyboard::{Key, ModifiersState, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 use super::protocol::{PreviewCommand, PreviewEvent, PreviewStartup, PreviewWindowState};
@@ -175,11 +175,16 @@ impl PreviewHostApplication {
             PreviewCommand::ReplaceContent {
                 revision,
                 instances,
-                sequence,
+                archive,
             } => self
-                .replace_content(revision, instances, sequence)
+                .replace_content(revision, instances, archive)
                 .and_then(|()| self.evaluate(Instant::now()))
                 .map(|_| CommandEffect::Redraw),
+            PreviewCommand::RigEvents { events } => self
+                .playback
+                .apply_rig_events(&events)
+                .map(|()| CommandEffect::Evaluate(Instant::now()))
+                .map_err(|error| format!("Cannot apply rig commands: {error:?}")),
             PreviewCommand::SetClock {
                 generation,
                 state,
@@ -234,10 +239,10 @@ impl PreviewHostApplication {
         &mut self,
         revision: u64,
         instances: Vec<[f32; 4]>,
-        sequence: Option<Vec<u8>>,
+        archive: Option<super::protocol::PreviewArchive>,
     ) -> Result<(), String> {
         self.playback
-            .replace_content(sequence.as_deref(), instances.len())
+            .replace_content(archive.as_ref(), instances.len())
             .map_err(|error| format!("Cannot load Preview content: {error:?}"))?;
         self.scene = PreviewScene::new(
             revision,
@@ -336,10 +341,20 @@ impl PreviewHostApplication {
         let _ = emit(&PreviewEvent::Error { message });
     }
 
-    /// Without a menu bar of its own, the macOS Preview handles the standard window shortcuts:
-    /// Command-W closes it and Command-Q asks Donder to quit.
+    /// Keys go to Donder for performing. Without a menu bar of its own, the macOS Preview also
+    /// handles the standard window shortcuts: Command-W closes it and Command-Q asks Donder to quit.
     fn handle_key(&mut self, event_loop: &ActiveEventLoop, event: &KeyEvent) {
-        if !cfg!(target_os = "macos") || event.state != ElementState::Pressed || event.repeat {
+        if event.repeat {
+            return;
+        }
+        if let PhysicalKey::Code(code) = event.physical_key {
+            // winit names its key codes as `KeyboardEvent.code` does.
+            let _ = emit(&PreviewEvent::Key {
+                code: format!("{code:?}"),
+                pressed: event.state == ElementState::Pressed,
+            });
+        }
+        if !cfg!(target_os = "macos") || event.state != ElementState::Pressed {
             return;
         }
         if !self.modifiers.super_key() {
@@ -398,6 +413,9 @@ impl ApplicationHandler<HostEvent> for PreviewHostApplication {
             WindowEvent::Moved(_) | WindowEvent::Resized(_) => self.report_geometry(false),
             WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
             WindowEvent::KeyboardInput { event, .. } => self.handle_key(event_loop, &event),
+            WindowEvent::Focused(false) => {
+                let _ = emit(&PreviewEvent::KeysReleased);
+            }
             _ => {}
         }
     }

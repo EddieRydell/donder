@@ -27,11 +27,12 @@ export async function navigateToText(path: string, range: TextRange | null): Pro
 export async function navigateToGuiObject(reference: Pick<GuiObjectRef, "moduleId" | "path" | "objectKey" | "ownedPath">): Promise<void> {
   try {
     const target = await commands.resolveGuiSource(reference.moduleId, reference.path, reference.objectKey);
-    const selection = { path: target.path, objectKey: reference.objectKey, ownedPath: reference.ownedPath, view: reference.ownedPath[reference.ownedPath.length - 1]?.type ?? target.view };
+    const step = reference.ownedPath[reference.ownedPath.length - 1];
     if (target.view === "text") {
       await navigateToText(target.path, null);
       return;
     }
+    const selection = { path: target.path, objectKey: reference.objectKey, ownedPath: reference.ownedPath, view: step?.type ?? target.view };
     if (useAppStore.getState().guiRequest?.path === target.path) {
       selectGuiObject(selection, "modal");
       return;

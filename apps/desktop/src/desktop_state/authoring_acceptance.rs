@@ -2,15 +2,17 @@ use super::DesktopState;
 use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
 use donder_sequence_api::{
-    DocumentViewId, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, FixtureTarget, GuiDocument,
-    GuiDocumentRequest, GuiEditCommand, GuiEditResult, GuiFixtureElement, GuiFixtureShape,
-    GuiFixtureSource, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep,
-    GuiOwnershipEdit, GuiOwnershipSlot, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument,
-    LayoutGuiEdit, NewSequenceRequest, NewSequenceStorage, ObjectKind, Point3Meters,
-    ReusableStorage, Rotation3Degrees, Scale3, SequenceEffectParamValue, SequenceEffectReference,
-    SequenceEffectScope, SequenceGraphEdge, SequenceGraphNodeKind, SequenceGraphOperator,
-    SequenceGuiEdit, SetupControllerConfig, SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
-    Transform,
+    CompositionGuiEdit, DocumentViewId, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage,
+    FixtureTarget, GuiButtonInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiEditResult,
+    GuiFixtureElement, GuiFixtureShape, GuiFixtureSource, GuiInputControl, GuiInputDriver,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep, GuiOwnershipEdit,
+    GuiOwnershipSlot, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument, LayoutGuiEdit,
+    NewSequenceRequest, NewSequenceStorage, ObjectKind, Point3Meters, ProjectGuiDocument,
+    ProjectGuiEdit, ReusableStorage, RigActionChoice, RigButtonRef, RigGuiDocument, RigGuiEdit,
+    RigItem, RigVoicePolicy, RigWhen, Rotation3Degrees, Scale3, SequenceEffectParamValue,
+    SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge, SequenceGraphNodeKind,
+    SequenceGraphOperator, SequenceGuiEdit, SetupControllerConfig, SetupControllerPort,
+    SetupGuiDocument, SetupGuiEdit, Transform,
 };
 
 pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditResult {
@@ -106,6 +108,28 @@ fn setup_command(state: &DesktopState, command: GuiEditCommand) -> SetupGuiDocum
     }
 }
 
+fn project_edit(state: &DesktopState, edit: ProjectGuiEdit) -> ProjectGuiDocument {
+    let session = state.project_session().unwrap();
+    let id = &session.project.root().id.0;
+    state.open_file_path(id.document().as_str());
+    match state
+        .apply_gui_edit(
+            GuiDocumentRequest {
+                owned_path: Vec::new(),
+                project_revision: state.snapshot().project_revision,
+                path: id.document().to_string(),
+                object_key: Some(id.object().into()),
+                view: DocumentViewId::Project,
+            },
+            GuiEditCommand::Project { edit },
+        )
+        .document
+    {
+        GuiDocument::Project { document } => document,
+        other => panic!("project edit rejected: {other:?}"),
+    }
+}
+
 fn transform(x: f32) -> Transform {
     Transform {
         position: Point3Meters {
@@ -140,6 +164,7 @@ fn same_file_references_share_geometry_and_survive_placement_removal() {
     layout: layout.main,
     patch: Patch { description: none, routes: [] },
     controllers: [],
+    input_devices: [],
   },
   sequences: [],",
     );
@@ -603,6 +628,7 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
         "patches/outputs.data.donder",
         "setups/main.data.donder",
         "fixtures/vertical.data.donder",
+        "input_devices/keyboard.data.donder",
     ];
     for path in paths {
         let text = std::fs::read_to_string(starter.join(path)).unwrap();
@@ -632,6 +658,7 @@ Setup main {
   layout: layout.outputs_layout,
   patch: patch.outputs,
   controllers: [controllers.output_controller],
+  input_devices: [],
 }
 ",
     )
@@ -1137,6 +1164,7 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     layout: Layout { description: none, root: [], items: [] },
     patch: Patch { description: none, routes: [] },
     controllers: [],
+    input_devices: [],
   },
   sequences: [],",
     );
@@ -1221,6 +1249,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 512 }],
       },
     ],
+    input_devices: [],
   },
   sequences: [
     Sequence main {
@@ -1241,12 +1270,35 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         let mut settings = state.snapshot().settings;
         settings.autosave_project_edits = false;
         state.update_app_settings(settings);
+        let setup = setup_edit(
+            &state,
+            SetupGuiEdit::AddInputDevice {
+                driver: GuiInputDriver::Keyboard,
+                controls: vec![GuiInputControl {
+                    id: 1,
+                    name: "kick".into(),
+                    description: None,
+                    input: GuiButtonInput::Key {
+                        code: "KeyA".into(),
+                    },
+                }],
+            },
+        );
+        assert_eq!(setup.input_devices.len(), 1);
+        project_edit(
+            &state,
+            ProjectGuiEdit::AddRig {
+                initial_color: "#38bdf8".into(),
+            },
+        );
         for slot in [
             GuiOwnershipSlot::Fixture { id: 1 },
             GuiOwnershipSlot::Controller { index: 0 },
+            GuiOwnershipSlot::InputDevice { index: 0 },
             GuiOwnershipSlot::Layout,
             GuiOwnershipSlot::Patch,
             GuiOwnershipSlot::Sequence { index: 0 },
+            GuiOwnershipSlot::Rig { index: 0 },
             GuiOwnershipSlot::Setup,
         ] {
             let session = state.project_session().unwrap();
@@ -1259,9 +1311,12 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                     (setup.layout.id().0.clone(), DocumentViewId::Layout)
                 }
                 GuiOwnershipSlot::Controller { .. }
+                | GuiOwnershipSlot::InputDevice { .. }
                 | GuiOwnershipSlot::Layout
                 | GuiOwnershipSlot::Patch => (setup.id.0.clone(), DocumentViewId::Setup),
-                GuiOwnershipSlot::Sequence { .. } | GuiOwnershipSlot::Setup => (
+                GuiOwnershipSlot::Sequence { .. }
+                | GuiOwnershipSlot::Rig { .. }
+                | GuiOwnershipSlot::Setup => (
                     session.project.root().id.0.clone().into(),
                     DocumentViewId::Project,
                 ),
@@ -1295,6 +1350,8 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                             GuiOwnershipSlot::Layout => ObjectKind::Layout,
                             GuiOwnershipSlot::Patch => ObjectKind::Patch,
                             GuiOwnershipSlot::Controller { .. } => ObjectKind::Controller,
+                            GuiOwnershipSlot::InputDevice { .. } => ObjectKind::InputDevice,
+                            GuiOwnershipSlot::Rig { .. } => ObjectKind::Rig,
                             GuiOwnershipSlot::Fixture { .. } => ObjectKind::Fixture,
                         };
                         GuiOwnershipEdit::UseExisting {
@@ -1347,6 +1404,8 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         assert_eq!(session.project.reusable_layouts().len(), 1);
         assert_eq!(session.project.reusable_patches().len(), 1);
         assert_eq!(session.project.reusable_sequences().len(), 1);
+        assert_eq!(session.project.reusable_input_devices().len(), 1);
+        assert_eq!(session.project.reusable_rigs().len(), 1);
         assert_eq!(session.project.reusable_setups().len(), 1);
     }
 }
@@ -1406,9 +1465,16 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         } = &hue_shift.operator;
         assert_eq!(module_id, &id.0.module_id().to_string());
         assert_eq!(path, "operators/standard.donder");
-        let edit = |edit| state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
+        let edit = |edit| {
+            state.apply_gui_edit(
+                request(),
+                GuiEditCommand::Sequence {
+                    edit: SequenceGuiEdit::Composition { edit },
+                },
+            )
+        };
         let connection = document.composition_graph.edges[0].clone();
-        let inserted = edit(SequenceGuiEdit::AddGraphOperatorNode {
+        let inserted = edit(CompositionGuiEdit::AddGraphOperatorNode {
             operator: hue_shift.operator.clone(),
             initial_color: color.clone(),
             x: 240.0,
@@ -1452,7 +1518,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             state.project_session().unwrap().project,
             disconnected.project
         );
-        let premature = edit(SequenceGuiEdit::ConnectGraphNodes {
+        let premature = edit(CompositionGuiEdit::ConnectGraphNodes {
             from_node: node.id.clone(),
             from_port: "output".into(),
             to_node: connection.to_node.clone(),
@@ -1463,12 +1529,13 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             state.project_session().unwrap().project,
             disconnected.project
         );
-        let GuiDocument::Sequence { document } = edit(SequenceGuiEdit::UpdateGraphOperatorParam {
-            node_id: node.id.clone(),
-            name: "shift".into(),
-            value: SequenceEffectParamValue::Float { value: 0.25 },
-        })
-        .document
+        let GuiDocument::Sequence { document } =
+            edit(CompositionGuiEdit::UpdateGraphOperatorParam {
+                node_id: node.id.clone(),
+                name: "shift".into(),
+                value: SequenceEffectParamValue::Float { value: 0.25 },
+            })
+            .document
         else {
             panic!("HueShift parameter edit rejected");
         };
@@ -1491,7 +1558,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         assert!(authored.contains("operators/standard.donder"));
         assert!(authored.contains("operators.HueShift"));
         assert!(matches!(
-            edit(SequenceGuiEdit::ConnectGraphNodes {
+            edit(CompositionGuiEdit::ConnectGraphNodes {
                 from_node: connection.from_node.clone(),
                 from_port: connection.from_port.clone(),
                 to_node: node.id.clone(),
@@ -1501,7 +1568,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             GuiDocument::Sequence { .. }
         ));
         assert!(matches!(
-            edit(SequenceGuiEdit::ReconnectGraphEdge {
+            edit(CompositionGuiEdit::ReconnectGraphEdge {
                 previous: connection.clone(),
                 connection: SequenceGraphEdge {
                     from_node: node.id.clone(),
@@ -2186,8 +2253,272 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
 fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
     let metadata = donder_project_io::ProjectMetadata::read(root).unwrap();
     let text = format!(
-        "{imports}\nProject show {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}\n}}\n",
+        "{imports}\nProject show {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}\n  rigs: [],\n}}\n",
         metadata.format_version, metadata.project_id
     );
     std::fs::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
+}
+
+fn object_request(
+    state: &DesktopState,
+    identity: &donder_model::ObjectIdentity,
+    view: DocumentViewId,
+) -> GuiDocumentRequest {
+    state.open_file_path(identity.document().as_str());
+    GuiDocumentRequest {
+        owned_path: identity.owned_path().iter().map(Into::into).collect(),
+        project_revision: state.snapshot().project_revision,
+        path: identity.document().to_string(),
+        object_key: Some(identity.root_source().object().into()),
+        view,
+    }
+}
+
+fn rig_edit(state: &DesktopState, rig: &donder_model::RigId, edit: RigGuiEdit) -> RigGuiDocument {
+    match state
+        .apply_gui_edit(
+            object_request(state, &rig.0, DocumentViewId::Rig),
+            GuiEditCommand::Rig { edit },
+        )
+        .document
+    {
+        GuiDocument::Rig { document } => document,
+        other => panic!("rig edit rejected: {other:?}"),
+    }
+}
+
+fn setup_document(state: &DesktopState) -> SetupGuiDocument {
+    let session = state.project_session().unwrap();
+    let id = session.project.root().setup.id().0.clone();
+    match state
+        .get_gui_document(object_request(state, &id, DocumentViewId::Setup))
+        .document
+    {
+        GuiDocument::Setup { document } => document,
+        other => panic!("setup projection missing: {other:?}"),
+    }
+}
+
+#[test]
+fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
+    let (_temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
+    let state = DesktopState::new(|_| {});
+    state.open_project_path(root.as_str());
+    let mut settings = state.snapshot().settings;
+    settings.autosave_project_edits = false;
+    state.update_app_settings(settings);
+    let session = state.project_session().unwrap();
+    let setup = session
+        .project
+        .setup(session.project.root().setup.id())
+        .unwrap();
+    let keyboard = setup.input_devices[0].id().clone();
+
+    // Renaming a control renames the reference every rig prints for it.
+    let request = object_request(&state, &keyboard.0, DocumentViewId::InputDevice);
+    let GuiDocument::InputDevice { document } = state.get_gui_document(request.clone()).document
+    else {
+        panic!("input device projection missing");
+    };
+    assert_eq!(document.key_codes.len(), donder_model::KeyCode::ALL.len());
+    let mut controls = document.device.controls.clone();
+    controls[0].name = "hit".into();
+    let renamed = state.apply_gui_edit(
+        request,
+        GuiEditCommand::InputDevice {
+            driver: document.device.driver,
+            controls: controls.clone(),
+        },
+    );
+    let GuiDocument::InputDevice { document } = renamed.document else {
+        panic!("control rename rejected: {:?}", renamed.document);
+    };
+    assert_eq!(document.device.controls[0].name, "hit");
+    // Two controls cannot read one key.
+    controls[1].input = controls[0].input.clone();
+    let duplicate = state.apply_gui_edit(
+        object_request(&state, &keyboard.0, DocumentViewId::InputDevice),
+        GuiEditCommand::InputDevice {
+            driver: GuiInputDriver::Keyboard,
+            controls,
+        },
+    );
+    assert!(matches!(duplicate.document, GuiDocument::Blocked { .. }));
+
+    // The jam rig plays from the keyboard, so the setup keeps it.
+    let detach = state.apply_gui_edit(
+        object_request(&state, &setup.id.0, DocumentViewId::Setup),
+        GuiEditCommand::Setup {
+            edit: SetupGuiEdit::DetachInputDevice {
+                device: document.device.source_ref.clone(),
+            },
+        },
+    );
+    assert!(matches!(detach.document, GuiDocument::Blocked { .. }));
+
+    // A new device, made reusable, detached and attached again.
+    let added = setup_edit(
+        &state,
+        SetupGuiEdit::AddInputDevice {
+            driver: GuiInputDriver::Keyboard,
+            controls: vec![GuiInputControl {
+                id: 1,
+                name: "pad".into(),
+                description: Some("The big pad.".into()),
+                input: GuiButtonInput::Key {
+                    code: "KeyP".into(),
+                },
+            }],
+        },
+    );
+    assert_eq!(added.input_devices.len(), 2);
+    setup_command(
+        &state,
+        GuiEditCommand::Ownership {
+            slot: GuiOwnershipSlot::InputDevice { index: 1 },
+            edit: GuiOwnershipEdit::MakeReusable {
+                name: "Pads".into(),
+                storage: ReusableStorage::NewFile,
+            },
+        },
+    );
+    let pads = setup_edit(
+        &state,
+        SetupGuiEdit::DetachInputDevice {
+            device: setup_document(&state).input_devices[1].source_ref.clone(),
+        },
+    );
+    assert_eq!(pads.input_devices.len(), 1);
+    let available = pads.available_input_devices[0].source_ref.clone();
+    let attached = setup_edit(
+        &state,
+        SetupGuiEdit::AttachInputDevice { device: available },
+    );
+    assert_eq!(attached.input_devices.len(), 2);
+    assert_eq!(attached.input_devices[1].name, "pads");
+
+    // A new rig starts with the default layer drawn to the output.
+    let project = project_edit(
+        &state,
+        ProjectGuiEdit::AddRig {
+            initial_color: "#38bdf8".into(),
+        },
+    );
+    assert_eq!(project.rigs.len(), 2);
+    let rig = state.project_session().unwrap().project.root().rigs[1]
+        .id()
+        .clone();
+    let GuiDocument::Rig { document } = state
+        .get_gui_document(object_request(&state, &rig.0, DocumentViewId::Rig))
+        .document
+    else {
+        panic!("rig projection missing");
+    };
+    assert_eq!(document.layers.len(), 1);
+    assert_eq!(document.composition_graph.nodes.len(), 2);
+    assert_eq!(document.composition_graph.edges.len(), 1);
+    assert_eq!(document.perform_index, Some(1));
+    let pad = &document.input_devices[1];
+    let effect = document
+        .effect_definitions
+        .iter()
+        .find(|definition| {
+            matches!(&definition.effect, SequenceEffectReference::Custom { effect_name, .. } if effect_name == "Pulse")
+        })
+        .unwrap()
+        .effect
+        .clone();
+    let input = RigButtonRef {
+        device: pad.device.clone(),
+        control: pad.buttons[0].control,
+    };
+    let target = document.targets[0].target.clone();
+    rig_edit(
+        &state,
+        &rig,
+        RigGuiEdit::Composition {
+            edit: CompositionGuiEdit::CreateLayer {
+                name: "Accents".into(),
+                color: "#ff0000".into(),
+            },
+        },
+    );
+    rig_edit(
+        &state,
+        &rig,
+        RigGuiEdit::AddLiveMarks {
+            name: "Beat".into(),
+            color: "#22c55e".into(),
+        },
+    );
+    let document = rig_edit(
+        &state,
+        &rig,
+        RigGuiEdit::AddMapping {
+            input: input.clone(),
+            action: RigActionChoice::Trigger {
+                initial_color: "#ffffff".into(),
+                effect,
+                target,
+            },
+        },
+    );
+    let mapping = document.mappings[0].id;
+    rig_edit(
+        &state,
+        &rig,
+        RigGuiEdit::Rename {
+            item: RigItem::Mapping { id: mapping },
+            name: "Flash".into(),
+        },
+    );
+    rig_edit(
+        &state,
+        &rig,
+        RigGuiEdit::SetTriggerVoices {
+            mapping_id: mapping,
+            voices: RigVoicePolicy::Stack { count: 3 },
+        },
+    );
+    let document = rig_edit(&state, &rig, RigGuiEdit::AddSwitch { input });
+    let switch = document.switches[0].id;
+    let before = state.project_session().unwrap();
+    let document = rig_edit(
+        &state,
+        &rig,
+        RigGuiEdit::SetMappingWhen {
+            id: mapping,
+            when: Some(RigWhen::On { switch_id: switch }),
+        },
+    );
+    assert!(matches!(
+        document.mappings[0].when,
+        Some(RigWhen::On { .. })
+    ));
+    let after = state.project_session().unwrap();
+    state.undo_active_edit();
+    assert_eq!(*state.project_session().unwrap(), *before);
+    state.redo_active_edit();
+    assert_eq!(*state.project_session().unwrap(), *after);
+    // A stack holds at most 16 voices.
+    let rejected = state.apply_gui_edit(
+        object_request(&state, &rig.0, DocumentViewId::Rig),
+        GuiEditCommand::Rig {
+            edit: RigGuiEdit::SetTriggerVoices {
+                mapping_id: mapping,
+                voices: RigVoicePolicy::Stack { count: 17 },
+            },
+        },
+    );
+    assert!(matches!(rejected.document, GuiDocument::Blocked { .. }));
+
+    state.save_all().unwrap();
+    let saved = state.project_session().unwrap();
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &saved);
+    let jam = std::fs::read_to_string(root.join("rigs/jam.data.donder")).unwrap();
+    assert!(jam.contains("devices.keyboard.hit"));
+    let project = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
+    assert!(project.contains("name: flash"));
+    assert!(project.contains("voices: Stack { count: 3 }"));
+    assert!(project.contains("when: On { switch: switch }"));
 }

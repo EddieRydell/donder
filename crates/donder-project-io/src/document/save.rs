@@ -1,6 +1,7 @@
 //! The canonical text of a project-owned data document, from typed state.
 use super::encode::{
     Encoder, controller_document, curve_document, fixture_definition_document, gradient_document,
+    input_device_document,
 };
 use super::text_cache::DocumentTextCache;
 use super::{Declaration, write};
@@ -12,8 +13,10 @@ use donder_language::data::NO_SPAN;
 use donder_language::data::{DataImport, Spanned};
 use donder_model::ControllerId;
 use donder_model::FixtureDefinitionId;
+use donder_model::InputDeviceId;
 use donder_model::LayoutId;
 use donder_model::PatchId;
+use donder_model::RigId;
 use donder_model::SequenceId;
 use donder_model::SetupId;
 use donder_model::{CurveId, GradientId};
@@ -124,6 +127,12 @@ fn declaration(
                 .get(&ControllerId(identity.into()))
                 .ok_or_else(missing)?,
         )),
+        SourceObjectKind::InputDevice => Declaration::InputDevice(input_device_document(
+            project
+                .reusable_input_devices()
+                .get(&InputDeviceId(identity.into()))
+                .ok_or_else(missing)?,
+        )),
         SourceObjectKind::Layout => Declaration::Layout(
             encoder.layout(
                 project
@@ -155,6 +164,14 @@ fn declaration(
                 project
                     .reusable_sequences()
                     .get(&SequenceId(identity.into()))
+                    .ok_or_else(missing)?,
+            )?,
+        ),
+        SourceObjectKind::Rig => Declaration::Rig(
+            encoder.rig(
+                project
+                    .reusable_rigs()
+                    .get(&RigId(identity.into()))
                     .ok_or_else(missing)?,
             )?,
         ),

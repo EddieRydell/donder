@@ -9,7 +9,8 @@ const TRANSFORM: &str =
     "Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) }";
 
 /// Every owned object written in place: a setup with its layout, an inline
-/// fixture definition, a patch, two controllers, and a sequence.
+/// fixture definition, a patch, two controllers and an input device, a
+/// sequence, and a rig.
 fn inline_fields() -> String {
     format!(
         r#"  setup: Setup {{
@@ -52,6 +53,13 @@ fn inline_fields() -> String {
         ports: [Port {{ name: port_1, address: Universe {{ universe: 2 }}, slots: 512 }}],
       }},
     ],
+    input_devices: [
+      InputDevice pad_5 {{
+        description: none,
+        driver: Keyboard,
+        controls: [Button {{ name: hit, description: none, input: Key {{ code: KeyA }} }}],
+      }},
+    ],
   }},
   sequences: [
     {SEQUENCE},
@@ -78,8 +86,30 @@ const SEQUENCE: &str = r#"Sequence song_4 {
       automation: [],
     }"#;
 
+const RIG: &str = r#"  rigs: [
+    Rig jam_6 {
+      description: none,
+      frame_rate: 60,
+      marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
+      layers: [],
+      scene: [],
+      switches: [Switch { name: hold, description: none, input: main.setup.input_devices.pad_5.hit }],
+      mappings: [
+        Mapping {
+          name: tap,
+          description: none,
+          input: main.setup.input_devices.pad_5.hit,
+          when: On { switch: hold },
+          action: Mark { marks: beat },
+        },
+      ],
+      graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+    },
+  ],
+"#;
+
 fn inline_project() -> String {
-    common::root_document("", &inline_fields())
+    common::root_document("", &inline_fields()).replace("  rigs: [],\n", RIG)
 }
 
 fn write_inline_project(root: &Utf8Path) {
@@ -291,6 +321,14 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
             "output",
         ),
         (
+            OwnershipSite::SetupInputDevice {
+                setup: setup.clone(),
+                index: 0,
+            },
+            SourceObjectKind::InputDevice,
+            "pad",
+        ),
+        (
             OwnershipSite::SetupLayout(setup.clone()),
             SourceObjectKind::Layout,
             "stage",
@@ -305,6 +343,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
             SourceObjectKind::Sequence,
             "song",
         ),
+        (OwnershipSite::ProjectRig(0), SourceObjectKind::Rig, "jam"),
         (
             OwnershipSite::ProjectSetup,
             SourceObjectKind::Setup,
@@ -342,6 +381,21 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
     )
     .unwrap();
     make_independent(&mut session.project, &OwnershipSite::ProjectSequence(0)).unwrap();
+    make_independent(&mut session.project, &OwnershipSite::ProjectRig(0)).unwrap();
+    make_independent(
+        &mut session.project,
+        &OwnershipSite::SetupInputDevice {
+            setup: setup.clone(),
+            index: 0,
+        },
+    )
+    .unwrap();
+    let rig = session
+        .project
+        .rig(session.project.root().rigs[0].id())
+        .unwrap();
+    let device = session.project.setup(&setup).unwrap().input_devices[0].id();
+    assert!(rig.inputs().all(|input| &input.device == device));
     let owned = session.project.setup(&setup).unwrap();
     assert!(matches!(owned.patch, ValueSource::Inline(_)));
     let layout = owned.layout.id().clone();

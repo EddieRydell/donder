@@ -1,6 +1,6 @@
 //! Playback invocations derived during the same admission transaction as
 //! authored state; they cannot be edited independently afterwards.
-use super::parameters::{EffectParamTiming, prepare_params};
+use super::parameters::{EffectParamTiming, MarkSource, prepare_params};
 use super::*;
 use crate::effect::{EffectImplementation, EffectParamValue, EffectRef};
 use crate::operator::OperatorImplementation;
@@ -17,6 +17,7 @@ use std::num::NonZeroU32;
 #[derive(Debug, Default)]
 pub(in crate::project) struct ProjectInputs {
     pub(super) sequences: IndexMap<SequenceId, SequenceInputs>,
+    pub(super) rigs: IndexMap<crate::rig::RigId, super::rig::RigInputs>,
     pub(super) layouts: IndexMap<crate::layout::LayoutId, super::geometry::LayoutGeometry>,
     pub(super) patches: IndexMap<crate::patch::PatchId, super::patch::PatchEncodings>,
 }
@@ -113,6 +114,7 @@ impl ProjectInputs {
         }
         Ok(Self {
             sequences,
+            rigs: super::rig::admit(project)?,
             layouts: super::geometry::admit(project, previous)?,
             patches: super::patch::admit(project)?,
         })
@@ -151,7 +153,24 @@ fn resolve(
     overrides: &IndexMap<donder_runtime_types::Identifier, EffectParamValue>,
     timing: EffectParamTiming,
 ) -> Result<Box<[Value]>, ProjectValidationError> {
-    let values = prepare_params(project, sequence, declarations, overrides, timing);
+    resolve_values(
+        project,
+        MarkSource::Authored(&sequence.mark_collections),
+        declarations,
+        overrides,
+        timing,
+    )
+}
+
+/// Every declared parameter's value: its override, or its default.
+pub(super) fn resolve_values(
+    project: &DonderProject,
+    marks: MarkSource<'_>,
+    declarations: &[ParamDecl],
+    overrides: &IndexMap<donder_runtime_types::Identifier, EffectParamValue>,
+    timing: EffectParamTiming,
+) -> Result<Box<[Value]>, ProjectValidationError> {
+    let values = prepare_params(project, marks, declarations, overrides, timing);
     declarations
         .iter()
         .map(|param| {
@@ -201,6 +220,6 @@ fn reusable_effect_inputs<'a>(
         .collect()
 }
 
-fn invalid(message: String) -> ProjectValidationError {
+pub(super) fn invalid(message: String) -> ProjectValidationError {
     ProjectValidationError::InvalidRelationship(message)
 }

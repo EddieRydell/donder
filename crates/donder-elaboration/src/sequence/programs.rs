@@ -20,6 +20,8 @@ struct CachedSample {
     invocation: Invocation,
     constants: ProgramConstants,
     sample: SampleInvocation,
+    /// The program's indices of the invocation's live marks parameters.
+    live: Box<[u16]>,
     used: bool,
 }
 
@@ -32,7 +34,7 @@ impl PreparationCache {
     }
 }
 
-pub(super) struct Programs<'cache> {
+pub(crate) struct Programs<'cache> {
     samples: Vec<Shared<SampleProgram>>,
     operators: Vec<Shared<OperatorProgram>>,
     cache: &'cache mut PreparationCache,
@@ -57,7 +59,7 @@ fn intern<T: PartialEq + Clone>(programs: &mut Vec<Shared<T>>, program: &Shared<
 }
 
 impl<'cache> Programs<'cache> {
-    pub(super) fn new(cache: &'cache mut PreparationCache) -> Self {
+    pub(crate) fn new(cache: &'cache mut PreparationCache) -> Self {
         Self {
             samples: Vec::new(),
             operators: Vec::new(),
@@ -67,11 +69,21 @@ impl<'cache> Programs<'cache> {
 
     /// The program of `invocation` with `constants`, lowered once per
     /// distinct invocation.
-    pub(super) fn sample(
+    pub(crate) fn sample(
         &mut self,
         invocation: &Invocation,
         constants: ProgramConstants,
     ) -> SampleInvocation {
+        self.sample_live(invocation, constants).0
+    }
+
+    /// [`Self::sample`], with the program's indices of the invocation's live
+    /// marks parameters, in invocation order.
+    pub(crate) fn sample_live(
+        &mut self,
+        invocation: &Invocation,
+        constants: ProgramConstants,
+    ) -> (SampleInvocation, Box<[u16]>) {
         let mut hasher = self.cache.hasher.build_hasher();
         invocation.hash_same(&mut hasher);
         constants.hash_same(&mut hasher);
@@ -83,9 +95,9 @@ impl<'cache> Programs<'cache> {
             entry.used = true;
             // A program cached by an earlier preparation joins this one's bank.
             intern(&mut self.samples, entry.sample.program());
-            return entry.sample.clone();
+            return (entry.sample.clone(), entry.live.clone());
         }
-        let lowered = invocation.instance(constants).sample();
+        let (lowered, live) = invocation.instance(constants).sample_live();
         let sample = SampleInvocation::bind(
             intern(&mut self.samples, lowered.program()),
             lowered.params().iter_values().collect(),
@@ -96,12 +108,13 @@ impl<'cache> Programs<'cache> {
             invocation: invocation.clone(),
             constants,
             sample: sample.clone(),
+            live: live.clone(),
             used: true,
         });
-        sample
+        (sample, live)
     }
 
-    pub(super) fn operator(&mut self, instance: &Instance) -> OperatorInvocation {
+    pub(crate) fn operator(&mut self, instance: &Instance) -> OperatorInvocation {
         let lowered = instance.operator();
         OperatorInvocation::bind(
             intern(&mut self.operators, lowered.program()),

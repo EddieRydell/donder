@@ -378,20 +378,37 @@ enum Wanted {
     Clip,
     Node,
     Marks,
+    /// `device.button`.
+    Button,
+    Switch,
+    /// A rig's voice or mapping.
+    Voice,
 }
 
 fn wanted(ty: &str, field: &str) -> Option<Wanted> {
     Some(match (ty, field) {
         ("Project", "setup") => Wanted::Declaration("Setup"),
         ("Project", "sequences") => Wanted::Declaration("Sequence"),
+        ("Project", "rigs") => Wanted::Declaration("Rig"),
+        ("Setup", "input_devices") => Wanted::Declaration("InputDevice"),
         ("Setup", "layout") => Wanted::Declaration("Layout"),
         ("Setup", "patch") => Wanted::Declaration("Patch"),
         ("Setup", "controllers") | ("Route", "controller") => Wanted::Declaration("Controller"),
         ("Fixture", "definition") => Wanted::Declaration("FixtureDefinition"),
-        ("Route", "target") | ("Clip", "target") | ("AutomationClip", "row") => Wanted::Fixture,
-        ("Clip", "effect") => Wanted::Effect,
+        ("Route", "target")
+        | ("Clip", "target")
+        | ("AutomationClip", "row")
+        | ("Voice", "target")
+        | ("Trigger", "target") => Wanted::Fixture,
+        ("Clip", "effect") | ("Voice", "effect") | ("Trigger", "effect") => Wanted::Effect,
         ("OperatorNode", "operator") => Wanted::Operator,
-        ("Clip", "layer") | ("LayerNode", "layer") => Wanted::Layer,
+        ("Clip", "layer") | ("LayerNode", "layer") | ("Voice", "layer") | ("Trigger", "layer") => {
+            Wanted::Layer
+        }
+        ("Switch", "input") | ("Mapping", "input") => Wanted::Button,
+        ("On", "switch") | ("Off", "switch") => Wanted::Switch,
+        ("Control", "voice") => Wanted::Voice,
+        ("Mark", "marks") => Wanted::Marks,
         ("Edge", "from") | ("Edge", "to") | ("NodeParam", "node") => Wanted::Node,
         ("ClipParam", "clip") => Wanted::Clip,
         _ => return None,
@@ -464,11 +481,37 @@ fn local_names(document: &Document, ty: &str, field: &str) -> Vec<String> {
     names
 }
 
-/// The fixture and group names of the layout a reference names.
-fn layout_items(workspace: &Workspace, document: &Document, prefix: &[&str]) -> Vec<String> {
-    fn collect(value: &Spanned<DataValue>, names: &mut Vec<String>) {
+/// The named members a reference reaches inside a declaration: the list
+/// field that holds them and the record types they are written as.
+#[derive(Clone, Copy)]
+struct Members {
+    field: &'static str,
+    types: &'static [&'static str],
+}
+
+impl Members {
+    /// A layout's fixtures and groups.
+    const LAYOUT: Self = Self {
+        field: "items",
+        types: &["Group", "Fixture"],
+    };
+    /// An input device's buttons.
+    const DEVICE: Self = Self {
+        field: "controls",
+        types: &["Button"],
+    };
+}
+
+/// The names of the members of the declaration a reference names.
+fn declaration_members(
+    workspace: &Workspace,
+    document: &Document,
+    prefix: &[&str],
+    members: Members,
+) -> Vec<String> {
+    fn collect(value: &Spanned<DataValue>, types: &[&str], names: &mut Vec<String>) {
         match &value.value {
-            DataValue::Record(ty, fields) if matches!(ty.value.as_str(), "Group" | "Fixture") => {
+            DataValue::Record(ty, fields) if types.contains(&ty.value.as_str()) => {
                 for field in &fields.value {
                     if let (DataValue::Reference(segments), "name") =
                         (&field.value.value, field.name.value.as_str())
@@ -478,7 +521,7 @@ fn layout_items(workspace: &Workspace, document: &Document, prefix: &[&str]) -> 
                     }
                 }
             }
-            DataValue::List(items) => items.iter().for_each(|item| collect(item, names)),
+            DataValue::List(items) => items.iter().for_each(|item| collect(item, types, names)),
             _ => {}
         }
     }
@@ -487,8 +530,8 @@ fn layout_items(workspace: &Workspace, document: &Document, prefix: &[&str]) -> 
         for declaration in &source.tree().declarations {
             if declaration.name.value.as_str() == name {
                 for field in &declaration.fields.value {
-                    if field.name.value.as_str() == "items" {
-                        collect(&field.value, &mut names);
+                    if field.name.value.as_str() == members.field {
+                        collect(&field.value, members.types, &mut names);
                     }
                 }
             }
@@ -671,9 +714,24 @@ pub fn completions(
                 .filter(|(_, kind)| kind == "Layout")
                 .map(|(name, _)| format!("{name}."))
                 .collect(),
+            Wanted::Button => visible(workspace, document)
+                .into_iter()
+                .filter(|(_, kind)| kind == "InputDevice")
+                .map(|(name, _)| format!("{name}."))
+                .collect(),
             Wanted::Layer => local_names(document, "Layer", "name"),
             Wanted::Clip => local_names(document, "Clip", "name"),
-            Wanted::Marks => local_names(document, "MarkCollection", "name"),
+            Wanted::Marks => {
+                let mut names = local_names(document, "MarkCollection", "name");
+                names.extend(local_names(document, "LiveMarks", "name"));
+                names
+            }
+            Wanted::Switch => local_names(document, "Switch", "name"),
+            Wanted::Voice => {
+                let mut names = local_names(document, "Voice", "name");
+                names.extend(local_names(document, "Mapping", "name"));
+                names
+            }
             Wanted::Node => {
                 let mut names = local_names(document, "OperatorNode", "name");
                 names.extend(local_names(document, "LayerNode", "layer"));
@@ -693,8 +751,14 @@ pub fn completions(
     };
     if !prefix.is_empty() {
         // After a dot: a layout's fixtures, or an alias's declarations.
-        if let Some((ty, field)) = &field_owner
-            && wanted(ty, field) == Some(Wanted::Fixture)
+        let members = field_owner
+            .as_ref()
+            .and_then(|(ty, field)| match wanted(ty, field) {
+                Some(Wanted::Fixture) => Some(Members::LAYOUT),
+                Some(Wanted::Button) => Some(Members::DEVICE),
+                _ => None,
+            });
+        if let Some(members) = members
             && !(prefix.len() == 1
                 && document
                     .tree()
@@ -702,7 +766,7 @@ pub fn completions(
                     .iter()
                     .any(|import| import.alias.value.as_str() == prefix[0]))
         {
-            return layout_items(workspace, document, &prefix)
+            return declaration_members(workspace, document, &prefix, members)
                 .into_iter()
                 .map(|name| Completion::new(name, CompletionKind::Reference))
                 .collect();

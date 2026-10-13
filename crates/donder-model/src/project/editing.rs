@@ -3,7 +3,9 @@ use crate::effect::{
     CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
 };
 use crate::fixture::{FixtureDefinition, FixtureDefinitionId};
+use crate::input_device::{InputDevice, InputDeviceId};
 use crate::operator::{OperatorDefinition, OperatorDefinitionId};
+use crate::rig::{Rig, RigId};
 use crate::sequence::SequenceId;
 
 /// Detached authored changes. Every batch is checked as one operation, allowing
@@ -27,15 +29,25 @@ pub enum ProjectEdit {
         id: ControllerId,
         value: Controller,
     },
+    ReplaceInputDevice {
+        id: InputDeviceId,
+        value: InputDevice,
+    },
     ReplaceSequence {
         id: SequenceId,
         value: Sequence,
+    },
+    ReplaceRig {
+        id: RigId,
+        value: Rig,
     },
     InsertSetup(Setup),
     InsertLayout(Layout),
     InsertPatch(Patch),
     InsertController(Controller),
+    InsertInputDevice(InputDevice),
     InsertSequence(Sequence),
+    InsertRig(Rig),
     SetFixtureDefinition {
         id: FixtureDefinitionId,
         value: FixtureDefinition,
@@ -60,7 +72,9 @@ pub enum ProjectEdit {
     RemoveLayout(LayoutId),
     RemovePatch(PatchId),
     RemoveController(ControllerId),
+    RemoveInputDevice(InputDeviceId),
     RemoveSequence(SequenceId),
+    RemoveRig(RigId),
     RemoveFixtureDefinition(FixtureDefinitionId),
     RemoveEffectDefinition(EffectDefinitionId),
     RemoveOperatorDefinition(OperatorDefinitionId),
@@ -120,8 +134,14 @@ impl DonderProject {
                     ProjectEdit::ReplaceController { id, value } => {
                         replace(project.controller_mut(&id), &id, value)?
                     }
+                    ProjectEdit::ReplaceInputDevice { id, value } => {
+                        replace(project.input_device_mut(&id), &id, value)?
+                    }
                     ProjectEdit::ReplaceSequence { id, value } => {
                         replace(project.sequence_mut(&id), &id, value)?
+                    }
+                    ProjectEdit::ReplaceRig { id, value } => {
+                        replace(project.rig_mut(&id), &id, value)?
                     }
                     ProjectEdit::InsertSetup(value) => insert(&mut project.setups, value)?,
                     ProjectEdit::InsertLayout(value) => insert(&mut project.layouts, value)?,
@@ -129,7 +149,11 @@ impl DonderProject {
                     ProjectEdit::InsertController(value) => {
                         insert(&mut project.controllers, value)?
                     }
+                    ProjectEdit::InsertInputDevice(value) => {
+                        insert(&mut project.input_devices, value)?
+                    }
                     ProjectEdit::InsertSequence(value) => insert(&mut project.sequences, value)?,
+                    ProjectEdit::InsertRig(value) => insert(&mut project.rigs, value)?,
                     ProjectEdit::SetFixtureDefinition { id, value } => {
                         project.definitions.fixtures.definitions.insert(id, value);
                     }
@@ -149,7 +173,9 @@ impl DonderProject {
                     ProjectEdit::RemoveLayout(id) => remove(&mut project.layouts, &id)?,
                     ProjectEdit::RemovePatch(id) => remove(&mut project.patches, &id)?,
                     ProjectEdit::RemoveController(id) => remove(&mut project.controllers, &id)?,
+                    ProjectEdit::RemoveInputDevice(id) => remove(&mut project.input_devices, &id)?,
                     ProjectEdit::RemoveSequence(id) => remove(&mut project.sequences, &id)?,
+                    ProjectEdit::RemoveRig(id) => remove(&mut project.rigs, &id)?,
                     ProjectEdit::RemoveFixtureDefinition(id) => {
                         remove(&mut project.definitions.fixtures.definitions, &id)?
                     }
@@ -195,6 +221,22 @@ impl DonderProject {
         value: Controller,
     ) -> Result<(), String> {
         self.apply_edits([ProjectEdit::ReplaceController {
+            id: id.clone(),
+            value,
+        }])
+    }
+    pub fn replace_input_device(
+        &mut self,
+        id: &InputDeviceId,
+        value: InputDevice,
+    ) -> Result<(), String> {
+        self.apply_edits([ProjectEdit::ReplaceInputDevice {
+            id: id.clone(),
+            value,
+        }])
+    }
+    pub fn replace_rig(&mut self, id: &RigId, value: Rig) -> Result<(), String> {
+        self.apply_edits([ProjectEdit::ReplaceRig {
             id: id.clone(),
             value,
         }])

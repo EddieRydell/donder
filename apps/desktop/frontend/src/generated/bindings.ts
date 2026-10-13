@@ -89,6 +89,11 @@ export const commands = {
 	setLiveOutputActive: (active: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_live_output_active", { active })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	getPerformSnapshot: () => __TAURI_INVOKE<PerformSnapshot>("get_perform_snapshot").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
+	startPerforming: (projectRevision: number, rig: number) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("start_performing", { projectRevision, rig })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:v.data.session}) } : v) as typeof v)),
+	stopPerforming: () => __TAURI_INVOKE<PerformSnapshot>("stop_performing").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
+	performKey: (code: string, pressed: boolean) => __TAURI_INVOKE<PerformSnapshot>("perform_key", { code, pressed }).then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
+	performReleaseAll: () => __TAURI_INVOKE<PerformSnapshot>("perform_release_all").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
 };
 
 /* Types */
@@ -153,6 +158,11 @@ export type AudioTransportState = "unloaded" | "playing" | "paused" | "stopped" 
 
 export type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
 
+/**  Edits to the layers and composition graph that sequences and rigs share. */
+export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | 
+/**  Empty text removes the description. */
+{ type: "setLayerDescription"; id: number; description: string | null } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue };
+
 export type ControllerGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::Description`. */
 	description: string | null,
@@ -209,6 +219,8 @@ export type DocumentInclusion = {
 	alias: string,
 	/**  Sequences the document declares, added to the project's sequences. */
 	sequences: string[],
+	/**  Rigs the document declares, added to the project's rigs. */
+	rigs: string[],
 };
 
 export type DocumentObjectDescriptor = {
@@ -256,7 +268,7 @@ export type DocumentUpdate = {
 	changes: DocumentTextEdit[][],
 };
 
-export type DocumentViewId = "text" | "project" | "setup" | "layout" | "fixture" | "patch" | "controller" | "sequence" | "curve" | "gradient";
+export type DocumentViewId = "text" | "project" | "setup" | "layout" | "fixture" | "patch" | "controller" | "inputDevice" | "sequence" | "rig" | "curve" | "gradient";
 
 export type DonderDeviceClaim = "unclaimed" | "claimed" | "claimedElsewhere";
 
@@ -344,7 +356,11 @@ export type GradientGuiDocument = {
 	stops: SequenceGradientStop[],
 };
 
-export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
+export type GuiButtonInput = 
+/**  A keyboard key by its `KeyboardEvent.code` name. */
+{ type: "key"; code: string };
+
+export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "rig"; document: RigGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
 /**
  *  How an edit changed the open GUI document, relative to the document at the
@@ -374,7 +390,7 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | 
+export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "rig"; edit: RigGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
 /**  Set the open object's description; empty text removes it. */
 { type: "description"; description: string | null };
 
@@ -406,6 +422,17 @@ export type GuiGridAxis = "rows" | "columns";
 
 export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight";
 
+export type GuiInputControl = {
+	/**  Kept across edits; a new control has an id no other control uses. */
+	id: number,
+	/**  Unique within the device; rigs refer to it. */
+	name: string,
+	description: string | null,
+	input: GuiButtonInput,
+};
+
+export type GuiInputDriver = "keyboard";
+
 export type GuiLayoutFixture = {
 	id: number,
 	name: string,
@@ -427,12 +454,12 @@ export type GuiObjectRef = {
 };
 
 export type GuiOwnedStep = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
-/**  Owned controllers and sequences are named. */
-{ type: "controller"; name: string } | { type: "sequence"; name: string } | { type: "fixture"; id: number };
+/**  Owned controllers, input devices, sequences and rigs are named. */
+{ type: "controller"; name: string } | { type: "inputDevice"; name: string } | { type: "sequence"; name: string } | { type: "rig"; name: string } | { type: "fixture"; id: number };
 
 export type GuiOwnershipEdit = { type: "useExisting"; source: GuiObjectRef } | { type: "makeIndependent" } | { type: "makeReusable"; name: string; storage: ReusableStorage };
 
-export type GuiOwnershipSlot = { type: "setup" } | { type: "sequence"; index: number } | { type: "layout" } | { type: "patch" } | { type: "controller"; index: number } | { type: "fixture"; id: number };
+export type GuiOwnershipSlot = { type: "setup" } | { type: "sequence"; index: number } | { type: "rig"; index: number } | { type: "layout" } | { type: "patch" } | { type: "controller"; index: number } | { type: "inputDevice"; index: number } | { type: "fixture"; id: number };
 
 export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
 
@@ -452,6 +479,19 @@ export type GuiPixelRoute = {
 export type GuiPixelSpan = {
 	start: number,
 	count: number,
+};
+
+export type InputDeviceGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
+	path: string,
+	objectKey: string,
+	device: SetupInputDevice,
+	/**
+	 *  Every key a control can read, by its `KeyboardEvent.code` name, in the
+	 *  language's order.
+	 */
+	keyCodes: string[],
 };
 
 export type LayoutGuiDocument = {
@@ -515,7 +555,7 @@ export type NewSequenceResult = {
 
 export type NewSequenceStorage = { type: "inline" } | { type: "sameFile"; name: string } | { type: "newFile"; name: string };
 
-export type ObjectKind = "project" | "setup" | "controller" | "layout" | "fixture" | "patch" | "sequence" | "curve" | "gradient" | "effect" | "operator";
+export type ObjectKind = "project" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "sequence" | "rig" | "curve" | "gradient" | "effect" | "operator";
 
 export type PatchFixtureTarget = {
 	id: number,
@@ -536,6 +576,42 @@ export type PatchGuiDocument = {
 export type PatchLayout = {
 	sourceRef: GuiObjectRef,
 	fixtures: PatchFixtureTarget[],
+};
+
+export type PerformButton = {
+	device: string,
+	control: string,
+};
+
+/**  A rig of the project, by its position in the project's rigs. */
+export type PerformRig = {
+	index: number,
+	name: string,
+	/**  The document that declares it. */
+	path: string,
+};
+
+export type PerformSession = {
+	rig: PerformRig,
+	elapsedSeconds: number,
+	switches: PerformSwitch[],
+	/**  The buttons held down. */
+	held: PerformButton[],
+	/**  The `KeyboardEvent.code` of every key the rig plays from. */
+	keys: string[],
+};
+
+/**  Perform mode: the rigs the project can perform and the performance in progress. */
+export type PerformSnapshot = {
+	/**  Increases with every change, so a client keeps the latest of several. */
+	revision: number,
+	rigs: PerformRig[],
+	session: PerformSession | null,
+};
+
+export type PerformSwitch = {
+	name: string,
+	on: boolean,
 };
 
 export type PersistedEditorViewState = {
@@ -655,7 +731,12 @@ export type ProjectGuiDocument = {
 	objectKey: string,
 	setup: GuiObjectRef,
 	sequences: GuiObjectRef[],
+	rigs: GuiObjectRef[],
 };
+
+export type ProjectGuiEdit = 
+/**  A new rig stored in the project, with the default layer drawn to the output. */
+{ type: "addRig"; initialColor: string };
 
 export type ProjectHealth = "closed" | "ready" | "checking" | "invalid";
 
@@ -697,6 +778,142 @@ export type RelatedDiagnosticLocation = {
 };
 
 export type ReusableStorage = "sameFile" | "newFile";
+
+/**  A mapping's action as the editor chooses it. */
+export type RigActionChoice = 
+/**
+ *  A new trigger plays on the default layer for one second, restarting on
+ *  each press.
+ */
+{ type: "trigger"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
+
+export type RigButtonRef = {
+	device: GuiObjectRef,
+	control: number,
+};
+
+/**  The voices a `Control` mapping sets a parameter of. */
+export type RigControlTarget = { type: "voice"; voiceId: number } | 
+/**  Every voice of a `Trigger` mapping. */
+{ type: "trigger"; mappingId: number };
+
+/**  An effect a rig plays: a clip without timing. */
+export type RigEffect = {
+	layerId: number,
+	target: FixtureTarget,
+	targetLabel: string,
+	scope: SequenceEffectScope,
+	effect: SequenceEffectReference,
+	effectName: string,
+	params: SequenceEffectParam[],
+};
+
+export type RigEffectEdit = { type: "layer"; layerId: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceEffectScope } | 
+/**  Play another effect; its required parameters start from `initial_color`. */
+{ type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceEffectParamValue };
+
+/**  The effect of a voice or of a `Trigger` mapping. */
+export type RigEffectOwner = { type: "voice"; id: number } | { type: "trigger"; mappingId: number };
+
+export type RigGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
+	path: string,
+	sourceRef: GuiObjectRef,
+	objectKey: string,
+	/**  The declared name, or the name the rig is stored under. */
+	name: string,
+	/**
+	 *  The rig's position among the project's rigs, which Perform starts it by;
+	 *  `None` when the project does not list it.
+	 */
+	performIndex: number | null,
+	frameRate: number,
+	liveMarks: RigLiveMarks[],
+	layers: SequenceLayer[],
+	compositionGraph: SequenceCompositionGraph,
+	voices: RigVoice[],
+	switches: RigSwitch[],
+	mappings: RigMapping[],
+	/**  The active layout's fixtures and groups, each once, depth-first. */
+	targets: SequenceLane[],
+	effectDefinitions: SequenceEffectDefinition[],
+	curveLibrary: SequenceCurveLibraryItem[],
+	gradientLibrary: SequenceGradientLibraryItem[],
+	/**  The active setup's input devices, which the rig's inputs choose from. */
+	inputDevices: RigInputDevice[],
+	maxStackedVoices: number,
+};
+
+export type RigGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
+/**  The name becomes a unique `snake_case` name. */
+{ type: "addLiveMarks"; name: string; color: string } | { type: "setLiveMarksColor"; key: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigButtonRef } | { type: "addMapping"; input: RigButtonRef; action: RigActionChoice } | 
+/**  Renaming live marks renames every reference to them. */
+{ type: "rename"; item: RigItem; name: string } | 
+/**  Empty text removes the description. */
+{ type: "setDescription"; item: RigItem; description: string | null } | 
+/**  Deleting live marks leaves the marks parameters that named them without marks. */
+{ type: "delete"; item: RigItem } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigButtonRef } | { type: "setMappingInput"; id: number; input: RigButtonRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy };
+
+/**  A button a switch or mapping reads, with the names the rig's text uses. */
+export type RigInput = {
+	button: RigButtonRef,
+	deviceName: string,
+	controlName: string,
+};
+
+export type RigInputButton = {
+	control: number,
+	name: string,
+};
+
+export type RigInputDevice = {
+	device: GuiObjectRef,
+	name: string,
+	buttons: RigInputButton[],
+};
+
+/**  A named item of a rig. */
+export type RigItem = { type: "liveMarks"; key: string } | { type: "voice"; id: number } | { type: "switch"; id: number } | { type: "mapping"; id: number };
+
+export type RigLiveMarks = {
+	/**  The collection's name; marks parameters and `Mark` mappings refer to it. */
+	key: string,
+	description: string | null,
+	color: string,
+};
+
+export type RigMapping = {
+	id: number,
+	name: string,
+	description: string | null,
+	input: RigInput,
+	/**  `None` acts always. */
+	when: RigWhen | null,
+	action: RigMappingAction,
+};
+
+export type RigMappingAction = { type: "trigger"; effect: RigEffect; length: RigTriggerLength; voices: RigVoicePolicy } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
+
+export type RigSwitch = {
+	id: number,
+	name: string,
+	description: string | null,
+	input: RigInput,
+};
+
+export type RigTriggerLength = { type: "fixed"; durationSeconds: number } | { type: "held" } | { type: "latched" };
+
+export type RigVoice = {
+	id: number,
+	name: string,
+	description: string | null,
+	effect: RigEffect,
+};
+
+export type RigVoicePolicy = { type: "retrigger" } | { type: "stack"; count: number } | { type: "mono" };
+
+export type RigWhen = { type: "on"; switchId: number } | { type: "off"; switchId: number };
 
 export type Rotation3Degrees = {
 	xDegrees: number,
@@ -816,7 +1033,7 @@ export type SequenceCurveValue = {
 };
 
 /**  A sequence item that carries a description. */
-export type SequenceDescribedItem = { type: "layer"; id: number } | { type: "markCollection"; key: string } | { type: "clip"; id: number };
+export type SequenceDescribedItem = { type: "markCollection"; key: string } | { type: "clip"; id: number };
 
 export type SequenceDetachedAutomationBinding = {
 	target: SequenceAutomationTarget,
@@ -1002,15 +1219,15 @@ export type SequenceGuiDocument = {
 	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameClip"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | 
+export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } | { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number } | { type: "renameClip"; id: number; name: string } | 
 /**  Set an item's description; empty text removes it. */
-{ type: "setItemDescription"; item: SequenceDescribedItem; description: string | null } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | 
+{ type: "setItemDescription"; item: SequenceDescribedItem; description: string | null } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | 
 /**
  *  Cut each clip at `time_seconds` into two back-to-back clips. The right
  *  half shares the left half's automation, so automation continues across
  *  the cut.
  */
-{ type: "splitEffects"; ids: number[]; timeSeconds: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
+{ type: "splitEffects"; ids: number[]; timeSeconds: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
 /**  Each name becomes a unique `snake_case` name. */
 { type: "createMarkCollections"; collections: NewMarkCollection[] } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMarks"; collectionKey: string; timesSeconds: number[] } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number } | 
 /**  Label a mark, or clear its label with `None` or a blank label. */
@@ -1128,9 +1345,23 @@ export type SetupGuiDocument = {
 	patchReadOnly: boolean,
 	controllers: SetupController[],
 	availableControllers: SetupController[],
+	inputDevices: SetupInputDevice[],
+	availableInputDevices: SetupInputDevice[],
+	/**  Every key a new input device's control can read, in the language's order. */
+	keyCodes: string[],
 };
 
-export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean };
+export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "attachInputDevice"; device: GuiObjectRef } | { type: "detachInputDevice"; device: GuiObjectRef };
+
+/**  An input device as a setup lists it and its editor edits it. */
+export type SetupInputDevice = {
+	/**  The declared name, or the name the device is stored under. */
+	name: string,
+	sourceRef: GuiObjectRef,
+	readOnly: boolean,
+	driver: GuiInputDriver,
+	controls: GuiInputControl[],
+};
 
 export type SidebarView = "explorer" | "search" | "problems";
 
@@ -1210,7 +1441,7 @@ export type WorkspaceEntry = {
 
 export type WorkspaceEntryKind = "directory" | "file";
 
-export type WorkspaceEntryRole = "directory" | "project" | "entrypoint" | "setup" | "controller" | "layout" | "fixture" | "patch" | "curve" | "gradient" | "effect" | "operator" | "sequence" | "asset" | "file";
+export type WorkspaceEntryRole = "directory" | "project" | "entrypoint" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "curve" | "gradient" | "effect" | "operator" | "sequence" | "rig" | "asset" | "file";
 
 export type WorkspaceExplorerState = {
 	expandedPaths: string[],

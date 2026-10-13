@@ -8,10 +8,10 @@ plays the show, is not part of this folder and is not yours to change.
 ## The documents
 
 - `project.data.donder` is the entry point. Its `Project` declaration names the
-  setup and the sequences that make up the show, and its imports lead to every
-  document the show uses.
-- `*.data.donder` documents hold data: setups, controllers, layouts, fixture
-  definitions, patches, sequences, curves and gradients. The Donder app edits
+  setup, the sequences that make up the show and the rigs played live, and its
+  imports lead to every document the show uses.
+- `*.data.donder` documents hold data: setups, controllers, input devices,
+  layouts, fixture definitions, patches, sequences, rigs, curves and gradients. The Donder app edits
   these too, so keep them in the exact form described below.
 - `*.donder` documents are scripts: effects and operators, such as
   `effects/standard.donder` and `operators/standard.donder`, the editable
@@ -21,9 +21,13 @@ Fixtures define pixel geometry, layouts place fixtures and groups, and patches
 route pixels to controller ports. A layout lists every fixture and group once in
 `items`; `root` and each group's `members` name them by display order, and a
 fixture may belong to several groups (`roofs` and `left_side` can both list
-`left_roof`). Every item must be in `root` or some group. A setup connects a layout, a patch and
-controllers. A sequence places clips of effects on layers over time, automates
-their parameters, and combines layers through operators into the output.
+`left_roof`). Every item must be in `root` or some group. A setup connects a layout, a patch,
+controllers and input devices (a keyboard whose keys are buttons). A sequence
+places clips of effects on layers over time, automates their parameters, and
+combines layers through operators into the output. A rig is played live instead:
+its layers and graph are a sequence's, its scene voices play for the whole
+session, and its mappings turn button presses into triggered effects, live marks
+and parameter controls, optionally only while a switch is on or off.
 Directories are only organization: any declaration may live in any data
 document, or be written in place inside the object that owns it.
 
@@ -38,7 +42,8 @@ Data documents are strict so that the app and the text always agree:
   `description: "Warm wash for the chorus."`.
 - Names are `snake_case` and unique where they are declared (fixtures and groups
   within their layout; layers, clips and mark collections within their
-  sequence). Types and variants are `PascalCase`: `Clip { ... }`, `WholeTarget`.
+  sequence; buttons within their input device; layers, live mark collections,
+  switches, and voices and mappings together within their rig). Types and variants are `PascalCase`: `Clip { ... }`, `WholeTarget`.
 - Literals have one spelling: floats always have a `.` (`1.0`, never `1`),
   durations end in `s` (`2.5s`), distances in `m` (`0.35m`), colors are
   lowercase (`#ff8800`).

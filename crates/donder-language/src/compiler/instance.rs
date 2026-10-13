@@ -44,6 +44,8 @@ pub(crate) struct Instance {
     /// value; playback replaces it.
     pub(crate) values: Vec<Value>,
     pub(crate) automation: Vec<PreparedAutomation>,
+    /// Marks parameters that playback rebinds as live marks arrive.
+    pub(crate) live: Vec<u16>,
 }
 
 impl Instance {
@@ -51,12 +53,14 @@ impl Instance {
         definition: &Definition,
         params: &BoundParams,
         automation: &[PreparedAutomation],
+        live: &[u16],
         constants: ProgramConstants,
     ) -> Result<Self, TooManyLoops> {
         let automated = |index: usize| {
             automation
                 .iter()
                 .any(|binding| usize::from(binding.param_index) == index)
+                || live.iter().any(|&param| usize::from(param) == index)
         };
         let mut slots: Vec<Param> = definition
             .graph
@@ -134,6 +138,7 @@ impl Instance {
             root,
             values,
             automation,
+            live: live.to_vec(),
         })
     }
 
@@ -169,6 +174,7 @@ impl Instance {
             definition,
             &params,
             &automation,
+            &[],
             ProgramConstants::default(),
         )
         .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance"))
@@ -197,6 +203,7 @@ impl Instance {
             root,
             values: self.values.clone(),
             automation: self.automation.clone(),
+            live: self.live.clone(),
         })
     }
 
@@ -234,6 +241,10 @@ impl Instance {
         if !upstream.automation.is_empty() && !now {
             return None;
         }
+        // Playback rebinds live marks by the parameter index preparation recorded.
+        if !self.live.is_empty() || !upstream.live.is_empty() {
+            return None;
+        }
         let offset = self.graph.params().len() as u32;
         let mut params = self.graph.params().to_vec();
         params.extend(upstream.graph.params().iter().cloned());
@@ -260,6 +271,7 @@ impl Instance {
             root,
             values,
             automation,
+            live: Vec::new(),
         })
     }
 

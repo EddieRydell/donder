@@ -2,9 +2,11 @@ use crate::controller::{Controller, ControllerId};
 use crate::effect::{CurveDefinitionStore, EffectDefinitionStore, GradientDefinitionStore};
 use crate::fixture::FixtureDefinitions;
 use crate::identity::SourceIdentity;
+use crate::input_device::{InputDevice, InputDeviceId};
 use crate::layout::{Layout, LayoutId};
 use crate::operator::OperatorDefinitionStore;
 use crate::patch::{Patch, PatchId};
+use crate::rig::{Rig, RigId};
 use crate::sequence::Sequence;
 use crate::setup::{Setup, SetupId};
 use indexmap::IndexMap;
@@ -13,7 +15,10 @@ use std::sync::Arc;
 mod editing;
 pub use editing::ProjectEdit;
 mod accepted;
-pub use accepted::{AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedSequence};
+pub use accepted::{
+    AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigEffect, AcceptedSequence,
+    RIG_SESSION, RigEffectOrigin,
+};
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;
 /// accepted projects never expose a mutable assembly view.
@@ -24,7 +29,9 @@ pub struct ProjectData {
     pub layouts: IndexMap<LayoutId, Layout>,
     pub patches: IndexMap<PatchId, Patch>,
     pub controllers: IndexMap<ControllerId, Controller>,
+    pub input_devices: IndexMap<InputDeviceId, InputDevice>,
     pub sequences: IndexMap<crate::sequence::SequenceId, Sequence>,
+    pub rigs: IndexMap<RigId, Rig>,
     pub definitions: ProjectDefinitionStores,
 }
 
@@ -64,7 +71,9 @@ pub struct DonderProject {
     pub(crate) layouts: Shared<IndexMap<LayoutId, Layout>>,
     pub(crate) patches: Shared<IndexMap<PatchId, Patch>>,
     pub(crate) controllers: Shared<IndexMap<ControllerId, Controller>>,
+    pub(crate) input_devices: Shared<IndexMap<InputDeviceId, InputDevice>>,
     pub(crate) sequences: Shared<IndexMap<crate::sequence::SequenceId, Sequence>>,
+    pub(crate) rigs: Shared<IndexMap<RigId, Rig>>,
     pub(crate) definitions: Shared<ProjectDefinitionStores>,
     accepted_inputs: Arc<accepted::ProjectInputs>,
 }
@@ -76,7 +85,9 @@ impl PartialEq for DonderProject {
             && self.layouts == other.layouts
             && self.patches == other.patches
             && self.controllers == other.controllers
+            && self.input_devices == other.input_devices
             && self.sequences == other.sequences
+            && self.rigs == other.rigs
             && self.definitions == other.definitions
     }
 }
@@ -90,6 +101,7 @@ pub struct ProjectRoot {
     pub description: Option<String>,
     pub setup: crate::setup::SetupSource,
     pub sequences: Vec<crate::sequence::SequenceSource>,
+    pub rigs: Vec<crate::rig::RigSource>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -109,7 +121,9 @@ impl DonderProject {
             layouts: data.layouts.into(),
             patches: data.patches.into(),
             controllers: data.controllers.into(),
+            input_devices: data.input_devices.into(),
             sequences: data.sequences.into(),
+            rigs: data.rigs.into(),
             definitions: data.definitions.into(),
             accepted_inputs: Arc::default(),
         };
@@ -136,8 +150,14 @@ impl DonderProject {
     pub fn reusable_controllers(&self) -> &IndexMap<ControllerId, Controller> {
         &self.controllers
     }
+    pub fn reusable_input_devices(&self) -> &IndexMap<InputDeviceId, InputDevice> {
+        &self.input_devices
+    }
     pub fn reusable_sequences(&self) -> &IndexMap<crate::sequence::SequenceId, Sequence> {
         &self.sequences
+    }
+    pub fn reusable_rigs(&self) -> &IndexMap<RigId, Rig> {
+        &self.rigs
     }
 
     /// Whether `other` shares every store with this project except sequences:
@@ -148,6 +168,8 @@ impl DonderProject {
             && self.layouts.same_allocation(&other.layouts)
             && self.patches.same_allocation(&other.patches)
             && self.controllers.same_allocation(&other.controllers)
+            && self.input_devices.same_allocation(&other.input_devices)
+            && self.rigs.same_allocation(&other.rigs)
             && self.definitions.same_allocation(&other.definitions)
     }
 
@@ -250,6 +272,48 @@ impl DonderProject {
         )
     }
 
+    pub fn input_devices(&self) -> impl Iterator<Item = &InputDevice> {
+        self.input_devices.values().chain(
+            self.setups()
+                .flat_map(|setup| setup.input_devices.iter())
+                .filter_map(|source| source.inline().map(Box::as_ref)),
+        )
+    }
+
+    pub(crate) fn input_devices_mut(&mut self) -> impl Iterator<Item = &mut InputDevice> {
+        let Self {
+            root,
+            setups,
+            input_devices,
+            ..
+        } = self;
+        input_devices.values_mut().chain(
+            setups
+                .values_mut()
+                .chain(root.setup.inline_mut().map(Box::as_mut))
+                .flat_map(|setup| setup.input_devices.iter_mut())
+                .filter_map(|source| source.inline_mut().map(Box::as_mut)),
+        )
+    }
+
+    pub fn rigs(&self) -> impl Iterator<Item = &Rig> {
+        self.rigs.values().chain(
+            self.root
+                .rigs
+                .iter()
+                .filter_map(|source| source.inline().map(Box::as_ref)),
+        )
+    }
+
+    pub(crate) fn rigs_mut(&mut self) -> impl Iterator<Item = &mut Rig> {
+        self.rigs.values_mut().chain(
+            self.root
+                .rigs
+                .iter_mut()
+                .filter_map(|source| source.inline_mut().map(Box::as_mut)),
+        )
+    }
+
     pub fn sequences(&self) -> impl Iterator<Item = &Sequence> {
         self.sequences.values().chain(
             self.root
@@ -325,6 +389,34 @@ impl DonderProject {
         self.setup_mut(&owner)?.controllers[index]
             .inline_mut()
             .map(Box::as_mut)
+    }
+    pub fn input_device(&self, id: &InputDeviceId) -> Option<&InputDevice> {
+        self.input_devices().find(|value| &value.id == id)
+    }
+    pub(crate) fn input_device_mut(&mut self, id: &InputDeviceId) -> Option<&mut InputDevice> {
+        if self.input_devices.contains_key(id) {
+            return self.input_devices.get_mut(id);
+        }
+        let (owner, index) = self.setups().find_map(|setup| {
+            setup
+                .input_devices
+                .iter()
+                .position(|source| source.id() == id)
+                .map(|index| (setup.id.clone(), index))
+        })?;
+        self.setup_mut(&owner)?.input_devices[index]
+            .inline_mut()
+            .map(Box::as_mut)
+    }
+    pub fn rig(&self, id: &RigId) -> Option<&Rig> {
+        self.rigs().find(|value| &value.id == id)
+    }
+    pub(crate) fn rig_mut(&mut self, id: &RigId) -> Option<&mut Rig> {
+        if self.rigs.contains_key(id) {
+            return self.rigs.get_mut(id);
+        }
+        let index = self.root.rigs.iter().position(|source| source.id() == id)?;
+        self.root.rigs[index].inline_mut().map(Box::as_mut)
     }
     pub fn sequence(&self, id: &crate::sequence::SequenceId) -> Option<&Sequence> {
         self.sequences().find(|value| &value.id == id)

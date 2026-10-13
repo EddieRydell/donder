@@ -442,6 +442,13 @@ fn binary(op: FloatBinary, a: f32, b: f32) -> f32 {
     float_binary(op, a, b)
 }
 
+/// Colors compare as the 8-bit colors they are written as.
+#[inline(never)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn same_color(a: FloatColor, b: FloatColor) -> bool {
+    a.to_color() == b.to_color()
+}
+
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn int(op: IntBinary, a: i32, b: i32) -> i32 {
@@ -1767,9 +1774,8 @@ impl<'m> Machine<'m> {
                         (a == b) != negate
                     }),
                     Bank::Color => {
-                        // Colors compare as the 8-bit colors they are written as.
                         map2(sel, dst, self.color(a), self.color(b), |a, b| {
-                            (a.to_color() == b.to_color()) != negate
+                            same_color(a, b) != negate
                         });
                     }
                     Bank::Resource => unreachable!("admission rejects resource equality"),

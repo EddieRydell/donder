@@ -6,6 +6,7 @@ mod editable_copy;
 mod exact_round_trip;
 mod fixture_composition;
 mod imports;
+mod live_input;
 mod local_project;
 mod ownership;
 mod path_refactor;

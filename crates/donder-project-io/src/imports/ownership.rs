@@ -18,22 +18,26 @@ impl Loader {
                 "setup" => (OwnedObjectSlot::Setup, after),
                 "layout" => (OwnedObjectSlot::Layout, after),
                 "patch" => (OwnedObjectSlot::Patch, after),
-                "controllers" | "sequences" => {
+                collection => {
+                    let slot: fn(Identifier) -> OwnedObjectSlot = match collection {
+                        "controllers" => OwnedObjectSlot::Controller,
+                        "input_devices" => OwnedObjectSlot::InputDevice,
+                        "sequences" => OwnedObjectSlot::Sequence,
+                        "rigs" => OwnedObjectSlot::Rig,
+                        _ => return Err(self.unresolved(document, reference)),
+                    };
                     let (member, after) = after
                         .split_first()
                         .ok_or_else(|| self.unresolved(document, reference))?;
-                    let member = member.value.clone();
-                    if field.value.as_str() == "controllers" {
-                        (OwnedObjectSlot::Controller(member), after)
-                    } else {
-                        (OwnedObjectSlot::Sequence(member), after)
-                    }
+                    (slot(member.value.clone()), after)
                 }
-                _ => return Err(self.unresolved(document, reference)),
             };
             let member = matches!(
                 slot,
-                OwnedObjectSlot::Controller(_) | OwnedObjectSlot::Sequence(_)
+                OwnedObjectSlot::Controller(_)
+                    | OwnedObjectSlot::InputDevice(_)
+                    | OwnedObjectSlot::Sequence(_)
+                    | OwnedObjectSlot::Rig(_)
             );
             kind = kind
                 .owned_child_kind(&slot)

@@ -29,6 +29,19 @@ pub(super) fn edit(
             SourceObjectKind::Sequence,
             "sequences",
         ),
+        (SourceObjectKind::Project, GuiOwnershipSlot::Rig { index }) => (
+            OwnershipSite::ProjectRig(index as usize),
+            SourceObjectKind::Rig,
+            "rigs",
+        ),
+        (SourceObjectKind::Setup, GuiOwnershipSlot::InputDevice { index }) => (
+            OwnershipSite::SetupInputDevice {
+                setup: SetupId(identity),
+                index: index as usize,
+            },
+            SourceObjectKind::InputDevice,
+            "input_devices",
+        ),
         (SourceObjectKind::Setup, GuiOwnershipSlot::Layout) => (
             OwnershipSite::SetupLayout(SetupId(identity)),
             SourceObjectKind::Layout,

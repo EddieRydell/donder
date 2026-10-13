@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 impl DesktopState {
     pub(super) fn load_working_copy(&self, root: &Utf8Path) -> AppSnapshot {
+        self.stop_performing();
         if let Err(error) = self
             .device_playback
             .stop_for_source(self.snapshot().project_epoch, None)

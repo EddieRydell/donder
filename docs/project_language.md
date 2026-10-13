@@ -116,8 +116,9 @@ does not also report the fields the error swallowed.
 ## Names and references
 
 **Every object other objects refer to has a name**: setups, controllers, ports,
-layouts, fixtures, groups, fixture definitions, fixture shapes, patches,
-sequences, layers, clips, mark collections, graph operator nodes, curves and
+input devices, buttons, layouts, fixtures, groups, fixture definitions, fixture
+shapes, patches, sequences, layers, clips, mark collections, graph operator
+nodes, rigs, live mark collections, voices, switches, mappings, curves and
 gradients. The name is the object's only identity: references use it, and the
 GUI shows and edits it. Objects nothing refers to (routes, automation clips,
 edges) have no name. No document contains a numeric ID; loading assigns session
@@ -129,7 +130,9 @@ identities in document order.
 | Fixtures and groups | their layout |
 | Fixture shapes | their fixture definition |
 | Ports | their controller |
+| Buttons | their input device |
 | Layers and graph nodes together; clips; mark collections | their sequence |
+| Layers and graph nodes together; live mark collections; switches; voices and mappings together | their rig |
 
 A layer node is named by its layer and the output node is named `output`, so a
 graph node's name never collides with a layer's. The GUI derives names from what
@@ -139,12 +142,15 @@ converted to `snake_case` (`Time Warp` becomes `time_warp`).
 **References** are dotted paths resolved from where they are written:
 
 - a bare name resolves in the enclosing scope: a declaration of the same
-  document, or a layer, clip, node or mark collection of the same sequence;
+  document, a layer, clip, node or mark collection of the same sequence, or a
+  layer, node, live mark collection, switch, voice or mapping of the same rig;
 - `alias.name` reaches a top-level declaration of an imported document;
 - `layout.fixture` reaches a fixture or group of a layout, whatever groups list
   it, so changing group membership changes no reference;
+- `device.button` reaches a button of an input device;
 - an owned object is reached through its owner and the owning fields:
-  `show.setup.layout`, `show.setup.controllers.main`, `show.setup.layout.desk`.
+  `show.setup.layout`, `show.setup.controllers.main`, `show.setup.layout.desk`,
+  `show.setup.input_devices.pad.hit`.
 
 The expected kind comes from the schema, so a reference to the wrong kind of
 object is an error at the reference.
@@ -152,8 +158,9 @@ object is an error at the reference.
 ## Owned and shared objects
 
 Some fields take either a reference or the object written in place, which its
-owner then owns: a project's `setup` and `sequences`, a setup's `layout`,
-`patch` and `controllers`, and a fixture's `definition`. Owned and shared
+owner then owns: a project's `setup`, `sequences` and `rigs`, a setup's
+`layout`, `patch`, `controllers` and `input_devices`, and a fixture's
+`definition`. Owned and shared
 objects behave differently, so the two forms are two meanings, not two
 spellings: an owned object is copied and deleted with its owner, and a shared one
 is edited once for every user. An owned single value is a record
@@ -204,8 +211,9 @@ import layouts from <layouts/outputs.data.donder>;
   `*.donder` file nothing reaches gets a warning, with a fix that imports it
   from the root. The fix extends the root import named for what the document
   declares (`effects`, `operators`, `scripts` for both, `layouts`, `sequences`,
-  ...), or the first `alias_2`, `alias_3`, ... without a name clash. It also adds
-  a document's sequences to the project's `sequences`. A setup has no fix,
+  `rigs`, `devices`, ...), or the first `alias_2`, `alias_3`, ... without a name
+  clash. It also adds a document's sequences and rigs to the project's
+  `sequences` and `rigs`. A setup has no fix,
   because the project names exactly one.
 
 Prepared playback never sees paths, aliases or names.
@@ -220,6 +228,7 @@ a list.
 ```text
 import setups from <setups/main.data.donder>;
 import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;
+import rigs from <rigs/jam.data.donder>;
 
 Project starter {
   format: 1,
@@ -227,6 +236,7 @@ Project starter {
   description: none,
   setup: setups.main,
   sequences: [sequences.empty, sequences.layer_test],
+  rigs: [rigs.jam],
 }
 ```
 
@@ -237,6 +247,7 @@ Project starter {
 | `description` | `Option<string>` |
 | `setup` | a `Setup` reference or `Setup { ... }` |
 | `sequences` | `[Sequence reference or Sequence name { ... }]` |
+| `rigs` | `[Rig reference or Rig name { ... }]` |
 
 The root document `project.data.donder` holds exactly one `Project`, which no
 other document may declare. Its `format` and `id` establish document and object
@@ -244,7 +255,8 @@ identity before imports resolve. The root document cannot be moved, renamed or
 deleted, and there is no other manifest, lockfile or asset inventory.
 
 New projects start as a single `project.data.donder` with an owned setup, an
-empty layout and patch, and one owned sequence. The root document imports the
+empty layout and patch, no controllers or input devices, one owned sequence
+and no rigs. The root document imports the
 bundled standard effect and operator libraries, so the initial sequence can use
 them; other sequence documents need their own imports.
 
@@ -256,6 +268,7 @@ Setup main {
   layout: layouts.outputs_layout,
   patch: patches.outputs,
   controllers: [output_controller],
+  input_devices: [devices.keyboard],
 }
 
 Controller output_controller {
@@ -270,7 +283,8 @@ Controller output_controller {
 }
 ```
 
-- `Setup`: `description`, `layout`, `patch`, `controllers: [controller]`.
+- `Setup`: `description`, `layout`, `patch`, `controllers: [controller]`,
+  `input_devices: [input device]`.
 - `Controller`: `description`, `protocol`, `ports: [Port]`.
 - `protocol` is one of:
   - `E131 { source_name, bind_address, priority, mode }` with `mode` either
@@ -281,6 +295,42 @@ Controller output_controller {
 - `Port`: `name`, `address`, `slots`, where `address` matches the protocol:
   `Universe { universe }`, `ArtNetPort { port_address }` or
   `Output { output }` (a Donder controller's physical output, from 1).
+
+### Input devices
+
+```text
+InputDevice keyboard {
+  description: "The computer keyboard, for playing the jam rig.",
+  driver: Keyboard,
+  controls: [
+    Button { name: kick, description: none, input: Key { code: KeyA } },
+    Button { name: swell, description: none, input: Key { code: KeyS } },
+    Button { name: boost, description: none, input: Key { code: KeyD } },
+    Button { name: tap, description: "Tap along to the beat.", input: Key { code: Space } },
+    Button { name: shift, description: none, input: Key { code: ShiftLeft } },
+  ],
+}
+```
+
+- `InputDevice`: `description`, `driver`, `controls`. The setup lists the input
+  devices its rigs play from.
+- `driver` is `Keyboard`, the computer keyboard.
+- A control is `Button { name, description, input }`, pressed or released, with
+  `input` `Key { code }`. `code` is a key by its browser `KeyboardEvent.code`
+  name: `KeyA` to `KeyZ`, `Digit0` to `Digit9`, `F1` to `F12`, `Space`, `Enter`,
+  `Tab`, `Escape`, `Backspace`, `ArrowUp`, `ArrowDown`, `ArrowLeft`,
+  `ArrowRight`, `ShiftLeft`, `ShiftRight`, `ControlLeft`, `ControlRight`,
+  `AltLeft`, `AltRight`, `Minus`, `Equal`, `BracketLeft`, `BracketRight`,
+  `Backslash`, `Semicolon`, `Quote`, `Comma`, `Period`, `Slash`, `Backquote`,
+  `Numpad0` to `Numpad9`, `NumpadAdd`, `NumpadSubtract`, `NumpadMultiply`,
+  `NumpadDivide`, `NumpadDecimal`, `NumpadEnter`, `Insert`, `Delete`, `Home`,
+  `End`, `PageUp`, `PageDown` and `CapsLock`. `donder_model::KeyCode` is the
+  one list of key names; the schema reads it.
+- Button names are unique within their device, and no two controls read the
+  same input.
+
+The GUI has no input device editor yet; an input device opens in the text
+editor.
 
 ### Layouts and fixtures
 
@@ -518,6 +568,138 @@ In the editor:
 - Row heights, node sizes, graph pan and zoom and guides are workspace
   preferences, not project data, and are outside undo history.
 
+### Rigs
+
+A rig is played live from input devices instead of on the timeline; it never
+plays on top of a sequence.
+
+```text
+Rig jam {
+  description: "Play the outputs live from the keyboard.",
+  frame_rate: 100,
+  marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
+  layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+  scene: [
+    Voice {
+      name: background,
+      description: "Pulses on every tapped beat.",
+      layer: default,
+      target: elements.outputs_layout.all_outputs,
+      scope: WholeTarget,
+      effect: effects.MarkPulse,
+      params: { beats: beat, accent: gradients.cool_gradient, pulse_shape: curves.ease_down },
+    },
+  ],
+  switches: [Switch { name: page_two, description: none, input: devices.keyboard.shift }],
+  mappings: [
+    Mapping {
+      name: flash,
+      description: none,
+      input: devices.keyboard.kick,
+      when: Off { switch: page_two },
+      action: Trigger {
+        layer: default,
+        target: elements.outputs_layout.all_outputs,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
+        length: Fixed { duration: 0.4s },
+        voices: Retrigger,
+      },
+    },
+    Mapping {
+      name: burst,
+      description: none,
+      input: devices.keyboard.kick,
+      when: On { switch: page_two },
+      action: Trigger {
+        layer: default,
+        target: elements.outputs_layout.all_outputs,
+        scope: PerFixture,
+        effect: effects.Pulse,
+        params: { gradient: gradients.fire_gradient, pulse_shape: curves.soft_pulse },
+        length: Fixed { duration: 1s },
+        voices: Stack { count: 4 },
+      },
+    },
+    Mapping {
+      name: wash,
+      description: none,
+      input: devices.keyboard.swell,
+      when: none,
+      action: Trigger {
+        layer: default,
+        target: elements.outputs_layout.all_outputs,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
+        length: Held,
+        voices: Mono,
+      },
+    },
+    Mapping {
+      name: tap,
+      description: none,
+      input: devices.keyboard.tap,
+      when: none,
+      action: Mark { marks: beat },
+    },
+    Mapping {
+      name: boost,
+      description: none,
+      input: devices.keyboard.boost,
+      when: none,
+      action: Control { voice: background, param: decay_seconds },
+    },
+  ],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 120.0) },
+      OutputNode { position: (420.0, 120.0) },
+    ],
+    edges: [Edge { from: default, to: output }],
+  },
+}
+```
+
+- `Rig`: `description`, `frame_rate`, `marks`, `layers`, `scene`, `switches`,
+  `mappings`, `graph`.
+- `LiveMarks`: `name`, `description`, `color`. A live mark collection starts
+  empty each session and gains a mark each time a `Mark` mapping fires.
+- `layers` and `graph` are exactly a sequence's `Layer` and `Graph`, with the
+  same rules: the first layer is the default, a layer is in at most one layer
+  node, there is one output node, and operator inputs on the output path are
+  connected.
+- `Voice`: `name`, `description`, `layer`, `target`, `scope`, `effect`,
+  `params`. A scene voice plays for the whole session: a clip without `start`
+  or `duration`. Parameters are a clip's, except that a marks value names one
+  of the rig's live mark collections, or is `none`.
+- `Switch`: `name`, `description`, `input`. A switch is off when the session
+  starts, and each press of `input` toggles it.
+- `Mapping`: `name`, `description`, `input`, `when`, `action`. An `input` is a
+  button, `device.button`. `when` is `none`, `On { switch }` or
+  `Off { switch }`: the mapping acts only while that switch of the rig is on or
+  off. `action` is one of:
+  - `Trigger { layer, target, scope, effect, params, length, voices }` starts an
+    effect voice. `length` is `Fixed { duration }` (positive), `Held` (plays
+    while the button is held) or `Latched` (a press starts it and the next press
+    stops it). `voices` is `Retrigger` (one voice, restarted by each press),
+    `Stack { count }` (1 to 16 voices; each press takes the next, reusing the
+    oldest) or `Mono` (one voice; presses while it plays are ignored).
+  - `Mark { marks }` adds a mark to that live mark collection.
+  - `Control { voice, param }` holds a parameter at the top of its range while
+    the button is held and at the bottom otherwise; the control's `0..1` maps
+    onto the parameter exactly as an automation curve does. `voice` names a
+    scene voice or a `Trigger` mapping (all its voices), and the parameter is a
+    float, int, bool, enum or curve.
+- Voices and mappings share one namespace. Every input device a rig of the
+  project reads must be among the project setup's `input_devices`, and its
+  targets are in the setup's layout.
+
+In the GUI, the project lists its rigs with a Perform button each, the setup
+lists its input devices, and each input device and rig has its own editor; a
+rig's layers and graph use the sequence graph editor.
+
 ### Curves and gradients
 
 ```text
@@ -534,8 +716,9 @@ Gradient warm_gradient {
 
 ### Descriptions
 
-The project, setups, controllers, layouts, fixtures and groups, fixture
-definitions, patches, sequences, layers, mark collections, clips, curves and
+The project, setups, controllers, input devices and buttons, layouts, fixtures
+and groups, fixture definitions, patches, sequences, layers, mark collections,
+clips, rigs, live mark collections, voices, switches, mappings, curves and
 gradients have a `description`. The GUI edits an open object's description in
 the bar above its editor, and an item's with the item: a layout item's in its
 name dialog, a clip's in the clip inspector, a layer's in its graph node, and a
@@ -569,9 +752,10 @@ with data:
 
 ## Validity
 
-`donder_model::validate_sequence` is the single sequence
-validator. Project loading and checked GUI edits run it before accepting state;
-preparation does not repeat it.
+`donder_model::validate_sequence` and `donder_model::validate_rig` are the
+single sequence and rig validators, and they share the layer and graph rules.
+Project loading and checked GUI edits run them before accepting state;
+preparation does not repeat them.
 
 - Duration is positive. Frame rate is positive, and duration × frame rate is at
   most 250,000 frames. All times fit the portable 32-bit microsecond clock, and
@@ -590,6 +774,11 @@ preparation does not repeat it.
   automation. A clip binds a target at most once (active or detached), and clips
   that bind the same target do not overlap. Automation curve values lie in
   0..1.
+- A rig's frame rate is positive and at most 1,000. Its voices and triggers
+  follow the clip rules without timing, a `Fixed` length is positive, a stack
+  has 1 to 16 voices, `when` names a switch of the rig, `Mark` a live mark
+  collection, and `Control` an automatable parameter of a voice or trigger.
+  Inputs are buttons of input devices in the project's setup.
 
 ## Saving
 

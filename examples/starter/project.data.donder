@@ -3,6 +3,7 @@ import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
 import setups from <setups/main.data.donder>;
 import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;
+import rigs from <rigs/jam.data.donder>;
 
 Project starter {
   format: 1,
@@ -10,4 +11,5 @@ Project starter {
   description: none,
   setup: setups.main,
   sequences: [sequences.empty, sequences.layer_test],
+  rigs: [rigs.jam],
 }

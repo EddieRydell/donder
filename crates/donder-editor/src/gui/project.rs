@@ -2,7 +2,30 @@ use super::patch::object_ref;
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{ResolvedGuiObject, blocked};
-use donder_sequence_api::{GuiDocument, ProjectGuiDocument};
+use donder_sequence_api::{GuiDocument, ProjectGuiDocument, ProjectGuiEdit};
+
+/// A new rig's frame rate: Perform's target rate.
+const NEW_RIG_FRAME_RATE: u32 = 100;
+
+pub(super) fn edit_project(
+    session: &mut ProjectSession,
+    resolved: &ResolvedGuiObject,
+    edit: ProjectGuiEdit,
+) -> Result<(), super::GuiMutationError> {
+    if session.project.root().id.0 != resolved.identity {
+        return Err(super::GuiMutationError::Invalid(
+            "The requested project is not the active project.".into(),
+        ));
+    }
+    match edit {
+        ProjectGuiEdit::AddRig { initial_color } => {
+            let color = super::model::parse_color(&initial_color)?;
+            donder_model::add_rig(&mut session.project, NEW_RIG_FRAME_RATE, color)
+                .map_err(super::GuiMutationError::Invalid)?;
+        }
+    }
+    Ok(())
+}
 
 pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
     if session.project.root().id.0 != resolved.identity {
@@ -15,7 +38,11 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
             available_sources: super::ownership::available_sources(
                 session,
                 resolved.identity.document_id(),
-                &[SourceObjectKind::Setup, SourceObjectKind::Sequence],
+                &[
+                    SourceObjectKind::Setup,
+                    SourceObjectKind::Sequence,
+                    SourceObjectKind::Rig,
+                ],
             ),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
@@ -29,6 +56,13 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
                 .sequences
                 .iter()
                 .map(|sequence| object_ref(&sequence.id().0, SourceObjectKind::Sequence))
+                .collect(),
+            rigs: session
+                .project
+                .root()
+                .rigs
+                .iter()
+                .map(|rig| object_ref(&rig.id().0, SourceObjectKind::Rig))
                 .collect(),
         },
     }

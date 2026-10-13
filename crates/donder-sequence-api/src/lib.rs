@@ -26,6 +26,13 @@ pub use dto::browser::{
 pub use dto::diagnostics::{
     DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,
 };
+pub use dto::live::{
+    GuiButtonInput, GuiInputControl, GuiInputDriver, InputDeviceGuiDocument, ProjectGuiEdit,
+    RigActionChoice, RigButtonRef, RigControlTarget, RigEffect, RigEffectEdit, RigEffectOwner,
+    RigGuiDocument, RigGuiEdit, RigInput, RigInputButton, RigInputDevice, RigItem, RigLiveMarks,
+    RigMapping, RigMappingAction, RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen,
+    SetupInputDevice,
+};
 pub use dto::output::{
     ControllerOutputTest, DeviceCapabilities, DeviceFirmwareInfo, DeviceInstallProgress,
     DeviceOutputCapabilities, DevicePlaybackMode, DevicePlaybackStatus, DeviceSequenceStorage,
@@ -38,6 +45,7 @@ pub use dto::patch::{
     GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,
     PatchLayout,
 };
+pub use dto::perform::{PerformButton, PerformRig, PerformSession, PerformSnapshot, PerformSwitch};
 pub use dto::preview::{
     FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,
     GuiFixtureHandle, GuiFixtureShape, GuiFixtureSource, GuiGridAxis, GuiGridCorner,
@@ -109,7 +117,6 @@ pub enum SequenceAutomationTarget {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceDescribedItem {
-    Layer { id: u32 },
     MarkCollection { key: String },
     Clip { id: u32 },
 }
@@ -121,6 +128,9 @@ pub enum SequenceDescribedItem {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceGuiEdit {
+    Composition {
+        edit: CompositionGuiEdit,
+    },
     SetDuration {
         duration_seconds: f32,
     },
@@ -135,40 +145,14 @@ pub enum SequenceGuiEdit {
         scope: SequenceEffectScope,
         start_seconds: f32,
     },
-    CreateLayer {
-        name: String,
-        color: String,
-    },
-    CreateLayerAt {
-        name: String,
-        color: String,
-        x: f32,
-        y: f32,
-    },
-    RenameLayer {
-        id: u32,
-        name: String,
-    },
     RenameClip {
         id: u32,
-        name: String,
-    },
-    RenameGraphNode {
-        node_id: String,
         name: String,
     },
     /// Set an item's description; empty text removes it.
     SetItemDescription {
         item: SequenceDescribedItem,
         description: Option<String>,
-    },
-    SetLayerColor {
-        id: u32,
-        color: String,
-    },
-    SetLayerEnabled {
-        id: u32,
-        enabled: bool,
     },
     SetEffectLayer {
         id: u32,
@@ -209,36 +193,6 @@ pub enum SequenceGuiEdit {
     },
     UpdateEffectParam {
         id: u32,
-        name: String,
-        value: SequenceEffectParamValue,
-    },
-    AddGraphOperatorNode {
-        initial_color: String,
-        operator: SequenceGraphOperator,
-        x: f32,
-        y: f32,
-    },
-    MoveGraphNodes {
-        positions: Vec<SequenceGraphNodePosition>,
-    },
-    DeleteGraphItems {
-        node_ids: Vec<String>,
-        layer_ids: Vec<u32>,
-        edges: Vec<SequenceGraphEdge>,
-        migrate_to_layer_id: Option<u32>,
-    },
-    ConnectGraphNodes {
-        from_node: String,
-        from_port: String,
-        to_node: String,
-        to_port: String,
-    },
-    ReconnectGraphEdge {
-        previous: SequenceGraphEdge,
-        connection: SequenceGraphEdge,
-    },
-    UpdateGraphOperatorParam {
-        node_id: String,
         name: String,
         value: SequenceEffectParamValue,
     },
@@ -321,6 +275,77 @@ pub enum SequenceGuiEdit {
         collection_key: String,
         index: u32,
         label: Option<String>,
+    },
+}
+
+/// Edits to the layers and composition graph that sequences and rigs share.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum CompositionGuiEdit {
+    CreateLayer {
+        name: String,
+        color: String,
+    },
+    CreateLayerAt {
+        name: String,
+        color: String,
+        x: f32,
+        y: f32,
+    },
+    RenameLayer {
+        id: u32,
+        name: String,
+    },
+    RenameGraphNode {
+        node_id: String,
+        name: String,
+    },
+    SetLayerColor {
+        id: u32,
+        color: String,
+    },
+    SetLayerEnabled {
+        id: u32,
+        enabled: bool,
+    },
+    /// Empty text removes the description.
+    SetLayerDescription {
+        id: u32,
+        description: Option<String>,
+    },
+    AddGraphOperatorNode {
+        initial_color: String,
+        operator: SequenceGraphOperator,
+        x: f32,
+        y: f32,
+    },
+    MoveGraphNodes {
+        positions: Vec<SequenceGraphNodePosition>,
+    },
+    DeleteGraphItems {
+        node_ids: Vec<String>,
+        layer_ids: Vec<u32>,
+        edges: Vec<SequenceGraphEdge>,
+        migrate_to_layer_id: Option<u32>,
+    },
+    ConnectGraphNodes {
+        from_node: String,
+        from_port: String,
+        to_node: String,
+        to_port: String,
+    },
+    ReconnectGraphEdge {
+        previous: SequenceGraphEdge,
+        connection: SequenceGraphEdge,
+    },
+    UpdateGraphOperatorParam {
+        node_id: String,
+        name: String,
+        value: SequenceEffectParamValue,
     },
 }
 

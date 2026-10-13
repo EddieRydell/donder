@@ -26,6 +26,7 @@ openh264.workspace = true
 shiguredo_mp4.workspace = true
 donder-elaboration.workspace = true
 donder-runtime.workspace = true
+rkyv.workspace = true
 glam.workspace = true
 ignore.workspace = true
 notify.workspace = true

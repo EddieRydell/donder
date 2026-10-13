@@ -1,7 +1,11 @@
 import { OwnershipActions, ownershipLabel } from "../OwnershipActions";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { Boxes, ListVideo } from "lucide-react";
+import { Boxes, ListVideo, Play, Radio } from "lucide-react";
 import type { ReactNode } from "react";
+import { commands } from "../../../api";
+import { runGuiEditCommand, useAppStore } from "../../../store";
+import { THEME_COLORS } from "../../../theme";
+import { startPerforming, usePerformStore } from "../../../perform";
 
 import type { ProjectGuiDocument } from "../../../types";
 import { navigateToGuiObject } from "../../../workspace/navigation";
@@ -14,7 +18,7 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
           <span className="object-overview-eyebrow">Project</span>
           <h2>{document.objectKey}</h2>
         </div>
-        <span>{document.sequences.length} {document.sequences.length === 1 ? "sequence" : "sequences"}</span>
+        <span>{document.sequences.length} {document.sequences.length === 1 ? "sequence" : "sequences"} · {document.rigs.length} {document.rigs.length === 1 ? "rig" : "rigs"}</span>
       </header>
 
       <section className="object-overview-group">
@@ -44,8 +48,37 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
           /><OwnershipActions sources={document.availableSources} source={sequence} slot={{ type: "sequence", index }} label={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey} /></div>
         ))}
       </section>
+
+      <RigList document={document} />
     </main>
   );
+}
+
+/** The project's rigs, which Perform plays live. */
+function RigList({ document }: { document: ProjectGuiDocument }) {
+  const pending = useAppStore((state) => state.guiEditPending);
+  const performing = usePerformStore((state) => state.perform?.session !== null && state.perform?.session !== undefined);
+  return <section className="object-overview-group">
+    <div className="object-overview-group-header">
+      <h3>Rigs</h3>
+      <button type="button" disabled={pending} onClick={() => void runGuiEditCommand((request) =>
+        commands.applyGuiEdit(request, { type: "project", edit: { type: "addRig", initialColor: THEME_COLORS.defaultSequenceColor } }))}>Add rig</button>
+    </div>
+    {document.rigs.length === 0 ? (
+      <p className="object-overview-empty">No rigs are included in this project.</p>
+    ) : document.rigs.map((rig, index) => {
+      const step = rig.ownedPath[rig.ownedPath.length - 1];
+      const name = step?.type === "rig" ? step.name : rig.objectKey;
+      return <div className="object-overview-row-with-actions" key={guiObjectKey(rig)}><ObjectRow
+        icon={<Radio aria-hidden="true" />}
+        title={name}
+        reference={ownershipLabel(rig)}
+        onOpen={() => void navigateToGuiObject(rig)}
+      /><button type="button" className="object-overview-row-perform" disabled={performing} onClick={() => { startPerforming(index); }}>
+        <Play aria-hidden="true" /> Perform
+      </button><OwnershipActions sources={document.availableSources} source={rig} slot={{ type: "rig", index }} label={name} /></div>;
+    })}
+  </section>;
 }
 
 function ObjectRow({

@@ -1,12 +1,12 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 
-/// A root document declaring `Project main` with a fresh project id. `fields`
-/// are written after `description`; imports come first.
+/// A root document declaring `Project main` with a fresh project id and no
+/// rigs. `fields` are written after `description`; imports come first.
 pub fn root_document(imports: &str, fields: &str) -> String {
     let metadata = donder_project_io::ProjectMetadata::default();
     format!(
-        "{imports}\nProject main {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}}}\n",
+        "{imports}\nProject main {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}  rigs: [],\n}}\n",
         metadata.format_version, metadata.project_id
     )
 }
@@ -36,6 +36,7 @@ Setup main {
   layout: display.main,
   patch: patches.main,
   controllers: [],
+  input_devices: [],
 }
 "#;
 

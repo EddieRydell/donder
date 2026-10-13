@@ -66,18 +66,6 @@ pub(super) fn effect_mut(
         .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))
 }
 
-pub(super) fn composition_graph_node_mut<'a>(
-    sequence: &'a mut donder_model::Sequence,
-    id: &CompositionGraphNodeId,
-) -> Result<&'a mut CompositionGraphNode, GuiMutationError> {
-    sequence
-        .composition_graph
-        .nodes
-        .iter_mut()
-        .find(|node| node.id == *id)
-        .ok_or_else(|| GuiMutationError::Invalid("Graph node was not found.".to_string()))
-}
-
 pub(super) fn parse_graph_node_id(value: &str) -> Result<CompositionGraphNodeId, GuiMutationError> {
     if let Some(id) = value.strip_prefix("node:") {
         return id
@@ -88,106 +76,6 @@ pub(super) fn parse_graph_node_id(value: &str) -> Result<CompositionGraphNodeId,
     Err(GuiMutationError::Invalid(
         "Invalid graph node id.".to_string(),
     ))
-}
-
-pub(super) fn ensure_graph_node_exists(
-    sequence: &donder_model::Sequence,
-    node_id: &CompositionGraphNodeId,
-) -> Result<(), GuiMutationError> {
-    if sequence
-        .composition_graph
-        .nodes
-        .iter()
-        .any(|node| node.id == *node_id)
-    {
-        Ok(())
-    } else {
-        Err(GuiMutationError::Invalid(
-            "Graph node was not found.".to_string(),
-        ))
-    }
-}
-
-pub(super) fn graph_input_cardinality(
-    definitions: &donder_model::OperatorDefinitionStore,
-    kind: &CompositionGraphNodeKind,
-    source_name: &str,
-) -> Option<OperatorPortCardinality> {
-    match kind {
-        CompositionGraphNodeKind::Layer { .. } => None,
-        CompositionGraphNodeKind::Operator(operator) => definitions
-            .resolve(&operator.operator)?
-            .inputs()
-            .iter()
-            .find(|port| port.source_name == source_name)
-            .map(|port| port.cardinality.clone()),
-        CompositionGraphNodeKind::Output => {
-            (source_name == "input").then_some(OperatorPortCardinality::Many)
-        }
-    }
-}
-
-pub(super) fn next_composition_node_id(sequence: &donder_model::Sequence) -> u32 {
-    sequence
-        .composition_graph
-        .nodes
-        .iter()
-        .map(|node| node.id.0)
-        .max()
-        .unwrap_or(0)
-        + 1
-}
-
-pub(super) fn create_sequence_layer(
-    sequence: &mut donder_model::Sequence,
-    name: String,
-    color: String,
-    position: Option<(f32, f32)>,
-    connect_to_output: bool,
-) -> Result<(), GuiMutationError> {
-    let next_layer_id = sequence
-        .layers
-        .iter()
-        .map(|layer| layer.id.0)
-        .max()
-        .unwrap_or(0)
-        + 1;
-    let output_node_id = sequence
-        .composition_graph
-        .nodes
-        .iter()
-        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
-        .map(|node| node.id.clone())
-        .ok_or_else(|| {
-            GuiMutationError::Invalid("Composition graph output was not found.".to_string())
-        })?;
-    let layer_node_id = CompositionGraphNodeId(next_composition_node_id(sequence));
-    typed_name(&name)?;
-    let name = fresh_name(&name, |candidate| sequence_name_taken(sequence, candidate));
-    sequence.layers.push(donder_model::SequenceLayer {
-        id: SequenceLayerId(next_layer_id),
-        name,
-        description: None,
-        color: parse_color(&color)?,
-        enabled: true,
-    });
-    let (x, y) = position.unwrap_or((80.0, 120.0 + next_layer_id as f32 * 80.0));
-    sequence.composition_graph.nodes.push(CompositionGraphNode {
-        id: layer_node_id.clone(),
-        position: GraphNodePosition { x, y },
-        kind: CompositionGraphNodeKind::Layer {
-            layer_id: SequenceLayerId(next_layer_id),
-        },
-    });
-    if connect_to_output {
-        sequence.composition_graph.edges.push(EffectGraphEdge {
-            from: layer_node_id,
-            from_port: GraphPortId("output".to_string()),
-            to: output_node_id,
-            to_port: GraphPortId("input".to_string()),
-        });
-    }
-    Ok(())
 }
 
 pub(super) fn graph_operator_from_gui(
@@ -223,18 +111,6 @@ pub fn source_identity_from_gui(
         donder_model::DocumentId::new(module_id, Utf8PathBuf::from(path)),
         object.to_string(),
     ))
-}
-
-/// Whether a name is used by a layer, graph node or the output node: they
-/// share the graph's namespace.
-pub(super) fn sequence_name_taken(sequence: &donder_model::Sequence, name: &str) -> bool {
-    name == "output"
-        || sequence.layers.iter().any(|layer| layer.name.as_str() == name)
-        || sequence
-            .composition_graph
-            .nodes
-            .iter()
-            .any(|node| matches!(&node.kind, CompositionGraphNodeKind::Operator(operator) if operator.name.as_str() == name))
 }
 
 pub(super) fn mark_collection_mut<'a>(
@@ -297,6 +173,73 @@ pub(super) fn layout_target_to_effect_target(
     DomainFixtureTarget {
         layout: layout.clone(),
         fixture: FixtureInstanceId(target.fixture),
+    }
+}
+
+pub(super) fn effect_ref_from_gui(
+    session: &ProjectSession,
+    reference: SequenceEffectReference,
+) -> Result<EffectRef, GuiMutationError> {
+    Ok(match reference {
+        SequenceEffectReference::Custom {
+            module_id,
+            path,
+            effect_name,
+        } => {
+            let identity = source_identity_from_gui(&module_id, &path, &effect_name)?;
+            if !session.source.is_project_owned(identity.document_id()) {
+                return Err(GuiMutationError::Invalid(
+                    "Effect source module was not found.".to_string(),
+                ));
+            }
+            EffectRef::Custom(EffectDefinitionId(identity))
+        }
+    })
+}
+
+/// The values a new invocation of `definition` gives its parameters without
+/// defaults, starting colors at `initial_color`.
+pub(super) fn required_param_values(
+    session: &ProjectSession,
+    definition: &EffectRef,
+    initial_color: Color,
+) -> Result<IndexMap<Identifier, EffectParamValue>, GuiMutationError> {
+    let effect = session
+        .project
+        .definitions()
+        .effects
+        .resolve(definition)
+        .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
+    effect
+        .params()
+        .iter()
+        .filter(|param| param.default.is_none())
+        .map(|param| {
+            EffectParamValue::initial_for_type(&param.ty, initial_color)
+                .map(|value| (param.name.clone(), value))
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid(format!(
+                        "Effect parameter `{}` requires an explicit value.",
+                        param.name.as_str()
+                    ))
+                })
+        })
+        .collect()
+}
+
+/// Visit a parameter value's marks references, including a marks array's.
+pub(super) fn visit_marks(
+    value: &mut EffectParamValue,
+    visit: &mut impl FnMut(&mut Option<MarkCollectionKey>),
+) {
+    match value {
+        EffectParamValue::Marks(reference) => visit(reference),
+        EffectParamValue::Array(values) => {
+            for value in values {
+                visit_marks(value, visit);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -519,25 +462,26 @@ use camino::Utf8PathBuf;
 use donder_language::{Distance, Point3, Rotation3 as DomainRotation3, Scale3 as DomainScale3};
 use donder_model::SourceIdentity;
 use donder_model::{
-    AssetId, AutomationClip, CompositionGraphNode, CompositionGraphNodeId,
-    CompositionGraphNodeKind, EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection,
-    MarkCollectionKey, SequenceLayerId, automation_value_at,
+    AssetId, AutomationClip, CompositionGraphNodeId, MarkCollection, MarkCollectionKey,
+    automation_value_at,
 };
 use donder_model::{
-    CurveId, CurveSource, EffectInst, EffectParamValue, EffectScope, GradientId, GradientSource,
+    CurveId, CurveSource, EffectDefinitionId, EffectInst, EffectParamValue, EffectRef, EffectScope,
+    GradientId, GradientSource,
 };
 use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_model::{OperatorDefinitionId, OperatorPortCardinality, OperatorRef};
+use donder_model::{OperatorDefinitionId, OperatorRef};
 use donder_project_io::{ProjectSession, ReferencedAsset, SourceObjectKind};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::{AutomationMapping, AutomationValue};
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use indexmap::IndexMap;
 
 use super::GuiMutationError;
 use donder_sequence_api::{
     FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceCurvePoint,
-    SequenceEffectParamValue, SequenceEffectScope, SequenceGradientStop, SequenceGraphOperator,
-    SequenceLibrarySource,
+    SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGradientStop,
+    SequenceGraphOperator, SequenceLibrarySource,
 };
 
 pub(super) fn create_object_document(

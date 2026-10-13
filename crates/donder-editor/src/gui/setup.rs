@@ -1,5 +1,5 @@
-use donder_model::ControllerId;
 use donder_model::SetupId;
+use donder_model::{ControllerId, InputDeviceId};
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::model::object_identity_from_gui;
@@ -36,6 +36,30 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
         Ok(controllers) => controllers,
         Err(error) => return blocked(error, Vec::new()),
     };
+    let available_devices = donder_project_io::available_reusable_sources(
+        session,
+        resolved.identity.document_id(),
+        &[SourceObjectKind::InputDevice],
+    )
+    .into_iter()
+    .map(|(_, id)| InputDeviceId(id.into()))
+    .collect::<std::collections::HashSet<_>>();
+    let input_devices = setup
+        .input_devices
+        .iter()
+        .map(|source| {
+            let id = source.id();
+            session
+                .project
+                .input_device(id)
+                .map(|device| super::input_device::project_input_device(session, id, device))
+                .ok_or_else(|| "Input device was not found.".to_string())
+        })
+        .collect::<Result<_, _>>();
+    let input_devices = match input_devices {
+        Ok(input_devices) => input_devices,
+        Err(error) => return blocked(error, Vec::new()),
+    };
     GuiDocument::Setup {
         document: SetupGuiDocument {
             description: setup.description.clone(),
@@ -46,6 +70,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
                     SourceObjectKind::Layout,
                     SourceObjectKind::Patch,
                     SourceObjectKind::Controller,
+                    SourceObjectKind::InputDevice,
                 ],
             ),
             path: resolved.identity.document().to_string(),
@@ -72,6 +97,18 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
                     super::controller::project_controller(session, id, controller)
                 })
                 .collect(),
+            input_devices,
+            available_input_devices: session
+                .project
+                .reusable_input_devices()
+                .iter()
+                .filter(|(id, _)| {
+                    available_devices.contains(*id)
+                        && !setup.input_devices.iter().any(|source| source.id() == *id)
+                })
+                .map(|(id, device)| super::input_device::project_input_device(session, id, device))
+                .collect(),
+            key_codes: super::input_device::key_codes(),
         },
     }
 }
@@ -121,6 +158,51 @@ pub(super) fn edit_setup(
                 remove_outputs,
             )
             .map_err(GuiMutationError::Invalid)?;
+        }
+        SetupGuiEdit::AttachInputDevice { device } => {
+            let identity = object_identity_from_gui(&device)?;
+            donder_model::attach_input_device(
+                &mut session.project,
+                &setup.id,
+                InputDeviceId(identity.clone()),
+            )
+            .map_err(GuiMutationError::Invalid)?;
+            let source = identity.source().ok_or_else(|| {
+                GuiMutationError::Invalid("Choose a reusable input device.".into())
+            })?;
+            donder_project_io::link_reusable_source(
+                session,
+                setup.id.0.document_id(),
+                SourceObjectKind::InputDevice,
+                source,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+        }
+        SetupGuiEdit::DetachInputDevice { device } => {
+            let identity = object_identity_from_gui(&device)?;
+            donder_model::detach_input_device(
+                &mut session.project,
+                &setup.id,
+                &InputDeviceId(identity),
+            )
+            .map_err(GuiMutationError::Invalid)?;
+        }
+        SetupGuiEdit::AddInputDevice { driver, controls } => {
+            use donder_model::OwnedObjectSlot;
+            let next = super::model::fresh_name("input_device", |name| {
+                setup.input_devices.iter().any(|source| {
+                    matches!(source.id().0.owned_path().last(), Some(OwnedObjectSlot::InputDevice(taken)) if taken.as_str() == name)
+                })
+            });
+            let id = InputDeviceId(setup.id.0.owned(OwnedObjectSlot::InputDevice(next)));
+            let device = super::input_device::domain_input_device(id, None, driver, controls)?;
+            setup
+                .input_devices
+                .push(donder_model::ValueSource::Inline(Box::new(device)));
+            session
+                .project
+                .replace_setup(&setup.id.clone(), setup)
+                .map_err(GuiMutationError::Invalid)?;
         }
         SetupGuiEdit::AddController { config, ports } => {
             use donder_model::OwnedObjectSlot;

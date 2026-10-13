@@ -1,7 +1,9 @@
 import { OwnershipActions, ownershipLabel } from "../OwnershipActions";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { ControllerForm } from "../controller/ControllerForm";
-import { Cable, CircuitBoard, LayoutGrid } from "lucide-react";
+import { Cable, CircuitBoard, Keyboard, LayoutGrid } from "lucide-react";
+import { InputDeviceForm } from "../inputDevice/InputDeviceForm";
+import { AvailableInputDevices, SetupInputDeviceActions } from "./InputDeviceMembership";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState, type ReactNode } from "react";
 
@@ -16,7 +18,7 @@ export function SetupEditor({ document }: { document: SetupDocument }) {
     <main className="project-overview">
       <header className="object-overview-header">
         <div><span className="object-overview-eyebrow">Display setup</span><h2>{document.sourceRef.ownedPath.length > 0 ? "Display setup" : document.objectKey}</h2></div>
-        <span>{document.controllers.length} controllers</span>
+        <span>{document.controllers.length} controllers · {document.inputDevices.length} input devices</span>
       </header>
       <section className="object-overview-group">
         <h3>Composition</h3>
@@ -26,6 +28,10 @@ export function SetupEditor({ document }: { document: SetupDocument }) {
       <section className="object-overview-group">
         <OverviewGroupHeader title="Controllers"><CreationDialog label="Add controller" title="New controller"><ControllerForm onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "addController", config, ports })); }} /><AvailableControllers document={document} /></CreationDialog></OverviewGroupHeader>
         {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller, index) => <div className="object-overview-row-with-actions" key={guiObjectKey(controller.sourceRef)}><SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} reference={ownershipLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs${controller.readOnly ? " - Unavailable source" : ""}`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><OwnershipActions sources={document.availableSources} source={controller.sourceRef} slot={{ type: "controller", index }} label={controller.label}><SetupControllerActions controller={controller} patchReadOnly={document.patchReadOnly} /></OwnershipActions></div>)}
+      </section>
+      <section className="object-overview-group">
+        <OverviewGroupHeader title="Input devices"><CreationDialog label="Add input device" title="New input device"><InputDeviceForm keyCodes={document.keyCodes} onSave={async (driver, controls) => { await runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "addInputDevice", driver, controls })); }} /><AvailableInputDevices document={document} /></CreationDialog></OverviewGroupHeader>
+        {document.inputDevices.length === 0 ? <p className="object-overview-empty">No input devices attached.</p> : document.inputDevices.map((device, index) => <div className="object-overview-row-with-actions" key={guiObjectKey(device.sourceRef)}><SetupRow icon={<Keyboard aria-hidden="true" />} title={device.name} reference={ownershipLabel(device.sourceRef)} detail={`${device.controls.length} buttons${device.readOnly ? " - Unavailable source" : ""}`} onOpen={() => void navigateToGuiObject(device.sourceRef)} /><OwnershipActions sources={document.availableSources} source={device.sourceRef} slot={{ type: "inputDevice", index }} label={device.name}><SetupInputDeviceActions device={device} /></OwnershipActions></div>)}
       </section>
     </main>
   );

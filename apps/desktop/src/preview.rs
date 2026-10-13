@@ -9,7 +9,9 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::persistence::{PersistedPreviewWindowState, PersistenceService};
-use donder_sequence_api::{AudioTransportSnapshot, AudioTransportState, PreviewAppearance};
+use donder_sequence_api::{
+    AudioTransportSnapshot, AudioTransportState, PlaybackSpeed, PreviewAppearance,
+};
 
 mod geometry;
 mod host;
@@ -20,6 +22,7 @@ mod scene;
 mod video;
 
 pub(crate) use geometry::PreviewGeometry;
+pub(crate) use protocol::PreviewArchive;
 use protocol::{PreviewCommand, PreviewEvent, PreviewStartup, read_event, write_command};
 pub(crate) use video::export_video;
 
@@ -31,11 +34,38 @@ pub(crate) struct PreviewContentIdentity {
     pub(crate) project_revision: u64,
     pub(crate) sequence_generation: u64,
     pub(crate) project_loaded: bool,
+    /// The performance in progress, which the Preview plays instead of a sequence.
+    pub(crate) performance: Option<u32>,
 }
 
 pub(crate) struct PreviewContent {
     pub(crate) instances: Vec<[f32; 4]>,
-    pub(crate) sequence: Option<Vec<u8>>,
+    pub(crate) archive: Option<PreviewArchive>,
+    /// The performance a rig archive plays, whose commands follow it.
+    pub(crate) performance: Option<u32>,
+}
+
+/// The clock the Preview plays its content on: the audio transport's, or a
+/// performance's session clock.
+#[derive(Clone, Debug)]
+pub(crate) struct PreviewClock {
+    pub(crate) generation: u32,
+    pub(crate) state: AudioTransportState,
+    pub(crate) position_seconds: f32,
+    pub(crate) start_delay_seconds: f32,
+    pub(crate) playback_speed: PlaybackSpeed,
+}
+
+impl From<AudioTransportSnapshot> for PreviewClock {
+    fn from(value: AudioTransportSnapshot) -> Self {
+        Self {
+            generation: value.generation,
+            state: value.state,
+            position_seconds: value.position_seconds,
+            start_delay_seconds: value.start_delay_seconds,
+            playback_speed: value.playback_speed,
+        }
+    }
 }
 
 struct PreviewProcess {
@@ -284,6 +314,16 @@ fn monitor_process(
                         .emit("preview_window_changed", snapshot.preview_open);
                 }
             }
+            Ok(PreviewEvent::Key { code, pressed }) => {
+                let state = monitor.app.state::<crate::desktop_state::DesktopState>();
+                state.perform_key(&code, pressed);
+                crate::commands::publish_perform_snapshot(&monitor.app);
+            }
+            Ok(PreviewEvent::KeysReleased) => {
+                let state = monitor.app.state::<crate::desktop_state::DesktopState>();
+                state.perform_release_all();
+                crate::commands::publish_perform_snapshot(&monitor.app);
+            }
             Ok(PreviewEvent::QuitRequested) => {
                 if let Some(window) = monitor.app.get_window("main") {
                     let _ = window.set_focus();
@@ -349,6 +389,9 @@ fn run_sync_loop(
     let mut wake_generation = wake.generation();
     let mut content_identity = None;
     let mut content_revision = 0u64;
+    // The performance the sent content plays, and how many of its commands were sent.
+    let mut performance = None;
+    let mut performance_events = 0usize;
     let mut clock_key = None;
     while active.load(Ordering::Acquire) {
         let state = app.state::<crate::desktop_state::DesktopState>();
@@ -362,7 +405,7 @@ fn run_sync_loop(
                         &PreviewCommand::ReplaceContent {
                             revision: content_revision,
                             instances: content.instances,
-                            sequence: content.sequence,
+                            archive: content.archive,
                         },
                     )
                     .is_err()
@@ -371,6 +414,8 @@ fn run_sync_loop(
                         break;
                     }
                     content_identity = Some(identity);
+                    performance = content.performance;
+                    performance_events = 0;
                 }
                 Err(error) => {
                     state.update_snapshot(|snapshot| {
@@ -380,7 +425,18 @@ fn run_sync_loop(
             }
         }
 
-        let clock = state.audio_snapshot();
+        if let Some(events) = performance
+            .and_then(|generation| state.performance_events(generation, performance_events))
+            .filter(|events| !events.is_empty())
+        {
+            performance_events += events.len();
+            if send(&writer, &PreviewCommand::RigEvents { events }).is_err() {
+                active.store(false, Ordering::Release);
+                break;
+            }
+        }
+
+        let clock = state.preview_clock();
         let next_clock_key = PreviewClockKey::from(&clock);
         let playing = matches!(clock.state, AudioTransportState::Playing);
         if (playing || clock_key.as_ref() != Some(&next_clock_key))
@@ -399,7 +455,7 @@ fn run_sync_loop(
     }
 }
 
-fn send_clock(writer: &PreviewWriter, clock: AudioTransportSnapshot) -> Result<(), String> {
+fn send_clock(writer: &PreviewWriter, clock: PreviewClock) -> Result<(), String> {
     send(
         writer,
         &PreviewCommand::SetClock {
@@ -419,8 +475,8 @@ struct PreviewClockKey {
     position_bits: u32,
 }
 
-impl From<&AudioTransportSnapshot> for PreviewClockKey {
-    fn from(value: &AudioTransportSnapshot) -> Self {
+impl From<&PreviewClock> for PreviewClockKey {
+    fn from(value: &PreviewClock) -> Self {
         Self {
             generation: value.generation,
             state: value.state.clone(),

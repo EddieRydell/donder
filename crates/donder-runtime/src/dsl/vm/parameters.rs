@@ -22,6 +22,14 @@ pub(super) enum ResourceParam {
 }
 
 impl BoundParams {
+    /// Replace the marks bound to resource `bank`, a marks parameter.
+    pub(crate) fn set_marks(&mut self, bank: usize, marks: Arc<Marks>) {
+        let ResourceParam::Marks(bound) = &mut self.resources[bank] else {
+            unreachable!("preparation binds live mark collections to marks parameters")
+        };
+        *bound = marks;
+    }
+
     /// Materialize an invocation's checked values for `program`.
     pub(crate) fn from_validated(
         program: &BytecodeProgram,
