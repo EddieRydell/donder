@@ -7,6 +7,7 @@ import { commandRegistry, runCommand, shortcutLabel } from "../commandRegistry";
 import { useAppStore } from "../store";
 import { THEME_METRICS } from "../theme";
 import { isMac } from "../platform";
+import { BrandLogo } from "./BrandLogo";
 
 const appWindow = getCurrentWindow();
 
@@ -40,16 +41,14 @@ export function TitleBar() {
   if (isMac) {
     return (
       <header className="titlebar titlebar-mac" onMouseDown={startTitlebarDrag}>
-        <div className="brand">Donder</div>
+        <div className="brand"><BrandLogo /></div>
       </header>
     );
   }
 
   return (
     <header className="titlebar" onMouseDown={startTitlebarDrag}>
-      <div className="brand">
-        Donder
-      </div>
+      <div className="brand"><BrandLogo /></div>
       <nav className="menu-row">
         <Menu label="File" entries={[...FILE_MENU, { type: "separator" }, { type: "command", id: "file.settings" }]} />
         <Menu label="Edit" entries={EDIT_MENU} />
