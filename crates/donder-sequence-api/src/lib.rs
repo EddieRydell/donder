@@ -20,8 +20,9 @@ pub use dto::audio::{
 };
 pub use dto::browser::{
     BrowserClipRaster, BrowserCompileDiagnostic, BrowserCompileResult, BrowserEditorState,
-    BrowserOperation, BrowserPageNode, BrowserReplayResult, BrowserSelectionResult,
-    BrowserSessionConfig, BrowserSourceDocument, BrowserSourceKind,
+    BrowserOperation, BrowserPageNode, BrowserProject, BrowserProjectAsset, BrowserProjectDocument,
+    BrowserReplayResult, BrowserSelectionResult, BrowserSessionConfig, BrowserSourceDocument,
+    BrowserSourceKind,
 };
 pub use dto::diagnostics::{
     DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,

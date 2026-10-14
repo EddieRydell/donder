@@ -30,7 +30,7 @@ has one owner:
 | `donder-cli` | `check`, `copy`, `export-fseq`, `lsp` (the language server over stdio) and the generated builtin reference. |
 | `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion, shared by the desktop and browser hosts. Edit helpers mutate the candidate session they are given. |
 | `donder-sequence-api` | The serialized editor contract (DTOs and `SequenceGuiEdit`), exported to TypeScript for both hosts. |
-| `donder-browser` | A WASM session for the website: an in-memory project, editing through `donder-editor`, preparation and playback. |
+| `donder-browser` | A WASM session for the website: a show project loaded from memory and bound to the measured page by layout names, editing through `donder-editor`, preparation and playback. |
 | `donder-test-support` | Dev-only playback workloads shared by runtime and elaboration tests and benchmarks. |
 | `apps/desktop` | The Tauri app: workflows, background scheduling and history in `desktop_state` and `state_tasks`, platform IO, the Preview process (`preview/`: playback clock, wgpu renderer and pipe protocol), and the React frontend, which exports the editor UI as `@donder/editor` for both hosts. |
 | `firmware/esp32` | The controller firmware, a separate Cargo workspace. See [ESP32 loading](esp32_loading.md). |

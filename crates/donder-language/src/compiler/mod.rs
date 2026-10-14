@@ -25,17 +25,7 @@ pub use instance::ProgramConstants;
 pub use syntax::ast::{DeclarationKind, DeclarationSpan};
 pub use syntax::lexer::TextSpan;
 
-/// Each top-level declaration's kind, name, and byte range, in source order.
-pub fn declaration_spans(source: &str) -> Result<Vec<DeclarationSpan>, Vec<Diagnostic>> {
-    syntax::declaration_spans(source)
-}
-
 /// The declarations that parse, ignoring syntax errors elsewhere.
 pub fn partial_declaration_spans(source: &str) -> Vec<DeclarationSpan> {
     syntax::partial_declaration_spans(source)
-}
-
-/// Each top-level `fn` declaration's byte range, in source order.
-pub fn function_spans(source: &str) -> Result<Vec<TextSpan>, Vec<Diagnostic>> {
-    syntax::function_spans(source)
 }

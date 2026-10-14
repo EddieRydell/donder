@@ -792,20 +792,6 @@ fn binary_op(kind: TokenKind) -> Option<(BinaryOp, u8)> {
     })
 }
 
-/// Each top-level `fn` declaration's span, in source order.
-pub(crate) fn function_spans(source: &str) -> Result<Vec<TextSpan>, Vec<Diagnostic>> {
-    Ok(parse(source)?
-        .functions
-        .into_iter()
-        .map(|function| function.span)
-        .collect())
-}
-
-/// Each top-level declaration's kind, name and span, in source order.
-pub(crate) fn declaration_spans(source: &str) -> Result<Vec<DeclarationSpan>, Vec<Diagnostic>> {
-    Ok(spans(parse(source)?.declarations))
-}
-
 /// The declarations that parse, ignoring syntax errors elsewhere.
 pub(crate) fn partial_declaration_spans(source: &str) -> Vec<DeclarationSpan> {
     spans(parse_partial(source).0.declarations)

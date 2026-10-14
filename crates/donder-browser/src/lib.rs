@@ -11,43 +11,35 @@
     )
 )]
 
+use camino::{Utf8Path, Utf8PathBuf};
 use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::compiler::{compile_effects, compile_operators};
-use donder_language::{Distance, DistanceSpan, DonderDuration, Point3};
-use donder_model::ControllerId;
+use donder_language::{Distance, DistanceSpan, Point3};
 use donder_model::SequenceId;
+use donder_model::SourceIdentity;
 use donder_model::ValueSource;
-use donder_model::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
-use donder_model::{
-    DonderProject, ProjectData, ProjectDefinitionStores, ProjectEdit, ProjectId, ProjectRoot,
-};
+use donder_model::{DonderProject, ProjectEdit};
 use donder_model::{EffectDefinition, EffectDefinitionId};
 use donder_model::{
     FixtureDefinition, FixtureElement, FixtureElementId, FixtureShape, FixtureTransform,
 };
 use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
-use donder_model::{Patch, PatchId};
-use donder_model::{Setup, SetupId};
-use donder_project_io::ProjectSession;
+use donder_project_io::{MemoryProject, ProjectSession};
 use donder_runtime::SequencePlayback;
-use donder_runtime_types::{Color, sample_time_from_seconds_f32};
+use donder_runtime_types::sample_time_from_seconds_f32;
 use donder_sequence_api::{
     BrowserCompileDiagnostic as DiagnosticView, BrowserCompileResult as CompileView,
     BrowserPageNode, BrowserSessionConfig,
 };
-use indexmap::IndexMap;
 use serde::Serialize;
 use std::sync::Arc;
-use std::time::Duration;
 use wasm_bindgen::prelude::*;
 
-mod audio;
 mod editing;
 mod language_server;
 mod page_layout;
 mod rasters;
 mod sources;
-pub use sources::declaration_sources;
 
 fn js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
     value
@@ -87,11 +79,6 @@ fn prepare_playback(
         .into_playback())
 }
 
-/// Every browser session is the same module, so saved operations, which name
-/// definitions by module, still resolve when a later session replays them.
-const BROWSER_PROJECT_MODULE: uuid::Uuid =
-    uuid::Uuid::from_u128(0x0d0d_e000_b0b0_4000_8000_0000_0000_0001);
-
 /// An in-memory project built from the website's page, sources, and audio.
 /// No project files or server-side runtime are involved.
 #[wasm_bindgen]
@@ -116,73 +103,56 @@ impl BrowserSession {
     pub fn new(config: JsValue) -> Result<BrowserSession, JsValue> {
         let config: BrowserSessionConfig = serde_wasm_bindgen::from_value(config)
             .map_err(|error| JsValue::from_str(&format!("Invalid session config: {error}")))?;
-        validate_session_values(config.frame_rate, config.duration_seconds)?;
         page_layout::validate_page(&config.page)?;
-        let document = DocumentId::new(BROWSER_PROJECT_MODULE, "browser-demo.data.donder".into());
-        let project_source = SourceIdentity::from_document(document, "demo".into());
-        let project_object = ObjectIdentity::from(project_source.clone());
-        let setup_object = project_object.owned(OwnedObjectSlot::Setup);
-        let layout_id = LayoutId(setup_object.owned(OwnedObjectSlot::Layout));
-        let setup = Setup {
-            description: None,
-            id: SetupId(setup_object.clone()),
-            layout: ValueSource::Inline(Box::new(page_layout::page_layout(
-                layout_id.clone(),
-                &config.page,
-            ))),
-            patch: ValueSource::Inline(Box::new(Patch {
-                description: None,
-                id: PatchId(setup_object.owned(OwnedObjectSlot::Patch)),
-                routes: Vec::new(),
-            })),
-            controllers: Vec::<ValueSource<Box<donder_model::Controller>, ControllerId>>::new(),
-            input_devices: Vec::new(),
+        let project = MemoryProject {
+            documents: config
+                .project
+                .documents
+                .into_iter()
+                .map(|document| (Utf8PathBuf::from(document.path), document.text))
+                .collect(),
+            assets: config
+                .project
+                .assets
+                .into_iter()
+                .map(|asset| (Utf8PathBuf::from(asset.path), Utf8PathBuf::from(asset.url)))
+                .collect(),
         };
-        let data = ProjectData {
-            root: ProjectRoot {
-                description: None,
-                id: ProjectId(project_source.clone()),
-                setup: ValueSource::Inline(Box::new(setup)),
-                sequences: Vec::new(),
-                rigs: Vec::new(),
-            },
-            setups: IndexMap::new(),
-            layouts: IndexMap::new(),
-            patches: IndexMap::new(),
-            controllers: IndexMap::new(),
-            input_devices: IndexMap::new(),
-            sequences: IndexMap::new(),
-            rigs: IndexMap::new(),
-            definitions: ProjectDefinitionStores::default(),
-        };
-        let mut project = DonderProject::try_new(data).map_err(|error| {
-            JsValue::from_str(&format!("Invalid browser demo project: {error}"))
-        })?;
-        let duration = DonderDuration(
-            Duration::try_from_secs_f32(config.duration_seconds).map_err(|_| {
-                JsValue::from_str("Sequence duration is outside the supported range.")
-            })?,
-        );
-        let sequence_id =
-            donder_model::add_sequence(&mut project, duration, config.frame_rate, Color::BLACK)
-                .map_err(|error| JsValue::from_str(&error))?;
-        let mut session = sources::initial_session(project, &project_source)?;
-        for source in &config.sources {
-            sources::install_source(
-                &mut session,
-                &sequence_id,
-                &source.path,
-                source.kind.clone(),
-                &source.source,
-                sources::SourceInstall::Create,
-            )?
-            .into_result(&source.path)?;
-        }
-        if let Some(url) = &config.audio_url {
-            audio::set_audio(&mut session, &sequence_id, url)?;
-        }
-        set_mark_collections(&mut session.project, &sequence_id, &config.mark_collections)?;
+        let mut session =
+            donder_project_io::load_memory_project(Utf8Path::new(BROWSER_PROJECT_ROOT), &project)
+                .map_err(|error| {
+                JsValue::from_str(&format!(
+                    "The show does not load:
+{error}"
+                ))
+            })?;
+        let root = session.project.root();
+        let sequence_id = root
+            .sequences
+            .first()
+            .ok_or_else(|| JsValue::from_str("The show has no sequence."))?
+            .id()
+            .clone();
+        let layout_id = session
+            .project
+            .setup(root.setup.id())
+            .ok_or_else(|| JsValue::from_str("The show's setup was not found."))?
+            .layout
+            .id()
+            .clone();
+        page_layout::bind_page_layout(
+            &mut session.project,
+            &layout_id,
+            &sequence_id,
+            &config.page,
+        )?;
         let playback = prepare_playback(&session.project, &sequence_id)?;
+        let duration_seconds = session
+            .project
+            .sequence(&sequence_id)
+            .ok_or_else(|| JsValue::from_str("The show's sequence was not found."))?
+            .duration
+            .as_seconds_f32();
         Ok(Self {
             session: Arc::new(session),
             past: Vec::new(),
@@ -191,7 +161,7 @@ impl BrowserSession {
             sequence_id,
             layout_id,
             page: config.page,
-            duration_seconds: config.duration_seconds,
+            duration_seconds,
             revision: 0,
             playback,
             replaying: false,
@@ -251,76 +221,13 @@ impl BrowserSession {
     }
 }
 
+/// Where the show's documents stand in for a project directory.
+const BROWSER_PROJECT_ROOT: &str = "/show";
+
 impl BrowserSession {
     fn next_revision(&self) -> Result<u32, JsValue> {
         self.revision
             .checked_add(1)
             .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))
     }
-}
-
-fn set_mark_collections(
-    project: &mut DonderProject,
-    sequence_id: &SequenceId,
-    collections: &[donder_sequence_api::SequenceMarkCollection],
-) -> Result<(), JsValue> {
-    let mut sequence = project
-        .sequence(sequence_id)
-        .cloned()
-        .ok_or_else(|| JsValue::from_str("The demo sequence was not found."))?;
-    sequence.mark_collections = collections
-        .iter()
-        .map(|collection| {
-            if collection.marks_seconds.len() != collection.mark_labels.len() {
-                return Err(JsValue::from_str(&format!(
-                    "Mark collection {} has {} mark times but {} mark labels.",
-                    collection.key,
-                    collection.marks_seconds.len(),
-                    collection.mark_labels.len()
-                )));
-            }
-            Ok(donder_model::MarkCollection {
-                key: donder_model::MarkCollectionKey {
-                    name: donder_language::object_name(&collection.key),
-                },
-                description: None,
-                display_color: Color::from_hex(&collection.color).ok_or_else(|| {
-                    JsValue::from_str(&format!(
-                        "Mark color {} is not a hex color.",
-                        collection.color
-                    ))
-                })?,
-                marks: collection
-                    .marks_seconds
-                    .iter()
-                    .zip(&collection.mark_labels)
-                    .map(|(&seconds, label)| {
-                        let time = donder_language::DonderTime::try_from_seconds_f32(seconds)
-                            .map_err(|_| {
-                                JsValue::from_str("Mark times must be non-negative seconds.")
-                            })?;
-                        Ok(donder_model::Mark {
-                            time,
-                            label: label.clone(),
-                        })
-                    })
-                    .collect::<Result<_, JsValue>>()?,
-            })
-        })
-        .collect::<Result<_, JsValue>>()?;
-    project
-        .replace_sequence(sequence_id, sequence)
-        .map_err(|error| JsValue::from_str(&error))
-}
-
-fn validate_session_values(frame_rate: u32, duration_seconds: f32) -> Result<(), JsValue> {
-    if frame_rate == 0 || frame_rate > 1_000 {
-        return Err(JsValue::from_str("Frame rate must be between 1 and 1000."));
-    }
-    if !duration_seconds.is_finite() || duration_seconds <= 0.0 || duration_seconds > 3_600.0 {
-        return Err(JsValue::from_str(
-            "Duration must be greater than zero and at most one hour.",
-        ));
-    }
-    Ok(())
 }
