@@ -36,18 +36,40 @@ pub enum BrowserPageNode {
     },
 }
 
-/// Everything needed to create a browser session. Sources, page, and audio are
-/// the starting point, not history entries.
+/// Everything needed to create a browser session: the measured page and the
+/// show that plays on it. They are the starting point, not history entries.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserSessionConfig {
-    pub frame_rate: u32,
-    pub duration_seconds: f32,
     pub page: Vec<BrowserPageNode>,
-    pub sources: Vec<BrowserSourceDocument>,
-    /// A URL served by the website, used for waveform and playback.
-    pub audio_url: Option<String>,
-    pub mark_collections: Vec<SequenceMarkCollection>,
+    pub project: BrowserProject,
+}
+
+/// A Donder project held by the website. Its setup's layout names page nodes:
+/// the session plays the project's first sequence on the measured page, each
+/// target bound to the page node with the same name.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserProject {
+    pub documents: Vec<BrowserProjectDocument>,
+    pub assets: Vec<BrowserProjectAsset>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserProjectDocument {
+    /// Project-relative, as in an import.
+    pub path: String,
+    pub text: String,
+}
+
+/// An asset the project references, served by the website.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserProjectAsset {
+    /// Project-relative, as the referencing document writes it.
+    pub path: String,
+    pub url: String,
 }
 
 /// An accepted change to a browser session, in the form a host can save and

@@ -1,48 +1,7 @@
 use super::*;
-use camino::Utf8PathBuf;
 use donder_model::{OperatorDefinitionId, custom_operator_definition};
-use donder_project_io::{
-    ProjectMetadata, ProjectWorkspace, SourceDocument, SourceDocumentKind, SourceObjectId,
-    SourceObjectKind, SourceProject,
-};
+use donder_project_io::{SourceDocument, SourceDocumentKind, SourceObjectId, SourceObjectKind};
 use donder_sequence_api::{BrowserSourceDocument, BrowserSourceKind};
-
-pub(super) fn initial_session(
-    project: DonderProject,
-    root: &SourceIdentity,
-) -> Result<ProjectSession, JsValue> {
-    let mut source = SourceProject {
-        workspace: ProjectWorkspace {
-            root: Utf8PathBuf::from("/browser-demo"),
-            metadata: ProjectMetadata {
-                format_version: donder_project_io::PROJECT_FORMAT_VERSION,
-                project_id: root.module_id(),
-            },
-        },
-        entrypoint: Some(root.document_id().clone()),
-        documents: IndexMap::new(),
-        referenced_assets: Vec::new(),
-    };
-    let root_document = SourceDocument::new(
-        Vec::new(),
-        vec![
-            SourceObjectId::new(SourceObjectKind::Project, root.object().into())
-                .map_err(|error| JsValue::from_str(&error))?,
-        ],
-        SourceDocumentKind::Data,
-    )
-    .map_err(|error| JsValue::from_str(&error))?;
-    source
-        .documents
-        .insert(root.document_id().clone(), root_document);
-    Ok(ProjectSession { project, source })
-}
-
-#[derive(Clone, Copy)]
-pub(super) enum SourceInstall {
-    Create,
-    Replace,
-}
 
 pub(super) enum SourceOutcome {
     Compiled(Vec<String>),
@@ -50,20 +9,6 @@ pub(super) enum SourceOutcome {
 }
 
 impl SourceOutcome {
-    pub(super) fn into_result(self, path: &str) -> Result<Vec<String>, JsValue> {
-        match self {
-            Self::Compiled(names) => Ok(names),
-            Self::Rejected(diagnostics) => Err(JsValue::from_str(&format!(
-                "{path} does not compile:\n{}",
-                diagnostics
-                    .into_iter()
-                    .map(|diagnostic| diagnostic.message)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ))),
-        }
-    }
-
     fn view(self) -> CompileView {
         match self {
             Self::Compiled(definitions) => CompileView {
@@ -106,13 +51,12 @@ fn source_kind(document: &SourceDocument) -> Option<BrowserSourceKind> {
 /// Compile a source document and replace every declaration it owns. Declarations
 /// removed from the text are removed from the project; the project check rejects
 /// removals that the sequence still uses.
-pub(super) fn install_source(
+fn install_source(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
     path: &str,
     kind: BrowserSourceKind,
     text: &str,
-    install: SourceInstall,
 ) -> Result<SourceOutcome, JsValue> {
     if donder_project_io::source_document_format(path.into())
         != donder_project_io::SourceDocumentFormat::Script
@@ -124,20 +68,15 @@ pub(super) fn install_source(
     }
     donder_project_io::validate_relative_path(path).map_err(|error| JsValue::from_str(&error))?;
     let document = session.source.project_document(path.into());
-    let previous = match (install, session.source.documents.get(&document)) {
-        (SourceInstall::Create, Some(_)) => {
-            return Err(JsValue::from_str(&format!("{path} already exists.")));
-        }
-        (SourceInstall::Replace, None) => {
-            return Err(JsValue::from_str(&format!("{path} was not found.")));
-        }
-        (SourceInstall::Create, None) => Vec::new(),
-        (SourceInstall::Replace, Some(existing)) => existing
-            .objects()
-            .iter()
-            .map(|object| object.id().to_owned())
-            .collect(),
-    };
+    let previous = session
+        .source
+        .documents
+        .get(&document)
+        .ok_or_else(|| JsValue::from_str(&format!("{path} was not found.")))?
+        .objects()
+        .iter()
+        .map(|object| object.id().to_owned())
+        .collect::<Vec<_>>();
     let identity = |name: &str| SourceIdentity::from_document(document.clone(), name.into());
     let (names, mut edits) = match kind {
         BrowserSourceKind::Effect => match compile_effects(text) {
@@ -244,14 +183,7 @@ impl BrowserSession {
             .map(source_kind)?
             .ok_or_else(|| JsValue::from_str(&format!("{path} is not DSL source.")))?;
         let mut candidate = (*self.session).clone();
-        let outcome = install_source(
-            &mut candidate,
-            &self.sequence_id,
-            path,
-            kind,
-            text,
-            SourceInstall::Replace,
-        )?;
+        let outcome = install_source(&mut candidate, &self.sequence_id, path, kind, text)?;
         if matches!(outcome, SourceOutcome::Compiled(_)) {
             self.accept(candidate)?;
         }
@@ -288,54 +220,4 @@ impl BrowserSession {
     pub fn set_source(&mut self, path: &str, source: &str) -> Result<JsValue, JsValue> {
         js_value(&self.replace_source(path, source)?)
     }
-}
-
-/// Split a DSL source into one document per declaration, named
-/// `<Name>.donder`. Every document carries
-/// the source's functions, which any declaration may call. Other text between
-/// declarations (comments) is not part of any document.
-#[wasm_bindgen(js_name = declarationSources)]
-pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
-    let messages = |diagnostics: Vec<donder_language::compiler::Diagnostic>| {
-        JsValue::from_str(
-            &diagnostics
-                .into_iter()
-                .map(|diagnostic| diagnostic.message)
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
-    };
-    let declarations = donder_language::compiler::declaration_spans(source).map_err(messages)?;
-    let functions = donder_language::compiler::function_spans(source)
-        .map_err(messages)?
-        .into_iter()
-        .map(|span| {
-            source
-                .get(span.start..span.end)
-                .map(|text| format!("{text}\n\n"))
-                .ok_or_else(|| JsValue::from_str("Function span is outside its source."))
-        })
-        .collect::<Result<String, JsValue>>()?;
-    let documents = declarations
-        .into_iter()
-        .map(|declaration| {
-            let kind = match declaration.kind {
-                donder_language::compiler::DeclarationKind::Effect => BrowserSourceKind::Effect,
-                donder_language::compiler::DeclarationKind::Operator => BrowserSourceKind::Operator,
-            };
-            let text = source
-                .get(declaration.span.start..declaration.span.end)
-                .ok_or_else(|| JsValue::from_str("Declaration span is outside its source."))?;
-            Ok(BrowserSourceDocument {
-                path: format!(
-                    "{}{}",
-                    declaration.name.as_str(),
-                    donder_language::data::SCRIPT_SUFFIX
-                ),
-                kind,
-                source: format!("{functions}{text}\n"),
-            })
-        })
-        .collect::<Result<Vec<_>, JsValue>>()?;
-    js_value(&documents)
 }

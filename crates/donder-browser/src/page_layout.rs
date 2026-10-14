@@ -1,7 +1,7 @@
 use super::*;
 use donder_model::AutomationTarget;
 use donder_sequence_api::BrowserPageNode;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const MAX_PAGE_PIXELS: usize = 100_000;
 const MAX_PAGE_COORDINATE: f32 = 1_000.0;
@@ -132,6 +132,57 @@ fn fixture_definition(pixels: &[[f32; 2]]) -> FixtureDefinition {
     }
 }
 
+/// Replace the show's layout with the measured page. Each effect and automation
+/// row moves from the show's layout node to the page node with the same name.
+pub(super) fn bind_page_layout(
+    project: &mut DonderProject,
+    layout_id: &LayoutId,
+    sequence_id: &SequenceId,
+    page: &[BrowserPageNode],
+) -> Result<(), JsValue> {
+    let show = project
+        .layout(layout_id)
+        .ok_or_else(|| JsValue::from_str("The show's layout was not found."))?;
+    let layout = page_layout(layout_id.clone(), page);
+    let page_ids = layout
+        .iter_fixtures()
+        .map(|fixture| (fixture.name.clone(), fixture.id))
+        .collect::<HashMap<_, _>>();
+    let bound = show
+        .iter_fixtures()
+        .map(|fixture| {
+            page_ids
+                .get(&fixture.name)
+                .map(|page_id| (fixture.id, *page_id))
+                .ok_or_else(|| {
+                    JsValue::from_str(&format!(
+                        "The show's layout node {} is not on the page.",
+                        fixture.name.as_str()
+                    ))
+                })
+        })
+        .collect::<Result<HashMap<_, _>, JsValue>>()?;
+    let mut sequence = sequence(project, sequence_id)?;
+    for effect in &mut sequence.effects {
+        let page_id = bound[&effect.target.fixture];
+        Arc::make_mut(effect).target.fixture = page_id;
+    }
+    for clip in &mut sequence.automation_clips {
+        clip.row_target.fixture = bound[&clip.row_target.fixture];
+    }
+    replace(project, layout_id, sequence_id, layout, sequence)
+}
+
+fn sequence(
+    project: &DonderProject,
+    sequence_id: &SequenceId,
+) -> Result<donder_model::Sequence, JsValue> {
+    project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| JsValue::from_str("The show's sequence was not found."))
+}
+
 /// Replace the page layout. Effects and automation rows whose target left the
 /// page are deleted in the same checked edit.
 pub(super) fn apply_page_layout(
@@ -145,10 +196,7 @@ pub(super) fn apply_page_layout(
         .iter_fixtures()
         .map(|fixture| fixture.id)
         .collect::<HashSet<_>>();
-    let mut sequence = project
-        .sequence(sequence_id)
-        .cloned()
-        .ok_or_else(|| JsValue::from_str("The demo sequence was not found."))?;
+    let mut sequence = sequence(project, sequence_id)?;
     let removed = sequence
         .effects
         .iter()
@@ -166,6 +214,16 @@ pub(super) fn apply_page_layout(
             matches!(target, AutomationTarget::EffectParam { effect_id, .. } if removed.contains(effect_id))
         });
     }
+    replace(project, layout_id, sequence_id, layout, sequence)
+}
+
+fn replace(
+    project: &mut DonderProject,
+    layout_id: &LayoutId,
+    sequence_id: &SequenceId,
+    layout: Layout,
+    sequence: donder_model::Sequence,
+) -> Result<(), JsValue> {
     project
         .apply_edits([
             ProjectEdit::ReplaceLayout {

@@ -99,6 +99,29 @@ export type BrowserOperation = { type: "edit"; edit: SequenceGuiEdit } | { type:
  */
 export type BrowserPageNode = { type: "group"; id: number; name: string; children: BrowserPageNode[] } | { type: "fixture"; id: number; name: string; pixels: ([number, number])[] };
 
+/**
+ *  A Donder project held by the website. Its setup's layout names page nodes:
+ *  the session plays the project's first sequence on the measured page, each
+ *  target bound to the page node with the same name.
+ */
+export type BrowserProject = {
+	documents: BrowserProjectDocument[],
+	assets: BrowserProjectAsset[],
+};
+
+/**  An asset the project references, served by the website. */
+export type BrowserProjectAsset = {
+	/**  Project-relative, as the referencing document writes it. */
+	path: string,
+	url: string,
+};
+
+export type BrowserProjectDocument = {
+	/**  Project-relative, as in an import. */
+	path: string,
+	text: string,
+};
+
 export type BrowserReplayResult = {
 	/**  How many operations were applied, in order. */
 	applied: number,
@@ -114,17 +137,12 @@ export type BrowserSelectionResult = {
 };
 
 /**
- *  Everything needed to create a browser session. Sources, page, and audio are
- *  the starting point, not history entries.
+ *  Everything needed to create a browser session: the measured page and the
+ *  show that plays on it. They are the starting point, not history entries.
  */
 export type BrowserSessionConfig = {
-	frameRate: number,
-	durationSeconds: number,
 	page: BrowserPageNode[],
-	sources: BrowserSourceDocument[],
-	/**  A URL served by the website, used for waveform and playback. */
-	audioUrl: string | null,
-	markCollections: SequenceMarkCollection[],
+	project: BrowserProject,
 };
 
 export type BrowserSourceDocument = {
