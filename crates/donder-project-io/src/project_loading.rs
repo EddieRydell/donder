@@ -9,7 +9,6 @@ use crate::{
 };
 use camino::{Utf8Path, Utf8PathBuf};
 use indexmap::IndexSet;
-use std::collections::BTreeMap;
 use std::{fs, io};
 
 #[derive(Debug)]
@@ -30,57 +29,6 @@ pub fn project_source_texts(root: &Utf8Path) -> io::Result<SourceOverrides> {
         .filter(|path| path.extension() == Some("donder"))
         .map(|path| fs::read_to_string(root.join(&path)).map(|text| (path, text)))
         .collect()
-}
-
-/// A project held in memory instead of a directory: its documents by
-/// project-relative path, and where each asset it references is found.
-#[derive(Clone, Debug, Default)]
-pub struct MemoryProject {
-    pub documents: SourceOverrides,
-    pub assets: BTreeMap<Utf8PathBuf, Utf8PathBuf>,
-}
-
-/// Load a project from memory. `root` stands in for the project directory;
-/// nothing is read from disk.
-pub fn load_memory_project(
-    root: &Utf8Path,
-    project: &MemoryProject,
-) -> Result<ProjectSession, ProjectLoadError> {
-    let mut diagnostics = Vec::new();
-    let loaded = project
-        .documents
-        .get(Utf8Path::new(PROJECT_ROOT_FILE))
-        .ok_or_else(|| crate::LoadProjectError::InvalidDocument {
-            path: PROJECT_ROOT_FILE.into(),
-            range: None,
-            message: "the project has no root document".into(),
-        })
-        .and_then(|text| ProjectMetadata::parse(text))
-        .and_then(|metadata| {
-            let workspace = ProjectWorkspace {
-                root: root.to_path_buf(),
-                metadata,
-            };
-            let mut loader = Loader::new(workspace)?;
-            for (path, text) in &project.documents {
-                loader.source_overrides.insert(
-                    donder_model::DocumentId::new(
-                        loader.workspace.metadata.project_id,
-                        path.clone(),
-                    ),
-                    text.clone(),
-                );
-            }
-            loader.asset_locations = Some(project.assets.clone());
-            loader.load()
-        });
-    match loaded {
-        Ok(session) => Ok(session),
-        Err(error) => {
-            push_load_error_diagnostics(&mut diagnostics, error);
-            Err(ProjectLoadError(diagnostics))
-        }
-    }
 }
 
 pub fn load_project(root: &Utf8Path) -> Result<ProjectSession, ProjectLoadError> {

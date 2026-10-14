@@ -1,7 +1,4 @@
 :root {
-  --donder-browser-editor-height: 34rem;
-  --donder-browser-editor-min-height: 22rem;
-  --donder-browser-inspector-width: 20rem;
   color-scheme: dark;
   --donder-bg: #17181b;
   --donder-bg-app: #16171a;
@@ -543,23 +540,22 @@
   box-sizing: border-box;
 }
 
-/* Base element styles belong to Donder surfaces only: the desktop app shell and
-   embedded editors (.donder-editor). Hosts such as the website keep their own.
-   :where() keeps each rule's original specificity. */
+/* Base element styles belong to the desktop app shell. :where() keeps each
+   rule's original specificity. */
 
 /* Default scrollbars for desktop webviews; dedicated editor rails keep their
    diagnostic markers and explicitly hide their underlying native scrollbars. */
-:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar {
+:where(html.donder-app-shell) ::-webkit-scrollbar {
   width: var(--donder-scrollbar-width);
   height: var(--donder-scrollbar-width);
 }
 
-:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-track,
-:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-corner {
+:where(html.donder-app-shell) ::-webkit-scrollbar-track,
+:where(html.donder-app-shell) ::-webkit-scrollbar-corner {
   background: var(--donder-bg-rail);
 }
 
-:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-thumb {
+:where(html.donder-app-shell) ::-webkit-scrollbar-thumb {
   min-width: var(--donder-scrollbar-thumb-min-height);
   min-height: var(--donder-scrollbar-thumb-min-height);
   border: var(--donder-scrollbar-thumb-inset) solid var(--donder-bg-rail);
@@ -568,17 +564,16 @@
   background-clip: padding-box;
 }
 
-:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-thumb:hover,
-:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-thumb:active {
+:where(html.donder-app-shell) ::-webkit-scrollbar-thumb:hover,
+:where(html.donder-app-shell) ::-webkit-scrollbar-thumb:active {
   background-color: var(--donder-scrollbar-thumb-hover);
 }
 
-:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-button {
+:where(html.donder-app-shell) ::-webkit-scrollbar-button {
   display: none;
 }
 
-/* The desktop window is a fixed app shell. Hosts that embed the editor
-   (the website) keep their own page scrolling. */
+/* The desktop window is a fixed app shell. */
 html.donder-app-shell,
 html.donder-app-shell body,
 #root {
@@ -593,41 +588,27 @@ html.donder-app-shell body {
   font-family: var(--donder-font-ui);
 }
 
-/* An embedded editor owns its typography and scrolling instead of inheriting
-   the host page's, and never chains wheel scrolling out to the page. */
-.donder-editor {
-  color: var(--donder-text);
-  font-family: var(--donder-font-ui);
-  line-height: normal;
-  scrollbar-color: auto;
-}
-
-.donder-editor,
-.donder-editor * {
-  overscroll-behavior: contain;
-}
-
-:where(html.donder-app-shell, .donder-editor) button,
-:where(html.donder-app-shell, .donder-editor) a.neutral-button,
-:where(html.donder-app-shell, .donder-editor) input,
-:where(html.donder-app-shell, .donder-editor) select,
-:where(html.donder-app-shell, .donder-editor) textarea {
+:where(html.donder-app-shell) button,
+:where(html.donder-app-shell) a.neutral-button,
+:where(html.donder-app-shell) input,
+:where(html.donder-app-shell) select,
+:where(html.donder-app-shell) textarea {
   color: var(--donder-text);
   font: inherit;
 }
 
-:where(html.donder-app-shell, .donder-editor) :where(button, a.neutral-button, input, select, textarea) {
+:where(html.donder-app-shell) :where(button, a.neutral-button, input, select, textarea) {
   background: var(--donder-bg);
   accent-color: var(--donder-accent);
 }
 
-:where(html.donder-app-shell, .donder-editor) :where(button, a.neutral-button, select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])) {
+:where(html.donder-app-shell) :where(button, a.neutral-button, select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])) {
   border: var(--donder-border-width) solid var(--donder-border);
   border-radius: var(--donder-radius-md);
   padding: var(--donder-space-3) var(--donder-space-5);
 }
 
-:where(html.donder-app-shell, .donder-editor) :where(button, a.neutral-button) {
+:where(html.donder-app-shell) :where(button, a.neutral-button) {
   border-color: var(--donder-border-control);
   border-radius: var(--donder-radius-lg);
   padding: var(--donder-space-4) var(--donder-space-7);
@@ -635,22 +616,22 @@ html.donder-app-shell body {
   text-decoration: none;
 }
 
-:where(html.donder-app-shell, .donder-editor) :where(button:not(:disabled), a.neutral-button) {
+:where(html.donder-app-shell) :where(button:not(:disabled), a.neutral-button) {
   cursor: pointer;
 }
 
-:where(html.donder-app-shell, .donder-editor) :where(button:hover:not(:disabled), a.neutral-button:hover) {
+:where(html.donder-app-shell) :where(button:hover:not(:disabled), a.neutral-button:hover) {
   filter: brightness(var(--donder-button-hover-brightness));
 }
 
-:where(html.donder-app-shell, .donder-editor) :where(input, textarea)::placeholder {
+:where(html.donder-app-shell) :where(input, textarea)::placeholder {
   color: var(--donder-text-muted);
 }
 
-:where(html.donder-app-shell, .donder-editor) button:focus,
-:where(html.donder-app-shell, .donder-editor) button:focus-visible,
-:where(html.donder-app-shell, .donder-editor) [role="menuitem"]:focus,
-:where(html.donder-app-shell, .donder-editor) [role="menuitem"]:focus-visible {
+:where(html.donder-app-shell) button:focus,
+:where(html.donder-app-shell) button:focus-visible,
+:where(html.donder-app-shell) [role="menuitem"]:focus,
+:where(html.donder-app-shell) [role="menuitem"]:focus-visible {
   outline: none;
 }
 
@@ -4790,37 +4771,6 @@ button.status-chip:hover {
 
 .spatial-canvas-shell { display: flex; flex-direction: column; }
 .spatial-canvas-shell > .gui-canvas { flex: 1; height: 0; }
-.shared-sequence-workbench {
-  display: flex;
-  flex-direction: column;
-  height: var(--donder-browser-editor-height);
-  min-height: var(--donder-browser-editor-min-height);
-  background: var(--donder-bg-panel);
-  color: var(--donder-text);
-  border: 1px solid var(--donder-border);
-  font: var(--donder-canvas-font);
-}
-.shared-sequence-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--donder-browser-inspector-width);
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-.shared-sequence-workbench > .sequence-toolbar {
-  flex: none;
-  width: auto;
-  align-self: stretch;
-}
-.shared-sequence-inspector {
-  display: grid;
-  overflow: hidden;
-  min-height: 0;
-  border-left: 1px solid var(--donder-border);
-}
-.shared-sequence-workbench [hidden] { display: none; }
-/* Hidden line used to measure DSL editor geometry; it inherits the editor font and line padding. */
-.donder-editor-overlays { display: contents; }
 
 .description-field {
   display: grid;

@@ -22,9 +22,7 @@ commands in the [firmware README](../firmware/esp32/README.md#validation).
 Documentation and example-only changes do not need the gate.
 
 The gate's host Cargo commands all build the whole workspace, so they share one
-set of artifacts. A `-p` build resolves a different feature set (`donder-browser`
-adds `syn` and `donder-model` features), which changes most dependency artifacts
-and rebuilds them.
+set of artifacts.
 
 The dev profile compiles workspace crates at opt-level 1 and dependencies at
 opt-level 2. Tests load and compile whole projects, and unoptimized builds made

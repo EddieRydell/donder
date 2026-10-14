@@ -54,9 +54,8 @@ pub use project_edit::{
     DocumentTextCache, export_project, save_project, source_document_text, source_document_texts,
 };
 pub use project_loading::{
-    MemoryProject, ProjectLoadError, SourceOverrides, check_document_text, check_project,
-    check_project_cached, check_project_document_text, check_project_with_overrides,
-    load_memory_project, load_project, project_source_texts,
+    ProjectLoadError, SourceOverrides, check_document_text, check_project, check_project_cached,
+    check_project_document_text, check_project_with_overrides, load_project, project_source_texts,
 };
 pub use serialization::{SourceTextWrite, write_source_texts};
 pub use source::{

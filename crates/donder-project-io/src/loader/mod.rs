@@ -4,7 +4,6 @@
 mod resolve;
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
 use std::fs;
 use std::sync::Arc;
 
@@ -167,9 +166,6 @@ pub(super) struct Loader {
     pub(crate) next_asset_id: u32,
     pub(crate) checked_scripts: IndexSet<Utf8PathBuf>,
     pub(crate) source_overrides: IndexMap<DocumentId, String>,
-    /// Where a project loaded from memory finds each asset, by project-relative
-    /// path. `None` resolves assets in the workspace on disk.
-    pub(crate) asset_locations: Option<BTreeMap<Utf8PathBuf, Utf8PathBuf>>,
     pub(crate) cache: ProjectCheckCache,
     /// Where each resolved name points, for the language server.
     pub(crate) links: RefCell<IndexSet<Link>>,
@@ -202,7 +198,6 @@ impl Loader {
             next_asset_id: 1,
             checked_scripts: IndexSet::new(),
             source_overrides: IndexMap::new(),
-            asset_locations: None,
             cache: ProjectCheckCache::default(),
             links: RefCell::new(IndexSet::new()),
         })

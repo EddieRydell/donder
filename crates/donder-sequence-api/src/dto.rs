@@ -1,7 +1,6 @@
 //! The serialized editor DTOs, one module per workflow; `lib.rs` lists each export.
 pub(crate) mod app;
 pub(crate) mod audio;
-pub(crate) mod browser;
 pub(crate) mod diagnostics;
 pub(crate) mod live;
 pub(crate) mod output;
