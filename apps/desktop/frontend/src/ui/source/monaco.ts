@@ -82,19 +82,6 @@ const TOKEN_RULES: { token: string; color: string; italic?: boolean }[] = [
   { token: "variable.defaultLibrary", color: THEME_CODE_EDITOR.name }
 ];
 
-/** The color of a semantic token, matched as Monaco matches theme rules. */
-export function tokenColor(type: string, modifiers: string[]): string {
-  for (let count = modifiers.length; count >= 0; count -= 1) {
-    const scope = [type, ...modifiers.slice(0, count)].join(".");
-    const rule = TOKEN_RULES.find((candidate) => candidate.token === scope);
-    if (rule !== undefined) return rule.color;
-  }
-  return THEME_CODE_EDITOR.text;
-}
-
-/** The text color outside tokens. */
-export const PLAIN_TEXT_COLOR = THEME_CODE_EDITOR.text;
-
 let configured = false;
 
 /**

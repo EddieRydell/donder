@@ -114,12 +114,3 @@ export function dispatchEditorShortcut(event: KeyboardEvent): boolean {
   }
   return false;
 }
-
-/** Sends key presses inside `scope` to the editor surfaces, for an editor embedded in another page. */
-export function installEditorShortcuts(scope: HTMLElement) {
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.target instanceof Node && scope.contains(event.target)) dispatchEditorShortcut(event);
-  };
-  window.addEventListener("keydown", onKeyDown);
-  return () => { window.removeEventListener("keydown", onKeyDown); };
-}

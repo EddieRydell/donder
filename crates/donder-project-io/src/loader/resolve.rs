@@ -2079,27 +2079,20 @@ impl DomainResolver<'_> {
         crate::validate_relative_path(path)
             .map_err(|message| self.invalid(document, span, message))?;
         let module_id = self.loader.workspace.metadata.project_id;
-        let missing = || format!("audio asset does not exist inside the project: {path}");
-        let absolute = match &self.loader.asset_locations {
-            Some(locations) => locations
-                .get(camino::Utf8Path::new(path))
-                .cloned()
-                .ok_or_else(|| self.invalid(document, span, missing()))?,
-            None => {
-                let unresolved = self.loader.workspace.root.join(path);
-                let absolute =
-                    unresolved
-                        .canonicalize_utf8()
-                        .map_err(|source| LoadProjectError::Io {
-                            path: unresolved,
-                            source,
-                        })?;
-                if !absolute.is_file() || !absolute.starts_with(&self.loader.workspace.root) {
-                    return Err(self.invalid(document, span, missing()));
-                }
-                absolute
-            }
-        };
+        let unresolved = self.loader.workspace.root.join(path);
+        let absolute = unresolved
+            .canonicalize_utf8()
+            .map_err(|source| LoadProjectError::Io {
+                path: unresolved,
+                source,
+            })?;
+        if !absolute.is_file() || !absolute.starts_with(&self.loader.workspace.root) {
+            return Err(self.invalid(
+                document,
+                span,
+                format!("audio asset does not exist inside the project: {path}"),
+            ));
+        }
         let relative = Utf8PathBuf::from(path);
         if let Some(existing) = self
             .loader

@@ -18,12 +18,6 @@ pub use dto::app::{AppSnapshot, ProjectHealth};
 pub use dto::audio::{
     AudioTransportSnapshot, AudioTransportState, PlaybackFrameTiming, PlaybackRange, PlaybackSpeed,
 };
-pub use dto::browser::{
-    BrowserClipRaster, BrowserCompileDiagnostic, BrowserCompileResult, BrowserEditorState,
-    BrowserOperation, BrowserPageNode, BrowserProject, BrowserProjectAsset, BrowserProjectDocument,
-    BrowserReplayResult, BrowserSelectionResult, BrowserSessionConfig, BrowserSourceDocument,
-    BrowserSourceKind,
-};
 pub use dto::diagnostics::{
     DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,
 };

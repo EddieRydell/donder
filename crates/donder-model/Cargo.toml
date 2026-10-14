@@ -6,9 +6,6 @@ description = "Donder domain model: fixtures, layouts, setups, sequences and the
 authors = ["Donder"]
 license = "MIT"
 
-[features]
-browser = ["uuid/js"]
-
 [dependencies]
 camino.workspace = true
 donder-language.workspace = true

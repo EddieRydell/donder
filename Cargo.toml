@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -19,7 +19,6 @@ clap = { version = "4.6.6", features = ["derive"] }
 criterion = "0.8.2"
 donder-elaboration = { path = "crates/donder-elaboration" }
 donder-audio-analysis = { path = "crates/donder-audio-analysis" }
-donder-browser = { path = "crates/donder-browser" }
 donder-data-derive = { path = "crates/donder-data-derive" }
 donder-sequence-api = { path = "crates/donder-sequence-api" }
 donder-editor = { path = "crates/donder-editor" }
@@ -54,7 +53,6 @@ reqwest = { version = "0.13.4", default-features = false, features = ["blocking"
 rfd = "0.17.2"
 sacn = "0.11.1"
 serde = { version = "1.0.229", features = ["derive"] }
-serde-wasm-bindgen = "0.6.5"
 serde_json = "1"
 serialport = { version = "4.10.0", default-features = false }
 sha2 = "0.11.0"
@@ -69,7 +67,6 @@ tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "typescript"] }
 tempfile = "3.27.0"
 tract-onnx = "0.23.8"
 uuid = { version = "1.26.0", features = ["serde", "v4"] }
-wasm-bindgen = "0.2.129"
 webbrowser = "1.2.4"
 zstd = "0.14.0"
 wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "dx12", "metal", "gles", "vulkan", "wgsl", "webgl", "webgpu"] }

@@ -15,7 +15,6 @@ crates/donder-language-server/  Language server for documents and scripts
 crates/donder-cli/              Command-line project tools
 crates/donder-editor/           Shared GUI projection and edits for desktop and browser
 crates/donder-sequence-api/     Shared editor DTOs and generated TypeScript types
-crates/donder-browser/          WASM editing and playback session for the website
 apps/desktop/                   Tauri desktop app: Rust service and React frontend
 firmware/esp32/                 ESP32 controller firmware (separate Cargo workspace)
 examples/                       The starter project and the Stanford room show
