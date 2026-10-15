@@ -1,10 +1,17 @@
 name: Release
 
-# Builds unsigned desktop installers for every platform, attaches them to a
-# draft GitHub release tagged with the app version from tauri.conf.json, then
-# publishes it once every platform has uploaded and redeploys the website.
+# Bumps the app version in tauri.conf.json, commits and tags it on main, builds
+# unsigned desktop installers for every platform into a draft GitHub release
+# for that tag, then publishes it once every platform has uploaded and
+# redeploys the website.
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Version component to increment
+        type: choice
+        options: [patch, minor, major]
+        default: patch
 
 concurrency:
   group: release
@@ -14,7 +21,38 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pushing an existing tag is rejected, so a version is never released twice.
+      - id: bump
+        name: Bump, commit and tag the version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          config=apps/desktop/tauri.conf.json
+          IFS=. read -r major minor patch < <(jq -r .version "$config")
+          case "$BUMP" in
+            major) version="$((major + 1)).0.0" ;;
+            minor) version="$major.$((minor + 1)).0" ;;
+            patch) version="$major.$minor.$((patch + 1))" ;;
+          esac
+          # jq would reflow the file's inline arrays, so only the version line is rewritten.
+          sed -i "s/^  \"version\": \".*\",\$/  \"version\": \"$version\",/" "$config"
+          git diff --exit-code --quiet "$config" && { echo "version line not found"; exit 1; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v$version"
+          git tag "v$version"
+          git push --atomic origin HEAD "v$version"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +69,8 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.tag }}
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -65,25 +105,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          tagName: v__VERSION__
-          releaseName: Donder v__VERSION__
+          tagName: ${{ needs.version.outputs.tag }}
+          releaseName: Donder ${{ needs.version.outputs.tag }}
           releaseBody: Unsigned preview build. See https://donder.eddierydell.com/download for install notes.
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
 
   publish:
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-        with:
-          sparse-checkout: apps/desktop/tauri.conf.json
-          sparse-checkout-cone-mode: false
       - name: Publish the draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "v$(jq -r .version apps/desktop/tauri.conf.json)" --draft=false --latest
+        run: gh release edit "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
   # A release published with GITHUB_TOKEN triggers no workflows, so the website
   # redeploy is called directly.
