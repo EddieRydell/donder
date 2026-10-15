@@ -42,7 +42,7 @@ jobs:
             patch) version="$major.$minor.$((patch + 1))" ;;
           esac
           # jq would reflow the file's inline arrays, so only the version line is rewritten.
-          sed -i "s/^  \"version\": \".*\",\$/  \"version\": \"$version\",/" "$config"
+          sed -i "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$version\"/" "$config"
           git diff --exit-code --quiet "$config" && { echo "version line not found"; exit 1; }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
