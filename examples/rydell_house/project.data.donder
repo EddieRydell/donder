@@ -46,5 +46,22 @@ Project rydell_house {
     tiny_tree.tiny_tree,
     trans_siberian_mix.trans_siberian_mix,
   ],
-  rigs: [],
+  rigs: [
+    Rig keyboard_mapping {
+      description: none,
+      frame_rate: 100,
+      marks: [],
+      layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+      scene: [],
+      switches: [],
+      mappings: [],
+      graph: Graph {
+        nodes: [
+          LayerNode { layer: default, position: (80.0, 80.0) },
+          OutputNode { position: (420.0, 80.0) },
+        ],
+        edges: [Edge { from: default, to: output }],
+      },
+    },
+  ],
 }

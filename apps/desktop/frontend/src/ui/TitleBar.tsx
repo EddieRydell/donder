@@ -1,4 +1,4 @@
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import * as Menubar from "@radix-ui/react-menubar";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import { Check, Maximize2, Minimize2, Minus, X } from "lucide-react";
@@ -49,11 +49,11 @@ export function TitleBar() {
   return (
     <header className="titlebar" onMouseDown={startTitlebarDrag}>
       <div className="brand"><BrandLogo /></div>
-      <nav className="menu-row">
+      <Menubar.Root className="menu-row">
         <Menu label="File" entries={[...FILE_MENU, { type: "separator" }, { type: "command", id: "file.settings" }]} />
         <Menu label="Edit" entries={EDIT_MENU} />
         <Menu label="View" entries={VIEW_MENU} />
-      </nav>
+      </Menubar.Root>
       <div className="window-controls">
         <button onClick={() => void appWindow.minimize()} aria-label="Minimize">
         <Minus size={THEME_METRICS.iconSizeCompact} />
@@ -84,12 +84,12 @@ function startTitlebarDrag(event: React.MouseEvent<HTMLElement>) {
 
 function Menu({ label, entries }: { label: string; entries: AppMenuEntry[] }) {
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger className="menu-trigger">{label}</DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
+    <Menubar.Menu>
+      <Menubar.Trigger className="menu-trigger">{label}</Menubar.Trigger>
+      <Menubar.Portal>
         <MenuContent entries={entries} />
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+      </Menubar.Portal>
+    </Menubar.Menu>
   );
 }
 
@@ -99,9 +99,9 @@ function MenuContent({ entries }: { entries: AppMenuEntry[] }) {
   useAppStore((store) => store.snapshot);
   useAppStore((store) => store.guiDocument);
   return (
-    <DropdownMenu.Content className="menu-content" sideOffset={THEME_METRICS.menuOffset}>
+    <Menubar.Content className="menu-content" sideOffset={THEME_METRICS.menuOffset}>
       {entries.map((entry, index) => {
-        if (entry.type === "separator") return <DropdownMenu.Separator key={`separator-${index}`} className="menu-separator" />;
+        if (entry.type === "separator") return <Menubar.Separator key={`separator-${index}`} className="menu-separator" />;
         const command = commandRegistry[entry.id];
         const content = <>
           <span>{command.label}</span>
@@ -109,7 +109,7 @@ function MenuContent({ entries }: { entries: AppMenuEntry[] }) {
         </>;
         if (command.checked !== undefined) {
           return (
-            <DropdownMenu.CheckboxItem
+            <Menubar.CheckboxItem
               key={entry.id}
               className="menu-item"
               checked={command.checked()}
@@ -117,18 +117,18 @@ function MenuContent({ entries }: { entries: AppMenuEntry[] }) {
               onCheckedChange={() => { runCommand(entry.id); }}
             >
               {content}
-              <DropdownMenu.ItemIndicator>
+              <Menubar.ItemIndicator>
                 <Check size={THEME_METRICS.iconSizeExtraSmall} />
-              </DropdownMenu.ItemIndicator>
-            </DropdownMenu.CheckboxItem>
+              </Menubar.ItemIndicator>
+            </Menubar.CheckboxItem>
           );
         }
         return (
-          <DropdownMenu.Item key={entry.id} className="menu-item" disabled={!command.enabled()} onSelect={() => { runCommand(entry.id); }}>
+          <Menubar.Item key={entry.id} className="menu-item" disabled={!command.enabled()} onSelect={() => { runCommand(entry.id); }}>
             {content}
-          </DropdownMenu.Item>
+          </Menubar.Item>
         );
       })}
-    </DropdownMenu.Content>
+    </Menubar.Content>
   );
 }
