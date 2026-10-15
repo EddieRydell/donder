@@ -30,6 +30,13 @@ export const commands = {
 	applyTextEdits: (projectEpoch: number, edits: DocumentTextEdits[]) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_text_edits", { projectEpoch, edits })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	/**  Import an unreferenced document from the project root. */
 	includeDocument: (projectEpoch: number, inclusion: DocumentInclusion) => typedError<AppSnapshot, string>(__TAURI_INVOKE("include_document", { projectEpoch, inclusion })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	/**  Write a missing field with its empty value. */
+	addField: (projectEpoch: number, path: string, addition: FieldAddition) => typedError<AppSnapshot, string>(__TAURI_INVOKE("add_field", { projectEpoch, path, addition })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	/**
+	 *  Write every missing field the documents at `paths` can take with its
+	 *  empty value.
+	 */
+	addMissingFields: (projectEpoch: number, paths: string[]) => typedError<AppSnapshot, string>(__TAURI_INVOKE("add_missing_fields", { projectEpoch, paths })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	saveAll: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("save_all")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	requestTransition: (request: TransitionRequest) => typedError<TransitionResult, string>(__TAURI_INVOKE("request_transition", { request })),
 	completeClose: (epoch: number, revision: number) => typedError<null, string>(__TAURI_INVOKE("complete_close", { epoch, revision })),
@@ -320,6 +327,16 @@ export type EffectRasterSettings = {
 };
 
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
+
+/**
+ *  A missing field, `name: value`, and where its document can take it: before
+ *  the field at byte `at`, or after the value there when `after` is set.
+ */
+export type FieldAddition = {
+	at: number,
+	field: string,
+	after: boolean,
+};
 
 export type FixtureGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::Description`. */
@@ -721,6 +738,8 @@ export type ProjectDiagnostic = {
 	related: RelatedDiagnosticLocation[],
 	/**  The root import that brings an unreferenced document into the project. */
 	inclusion: DocumentInclusion | null,
+	/**  A missing field the document can take with its empty value. */
+	fieldAddition: FieldAddition | null,
 };
 
 export type ProjectGuiDocument = {

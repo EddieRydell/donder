@@ -11,7 +11,7 @@ use crate::state_tasks::WorkingCopyPayload;
 use donder_sequence_api::{
     AppSnapshot, BufferExternalState, DocumentInclusion, DocumentSaveState, DocumentText,
     DocumentTextEdit, DocumentTextEdits, DocumentUpdate, EditorBuffer, EditorViewMode,
-    ExternalConflictDecision, ProjectHealth, SidebarView,
+    ExternalConflictDecision, FieldAddition, ProjectHealth, SidebarView,
 };
 
 /// A rewrite of one document's text.
@@ -191,6 +191,41 @@ impl DesktopState {
             project_epoch,
             vec![(donder_project_io::PROJECT_ROOT_FILE.into(), change)],
         )
+    }
+
+    /// Write a missing field with its empty value, as the diagnostic on it
+    /// proposes.
+    pub fn add_field(
+        &self,
+        project_epoch: u32,
+        path: String,
+        addition: FieldAddition,
+    ) -> Result<AppSnapshot, String> {
+        let addition = donder_project_io::FieldAddition {
+            at: addition.at as usize,
+            field: addition.field,
+            after: addition.after,
+        };
+        let change: DocumentChange =
+            Box::new(move |text| donder_project_io::add_field(text, &addition));
+        self.change_documents(project_epoch, vec![(path.into(), change)])
+    }
+
+    /// Write every missing field that documents at `paths` can take with its
+    /// empty value.
+    pub fn add_missing_fields(
+        &self,
+        project_epoch: u32,
+        paths: Vec<String>,
+    ) -> Result<AppSnapshot, String> {
+        let changes = paths
+            .into_iter()
+            .map(|path| {
+                let change: DocumentChange = Box::new(donder_project_io::add_missing_fields);
+                (path.into(), change)
+            })
+            .collect();
+        self.change_documents(project_epoch, changes)
     }
 
     /// Rewrite project documents' text, loading any that are not open into

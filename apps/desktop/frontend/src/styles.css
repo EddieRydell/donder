@@ -4477,10 +4477,30 @@ fieldset.sequence-layer-row {
 }
 
 .problem-file-group .problem-fix {
-  padding-top: var(--donder-space-2);
-  padding-left: var(--donder-space-13);
+  width: auto;
+  margin: var(--donder-space-2) 0 var(--donder-space-3) var(--donder-space-13);
+  padding: var(--donder-space-2) var(--donder-space-5);
+  border: var(--donder-border-width) solid var(--donder-accent);
+  border-radius: var(--donder-radius-md);
   color: var(--donder-accent);
   font-size: var(--donder-font-size-xs);
+}
+
+.problem-fix-all {
+  display: block;
+  width: calc(100% - 2 * var(--donder-space-4));
+  margin: var(--donder-space-6) var(--donder-space-4) 0;
+  padding: var(--donder-space-4) var(--donder-space-6);
+  border: var(--donder-border-width) solid var(--donder-accent);
+  border-radius: var(--donder-radius-md);
+  background: transparent;
+  color: var(--donder-accent);
+  font-size: var(--donder-font-size-sm);
+  text-align: left;
+}
+
+.problem-fix-all:hover {
+  background: var(--donder-hover);
 }
 
 .problem-file-group .problem-related-location {

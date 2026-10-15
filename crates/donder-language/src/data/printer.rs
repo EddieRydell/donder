@@ -89,6 +89,13 @@ pub fn list_item(value: &DataValue, level: usize) -> String {
     text
 }
 
+/// `value` on its own, as [`print`] writes it at the top level.
+pub(crate) fn value(value: &DataValue) -> String {
+    let mut text = String::new();
+    render(&mut text, value, 0, 0, 0);
+    text
+}
+
 fn list_item_into(text: &mut String, value: &DataValue, level: usize) {
     indent(text, level);
     render(text, value, level, 2 * level, 1);

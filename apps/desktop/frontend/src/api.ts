@@ -59,6 +59,10 @@ export const commands = {
     unwrapResult(await generatedCommands.applyTextEdits(projectEpoch, edits)),
   includeDocument: async (projectEpoch: number, inclusion: import("./types").DocumentInclusion) =>
     unwrapResult(await generatedCommands.includeDocument(projectEpoch, inclusion)),
+  addField: async (projectEpoch: number, path: string, addition: import("./types").FieldAddition) =>
+    unwrapResult(await generatedCommands.addField(projectEpoch, path, addition)),
+  addMissingFields: async (projectEpoch: number, paths: string[]) =>
+    unwrapResult(await generatedCommands.addMissingFields(projectEpoch, paths)),
   saveAll: async () => unwrapResult(await generatedCommands.saveAll()),
   requestTransition: async (request: import("./types").TransitionRequest) => unwrapResult(await generatedCommands.requestTransition(request)),
   reconcileExternalFiles: async () => unwrapResult(await generatedCommands.reconcileExternalFiles()),

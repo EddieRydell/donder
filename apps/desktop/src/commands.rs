@@ -61,6 +61,8 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         language_server_send,
         apply_text_edits,
         include_document,
+        add_field,
+        add_missing_fields,
         save_all,
         request_transition,
         complete_close,

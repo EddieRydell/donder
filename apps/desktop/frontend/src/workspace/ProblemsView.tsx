@@ -38,6 +38,9 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
   }, [snapshot.diagnostics, snapshot.projectEntries, snapshot.projectRoot]);
   const errors = snapshot.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
   const warnings = snapshot.diagnostics.length - errors;
+  const additionPaths = [...new Set(snapshot.diagnostics
+    .filter((diagnostic) => diagnostic.fieldAddition !== null)
+    .map((diagnostic) => diagnostic.path))];
   return (
     <section className="sidebar-view problems-view" aria-label="Problems">
       <header className="sidebar-view-header">
@@ -45,6 +48,15 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
         <span>{errors} errors · {warnings} warnings</span>
       </header>
       <div className="sidebar-scroll">
+        {additionPaths.length > 0 && (
+          <button
+            type="button"
+            className="problem-fix-all"
+            onClick={() => void runSnapshotCommand(() => commands.addMissingFields(snapshot.projectEpoch, additionPaths))}
+          >
+            Add all missing fields
+          </button>
+        )}
         {groups.map(([path, diagnostics]) => (
           <section key={path} className="problem-file-group">
             <h3>{path}</h3>
@@ -80,6 +92,19 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
                       }}
                     >
                       Import from the project root
+                    </button>
+                  )}
+                  {diagnostic.fieldAddition !== null && (
+                    <button
+                      type="button"
+                      className="problem-fix"
+                      onClick={() => {
+                        const addition = diagnostic.fieldAddition;
+                        if (addition === null) return;
+                        void runSnapshotCommand(() => commands.addField(snapshot.projectEpoch, diagnostic.path, addition));
+                      }}
+                    >
+                      Add <code>{diagnostic.fieldAddition.field}</code>
                     </button>
                   )}
                   {diagnostic.related.map((related, relatedIndex) => (
