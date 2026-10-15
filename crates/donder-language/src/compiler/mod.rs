@@ -20,7 +20,7 @@ pub use definition::{
     CompiledEffect, CompiledOperator, CompiledScript, Instance, Invocation, SignalAddressing,
     compile_effects, compile_operators, compile_script,
 };
-pub use diagnostic::Diagnostic;
+pub use diagnostic::{Diagnostic, Fix};
 pub use instance::ProgramConstants;
 pub use syntax::ast::{DeclarationKind, DeclarationSpan};
 pub use syntax::lexer::TextSpan;

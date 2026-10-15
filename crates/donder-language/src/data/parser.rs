@@ -3,9 +3,9 @@
 //! next `,` or closing bracket, so the rest of the document keeps its tree.
 use super::literal;
 use super::tree::*;
-use crate::compiler::Diagnostic;
 use crate::compiler::TextSpan;
 use crate::compiler::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_mode};
+use crate::compiler::{Diagnostic, Fix};
 use donder_runtime_types::Color;
 use donder_runtime_types::Identifier;
 
@@ -445,7 +445,7 @@ impl Parser<'_> {
             Ok(value) => Ok(Spanned::new(value, span)),
             Err(invalid) => {
                 let mut diagnostic = Diagnostic::new(span, invalid.message);
-                diagnostic.fix = invalid.fix;
+                diagnostic.fix = invalid.fix.map(Fix::Replace);
                 self.diagnostics.push(diagnostic);
                 Ok(Spanned::new(DataValue::Error, span))
             }

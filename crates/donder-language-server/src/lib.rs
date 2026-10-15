@@ -18,7 +18,8 @@ use std::sync::Arc;
 use donder_language::analysis::{
     Completion, CompletionKind, SymbolKind, script_completions, script_signature,
 };
-use donder_project_io::{IoFix, PROJECT_ROOT_FILE, include_document};
+use donder_language::compiler::Fix;
+use donder_project_io::{FieldAddition, IoFix, PROJECT_ROOT_FILE, add_field, include_document};
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CompletionItem,
     CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
@@ -77,8 +78,22 @@ fn notification(method: &str, params: impl Serialize) -> Value {
 fn fix_data(fix: Option<IoFix>) -> Option<Value> {
     match fix? {
         IoFix::Replace(text) => Some(json!({ "fix": text })),
+        IoFix::AddField(addition) => Some(addition_data(&addition)),
         IoFix::Include(_) => Some(json!({ "include": true })),
     }
+}
+
+fn addition_data(addition: &FieldAddition) -> Value {
+    json!({ "addField": { "at": addition.at, "field": addition.field, "after": addition.after } })
+}
+
+fn addition(data: &Value) -> Option<FieldAddition> {
+    let addition = data.get("addField")?;
+    Some(FieldAddition {
+        at: usize::try_from(addition.get("at")?.as_u64()?).ok()?,
+        field: addition.get("field")?.as_str()?.to_string(),
+        after: addition.get("after")?.as_bool()?,
+    })
 }
 
 fn uri(text: &str) -> Option<Uri> {
@@ -308,7 +323,12 @@ impl Server {
                     severity: Some(DiagnosticSeverity::ERROR),
                     source: Some("donder".into()),
                     message: diagnostic.message,
-                    data: diagnostic.fix.map(|fix| json!({ "fix": fix })),
+                    data: diagnostic.fix.map(|fix| match fix {
+                        Fix::Replace(text) => json!({ "fix": text }),
+                        Fix::AddField { at, field, after } => {
+                            addition_data(&FieldAddition { at, field, after })
+                        }
+                    }),
                     ..Diagnostic::default()
                 }));
         }
@@ -591,6 +611,9 @@ impl Server {
                 if diagnostic.data.as_ref()?.get("include").is_some() {
                     return self.include_action(&uri, diagnostic);
                 }
+                if let Some(addition) = addition(diagnostic.data.as_ref()?) {
+                    return self.add_field_action(&uri, addition, diagnostic);
+                }
                 let fix = diagnostic.data.as_ref()?.get("fix")?.as_str()?.to_string();
                 Some(CodeActionOrCommand::CodeAction(CodeAction {
                     title: format!("Write `{fix}`"),
@@ -606,6 +629,34 @@ impl Server {
             })
             .collect::<Vec<_>>();
         to_value(fixes)
+    }
+
+    /// Write a missing field with its empty value, printing the document
+    /// canonically.
+    fn add_field_action(
+        &self,
+        document: &Uri,
+        addition: FieldAddition,
+        diagnostic: Diagnostic,
+    ) -> Option<CodeActionOrCommand> {
+        let text = self.workspace.document(document.as_str())?;
+        let added = add_field(text.text(), &addition).ok()?;
+        let range = Range::new(
+            lsp_types::Position::new(0, 0),
+            text.position(text.text().len()),
+        );
+        // `WorkspaceEdit` keys its changes by `Uri`, whose parsed form clippy
+        // cannot see is never mutated.
+        #[allow(clippy::mutable_key_type)]
+        let changes = HashMap::from([(document.clone(), vec![TextEdit::new(range, added)])]);
+        Some(CodeActionOrCommand::CodeAction(CodeAction {
+            title: format!("Add `{}`", addition.field),
+            kind: Some(CodeActionKind::QUICKFIX),
+            edit: Some(WorkspaceEdit::new(changes)),
+            is_preferred: Some(true),
+            diagnostics: Some(vec![diagnostic]),
+            ..CodeAction::default()
+        }))
     }
 
     /// Import an unreferenced document from the project root, by rewriting

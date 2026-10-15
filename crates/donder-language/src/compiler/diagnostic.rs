@@ -4,8 +4,22 @@ use super::syntax::lexer::TextSpan;
 pub struct Diagnostic {
     pub span: TextSpan,
     pub message: String,
-    /// Text that replaces `span` to fix the error, when one spelling is right.
-    pub fix: Option<String>,
+    pub fix: Option<Fix>,
+}
+
+/// How to fix a diagnostic.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Fix {
+    /// Text that replaces the diagnostic's span, when one spelling is right.
+    Replace(String),
+    /// A missing field, `name: value`, whose value is the field's empty one.
+    /// It is written at byte `at`: before the field there, or after the
+    /// value there when `after` is set.
+    AddField {
+        at: usize,
+        field: String,
+        after: bool,
+    },
 }
 
 impl Diagnostic {
@@ -18,7 +32,7 @@ impl Diagnostic {
     }
 
     pub(crate) fn with_fix(mut self, replacement: impl Into<String>) -> Self {
-        self.fix = Some(replacement.into());
+        self.fix = Some(Fix::Replace(replacement.into()));
         self
     }
 }

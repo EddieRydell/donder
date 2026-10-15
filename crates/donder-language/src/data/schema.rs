@@ -7,7 +7,7 @@
 //! value has exactly the form of its type. That is what makes encoding then
 //! decoding, and decoding then encoding, both exact.
 use super::tree::{DataField, DataValue, Spanned};
-use crate::compiler::{Diagnostic, TextSpan};
+use crate::compiler::{Diagnostic, Fix, TextSpan};
 use core::time::Duration;
 use donder_runtime_types::Color;
 use donder_runtime_types::Identifier;
@@ -47,6 +47,11 @@ pub trait Data: Sized {
     fn encode(&self) -> DataValue;
     /// The value's shape, registering named record and variant types.
     fn shape(schema: &mut Schema) -> Shape;
+    /// The value a missing field of this type can be written with, when one
+    /// says nothing: an empty list or `none`.
+    fn empty() -> Option<Self> {
+        None
+    }
 }
 
 /// A record type: its fields decode and encode on their own, as a
@@ -102,10 +107,17 @@ impl<'a> FieldReader<'a> {
         }
         let Some(field) = self.fields.value.get(self.next) else {
             if !self.broken {
-                decoder.error(
+                let (at, after) = match self.fields.value.last() {
+                    Some(last) => (last.value.span.end, true),
+                    None => (self.fields.span.start + 1, false),
+                };
+                decoder.diagnostics.push(missing_field::<T>(
+                    self.ty,
                     self.fields.span,
-                    format!("`{}` needs the field `{name}` here", self.ty),
-                );
+                    name,
+                    at,
+                    after,
+                ));
             }
             self.failed = true;
             self.lost = true;
@@ -117,19 +129,21 @@ impl<'a> FieldReader<'a> {
             return None;
         }
         if field.name.value.as_str() != name {
-            let message = if self.fields.value[self.next..]
+            let listed_later = self.fields.value[self.next..]
                 .iter()
-                .any(|later| later.name.value.as_str() == name)
-            {
-                format!(
-                    "`{}` lists `{name}` before `{}`",
-                    self.ty,
-                    field.name.value.as_str()
+                .any(|later| later.name.value.as_str() == name);
+            decoder.diagnostics.push(if listed_later {
+                Diagnostic::new(
+                    field.name.span,
+                    format!(
+                        "`{}` lists `{name}` before `{}`",
+                        self.ty,
+                        field.name.value.as_str()
+                    ),
                 )
             } else {
-                format!("`{}` needs the field `{name}` here", self.ty)
-            };
-            decoder.error(field.name.span, message);
+                missing_field::<T>(self.ty, field.name.span, name, field.name.span.start, false)
+            });
             self.failed = true;
             self.lost = true;
             return None;
@@ -153,6 +167,29 @@ impl<'a> FieldReader<'a> {
             return None;
         }
         (!self.failed).then_some(())
+    }
+}
+
+/// `ty` lacks the field `name`, which can be written at byte `at` when
+/// its type has an empty value.
+fn missing_field<T: Data>(
+    ty: &str,
+    span: TextSpan,
+    name: &str,
+    at: usize,
+    after: bool,
+) -> Diagnostic {
+    let diagnostic = Diagnostic::new(span, format!("`{ty}` needs the field `{name}` here"));
+    match T::empty() {
+        Some(empty) => Diagnostic {
+            fix: Some(Fix::AddField {
+                at,
+                field: format!("{name}: {}", super::printer::value(&empty.encode())),
+                after,
+            }),
+            ..diagnostic
+        },
+        None => diagnostic,
     }
 }
 
@@ -598,6 +635,9 @@ impl<T: Data> Data for Option<T> {
     fn shape(schema: &mut Schema) -> Shape {
         Shape::Option(Box::new(T::shape(schema)))
     }
+    fn empty() -> Option<Self> {
+        Some(None)
+    }
 }
 
 impl<T: Data> Data for Vec<T> {
@@ -618,6 +658,9 @@ impl<T: Data> Data for Vec<T> {
     }
     fn shape(schema: &mut Schema) -> Shape {
         Shape::List(Box::new(T::shape(schema)))
+    }
+    fn empty() -> Option<Self> {
+        Some(Vec::new())
     }
 }
 

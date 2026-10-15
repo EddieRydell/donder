@@ -1,6 +1,7 @@
 use donder_project_io::{IoDiagnostic, IoDiagnosticSeverity, IoFix, ProjectCheckReport};
 use donder_sequence_api::{
-    DiagnosticSeverity, DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation,
+    DiagnosticSeverity, DocumentInclusion, FieldAddition, ProjectDiagnostic,
+    RelatedDiagnosticLocation,
 };
 
 pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic {
@@ -62,7 +63,15 @@ pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic
                     .map(|rig| rig.as_str().to_string())
                     .collect(),
             }),
-            Some(IoFix::Replace(_)) | None => None,
+            Some(IoFix::Replace(_) | IoFix::AddField(_)) | None => None,
+        },
+        field_addition: match &diagnostic.fix {
+            Some(IoFix::AddField(addition)) => Some(FieldAddition {
+                at: addition.at as u32,
+                field: addition.field.clone(),
+                after: addition.after,
+            }),
+            Some(IoFix::Replace(_) | IoFix::Include(_)) | None => None,
         },
     }
 }

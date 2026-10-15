@@ -239,6 +239,16 @@ export type EffectRasterSettings = {
 
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
 
+/**
+ *  A missing field, `name: value`, and where its document can take it: before
+ *  the field at byte `at`, or after the value there when `after` is set.
+ */
+export type FieldAddition = {
+	at: number,
+	field: string,
+	after: boolean,
+};
+
 export type FixtureGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::Description`. */
 	description: string | null,
@@ -657,6 +667,8 @@ export type ProjectDiagnostic = {
 	related: RelatedDiagnosticLocation[],
 	/**  The root import that brings an unreferenced document into the project. */
 	inclusion: DocumentInclusion | null,
+	/**  A missing field the document can take with its empty value. */
+	fieldAddition: FieldAddition | null,
 };
 
 export type ProjectGuiDocument = {

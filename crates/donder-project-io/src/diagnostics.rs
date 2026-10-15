@@ -40,7 +40,12 @@ pub(crate) fn dsl_diagnostic(
         code,
         message: diagnostic.message,
         detail: None,
-        fix: diagnostic.fix.map(IoFix::Replace),
+        fix: diagnostic.fix.map(|fix| match fix {
+            DslFix::Replace(text) => IoFix::Replace(text),
+            DslFix::AddField { at, field, after } => {
+                IoFix::AddField(FieldAddition { at, field, after })
+            }
+        }),
         related: Vec::new(),
     }
 }
@@ -167,7 +172,9 @@ pub(crate) fn byte_position(text: &str, byte_offset: usize) -> TextPosition {
     }
 }
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::compiler::{Diagnostic as DslDiagnostic, compile_script};
+use donder_language::compiler::{Diagnostic as DslDiagnostic, Fix as DslFix, compile_script};
+
+use crate::FieldAddition;
 
 use crate::{LoadProjectError, ProjectRecovery, ProjectSession};
 
@@ -213,6 +220,8 @@ impl std::fmt::Display for IoDiagnostic {
 pub enum IoFix {
     /// Text that replaces the diagnostic's range.
     Replace(String),
+    /// Write a missing field with its empty value.
+    AddField(FieldAddition),
     /// Import the unreferenced document from the project root.
     Include(crate::Inclusion),
 }

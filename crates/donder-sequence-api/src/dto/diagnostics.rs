@@ -14,6 +14,18 @@ pub struct ProjectDiagnostic {
     pub related: Vec<RelatedDiagnosticLocation>,
     /// The root import that brings an unreferenced document into the project.
     pub inclusion: Option<DocumentInclusion>,
+    /// A missing field the document can take with its empty value.
+    pub field_addition: Option<FieldAddition>,
+}
+
+/// A missing field, `name: value`, and where its document can take it: before
+/// the field at byte `at`, or after the value there when `after` is set.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldAddition {
+    pub at: u32,
+    pub field: String,
+    pub after: bool,
 }
 
 /// Importing an unreferenced document from the project root.

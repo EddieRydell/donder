@@ -263,5 +263,6 @@ pub(crate) fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDi
         detail: None,
         related: Vec::new(),
         inclusion: None,
+        field_addition: None,
     }
 }

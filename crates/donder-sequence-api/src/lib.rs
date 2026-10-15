@@ -19,7 +19,8 @@ pub use dto::audio::{
     AudioTransportSnapshot, AudioTransportState, PlaybackFrameTiming, PlaybackRange, PlaybackSpeed,
 };
 pub use dto::diagnostics::{
-    DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,
+    DocumentInclusion, FieldAddition, ProjectDiagnostic, RelatedDiagnosticLocation,
+    Rotation3Degrees, Scale3,
 };
 pub use dto::live::{
     GuiButtonInput, GuiInputControl, GuiInputDriver, InputDeviceGuiDocument, ProjectGuiEdit,

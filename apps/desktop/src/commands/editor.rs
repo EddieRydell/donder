@@ -53,6 +53,30 @@ pub(crate) fn include_document(
     state.include_document(project_epoch, inclusion)
 }
 
+/// Write a missing field with its empty value.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn add_field(
+    project_epoch: u32,
+    path: String,
+    addition: donder_sequence_api::FieldAddition,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    state.add_field(project_epoch, path, addition)
+}
+
+/// Write every missing field the documents at `paths` can take with its
+/// empty value.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn add_missing_fields(
+    project_epoch: u32,
+    paths: Vec<String>,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    state.add_missing_fields(project_epoch, paths)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn save_all(state: State<'_, DesktopState>) -> Result<AppSnapshot, String> {
