@@ -25,6 +25,7 @@
     "@radix-ui/react-context-menu": "catalog:",
     "@radix-ui/react-dialog": "catalog:",
     "@radix-ui/react-dropdown-menu": "catalog:",
+    "@radix-ui/react-menubar": "catalog:",
     "@radix-ui/react-tooltip": "catalog:",
     "@tauri-apps/api": "catalog:",
     "@xyflow/react": "catalog:",

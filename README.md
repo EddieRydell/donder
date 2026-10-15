@@ -82,6 +82,7 @@ The command-line tool checks projects and exports FSEQ files:
 
 ```bash
 cargo run -p donder-cli -- --path examples/starter check
+cargo run -p donder-cli -- --path examples/starter render layer_test --at 1s
 cargo run -p donder-cli -- --path examples/starter export-fseq layer_test show.fseq
 ```
 

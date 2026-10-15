@@ -120,6 +120,13 @@ Read a definition's comment before using it.
 ## Checking the show
 
 From this folder, `donder --path . check` validates every document the show
-reaches: syntax, imports, references, effect code, targets and assets. A
-document nothing imports is not checked. A successful check does not show how
-the show looks; the author previews it in the Donder app.
+reaches: syntax, imports, references, effect code, targets and assets. It warns
+about a document nothing imports, which the show does not use and the check
+does not validate.
+
+A successful check does not show how the show looks. `donder --path . render
+<sequence> --at 12.5s` prints each fixture's colors at that time, in pixel
+order, with a run of one color written once as `#rrggbb×count`. Repeat `--at`,
+or give `--from 12s --to 13s --step 0.1s`, to see motion; `--target <name>`
+limits the output to a fixture or group of the active layout. The author
+previews the show in the Donder app.

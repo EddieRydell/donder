@@ -13,7 +13,7 @@ mod printer;
 pub(crate) mod schema;
 pub(crate) mod tree;
 
-pub use literal::{canonical_distance, canonical_duration, canonical_float};
+pub use literal::{canonical_distance, canonical_duration, canonical_float, parse_duration};
 pub use parser::parse;
 pub use printer::{ListSplice, list_item, print, print_spliced};
 pub use schema::{

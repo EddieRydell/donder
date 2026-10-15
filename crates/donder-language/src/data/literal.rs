@@ -128,6 +128,14 @@ pub(super) fn integer(text: &str) -> Result<i64, Invalid> {
     }
 }
 
+/// A duration in its one spelling, `s` included: `12.5s`.
+pub fn parse_duration(text: &str) -> Result<Duration, String> {
+    let digits = text
+        .strip_suffix('s')
+        .ok_or_else(|| format!("expected a duration like `1.5s`, found `{text}`"))?;
+    duration(digits).map_err(|invalid| invalid.message)
+}
+
 /// `text` without its `s`.
 pub(super) fn duration(text: &str) -> Result<Duration, Invalid> {
     let (seconds, fraction) = text.split_once('.').unwrap_or((text, ""));

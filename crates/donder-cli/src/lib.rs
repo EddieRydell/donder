@@ -1,12 +1,15 @@
 #![deny(unsafe_code)]
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
+use core::time::Duration;
+
+mod render;
 
 #[derive(Debug, Parser)]
 #[command(
     name = "donder",
     version,
-    about = "Check, copy and export local Donder projects, and generate language references"
+    about = "Check, copy, render and export local Donder projects, and generate language references"
 )]
 pub struct Cli {
     #[arg(short, long, default_value = ".")]
@@ -34,6 +37,25 @@ enum Command {
         /// Milliseconds between frames; defaults to the step closest to the sequence's frame rate.
         #[arg(long)]
         step_ms: Option<u8>,
+    },
+    /// Print each fixture's colors at the given times of a sequence, with
+    /// repeated colors written once as `#rrggbb×count`.
+    Render {
+        /// The sequence's declared name.
+        sequence: String,
+        /// A time to sample, like `12.5s`; repeat for several.
+        #[arg(long, value_parser = donder_language::data::parse_duration)]
+        at: Vec<Duration>,
+        /// Sample every `--step` from `--from` through `--to`.
+        #[arg(long, value_parser = donder_language::data::parse_duration, requires_all = ["to", "step"])]
+        from: Option<Duration>,
+        #[arg(long, value_parser = donder_language::data::parse_duration, requires_all = ["from", "step"])]
+        to: Option<Duration>,
+        #[arg(long, value_parser = donder_language::data::parse_duration, requires_all = ["from", "to"])]
+        step: Option<Duration>,
+        /// Only this fixture or group of the active layout; repeat for several.
+        #[arg(long)]
+        target: Vec<String>,
     },
     /// Write the generated effect-language builtin reference.
     Builtins { output: Utf8PathBuf },
@@ -74,6 +96,27 @@ pub fn run(cli: Cli) -> Result<(), String> {
             output,
             step_ms,
         } => export_fseq(&cli.path, &sequence, &output, step_ms),
+        Command::Render {
+            sequence,
+            at,
+            from,
+            to,
+            step,
+            target,
+        } => {
+            let session =
+                donder_project_io::load_project(&cli.path).map_err(|error| error.to_string())?;
+            let id = find_sequence(&session.project, &sequence)?;
+            let times = render::Times {
+                at,
+                range: from
+                    .zip(to)
+                    .zip(step)
+                    .map(|((from, to), step)| (from, to, step)),
+            };
+            print!("{}", render::render(&session.project, &id, times, &target)?);
+            Ok(())
+        }
         Command::Lsp => lsp(),
         Command::Builtins { output } => {
             let text = donder_language::compiler::builtin_reference();
@@ -83,6 +126,32 @@ pub fn run(cli: Cli) -> Result<(), String> {
             Ok(())
         }
     }
+}
+
+/// The project's sequence declared as `name`.
+fn find_sequence(
+    project: &donder_model::DonderProject,
+    name: &str,
+) -> Result<donder_model::SequenceId, String> {
+    let ids = project
+        .root()
+        .sequences
+        .iter()
+        .map(|source| source.id())
+        .collect::<Vec<_>>();
+    ids.iter()
+        .find(|id| id.0.root_source().object() == name)
+        .map(|&id| id.clone())
+        .ok_or_else(|| {
+            let names = ids
+                .iter()
+                .map(|id| id.0.root_source().object())
+                .collect::<Vec<_>>();
+            format!(
+                "No sequence named `{name}`. Sequences: {}",
+                names.join(", ")
+            )
+        })
 }
 
 /// Write the FSEQ file and print the channel range of each output, so FPP's
@@ -95,25 +164,7 @@ fn export_fseq(
 ) -> Result<(), String> {
     let session = donder_project_io::load_project(path).map_err(|error| error.to_string())?;
     let project = &session.project;
-    let ids = project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
-        .collect::<Vec<_>>();
-    let id = ids
-        .iter()
-        .find(|id| id.0.root_source().object() == name)
-        .ok_or_else(|| {
-            let names = ids
-                .iter()
-                .map(|id| id.0.root_source().object())
-                .collect::<Vec<_>>();
-            format!(
-                "No sequence named `{name}`. Sequences: {}",
-                names.join(", ")
-            )
-        })?;
+    let id = &find_sequence(project, name)?;
     let sequence = project.sequence(id).ok_or("Sequence is missing.")?;
     let step = match step_ms {
         Some(millis) => {

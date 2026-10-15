@@ -586,6 +586,26 @@ html.donder-app-shell body {
   background: var(--donder-bg-app);
   color: var(--donder-text);
   font-family: var(--donder-font-ui);
+  user-select: none;
+}
+
+/* Like a native app, the window selects only text that is editable or worth
+   copying: inputs and error and warning messages. */
+html.donder-app-shell :is(
+  input,
+  textarea,
+  [contenteditable="true"],
+  .error-strip,
+  .gui-diagnostics,
+  .graph-edit-error,
+  .status-warning,
+  .new-project-error,
+  .inline-edit-error,
+  .problem-entry,
+  .sidebar-error,
+  .dialog-warning
+) {
+  user-select: text;
 }
 
 :where(html.donder-app-shell) button,
@@ -659,7 +679,6 @@ html.donder-app-shell body {
   border-bottom: var(--donder-border-width) solid var(--donder-border);
   background: var(--donder-bg-panel);
   cursor: default;
-  user-select: none;
 }
 
 /* macOS centers its traffic lights in a standard 28pt title bar drawn over the content. */
@@ -733,9 +752,19 @@ html.donder-app-shell body {
 }
 
 .menu-trigger:hover,
+.menu-trigger[data-highlighted],
+.menu-trigger[data-state="open"],
 .panel-actions button:hover,
 .window-controls button:hover {
   background: var(--donder-hover);
+}
+
+.menu-trigger[data-state="open"] {
+  color: var(--donder-text);
+}
+
+.menu-trigger:focus-visible {
+  outline: none;
 }
 
 .window-controls {
