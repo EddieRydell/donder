@@ -163,6 +163,19 @@ operator Threshold {
   }
 }
 
+operator Grayscale {
+  input input;
+  -- How much color is removed; 1 is fully gray.
+  param amount: float in 0.0..1.0 = 1.0;
+  -- How a pixel's brightness becomes its gray level.
+  param measure: enum { Brightest, Luminance, Average } = Luminance;
+
+  sample {
+    let level = brightness(input, measure);
+    mix(input, rgb(level, level, level), amount)
+  }
+}
+
 operator Bloom {
   input input;
   -- Brightness where pixels start to glow.

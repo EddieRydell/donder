@@ -74,7 +74,7 @@ impl PreviewRenderer {
             width: size.width,
             height: size.height,
             present_mode,
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: 1,
             alpha_mode,
             color_space: wgpu::SurfaceColorSpace::Auto,
             view_formats: Vec::new(),
@@ -86,42 +86,50 @@ impl PreviewRenderer {
         })
     }
 
-    pub(crate) fn render(
+    /// Wait for the next surface image. A `Fifo` surface holds one frame in flight, so this
+    /// returns once the previous frame reaches the display, one refresh before this one does.
+    pub(crate) fn acquire(
         &mut self,
         surface: &wgpu::Surface<'_>,
         size: PreviewSize,
-        scene: &PreviewScene,
-        colors: &[PreviewColor],
-        style: PreviewStyle,
-    ) -> Result<PreviewRenderOutcome, PreviewRendererError> {
+    ) -> Result<Option<wgpu::SurfaceTexture>, PreviewRendererError> {
         let size = size.clamp_to(self.drawing.device.limits().max_texture_dimension_2d);
         if self.config.width != size.width || self.config.height != size.height {
             self.config.width = size.width;
             self.config.height = size.height;
             surface.configure(&self.drawing.device, &self.config);
         }
-        self.drawing.prepare(size, scene, colors, style)?;
-        let output = match surface.get_current_texture() {
+        match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(output)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(output) => output,
+            | wgpu::CurrentSurfaceTexture::Suboptimal(output) => Ok(Some(output)),
             wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
                 surface.configure(&self.drawing.device, &self.config);
-                return Ok(PreviewRenderOutcome::Skipped);
+                Ok(None)
             }
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
-                return Ok(PreviewRenderOutcome::Skipped);
+                Ok(None)
             }
-            wgpu::CurrentSurfaceTexture::Validation => {
-                return Err(PreviewRendererError::SurfaceValidation);
-            }
-        };
+            wgpu::CurrentSurfaceTexture::Validation => Err(PreviewRendererError::SurfaceValidation),
+        }
+    }
+
+    /// Draw the scene into an acquired surface image and present it.
+    pub(crate) fn present(
+        &mut self,
+        output: wgpu::SurfaceTexture,
+        scene: &PreviewScene,
+        colors: &[PreviewColor],
+        style: PreviewStyle,
+    ) -> Result<(), PreviewRendererError> {
+        let size = PreviewSize::nonzero(self.config.width, self.config.height);
+        self.drawing.prepare(size, scene, colors, style)?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let encoder = self.drawing.encode(&view, style);
         self.drawing.queue.submit([encoder.finish()]);
         self.drawing.queue.present(output);
-        Ok(PreviewRenderOutcome::Presented)
+        Ok(())
     }
 }
 
@@ -503,12 +511,6 @@ fn empty_buffer(device: &wgpu::Device, label: &str) -> wgpu::Buffer {
 struct PreviewUniforms {
     screen_zoom_min_radius: [f32; 4],
     pan: [f32; 4],
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PreviewRenderOutcome {
-    Presented,
-    Skipped,
 }
 
 #[derive(Debug)]

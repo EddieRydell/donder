@@ -21,10 +21,10 @@ pub struct AudioTransportSnapshot {
     pub state: AudioTransportState,
     pub source: Option<SequenceAudio>,
     pub generation: u32,
-    pub position_seconds: f32,
-    pub start_delay_seconds: f32,
-    pub home_seconds: f32,
-    pub duration_seconds: f32,
+    pub position_seconds: f64,
+    pub start_delay_seconds: f64,
+    pub home_seconds: f64,
+    pub duration_seconds: f64,
     pub playback_speed: PlaybackSpeed,
     pub range: Option<PlaybackRange>,
     pub looping: bool,
@@ -35,8 +35,8 @@ pub struct AudioTransportSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackRange {
-    pub start_seconds: f32,
-    pub end_seconds: f32,
+    pub start_seconds: f64,
+    pub end_seconds: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]

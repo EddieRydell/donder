@@ -71,7 +71,7 @@ effect VixenPulse {
 -- BASIC: Alternating, interval or static, over groups of consecutive pixels.
 effect VixenAlternating {
   param colors: array<gradient>;
-  param levels: array<curve>;
+  param levels: array<curve> in 0.0..100.0;
   param interval_ms: float in 2.0..60000.0 = 500.0;
   param enable_static: bool = false;
   param group_level: int in 1..1000 = 1;
@@ -263,7 +263,7 @@ effect VixenTwinkle {
 -- pixel) order as the default 100 -> 0 curve falls.
 effect VixenDissolve {
   param colors: array<gradient>;
-  param levels: array<curve>;
+  param levels: array<curve> in 0.0..100.0;
   param dissolve_curve: curve in 0.0..100.0;
   param group_level: int in 1..50000 = 1;
   param random_dissolve: bool = true;
@@ -285,7 +285,7 @@ effect VixenDissolve {
 -- PIXEL: Pinwheel, both motion modes, all blade and color types.
 effect VixenPinwheel {
   param colors: array<gradient>;
-  param levels: array<curve>;
+  param levels: array<curve> in 0.0..100.0;
   param color_type: enum { Standard, Gradient, Random, Rainbow } = Standard;
   param motion: enum { Iterations, Speed } = Iterations;
   param arms: int in 1..20 = 8;

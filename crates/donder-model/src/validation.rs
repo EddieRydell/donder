@@ -156,12 +156,8 @@ fn validate_definition_schemas(project: &DonderProject) -> Result<(), ProjectVal
                 .inputs
                 .iter()
                 .zip(compiled.inputs())
-                .any(|(port, input)| {
-                    port.source_name != input.name.as_str()
-                        || port.cardinality != crate::operator::OperatorPortCardinality::One
-                })
+                .any(|(port, input)| port.source_name != input.name.as_str())
             || definition.output.source_name != "output"
-            || definition.output.cardinality != crate::operator::OperatorPortCardinality::Many
         {
             return Err(ProjectValidationError::InvalidRelationship(format!(
                 "Operator `{}` does not match its compiled declaration.",

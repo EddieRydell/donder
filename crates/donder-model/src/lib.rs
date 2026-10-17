@@ -60,9 +60,9 @@ pub use layout::{
 };
 pub use operator::{
     GraphOperatorNode, GraphValidationError, OperatorDefinition, OperatorDefinitionId,
-    OperatorDefinitionStore, OperatorImplementation, OperatorPortCardinality,
-    OperatorPortDefinition, OperatorRef, composition_graph_output_dependencies,
-    custom_operator_definition, effect_param_matches_type, validate_composition_graph,
+    OperatorDefinitionStore, OperatorImplementation, OperatorPortDefinition, OperatorRef,
+    composition_graph_output_dependencies, custom_operator_definition, effect_param_matches_type,
+    validate_composition_graph,
 };
 pub use ownership::edit::{
     OwnershipSite, add_rig, add_sequence, duplicate_layout_fixture, make_independent,

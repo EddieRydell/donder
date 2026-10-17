@@ -688,7 +688,7 @@ fn required_parameters_have_no_default_and_ranges_reject_values() {
         ("param amount: float;", "`amount` must declare its range"),
         (
             "param on: bool in 0..1;",
-            "only int, float and curve parameters take a range",
+            "only int, float, curve and array<curve> parameters take a range",
         ),
         ("param amount: float in 1.0..0.0;", "minimum first"),
         (

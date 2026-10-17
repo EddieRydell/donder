@@ -23,16 +23,9 @@ pub struct GraphOperatorNode {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum OperatorPortCardinality {
-    One,
-    Many,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OperatorPortDefinition {
     pub source_name: String,
     pub display_name: String,
-    pub cardinality: OperatorPortCardinality,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -100,15 +93,10 @@ impl OperatorDefinitionStore {
     }
 }
 
-fn port(
-    name: &str,
-    display_name: &str,
-    cardinality: OperatorPortCardinality,
-) -> OperatorPortDefinition {
+fn port(name: &str, display_name: &str) -> OperatorPortDefinition {
     OperatorPortDefinition {
         source_name: name.to_string(),
         display_name: display_name.to_string(),
-        cardinality,
     }
 }
 
@@ -125,11 +113,9 @@ pub fn custom_operator_definition(
         inputs: compiled
             .inputs()
             .iter()
-            .map(|OperatorInputDecl { name }| {
-                port(name.as_str(), name.as_str(), OperatorPortCardinality::One)
-            })
+            .map(|OperatorInputDecl { name }| port(name.as_str(), name.as_str()))
             .collect(),
-        output: port("output", "Output", OperatorPortCardinality::Many),
+        output: port("output", "Output"),
         params: compiled.params().to_vec(),
         implementation: OperatorImplementation::Dsl(Box::new(compiled)),
     }
@@ -176,10 +162,14 @@ pub fn validate_composition_graph(
         .map(|node| (&node.id, node))
         .collect::<HashMap<_, _>>();
     let mut edges = HashSet::new();
-    let mut occupied_inputs = HashSet::new();
     for edge in &graph.edges {
-        validate_edge(edge, &nodes, definitions, &mut edges, &mut occupied_inputs)?;
+        validate_edge(edge, &nodes, definitions, &mut edges)?;
     }
+    let connected_inputs = graph
+        .edges
+        .iter()
+        .map(|edge| (&edge.to, edge.to_port.0.as_str()))
+        .collect::<HashSet<_>>();
     let output_dependencies = composition_graph_output_dependencies(graph);
     for node in &graph.nodes {
         if output_dependencies.contains(&node.id)
@@ -195,7 +185,7 @@ pub fn validate_composition_graph(
                         ),
                     })?;
             for input in &definition.inputs {
-                if !occupied_inputs.contains(&(&node.id, input.source_name.as_str())) {
+                if !connected_inputs.contains(&(&node.id, input.source_name.as_str())) {
                     return graph_error(format!(
                         "composition graph input port `{}` is not connected",
                         input.source_name
@@ -247,7 +237,6 @@ fn validate_edge<'a>(
         &'a crate::sequence::CompositionGraphNodeId,
         &'a str,
     )>,
-    occupied_inputs: &mut HashSet<(&'a crate::sequence::CompositionGraphNodeId, &'a str)>,
 ) -> Result<(), GraphValidationError> {
     let from = nodes.get(&edge.from).ok_or_else(|| GraphValidationError {
         message: format!(
@@ -270,13 +259,15 @@ fn validate_edge<'a>(
             edge.from_port.0
         ));
     }
-    let inputs = input_ports(&to.kind, definitions)?;
-    let input = inputs
+    if !input_ports(&to.kind, definitions)?
         .iter()
-        .find(|port| port.source_name == edge.to_port.0)
-        .ok_or_else(|| GraphValidationError {
-            message: format!("unknown composition graph input port `{}`", edge.to_port.0),
-        })?;
+        .any(|port| port.source_name == edge.to_port.0)
+    {
+        return graph_error(format!(
+            "unknown composition graph input port `{}`",
+            edge.to_port.0
+        ));
+    }
     if !edges.insert((
         &edge.from,
         edge.from_port.0.as_str(),
@@ -284,14 +275,6 @@ fn validate_edge<'a>(
         edge.to_port.0.as_str(),
     )) {
         return graph_error("duplicate composition graph edge".to_string());
-    }
-    if input.cardinality == OperatorPortCardinality::One
-        && !occupied_inputs.insert((&edge.to, edge.to_port.0.as_str()))
-    {
-        return graph_error(format!(
-            "composition graph input port `{}` accepts one connection",
-            edge.to_port.0
-        ));
     }
     Ok(())
 }
@@ -352,9 +335,7 @@ pub(crate) fn input_ports(
                     operator_reference_name(&operator.operator)
                 ),
             }),
-        CompositionGraphNodeKind::Output => {
-            Ok(vec![port("input", "Input", OperatorPortCardinality::Many)])
-        }
+        CompositionGraphNodeKind::Output => Ok(vec![port("input", "Input")]),
     }
 }
 

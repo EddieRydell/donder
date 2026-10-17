@@ -141,7 +141,7 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
                 builder.route(second, a, OutputEncoding::Rgb(RgbOrder::Rgb), None);
             }
         }
-        builder.output([signal])
+        builder.output(Some(signal))
     })
 }
 

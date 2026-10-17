@@ -23,7 +23,7 @@ pub struct PersistedSequenceViewportState {
     /// Group lanes whose members are hidden, by group fixture.
     #[serde(default)]
     pub collapsed_groups: Vec<u32>,
-    pub scroll_x_seconds: f32,
+    pub scroll_x_seconds: f64,
     pub scroll_y: f32,
     pub active_mark_collection_key: Option<String>,
     pub visible_mark_collection_keys: Vec<String>,

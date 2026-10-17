@@ -683,8 +683,7 @@ fn add_sequence_candidate(
     color: donder_runtime_types::Color,
 ) -> Result<SequenceId, String> {
     use crate::sequence::*;
-    if duration.as_seconds_f32() <= 0.0 || !duration.as_seconds_f32().is_finite() || frame_rate == 0
-    {
+    if duration.is_zero() || frame_rate == 0 {
         return Err("Sequence duration and frame rate must be positive.".into());
     }
     let next = next_local_name(

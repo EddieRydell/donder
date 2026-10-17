@@ -158,6 +158,16 @@ pub(crate) fn get_sequence_effect_details(
 
 #[tauri::command(async)]
 #[specta::specta]
+pub(crate) fn match_sequence_clips(
+    request: GuiDocumentRequest,
+    query: donder_sequence_api::SequenceClipMatchRequest,
+    state: State<'_, DesktopState>,
+) -> Result<donder_sequence_api::SequenceSelection, String> {
+    state.match_sequence_clips(request, query)
+}
+
+#[tauri::command(async)]
+#[specta::specta]
 pub(crate) fn request_sequence_clip_rasters(
     request: SequenceClipRasterRequest,
     state: State<'_, DesktopState>,

@@ -104,7 +104,7 @@ fn sequence(
         let route = builder.target_slice(route, if selected { 0..4 } else { 2..6 });
         let port = builder.port(0, 0);
         builder.route(port, route, OutputEncoding::Rgb(RgbOrder::Rgb), None);
-        builder.output([layer])
+        builder.output(Some(layer))
     })
 }
 

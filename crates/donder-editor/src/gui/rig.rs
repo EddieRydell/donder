@@ -147,7 +147,7 @@ fn project_mapping(session: &ProjectSession, mapping: &Mapping) -> RigMapping {
                 effect: project_effect(session, &trigger.effect),
                 length: match &trigger.length {
                     TriggerLength::Fixed(duration) => RigTriggerLength::Fixed {
-                        duration_seconds: duration.as_seconds_f32(),
+                        duration_seconds: duration.as_seconds_f64(),
                     },
                     TriggerLength::Held => RigTriggerLength::Held,
                     TriggerLength::Latched => RigTriggerLength::Latched,

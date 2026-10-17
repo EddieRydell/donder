@@ -335,17 +335,18 @@ impl AutomationEnvelope {
     /// The envelope over a target's time range, with target-relative positions.
     /// Preserve coincident points: they encode steps, and the last point wins at a boundary.
     pub fn curve_in_range(&self, start: &DonderTime, duration: &DonderDuration) -> Curve {
-        let envelope_duration = self.duration.as_seconds_f32().max(f32::EPSILON);
-        let range_duration = duration.as_seconds_f32().max(f32::EPSILON);
+        let envelope_duration = self.duration.as_seconds_f64().max(f64::EPSILON);
+        let range_duration = duration.as_seconds_f64().max(f64::EPSILON);
         let start_position =
-            (start.as_seconds_f32() - self.start.as_seconds_f32()) / envelope_duration;
+            (start.as_seconds_f64() - self.start.as_seconds_f64()) / envelope_duration;
         let end_position = start_position + range_duration / envelope_duration;
         let mut points = vec![CurvePoint {
             position: 0.0,
-            value: sample_curve(&self.curve, start_position),
+            value: sample_curve(&self.curve, start_position as f32),
         }];
         points.extend(self.curve.points.iter().filter_map(|point| {
-            let position = (point.position - start_position) * envelope_duration / range_duration;
+            let position = ((f64::from(point.position) - start_position) * envelope_duration
+                / range_duration) as f32;
             (position > 0.0 && position <= 1.0).then_some(CurvePoint {
                 position,
                 value: point.value,
@@ -354,7 +355,7 @@ impl AutomationEnvelope {
         if points.last().is_none_or(|point| point.position < 1.0) {
             points.push(CurvePoint {
                 position: 1.0,
-                value: sample_curve(&self.curve, end_position),
+                value: sample_curve(&self.curve, end_position as f32),
             });
         }
         Curve { points }
@@ -412,13 +413,13 @@ pub enum AutomationTarget {
 pub fn automation_value_at<'a>(
     clip: &AutomationClip,
     mapping: &'a AutomationMapping,
-    sample_seconds: f32,
+    sample_seconds: f64,
 ) -> Option<AutomationValue<'a>> {
-    let duration = clip.duration.as_seconds_f32();
+    let duration = clip.duration.as_seconds_f64();
     let position = if duration <= 0.0 {
         0.0
     } else {
-        ((sample_seconds - clip.start.as_seconds_f32()) / duration).clamp(0.0, 1.0)
+        ((sample_seconds - clip.start.as_seconds_f64()) / duration).clamp(0.0, 1.0) as f32
     };
     automation_value_at_position(&clip.curve, mapping, position)
 }

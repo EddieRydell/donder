@@ -215,7 +215,7 @@ pub(super) fn required_param_values(
         .iter()
         .filter(|param| param.default.is_none())
         .map(|param| {
-            EffectParamValue::initial_for_type(&param.ty, initial_color)
+            EffectParamValue::initial_for_param(param, initial_color)
                 .map(|value| (param.name.clone(), value))
                 .ok_or_else(|| {
                     GuiMutationError::Invalid(format!(
@@ -339,7 +339,7 @@ fn library_identity(
 pub(super) fn automation_binding_value_at(
     clip: &AutomationClip,
     mapping: &AutomationMapping,
-    seconds: f32,
+    seconds: f64,
 ) -> Result<EffectParamValue, GuiMutationError> {
     automation_value_at(clip, mapping, seconds)
         .map(|value| match value {

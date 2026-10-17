@@ -6,35 +6,35 @@ use std::time::Instant;
 
 use super::backend::{
     AudioDriver, AudioHandle, BackendPlaybackState, KiraAudioDriver, LoadedSource, PlaybackBounds,
-    audio_debug, canonical_audio_path,
+    canonical_audio_path,
 };
 
 /// Devices follow one shared timeline, so the desktop reschedules them where local playback
 /// would wrap to the loop start or stop at the range end.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum DeviceBoundary {
-    Wrap(f32),
-    Stop(f32),
+    Wrap(f64),
+    Stop(f64),
 }
 
 enum TransportSource {
     Audio(LoadedSource),
     Silent {
-        duration_seconds: f32,
-        anchor: Option<(Instant, f32)>,
+        duration_seconds: f64,
+        anchor: Option<(Instant, f64)>,
     },
 }
 
 struct ScheduledTimeline {
     start: Instant,
-    position: f32,
-    duration: f32,
+    position: f64,
+    duration: f64,
     rate: PlaybackRate,
 }
 struct ScheduledHold {
     at: Instant,
     state: AudioTransportState,
-    position: f32,
+    position: f64,
     set_home: bool,
 }
 
@@ -42,16 +42,15 @@ pub(crate) struct AudioEngine {
     driver: Option<Box<dyn AudioDriver>>,
     handle: Option<Box<dyn AudioHandle>>,
     source: Option<TransportSource>,
-    home_seconds: f32,
-    position_seconds: f32,
+    home_seconds: f64,
+    position_seconds: f64,
     state: AudioTransportState,
     generation: u32,
     last_error: Option<String>,
     can_resume_handle: bool,
-    last_debug_report: Instant,
     scheduled_timeline: Option<ScheduledTimeline>,
     scheduled_hold: Option<ScheduledHold>,
-    sequence_duration: Option<f32>,
+    sequence_duration: Option<f64>,
     rate: PlaybackRate,
     range: Option<PlaybackRange>,
     looping: bool,
@@ -80,7 +79,6 @@ impl AudioEngine {
             generation: 0,
             last_error: error,
             can_resume_handle: false,
-            last_debug_report: Instant::now(),
             scheduled_timeline: None,
             scheduled_hold: None,
             sequence_duration: None,
@@ -111,7 +109,7 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub fn load_silent_sequence(&mut self, duration_seconds: f32) -> AudioTransportSnapshot {
+    pub fn load_silent_sequence(&mut self, duration_seconds: f64) -> AudioTransportSnapshot {
         self.observe_backend();
         if let Some(TransportSource::Silent {
             duration_seconds: current,
@@ -217,7 +215,6 @@ impl AudioEngine {
     }
 
     pub fn play(&mut self) -> AudioTransportSnapshot {
-        self.debug_transport("play requested");
         self.observe_backend();
         if self.source.is_none() {
             return self.current_snapshot();
@@ -256,8 +253,8 @@ impl AudioEngine {
     pub(crate) fn play_at(
         &mut self,
         deadline: Instant,
-        position: f32,
-        duration: f32,
+        position: f64,
+        duration: f64,
         rate: PlaybackRate,
     ) -> Result<AudioTransportSnapshot, String> {
         if self.source.is_none()
@@ -319,7 +316,7 @@ impl AudioEngine {
         &mut self,
         deadline: Instant,
         state: AudioTransportState,
-        position: f32,
+        position: f64,
         set_home: bool,
     ) -> AudioTransportSnapshot {
         if let Some(handle) = &mut self.handle {
@@ -336,7 +333,6 @@ impl AudioEngine {
     }
 
     pub fn pause(&mut self) -> AudioTransportSnapshot {
-        self.debug_transport("pause requested");
         self.observe_backend();
         if !matches!(self.state, AudioTransportState::Playing) {
             return self.current_snapshot();
@@ -355,18 +351,12 @@ impl AudioEngine {
     }
 
     pub fn stop(&mut self) -> AudioTransportSnapshot {
-        self.debug_transport("stop requested");
         self.observe_backend();
         if self.source.is_none() {
             return self.current_snapshot();
         }
         self.position_seconds = self.home_seconds;
-        self.scheduled_timeline = None;
-        self.scheduled_hold = None;
-        if let Some(mut handle) = self.handle.take() {
-            handle.pause(None);
-            handle.seek_to(self.position_seconds);
-        }
+        self.lifecycle_stop_handle();
         self.state = AudioTransportState::Stopped;
         self.can_resume_handle = false;
         self.bump_generation();
@@ -377,7 +367,7 @@ impl AudioEngine {
         self.seek_to(0.0, AudioTransportState::Paused)
     }
 
-    pub fn seek(&mut self, position_seconds: f32) -> AudioTransportSnapshot {
+    pub fn seek(&mut self, position_seconds: f64) -> AudioTransportSnapshot {
         let position_seconds = self.clamp_position(position_seconds);
         self.seek_to(position_seconds, AudioTransportState::Paused)
     }
@@ -416,7 +406,7 @@ impl AudioEngine {
     }
 
     /// Play starts from Home after the end, and at the range start from outside the range.
-    pub(crate) fn play_position(&self) -> f32 {
+    pub(crate) fn play_position(&self) -> f64 {
         let position = if matches!(self.state, AudioTransportState::Ended) {
             self.home_seconds
         } else {
@@ -488,7 +478,7 @@ impl AudioEngine {
     }
 
     /// Looping repeats the range, or the whole sequence without one.
-    fn loop_region(&self) -> Option<(f32, f32)> {
+    fn loop_region(&self) -> Option<(f64, f64)> {
         self.looping.then(|| {
             self.range.map_or((0.0, self.duration_seconds()), |range| {
                 (range.start_seconds, range.end_seconds)
@@ -497,7 +487,7 @@ impl AudioEngine {
     }
 
     /// Where playback wraps or stops before the natural end of the sequence.
-    fn window_end(&self) -> Option<f32> {
+    fn window_end(&self) -> Option<f64> {
         self.range
             .map(|range| range.end_seconds)
             .or_else(|| self.looping.then(|| self.duration_seconds()))
@@ -530,12 +520,9 @@ impl AudioEngine {
 
     fn seek_to(
         &mut self,
-        position_seconds: f32,
+        position_seconds: f64,
         final_state: AudioTransportState,
     ) -> AudioTransportSnapshot {
-        audio_debug(format_args!(
-            "seek requested position={position_seconds} final_state={final_state:?}"
-        ));
         self.observe_backend();
         if self.source.is_none() {
             return self.current_snapshot();
@@ -640,17 +627,6 @@ impl AudioEngine {
             }
             return;
         }
-        let debug_report_due = cfg!(debug_assertions)
-            && self.last_debug_report.elapsed() >= std::time::Duration::from_secs(1);
-        if cfg!(debug_assertions) {
-            if let Some(driver) = &mut self.driver {
-                driver.debug_observe();
-            }
-            if debug_report_due {
-                self.debug_transport("transport observation");
-                self.last_debug_report = Instant::now();
-            }
-        }
         if let Some(TransportSource::Silent {
             duration_seconds,
             anchor,
@@ -685,12 +661,6 @@ impl AudioEngine {
             return;
         };
         let observation = handle.observe();
-        if debug_report_due {
-            audio_debug(format_args!(
-                "sound state={:?} position={} error={:?}",
-                observation.state, observation.position_seconds, observation.error
-            ));
-        }
         if let Some(error) = observation.error {
             self.state = AudioTransportState::Error;
             self.last_error = Some(error);
@@ -763,7 +733,7 @@ impl AudioEngine {
                 timeline
                     .start
                     .saturating_duration_since(Instant::now())
-                    .as_secs_f32()
+                    .as_secs_f64()
             }),
             home_seconds: self.home_seconds,
             duration_seconds: self.duration_seconds(),
@@ -774,14 +744,14 @@ impl AudioEngine {
         }
     }
 
-    fn clamp_position(&self, position_seconds: f32) -> f32 {
+    fn clamp_position(&self, position_seconds: f64) -> f64 {
         if !position_seconds.is_finite() {
             return 0.0;
         }
         position_seconds.clamp(0.0, self.duration_seconds())
     }
 
-    fn duration_seconds(&self) -> f32 {
+    fn duration_seconds(&self) -> f64 {
         if let Some(duration) = self.sequence_duration {
             return duration;
         }
@@ -796,26 +766,11 @@ impl AudioEngine {
 
     fn bump_generation(&mut self) {
         self.generation = self.generation.saturating_add(1);
-        self.debug_transport("transport changed");
-    }
-
-    fn debug_transport(&self, event: &str) {
-        audio_debug(format_args!(
-            "{event}: state={:?} position={} home={} generation={} source={} handle={} can_resume={} error={:?}",
-            self.state,
-            self.position_seconds,
-            self.home_seconds,
-            self.generation,
-            self.source.is_some(),
-            self.handle.is_some(),
-            self.can_resume_handle,
-            self.last_error
-        ));
     }
 }
 
-fn show_seconds_between(rate: PlaybackRate, start: Instant, now: Instant) -> f32 {
-    rate.show_elapsed(now.saturating_duration_since(start).as_micros() as u64) as f32 / 1_000_000.0
+fn show_seconds_between(rate: PlaybackRate, start: Instant, now: Instant) -> f64 {
+    rate.show_elapsed(now.saturating_duration_since(start).as_micros() as u64) as f64 / 1_000_000.0
 }
 
 impl Drop for AudioEngine {
@@ -938,7 +893,7 @@ mod tests {
     }
 
     #[test]
-    fn stop_while_playing_pauses_and_seeks_home_without_backend_stop() {
+    fn stop_while_playing_releases_backend_stream_and_returns_home() {
         let fixture = AudioFixture::new(12.0);
         let mut engine = playing_engine(&fixture);
         engine.seek(4.0);
@@ -950,8 +905,7 @@ mod tests {
         assert_eq!(snapshot.state, AudioTransportState::Stopped);
         assert_eq!(snapshot.position_seconds, 4.0);
         assert_eq!(snapshot.home_seconds, 4.0);
-        fixture.assert_handle_actions(&[HandleAction::Pause, HandleAction::Seek(4.0)]);
-        fixture.assert_no_handle_stop();
+        fixture.assert_handle_actions(&[HandleAction::Stop]);
     }
 
     #[test]
@@ -1086,7 +1040,7 @@ mod tests {
     }
 
     impl AudioFixture {
-        fn new(duration_seconds: f32) -> Self {
+        fn new(duration_seconds: f64) -> Self {
             Self {
                 shared: Arc::new(Mutex::new(FakeShared {
                     duration_seconds,
@@ -1111,7 +1065,7 @@ mod tests {
             self.shared.lock().expect("fake shared").handle_state = state;
         }
 
-        fn set_handle_position(&self, position_seconds: f32) {
+        fn set_handle_position(&self, position_seconds: f64) {
             self.shared.lock().expect("fake shared").handle_position = position_seconds;
         }
 
@@ -1144,38 +1098,27 @@ mod tests {
                 expected
             );
         }
-
-        fn assert_no_handle_stop(&self) {
-            assert!(
-                !self
-                    .shared
-                    .lock()
-                    .expect("fake shared")
-                    .handle_actions
-                    .contains(&HandleAction::Stop)
-            );
-        }
     }
 
     struct FakeShared {
-        duration_seconds: f32,
+        duration_seconds: f64,
         driver_actions: Vec<DriverAction>,
         handle_actions: Vec<HandleAction>,
         handle_state: BackendPlaybackState,
-        handle_position: f32,
+        handle_position: f64,
     }
 
     #[derive(Debug, PartialEq)]
     enum DriverAction {
         LoadMetadata,
-        Play(f32),
+        Play(f64),
     }
 
     #[derive(Debug, PartialEq)]
     enum HandleAction {
         Pause,
         Resume,
-        Seek(f32),
+        Seek(f64),
         Stop,
     }
 
@@ -1195,7 +1138,7 @@ mod tests {
         fn play(
             &mut self,
             _path: &str,
-            position_seconds: f32,
+            position_seconds: f64,
             _deadline: Option<Instant>,
             _rate: PlaybackRate,
             _bounds: PlaybackBounds,
@@ -1238,7 +1181,7 @@ mod tests {
             shared.handle_state = BackendPlaybackState::Advancing;
         }
 
-        fn seek_to(&mut self, position_seconds: f32) {
+        fn seek_to(&mut self, position_seconds: f64) {
             let mut shared = self.shared.lock().expect("fake shared");
             shared
                 .handle_actions

@@ -126,7 +126,7 @@ fn single_effect(sample: &SampleInvocation) -> PreparedSequence {
     grid(|builder, target| {
         let effect = builder.sample(sample, builder.whole_sequence(), target);
         let layer = builder.layer(true, [effect]);
-        builder.output([layer])
+        builder.output(Some(layer))
     })
 }
 
@@ -460,7 +460,7 @@ fn unautomated_effects_do_not_expand_the_evaluation_workspace() {
                 .map(|_| builder.sample(&invocation, window, target))
                 .collect();
             let layer = builder.layer(true, effects);
-            builder.output([layer])
+            builder.output(Some(layer))
         });
         LIVE_BYTES.set(0);
         let mut workspace = None;
@@ -858,7 +858,7 @@ fn operator_show(nodes: &[(Instance, Vec<Input>)]) -> PreparedSequence {
                 Input::Second => second,
             });
         }
-        builder.output([signal])
+        builder.output(Some(signal))
     })
 }
 

@@ -1,6 +1,6 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import type { EditorCommands } from "../../../shortcuts";
-import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Monitor, Music, Pause, Play, RadioTower, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
+import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Magnet, Monitor, Music, Pause, Play, RadioTower, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
 import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
@@ -29,8 +29,9 @@ export function SequenceTransportControls({
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
   const followMode = useAppStore((store) => store.snapshot?.settings.sequenceFollowMode ?? null);
+  const snapping = useAppStore((store) => store.snapshot?.settings.sequenceSnap ?? null);
   const sliceTool = useSequenceTool((state) => state.tool === "slice");
-  if (transport === null || liveOutput === null || followMode === null) return null;
+  if (transport === null || liveOutput === null || followMode === null || snapping === null) return null;
   const FollowIcon = FOLLOW_MODES[followMode].Icon;
   const unsupported = isSequenceTransportUnsupported(document, transport);
   const activePlayback = isActiveAudioPlayback(transport.state);
@@ -131,6 +132,14 @@ export function SequenceTransportControls({
       </button>
       <button
         type="button"
+        className={snapping ? "active" : ""}
+        title={snapping ? "Snap: on (hold Alt to bypass)" : "Snap: off (hold Alt to snap)"}
+        onClick={() => { toggleSequenceSnap(host); }}
+      >
+        <Magnet size={THEME_METRICS.iconSizeCompact} />
+      </button>
+      <button
+        type="button"
         title="Choose audio"
         hidden={!host.capabilities.audioFile}
         onClick={() => void chooseAudioWithResizePrompt(host, document, confirm)}
@@ -158,6 +167,12 @@ function cycleSequenceFollowMode(host: SequenceEditorHost) {
   const settings = host.store.getState().snapshot?.settings;
   if (settings === undefined) return;
   void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceFollowMode: FOLLOW_MODES[settings.sequenceFollowMode].next }));
+}
+
+function toggleSequenceSnap(host: SequenceEditorHost) {
+  const settings = host.store.getState().snapshot?.settings;
+  if (settings === undefined) return;
+  void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceSnap: !settings.sequenceSnap }));
 }
 
 async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceEditorDocument, confirm: Confirm) {

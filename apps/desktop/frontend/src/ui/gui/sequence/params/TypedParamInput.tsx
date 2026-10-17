@@ -21,6 +21,7 @@ const CURVE_EDITOR = {
   height: THEME_METRICS.curveEditorHeight,
   roundScale: 1000,
   flatRangeEpsilon: 0.0001,
+  valueSteps: 20,
   colorMismatchDistance: 0.001,
   emptyGradient: THEME_COLORS.emptyGradient,
   defaultColor: THEME_COLORS.white
@@ -121,7 +122,7 @@ function TypedParamValue({
     case "curve":
       return (
         <ParamShell name={param.name} description={param.description} automated={automated}>
-        <CurveValueEditor name={param.name} value={param.value.value} sources={curveLibrary}
+        <CurveValueEditor name={param.name} value={param.value.value} sources={curveLibrary} range={param.range}
           commit={(value) => commit({ type: "curve", value })}
           disabled={automated} actions={automationActions} />
         </ParamShell>
@@ -142,7 +143,7 @@ function TypedParamValue({
     case "colorArray":
       return <ColorArrayParam name={param.name} values={param.value.values} commit={(values) => commit({ type: "colorArray", values })} />;
     case "curveArray":
-      return <CurveArrayParam sources={curveLibrary} name={param.name} values={param.value.values} commit={(values) => commit({ type: "curveArray", values })} />;
+      return <CurveArrayParam sources={curveLibrary} name={param.name} values={param.value.values} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
     case "gradientArray":
       return <GradientArrayParam sources={gradientLibrary} name={param.name} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
     case "marks":
@@ -345,11 +346,15 @@ function ColorArrayParam({ name, values, commit }: { name: string; values: strin
   );
 }
 
-function CurveArrayParam({ name, values, sources, commit }: { name: string; values: SequenceCurveValue[]; sources: SequenceCurveLibraryItem[]; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
+function CurveArrayParam({ name, values, sources, range, commit }: { name: string; values: SequenceCurveValue[]; sources: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
+  const newValue = (): SequenceCurveValue => {
+    const axis = curveAxis([], range);
+    return values[values.length - 1] ?? { points: [{ time: 0, value: axis.min }, { time: 1, value: axis.max }], source: { type: "inline" } };
+  };
   return <ArrayShell name={name} values={values}
-    newValue={(): SequenceCurveValue => values[values.length - 1] ?? { points: [{ time: 0, value: 0 }], source: { type: "inline" } }}
+    newValue={newValue}
     commit={commit}
-    render={(value, index) => <CurveValueEditor name={`#${index + 1}`} value={value} sources={sources} commit={(next) => commit(replaceAt(values, index, next))} />} />;
+    render={(value, index) => <CurveValueEditor name={`#${index + 1}`} value={value} sources={sources} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
 
 function GradientArrayParam({ name, values, sources, commit }: { name: string; values: SequenceGradientValue[]; sources: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
@@ -458,10 +463,11 @@ type CurveEditorProps<T extends { time: number }> = {
 
 type UnlinkAction = "edit" | "flipHorizontal" | "flipVertical";
 
-function CurveValueEditor({ name, value, sources, commit, disabled = false, actions = null }: {
+function CurveValueEditor({ name, value, sources, range, commit, disabled = false, actions = null }: {
   name: string;
   value: SequenceCurveValue;
   sources: SequenceCurveLibraryItem[];
+  range: SequenceParamRange | null;
   commit: (value: SequenceCurveValue) => Promise<void>;
   disabled?: boolean;
   actions?: ReactNode;
@@ -472,8 +478,11 @@ function CurveValueEditor({ name, value, sources, commit, disabled = false, acti
     disabled={disabled} actions={actions}
     link={(curve) => commit({ points: curve.points, source: { type: "library", moduleId: curve.moduleId, path: curve.path, objectKey: curve.objectKey, displayName: curve.displayName } })}
     unlink={() => commit({ points, source: { type: "inline" } })}
-    flipVerticalPoints={(current) => current.map((point) => ({ ...point, value: roundCurveValue(1 - point.value) }))}
-    render={(props) => <CurveParam name={name} {...props} />} />;
+    flipVerticalPoints={(current) => {
+      const axis = curveAxis(current, range);
+      return current.map((point) => ({ ...point, value: roundCurveValue(axis.min + axis.max - point.value) }));
+    }}
+    render={(props) => <CurveParam name={name} range={range} {...props} />} />;
 }
 
 function GradientValueEditor({ name, value, sources, commit }: {
@@ -661,6 +670,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
 export function CurveParam({
   name,
   points,
+  range = null,
   commit,
   readOnly = false,
   requestInlineEdit,
@@ -668,6 +678,8 @@ export function CurveParam({
 }: {
   name: string;
   points: EditedSequenceCurvePoint[];
+  /** The param's declared value range fixes the axis; without one it fits the points. */
+  range?: SequenceParamRange | null;
   commit: (points: EditedSequenceCurvePoint[]) => Promise<void>;
   readOnly?: boolean;
   requestInlineEdit?: () => void;
@@ -737,9 +749,10 @@ export function CurveParam({
   const commitDraftPoint = (index: number) => {
     const point = draftsRef.current[index];
     if (!point) return;
-    update(replaceAt(draftsRef.current, index, { time: clamp(point.time, 0, 1), value: point.value }));
+    const value = range === null ? point.value : clamp(point.value, range.min, range.max);
+    update(replaceAt(draftsRef.current, index, { time: clamp(point.time, 0, 1), value }));
   };
-  const valueRange = curveValueRange(drafts);
+  const valueRange = curveAxis(drafts, range);
   const path = curveSvgPath(drafts, valueRange);
   const pointFromPointer = (event: PointerEvent<SVGSVGElement>): EditedSequenceCurvePoint => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -865,7 +878,9 @@ export function CurveParam({
                       <span>v</span>
                       <input
                         type="number"
-                        step={0.05}
+                        step={curveValueStep(valueRange)}
+                        min={range?.min}
+                        max={range?.max}
                         value={point.value}
                         onFocus={() => { setSelectedIndex(index); }}
                         onChange={(event) => {
@@ -1114,12 +1129,18 @@ function sortCurvePoints<T extends { time: number }>(points: T[]) {
   return [...points].sort((left, right) => left.time - right.time);
 }
 
-function curveValueRange(points: EditedSequenceCurvePoint[]) {
+function curveAxis(points: EditedSequenceCurvePoint[], range: SequenceParamRange | null) {
+  if (range !== null && range.max > range.min) return range;
   const values = points.map((point) => point.value).filter(Number.isFinite);
   const min = Math.min(0, ...values);
   const max = Math.max(1, ...values);
   if (Math.abs(max - min) < CURVE_EDITOR.flatRangeEpsilon) return { min: min - 0.5, max: max + 0.5 };
   return { min, max };
+}
+
+/** One twentieth of the axis, as 0.05 is of a unit axis. */
+function curveValueStep(axis: { min: number; max: number }) {
+  return roundCurveValue((axis.max - axis.min) / CURVE_EDITOR.valueSteps);
 }
 
 function curveSvgPath(points: EditedSequenceCurvePoint[], range: { min: number; max: number }) {

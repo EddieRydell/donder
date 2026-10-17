@@ -13,6 +13,8 @@ use donder_sequence_api::{
     SequenceSelection, SequenceSelectionEdit,
 };
 
+mod arrange;
+mod clip_match;
 mod controller;
 mod description;
 mod dispatch;
@@ -32,6 +34,8 @@ mod rig;
 mod selection;
 mod setup;
 
+use arrange::arrange_clip_selection;
+pub use clip_match::matching_sequence_clips;
 use edit::edit_sequence;
 use fixture::edit_fixture;
 use layout::edit_layout;
@@ -57,13 +61,13 @@ pub use document::{
 };
 pub use document::{ResolvedGuiObject, affected_paths, ensure_owned_gui_document, resolve_request};
 
-fn checked_gui_time(seconds: f32) -> Result<DonderTime, GuiMutationError> {
-    DonderTime::try_from_seconds_f32(seconds)
+fn checked_gui_time(seconds: f64) -> Result<DonderTime, GuiMutationError> {
+    DonderTime::try_from_seconds_f64(seconds)
         .map_err(|_| GuiMutationError::Invalid("Time is outside the supported range.".into()))
 }
 
-fn checked_gui_duration(seconds: f32) -> Result<DonderDuration, GuiMutationError> {
-    DonderDuration::try_from_seconds_f32(seconds)
+fn checked_gui_duration(seconds: f64) -> Result<DonderDuration, GuiMutationError> {
+    DonderDuration::try_from_seconds_f64(seconds)
         .map_err(|_| GuiMutationError::Invalid("Duration is outside the supported range.".into()))
 }
 
@@ -73,8 +77,8 @@ mod time_conversion_tests {
 
     #[test]
     fn finite_but_unrepresentable_gui_times_are_rejected_without_panicking() {
-        assert!(checked_gui_time(f32::MAX).is_err());
-        assert!(checked_gui_duration(f32::MAX).is_err());
+        assert!(checked_gui_time(f64::MAX).is_err());
+        assert!(checked_gui_duration(f64::MAX).is_err());
         assert!(checked_gui_time(1.0).is_ok());
         assert!(checked_gui_duration(1.0).is_ok());
     }

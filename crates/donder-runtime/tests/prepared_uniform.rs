@@ -118,7 +118,7 @@ fn single_pixels(count: usize, invocation: &SampleInvocation) -> PreparedSequenc
             })
             .collect();
         let layer = builder.layer(true, effects);
-        builder.output([layer])
+        builder.output(Some(layer))
     })
 }
 
@@ -240,7 +240,7 @@ fn effect_automation_slots_skip_unautomated_effects() {
             builder.sample(&automated[1], whole, target),
         ];
         let layer = builder.layer(true, [effects[1], effects[3], effects[0], effects[2]]);
-        builder.output([layer])
+        builder.output(Some(layer))
     });
     let mut playback = show.into_playback();
     for frame_index in [0, 31, 4, 0] {
@@ -378,7 +378,7 @@ fn staged_upstream_matches_unstaged_execution_across_effects_and_times() {
             }
             workload::Workload::samples(200, vec![effects]).prepare_with(|builder, _, signal| {
                 let result = builder.operator(&operator, |_| signal);
-                builder.output([result])
+                builder.output(Some(result))
             })
         };
         assert_same_frames(prepare(true), prepare(false), &format!("effects={count}"));
@@ -483,7 +483,7 @@ fn staged_nested_operators_track_sibling_parameters_and_temporal_revisits() {
                 .each_ref()
                 .map(|invocation| builder.operator(invocation, |_| layer));
             let mixed = builder.operator(&mix, |input| siblings[input]);
-            builder.output([mixed])
+            builder.output(Some(mixed))
         })
     };
     assert_same_frames(prepare(true), prepare(false), "siblings");
@@ -575,7 +575,7 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
             };
             let effect = builder.sample(&invocation, builder.whole_sequence(), effect_target);
             let layer = builder.layer(true, [effect]);
-            builder.output([layer])
+            builder.output(Some(layer))
         });
         let output = frame(&mut show.into_playback(), playback::time(0));
         assert!(output.iter().all(|&byte| byte == 0));

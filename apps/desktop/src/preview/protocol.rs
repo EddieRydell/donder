@@ -79,8 +79,8 @@ pub(crate) enum PreviewCommand {
     SetClock {
         generation: u32,
         state: AudioTransportState,
-        position_seconds: f32,
-        start_delay_seconds: f32,
+        position_seconds: f64,
+        start_delay_seconds: f64,
         playback_speed: PlaybackSpeed,
     },
     SetAppearance {

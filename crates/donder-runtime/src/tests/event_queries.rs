@@ -14,7 +14,7 @@ type Param<'a> = (&'a str, &'a str, Value);
 /// `body` with `params`, evaluated two ways. When every value lies inside its
 /// declared range, the parameters are fixed and preparation computes what it
 /// can. Then every parameter is selected from a one-item array by the pixel
-/// index, so the VM computes everything; arrays have no declared range.
+/// index, so the VM computes everything; the arrays accept any finite value.
 fn sample(params: &[Param], body: &str) -> Color {
     let context = PixelContext {
         run: RunContext {
@@ -54,8 +54,13 @@ fn sample(params: &[Param], body: &str) -> Color {
     let selected_declarations: String = params
         .iter()
         .map(|(name, ty, _)| {
-            let ty = ty.split(" in ").next().unwrap();
-            format!("param {name}_items: array<{ty}>;")
+            let item = ty.split(" in ").next().unwrap();
+            let range = if item == "curve" {
+                format!(" in {:.1}..{:.1}", -f32::MAX, f32::MAX)
+            } else {
+                String::new()
+            };
+            format!("param {name}_items: array<{item}>{range};")
         })
         .collect();
     let selections: String = params

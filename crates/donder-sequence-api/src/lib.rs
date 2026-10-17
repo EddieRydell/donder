@@ -49,15 +49,16 @@ pub use dto::preview::{
 };
 pub use dto::sequence::{
     SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceAutomationDetachmentReason, SequenceClipRaster, SequenceClipRasterError,
-    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
-    SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceDetachedAutomationBinding,
-    SequenceEffect, SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectDetails,
+    SequenceAutomationDetachmentReason, SequenceClipMatchRequest, SequenceClipParamMatch,
+    SequenceClipRaster, SequenceClipRasterError, SequenceClipRasterRequest,
+    SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceCompositionGraph,
+    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffect,
+    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectDetails,
     SequenceEffectDetailsResult, SequenceEffectParam, SequenceGradientLibraryItem,
     SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperatorDefinition,
-    SequenceGraphPortCardinality, SequenceGraphPortDefinition, SequenceGuiDocument, SequenceLane,
-    SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
-    SequenceParamRange, SequenceSelectionEditResult, SequenceTimelineClipKind,
+    SequenceGraphPortDefinition, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
+    SequenceLayer, SequenceMarkCollection, SequenceParamAutomation, SequenceParamRange,
+    SequenceSelectionEditResult, SequenceTimelineClipKind,
 };
 pub use dto::setup::{
     BufferExternalState, ControllerGuiDocument, CurveGuiDocument, DiagnosticSeverity,
@@ -83,11 +84,12 @@ pub use dto::workspace::{
     AppSettings, DocumentDefaultObjectKey, DocumentDescriptor, DocumentObjectDescriptor,
     EditorBuffer, EditorTab, EditorViewMode, EffectRasterSettings, NewSequenceRequest,
     NewSequenceResult, NewSequenceStorage, ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind,
-    ProjectSearchRequest, ProjectSearchResponse, SequenceFollowMode, SequenceInitialZoomMode,
-    SidebarView, SpatialSnapSettings, SpatialUnit, TextDocumentSyntax, TextPosition, TextRange,
-    Transform, WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryRole, WorkspaceExplorerState,
-    WorkspaceLayoutState, WorkspaceOperation, WorkspacePathChangeImpact, WorkspacePathChangePlan,
-    WorkspacePathChangeRequest, workspace_role_for_source_object,
+    ProjectSearchRequest, ProjectSearchResponse, SequenceClipMatch, SequenceClipTimeMatch,
+    SequenceFollowMode, SequenceInitialZoomMode, SidebarView, SpatialSnapSettings, SpatialUnit,
+    TextDocumentSyntax, TextPosition, TextRange, Transform, WorkspaceEntry, WorkspaceEntryKind,
+    WorkspaceEntryRole, WorkspaceExplorerState, WorkspaceLayoutState, WorkspaceOperation,
+    WorkspacePathChangeImpact, WorkspacePathChangePlan, WorkspacePathChangeRequest,
+    workspace_role_for_source_object,
 };
 
 // Shared serialized edit contract for desktop and browser clients.
@@ -127,7 +129,7 @@ pub enum SequenceGuiEdit {
         edit: CompositionGuiEdit,
     },
     SetDuration {
-        duration_seconds: f32,
+        duration_seconds: f64,
     },
     SetAudio {
         #[serde(rename = "import")]
@@ -138,7 +140,7 @@ pub enum SequenceGuiEdit {
         effect: SequenceEffectReference,
         target: FixtureTarget,
         scope: SequenceEffectScope,
-        start_seconds: f32,
+        start_seconds: f64,
     },
     RenameClip {
         id: u32,
@@ -155,13 +157,13 @@ pub enum SequenceGuiEdit {
     },
     MoveEffect {
         id: u32,
-        start_seconds: f32,
+        start_seconds: f64,
         target: Option<FixtureTarget>,
     },
     ResizeEffect {
         id: u32,
-        start_seconds: f32,
-        duration_seconds: f32,
+        start_seconds: f64,
+        duration_seconds: f64,
     },
     ChangeEffectDefinition {
         initial_color: String,
@@ -176,7 +178,7 @@ pub enum SequenceGuiEdit {
     /// the cut.
     SplitEffects {
         ids: Vec<u32>,
-        time_seconds: f32,
+        time_seconds: f64,
     },
     RetargetEffect {
         id: u32,
@@ -192,8 +194,8 @@ pub enum SequenceGuiEdit {
         value: SequenceEffectParamValue,
     },
     AddAutomationClip {
-        start_seconds: f32,
-        duration_seconds: f32,
+        start_seconds: f64,
+        duration_seconds: f64,
         row_target: FixtureTarget,
     },
     CreateAndBindAutomationClip {
@@ -201,12 +203,12 @@ pub enum SequenceGuiEdit {
     },
     MoveAutomationClip {
         id: u32,
-        start_seconds: f32,
+        start_seconds: f64,
         row_target: FixtureTarget,
     },
     SplitAutomationClip {
         id: u32,
-        time_seconds: f32,
+        time_seconds: f64,
     },
     UpdateAutomationCurve {
         id: u32,
@@ -249,12 +251,12 @@ pub enum SequenceGuiEdit {
     },
     AddMarks {
         collection_key: String,
-        times_seconds: Vec<f32>,
+        times_seconds: Vec<f64>,
     },
     MoveMark {
         collection_key: String,
         index: u32,
-        time_seconds: f32,
+        time_seconds: f64,
     },
     ReassignMarkCollection {
         collection_key: String,
@@ -349,7 +351,7 @@ pub enum CompositionGuiEdit {
 pub struct NewMarkCollection {
     pub name: String,
     pub color: String,
-    pub marks_seconds: Vec<f32>,
+    pub marks_seconds: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -364,7 +366,7 @@ pub struct SequenceMarkRef {
 pub struct SequencePasteAnchor {
     /// The timeline lane to paste at; a target may have several lanes.
     pub lane: Option<u32>,
-    pub time_seconds: f32,
+    pub time_seconds: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -397,10 +399,10 @@ pub enum SequenceEffectCommonEdit {
         scope: SequenceEffectScope,
     },
     Start {
-        start_seconds: f32,
+        start_seconds: f64,
     },
     Duration {
-        duration_seconds: f32,
+        duration_seconds: f64,
     },
     Param {
         name: String,
@@ -430,7 +432,7 @@ pub enum SequenceSelectionEdit {
     MoveClips {
         effect_ids: Vec<u32>,
         automation_ids: Vec<u32>,
-        time_delta_seconds: f32,
+        time_delta_seconds: f64,
         /// The lane the move started on. Each clip moves from the lane of its
         /// target nearest this one.
         anchor_lane: u32,
@@ -441,19 +443,86 @@ pub enum SequenceSelectionEdit {
         automation_ids: Vec<u32>,
         edge: SequenceResizeEdge,
         automation: SequenceAutomationResize,
-        time_delta_seconds: f32,
+        time_delta_seconds: f64,
     },
     EditEffects {
         effect_ids: Vec<u32>,
         edit: SequenceEffectCommonEdit,
     },
+    /// Retime the selected clips together; the selection stays the same.
+    ArrangeClips {
+        effect_ids: Vec<u32>,
+        automation_ids: Vec<u32>,
+        arrangement: SequenceClipArrangement,
+    },
     MoveMarks {
         marks: Vec<SequenceMarkRef>,
-        time_delta_seconds: f32,
+        time_delta_seconds: f64,
     },
 }
 
+/// One clip of a sequence, effect or automation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum SequenceClipRef {
+    Effect { id: u32 },
+    Automation { id: u32 },
+}
+
+/// How "Align" and "Arrange" retime selected clips. A reference clip keeps
+/// its timing; resized automation clips crop their curves. A row is one lane's
+/// effects or one lane's automation clips.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum SequenceClipArrangement {
+    /// Starts move to the reference's start; ends stay.
+    AlignStarts { reference: SequenceClipRef },
+    /// Ends move to the reference's end; starts stay.
+    AlignEnds { reference: SequenceClipRef },
+    /// Clips move, keeping their length, to start with the reference.
+    MoveStarts { reference: SequenceClipRef },
+    /// Clips move, keeping their length, to end with the reference.
+    MoveEnds { reference: SequenceClipRef },
+    /// Clips take the reference's start and end.
+    AlignBoth { reference: SequenceClipRef },
+    /// Clips move, keeping their length, to share the reference's midpoint.
+    AlignCenters { reference: SequenceClipRef },
+    /// Clips keep their start and take the reference's length.
+    MatchDuration { reference: SequenceClipRef },
+    /// Clips move, keeping their length, to start where the reference ends.
+    StartAfter { reference: SequenceClipRef },
+    /// Clips move, keeping their length, to end where the reference starts.
+    EndBefore { reference: SequenceClipRef },
+    /// Each start moves to the nearest mark of `mark_collections` and each end
+    /// to the nearest later one; with no later mark, the clip keeps its length.
+    QuantizeToMarks { mark_collections: Vec<String> },
+    /// Each start moves back and each end forward to the nearest mark of
+    /// `mark_collections`; an edge with no mark beyond it stays.
+    StretchToMarks { mark_collections: Vec<String> },
+    /// Each end extends to the next clip's start in its row.
+    FillGaps,
+    /// In each row, clips move, keeping their length, so each starts where
+    /// the one before it ends.
+    ButtTogether,
+    /// In each row, the first and last clips stay and the clips between move
+    /// so the gaps between them are equal.
+    DistributeEvenly,
+    /// Each lane's clips move by `step_seconds` more than the lane above's,
+    /// or the lane below's when `reverse`.
+    Cascade { step_seconds: f64, reverse: bool },
+    /// Clips keep their start and take the average length.
+    EqualizeDurations,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -505,21 +574,21 @@ pub enum SequenceEffectParamValue {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceCurveValue {
     pub points: Vec<SequenceCurvePoint>,
     pub source: SequenceLibrarySource,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGradientValue {
     pub stops: Vec<SequenceGradientStop>,
     pub source: SequenceLibrarySource,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -623,7 +692,7 @@ pub enum SequenceEffectReference {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceCurvePoint {
     pub time: f32,
@@ -636,7 +705,7 @@ pub struct FixtureTarget {
     pub fixture: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGradientStop {
     pub time: f32,
@@ -647,6 +716,6 @@ pub struct SequenceGradientStop {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceBeatDetection {
-    pub beats_seconds: Vec<f32>,
-    pub downbeats_seconds: Vec<f32>,
+    pub beats_seconds: Vec<f64>,
+    pub downbeats_seconds: Vec<f64>,
 }

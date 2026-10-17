@@ -76,7 +76,7 @@ pub enum SequenceClipboard {
 #[derive(Clone)]
 pub struct ClipboardEffect {
     pub effect: EffectInst,
-    pub start_seconds: f32,
+    pub start_seconds: f64,
     pub lane_index: usize,
 }
 
@@ -89,7 +89,7 @@ pub struct ClipboardAutomation {
 #[derive(Clone)]
 pub struct ClipboardMark {
     pub collection_key: String,
-    pub time_seconds: f32,
+    pub time_seconds: f64,
     pub label: Option<String>,
 }
 
@@ -182,6 +182,27 @@ pub fn apply_sequence_selection_edit(
                 edge,
                 automation,
                 time_delta_seconds,
+            )?;
+            Ok(SequenceSelectionMutation {
+                selection: Some(SequenceSelection::Clips {
+                    effect_ids,
+                    automation_ids,
+                }),
+                copied_count: 0,
+                skipped_count: 0,
+            })
+        }
+        SequenceSelectionEdit::ArrangeClips {
+            effect_ids,
+            automation_ids,
+            arrangement,
+        } => {
+            arrange_clip_selection(
+                session,
+                &sequence_id,
+                &effect_ids,
+                &automation_ids,
+                &arrangement,
             )?;
             Ok(SequenceSelectionMutation {
                 selection: Some(SequenceSelection::Clips {

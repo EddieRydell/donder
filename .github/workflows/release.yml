@@ -2,8 +2,8 @@ name: Release
 
 # Bumps the app version in tauri.conf.json, commits and tags it on main, builds
 # unsigned desktop installers for every platform into a draft GitHub release
-# for that tag, then publishes it once every platform has uploaded and
-# redeploys the website.
+# for that tag, then publishes it once every platform has uploaded. The
+# website lists releases from the GitHub API, so it needs no redeploy.
 on:
   workflow_dispatch:
     inputs:
@@ -120,10 +120,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "${{ needs.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
-
-  # A release published with GITHUB_TOKEN triggers no workflows, so the website
-  # redeploy is called directly.
-  website:
-    needs: publish
-    uses: ./.github/workflows/website.yml
-    secrets: inherit

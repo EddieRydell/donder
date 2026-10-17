@@ -80,7 +80,7 @@ pub fn layered_600() -> PreparedSequence {
             for operator in &fused {
                 signal = builder.operator(operator, |_| signal);
             }
-            builder.output([signal])
+            builder.output(Some(signal))
         },
     )
 }

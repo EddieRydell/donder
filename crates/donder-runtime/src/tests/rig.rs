@@ -51,7 +51,7 @@ fn rig(
             .collect();
         register(builder, &handles);
         let layer = builder.layer(true, handles.iter().copied());
-        builder.output([layer])
+        builder.output(Some(layer))
     })
     .into_playback()
 }
@@ -88,7 +88,7 @@ fn archived_rig_plays_like_the_prepared_one() {
         let effect = builder.sample(&white(), builder.whole_sequence(), target);
         builder.voice(effect, VoiceLength::Open);
         let layer = builder.layer(true, [effect]);
-        builder.output([layer])
+        builder.output(Some(layer))
     });
     let bytes = crate::encode_rig(&prepared).unwrap();
     assert!(

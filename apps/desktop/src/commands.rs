@@ -75,6 +75,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         redo_active_edit,
         get_gui_document,
         get_sequence_effect_details,
+        match_sequence_clips,
         sequence_export_options,
         export_sequence_file,
         export_fseq_file,

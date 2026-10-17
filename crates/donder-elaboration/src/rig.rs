@@ -169,7 +169,7 @@ pub fn arm(
             .map(|layer| &layer.id)
             .collect::<std::collections::HashSet<_>>();
         let root = if compact && !stage.has_pixels {
-            builder.output([])
+            builder.output(None)
         } else {
             composition::prepare(
                 builder,

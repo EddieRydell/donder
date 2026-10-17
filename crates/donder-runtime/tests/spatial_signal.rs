@@ -40,7 +40,7 @@ fn sequence(sizes: &[usize], operator: Option<&OperatorInvocation>) -> PreparedS
         let effect = builder.sample(&sample, builder.whole_sequence(), target);
         let layer = builder.layer(true, [effect]);
         let output = operator.map_or(layer, |operator| builder.operator(operator, |_| layer));
-        builder.output([output])
+        builder.output(Some(output))
     })
 }
 

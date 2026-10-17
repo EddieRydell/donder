@@ -1,7 +1,7 @@
 use crate::identity::SourceIdentity;
 use crate::layout::FixtureTarget;
 use crate::sequence::{MarkCollectionKey, SequenceLayerId};
-use donder_language::compiler::{CompiledEffect, ParamDecl};
+use donder_language::compiler::{CompiledEffect, ParamDecl, ParamRange};
 use donder_language::{DonderDuration, DonderTime};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::Type;
@@ -55,23 +55,43 @@ pub enum EffectParamValue {
 }
 
 impl EffectParamValue {
-    /// Initial authored values must be valid resources, unlike the VM's empty
-    /// storage defaults. The caller supplies the user-facing initial color.
-    pub fn initial_for_type(ty: &Type, color: donder_runtime_types::Color) -> Option<Self> {
+    /// Initial authored values must be valid resources inside the declared
+    /// range, unlike the VM's empty storage defaults. Numbers start at zero
+    /// held inside the range, and a curve rises across it. The caller supplies
+    /// the user-facing initial color.
+    pub fn initial_for_param(
+        param: &ParamDecl,
+        color: donder_runtime_types::Color,
+    ) -> Option<Self> {
+        Self::initial_for_type(&param.ty, param.range, color)
+    }
+
+    fn initial_for_type(
+        ty: &Type,
+        range: Option<ParamRange>,
+        color: donder_runtime_types::Color,
+    ) -> Option<Self> {
+        let (min, max) = match range {
+            Some(ParamRange::Float { min, max }) => (min, max),
+            Some(ParamRange::Int { .. }) | None => (0.0, 1.0),
+        };
         match ty {
-            Type::Int => Some(Self::Int(0)),
-            Type::Float => Some(Self::Float(0.0)),
+            Type::Int => Some(Self::Int(match range {
+                Some(ParamRange::Int { min, max }) => 0.clamp(min, max),
+                _ => 0,
+            })),
+            Type::Float => Some(Self::Float(0.0_f32.clamp(min, max))),
             Type::Bool => Some(Self::Bool(false)),
             Type::Color => Some(Self::Color(color)),
             Type::Curve => Some(Self::Curve(CurveSource::Inline(Curve {
                 points: vec![
                     donder_runtime_types::CurvePoint {
                         position: 0.0,
-                        value: 0.0,
+                        value: min,
                     },
                     donder_runtime_types::CurvePoint {
                         position: 1.0,
-                        value: 1.0,
+                        value: max,
                     },
                 ],
             }))),
@@ -81,9 +101,9 @@ impl EffectParamValue {
                     color,
                 }],
             }))),
-            Type::Array(element) => {
-                Some(Self::Array(vec![Self::initial_for_type(element, color)?]))
-            }
+            Type::Array(element) => Some(Self::Array(vec![Self::initial_for_type(
+                element, range, color,
+            )?])),
             Type::Enum(options) => options.first().cloned().map(Self::Enum),
             Type::Marks => Some(Self::Marks(None)),
             Type::Void | Type::Signal => None,

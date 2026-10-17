@@ -1,10 +1,8 @@
 name: Website
 
-# The website renders docs/ and links the latest release's installers, so a
-# docs change or a published release (called from release.yml) redeploys it.
-# The website's deploy bumps its donder submodule to main.
+# The website renders docs/, so a docs change redeploys it. The website's
+# deploy bumps its donder submodule to main.
 on:
-  workflow_call:
   push:
     branches: [main]
     paths: ["docs/**"]

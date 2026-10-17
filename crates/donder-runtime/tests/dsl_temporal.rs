@@ -94,7 +94,7 @@ fn temporal_frame_caches_and_fusion_match_uncached_sampling_through_nested_opera
                         // Multiply's second input, then Invert's input.
                         assert_eq!(repeated.program().input_count(), 2);
                         let repeated = builder.operator(&repeated, |_| source);
-                        return builder.output([repeated]);
+                        return builder.output(Some(repeated));
                     }
                     let [invert, temporal, multiply] =
                         [&invert, &temporal, &multiply].map(|instance| {
@@ -110,7 +110,7 @@ fn temporal_frame_caches_and_fusion_match_uncached_sampling_through_nested_opera
                     let inputs = [delayed, source];
                     let multiplied = builder.operator(&multiply, |input| inputs[input]);
                     let repeated = builder.operator(&temporal, |_| multiplied);
-                    builder.output([repeated])
+                    builder.output(Some(repeated))
                 })
                 .into_playback()
         };

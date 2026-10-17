@@ -4,7 +4,7 @@ import { clamp, type GuiFocus } from "../shared";
 
 import { nearestLane, targetAtLane } from "./sequenceTargets";
 import { THEME_METRICS } from "../../../theme";
-import type { SequenceRowLayout, SequenceRowHeightMap, AutomationClipLayout, AutomationDraft } from "./sequenceAutomationLayout";
+import { assignOverlapSlots, groupOverlappingClips, type SequenceRowLayout, type SequenceRowHeightMap, type AutomationClipLayout, type AutomationDraft } from "./sequenceAutomationLayout";
 
 export type SequenceDraft = { id: number; startSeconds: number; durationSeconds: number; laneIndex: number };
 
@@ -72,7 +72,6 @@ type SequenceClip = {
   laneIndex: number;
 };
 
-type SequenceClipWithSlot = SequenceClip & { slot: number };
 
 export type SequenceHit = {
   effect: SequenceEffect;
@@ -128,9 +127,9 @@ export function buildSequenceClipLayout(
   for (const [laneIndex, laneClips] of byLane) {
     const row = visibleRows.get(laneIndex);
     if (row === undefined) throw new Error("Effect clip has no timeline row.");
-    const groups = groupOverlappingClips(laneClips);
+    const groups = groupOverlappingClips(laneClips, (clip) => clip.effect);
     for (const group of groups) {
-      const assigned = assignOverlapSlots(group);
+      const assigned = assignOverlapSlots(group, (clip) => clip.effect);
       const slotCount = Math.max(1, Math.max(...assigned.map((clip) => clip.slot)) + 1);
       const laneHeight = row.height;
       const slotHeight = laneHeight / slotCount;
@@ -174,48 +173,6 @@ function effectIntersectsTimeRange(effect: SequenceEffect, startSeconds: number,
   const effectStart = effect.startSeconds;
   const effectEnd = effect.startSeconds + effect.durationSeconds;
   return effectEnd >= startSeconds && effectStart <= endSeconds;
-}
-
-function groupOverlappingClips(clips: SequenceClip[]) {
-  const sorted = [...clips].sort(compareClipsByTime);
-  const groups: SequenceClip[][] = [];
-  let current: SequenceClip[] = [];
-  let currentEnd = -Infinity;
-  for (const clip of sorted) {
-    const start = clip.effect.startSeconds;
-    const end = clip.effect.startSeconds + clip.effect.durationSeconds;
-    if (current.length === 0 || start < currentEnd) {
-      current.push(clip);
-      currentEnd = Math.max(currentEnd, end);
-      continue;
-    }
-    groups.push(current);
-    current = [clip];
-    currentEnd = end;
-  }
-  if (current.length > 0) groups.push(current);
-  return groups;
-}
-
-function assignOverlapSlots(group: SequenceClip[]): SequenceClipWithSlot[] {
-  const sorted = [...group].sort(compareClipsByTime);
-  const slotEnds: number[] = [];
-  return sorted.map((clip) => {
-    const start = clip.effect.startSeconds;
-    const end = clip.effect.startSeconds + clip.effect.durationSeconds;
-    let slot = slotEnds.findIndex((slotEnd) => slotEnd <= start);
-    if (slot === -1) slot = slotEnds.length;
-    slotEnds[slot] = end;
-    return { ...clip, slot };
-  });
-}
-
-function compareClipsByTime(left: { effect: SequenceEffect }, right: { effect: SequenceEffect }) {
-  return (
-    left.effect.startSeconds - right.effect.startSeconds ||
-    left.effect.startSeconds + left.effect.durationSeconds - (right.effect.startSeconds + right.effect.durationSeconds) ||
-    left.effect.id - right.effect.id
-  );
 }
 
 export function hitSequence(clips: SequenceClipLayout[], x: number, y: number): SequenceHit | null {

@@ -44,6 +44,7 @@ export const commands = {
 	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getGuiDocument: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiDocumentResult>("get_gui_document", { request }),
 	getSequenceEffectDetails: (request: GuiDocumentRequest, effectIds: number[]) => typedError<SequenceEffectDetailsResult, string>(__TAURI_INVOKE("get_sequence_effect_details", { request, effectIds })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,details:v.data.details.map(i=>({...i,params:i.params.map(i=>({...i,range:i.range==null?i.range:i.range}))}))}) } : v) as typeof v)),
+	matchSequenceClips: (request: GuiDocumentRequest, query: SequenceClipMatchRequest) => typedError<SequenceSelection, string>(__TAURI_INVOKE("match_sequence_clips", { request, query: ({...query,params:query.params.map(i=>i)}) })),
 	sequenceExportOptions: (request: GuiDocumentRequest) => typedError<SequenceExportOptions, string>(__TAURI_INVOKE("sequence_export_options", { request })),
 	exportSequenceFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_sequence_file", { request, outputs })),
 	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
@@ -104,6 +105,9 @@ export type AppSettings = {
 	autosaveProjectEdits: boolean,
 	sequenceInitialZoomMode: SequenceInitialZoomMode,
 	sequenceFollowMode: SequenceFollowMode,
+	/**  Timeline drags snap to marks and clip edges; holding Alt inverts this for the gesture. */
+	sequenceSnap: boolean,
+	sequenceClipMatch: SequenceClipMatch,
 	sequenceInitialPxPerSecond: number,
 	sequenceInitialLaneHeightPx: number,
 	sequenceSpectrogramEnabled?: boolean,
@@ -966,6 +970,93 @@ export type SequenceBeatDetection = {
 };
 
 /**
+ *  How "Align" and "Arrange" retime selected clips. A reference clip keeps
+ *  its timing; resized automation clips crop their curves. A row is one lane's
+ *  effects or one lane's automation clips.
+ */
+export type SequenceClipArrangement = 
+/**  Starts move to the reference's start; ends stay. */
+{ type: "alignStarts"; reference: SequenceClipRef } | 
+/**  Ends move to the reference's end; starts stay. */
+{ type: "alignEnds"; reference: SequenceClipRef } | 
+/**  Clips move, keeping their length, to start with the reference. */
+{ type: "moveStarts"; reference: SequenceClipRef } | 
+/**  Clips move, keeping their length, to end with the reference. */
+{ type: "moveEnds"; reference: SequenceClipRef } | 
+/**  Clips take the reference's start and end. */
+{ type: "alignBoth"; reference: SequenceClipRef } | 
+/**  Clips move, keeping their length, to share the reference's midpoint. */
+{ type: "alignCenters"; reference: SequenceClipRef } | 
+/**  Clips keep their start and take the reference's length. */
+{ type: "matchDuration"; reference: SequenceClipRef } | 
+/**  Clips move, keeping their length, to start where the reference ends. */
+{ type: "startAfter"; reference: SequenceClipRef } | 
+/**  Clips move, keeping their length, to end where the reference starts. */
+{ type: "endBefore"; reference: SequenceClipRef } | 
+/**
+ *  Each start moves to the nearest mark of `mark_collections` and each end
+ *  to the nearest later one; with no later mark, the clip keeps its length.
+ */
+{ type: "quantizeToMarks"; markCollections: string[] } | 
+/**
+ *  Each start moves back and each end forward to the nearest mark of
+ *  `mark_collections`; an edge with no mark beyond it stays.
+ */
+{ type: "stretchToMarks"; markCollections: string[] } | 
+/**  Each end extends to the next clip's start in its row. */
+{ type: "fillGaps" } | 
+/**
+ *  In each row, clips move, keeping their length, so each starts where
+ *  the one before it ends.
+ */
+{ type: "buttTogether" } | 
+/**
+ *  In each row, the first and last clips stay and the clips between move
+ *  so the gaps between them are equal.
+ */
+{ type: "distributeEvenly" } | 
+/**
+ *  Each lane's clips move by `step_seconds` more than the lane above's,
+ *  or the lane below's when `reverse`.
+ */
+{ type: "cascade"; stepSeconds: number; reverse: boolean } | 
+/**  Clips keep their start and take the average length. */
+{ type: "equalizeDurations" };
+
+/**
+ *  Which properties "Select Matching" compares between each seed clip and the
+ *  other clips. Effect type applies only between effects.
+ */
+export type SequenceClipMatch = {
+	effectType: boolean,
+	start: SequenceClipTimeMatch,
+	end: SequenceClipTimeMatch,
+	duration: SequenceClipTimeMatch,
+	sameLane: boolean,
+	automationClips: boolean,
+};
+
+/**
+ *  "Select Matching": the clips matching any seed clip under `criteria` and
+ *  every `params` entry the seed effect has.
+ */
+export type SequenceClipMatchRequest = {
+	effectIds: number[],
+	automationIds: number[],
+	criteria: SequenceClipMatch,
+	params: SequenceClipParamMatch[],
+};
+
+/**
+ *  A parameter matches when its value equals the seed's, with numbers within
+ *  `tolerance` of the seed's.
+ */
+export type SequenceClipParamMatch = {
+	name: string,
+	tolerance: number,
+};
+
+/**
  *  A clip's raster: one column per sampled time across the clip, one row per
  *  sampled pixel. A raster is rendered once at this resolution and scaled to
  *  the clip's on-screen size.
@@ -1005,6 +1096,15 @@ export type SequenceClipRasterResultBatch = {
 	rasters: SequenceClipRaster[],
 	errors: SequenceClipRasterError[],
 	pending: number,
+};
+
+/**  One clip of a sequence, effect or automation. */
+export type SequenceClipRef = { type: "effect"; id: number } | { type: "automation"; id: number };
+
+/**  A time property matches within `tolerance_seconds` of the seed's. */
+export type SequenceClipTimeMatch = {
+	enabled: boolean,
+	toleranceSeconds: number,
 };
 
 export type SequenceCompositionGraph = {
@@ -1191,12 +1291,9 @@ export type SequenceGraphOperatorDefinition = {
 	params: SequenceEffectDefinitionParam[],
 };
 
-export type SequenceGraphPortCardinality = "one" | "many";
-
 export type SequenceGraphPortDefinition = {
 	sourceName: string,
 	displayName: string,
-	cardinality: SequenceGraphPortCardinality,
 };
 
 export type SequenceGuiDocument = {
@@ -1302,7 +1399,9 @@ export type SequenceSelectionEdit = { type: "copy"; selection: SequenceSelection
  *  The lane the move started on. Each clip moves from the lane of its
  *  target nearest this one.
  */
-anchorLane: number; laneDelta: number } | { type: "resizeClips"; effectIds: number[]; automationIds: number[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | { type: "editEffects"; effectIds: number[]; edit: SequenceEffectCommonEdit } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
+anchorLane: number; laneDelta: number } | { type: "resizeClips"; effectIds: number[]; automationIds: number[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | { type: "editEffects"; effectIds: number[]; edit: SequenceEffectCommonEdit } | 
+/**  Retime the selected clips together; the selection stays the same. */
+{ type: "arrangeClips"; effectIds: number[]; automationIds: number[]; arrangement: SequenceClipArrangement } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
 
 export type SequenceSelectionEditResult = {
 	snapshot: AppSnapshot,

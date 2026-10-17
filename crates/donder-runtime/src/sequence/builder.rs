@@ -39,10 +39,12 @@ handle!(
     TargetHandle,
     EffectHandle,
     SignalHandle,
-    SequenceRoot,
     OutputHandle,
     LookupHandle
 );
+
+/// The signal a built sequence shows, or black.
+pub struct SequenceRoot<'id>(Option<SignalHandle<'id>>);
 
 #[derive(Clone, Copy)]
 pub struct WindowHandle<'id> {
@@ -423,24 +425,24 @@ impl<'id> SequenceBuilder<'id> {
         SignalHandle::new(index)
     }
 
+    /// The channel-wise maximum of `inputs`: how several sources fanning
+    /// into one port combine.
     pub fn mix(
         &mut self,
         inputs: impl IntoIterator<Item = SignalHandle<'id>>,
     ) -> SignalHandle<'id> {
         let index = self.nodes.len();
         self.nodes.push(PreparedSignalNode {
-            kind: PreparedSignalKind::Output {
+            kind: PreparedSignalKind::Mix {
                 inputs: inputs.into_iter().map(|input| input.index).collect(),
             },
         });
         SignalHandle::new(index)
     }
 
-    pub fn output(
-        &mut self,
-        inputs: impl IntoIterator<Item = SignalHandle<'id>>,
-    ) -> SequenceRoot<'id> {
-        SequenceRoot::new(self.mix(inputs).index)
+    /// The signal the sequence shows; none is black.
+    pub fn output(&mut self, signal: Option<SignalHandle<'id>>) -> SequenceRoot<'id> {
+        SequenceRoot(signal)
     }
 
     pub fn port(&mut self, controller_index: u32, port: u32) -> OutputHandle<'id> {
@@ -619,7 +621,11 @@ impl<'id> SequenceBuilder<'id> {
                 positions,
                 effects_by_layer: self.effects_by_layer.into(),
                 layers: self.layers.into(),
-                plan: super::schedule::finish_plan(self.nodes, root.index, full.index),
+                plan: super::schedule::finish_plan(
+                    self.nodes,
+                    root.0.map(|signal| signal.index),
+                    full.index,
+                ),
             },
             patch: PreparedPatch {
                 routes: self.routes.into(),

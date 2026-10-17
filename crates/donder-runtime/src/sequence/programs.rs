@@ -178,7 +178,7 @@ fn map_node<A, B>(
 ) -> PreparedSignalNode<B> {
     let kind = match node.kind {
         PreparedSignalKind::Layer { layer_index } => PreparedSignalKind::Layer { layer_index },
-        PreparedSignalKind::Output { inputs } => PreparedSignalKind::Output { inputs },
+        PreparedSignalKind::Mix { inputs } => PreparedSignalKind::Mix { inputs },
         PreparedSignalKind::Operator {
             operator,
             inputs,

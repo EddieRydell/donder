@@ -42,7 +42,7 @@ impl Workload {
     }
 
     pub fn prepare(self) -> PreparedSequence {
-        self.prepare_with(|builder, _layers, signal| builder.output([signal]))
+        self.prepare_with(|builder, _layers, signal| builder.output(Some(signal)))
     }
 
     /// Extend the fixture using its layers and composed signal after its operator chain.

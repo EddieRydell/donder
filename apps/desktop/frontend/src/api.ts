@@ -31,6 +31,8 @@ export const commands = {
     unwrapResult(await generatedCommands.startPerforming(projectRevision, rig)),
   setLiveOutputActive: async (active: boolean) =>
     unwrapResult(await generatedCommands.setLiveOutputActive(active)),
+  matchSequenceClips: async (request: GuiDocumentRequest, query: import("./types").SequenceClipMatchRequest) =>
+    unwrapResult(await generatedCommands.matchSequenceClips(request, query)),
   getSequenceEffectDetails: async (request: GuiDocumentRequest, effectIds: number[]) =>
     unwrapResult(await generatedCommands.getSequenceEffectDetails(request, effectIds)),
   detectSequenceBeats: async (request: GuiDocumentRequest) =>

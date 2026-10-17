@@ -39,6 +39,18 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
     settings.effect_raster.max_columns = settings.effect_raster.max_columns.clamp(16, 1024);
     settings.effect_raster.max_rows = settings.effect_raster.max_rows.clamp(1, 200);
     settings.effect_raster.min_frame_stride = settings.effect_raster.min_frame_stride.clamp(1, 16);
+    let clip_match = &mut settings.sequence_clip_match;
+    for time in [
+        &mut clip_match.start,
+        &mut clip_match.end,
+        &mut clip_match.duration,
+    ] {
+        time.tolerance_seconds = if time.tolerance_seconds.is_finite() {
+            time.tolerance_seconds.clamp(0.0, 10.0)
+        } else {
+            0.005
+        };
+    }
     settings
 }
 

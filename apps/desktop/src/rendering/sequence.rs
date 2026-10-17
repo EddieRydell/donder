@@ -1,11 +1,12 @@
 use donder_elaboration::{PreparationCache, PrepareOutputs, prepare_cached};
+use donder_language::sample_time_from_seconds_f64;
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::SetupId;
 use donder_model::{ControllerId, ControllerPortId};
 use donder_output::ControllerPortFrame;
 use donder_runtime::{PlaybackRate, SequenceFrame, SequencePlayback};
-use donder_runtime_types::{Color, SampleTime, SampleTimeError, sample_time_from_seconds_f32};
+use donder_runtime_types::{Color, SampleTime, SampleTimeError};
 use std::time::Duration;
 
 use donder_sequence_api::{AudioTransportSnapshot, AudioTransportState};
@@ -56,7 +57,7 @@ pub(crate) struct AudioClockRenderIdentity {
     pub session_generation: u64,
     pub audio_generation: u32,
     pub audio_state: AudioTransportState,
-    pub position_seconds: f32,
+    pub position_seconds: f64,
     pub frame_rate: u32,
     pub frame_count: u32,
     pub frame_index: u32,
@@ -142,7 +143,7 @@ impl SequenceRenderService {
         require_audio_clock(audio)?;
         let rate = playback_rate(audio)?;
         let frame_rate = session.playback.sequence().frame_rate();
-        let sample_time = sample_time_from_seconds_f32(audio.position_seconds)
+        let sample_time = sample_time_from_seconds_f64(audio.position_seconds)
             .map_err(SequenceRenderError::InvalidClock)?;
         let frame_index = playback_frame_index(rate, sample_time, frame_rate);
         if let Some(cached) = &session.cached
@@ -195,7 +196,7 @@ impl SequenceRenderService {
             frame_count: sequence.frame_count(),
             frame_index: playback_frame_index(
                 playback_rate(audio)?,
-                sample_time_from_seconds_f32(audio.position_seconds)
+                sample_time_from_seconds_f64(audio.position_seconds)
                     .map_err(SequenceRenderError::InvalidClock)?,
                 sequence.frame_rate(),
             ),

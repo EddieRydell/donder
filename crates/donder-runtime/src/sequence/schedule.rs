@@ -1,11 +1,11 @@
-//! Mechanical frame-buffer and VM-workspace scheduling for an assembled graph.
+//! Mechanical VM-workspace scheduling for an assembled graph.
 use crate::dsl::AutomationPlan;
 use crate::signal::{PreparedSignalKind, PreparedSignalNode, SignalPlan};
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 pub(super) fn finish_plan(
     mut nodes: Vec<PreparedSignalNode<AutomationPlan>>,
-    output_index: usize,
+    output: Option<usize>,
     target: usize,
 ) -> SignalPlan<AutomationPlan> {
     let mut depths = Vec::with_capacity(nodes.len());
@@ -13,7 +13,7 @@ pub(super) fn finish_plan(
     for node in &mut nodes {
         let depth = match &mut node.kind {
             PreparedSignalKind::Layer { .. } => 0,
-            PreparedSignalKind::Output { inputs } => inputs
+            PreparedSignalKind::Mix { inputs } => inputs
                 .iter()
                 .fold(0, |depth, &input| depth.max(depths[input])),
             PreparedSignalKind::Operator {
@@ -28,69 +28,11 @@ pub(super) fn finish_plan(
         vm_workspace_count = vm_workspace_count.max(depth);
         depths.push(depth);
     }
-    let mut required = vec![false; nodes.len()];
-    required[output_index] = true;
-    for index in (0..nodes.len()).rev() {
-        if required[index] {
-            for &input in frame_inputs(&nodes[index]) {
-                required[input] = true;
-            }
-        }
-    }
-    let mut consumers = vec![0usize; nodes.len()];
-    for (index, node) in nodes.iter().enumerate() {
-        if required[index] {
-            for &input in frame_inputs(node) {
-                consumers[input] += 1;
-            }
-        }
-    }
-    let mut frame_nodes = Vec::new();
-    let mut frame_slots = vec![u32::MAX as usize; nodes.len()];
-    let mut available = Vec::new();
-    let mut frame_buffer_count = 0;
-    for (index, node) in nodes.iter().enumerate() {
-        if !required[index] {
-            continue;
-        }
-        if index == output_index
-            && let PreparedSignalKind::Output { inputs } = &node.kind
-            && let [input] = inputs.as_ref()
-        {
-            frame_slots[index] = frame_slots[*input];
-            continue;
-        }
-        frame_slots[index] = match available.pop() {
-            Some(slot) => slot,
-            None => {
-                let slot = frame_buffer_count;
-                frame_buffer_count += 1;
-                slot
-            }
-        };
-        frame_nodes.push(index);
-        for &input in frame_inputs(node) {
-            consumers[input] -= 1;
-            if consumers[input] == 0 {
-                available.push(frame_slots[input]);
-            }
-        }
-    }
     SignalPlan {
-        output_index,
+        output,
         target,
         nodes: nodes.into(),
         vm_workspace_count,
-        frame_nodes: frame_nodes.into(),
-        frame_slots: frame_slots.into(),
-        frame_buffer_count,
-    }
-}
-
-fn frame_inputs(node: &PreparedSignalNode<AutomationPlan>) -> &[usize] {
-    match &node.kind {
-        PreparedSignalKind::Output { inputs } => inputs,
-        PreparedSignalKind::Layer { .. } | PreparedSignalKind::Operator { .. } => &[],
     }
 }
 
@@ -106,6 +48,7 @@ mod tests {
     use crate::sequence::PreparedSequence;
     use crate::sequence::tests::program;
     use alloc::boxed::Box;
+    use alloc::vec;
     use core::num::NonZeroU32;
     use donder_runtime_types::SampleTime;
     use donder_runtime_types::{
@@ -239,7 +182,7 @@ mod tests {
                 builder.route(output, span, OutputEncoding::Rgb(RgbOrder::Rgb), None);
             }
             builder.padding(output, 1);
-            builder.output([outer])
+            builder.output(Some(outer))
         })
     }
 
@@ -254,11 +197,6 @@ mod tests {
             let compacted = sequence(true, query);
             assert_eq!(full.pixel_count(), 12);
             assert_eq!(compacted.pixel_count(), count);
-            // Firmware memory: operators request their inputs at the query
-            // time, so neither plan eagerly renders upstream layers, and the
-            // terminal output aliases its input's frame buffer.
-            assert_eq!(full.archive_data().signals.plan.frame_buffer_count, 1);
-            assert_eq!(compacted.archive_data().signals.plan.frame_buffer_count, 1);
             let bytes = crate::archive::encode_sequence(&compacted).unwrap();
             let decoded =
                 crate::archive::decode_sequence(&bytes, crate::archive::LoadLimits::default())
