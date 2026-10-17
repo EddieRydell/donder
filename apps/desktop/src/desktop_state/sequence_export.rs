@@ -125,8 +125,7 @@ impl DesktopState {
         selected: &[u32],
     ) -> Result<Vec<u8>, String> {
         let (_, _, prepared) = self.prepare_selected_outputs(request, selected)?;
-        donder_runtime::encode_sequence(&prepared)
-            .map_err(|error| format!("Could not encode sequence: {error:?}"))
+        Ok(prepared.encode())
     }
 
     pub(crate) fn prepare_fseq_export(

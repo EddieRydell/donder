@@ -17,8 +17,8 @@ pub(crate) mod syntax;
 
 pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange, bind_params};
 pub use definition::{
-    CompiledEffect, CompiledOperator, CompiledScript, Instance, Invocation, SignalAddressing,
-    compile_effects, compile_operators, compile_script,
+    CompiledEffect, CompiledOperator, CompiledScript, Instance, Invocation, compile_effects,
+    compile_operators, compile_script,
 };
 pub use diagnostic::Diagnostic;
 pub use instance::ProgramConstants;

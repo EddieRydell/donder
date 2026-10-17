@@ -111,14 +111,52 @@ pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
 
 /// The area under the curve from position 0 to `position`. End values are
 /// held beyond the authored points, as in sampling.
-pub fn curve_integral(curve: &Curve, position: f32) -> f32 {
-    curve_area(curve, 0.0, position)
+pub fn curve_integral(points: &[CurvePoint], position: f32) -> f32 {
+    curve_area(points, 0.0, position)
+}
+
+/// Each point's area from the first point, for [`curve_integral_table`].
+/// Accumulated in the order [`curve_area`] adds segments, so the two agree
+/// exactly.
+pub fn curve_prefix_areas(points: &[CurvePoint], areas: &mut [f32]) {
+    let mut area = 0.0;
+    for (index, slot) in areas.iter_mut().enumerate().take(points.len()) {
+        *slot = area;
+        if let Some(finish) = points.get(index + 1) {
+            let start = &points[index];
+            area += (finish.position - start.position) * (start.value + finish.value) * 0.5;
+        }
+    }
+}
+
+/// [`curve_integral`] from the points' prefix areas: a search for the
+/// segment, not a walk over the segments before it.
+pub fn curve_integral_table(points: &[CurvePoint], areas: &[f32], position: f32) -> f32 {
+    if position.is_nan() || points.is_empty() {
+        return f32::NAN;
+    }
+    area_from_start_table(points, areas, position) - area_from_start_table(points, areas, 0.0)
+}
+
+fn area_from_start_table(points: &[CurvePoint], areas: &[f32], position: f32) -> f32 {
+    let first = &points[0];
+    if position <= first.position {
+        return (position - first.position) * first.value;
+    }
+    let segment = points[1..].partition_point(|point| point.position <= position);
+    if let Some(finish) = points.get(segment + 1) {
+        let start = &points[segment];
+        let fraction = (position - start.position) / (finish.position - start.position);
+        let value = start.value + (finish.value - start.value) * fraction;
+        return areas[segment] + (position - start.position) * (start.value + value) * 0.5;
+    }
+    let last = &points[points.len() - 1];
+    areas[points.len() - 1] + (position - last.position) * last.value
 }
 
 /// The signed area under the curve between two positions, holding end values
 /// beyond the authored points.
-pub fn curve_area(curve: &Curve, from: f32, to: f32) -> f32 {
-    let points = &curve.points;
+pub fn curve_area(points: &[CurvePoint], from: f32, to: f32) -> f32 {
     if from.is_nan() || to.is_nan() || points.is_empty() {
         return f32::NAN;
     }
@@ -146,12 +184,12 @@ fn curve_area_from_start(points: &[CurvePoint], position: f32) -> f32 {
 }
 
 #[inline]
-pub fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
-    let Some(first) = curve.points.first() else {
+pub fn curve_crossing(points: &[CurvePoint], value: f32, fallback: f32) -> f32 {
+    let Some(first) = points.first() else {
         return fallback;
     };
     let mut previous = first;
-    for point in &curve.points {
+    for point in points {
         let min = previous.value.min(point.value);
         let max = previous.value.max(point.value);
         if value >= min && value <= max {
@@ -176,11 +214,10 @@ pub fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
 /// Latest arrival at `value`, including an exact touch. A plateau triggers on
 /// arrival, not continuously while held or again when leaving it. Endpoint
 /// extension is a sampling rule and does not create crossing events.
-pub fn curve_last_crossing(curve: &Curve, value: f32, before: f32) -> f32 {
+pub fn curve_last_crossing(points: &[CurvePoint], value: f32, before: f32) -> f32 {
     if value.is_nan() || before.is_nan() {
         return f32::NAN;
     }
-    let points = &curve.points;
     let end = points.partition_point(|point| point.position <= before);
     // Include the segment containing the query position, if there is one.
     for pair in points[..end.saturating_add(1).min(points.len())]
@@ -227,27 +264,55 @@ pub fn sample_gradient(gradient: &Gradient, position: f32) -> FloatColor {
     sample_gradient_stops(&gradient.stops, position)
 }
 
+/// A gradient stop as an image or an authored value holds it.
+pub trait Stop {
+    fn position(&self) -> f32;
+    fn color(&self) -> crate::values::Color;
+}
+
+impl Stop for GradientStop {
+    #[inline(always)]
+    fn position(&self) -> f32 {
+        self.position
+    }
+    #[inline(always)]
+    fn color(&self) -> crate::values::Color {
+        self.color
+    }
+}
+
+impl Stop for crate::image::GradientStop {
+    #[inline(always)]
+    fn position(&self) -> f32 {
+        self.position
+    }
+    #[inline(always)]
+    fn color(&self) -> crate::values::Color {
+        let [red, green, blue, _] = self.color;
+        crate::values::Color { red, green, blue }
+    }
+}
+
 /// Equal-position stops form a step: the last stop wins at the exact position.
-#[inline]
-pub fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> FloatColor {
+pub fn sample_gradient_stops<S: Stop>(stops: &[S], position: f32) -> FloatColor {
     let Some(first) = stops.first() else {
         return FloatColor::BLACK;
     };
     let last = &stops[stops.len() - 1];
-    if stops.len() == 1 || position < first.position {
-        return first.color.into();
+    if stops.len() == 1 || position < first.position() {
+        return first.color().into();
     }
-    if position >= last.position {
-        return last.color.into();
+    if position >= last.position() {
+        return last.color().into();
     }
-    let index = 1 + stops[1..stops.len() - 1].partition_point(|stop| stop.position <= position);
+    let index = 1 + stops[1..stops.len() - 1].partition_point(|stop| stop.position() <= position);
     let previous = &stops[index - 1];
     let stop = &stops[index];
-    let span = (stop.position - previous.position).max(1e-9);
+    let span = (stop.position() - previous.position()).max(1e-9);
     mix_colors(
-        previous.color.into(),
-        stop.color.into(),
-        unit_span_fraction(position - previous.position, span).clamp(0.0, 1.0),
+        previous.color().into(),
+        stop.color().into(),
+        unit_span_fraction(position - previous.position(), span).clamp(0.0, 1.0),
     )
 }
 
@@ -531,28 +596,38 @@ pub fn section_position(pixel_index: i32, width: f32, inverse: f32) -> f32 {
 }
 
 #[inline(always)]
-pub fn gradient_color_scaled(gradient: &Gradient, position: f32, scale: f32) -> FloatColor {
+pub fn gradient_color_scaled<S: Stop>(stops: &[S], position: f32, scale: f32) -> FloatColor {
     let scale = scale.clamp(0.0, 1.0);
     if scale <= 0.0 {
         FloatColor::BLACK
     } else {
-        scale_color(sample_gradient(gradient, position), scale)
+        scale_color(sample_gradient_stops(stops, position), scale)
     }
 }
 
 /// Time of the mark at `index`, or NaN for a missing index.
-pub fn mark_at(marks: &crate::values::Marks, index: i32) -> f32 {
+pub fn mark_at(marks: &crate::values::MarkWindow<'_>, index: i32) -> f32 {
     usize::try_from(index).map_or(f32::NAN, |index| marks.seconds(index))
 }
 
 /// The last mark at or before `seconds`: its index and its time in seconds.
 /// A NaN query matches no mark.
-pub fn previous_mark(marks: &crate::values::Marks, seconds: f32) -> Option<(usize, f32)> {
-    marks.previous(seconds)
+#[inline(never)]
+pub fn previous_mark(
+    marks: &crate::values::MarkWindow<'_>,
+    seconds: f32,
+    cursor: &core::cell::Cell<usize>,
+) -> Option<(usize, f32)> {
+    marks.previous(seconds, cursor)
 }
 
-pub fn previous_mark_index(marks: &crate::values::Marks, seconds: f32) -> i32 {
-    previous_mark(marks, seconds)
+#[inline(never)]
+pub fn previous_mark_index(
+    marks: &crate::values::MarkWindow<'_>,
+    seconds: f32,
+    cursor: &core::cell::Cell<usize>,
+) -> i32 {
+    previous_mark(marks, seconds, cursor)
         .map(|(index, _)| length_int(index))
         .unwrap_or(-1)
 }

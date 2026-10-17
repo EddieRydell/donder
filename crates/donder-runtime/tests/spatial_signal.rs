@@ -1,4 +1,4 @@
-use donder_language::compiler::{SignalAddressing, compile_effects, compile_operators};
+use donder_language::compiler::{compile_effects, compile_operators};
 use donder_runtime::PreparedSequence;
 use donder_runtime_types::Color;
 use donder_runtime_types::FixtureGeometry;
@@ -6,15 +6,6 @@ use donder_runtime_types::OperatorInvocation;
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::TargetScope;
 use donder_test_support::{playback, workload};
-
-const LOCAL: SignalAddressing = SignalAddressing {
-    local: true,
-    global: false,
-};
-const GLOBAL: SignalAddressing = SignalAddressing {
-    local: false,
-    global: true,
-};
 
 /// Fixtures of `sizes` pixels under one whole-target effect whose colors
 /// encode each pixel's place in its fixture and the sampled time.
@@ -47,13 +38,7 @@ fn sequence(sizes: &[usize], operator: Option<&OperatorInvocation>) -> PreparedS
 /// With and without frame caches, `query` over fixtures of `sizes` shows at
 /// each pixel `n` the source pixel `indices[n]` (black for `None`) as it was
 /// `delay` ticks earlier.
-fn assert_query(
-    sizes: &[usize],
-    query: &str,
-    addressing: SignalAddressing,
-    delay: u32,
-    indices: &[Option<usize>],
-) {
+fn assert_query(sizes: &[usize], query: &str, delay: u32, indices: &[Option<usize>]) {
     let invocation = compile_operators(&format!(
         "operator Spatial {{ input source; sample {{ {query} }} }}"
     ))
@@ -61,7 +46,7 @@ fn assert_query(
     .remove(0)
     .bind(std::iter::empty())
     .unwrap();
-    assert_eq!(invocation.addressing(), addressing, "{query}");
+    assert!(invocation.reads_fixture_pixels(), "{query}");
     let lowered = playback::lower_operator(&invocation);
     // Every sample time here is query-uniform.
     assert!(
@@ -99,10 +84,9 @@ fn assert_query(
 fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() {
     // Each query, how it addresses pixels, how many ticks earlier it samples,
     // and the source pixel each output pixel shows.
-    for (query, addressing, delay, indices) in [
+    for (query, delay, indices) in [
         (
             "source.at(time, target.count - 1 - pixel.index)",
-            LOCAL,
             0,
             vec![
                 Some(3),
@@ -117,7 +101,6 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
         ),
         (
             "source.at(time, pixel.index + 1)",
-            LOCAL,
             0,
             vec![
                 Some(1),
@@ -130,33 +113,10 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
                 None,
             ],
         ),
-        (
-            "source.at_global(time, 7 - pixel.index)",
-            GLOBAL,
-            0,
-            vec![
-                Some(7),
-                Some(6),
-                Some(5),
-                Some(4),
-                Some(7),
-                Some(6),
-                Some(5),
-                Some(4),
-            ],
-        ),
-        ("source.at(time, -1)", LOCAL, 0, vec![None; 8]),
-        ("source.at_global(time, 8)", GLOBAL, 0, vec![None; 8]),
-        (
-            "max(source.at_global(time, 1), source.at_global(time, 6))",
-            GLOBAL,
-            0,
-            vec![Some(6); 8],
-        ),
+        ("source.at(time, -1)", 0, vec![None; 8]),
         // A reduction gathers every pixel of the current fixture.
         (
             "max for i in 0..4 { source.at(time, i) }",
-            LOCAL,
             0,
             vec![
                 Some(3),
@@ -172,7 +132,6 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
         // Spatial and temporal changes combine; before the sequence is black.
         (
             "source.at(time - 0.25, target.count - 1 - pixel.index)",
-            LOCAL,
             250_000,
             vec![
                 Some(3),
@@ -186,7 +145,7 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
             ],
         ),
     ] {
-        assert_query(&[4, 4], query, addressing, delay, &indices);
+        assert_query(&[4, 4], query, delay, &indices);
     }
 }
 
@@ -209,35 +168,26 @@ fn spatial_queries_reach_pixels_of_other_strips() {
         }
         indices
     };
-    let queries: [(&str, SignalAddressing, u32, Address); 4] = [
+    let queries: [(&str, u32, Address); 3] = [
         (
             "source.at(time, target.count - 1 - pixel.index)",
-            LOCAL,
             0,
             |first, size, index| Some(first + size - 1 - index),
         ),
         (
             "source.at(time, pixel.index + 120)",
-            LOCAL,
             0,
             |first, size, index| (index + 120 < size).then_some(first + index + 120),
-        ),
-        (
-            "source.at_global(time, 249 - pixel.index)",
-            GLOBAL,
-            0,
-            |_, _, index| Some(249 - index),
         ),
         // The source brightens with the index, so the reduction shows its
         // last tap inside the fixture.
         (
             "max for i in 0..4 { source.at(time - 0.25, i * 40) }",
-            LOCAL,
             250_000,
             |first, size, _| Some(first + 40 * ((size - 1) / 40).min(3)),
         ),
     ];
-    for (query, addressing, delay, address) in queries {
-        assert_query(&SIZES, query, addressing, delay, &indices(address));
+    for (query, delay, address) in queries {
+        assert_query(&SIZES, query, delay, &indices(address));
     }
 }

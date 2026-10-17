@@ -28,6 +28,7 @@ pub use alloc::sync::Arc as Shared;
 mod automation;
 mod bindings;
 pub mod bytecode;
+pub mod image;
 mod invocation;
 mod operator;
 mod prepared;
@@ -36,9 +37,11 @@ mod sample;
 pub mod sampling;
 mod types;
 mod values;
+mod word;
 
 pub use automation::{
     AutomationMapping, AutomationValue, automation_value_at_position, curve_window_into,
+    curve_window_points,
 };
 pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
@@ -54,8 +57,9 @@ pub use sample::SampleProgram;
 pub use types::{Identifier, IdentifierError, Type, Value};
 pub use values::{
     Color, Curve, CurvePoint, CurveValidationError, FloatColor, Gradient, GradientStop,
-    GradientValidationError, MICROS_PER_SECOND, Marks, Microseconds, SECONDS_PER_TICK,
+    GradientValidationError, MICROS_PER_SECOND, MarkWindow, Marks, Microseconds, SECONDS_PER_TICK,
     SampleDuration, SampleTime, SampleTimeError, sample_duration_from_seconds_f32,
     sample_duration_seconds_f32, sample_time_from_frame, sample_time_from_seconds_f32,
     sample_time_seconds_f32, sample_time_with_seconds_offset,
 };
+pub use word::InstructionWord;

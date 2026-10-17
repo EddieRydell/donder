@@ -1,178 +1,205 @@
-//! Compact physical selections with their original logical sampling coordinates.
-//! These structures are both the archive and the executable representation.
-use alloc::{boxed::Box, vec::Vec};
+//! Targets as an image stores them: runs of contiguous cells, or one record
+//! per pixel for irregular selections, with each pixel's original logical
+//! place. A pixel's fraction is computed from its place, as authoring does.
 use core::cell::Cell;
-use donder_runtime_types::Shared;
+use donder_runtime_types::SpatialContext;
+use donder_runtime_types::image::{self, PixelRun};
 
-use crate::dsl::SpatialContext;
-use crate::signal::PreparedPixel;
+use crate::sections::SectionsView;
+use crate::show::Show;
 
-#[cfg(test)]
-mod tests;
-
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) struct PreparedTarget {
-    pub pixels: TargetPixels,
-    pub spatial: Box<[SpatialRun]>,
-    pub sections: crate::sections::PreparedSections,
-    pub sample_count: usize,
+/// A target pixel: its storage fixture and cell, and its index among the
+/// `pixel_count` pixels of its sampling scope.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PreparedPixel {
+    pub fixture_index: usize,
+    pub fixture_pixel_index: u32,
+    pub pixel_index: usize,
+    pub pixel_count: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) enum TargetPixels {
-    Indexed(Shared<[PreparedPixel]>),
-    Runs(Shared<[PixelRun]>),
-}
-
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) struct PixelRun {
-    end: usize,
-    fixture: usize,
-    first_cell: u32,
-    first_index: usize,
-    count: usize,
-    // Exact compiler-produced fractions, shared between identical runs. This
-    // avoids both runtime division and changed rounding from a reciprocal.
-    fractions: Shared<[f32]>,
-}
-
-impl PixelRun {
-    #[inline]
-    fn pixel(&self, offset: usize) -> PreparedPixel {
-        PreparedPixel {
-            fixture_index: self.fixture,
-            fixture_pixel_index: self.first_cell + offset as u32,
-            pixel_index: self.first_index + offset,
-            pixel_count: self.count,
-            pixel_fraction: self.fractions[offset],
+impl PreparedPixel {
+    /// 0 at the scope's first pixel, 1 at its last; computed as
+    /// `TargetPixel::fraction` computes it, bit for bit.
+    #[inline(always)]
+    pub(crate) fn fraction(&self) -> f32 {
+        if self.pixel_count <= 1 {
+            0.0
+        } else {
+            self.pixel_index as f32 / (self.pixel_count - 1) as f32
         }
     }
 }
 
-impl TargetPixels {
-    #[inline]
-    pub(crate) fn len(&self) -> usize {
-        match self {
-            Self::Indexed(pixels) => pixels.len(),
-            Self::Runs(runs) => runs.last().map_or(0, |run| run.end),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn pixel(&self, index: usize) -> PreparedPixel {
-        match self {
-            Self::Indexed(pixels) => pixels[index],
-            Self::Runs(runs) => {
-                if let [run] = runs.as_ref() {
-                    return run.pixel(index);
-                }
-                let run = runs.partition_point(|run| run.end <= index);
-                let start = if run == 0 { 0 } else { runs[run - 1].end };
-                runs[run].pixel(index - start)
-            }
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn last(&self) -> Option<PreparedPixel> {
-        self.len().checked_sub(1).map(|index| self.pixel(index))
-    }
-
-    /// Physical cells are sorted even when logical target order differs.
-    pub(crate) fn find(&self, fixture: usize, cell: u32) -> Option<usize> {
-        match self {
-            Self::Indexed(pixels) => pixels
-                .binary_search_by_key(&(fixture, cell), |p| {
-                    (p.fixture_index, p.fixture_pixel_index)
-                })
-                .ok(),
-            Self::Runs(runs) => {
-                let run = runs
-                    .partition_point(|r| (r.fixture, r.first_cell) <= (fixture, cell))
-                    .checked_sub(1)?;
-                let start = if run == 0 { 0 } else { runs[run - 1].end };
-                let r = &runs[run];
-                let offset = cell.checked_sub(r.first_cell)? as usize;
-                (r.fixture == fixture && offset < r.end - start).then_some(start + offset)
-            }
-        }
-    }
-
-    /// Consecutive target pixels that share a fixture, count and contiguous
-    /// physical cells. Indexed targets yield one pixel per segment.
-    pub(crate) fn segments(&self) -> impl Iterator<Item = Segment<'_>> {
-        let (indexed, runs): (&[PreparedPixel], &[PixelRun]) = match self {
-            Self::Indexed(pixels) => (pixels, &[]),
-            Self::Runs(runs) => (&[], runs),
-        };
-        let indexed = indexed.iter().enumerate().map(|(start, pixel)| Segment {
-            start,
-            fixture: pixel.fixture_index,
-            first_cell: pixel.fixture_pixel_index,
-            first_index: pixel.pixel_index,
-            count: pixel.pixel_count,
-            fractions: core::slice::from_ref(&pixel.pixel_fraction),
-        });
-        let runs = runs.iter().scan(0, |start, run| {
-            let segment = Segment {
-                start: *start,
-                fixture: run.fixture,
-                first_cell: run.first_cell,
-                first_index: run.first_index,
-                count: run.count,
-                fractions: &run.fractions[..run.end - *start],
-            };
-            *start = run.end;
-            Some(segment)
-        });
-        indexed.chain(runs)
-    }
-
-    /// Pixel lookups that remember the last pixel's run, for callers that
-    /// visit target indices in ascending order.
-    pub(crate) fn cursor(&self) -> TargetCursor<'_> {
-        TargetCursor {
-            pixels: self,
-            run: Cell::new(0),
-            start: Cell::new(0),
-        }
-    }
-
-    pub(crate) fn iter(&self) -> TargetIter<'_> {
-        self.iter_from(0)
-    }
-
-    /// The pixels from target index `index` on.
-    #[inline]
-    pub(crate) fn iter_from(&self, index: usize) -> TargetIter<'_> {
-        let (run, start) = match self {
-            Self::Indexed(_) => (0, 0),
-            Self::Runs(runs) => {
-                let run = runs.partition_point(|run| run.end <= index);
-                (run, if run == 0 { 0 } else { runs[run - 1].end })
-            }
-        };
-        TargetIter {
-            pixels: self,
-            index,
-            run,
-            start,
-        }
+#[inline(always)]
+fn run_pixel(run: &PixelRun, offset: usize) -> PreparedPixel {
+    PreparedPixel {
+        fixture_index: run.fixture as usize,
+        fixture_pixel_index: run.first_cell + offset as u32,
+        pixel_index: run.first_index as usize + offset,
+        pixel_count: run.count as usize,
     }
 }
 
-pub(crate) struct Segment<'a> {
+#[inline(always)]
+fn indexed_pixel(pixel: &image::Pixel) -> PreparedPixel {
+    PreparedPixel {
+        fixture_index: pixel.fixture as usize,
+        fixture_pixel_index: pixel.cell,
+        pixel_index: pixel.index as usize,
+        pixel_count: pixel.count as usize,
+    }
+}
+
+/// One target of a show.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TargetView<'a> {
+    pub(crate) record: &'a image::Target,
+    runs: &'a [PixelRun],
+    pixels: &'a [image::Pixel],
+    spatial: &'a [image::SpatialRun],
+    pub(crate) sections: SectionsView<'a>,
+}
+
+/// Consecutive target pixels that share a fixture, count and contiguous
+/// physical cells. Indexed targets have one pixel per segment.
+pub(crate) struct Segment {
     /// Target index of the first pixel.
     pub start: usize,
     pub fixture: usize,
     pub first_cell: u32,
     pub first_index: usize,
     pub count: usize,
-    pub fractions: &'a [f32],
+    pub len: usize,
+}
+
+impl<'a> TargetView<'a> {
+    // Once per effect sample, so it stays in flash.
+    #[inline(never)]
+    pub(crate) fn of(show: Show<'a>, record: &'a image::Target) -> Self {
+        let s = &show.s;
+        let (runs, pixels) = if record.kind == image::PIXELS_RUNS {
+            (record.pixels.get(s.pixel_runs), &[][..])
+        } else {
+            (&[][..], record.pixels.get(s.pixels))
+        };
+        Self {
+            record,
+            runs,
+            pixels,
+            spatial: record.spatial.get(s.spatial_runs),
+            sections: SectionsView::of(show, record),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        if self.record.kind == image::PIXELS_RUNS {
+            self.runs.last().map_or(0, |run| run.end as usize)
+        } else {
+            self.pixels.len()
+        }
+    }
+
+    pub(crate) fn sample_count(&self) -> usize {
+        self.record.sample_count as usize
+    }
+
+    fn run_start(&self, run: usize) -> usize {
+        if run == 0 {
+            0
+        } else {
+            self.runs[run - 1].end as usize
+        }
+    }
+
+    #[inline]
+    pub(crate) fn pixel(&self, index: usize) -> PreparedPixel {
+        if self.record.kind != image::PIXELS_RUNS {
+            return indexed_pixel(&self.pixels[index]);
+        }
+        if let [run] = self.runs {
+            return run_pixel(run, index);
+        }
+        let run = self.runs.partition_point(|run| run.end as usize <= index);
+        run_pixel(&self.runs[run], index - self.run_start(run))
+    }
+
+    #[inline]
+    pub(crate) fn segment_count(&self) -> usize {
+        if self.record.kind == image::PIXELS_RUNS {
+            self.runs.len()
+        } else {
+            self.pixels.len()
+        }
+    }
+
+    #[inline]
+    pub(crate) fn segment(&self, index: usize) -> Segment {
+        if self.record.kind != image::PIXELS_RUNS {
+            let pixel = &self.pixels[index];
+            return Segment {
+                start: index,
+                fixture: pixel.fixture as usize,
+                first_cell: pixel.cell,
+                first_index: pixel.index as usize,
+                count: pixel.count as usize,
+                len: 1,
+            };
+        }
+        let run = &self.runs[index];
+        let start = self.run_start(index);
+        Segment {
+            start,
+            fixture: run.fixture as usize,
+            first_cell: run.first_cell,
+            first_index: run.first_index as usize,
+            count: run.count as usize,
+            len: run.end as usize - start,
+        }
+    }
+
+    pub(crate) fn segments(&self) -> impl Iterator<Item = Segment> + '_ {
+        (0..self.segment_count()).map(|index| self.segment(index))
+    }
+
+    /// Pixel lookups that remember the last pixel's run, for callers that
+    /// visit target indices in ascending order.
+    pub(crate) fn cursor(&self) -> TargetCursor<'a> {
+        TargetCursor {
+            target: *self,
+            run: Cell::new(0),
+            start: Cell::new(0),
+        }
+    }
+
+    /// The pixels from target index `index` on.
+    pub(crate) fn iter_from(&self, index: usize) -> impl Iterator<Item = PreparedPixel> + 'a {
+        let cursor = self.cursor();
+        (index..self.len()).map(move |index| cursor.pixel(index))
+    }
+
+    pub(crate) fn spatial_context(
+        &self,
+        index: usize,
+        pixel: &PreparedPixel,
+        show: Show<'a>,
+    ) -> SpatialContext {
+        let run = &self.spatial[self
+            .spatial
+            .partition_point(|run| run.end as usize <= index)];
+        let fixture = &show.s.fixtures[pixel.fixture_index];
+        let position = &fixture.positions.get(show.s.positions)[pixel.fixture_pixel_index as usize];
+        SpatialContext {
+            position: [position.x, position.y],
+            min: run.min,
+            max: run.max,
+        }
+    }
 }
 
 pub(crate) struct TargetCursor<'a> {
-    pixels: &'a TargetPixels,
+    target: TargetView<'a>,
     run: Cell<usize>,
     start: Cell<usize>,
 }
@@ -180,189 +207,22 @@ pub(crate) struct TargetCursor<'a> {
 impl TargetCursor<'_> {
     #[inline]
     pub(crate) fn pixel(&self, index: usize) -> PreparedPixel {
-        let TargetPixels::Runs(runs) = self.pixels else {
-            return self.pixels.pixel(index);
-        };
+        let target = &self.target;
+        if target.record.kind != image::PIXELS_RUNS {
+            return indexed_pixel(&target.pixels[index]);
+        }
+        let runs = target.runs;
         let (mut run, mut start) = (self.run.get(), self.start.get());
-        if index < start || index >= runs[run].end {
-            if index == runs[run].end {
+        if index < start || index >= runs[run].end as usize {
+            if index == runs[run].end as usize {
                 (run, start) = (run + 1, index);
             } else {
-                run = runs.partition_point(|run| run.end <= index);
-                start = if run == 0 { 0 } else { runs[run - 1].end };
+                run = runs.partition_point(|run| run.end as usize <= index);
+                start = target.run_start(run);
             }
             self.run.set(run);
             self.start.set(start);
         }
-        runs[run].pixel(index - start)
-    }
-}
-
-pub(crate) struct TargetIter<'a> {
-    pixels: &'a TargetPixels,
-    index: usize,
-    run: usize,
-    start: usize,
-}
-
-impl Iterator for TargetIter<'_> {
-    type Item = PreparedPixel;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let pixel = match self.pixels {
-            TargetPixels::Indexed(pixels) => *pixels.get(self.index)?,
-            TargetPixels::Runs(runs) => {
-                if runs.get(self.run).is_some_and(|run| run.end == self.index) {
-                    self.start = self.index;
-                    self.run += 1;
-                }
-                runs.get(self.run)?.pixel(self.index - self.start)
-            }
-        };
-        self.index += 1;
-        Some(pixel)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.pixels.len() - self.index;
-        (remaining, Some(remaining))
-    }
-}
-
-impl ExactSizeIterator for TargetIter<'_> {}
-
-impl<'a> IntoIterator for &'a TargetPixels {
-    type Item = PreparedPixel;
-    type IntoIter = TargetIter<'a>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-/// Consecutive pixels with the same original scope bounds share one record.
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) struct SpatialRun {
-    end: usize,
-    min: [f32; 2],
-    max: [f32; 2],
-}
-
-impl PreparedTarget {
-    pub(crate) fn prepare_spatial(contexts: &[SpatialContext]) -> Box<[SpatialRun]> {
-        let mut runs = Vec::<SpatialRun>::new();
-        for (index, context) in contexts.iter().enumerate() {
-            if let Some(run) = runs.last_mut()
-                && run.min.map(f32::to_bits) == context.min.map(f32::to_bits)
-                && run.max.map(f32::to_bits) == context.max.map(f32::to_bits)
-            {
-                run.end = index + 1;
-            } else {
-                runs.push(SpatialRun {
-                    end: index + 1,
-                    min: context.min,
-                    max: context.max,
-                });
-            }
-        }
-        runs.into()
-    }
-
-    pub(crate) fn spatial_context(
-        &self,
-        index: usize,
-        pixel: &PreparedPixel,
-        positions: &[Box<[[f32; 2]]>],
-    ) -> SpatialContext {
-        let run = &self.spatial[self.spatial.partition_point(|run| run.end <= index)];
-        SpatialContext {
-            position: positions[pixel.fixture_index][pixel.fixture_pixel_index as usize],
-            min: run.min,
-            max: run.max,
-        }
-    }
-}
-
-/// Preparation-only sharing. Playback owns only the referenced immutable tables.
-#[derive(Default)]
-pub(crate) struct TargetInterner {
-    pixels: Vec<Shared<[PreparedPixel]>>,
-    fractions: Vec<Shared<[f32]>>,
-    runs: Vec<Shared<[PixelRun]>>,
-}
-
-impl TargetInterner {
-    pub(crate) fn prepare(&mut self, pixels: Vec<PreparedPixel>) -> TargetPixels {
-        let mut spans = Vec::new();
-        let mut start = 0;
-        for index in 1..=pixels.len() {
-            if index < pixels.len() {
-                let before = &pixels[index - 1];
-                let next = &pixels[index];
-                if before.fixture_index == next.fixture_index
-                    && before.fixture_pixel_index.checked_add(1) == Some(next.fixture_pixel_index)
-                    && before.pixel_index.checked_add(1) == Some(next.pixel_index)
-                    && before.pixel_count == next.pixel_count
-                {
-                    continue;
-                }
-            }
-            spans.push(start..index);
-            start = index;
-        }
-        // Compare the actual archive representations, independently of host
-        // pointer width. Irregular mappings use the smaller explicit form.
-        let run_bytes = spans.len() * core::mem::size_of::<rkyv::Archived<PixelRun>>()
-            + pixels.len() * core::mem::size_of::<f32>();
-        let indexed_bytes = pixels.len() * core::mem::size_of::<rkyv::Archived<PreparedPixel>>();
-        if run_bytes >= indexed_bytes {
-            if let Some(existing) = self
-                .pixels
-                .iter()
-                .find(|existing| existing.as_ref() == pixels)
-            {
-                return TargetPixels::Indexed(Shared::clone(existing));
-            }
-            let pixels: Shared<[PreparedPixel]> = pixels.into();
-            self.pixels.push(Shared::clone(&pixels));
-            return TargetPixels::Indexed(pixels);
-        }
-        let runs: Vec<_> = spans
-            .into_iter()
-            .map(|span| {
-                let first = pixels[span.start];
-                let values = &pixels[span.clone()];
-                let fractions = if let Some(existing) = self.fractions.iter().find(|existing| {
-                    existing.len() == values.len()
-                        && existing.iter().zip(values).all(|(fraction, pixel)| {
-                            fraction.to_bits() == pixel.pixel_fraction.to_bits()
-                        })
-                }) {
-                    Shared::clone(existing)
-                } else {
-                    let fractions: Shared<[f32]> = values
-                        .iter()
-                        .map(|p| p.pixel_fraction)
-                        .collect::<Vec<_>>()
-                        .into();
-                    self.fractions.push(Shared::clone(&fractions));
-                    fractions
-                };
-                PixelRun {
-                    end: span.end,
-                    fixture: first.fixture_index,
-                    first_cell: first.fixture_pixel_index,
-                    first_index: first.pixel_index,
-                    count: first.pixel_count,
-                    fractions,
-                }
-            })
-            .collect();
-        if let Some(existing) = self.runs.iter().find(|existing| existing.as_ref() == runs) {
-            return TargetPixels::Runs(Shared::clone(existing));
-        }
-        let runs: Shared<[PixelRun]> = runs.into();
-        self.runs.push(Shared::clone(&runs));
-        TargetPixels::Runs(runs)
+        run_pixel(&runs[run], index - start)
     }
 }

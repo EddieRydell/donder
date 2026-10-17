@@ -1171,12 +1171,12 @@ fn signals_are_read_only_by_operators_within_their_inputs_and_caches() {
         &[]
     ));
     assert!(!operator(
-        &addressed(SignalPixel::Global(Slot::input(Input::PixelFraction))),
+        &addressed(SignalPixel::Local(Slot::input(Input::PixelFraction))),
         1,
         &[]
     ));
     assert!(!operator(
-        &addressed(SignalPixel::Global(Slot::scalar(0))),
+        &addressed(SignalPixel::Local(Slot::scalar(0))),
         1,
         &[]
     ));

@@ -3,7 +3,7 @@
 An ESP32 running the Donder loader plays prepared sequences from flash, either on
 its own or in sync with the desktop editor. The loader runs `donder-runtime`, the
 same engine as the preview, not a second interpreter. The host does all loading,
-checking and preparation and sends a `.donderseq` archive prepared for that
+checking and preparation and sends a `.donderseq` image prepared for that
 controller's output ports.
 
 Supported hardware is a classic ESP32 with 4 MB flash and a 40 MHz crystal,
@@ -55,27 +55,27 @@ in LittleFS. Archives use two 128 KiB slots in a separate
 4. commits the slot only after admission succeeds.
 
 A failed or interrupted upload leaves no show loaded, but the previous committed
-archive stays saved. Reboot restores the newest committed slot, stopped. A saved
+show stays saved. Reboot restores the newest committed slot, stopped. A saved
 show that the current firmware rejects is left in place and the controller boots
 without one; the editor uploads a current show on its next Play.
 Concurrent uploads are rejected, and an explicit erase clears both partitions.
 
-Admission checks the header, version and CRC, the archive structure, and these
+The loader plays the show from its flash slot, through the mapped DROM window;
+only the playback buffer is allocated. Admission checks the header, version and
+CRC, the section table, every cross-reference between records, and these
 limits:
-- 96 KiB of payload;
+- 96 KiB of image;
 - 1,600 pixels;
 - 128 graph nodes;
-- 96 KiB of estimated workspace, and no more than the heap left after decoding
-  minus 10 KiB for the network. The loader decodes once to measure that, then
-  again to admit. Wi-Fi keeps four static receive buffers to leave heap for
-  shows.
+- 96 KiB of playback buffer, and no more than the free heap minus 10 KiB for
+  the network. The buffer's size is exact, from the show's layout. Wi-Fi keeps
+  four static receive buffers to leave heap for shows.
 
 It also admits every program as the compiler does: slot ranges and kinds per
 bank, nesting, row and selection limits, constants, parameter types, signal
 reads within an operator's inputs and frame caches. It checks prepared
-automation mappings too. The limits are conservative policy, not a proof that
-memory will never run out. The workspace estimate sizes each strip workspace by
-the programs it runs, as playback allocates it.
+automation mappings too. Playback allocates nothing after admission: each strip
+workspace is sized by the programs it runs.
 
 A show that fails admission is answered with HTTP 422 and the reason. The
 editor does not send that show to the controller again until the show changes

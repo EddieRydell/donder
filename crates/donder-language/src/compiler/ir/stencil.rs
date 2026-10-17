@@ -129,6 +129,7 @@ pub(super) fn tap(
 pub(crate) fn reads(graph: &Graph, node: Node, sample: Node) -> bool {
     Reads {
         sample,
+        own: None,
         memo: HashMap::new(),
     }
     .of(graph, node)
@@ -157,11 +158,12 @@ fn split(
     else {
         return Err(StencilError::Shape);
     };
-    if offset != index || !uniform(graph, time) {
+    if offset != index || !uniform(graph, time, Some(id)) {
         return Err(StencilError::Shape);
     }
     let mut reads = Reads {
         sample,
+        own: Some(id),
         memo: HashMap::new(),
     };
     let mut factors = Vec::new();
@@ -190,9 +192,13 @@ fn split(
     })
 }
 
-/// Fixed for the query: computable before the strips.
-fn uniform(graph: &Graph, node: Node) -> bool {
-    graph.loops_of(node).is_empty()
+/// The same at every pixel. Without `own`, also fixed for the query:
+/// computable before the strips. With it, a stencil's value may change
+/// between iterations of an enclosing reduction, though not with the
+/// stencil's own offset: the stencil runs again in each iteration.
+fn uniform(graph: &Graph, node: Node, own: Option<LoopId>) -> bool {
+    let loops = graph.loops_of(node);
+    own.map_or(loops.is_empty(), |id| !loops.contains(id))
         && !graph
             .domain(node)
             .intersects(Domain::PIXEL.union(Domain::SIGNAL).union(Domain::TARGET))
@@ -247,6 +253,8 @@ fn part(graph: &Graph, reads: &mut Reads, id: LoopId, node: Node) -> Result<Part
 
 struct Reads {
     sample: Node,
+    /// The stencil whose source this is; none for a scan.
+    own: Option<LoopId>,
     memo: HashMap<Node, bool>,
 }
 
@@ -270,7 +278,7 @@ impl Reads {
     /// Whether `node` is arithmetic on the sample and query values.
     fn source_only(&mut self, graph: &Graph, node: Node) -> bool {
         if node == self.sample || !self.of(graph, node) {
-            return node == self.sample || uniform(graph, node);
+            return node == self.sample || uniform(graph, node, self.own);
         }
         matches!(
             graph.op(node),
@@ -287,6 +295,7 @@ impl Reads {
 pub(crate) fn source_only(graph: &Graph, node: Node, sample: Node) -> bool {
     Reads {
         sample,
+        own: None,
         memo: HashMap::new(),
     }
     .source_only(graph, node)

@@ -42,7 +42,7 @@ Elaboration resolves authored output selections and retained pixel domains befor
 calling the runtime-owned builder. The builder assigns dense storage from those
 domains; per-frame evaluation has no device-selection branches, alternate executor,
 or fragment type. `SequencePlayback` owns the prepared
-sequence, scratch storage and output buffers together. `evaluate` returns borrowed
+image and its playback buffer together. `evaluate` returns borrowed
 frame views directly, so the caller cannot mismatch a sequence and workspace.
 
 An empty selection produces no outputs or retained fixture/effect data. An
@@ -51,10 +51,9 @@ selection cannot be resolved: for example, a missing sequence, a controller or
 port outside the active setup, or a sequence targeting another layout. Internal
 preparation failures must not be disguised as an absent selection. Accepted
 preparation and playback do not return ordinary errors. Text loading and checked
-GUI edits remain validation boundaries. Archive decoding retains integrity and
-structural checks while trusting producer semantics. Malformed semantic data,
-even with a valid checksum and archive structure, is outside this contract and
-may panic during decoding or playback. Memory exhaustion and other system
+GUI edits remain validation boundaries. Image admission checks integrity, every
+cross-reference and every program, so an admitted image cannot index outside
+its records. Memory exhaustion and other system
 resource failures are outside this guarantee.
 
 ## Boundaries and ownership
@@ -69,15 +68,11 @@ modules are not alternate entry points. The boundaries have different contracts:
 | Elaboration | Accepted project plus selection to `Option<PreparedSequence>` | Resolving the selection, not repeating text validation |
 | Runtime construction | Accepted inputs and builder-issued handles to a private sequence | Handles preserve graph/storage ownership |
 | Playback | Owned sequence plus sample time to borrowed frame views | No ordinary failure; scratch storage cannot be paired with another sequence |
-| Archive decoding | Trusted producer archive to a prepared sequence | Header/version, checksum, structural rkyv checks, representation conversion and independent resource budgets |
+| Image admission | Image bytes to a borrowed `Show` | Header/version, checksum, section table, record cross-references, program well-formedness, and limits on pixels, graph nodes and buffer bytes |
 
-Raw sequence graphs, execution plans, bound parameters and output-routing
-storage are runtime-private. Callers cannot export or reconstruct them; archive
-decoding trusts the producer's graph, references, bytecode, parameters and execution
-schedule. It does not validate their relationships or matching. Payload bytes,
-pixels, graph nodes and estimated workspace bytes remain independent resource
-budgets; workspace estimation uses valid producer references. Impossible
-representation conversions return an archive error.
+Image records are runtime-private: callers build them only through the builder
+and read them through accessors. Image bytes, pixels, graph nodes and the exact
+playback buffer size are independent limits.
 
 Bytecode instructions, slots, validated programs and parameter bindings belong
 to `donder-runtime-types`, which the compiler targets and the runtime and
@@ -95,15 +90,14 @@ effects query marks and curve crossings inside that same sample program.
 
 Runtime's `lib.rs` is its only public facade. It exposes sequence playback and
 read-only frames/metadata, prepared clip sampling, the owner-bound sequence
-constructor, and the prepared archive codec. It does not re-export language types
+constructor, and image encoding and admission. It does not re-export language types
 or expose the VM, raw instruction execution, binding caches, registers, signal
 providers or caller-managed execution workspaces. Mathematical sampling primitives
 shared with authoring live in `donder-runtime-types`; VM instruction execution
 stays in runtime.
-The archive codec remains with the private prepared representation, separate from
-project IO, network transport and device storage. Loading a trusted producer
-archive is fallible for format, corruption, representation and resource-budget
-errors; playback remains infallible under the producer validity contract.
+Image admission stays with the private record layouts, separate from project IO,
+network transport and device storage. Admission is fallible for format,
+corruption, consistency and limit errors; playback is infallible.
 
 In elaboration, `selection.rs` resolves identities and output ordering, while
 `sequence.rs` lowers accepted fixtures and effects. Its `composition`
@@ -121,11 +115,11 @@ determine which fixture pixels to keep. Storage addresses become dense, includin
 disjoint wiring ranges of one instance. Packing uses those compact addresses
 directly; there are no generic patch sources, filters, or intermediate values.
 
-Reachable spatial signal queries widen that retained domain: local pixel queries
-keep each selected fixture instance in full, while global pixel queries keep the full
-rig color domain. Unpatched pixels may therefore remain as signal dependencies.
-Global indices do not change with controller selection. Packing still writes only
-selected ports; retained upstream pixels increase evaluation and memory costs.
+Reachable spatial signal queries widen that retained domain: reads of other
+pixels of a fixture (by index, by offset, or along it in a scan) keep each
+selected fixture instance in full. Unpatched pixels of those instances may
+therefore remain as signal dependencies. Packing still writes only selected
+ports; retained upstream pixels increase evaluation and memory costs.
 
 Effects targeting no retained pixels are removed, as are effects in disabled or
 unreachable layers. Referenced signal inputs remain connected, including temporal

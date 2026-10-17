@@ -118,6 +118,40 @@ pub fn curve_window_into(
     }
 }
 
+/// [`curve_window_into`] into a buffer of at least `curve.len().max(1)`
+/// points; returns how many it wrote.
+pub fn curve_window_points(
+    output: &mut [CurvePoint],
+    curve: &[CurvePoint],
+    min: f32,
+    max: f32,
+    sample_position: f32,
+) -> usize {
+    let mut len = 0;
+    for point in curve {
+        let position = point.position - sample_position;
+        if (0.0..=1.0).contains(&position) {
+            output[len] = CurvePoint {
+                position,
+                value: lerp(min, max, point.value),
+            };
+            len += 1;
+        }
+    }
+    if len == 0 {
+        output[0] = CurvePoint {
+            position: 0.0,
+            value: lerp(
+                min,
+                max,
+                crate::sampling::sample_curve_points(curve, sample_position),
+            ),
+        };
+        len = 1;
+    }
+    len
+}
+
 fn lerp(min: f32, max: f32, amount: f32) -> f32 {
     min + (max - min) * amount.clamp(0.0, 1.0)
 }

@@ -1,349 +1,386 @@
-//! Automation admitted against a program's parameter layout.
-//!
-//! A plan writes the parameter copy it was detached into: words directly, and
-//! curve windows in place, so the copy's windows must not be shared.
+//! Automation: an invocation's parameter copy in the workspace, rewritten
+//! from its plan's bindings at each sample time. Words are written directly;
+//! curve windows are rewritten in their own buffers. Live controls replace a
+//! binding's curve with a constant from their time on.
+use crate::resources::{
+    LiveView, ParamsView, ResourceSlot, SOURCE_LIVE, SOURCE_WINDOW, WindowState, curve_crossings,
+};
+use crate::show::Show;
+use bytemuck::{Pod, Zeroable};
+use donder_runtime_types::image::{self, CrossingSegment, CurvePoint, NONE};
+use donder_runtime_types::sampling::{curve_area, curve_prefix_areas, sample_curve_points};
+use donder_runtime_types::{SECONDS_PER_TICK, SampleTime, curve_window_points};
 
-use super::parameters::{BoundParams, ResourceParam};
-use super::{Arc, PreparedCurve};
-use crate::sampling::{curve_area, sample_curve};
-use crate::signal::PreparedAutomation;
-use alloc::{boxed::Box, vec::Vec};
-use donder_runtime_types::bytecode::{BytecodeProgram, param_bank};
-use donder_runtime_types::{AutomatedQuantity, AutomationMapping};
-use donder_runtime_types::{Curve, SECONDS_PER_TICK, SampleDuration, SampleTime};
-
-#[derive(Clone, Debug)]
-pub(crate) struct AutomationPlan {
-    bindings: Box<[Binding]>,
-    windows: Box<[Window]>,
-    /// Where the program's time starts: its clip's start, or the sequence's.
-    origin: SampleTime,
+/// A live control's value for one binding, from when it was set.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct Override {
+    pub(crate) active: u32,
+    pub(crate) value: f32,
+    /// Normalized area an integral adds to its curve's, so a value set
+    /// mid-session keeps the integral continuous.
+    pub(crate) area_offset: f32,
 }
 
-impl Default for AutomationPlan {
-    fn default() -> Self {
-        Self {
-            bindings: Box::default(),
-            windows: Box::default(),
-            origin: SampleTime::from_ticks(0),
+/// One automated or live-bound invocation's state: where its buffers start
+/// in the shared arrays, and its sample time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct StateRecord {
+    pub(crate) plan: u32,
+    pub(crate) params: u32,
+    pub(crate) words: image::Range,
+    pub(crate) resources: image::Range,
+    pub(crate) windows: image::Range,
+    pub(crate) points: image::Range,
+    pub(crate) overrides: image::Range,
+    /// Where the program's time starts; a voice moves it to its start.
+    pub(crate) origin: u32,
+    /// The tick the copy holds, or [`NONE`].
+    pub(crate) time: u32,
+}
+
+/// Every state's buffers, in state order.
+pub(crate) struct States<'w> {
+    pub(crate) records: &'w mut [StateRecord],
+    pub(crate) words: &'w mut [u32],
+    pub(crate) resources: &'w mut [ResourceSlot],
+    pub(crate) windows: &'w mut [WindowState],
+    pub(crate) points: &'w mut [CurvePoint],
+    pub(crate) areas: &'w mut [f32],
+    pub(crate) crossings: &'w mut [CrossingSegment],
+    pub(crate) overrides: &'w mut [Override],
+}
+
+/// What [`States`] holds for one state, borrowed.
+pub(crate) struct State<'s> {
+    pub(crate) record: &'s mut StateRecord,
+    words: &'s mut [u32],
+    resources: &'s mut [ResourceSlot],
+    windows: &'s mut [WindowState],
+    points: &'s mut [CurvePoint],
+    areas: &'s mut [f32],
+    crossings: &'s mut [CrossingSegment],
+    overrides: &'s mut [Override],
+}
+
+fn split<T>(items: &mut [T], range: image::Range) -> (&mut [T], &mut [T]) {
+    let (before, rest) = items.split_at_mut(range.start as usize);
+    let (current, _) = rest.split_at_mut(range.len as usize);
+    (before, current)
+}
+
+impl<'w> States<'w> {
+    /// State `index`, and the states before it.
+    // Once per automated operator sample, so it stays in flash.
+    #[inline(never)]
+    pub(crate) fn split(&mut self, index: usize) -> (States<'_>, State<'_>) {
+        let (records, rest) = self.records.split_at_mut(index);
+        let record = &mut rest[0];
+        let (words, current_words) = split(self.words, record.words);
+        let (resources, current_resources) = split(self.resources, record.resources);
+        let (windows, current_windows) = split(self.windows, record.windows);
+        let (points, current_points) = split(self.points, record.points);
+        let (areas, current_areas) = split(self.areas, record.points);
+        let (crossings, current_crossings) = split(self.crossings, record.points);
+        let (overrides, current_overrides) = split(self.overrides, record.overrides);
+        (
+            States {
+                records,
+                words,
+                resources,
+                windows,
+                points,
+                areas,
+                crossings,
+                overrides,
+            },
+            State {
+                record,
+                words: current_words,
+                resources: current_resources,
+                windows: current_windows,
+                points: current_points,
+                areas: current_areas,
+                crossings: current_crossings,
+                overrides: current_overrides,
+            },
+        )
+    }
+
+    pub(crate) fn reborrow(&mut self) -> States<'_> {
+        States {
+            records: self.records,
+            words: self.words,
+            resources: self.resources,
+            windows: self.windows,
+            points: self.points,
+            areas: self.areas,
+            crossings: self.crossings,
+            overrides: self.overrides,
+        }
+    }
+
+    pub(crate) fn get(&mut self, index: usize) -> State<'_> {
+        self.split(index).1
+    }
+
+    /// Every state samples again: a command changed what they hold.
+    pub(crate) fn forget(&mut self) {
+        for record in self.records.iter_mut() {
+            record.time = NONE;
         }
     }
 }
 
-#[derive(Clone, Debug)]
-struct Binding {
-    parameter: u16,
-    start: SampleTime,
-    duration: SampleDuration,
-    curve: Arc<Curve>,
-    destination: Destination,
-    /// Normalized area an integral adds to its curve's, so a live value set
-    /// mid-session keeps the integral continuous. Zero for authored curves.
-    area_offset: f32,
+/// The bindings, windows and overrides an invocation's state needs.
+pub(crate) fn shape(show: Show<'_>, plan: u32, params: u32) -> (usize, usize, usize, usize, usize) {
+    let s = &show.s;
+    let set = &s.param_sets[params as usize];
+    let (windows, points, bindings) = match show.plan(plan) {
+        Some(plan) => (
+            plan.windows.len as usize,
+            plan.windows
+                .get(s.windows)
+                .iter()
+                .map(|window| window.points.max(1) as usize)
+                .sum(),
+            plan.bindings.len as usize,
+        ),
+        None => (0, 0, 0),
+    };
+    (
+        set.words.len as usize,
+        set.resources.len as usize,
+        windows,
+        points,
+        bindings,
+    )
 }
 
-/// Words and resources are banks of the program's parameter layout.
-#[derive(Clone, Debug)]
-enum Destination {
-    Float {
-        word: usize,
-        min: f32,
-        max: f32,
-    },
-    FloatIntegral {
-        word: usize,
-        min: f32,
-        max: f32,
-    },
-    Int {
-        word: usize,
-        min: i32,
-        max: i32,
-    },
-    Bool {
-        word: usize,
-    },
-    /// The options' indices in the program's names, in mapping order.
-    Enum {
-        word: usize,
-        options: Box<[i32]>,
-    },
-    Curve {
-        window: usize,
-        min: f32,
-        max: f32,
-    },
-}
-
-/// A curve parameter that bindings rewrite, and the most points they write.
-#[derive(Clone, Debug)]
-struct Window {
-    resource: usize,
-    point_capacity: usize,
-}
-
-impl AutomationPlan {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.bindings.is_empty()
-    }
-
-    pub(crate) fn binding_count(&self) -> usize {
-        self.bindings.len()
-    }
-
-    /// Metadata retained by one plan. Shared authored curves retain only
-    /// handles here; detached windows are budgeted by
-    /// `BoundParams::automation_storage_estimate`.
-    pub(crate) fn storage_estimate(bindings: &[PreparedAutomation]) -> Option<usize> {
-        let mut bytes =
-            size_of::<Self>().checked_add(bindings.len().checked_mul(size_of::<Binding>())?)?;
-        for binding in bindings {
-            let extra = match &binding.mapping {
-                AutomationMapping::Enum { values } => values.len().checked_mul(size_of::<i32>())?,
-                // Admission shares a window for repeated curve destinations.
-                // Counting one per binding is a conservative allocation bound.
-                AutomationMapping::Curve { .. } => size_of::<Window>(),
-                _ => 0,
-            };
-            bytes = bytes.checked_add(extra)?;
+impl<'s> State<'s> {
+    /// Start the copy from the image's values; its windows hold nothing yet.
+    pub(crate) fn detach(&mut self, show: Show<'_>) {
+        let s = &show.s;
+        let set = &s.param_sets[self.record.params as usize];
+        self.words.copy_from_slice(set.words.get(s.words));
+        for (slot, resource) in self
+            .resources
+            .iter_mut()
+            .zip(set.resources.get(s.resources))
+        {
+            *slot = ResourceSlot::image(*resource);
         }
-        Some(bytes)
-    }
-
-    /// The curve resources this plan rewrites, each with the most points
-    /// written to it.
-    pub(crate) fn windows(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
-        self.windows
-            .iter()
-            .map(|window| (window.resource, window.point_capacity))
-    }
-
-    /// Reconstruct authored bindings, not the current contents of windows.
-    pub(crate) fn to_raw(&self, program: &BytecodeProgram) -> Box<[PreparedAutomation]> {
-        self.bindings
-            .iter()
-            .map(|binding| PreparedAutomation {
-                param_index: binding.parameter,
-                start: binding.start,
-                duration: binding.duration,
-                curve: Arc::clone(&binding.curve),
-                quantity: match binding.destination {
-                    Destination::FloatIntegral { .. } => AutomatedQuantity::Integral,
-                    _ => AutomatedQuantity::Value,
-                },
-                mapping: match &binding.destination {
-                    Destination::Float { min, max, .. }
-                    | Destination::FloatIntegral { min, max, .. } => AutomationMapping::Float {
-                        min: *min,
-                        max: *max,
-                    },
-                    Destination::Int { min, max, .. } => AutomationMapping::Int {
-                        min: *min,
-                        max: *max,
-                    },
-                    Destination::Bool { .. } => AutomationMapping::Bool,
-                    Destination::Enum { options, .. } => AutomationMapping::Enum {
-                        values: options
-                            .iter()
-                            .map(|&index| program.enums[index as usize].clone())
-                            .collect(),
-                    },
-                    Destination::Curve { min, max, .. } => AutomationMapping::Curve {
-                        min: *min,
-                        max: *max,
-                    },
-                },
-            })
-            .collect()
-    }
-
-    /// Materialize automation already checked with the language invocation
-    /// of `program`.
-    pub(crate) fn from_accepted(
-        program: &BytecodeProgram,
-        bindings: &[PreparedAutomation],
-        origin: SampleTime,
-    ) -> Self {
-        let mut admitted = Vec::with_capacity(bindings.len());
-        let mut windows: Vec<Window> = Vec::new();
-        for binding in bindings {
-            let bank = usize::from(param_bank(
-                &program.params,
-                usize::from(binding.param_index),
-            ));
-            let destination = match (&binding.mapping, binding.quantity) {
-                (AutomationMapping::Float { min, max }, AutomatedQuantity::Integral) => {
-                    Destination::FloatIntegral {
-                        word: bank,
-                        min: *min,
-                        max: *max,
-                    }
-                }
-                (_, AutomatedQuantity::Integral) => {
-                    unreachable!("admission accepts integrals of float automation only")
-                }
-                (mapping, AutomatedQuantity::Value) => match mapping {
-                    AutomationMapping::Float { min, max } => Destination::Float {
-                        word: bank,
-                        min: *min,
-                        max: *max,
-                    },
-                    AutomationMapping::Int { min, max } => Destination::Int {
-                        word: bank,
-                        min: *min,
-                        max: *max,
-                    },
-                    AutomationMapping::Bool => Destination::Bool { word: bank },
-                    AutomationMapping::Enum { values } => Destination::Enum {
-                        word: bank,
-                        // Lowering names every option of a bound enum.
-                        options: values
-                            .iter()
-                            .map(|value| {
-                                program
-                                    .enums
-                                    .iter()
-                                    .position(|option| option == value)
-                                    .map_or(-1, |index| index as i32)
-                            })
-                            .collect(),
-                    },
-                    AutomationMapping::Curve { min, max } => {
-                        let points = binding.curve.points.len().max(1);
-                        let window = match windows.iter().position(|window| window.resource == bank)
-                        {
-                            Some(index) => {
-                                let window = &mut windows[index];
-                                window.point_capacity = window.point_capacity.max(points);
-                                index
-                            }
-                            None => {
-                                windows.push(Window {
-                                    resource: bank,
-                                    point_capacity: points,
-                                });
-                                windows.len() - 1
-                            }
-                        };
-                        Destination::Curve {
-                            window,
-                            min: *min,
-                            max: *max,
-                        }
-                    }
-                },
-            };
-            admitted.push(Binding {
-                parameter: binding.param_index,
-                start: binding.start,
-                duration: binding.duration,
-                curve: Arc::clone(&binding.curve),
-                destination,
-                area_offset: 0.0,
-            });
+        let mut start = 0;
+        if let Some(plan) = show.plan(self.record.plan) {
+            for (index, (window, state)) in plan
+                .windows
+                .get(s.windows)
+                .iter()
+                .zip(self.windows.iter_mut())
+                .enumerate()
+            {
+                let capacity = window.points.max(1);
+                *state = WindowState {
+                    start,
+                    capacity,
+                    len: 0,
+                    kind: image::CROSSINGS_INCREASING,
+                };
+                start += capacity;
+                self.resources[window.resource as usize] = ResourceSlot {
+                    kind: image::RESOURCE_CURVE,
+                    source: SOURCE_WINDOW,
+                    index: index as u32,
+                    origin: 0,
+                };
+            }
         }
-        Self {
-            bindings: admitted.into(),
-            windows: windows.into(),
+        self.overrides.fill(Override::default());
+        self.record.time = NONE;
+    }
+
+    /// Bind resource `bank` to live collection `collection`, its marks
+    /// measured from `origin`.
+    pub(crate) fn bind_live(&mut self, bank: usize, collection: u32, origin: u32) {
+        self.resources[bank] = ResourceSlot {
+            kind: image::RESOURCE_MARKS,
+            source: SOURCE_LIVE,
+            index: collection,
             origin,
-        }
-    }
-
-    /// A copy of `params` this plan may write: each window is its own curve
-    /// with room for every point a binding writes, so `apply` allocates
-    /// nothing.
-    pub(crate) fn detach(&self, params: &BoundParams) -> BoundParams {
-        let mut params = params.clone();
-        for window in &self.windows {
-            let ResourceParam::Curve(curve) = &mut params.resources[window.resource] else {
-                unreachable!("admission binds curve windows to curve parameters")
-            };
-            let mut detached: PreparedCurve = curve.detached_clone();
-            detached.reserve_window_capacity(window.point_capacity);
-            *curve = Arc::new(detached);
-        }
-        params
+        };
+        self.record.time = NONE;
     }
 
     /// Measure the program's time from `origin`, as when its clip starts there.
-    pub(crate) fn restart_at(&mut self, origin: SampleTime) {
-        self.origin = origin;
-        for binding in &mut self.bindings {
-            binding.area_offset = 0.0;
+    pub(crate) fn restart_at(&mut self, origin: u32) {
+        self.record.origin = origin;
+        for item in self.overrides.iter_mut() {
+            item.area_offset = 0.0;
         }
+        self.record.time = NONE;
     }
 
-    /// Make `binding` hold `value` (in `0..=1`) from `time` on. Its curve
-    /// becomes that constant; an integral keeps the area it had reached.
-    pub(crate) fn set_value(&mut self, binding: usize, value: f32, time: SampleTime) {
-        let origin = self.origin;
-        let binding = &mut self.bindings[binding];
-        let ticks = binding.duration.as_ticks() as f32;
-        let start = binding.start;
-        let position = |at: SampleTime| {
-            (i64::from(at.as_ticks()) - i64::from(start.as_ticks())) as f32 / ticks
+    /// The copy at `time`, rewritten from the plan when it holds another.
+    // Once per invocation and sample time, so it stays in flash.
+    #[inline(never)]
+    pub(crate) fn params_at(
+        mut self,
+        show: Show<'_>,
+        time: SampleTime,
+        live: LiveView<'s>,
+    ) -> ParamsView<'s> {
+        if self.record.time != time.as_ticks() {
+            self.apply(show, time);
+            self.record.time = time.as_ticks();
+        }
+        ParamsView::copy(
+            self.words,
+            self.resources,
+            self.windows,
+            self.points,
+            self.areas,
+            self.crossings,
+            live,
+        )
+    }
+
+    /// Make `binding` hold `value` (in `0..=1`) from `time` on. An integral
+    /// keeps the area it had reached.
+    pub(crate) fn set_value(
+        &mut self,
+        show: Show<'_>,
+        binding: usize,
+        value: f32,
+        time: SampleTime,
+    ) {
+        let Some(plan) = show.plan(self.record.plan) else {
+            return;
         };
-        let integral = matches!(binding.destination, Destination::FloatIntegral { .. });
-        let before = integral.then(|| curve_area(&binding.curve, position(origin), position(time)));
-        let curve = Arc::make_mut(&mut binding.curve);
-        curve.points.clear();
-        curve.points.push(donder_runtime_types::CurvePoint {
-            position: 0.0,
-            value,
+        let Some(record) = plan.bindings.get(show.s.bindings).get(binding) else {
+            return;
+        };
+        let origin = self.record.origin;
+        let position =
+            |at: u32| (i64::from(at) - i64::from(record.start)) as f32 / record.duration as f32;
+        let integral = record.kind == image::BINDING_FLOAT_INTEGRAL;
+        let before = integral.then(|| {
+            area(
+                show,
+                record,
+                &self.overrides[binding],
+                position(origin),
+                position(time.as_ticks()),
+            )
         });
+        let item = &mut self.overrides[binding];
+        item.active = 1;
+        item.value = value;
         if let Some(before) = before {
-            binding.area_offset +=
-                before - curve_area(&binding.curve, position(origin), position(time));
+            item.area_offset += before
+                - area(
+                    show,
+                    record,
+                    item,
+                    position(origin),
+                    position(time.as_ticks()),
+                );
         }
+        self.record.time = NONE;
     }
 
-    /// Apply in authored order, preserving last-binding-wins behavior, to
-    /// this plan's detached copy.
-    pub(crate) fn apply(&self, params: &mut BoundParams, time: SampleTime) {
-        for binding in &self.bindings {
-            let elapsed = time.as_ticks().saturating_sub(binding.start.as_ticks());
-            let position = (elapsed as f32 / binding.duration.as_ticks() as f32).clamp(0.0, 1.0);
-            let amount = || sample_curve(&binding.curve, position).clamp(0.0, 1.0);
-            match &binding.destination {
-                Destination::Float { word, min, max } => {
-                    params.words[*word] = (min + (max - min) * amount()).to_bits();
+    /// Apply in authored order, preserving last-binding-wins behavior.
+    #[inline(never)]
+    fn apply(&mut self, show: Show<'_>, time: SampleTime) {
+        let Some(plan) = show.plan(self.record.plan) else {
+            return;
+        };
+        let s = &show.s;
+        let ticks = time.as_ticks();
+        let origin = self.record.origin;
+        for (binding, record) in plan.bindings.get(s.bindings).iter().enumerate() {
+            let item = self.overrides[binding];
+            let elapsed = ticks.saturating_sub(record.start);
+            let position = (elapsed as f32 / record.duration as f32).clamp(0.0, 1.0);
+            let amount = || {
+                if item.active != 0 {
+                    item.value
+                } else {
+                    sample_curve_points(show.curve(record.curve).points, position)
                 }
-                Destination::FloatIntegral { word, min, max } => {
+                .clamp(0.0, 1.0)
+            };
+            let destination = record.destination as usize;
+            let (fmin, fmax) = (f32::from_bits(record.min), f32::from_bits(record.max));
+            match record.kind {
+                image::BINDING_FLOAT => {
+                    self.words[destination] = (fmin + (fmax - fmin) * amount()).to_bits();
+                }
+                image::BINDING_FLOAT_INTEGRAL => {
                     // Admission keeps automation values in 0..1, so the
                     // value's clamp never applies and the area is exact.
-                    let ticks = binding.duration.as_ticks() as f32;
-                    let position = |at: SampleTime| {
-                        (i64::from(at.as_ticks()) - i64::from(binding.start.as_ticks())) as f32
-                            / ticks
-                    };
-                    let area = curve_area(&binding.curve, position(self.origin), position(time))
-                        + binding.area_offset;
-                    let elapsed = (i64::from(time.as_ticks()) - i64::from(self.origin.as_ticks()))
-                        as f32
-                        * SECONDS_PER_TICK;
-                    let seconds = ticks * SECONDS_PER_TICK;
-                    params.words[*word] = (min * elapsed + (max - min) * seconds * area).to_bits();
+                    let span = record.duration as f32;
+                    let at = |tick: u32| (i64::from(tick) - i64::from(record.start)) as f32 / span;
+                    let area = area(show, record, &item, at(origin), at(ticks)) + item.area_offset;
+                    let elapsed = (i64::from(ticks) - i64::from(origin)) as f32 * SECONDS_PER_TICK;
+                    let seconds = span * SECONDS_PER_TICK;
+                    self.words[destination] =
+                        (fmin * elapsed + (fmax - fmin) * seconds * area).to_bits();
                 }
-                Destination::Int { word, min, max } => {
-                    let (min, max) = (*min as f32, *max as f32);
-                    params.words[*word] = libm::roundf(min + (max - min) * amount()) as i32 as u32;
+                image::BINDING_INT => {
+                    let (min, max) = (record.min as i32 as f32, record.max as i32 as f32);
+                    self.words[destination] =
+                        libm::roundf(min + (max - min) * amount()) as i32 as u32;
                 }
-                Destination::Bool { word } => {
-                    params.words[*word] = u32::from(amount() >= 0.5);
+                image::BINDING_BOOL => {
+                    self.words[destination] = u32::from(amount() >= 0.5);
                 }
-                Destination::Enum { word, options } => {
+                image::BINDING_ENUM => {
+                    let options = record.options.get(s.enum_options);
                     let index = (libm::floorf(amount() * options.len() as f32) as usize)
                         .min(options.len() - 1);
-                    params.words[*word] = options[index] as u32;
+                    self.words[destination] = options[index];
                 }
-                Destination::Curve { window, min, max } => {
-                    let window = &self.windows[*window];
-                    let ResourceParam::Curve(curve) = &mut params.resources[window.resource] else {
-                        unreachable!("admission binds curve windows to curve parameters")
+                _ => {
+                    let window = &mut self.windows[destination];
+                    let range = window.start as usize..(window.start + window.capacity) as usize;
+                    let constant = [CurvePoint {
+                        position: 0.0,
+                        value: item.value,
+                    }];
+                    let source = if item.active != 0 {
+                        &constant[..]
+                    } else {
+                        show.curve(record.curve).points
                     };
-                    Arc::make_mut(curve).update_window(&binding.curve, *min, *max, position);
+                    let len = curve_window_points(
+                        &mut self.points[range.clone()],
+                        source,
+                        fmin,
+                        fmax,
+                        position,
+                    );
+                    let points = &self.points[window.start as usize..window.start as usize + len];
+                    curve_prefix_areas(points, &mut self.areas[window.start as usize..]);
+                    let (kind, _) = curve_crossings(points, &mut self.crossings[range]);
+                    window.len = len as u32;
+                    window.kind = kind;
                 }
             }
         }
+    }
+}
+
+/// The area under a binding's curve, or its live constant, between two
+/// positions of the binding.
+fn area(show: Show<'_>, record: &image::Binding, item: &Override, from: f32, to: f32) -> f32 {
+    if item.active != 0 {
+        let constant = [CurvePoint {
+            position: 0.0,
+            value: item.value,
+        }];
+        curve_area(&constant, from, to)
+    } else {
+        curve_area(show.curve(record.curve).points, from, to)
     }
 }

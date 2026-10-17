@@ -702,13 +702,13 @@ operator Scatter {
 
   sample {
     let blur = sum for i in 0..taps { source.at(time - spacing * i, pixel.index - i) * 0.25 };
-    let darkest = min for i in 0..taps { intensity(source.at_global(time, pixel.index + i)) };
+    let darkest = min for i in 0..taps { intensity(source.at(time, pixel.index + i)) };
     guard (all for i in 0..taps { pixel.index >= i }) else blur;
     let brightest = first for i in 0..taps {
       guard intensity(source.at(time, i)) > darkest;
       i
     } else { 0 };
-    blur * (darkest + 0.5) + source.at_global(time + spacing, brightest)
+    blur * (darkest + 0.5) + source.at(time + spacing, brightest)
   }
 }";
 
@@ -911,48 +911,54 @@ fn operators_do_not_allocate_from_the_first_frame() {
     }
     // Every operator consumes the one before it, separately and fused where
     // preparation would fuse them.
-    let chain: Vec<_> = operators
+    let all: Vec<_> = operators
         .iter()
         .map(|(_, [fixed, _], inputs)| (fixed.clone(), inputs.clone()))
         .collect();
-    let mut fused: Vec<(Instance, Vec<Input>)> = Vec::new();
-    for (instance, inputs) in &chain {
-        let upstream = fused.last();
-        match upstream.and_then(|(upstream, _)| instance.fuse_input(0, upstream)) {
-            Some(combined) => {
-                let (_, upstream_inputs) = fused.pop().unwrap();
-                let inputs = inputs[1..]
-                    .iter()
-                    .chain(&upstream_inputs)
-                    .copied()
-                    .collect();
-                fused.push((combined, inputs));
+    // Playback nests at most 16 operators deep.
+    let mut any_fused = false;
+    for chain in all.chunks(12) {
+        let chain = chain.to_vec();
+        let mut fused: Vec<(Instance, Vec<Input>)> = Vec::new();
+        for (instance, inputs) in &chain {
+            let upstream = fused.last();
+            match upstream.and_then(|(upstream, _)| instance.fuse_input(0, upstream)) {
+                Some(combined) => {
+                    let (_, upstream_inputs) = fused.pop().unwrap();
+                    let inputs = inputs[1..]
+                        .iter()
+                        .chain(&upstream_inputs)
+                        .copied()
+                        .collect();
+                    fused.push((combined, inputs));
+                }
+                None => fused.push((instance.clone(), inputs.clone())),
             }
-            None => fused.push((instance.clone(), inputs.clone())),
+        }
+        any_fused |= fused.len() < chain.len();
+        let mut separate = operator_show(&chain).into_playback();
+        let mut combined = operator_show(&fused).into_playback();
+        for ticks in SPREAD {
+            let time = SampleTime::from_ticks(ticks);
+            assert_eq!(
+                combined.evaluate(time).colors(),
+                separate.evaluate(time).colors(),
+                "fused chain at {ticks} ticks"
+            );
+        }
+        for (name, sequence) in [
+            ("chain", operator_show(&chain)),
+            ("fused chain", operator_show(&fused)),
+            ("layered benchmark", layered::layered_600()),
+        ] {
+            let (count, lit) = first_frames(sequence);
+            assert!(lit, "{name} rendered only black");
+            if count != 0 {
+                allocating.push(format!("{name}: {count}"));
+            }
         }
     }
-    assert!(fused.len() < chain.len(), "no operator fused");
-    let mut separate = operator_show(&chain).into_playback();
-    let mut combined = operator_show(&fused).into_playback();
-    for ticks in SPREAD {
-        let time = SampleTime::from_ticks(ticks);
-        assert_eq!(
-            combined.evaluate(time).colors(),
-            separate.evaluate(time).colors(),
-            "fused chain at {ticks} ticks"
-        );
-    }
-    for (name, sequence) in [
-        ("chain", operator_show(&chain)),
-        ("fused chain", operator_show(&fused)),
-        ("layered benchmark", layered::layered_600()),
-    ] {
-        let (count, lit) = first_frames(sequence);
-        assert!(lit, "{name} rendered only black");
-        if count != 0 {
-            allocating.push(format!("{name}: {count}"));
-        }
-    }
+    assert!(any_fused, "no operator fused");
     assert!(
         allocating.is_empty(),
         "allocating operators: {allocating:?}"

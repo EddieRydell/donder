@@ -1,8 +1,8 @@
+use super::evaluation::StripWorkspace;
 use super::evaluation::{PixelContext, SampleEvaluation, compile_effect, curve, marks};
 use super::playback;
 use super::std;
 use crate::dsl::RunContext;
-use crate::dsl::StripWorkspace;
 use donder_runtime_types::SpatialContext;
 use donder_runtime_types::Value;
 use donder_runtime_types::{Color, Gradient, SampleDuration};
@@ -21,6 +21,7 @@ fn sample(params: &[Param], body: &str) -> Color {
             progress: 0.75,
             time: SampleDuration::from_ticks(750_000),
             duration: SampleDuration::from_ticks(1_000_000),
+            frame_rate: 40.0,
             pixel_count: 1,
         },
         index: 0,

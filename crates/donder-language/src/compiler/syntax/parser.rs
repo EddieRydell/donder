@@ -698,17 +698,18 @@ impl Parser<'_> {
         let (direction, input) = (self.peek_at(1), self.peek_at(2));
         self.at_word("scan")
             && direction.kind == TokenKind::Identifier
-            && matches!(self.text(direction.span), "forward" | "backward")
+            && matches!(self.text(direction.span), "forward" | "backward" | "time")
             && input.kind == TokenKind::Identifier
     }
 
-    /// `scan (forward | backward) input as light, previous { body }`.
+    /// `scan (forward | backward | time) input as light, previous { body }`.
     fn scan(&mut self) -> Parsed<Expr> {
         let start = self.advance().span;
         let token = self.advance();
         let direction = match self.text(token.span) {
             "forward" => Direction::Forward,
-            _ => Direction::Backward,
+            "backward" => Direction::Backward,
+            _ => Direction::Time,
         };
         let input = self.name("an input name")?;
         if !self.at_word("as") {

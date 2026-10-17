@@ -4,9 +4,9 @@ use super::evaluation::{
     OperatorEvaluation, SignalSampler, bind, build, chain, compile_operator, context, effect,
     lower_runtime_operator, runtime_instance,
 };
+use super::evaluation::{RuntimeError, StripWorkspace};
 use super::playback;
 use super::std;
-use crate::dsl::{RuntimeError, StripWorkspace};
 use donder_language::compiler::{CompiledOperator, Instance, ProgramConstants, compile_operators};
 use donder_runtime_types::bytecode::{Instruction, SignalPixel};
 use donder_runtime_types::{Color, SampleTime};
@@ -554,7 +554,6 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
         "max(source.at(time), source.at(time - 0.1))",
         "source.at(time, pixel.index + 1)",
         "source.at(time, pixel.index)",
-        "source.at_global(time, pixel.index)",
     ] {
         let consumer = instance(
             &compile_operator(&format!(

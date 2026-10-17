@@ -264,7 +264,7 @@ fn selected_sections(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bo
     let total = sequence
         .fixtures()
         .iter()
-        .map(|fixture| fixture.pixel_count.div_ceil(7))
+        .map(|fixture| (fixture.pixel_count as usize).div_ceil(7))
         .sum::<usize>();
     let mut base = 0;
     sequence
@@ -273,7 +273,7 @@ fn selected_sections(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bo
         .flat_map(|fixture| {
             let count = match scope {
                 EffectScope::WholeTarget => total,
-                EffectScope::PerFixture => fixture.pixel_count.div_ceil(7),
+                EffectScope::PerFixture => (fixture.pixel_count as usize).div_ceil(7),
             };
             let choices = [0.0, 1.0, 2.0].map(|choice| {
                 (donder_runtime_types::sampling::deterministic_random(
@@ -285,8 +285,9 @@ fn selected_sections(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bo
                 EffectScope::WholeTarget => base,
                 EffectScope::PerFixture => 0,
             };
-            base += fixture.pixel_count.div_ceil(7);
-            (0..fixture.pixel_count).map(move |pixel| choices.contains(&(start + pixel / 7)))
+            base += (fixture.pixel_count as usize).div_ceil(7);
+            (0..fixture.pixel_count as usize)
+                .map(move |pixel| choices.contains(&(start + pixel / 7)))
         })
         .collect()
 }

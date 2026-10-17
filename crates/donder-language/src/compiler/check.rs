@@ -609,6 +609,7 @@ impl Checker {
         let node = match name.as_str() {
             "time" => self.graph.add(Op::Context(Context::Time)),
             "duration" => self.graph.add(Op::Context(Context::Duration)),
+            "frame_rate" => self.graph.add(Op::Context(Context::FrameRate)),
             "progress" => self.graph.add(Op::Context(Context::Progress)),
             "PI" => self.graph.float(core::f32::consts::PI),
             "TAU" => self.graph.float(core::f32::consts::TAU),
@@ -673,37 +674,25 @@ impl Checker {
             self.error(method.span, "only operator inputs have methods");
             return None;
         };
-        let global = match method.name.as_str() {
-            "at" if (1..=2).contains(&args.len()) => false,
-            "at_global" if args.len() == 2 => true,
+        match method.name.as_str() {
+            "at" if (1..=2).contains(&args.len()) => {}
             "at" => {
                 self.error(span, "`at` takes a time and optionally a local pixel index");
                 return None;
             }
-            "at_global" => {
-                self.error(span, "`at_global` takes a time and a layout pixel index");
-                return None;
-            }
             _ => {
                 let message = format!(
-                    "signals have no method `{}`; use `at` or `at_global`",
+                    "signals have no method `{}`; use `at`",
                     method.name.as_str()
                 );
                 self.error(method.span, message);
                 return None;
             }
-        };
+        }
         let time = self.float(&args[0])?;
         let pixel = match args.get(1) {
             None => SignalPixel::Current,
-            Some(index) => {
-                let index = self.int(index)?;
-                if global {
-                    SignalPixel::Global(index)
-                } else {
-                    SignalPixel::Local(index)
-                }
-            }
+            Some(index) => SignalPixel::Local(self.int(index)?),
         };
         Some(self.graph.add(Op::Sample {
             input: input as u32,

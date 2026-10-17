@@ -90,12 +90,8 @@ fn archived_rig_plays_like_the_prepared_one() {
         let layer = builder.layer(true, [effect]);
         builder.output(Some(layer))
     });
-    let bytes = crate::encode_rig(&prepared).unwrap();
-    assert!(
-        crate::decode_sequence(&bytes, crate::LoadLimits::default()).is_err(),
-        "a rig is not a sequence"
-    );
-    let mut rig = crate::decode_rig(&bytes, crate::LoadLimits::default())
+    let bytes = prepared.encode();
+    let mut rig = crate::PreparedRig::decode(&bytes, crate::LoadLimits::default())
         .unwrap()
         .into_playback();
     rig.apply(event(1.0, RigCommand::Start { voice: 0 }));

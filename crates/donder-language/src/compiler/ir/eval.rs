@@ -104,7 +104,9 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             _ => return None,
         },
         CurveIntegral => match left {
-            Value::Curve(curve) => Value::Float(sampling::curve_integral(curve, as_float(right)?)),
+            Value::Curve(curve) => {
+                Value::Float(sampling::curve_integral(&curve.points, as_float(right)?))
+            }
             _ => return None,
         },
         Index => match left {
@@ -115,25 +117,30 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             _ => return None,
         },
         MarkAt => match left {
-            Value::Marks(marks) => Value::Float(sampling::mark_at(marks, as_int(right)?)),
+            Value::Marks(marks) => Value::Float(sampling::mark_at(&marks.view(), as_int(right)?)),
             _ => return None,
         },
         MarkLast => match left {
             Value::Marks(marks) => Value::Float(
-                sampling::previous_mark(marks, as_float(right)?).map_or(f32::NAN, |(_, time)| time),
+                sampling::previous_mark(&marks.view(), as_float(right)?, &core::cell::Cell::new(0))
+                    .map_or(f32::NAN, |(_, time)| time),
             ),
             _ => return None,
         },
         MarkLastIndex => match left {
-            Value::Marks(marks) => {
-                Value::Int(sampling::previous_mark_index(marks, as_float(right)?))
-            }
+            Value::Marks(marks) => Value::Int(sampling::previous_mark_index(
+                &marks.view(),
+                as_float(right)?,
+                &core::cell::Cell::new(0),
+            )),
             _ => return None,
         },
         CurveFirstCrossing => match left {
-            Value::Curve(curve) => {
-                Value::Float(sampling::curve_crossing(curve, as_float(right)?, f32::NAN))
-            }
+            Value::Curve(curve) => Value::Float(sampling::curve_crossing(
+                &curve.points,
+                as_float(right)?,
+                f32::NAN,
+            )),
             _ => return None,
         },
         Power => Value::Float(power(as_float(left)?, as_int(right)?)),
@@ -161,7 +168,7 @@ pub(super) fn ternary(op: Ternary, a: &Value, b: &Value, c: &Value) -> Option<Va
         Ternary::Hsv => folded(sampling::hsv(as_float(a)?, as_float(b)?, as_float(c)?))?,
         Ternary::CurveLastCrossing => match a {
             Value::Curve(curve) => Value::Float(sampling::curve_last_crossing(
-                curve,
+                &curve.points,
                 as_float(b)?,
                 as_float(c)?,
             )),

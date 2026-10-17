@@ -4,9 +4,10 @@ use super::evaluation::{
     OperatorEvaluation, PixelContext, SampleEvaluation, SignalSampler, bind, compile_effect,
     compile_operator, effect, operator, runtime_effect, runtime_operator, try_bind,
 };
+use super::evaluation::{RuntimeError, StripWorkspace};
 use super::playback;
 use super::std;
-use crate::dsl::{RunContext, RuntimeError, StripWorkspace};
+use crate::dsl::RunContext;
 use donder_language::compiler::{compile_effects, compile_operators};
 use donder_runtime_types::bytecode::SignalPixel;
 use donder_runtime_types::{Color, Value};
@@ -32,6 +33,7 @@ fn at(progress: f32) -> PixelContext {
             progress,
             time: SampleDuration::from_ticks((progress * 1_000_000.0) as u32),
             duration: SampleDuration::from_ticks(1_000_000),
+            frame_rate: 40.0,
             pixel_count: 1,
         },
         index: 0,
@@ -800,7 +802,6 @@ impl Samples {
             let address = match pixel {
                 SignalPixel::Current => (0, 0),
                 SignalPixel::Local(index) => (1, index),
-                SignalPixel::Global(index) => (2, index),
                 SignalPixel::Shifted(shift, _) => (3, shift),
             };
             (input, time, address)
@@ -872,11 +873,10 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
                 let t = time;
                 let p = pixel.index;
                 let a = source.at(t, p);
-                let b = source.at_global(t, p);
                 let c = source.at(t);
                 let d = source.at(t, p);
                 let p = p + 1;
-                max(max(max(a, b), max(c, d)), source.at(t, p))
+                max(max(a, max(c, d)), source.at(t, p))
             }
         }",
     );
@@ -896,7 +896,6 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
             (0, 250_000, SignalPixel::Current),
             (0, 250_000, SignalPixel::Local(3)),
             (0, 250_000, SignalPixel::Local(4)),
-            (0, 250_000, SignalPixel::Global(3)),
         ]
     );
     assert_eq!(result.blue, 4);
@@ -904,8 +903,7 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
         "source.at()",
         "source.at(0.0, 1.0)",
         "source.at(0.0, 1, 2)",
-        "source.at_global(0.0)",
-        "source.at_global(0.0, true)",
+        "source.at_global(0.0, 1)",
         "source.at(#ffffff)",
     ] {
         assert!(

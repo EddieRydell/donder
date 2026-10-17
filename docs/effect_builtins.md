@@ -11,6 +11,7 @@ Every builtin function and context value of the [effect language](effect_languag
 | `time` | float | Seconds since the effect's clip started; in an operator, since the sequence started. |
 | `duration` | float | The clip's duration in seconds; in an operator, the sequence's. |
 | `progress` | float | `time / duration`, in 0..1. |
+| `frame_rate` | float | The sequence's frames per second; `scan time` steps once per frame. |
 | `pixel.index` | int | The pixel's zero-based index within the target; in an operator, within its fixture instance. |
 | `pixel.fraction` | float | The pixel's index scaled to 0..1 across the target; in an operator, across its fixture instance. |
 | `pixel.x` | float | The pixel's layout x coordinate in meters, after fixture transforms. |

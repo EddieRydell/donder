@@ -12,6 +12,8 @@ atomic = []
 [dependencies]
 fugit.workspace = true
 rkyv.workspace = true
+bytemuck.workspace = true
+crc32fast.workspace = true
 libm.workspace = true
 micromath.workspace = true
 

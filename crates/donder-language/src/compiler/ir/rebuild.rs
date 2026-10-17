@@ -232,9 +232,6 @@ impl<'a> Rebuild<'a> {
                     SignalPixel::Local(index) => {
                         SignalPixel::Local(self.node(target, index, substitute)?)
                     }
-                    SignalPixel::Global(index) => {
-                        SignalPixel::Global(self.node(target, index, substitute)?)
-                    }
                     SignalPixel::Shifted(offset, edges) => {
                         SignalPixel::Shifted(self.node(target, offset, substitute)?, edges)
                     }

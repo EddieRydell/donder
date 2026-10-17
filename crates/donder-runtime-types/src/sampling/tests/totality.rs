@@ -87,16 +87,16 @@ fn latest_crossing_counts_plateau_arrival_once_and_not_its_departure() {
             },
         ],
     };
-    assert!(curve_last_crossing(&curve, 1.0, 0.24).is_nan());
+    assert!(curve_last_crossing(&curve.points, 1.0, 0.24).is_nan());
     for position in [0.25, 0.5, 0.75, 1.0, f32::INFINITY] {
-        assert_eq!(curve_last_crossing(&curve, 1.0, position), 0.25);
+        assert_eq!(curve_last_crossing(&curve.points, 1.0, position), 0.25);
     }
-    assert_eq!(curve_last_crossing(&curve, 0.5, 0.8), 0.125);
-    assert_eq!(curve_last_crossing(&curve, 0.5, 0.875), 0.875);
-    assert_eq!(curve_last_crossing(&curve, 0.0, 0.5), 0.0);
-    assert_eq!(curve_last_crossing(&curve, 0.0, 1.0), 1.0);
-    assert!(curve_last_crossing(&curve, f32::NAN, 1.0).is_nan());
-    assert!(curve_last_crossing(&curve, 0.5, f32::NAN).is_nan());
+    assert_eq!(curve_last_crossing(&curve.points, 0.5, 0.8), 0.125);
+    assert_eq!(curve_last_crossing(&curve.points, 0.5, 0.875), 0.875);
+    assert_eq!(curve_last_crossing(&curve.points, 0.0, 0.5), 0.0);
+    assert_eq!(curve_last_crossing(&curve.points, 0.0, 1.0), 1.0);
+    assert!(curve_last_crossing(&curve.points, f32::NAN, 1.0).is_nan());
+    assert!(curve_last_crossing(&curve.points, 0.5, f32::NAN).is_nan());
 }
 
 #[test]
@@ -121,8 +121,8 @@ fn latest_crossing_does_not_invent_values_inside_a_discontinuous_step() {
             },
         ],
     };
-    assert!(curve_last_crossing(&curve, 0.5, 1.0).is_nan());
-    assert_eq!(curve_last_crossing(&curve, 1.0, 1.0), 0.5);
+    assert!(curve_last_crossing(&curve.points, 0.5, 1.0).is_nan());
+    assert_eq!(curve_last_crossing(&curve.points, 1.0, 1.0), 0.5);
 }
 
 #[test]

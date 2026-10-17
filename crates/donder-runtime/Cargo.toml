@@ -2,20 +2,21 @@
 name = "donder-runtime"
 edition.workspace = true
 version.workspace = true
-description = "Portable Donder prepared-sequence playback and archive codec"
+description = "Portable Donder show playback: admitted images played in a caller's buffer"
 authors = ["Donder"]
 license = "MIT"
 
 [features]
-default = ["atomic"]
+default = ["atomic", "host"]
 atomic = ["donder-runtime-types/atomic"]
+# Build show images and own them and their playback buffers.
+host = []
 # Link the interpreter and graph evaluation into ESP32 instruction RAM.
 iram = []
 
 [dependencies]
 donder-runtime-types.workspace = true
-rkyv.workspace = true
-crc32fast.workspace = true
+bytemuck.workspace = true
 libm.workspace = true
 micromath.workspace = true
 

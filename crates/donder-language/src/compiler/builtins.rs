@@ -644,6 +644,11 @@ pub(crate) const CONTEXT: &[ContextValue] = &[
         summary: "`time / duration`, in 0..1.",
     },
     ContextValue {
+        name: "frame_rate",
+        ty: "float",
+        summary: "The sequence's frames per second; `scan time` steps once per frame.",
+    },
+    ContextValue {
         name: "pixel.index",
         ty: "int",
         summary: "The pixel's zero-based index within the target; in an operator, within its fixture instance.",

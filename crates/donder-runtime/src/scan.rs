@@ -3,7 +3,7 @@
 //! it stays in flash, outside the interpreter's instruction RAM.
 use crate::dsl::bytecode::Direction;
 use crate::dsl::{STRIP, ScanQuery, SourceWeights};
-use crate::targets::TargetPixels;
+use crate::targets::TargetView;
 use donder_runtime_types::Color;
 use donder_runtime_types::sampling::byte_channel;
 
@@ -17,7 +17,7 @@ pub(crate) trait ScanColors {
 /// scaling a color by NaN is black.
 #[inline(never)]
 pub(crate) fn scan_frame(
-    pixels: &TargetPixels,
+    pixels: TargetView<'_>,
     query: &ScanQuery,
     weights: &mut dyn SourceWeights,
     input: &mut dyn ScanColors,

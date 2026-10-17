@@ -15,43 +15,48 @@
 //! With the `iram` feature, every function here is linked into instruction RAM
 //! (see `docs/performance.md`); `pnpm firmware:build` checks the placement.
 #![cfg_attr(feature = "iram", allow(unsafe_code))]
+use super::RunContext;
 use super::context::Clock;
-use super::parameters::ResourceParam;
 use super::workspace::{NEIGHBORHOOD, Neighborhood, StripWorkspace};
-use super::{BoundParams, PreparedCurve, RunContext};
 use crate::dsl::bytecode::{
-    Bank, BytecodeProgram, ColorBinary, ColorComponent, CompareOp, ContextRead, Direction, Edges,
-    FloatBinary, Input, Instruction, IntBinary, MAX_ITERATIONS, MarkOp, NO_FRAME_CACHE, Reducer,
-    Resource, SignalPixel, Slot, SlotKind,
+    Bank, ColorBinary, ColorComponent, CompareOp, ContextRead, Direction, Edges, FloatBinary,
+    Input, Instruction, IntBinary, MAX_ITERATIONS, MarkOp, NO_FRAME_CACHE, Reducer, Resource,
+    SignalPixel, Slot, SlotKind,
 };
+use crate::resources::{CurveView, ParamsView};
 use crate::sampling::{
     add_colors, clamp_array_index, clamp_float, color_hue, color_intensity, color_saturation,
     float_binary, float_unary, gradient_color_scaled, hsv, int_binary, invert_color, length_int,
     mark_at, max_colors, mix_colors, multiply_colors, previous_mark, previous_mark_index,
-    query_progress, query_seconds, rgb, sample_curve, sample_gradient, scale_color,
-    section_position,
+    query_progress, query_seconds, rgb, sample_gradient_stops, scale_color, section_position,
 };
-use crate::sections::{PreparedSections, SectionContext, SectionPixel};
-use alloc::vec::Vec;
+use crate::sections::{RunSections, SectionsView, single_section_query};
+use crate::show::{ProgramView, Show};
 use core::cell::Cell;
-use donder_runtime_types::Value;
-use donder_runtime_types::{Color, Curve, FloatColor, Gradient, Marks, SampleTime};
+use donder_runtime_types::image::{self, GradientStop, SectionPixel};
+use donder_runtime_types::{Color, FloatColor, InstructionWord, MarkWindow, SampleTime};
 
 pub(crate) use crate::dsl::bytecode::STRIP;
 const MASK: usize = STRIP - 1;
 
-pub(super) type Row<T> = [Cell<T>; STRIP];
+pub(super) use crate::arena::Row;
+
+/// The instruction a word of an admitted program encodes; one copy serves
+/// every dispatch.
+#[inline(never)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn decoded(word: &InstructionWord) -> Instruction {
+    let Some(instruction) = word.decode_trusted() else {
+        unreachable!("admission decodes every word")
+    };
+    instruction
+}
 
 /// A bound color word: red, green and blue in its low bytes.
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn word_color(word: u32) -> Color {
     let [red, green, blue, _] = word.to_le_bytes();
     Color { red, green, blue }
-}
-
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn row<T: Copy>(value: T) -> Row<T> {
-    core::array::from_fn(|_| Cell::new(value))
 }
 
 /// Signal queries of a running strip. Pixel `n` of a strip is its `n`th
@@ -101,6 +106,7 @@ pub(crate) trait StripSignals {
 
 /// A scan: its input, the frame cache of its input and of its result, and
 /// how it runs.
+#[derive(Clone, Copy)]
 pub(crate) struct ScanQuery {
     pub(crate) input: usize,
     pub(crate) time: SampleTime,
@@ -154,32 +160,18 @@ impl StripSignals for super::NoSignals {
 }
 
 /// Per-pixel inputs. The traversal fills them for each strip.
-pub(crate) struct Pixels {
-    pub(crate) index: Row<i32>,
-    pub(crate) fraction: Row<f32>,
-    pub(crate) x: Row<f32>,
-    pub(crate) y: Row<f32>,
-    pub(crate) sections: [SectionPixel; STRIP],
-}
-
-impl Default for Pixels {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn default() -> Self {
-        Self {
-            index: row(0),
-            fraction: row(0.0),
-            x: row(0.0),
-            y: row(0.0),
-            sections: [SectionPixel::default(); STRIP],
-        }
-    }
+pub(crate) struct Pixels<'w> {
+    pub(crate) index: &'w Row<i32>,
+    pub(crate) fraction: &'w Row<f32>,
+    pub(crate) x: &'w Row<f32>,
+    pub(crate) y: &'w Row<f32>,
+    pub(crate) sections: &'w Row<SectionPixel>,
 }
 
 /// A resource: a parameter or constant of the program, or an item of an
 /// array parameter or constant.
-#[derive(Clone, Copy, Debug, Default)]
-pub(super) enum Handle {
-    #[default]
+#[derive(Clone, Copy, Debug)]
+pub(super) enum HandleKind {
     Empty,
     Param(Resource, u16),
     Constant(Resource, u16),
@@ -187,25 +179,71 @@ pub(super) enum Handle {
     ConstantItem(u16, u16),
 }
 
+/// A [`HandleKind`] as plain data, so a workspace bank can hold it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub(super) struct Handle {
+    tag: u16,
+    a: u16,
+    b: u16,
+}
+
+const RESOURCES: [Resource; 4] = [
+    Resource::Curve,
+    Resource::Gradient,
+    Resource::Marks,
+    Resource::Array,
+];
+
+impl Handle {
+    pub(super) const EMPTY: Self = Self { tag: 0, a: 0, b: 0 };
+
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn new(kind: HandleKind) -> Self {
+        let resource = |resource: Resource| resource as u16;
+        let (tag, a, b) = match kind {
+            HandleKind::Empty => (0, 0, 0),
+            HandleKind::Param(kind, bank) => (1, resource(kind), bank),
+            HandleKind::Constant(kind, index) => (2, resource(kind), index),
+            HandleKind::ParamItem(bank, index) => (3, bank, index),
+            HandleKind::ConstantItem(array, index) => (4, array, index),
+        };
+        Self { tag, a, b }
+    }
+
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn kind(self) -> HandleKind {
+        let resource = || RESOURCES[usize::from(self.a & 3)];
+        match self.tag {
+            1 => HandleKind::Param(resource(), self.b),
+            2 => HandleKind::Constant(resource(), self.b),
+            3 => HandleKind::ParamItem(self.a, self.b),
+            4 => HandleKind::ConstantItem(self.a, self.b),
+            _ => HandleKind::Empty,
+        }
+    }
+}
+
 pub(super) const NO_COLOR: FloatColor = FloatColor::BLACK;
 
 /// One bank's slots: its scalars, then its rows, in one array. A bank with
 /// scalars but no rows keeps a row of padding, so every scalar has a
 /// row-sized window; a bank with neither holds nothing.
-pub(super) struct Store<T> {
-    pub(super) values: Vec<Cell<T>>,
+pub(super) struct Store<'w, T> {
+    pub(super) values: &'w [Cell<T>],
     pub(super) scalars: usize,
-    pub(super) rows: usize,
 }
 
-impl<T: Copy> Store<T> {
+impl<'w, T: Copy> Store<'w, T> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn scalar(&self, index: u16) -> &Cell<T> {
+    fn scalar(&self, index: u16) -> &'w Cell<T> {
         &self.values[usize::from(index)]
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn window(&self, start: usize) -> &Row<T> {
+    fn window(&self, start: usize) -> &'w Row<T> {
         let Ok(window) = <&Row<T>>::try_from(&self.values[start..start + STRIP]) else {
             unreachable!("a window spans one strip")
         };
@@ -213,13 +251,13 @@ impl<T: Copy> Store<T> {
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn row(&self, index: u16) -> &Row<T> {
+    fn row(&self, index: u16) -> &'w Row<T> {
         self.window(self.scalars + usize::from(index) * STRIP)
     }
 
     /// A scalar operand: the scalar masks every pixel to itself.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn one(&self, index: u16) -> Src<'_, T> {
+    fn one(&self, index: u16) -> Src<'w, T> {
         Src {
             row: self.window(usize::from(index)),
             mask: 0,
@@ -227,7 +265,7 @@ impl<T: Copy> Store<T> {
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn many(&self, index: u16) -> Src<'_, T> {
+    fn many(&self, index: u16) -> Src<'w, T> {
         Src {
             row: self.row(index),
             mask: MASK,
@@ -236,7 +274,35 @@ impl<T: Copy> Store<T> {
 }
 
 /// A run of pixels, `start..end`.
-type Range = (u8, u8);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub(super) struct Range {
+    start: u8,
+    end: u8,
+}
+
+impl Range {
+    pub(super) const EMPTY: Self = Self { start: 0, end: 0 };
+
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn new(start: u8, end: u8) -> Self {
+        Self { start, end }
+    }
+
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn get(self) -> (u8, u8) {
+        (self.start, self.end)
+    }
+}
+
+/// A selection of one range.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn range(start: u8, end: u8) -> [Cell<Range>; 1] {
+    [Cell::new(Range::new(start, end))]
+}
 
 /// The pixels an instruction runs for: ascending, disjoint, nonempty ranges.
 #[derive(Clone, Copy)]
@@ -246,18 +312,43 @@ struct Sel<'s>(&'s [Cell<Range>]);
 /// reduction keeps its participating pixels in `sets[0]`, its filtered
 /// contributing ones in `sets[1]`, an early exit's decided ones in the set its
 /// contributing pixels are not in, and which pixels still run in `running`.
-pub(super) struct Level {
-    sets: [[Cell<Range>; STRIP]; 2],
-    running: Row<bool>,
+struct Level<'w> {
+    sets: [&'w [Cell<Range>]; 2],
+    running: &'w Row<bool>,
 }
 
-impl Default for Level {
+/// The levels a block may open, innermost last: a workspace's selection
+/// storage from some depth down.
+#[derive(Clone, Copy)]
+pub(super) struct Levels<'w> {
+    sets: &'w [Cell<Range>],
+    running: &'w [Cell<bool>],
+}
+
+impl<'w> Levels<'w> {
+    pub(super) fn new(sets: &'w [Cell<Range>], running: &'w [Cell<bool>]) -> Self {
+        Self { sets, running }
+    }
+
+    /// The next level, and the levels inside it.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn default() -> Self {
-        Self {
-            sets: [row((0, 0)), row((0, 0))],
-            running: row(false),
-        }
+    fn split(self) -> (Level<'w>, Self) {
+        let (sets, inner_sets) = self.sets.split_at(2 * STRIP);
+        let (running, inner_running) = self.running.split_at(STRIP);
+        let (first, second) = sets.split_at(STRIP);
+        let Ok(running) = <&Row<bool>>::try_from(running) else {
+            unreachable!("a level holds a strip of flags")
+        };
+        (
+            Level {
+                sets: [first, second],
+                running,
+            },
+            Self {
+                sets: inner_sets,
+                running: inner_running,
+            },
+        )
     }
 }
 
@@ -265,7 +356,7 @@ impl Default for Level {
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn each(sel: Sel<'_>, mut visit: impl FnMut(usize)) {
     for range in sel.0 {
-        let (start, end) = range.get();
+        let (start, end) = range.get().get();
         for index in usize::from(start)..usize::from(end).min(STRIP) {
             visit(index);
         }
@@ -279,12 +370,12 @@ fn filter(sel: Sel<'_>, buffer: &[Cell<Range>], keep: impl Fn(usize) -> bool) ->
     let mut count = 0;
     let mut push = |start: usize, end: usize| {
         if let Some(slot) = buffer.get(count) {
-            slot.set((start as u8, end as u8));
+            slot.set(Range::new(start as u8, end as u8));
             count += 1;
         }
     };
     for range in sel.0 {
-        let (start, end) = range.get();
+        let (start, end) = range.get().get();
         let (start, end) = (usize::from(start), usize::from(end).min(STRIP));
         let mut run = None;
         for index in start..end {
@@ -502,42 +593,6 @@ fn power(base: f32, count: i32) -> f32 {
     power
 }
 
-/// A curve operand: a parameter keeps its prepared crossings.
-#[derive(Clone, Copy)]
-enum CurveRef<'r> {
-    Parameter(&'r PreparedCurve),
-    Raw(&'r Curve),
-}
-
-impl<'r> CurveRef<'r> {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve(self) -> &'r Curve {
-        match self {
-            Self::Parameter(parameter) => &parameter.raw,
-            Self::Raw(curve) => curve,
-        }
-    }
-
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn sample(self, position: f32) -> f32 {
-        sample_curve(self.curve(), position)
-    }
-
-    /// The first position where the curve reaches `value`, or NaN.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn crossing(self, value: f32) -> f32 {
-        match self {
-            Self::Parameter(parameter) => super::prepared_curve_crossing(
-                &parameter.crossings,
-                &parameter.raw,
-                value,
-                f32::NAN,
-            ),
-            Self::Raw(curve) => crate::sampling::curve_crossing(curve, value, f32::NAN),
-        }
-    }
-}
-
 /// Offsets of pixel `i`'s range, as a reduction counts its iterations.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
@@ -559,15 +614,15 @@ struct Term<'n, 'm> {
 }
 
 /// A scan's source block, run over strips of input colors.
-struct Weights<'w, 'm> {
-    machine: &'w Machine<'m>,
-    code: &'w [Instruction],
+struct Weights<'s, 'm, 'w> {
+    machine: &'s Machine<'m, 'w>,
+    code: &'s [InstructionWord],
     sample: Slot,
     weight: Slot,
-    levels: &'w [Level],
+    levels: Levels<'w>,
 }
 
-impl SourceWeights for Weights<'_, '_> {
+impl SourceWeights for Weights<'_, '_, '_> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn weights(&mut self, colors: &[Color], weights: &mut [f32]) {
         let Dst::Many(row) = self.machine.color_dst(self.sample) else {
@@ -577,7 +632,7 @@ impl SourceWeights for Weights<'_, '_> {
             for (cell, color) in row.iter().zip(colors) {
                 cell.set((*color).into());
             }
-            let all = [Cell::new((0, colors.len() as u8))];
+            let all = range(0, colors.len() as u8);
             self.machine
                 .block(self.code, Sel(&all), self.levels, &mut super::NoSignals);
             let computed = self.machine.float(self.weight);
@@ -588,16 +643,20 @@ impl SourceWeights for Weights<'_, '_> {
     }
 }
 
-static EMPTY_CURVE: Curve = Curve { points: Vec::new() };
-static EMPTY_GRADIENT: Gradient = Gradient { stops: Vec::new() };
+/// What a program runs with: its show, code, parameters and target.
+#[derive(Clone, Copy)]
+pub(crate) struct Bound<'a> {
+    pub(crate) show: Show<'a>,
+    pub(crate) program: ProgramView<'a>,
+    pub(crate) params: ParamsView<'a>,
+    pub(crate) sections: Option<SectionsView<'a>>,
+}
 
-pub(crate) struct Strip<'a> {
-    program: &'a BytecodeProgram,
-    params: &'a BoundParams,
+pub(crate) struct Strip<'a, 'w> {
+    bound: Bound<'a>,
     context: RunContext,
     clock: Clock,
-    sections: Option<&'a PreparedSections>,
-    workspace: &'a mut StripWorkspace,
+    workspace: &'a mut StripWorkspace<'w>,
     /// Pixel count and bounds of the initialized target block.
     shape: Option<(i32, [u32; 4])>,
     min: [f32; 2],
@@ -606,21 +665,17 @@ pub(crate) struct Strip<'a> {
     query: Cell<Option<(u32, Option<SampleTime>)>>,
 }
 
-impl<'a> Strip<'a> {
+impl<'a, 'w> Strip<'a, 'w> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn new(
-        program: &'a BytecodeProgram,
-        params: &'a BoundParams,
+        bound: Bound<'a>,
         context: &RunContext,
-        sections: Option<&'a PreparedSections>,
-        workspace: &'a mut StripWorkspace,
+        workspace: &'a mut StripWorkspace<'w>,
     ) -> Self {
         Self {
-            program,
-            params,
+            bound,
             context: *context,
             clock: Clock::new(context),
-            sections,
             workspace,
             shape: None,
             min: [0.0; 2],
@@ -630,8 +685,8 @@ impl<'a> Strip<'a> {
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    pub(crate) fn pixels(&mut self) -> &mut Pixels {
-        &mut self.workspace.pixels
+    pub(crate) fn pixels(&self) -> &Pixels<'w> {
+        &self.workspace.pixels
     }
 
     /// Evaluate the first `output.len()` pixels. They share a pixel count and
@@ -663,19 +718,22 @@ impl<'a> Strip<'a> {
             self.max = max;
         }
         let machine = Machine {
-            program: self.program,
-            params: self.params,
+            bound: self.bound,
             context: &self.context,
             clock: self.clock,
-            sections: self.sections,
             min: self.min,
             max: self.max,
             ws: self.workspace,
             query: &self.query,
+            curves: Cell::new((Handle::EMPTY, CurveView::EMPTY)),
+            marks: Cell::new((Handle::EMPTY, None)),
         };
-        let (query, target) = self.program.prefix();
-        let levels = &machine.ws.levels[..];
-        let one = [Cell::new((0, 1))];
+        let code = self.bound.program.code;
+        let record = self.bound.program.record;
+        let (query, rest) = code.split_at(record.query_end as usize);
+        let (target, body) = rest.split_at((record.target_end - record.query_end) as usize);
+        let levels = machine.ws.levels;
+        let one = range(0, 1);
         match initialize {
             None => {
                 machine.block(query, Sel(&one), levels, signals);
@@ -685,28 +743,30 @@ impl<'a> Strip<'a> {
             Some(false) => {}
         }
         self.shape = Some(shape);
-        let strip = [Cell::new((0, len as u8))];
-        machine.block(self.program.body(), Sel(&strip), levels, signals);
-        let result = machine.color(self.program.result);
+        let strip = range(0, len as u8);
+        machine.block(body, Sel(&strip), levels, signals);
+        let result = machine.color(Slot::from_bits(record.result as u16));
         for (index, output) in output.iter_mut().enumerate() {
             *output = result.at(index).to_color();
         }
     }
 }
 
-struct Machine<'m> {
-    program: &'m BytecodeProgram,
-    params: &'m BoundParams,
+struct Machine<'m, 'w> {
+    bound: Bound<'m>,
     context: &'m RunContext,
     clock: Clock,
-    sections: Option<&'m PreparedSections>,
     min: [f32; 2],
     max: [f32; 2],
-    ws: &'m StripWorkspace,
+    ws: &'m StripWorkspace<'w>,
     query: &'m Cell<Option<(u32, Option<SampleTime>)>>,
+    /// The resource each kind's latest handle named: a strip's pixels and
+    /// instructions mostly read one, which is resolved once.
+    curves: Cell<(Handle, CurveView<'m>)>,
+    marks: Cell<(Handle, Option<MarkWindow<'m>>)>,
 }
 
-impl<'m> Machine<'m> {
+impl<'m, 'w: 'm> Machine<'m, 'w> {
     // Operand lookups run once per instruction, so they stay out of line: one
     // bounds check each rather than one per instruction arm.
     #[inline(never)]
@@ -717,9 +777,9 @@ impl<'m> Machine<'m> {
         match slot.kind() {
             SlotKind::Scalar(index) => ws.floats.one(index),
             SlotKind::Row(index) => ws.floats.many(index),
-            SlotKind::Input(Input::PixelX) => input(&ws.pixels.x),
-            SlotKind::Input(Input::PixelY) => input(&ws.pixels.y),
-            SlotKind::Input(_) => input(&ws.pixels.fraction),
+            SlotKind::Input(Input::PixelX) => input(ws.pixels.x),
+            SlotKind::Input(Input::PixelY) => input(ws.pixels.y),
+            SlotKind::Input(_) => input(ws.pixels.fraction),
         }
     }
 
@@ -731,7 +791,7 @@ impl<'m> Machine<'m> {
             SlotKind::Scalar(index) => ws.ints.one(index),
             SlotKind::Row(index) => ws.ints.many(index),
             SlotKind::Input(_) => Src {
-                row: &ws.pixels.index,
+                row: ws.pixels.index,
                 mask: MASK,
             },
         }
@@ -795,14 +855,14 @@ impl<'m> Machine<'m> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn block(
         &self,
-        code: &[Instruction],
+        code: &[InstructionWord],
         sel: Sel<'_>,
-        levels: &[Level],
+        levels: Levels<'w>,
         signals: &mut dyn StripSignals,
     ) {
         let mut at = 0;
         while at < code.len() {
-            let instruction = &code[at];
+            let instruction = &decoded(&code[at]);
             at += 1;
             match *instruction {
                 Instruction::Branch {
@@ -852,10 +912,10 @@ impl<'m> Machine<'m> {
     fn branch(
         &self,
         condition: Slot,
-        then_code: &[Instruction],
-        else_code: &[Instruction],
+        then_code: &[InstructionWord],
+        else_code: &[InstructionWord],
         sel: Sel<'_>,
-        levels: &[Level],
+        levels: Levels<'w>,
         signals: &mut dyn StripSignals,
     ) {
         let condition = self.boolean(condition);
@@ -869,8 +929,8 @@ impl<'m> Machine<'m> {
             return;
         }
         let condition = condition.row;
-        let (level, inner) = levels.split_at(1);
-        let buffer = &level[0].sets[0];
+        let (level, inner) = levels.split();
+        let buffer = level.sets[0];
         let holding = filter(sel, buffer, |i| condition[i].get());
         let failing = filter(sel, &buffer[holding..], |i| !condition[i].get());
         if failing == 0 {
@@ -888,10 +948,10 @@ impl<'m> Machine<'m> {
     fn reduce(
         &self,
         instruction: &Instruction,
-        loop_code: &[Instruction],
-        contribute: &[Instruction],
+        loop_code: &[InstructionWord],
+        contribute: &[InstructionWord],
         sel: Sel<'_>,
-        levels: &[Level],
+        levels: Levels<'w>,
         signals: &mut dyn StripSignals,
     ) {
         let Instruction::Reduce {
@@ -941,8 +1001,11 @@ impl<'m> Machine<'m> {
             }
             return;
         }
-        let (level, inner) = levels.split_at(1);
-        let level = &level[0];
+        let (level, inner) = levels.split();
+        // Over rows, `any` and `all` combine every iteration branch-free and
+        // stop once every pixel has decided: splitting the selection where
+        // pixels decide costs more than finishing their iterations.
+        let early = matches!(reducer, Reducer::First | Reducer::Last);
         let uniform_bounds = start.is_scalar() && end.is_scalar();
         let index_dst = self.int_dst(index);
         // A scalar index with per-pixel bounds is shared: the loop runs the
@@ -993,7 +1056,7 @@ impl<'m> Machine<'m> {
             let participating = if uniform_bounds && !early {
                 sel
             } else {
-                let kept = filter(sel, &level.sets[0], |i| {
+                let kept = filter(sel, level.sets[0], |i| {
                     (!early || level.running[i].get()) && takes_part(i, k)
                 });
                 Sel(&level.sets[0][..kept])
@@ -1011,7 +1074,7 @@ impl<'m> Machine<'m> {
                 participating
             } else {
                 let condition = self.boolean(filter_slot);
-                let kept = filter(participating, &level.sets[1], |i| condition.at(i));
+                let kept = filter(participating, level.sets[1], |i| condition.at(i));
                 Sel(&level.sets[1][..kept])
             };
             if contributing.0.is_empty() {
@@ -1020,12 +1083,20 @@ impl<'m> Machine<'m> {
             self.block(contribute, contributing, inner, signals);
             if !early {
                 self.combine(reducer, bank, acc, value, contributing);
+                if matches!(reducer, Reducer::Any | Reducer::All) {
+                    let (decided, any) = (self.boolean(acc), reducer == Reducer::Any);
+                    let mut open = false;
+                    each(sel, |i| open |= decided.at(i) != any);
+                    if !open {
+                        break;
+                    }
+                }
                 continue;
             }
             // Decisions can split a range into several runs, so they go to
             // the set `contributing` is not read from. An index, not a branch,
             // so the loop is not duplicated per case in instruction RAM.
-            let free = &level.sets[usize::from(filter_slot.is_none())];
+            let free = level.sets[usize::from(filter_slot.is_none())];
             let decided = filter(contributing, free, |i| self.decides(reducer, value, i));
             let decided = Sel(&free[..decided]);
             self.assign(bank, acc, value, decided);
@@ -1048,10 +1119,10 @@ impl<'m> Machine<'m> {
     fn stencil(
         &self,
         instruction: &Instruction,
-        source: &[Instruction],
-        taps: &[Instruction],
+        source: &[InstructionWord],
+        taps: &[InstructionWord],
         sel: Sel<'_>,
-        levels: &[Level],
+        levels: Levels<'w>,
         signals: &mut dyn StripSignals,
     ) {
         let Instruction::Stencil {
@@ -1075,7 +1146,7 @@ impl<'m> Machine<'m> {
             seconds,
             frame_cache,
             ..
-        } = source[0]
+        } = decoded(&source[0])
         else {
             unreachable!()
         };
@@ -1099,8 +1170,8 @@ impl<'m> Machine<'m> {
             return;
         };
         let (low, high) = (
-            usize::from(low.get().0),
-            usize::from(high.get().1).min(STRIP),
+            usize::from(low.get().get().0),
+            usize::from(high.get().get().1).min(STRIP),
         );
         // The compiler admits offsets spanning at most a strip, reaching at
         // most half a strip each way past a fixture's ends.
@@ -1136,6 +1207,10 @@ impl<'m> Machine<'m> {
             &mut colors[..len],
             &mut locals[..len],
         );
+        // Black neighbors contribute nothing, so `acc` keeps its black.
+        if colors[..len].iter().all(|color| *color == Color::BLACK) {
+            return;
+        }
         let Dst::Many(row) = self.color_dst(sample) else {
             unreachable!()
         };
@@ -1144,12 +1219,7 @@ impl<'m> Machine<'m> {
             for k in 0..size {
                 row[k].set(colors[chunk + k].into());
             }
-            self.block(
-                &source[1..],
-                Sel(&[Cell::new((0, size as u8))]),
-                levels,
-                signals,
-            );
+            self.block(&source[1..], Sel(&range(0, size as u8)), levels, signals);
             let computed = self.float(weight);
             for k in 0..size {
                 weights[chunk + k] = computed.at(k);
@@ -1194,7 +1264,7 @@ impl<'m> Machine<'m> {
     ) {
         let local = &self.ws.pixels.index;
         for range in sel.0 {
-            let (first, past) = range.get();
+            let (first, past) = range.get().get();
             for i in usize::from(first)..usize::from(past).min(STRIP) {
                 let from = offset.wrapping_sub(start.at(i)) as u32;
                 if from >= offset_count(start, end, i) as u32 {
@@ -1233,9 +1303,9 @@ impl<'m> Machine<'m> {
     fn scan(
         &self,
         instruction: &Instruction,
-        source: &[Instruction],
+        source: &[InstructionWord],
         sel: Sel<'_>,
-        levels: &[Level],
+        levels: Levels<'w>,
         signals: &mut dyn StripSignals,
     ) {
         let Instruction::Scan {
@@ -1255,7 +1325,7 @@ impl<'m> Machine<'m> {
             seconds,
             frame_cache,
             ..
-        } = source[0]
+        } = decoded(&source[0])
         else {
             unreachable!()
         };
@@ -1336,7 +1406,18 @@ impl<'m> Machine<'m> {
                     _ => map2(sel, dst, a, b, add_colors),
                 }
             }
-            Bank::Bool | Bank::Resource => self.assign(bank, acc, value, sel),
+            Bank::Bool => {
+                let (a, b) = (self.boolean(acc), self.boolean(value));
+                let any = reducer == Reducer::Any;
+                pick_each(sel, self.bool_dst(acc), |i| {
+                    if any {
+                        a.at(i) | b.at(i)
+                    } else {
+                        a.at(i) & b.at(i)
+                    }
+                });
+            }
+            Bank::Resource => self.assign(bank, acc, value, sel),
         }
     }
 
@@ -1364,86 +1445,129 @@ impl<'m> Machine<'m> {
         time
     }
 
+    /// A bound resource parameter of `kind`, or none when it holds another.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn resource(&self, bank: u16) -> &'m ResourceParam {
-        &self.params.resources[usize::from(bank)]
+    fn resource(&self, bank: u16, kind: u32) -> Option<crate::resources::ResourceSlot> {
+        self.bound.params.resource(bank, kind)
     }
 
+    /// The image resource of `kind` that constant `index` of the program
+    /// names.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve(&self, handle: Handle) -> CurveRef<'m> {
-        match handle {
-            Handle::Param(Resource::Curve, bank) => match self.resource(bank) {
-                ResourceParam::Curve(curve) => CurveRef::Parameter(curve),
-                _ => CurveRef::Raw(&EMPTY_CURVE),
-            },
-            Handle::Constant(Resource::Curve, index) => {
-                CurveRef::Raw(&self.program.curves[usize::from(index)])
+    fn constant(&self, kind: Resource, index: u16) -> u32 {
+        let program = &self.bound.program;
+        let pool = match kind {
+            Resource::Curve => program.curves,
+            Resource::Gradient => program.gradients,
+            Resource::Marks => program.marks,
+            Resource::Array => program.arrays,
+        };
+        pool[usize::from(index)].index
+    }
+
+    #[inline(never)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn curve(&self, handle: Handle) -> CurveView<'m> {
+        let (known, resource) = self.curves.get();
+        if known == handle {
+            return resource;
+        }
+        let resource = self.resolve_curve(handle);
+        self.curves.set((handle, resource));
+        resource
+    }
+
+    #[inline(never)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn resolve_curve(&self, handle: Handle) -> CurveView<'m> {
+        let show = self.bound.show;
+        match handle.kind() {
+            HandleKind::Param(Resource::Curve, bank) => self
+                .resource(bank, image::RESOURCE_CURVE)
+                .map_or(CurveView::EMPTY, |slot| self.bound.params.curve(show, slot)),
+            HandleKind::Constant(Resource::Curve, index) => {
+                show.curve(self.constant(Resource::Curve, index))
             }
             _ => match self.item(handle) {
-                Some(Value::Curve(curve)) => CurveRef::Raw(curve),
-                _ => CurveRef::Raw(&EMPTY_CURVE),
+                Some(item) if item.kind == image::VALUE_CURVE => show.curve(item.word),
+                _ => CurveView::EMPTY,
             },
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn gradient(&self, handle: Handle) -> &'m Gradient {
-        match handle {
-            Handle::Param(Resource::Gradient, bank) => match self.resource(bank) {
-                ResourceParam::Gradient(gradient) => gradient,
-                _ => &EMPTY_GRADIENT,
-            },
-            Handle::Constant(Resource::Gradient, index) => {
-                &self.program.gradients[usize::from(index)]
+    fn gradient(&self, handle: Handle) -> &'m [GradientStop] {
+        let show = self.bound.show;
+        match handle.kind() {
+            HandleKind::Param(Resource::Gradient, bank) => self
+                .resource(bank, image::RESOURCE_GRADIENT)
+                .map_or(&[], |slot| show.gradient(slot.index)),
+            HandleKind::Constant(Resource::Gradient, index) => {
+                show.gradient(self.constant(Resource::Gradient, index))
             }
             _ => match self.item(handle) {
-                Some(Value::Gradient(gradient)) => gradient,
-                _ => &EMPTY_GRADIENT,
+                Some(item) if item.kind == image::VALUE_GRADIENT => show.gradient(item.word),
+                _ => &[],
             },
         }
     }
 
     /// `None` for a handle that names no marks, which hold none.
+    #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn marks(&self, handle: Handle) -> Option<&'m Marks> {
-        match handle {
-            Handle::Param(Resource::Marks, bank) => match self.resource(bank) {
-                ResourceParam::Marks(marks) => Some(marks),
-                _ => None,
-            },
-            Handle::Constant(Resource::Marks, index) => {
-                Some(&self.program.marks[usize::from(index)])
+    fn marks(&self, handle: Handle) -> Option<MarkWindow<'m>> {
+        let (known, resource) = self.marks.get();
+        if known == handle {
+            return resource;
+        }
+        let resource = self.resolve_marks(handle);
+        self.marks.set((handle, resource));
+        resource
+    }
+
+    #[inline(never)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn resolve_marks(&self, handle: Handle) -> Option<MarkWindow<'m>> {
+        let show = self.bound.show;
+        match handle.kind() {
+            HandleKind::Param(Resource::Marks, bank) => self
+                .resource(bank, image::RESOURCE_MARKS)
+                .map(|slot| self.bound.params.marks(show, slot)),
+            HandleKind::Constant(Resource::Marks, index) => {
+                Some(show.marks(self.constant(Resource::Marks, index)))
             }
             _ => match self.item(handle) {
-                Some(Value::Marks(marks)) => Some(marks),
+                Some(item) if item.kind == image::VALUE_MARKS => Some(show.marks(item.word)),
                 _ => None,
             },
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array(&self, handle: Handle) -> &'m [Value] {
-        match handle {
-            Handle::Param(Resource::Array, bank) => match self.resource(bank) {
-                ResourceParam::Array(items) => items,
-                _ => &[],
-            },
-            Handle::Constant(Resource::Array, index) => &self.program.arrays[usize::from(index)],
+    fn array(&self, handle: Handle) -> &'m [image::Value] {
+        let show = self.bound.show;
+        match handle.kind() {
+            HandleKind::Param(Resource::Array, bank) => self
+                .resource(bank, image::RESOURCE_ARRAY)
+                .map_or(&[], |slot| show.array(slot.index)),
+            HandleKind::Constant(Resource::Array, index) => {
+                show.array(self.constant(Resource::Array, index))
+            }
             _ => &[],
         }
     }
 
     /// The item an item handle names; `Index` clamped it to its array.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn item(&self, handle: Handle) -> Option<&'m Value> {
-        match handle {
-            Handle::ParamItem(bank, index) => match self.resource(bank) {
-                ResourceParam::Array(items) => items.get(usize::from(index)),
-                _ => None,
-            },
-            Handle::ConstantItem(array, index) => {
-                Some(&self.program.arrays[usize::from(array)][usize::from(index)])
-            }
+    fn item(&self, handle: Handle) -> Option<&'m image::Value> {
+        let show = self.bound.show;
+        match handle.kind() {
+            HandleKind::ParamItem(bank, index) => self
+                .resource(bank, image::RESOURCE_ARRAY)
+                .and_then(|slot| show.array(slot.index).get(usize::from(index))),
+            HandleKind::ConstantItem(array, index) => show
+                .array(self.constant(Resource::Array, array))
+                .get(usize::from(index)),
             _ => None,
         }
     }
@@ -1457,7 +1581,7 @@ impl<'m> Machine<'m> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn curve_integral(&self, curve: Handle, position: f32) -> f32 {
-        crate::sampling::curve_integral(self.curve(curve).curve(), position)
+        self.curve(curve).integral(position)
     }
 
     #[inline(never)]
@@ -1469,13 +1593,13 @@ impl<'m> Machine<'m> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn curve_last_crossing(&self, curve: Handle, value: f32, before: f32) -> f32 {
-        crate::sampling::curve_last_crossing(self.curve(curve).curve(), value, before)
+        self.curve(curve).last_crossing(value, before)
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn gradient_sample(&self, gradient: Handle, position: f32) -> FloatColor {
-        sample_gradient(self.gradient(gradient), position)
+        sample_gradient_stops(self.gradient(gradient), position)
     }
 
     #[inline(never)]
@@ -1486,9 +1610,9 @@ impl<'m> Machine<'m> {
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn previous_mark(&self, marks: Handle, seconds: f32) -> f32 {
+    fn previous_mark(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> f32 {
         self.marks(marks)
-            .and_then(|marks| previous_mark(marks, seconds))
+            .and_then(|marks| previous_mark(&marks, seconds, cursor))
             .map_or(f32::NAN, |(_, time)| time)
     }
 
@@ -1514,14 +1638,14 @@ impl<'m> Machine<'m> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn mark_count(&self, marks: Handle) -> i32 {
-        length_int(self.marks(marks).map_or(0, Marks::len))
+        length_int(self.marks(marks).map_or(0, |marks| marks.len()))
     }
 
     /// Item `index` of `array`, clamped to it, with the item's position; none
     /// of an empty array.
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array_item(&self, array: Handle, index: i32) -> Option<(Handle, usize, &'m Value)> {
+    fn array_item(&self, array: Handle, index: i32) -> Option<(Handle, usize, &'m image::Value)> {
         let items = self.array(array);
         if items.is_empty() {
             return None;
@@ -1533,10 +1657,11 @@ impl<'m> Machine<'m> {
     /// An int array item: an int, or an enum option's index.
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn int_item(&self, item: Option<&Value>, default: i32) -> i32 {
+    fn int_item(&self, item: Option<&image::Value>, default: i32) -> i32 {
         match item {
-            Some(Value::Int(value)) => *value,
-            Some(Value::Enum(name)) => self.enum_index(name),
+            Some(item) if matches!(item.kind, image::VALUE_INT | image::VALUE_ENUM) => {
+                item.word as i32
+            }
             _ => default,
         }
     }
@@ -1545,14 +1670,14 @@ impl<'m> Machine<'m> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn mark_at(&self, marks: Handle, index: i32) -> f32 {
         self.marks(marks)
-            .map_or(f32::NAN, |marks| mark_at(marks, index))
+            .map_or(f32::NAN, |marks| mark_at(&marks, index))
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn previous_mark_index(&self, marks: Handle, seconds: f32) -> i32 {
+    fn previous_mark_index(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> i32 {
         self.marks(marks)
-            .map_or(-1, |marks| previous_mark_index(marks, seconds))
+            .map_or(-1, |marks| previous_mark_index(&marks, seconds, cursor))
     }
 
     #[inline(never)]
@@ -1576,19 +1701,32 @@ impl<'m> Machine<'m> {
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn section_query(&self, width: i32, index: bool, i: usize) -> i32 {
+    fn section_query(
+        &self,
+        width: i32,
+        index: bool,
+        i: usize,
+        run: &Cell<Option<RunSections>>,
+    ) -> i32 {
         let pixels = &self.ws.pixels;
-        let sections = match self.sections {
-            Some(target) => SectionContext::Prepared {
-                target,
-                pixel: pixels.sections[i & MASK],
-            },
-            None => SectionContext::Single {
-                index: pixels.index[i & MASK].get(),
-                count: self.context.pixel_count,
-            },
+        let Some(target) = self.bound.sections else {
+            return single_section_query(
+                pixels.index[i & MASK].get(),
+                self.context.pixel_count,
+                width,
+                index,
+            );
         };
-        sections.query(width, index)
+        let pixel = pixels.sections[i & MASK].get();
+        let sections = match run.get() {
+            Some(sections) if sections.key == (pixel.run, width) => sections,
+            _ => {
+                let sections = target.run_sections(pixel, width);
+                run.set(Some(sections));
+                sections
+            }
+        };
+        sections.query(pixel, index)
     }
 
     #[inline(never)]
@@ -1597,20 +1735,10 @@ impl<'m> Machine<'m> {
         section_position(self.ws.pixels.index[i & MASK].get(), width, inverse)
     }
 
-    /// An enum option's index in the program's names.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn enum_index(&self, name: &donder_runtime_types::Identifier) -> i32 {
-        self.program
-            .enums
-            .iter()
-            .position(|option| option == name)
-            .map_or(-1, |index| index as i32)
-    }
-
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn step(&self, instruction: &Instruction, sel: Sel<'_>, signals: &mut dyn StripSignals) {
         use Instruction as I;
-        let params = self.params;
+        let params = self.bound.params;
         match *instruction {
             I::FloatConst { dst, bits } => {
                 Self::set_scalar(self.float_dst(dst), f32::from_bits(bits))
@@ -1619,7 +1747,10 @@ impl<'m> Machine<'m> {
             I::BoolConst { dst, value } => Self::set_scalar(self.bool_dst(dst), value),
             I::ColorConst { dst, value } => Self::set_scalar(self.color_dst(dst), value.into()),
             I::ResourceConst { dst, kind, index } => {
-                Self::set_scalar(self.handle_dst(dst), Handle::Constant(kind, index));
+                Self::set_scalar(
+                    self.handle_dst(dst),
+                    Handle::new(HandleKind::Constant(kind, index)),
+                );
             }
             I::FloatParam { dst, bank } => {
                 let word = params.words[usize::from(bank)];
@@ -1636,7 +1767,10 @@ impl<'m> Machine<'m> {
                 Self::set_scalar(self.color_dst(dst), word_color(word).into());
             }
             I::ResourceParam { dst, kind, bank } => {
-                Self::set_scalar(self.handle_dst(dst), Handle::Param(kind, bank));
+                Self::set_scalar(
+                    self.handle_dst(dst),
+                    Handle::new(HandleKind::Param(kind, bank)),
+                );
             }
             I::Context { dst, read } => match read {
                 ContextRead::PixelCount => {
@@ -1648,6 +1782,7 @@ impl<'m> Machine<'m> {
                         ContextRead::Seconds => self.clock.seconds,
                         ContextRead::Progress => self.context.progress,
                         ContextRead::Duration => self.clock.duration,
+                        ContextRead::FrameRate => self.context.frame_rate,
                         ContextRead::TargetMinX => self.min[0],
                         ContextRead::TargetMinY => self.min[1],
                         ContextRead::TargetMaxX => self.max[0],
@@ -1941,6 +2076,8 @@ impl<'m> Machine<'m> {
                 operand,
             } => {
                 let marks = self.handle(marks);
+                // One search per strip; the pixels after it start from its place.
+                let cursor = Cell::new(0);
                 match op {
                     MarkOp::Count => apply1(sel, self.int_dst(dst), marks, |marks| {
                         self.mark_count(marks)
@@ -1957,14 +2094,14 @@ impl<'m> Machine<'m> {
                         self.float_dst(dst),
                         marks,
                         self.float(operand),
-                        |marks, seconds| self.previous_mark(marks, seconds),
+                        |marks, seconds| self.previous_mark(marks, seconds, &cursor),
                     ),
                     MarkOp::LastIndex => apply2(
                         sel,
                         self.int_dst(dst),
                         marks,
                         self.float(operand),
-                        |marks, seconds| self.previous_mark_index(marks, seconds),
+                        |marks, seconds| self.previous_mark_index(marks, seconds, &cursor),
                     ),
                 }
             }
@@ -1984,7 +2121,7 @@ impl<'m> Machine<'m> {
                 index,
                 items,
             } => {
-                let items = &self.program.operands[items.range()];
+                let items = &self.bound.program.operands[items.range()];
                 let index = self.int(index);
                 match bank {
                     Bank::Float => pick_each(sel, self.float_dst(dst), |i| {
@@ -2065,7 +2202,10 @@ impl<'m> Machine<'m> {
             I::SectionCount { dst, width } | I::SectionIndex { dst, width } => {
                 let index = matches!(instruction, I::SectionIndex { .. });
                 let (dst, width) = (self.int_dst(dst), self.int(width));
-                pick_each(sel, dst, |i| self.section_query(width.at(i), index, i));
+                let run = Cell::new(None);
+                pick_each(sel, dst, |i| {
+                    self.section_query(width.at(i), index, i, &run)
+                });
             }
             I::SectionPosition {
                 dst,
@@ -2093,8 +2233,10 @@ impl<'m> Machine<'m> {
             Bank::Float => {
                 let default = self.float(default);
                 pick_each(sel, self.float_dst(dst), |i| match item(i) {
-                    Some((_, _, Value::Float(value))) => *value,
-                    Some((_, _, Value::Int(value))) => *value as f32,
+                    Some((_, _, item)) if item.kind == image::VALUE_FLOAT => {
+                        f32::from_bits(item.word)
+                    }
+                    Some((_, _, item)) if item.kind == image::VALUE_INT => item.word as i32 as f32,
                     _ => default.at(i),
                 });
             }
@@ -2107,26 +2249,31 @@ impl<'m> Machine<'m> {
             Bank::Bool => {
                 let default = self.boolean(default);
                 pick_each(sel, self.bool_dst(dst), |i| match item(i) {
-                    Some((_, _, Value::Bool(value))) => *value,
+                    Some((_, _, item)) if item.kind == image::VALUE_BOOL => item.word != 0,
                     _ => default.at(i),
                 });
             }
             Bank::Color => {
                 let default = self.color(default);
                 pick_each(sel, self.color_dst(dst), |i| match item(i) {
-                    Some((_, _, Value::Color(value))) => (*value).into(),
+                    Some((_, _, item)) if item.kind == image::VALUE_COLOR => {
+                        word_color(item.word).into()
+                    }
                     _ => default.at(i),
                 });
             }
             Bank::Resource => {
                 let default = self.handle(default);
                 pick_each(sel, self.handle_dst(dst), |i| match item(i) {
-                    Some((Handle::Param(Resource::Array, bank), at, _)) => {
-                        Handle::ParamItem(bank, at as u16)
-                    }
-                    Some((Handle::Constant(Resource::Array, array), at, _)) => {
-                        Handle::ConstantItem(array, at as u16)
-                    }
+                    Some((array, at, _)) => match array.kind() {
+                        HandleKind::Param(Resource::Array, bank) => {
+                            Handle::new(HandleKind::ParamItem(bank, at as u16))
+                        }
+                        HandleKind::Constant(Resource::Array, array) => {
+                            Handle::new(HandleKind::ConstantItem(array, at as u16))
+                        }
+                        _ => default.at(i),
+                    },
                     _ => default.at(i),
                 });
             }
@@ -2197,7 +2344,7 @@ fn pick_each<T: Copy>(sel: Sel<'_>, dst: Dst<'_, T>, value: impl Fn(usize) -> T)
 
 /// An operand of a bank without pixel inputs.
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn operand<T: Copy>(store: &Store<T>, slot: Slot) -> Src<'_, T> {
+fn operand<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Src<'s, T> {
     match slot.kind() {
         SlotKind::Scalar(index) => store.one(index),
         SlotKind::Row(index) => store.many(index),
@@ -2206,7 +2353,7 @@ fn operand<T: Copy>(store: &Store<T>, slot: Slot) -> Src<'_, T> {
 }
 
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn destination<T: Copy>(store: &Store<T>, slot: Slot) -> Dst<'_, T> {
+fn destination<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Dst<'s, T> {
     match slot.kind() {
         SlotKind::Scalar(index) => Dst::One(store.scalar(index)),
         SlotKind::Row(index) => Dst::Many(store.row(index)),

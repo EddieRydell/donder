@@ -6,7 +6,7 @@ use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
 
-use crate::dsl::StripWorkspace;
+use super::evaluation::StripWorkspace;
 use donder_runtime_types::SpatialContext;
 use donder_runtime_types::Value;
 use donder_runtime_types::{Color, Gradient};

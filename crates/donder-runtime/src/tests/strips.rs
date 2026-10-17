@@ -2,16 +2,13 @@
 //! color it gets alone, as a one-pixel strip, however the target is split
 //! into strips and whatever mix of scalars and rows its program computes.
 use super::evaluation::{
-    OperatorEvaluation, PixelContext, SignalSampler, bind, compile_effect, lower_runtime_effect,
-    marks, runtime_instance,
+    OperatorEvaluation, PixelContext, RuntimeError, SignalSampler, Single, StripWorkspace, bind,
+    compile_effect, lower_runtime_effect, marks, runtime_instance,
 };
 use super::playback;
 use super::std;
 use crate::dsl::bytecode::{BytecodeProgram, ContextRead, Instruction, SignalPixel};
-use crate::dsl::{
-    BoundParams, DslBindCache, NoSignals, RunContext, RuntimeError, STRIP, SampleProgram,
-    SpatialContext, Strip, StripSignals, StripWorkspace,
-};
+use crate::dsl::{NoSignals, RunContext, STRIP, Strip, StripSignals};
 use donder_language::compiler::{
     CompiledEffect, ParamDecl, ParamRange, compile_effects, compile_operators,
 };
@@ -20,6 +17,7 @@ use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
 };
 use donder_runtime_types::{SampleInvocation, Type, Value};
+use donder_runtime_types::{SampleProgram, SpatialContext};
 use std::prelude::rust_2024::*;
 
 const DURATION: u32 = 8_000_000;
@@ -72,6 +70,7 @@ fn run_context(ticks: u32, count: usize) -> RunContext {
         progress: ticks as f32 / DURATION as f32,
         time: SampleDuration::from_ticks(ticks),
         duration: SampleDuration::from_ticks(DURATION),
+        frame_rate: 40.0,
         pixel_count: count as i32,
     }
 }
@@ -93,20 +92,15 @@ const TICKS: [u32; 5] = [0, 610_000, 3_020_000, 4_470_000, 7_999_999];
 struct Bound {
     name: String,
     invocation: SampleInvocation,
-    params: BoundParams,
+    single: Single,
 }
 
 impl Bound {
     fn new(name: impl Into<String>, invocation: SampleInvocation) -> Self {
-        let params = BoundParams::from_validated(
-            invocation.program().bytecode(),
-            invocation.params(),
-            &mut DslBindCache::default(),
-        );
         Self {
             name: name.into(),
+            single: Single::sample(&invocation),
             invocation,
-            params,
         }
     }
 
@@ -123,10 +117,9 @@ impl Bound {
         runs: &[usize],
         workspace: &mut StripWorkspace,
     ) -> Vec<Color> {
-        let program = self.program().bytecode();
-        workspace.reserve(program);
-        let mut strip = Strip::new(program, &self.params, run, None, workspace);
-        run_strips(&mut strip, target, runs, |_| NoSignals)
+        self.single.with_strip(run, workspace, |strip| {
+            run_strips(strip, target, runs, |_| NoSignals)
+        })
     }
 
     /// Pixel `index` of `target` alone.
@@ -138,18 +131,18 @@ impl Bound {
         workspace: &mut StripWorkspace,
     ) -> Color {
         let pixel = target.pixels[index];
-        crate::dsl::sample_once(
-            self.program(),
-            &self.params,
-            run,
-            (pixel.index, pixel.fraction),
-            &SpatialContext {
-                position: pixel.position,
-                min: target.min,
-                max: target.max,
-            },
-            workspace,
-        )
+        let context = PixelContext {
+            run: *run,
+            index: pixel.index,
+            fraction: pixel.fraction,
+        };
+        let spatial = SpatialContext {
+            position: pixel.position,
+            min: target.min,
+            max: target.max,
+        };
+        self.single
+            .one(&context, &spatial, &mut NoSignals, workspace)
     }
 
     /// Strips of `target` at `ticks` match its pixels alone in every split of
@@ -188,7 +181,7 @@ impl Bound {
     }
 }
 
-fn fill(strip: &mut Strip<'_>, pixels: &[Pixel]) {
+fn fill(strip: &mut Strip<'_, '_>, pixels: &[Pixel]) {
     let cells = strip.pixels();
     for (offset, pixel) in pixels.iter().enumerate() {
         cells.index[offset].set(pixel.index);
@@ -201,7 +194,7 @@ fn fill(strip: &mut Strip<'_>, pixels: &[Pixel]) {
 /// Every pixel of `target` through `strip`, in runs of `runs`' lengths in
 /// turn; `signals` serves the run that starts at a pixel.
 fn run_strips<S: StripSignals>(
-    strip: &mut Strip<'_>,
+    strip: &mut Strip<'_, '_>,
     target: &Target,
     runs: &[usize],
     signals: impl Fn(usize) -> S,
@@ -936,34 +929,30 @@ fn a_new_target_shape_reinitializes_the_target_block() {
             (&large, 20..80),
         ];
         let mut workspaces = Workspaces::default();
-        workspaces.strips.reserve(program);
-        let mut strip = Strip::new(
-            program,
-            &bound.params,
-            &run_context(DURATION / 4, 1),
-            None,
-            &mut workspaces.strips,
-        );
-        for (target, pixels) in runs {
-            let mut colors = vec![Color::BLACK; pixels.len()];
-            fill(&mut strip, &target.pixels[pixels.clone()]);
-            strip.run(
-                target.len(),
-                target.min,
-                target.max,
-                &mut NoSignals,
-                &mut colors,
-            );
-            let run = run_context(DURATION / 4, target.len());
-            for (color, index) in colors.iter().zip(pixels) {
-                assert_eq!(
-                    *color,
-                    bound.alone(&run, target, index, &mut workspaces.alone),
-                    "{source}: count {} pixel {index}",
-                    target.len()
+        let context = run_context(DURATION / 4, 1);
+        let single = &bound.single;
+        single.with_strip(&context, &mut workspaces.strips, |strip| {
+            for (target, pixels) in runs {
+                let mut colors = vec![Color::BLACK; pixels.len()];
+                fill(strip, &target.pixels[pixels.clone()]);
+                strip.run(
+                    target.len(),
+                    target.min,
+                    target.max,
+                    &mut NoSignals,
+                    &mut colors,
                 );
+                let run = run_context(DURATION / 4, target.len());
+                for (color, index) in colors.iter().zip(pixels) {
+                    assert_eq!(
+                        *color,
+                        bound.alone(&run, target, index, &mut workspaces.alone),
+                        "{source}: count {} pixel {index}",
+                        target.len()
+                    );
+                }
             }
-        }
+        });
     }
 }
 
@@ -977,8 +966,7 @@ fn signal(input: usize, time: SampleTime, pixel: usize) -> Color {
     }
 }
 
-/// A query from pixel `current` of a fixture of `count` pixels. Global
-/// queries read other colors than local ones.
+/// A query from pixel `current` of a fixture of `count` pixels.
 fn query(
     input: usize,
     time: SampleTime,
@@ -989,7 +977,6 @@ fn query(
     let (input, index) = match pixel {
         SignalPixel::Current => (input, Some(current)),
         SignalPixel::Local(index) => (input, usize::try_from(index).ok()),
-        SignalPixel::Global(index) => (input + 7, usize::try_from(index).ok()),
         SignalPixel::Shifted(shift, edges) => (
             input,
             edges
@@ -1097,7 +1084,7 @@ fn operator_samples_in_strips_match_lone_pixels() {
         operator Shift { input source; sample {
             max(source.at(time, pixel.index + 1), source.at(time - 0.125, pixel.index - 2))
         } }
-        operator Mirror { input source; sample { source.at_global(time, target.count - 1 - pixel.index) } }
+        operator Mirror { input source; sample { source.at(time, target.count - 1 - pixel.index) } }
         operator Split { input source; input other; sample {
             if pixel.index % 2 == 0 { source.at(time) * 0.75 + #101010 }
             else { invert(other.at(time - 0.25)) * pixel.fraction }
@@ -1119,11 +1106,7 @@ fn operator_samples_in_strips_match_lone_pixels() {
     let mut workspaces = Workspaces::default();
     for operator in &operators {
         let invocation = playback::operator(operator);
-        let params = BoundParams::from_validated(
-            invocation.program().bytecode(),
-            invocation.params(),
-            &mut DslBindCache::default(),
-        );
+        let single = Single::operator(&invocation);
         let program = invocation.program().bytecode();
         for count in COUNTS {
             let target = Target::new(count);
@@ -1154,11 +1137,9 @@ fn operator_samples_in_strips_match_lone_pixels() {
                     })
                     .collect();
                 for runs in SPLITS {
-                    workspaces.strips.reserve(program);
-                    let mut strip =
-                        Strip::new(program, &params, &run, None, &mut workspaces.strips);
-                    let actual =
-                        run_strips(&mut strip, &target, runs, |first| Run { first, count });
+                    let actual = single.with_strip(&run, &mut workspaces.strips, |strip| {
+                        run_strips(strip, &target, runs, |first| Run { first, count })
+                    });
                     assert_same(
                         format_args!(
                             "{}: ticks={ticks} count={count} runs={runs:?}",

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use donder_language::sample_time_from_seconds_f64;
-use donder_runtime::{LoadError, LoadLimits, decode_rig, decode_sequence};
+use donder_runtime::{LoadError, LoadLimits, PreparedRig};
 use donder_runtime::{PlaybackRate, PreparedSequence, RigPlayback, SequencePlayback};
 use donder_runtime_types::{RigEvent, SampleTime};
 
@@ -135,12 +135,12 @@ impl PreviewPlayback {
         let content = match archive {
             None => None,
             Some(PreviewArchive::Sequence(bytes)) => Some(PreviewContent::Sequence(Box::new(
-                decode_sequence(bytes, preview_load_limits())
+                PreparedSequence::decode(bytes, preview_load_limits())
                     .map_err(PreviewPlaybackError::Decode)?
                     .into_playback(),
             ))),
             Some(PreviewArchive::Rig(bytes)) => Some(PreviewContent::Rig(Box::new(
-                decode_rig(bytes, preview_load_limits())
+                PreparedRig::decode(bytes, preview_load_limits())
                     .map_err(PreviewPlaybackError::Decode)?
                     .into_playback(),
             ))),
@@ -238,7 +238,7 @@ impl PreviewPlayback {
 
 fn preview_load_limits() -> LoadLimits {
     LoadLimits {
-        payload_bytes: 16 * 1024 * 1024,
+        image_bytes: 16 * 1024 * 1024,
         pixels: 1_000_000,
         graph_nodes: 100_000,
         workspace_bytes: 64 * 1024 * 1024,

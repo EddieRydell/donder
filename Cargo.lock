@@ -1733,20 +1733,21 @@ dependencies = [
 name = "donder-runtime"
 version = "0.1.0"
 dependencies = [
- "crc32fast",
+ "bytemuck",
  "criterion",
  "donder-language",
  "donder-runtime-types",
  "donder-test-support",
  "libm",
  "micromath",
- "rkyv",
 ]
 
 [[package]]
 name = "donder-runtime-types"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
+ "crc32fast",
  "fugit",
  "libm",
  "micromath",
