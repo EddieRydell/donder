@@ -13,26 +13,33 @@ effect MarkImpactBurst {
   param glow_width: float in 0.0..1.0 = 0.25;
   param glow_level: float in 0.0..1.0 = 0.35;
   param mirror: bool = false;
+  param overlap_marks: bool = false;
 
+  -- Without overlap a new mark restarts the burst; with it every burst still running
+  -- stays lit, and overlapping bursts keep the brighter color.
+  -- At most the 32 latest bursts overlap.
   sample {
-    let mark = mark_last_index(beats, time - offset_seconds);
-    let hit_time = mark_at(beats, mark);
-    let age = time - hit_time - offset_seconds;
-    -- Before the first mark the hit time is NaN, which renders black.
-    guard !(hit_time + offset_seconds < 0.0 || age < 0.0 || age >= burst_seconds);
-    let child_progress = age / burst_seconds;
-    let selected_gradient = gradients[mark % len(gradients)];
+    let now = time - offset_seconds;
+    let latest = mark_last_index(beats, now);
+    let live = latest - mark_last_index(beats, now - burst_seconds);
     let distance = abs(pixel.fraction - center_position);
     let distance = if mirror { distance * 2.0 } else { distance };
-    let travel = if direction == Inward { 1.0 - child_progress } else { child_progress };
-    let radius = mix(start_radius, end_radius, travel);
-    let ring = 1.0 - smoothstep(0.0, edge_width, abs(distance - radius));
-    let glow = 1.0 - smoothstep(0.0, max(edge_width, glow_width), abs(distance - radius));
-    let level = max(ring, glow * glow_level) * intensity[child_progress];
-    let color_position =
-      if color_mode == FromCenter { distance / end_radius }
-      else if color_mode == FromEdge { 1.0 - distance / end_radius }
-      else { child_progress };
-    gradient_color_scaled(selected_gradient, color_position, level)
+    max for back in 0..min(live, if overlap_marks { 32 } else { 1 }) {
+      let mark = latest - back;
+      let hit_time = mark_at(beats, mark);
+      guard hit_time + offset_seconds >= 0.0;
+      let child_progress = (now - hit_time) / burst_seconds;
+      let selected_gradient = gradients[mark % len(gradients)];
+      let travel = if direction == Inward { 1.0 - child_progress } else { child_progress };
+      let radius = mix(start_radius, end_radius, travel);
+      let ring = 1.0 - smoothstep(0.0, edge_width, abs(distance - radius));
+      let glow = 1.0 - smoothstep(0.0, max(edge_width, glow_width), abs(distance - radius));
+      let level = max(ring, glow * glow_level) * intensity[child_progress];
+      let color_position =
+        if color_mode == FromCenter { distance / end_radius }
+        else if color_mode == FromEdge { 1.0 - distance / end_radius }
+        else { child_progress };
+      gradient_color_scaled(selected_gradient, color_position, level)
+    }
   }
 }

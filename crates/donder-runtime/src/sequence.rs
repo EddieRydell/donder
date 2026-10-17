@@ -337,7 +337,7 @@ mod tests {
                 assert_eq!(input, 0);
                 inner
             });
-            builder.output([outer])
+            builder.output(Some(outer))
         });
         assert_eq!(sequence.archive_data().signals.programs.len(), 2);
         let bytes = crate::archive::encode_sequence(&sequence).unwrap();
@@ -407,7 +407,7 @@ mod tests {
             builder.padding(output, 2);
             builder.route(output, target, OutputEncoding::Rgb(RgbOrder::Bgr), None);
             builder.padding(output, 1);
-            builder.output([layer])
+            builder.output(Some(layer))
         });
         assert_eq!(sequence.archive_data().signals.programs.len(), 1);
         assert_eq!(sequence.outputs()[0].width, 12);
@@ -497,23 +497,13 @@ mod tests {
         data.signals.effects_by_layer = vec![vec![0].into_boxed_slice()].into();
         data.signals.layers = vec![PreparedLayer { enabled: true }].into();
         data.signals.plan = SignalPlan {
-            output_index: 1,
+            output: Some(0),
             target: 0,
-            nodes: vec![
-                PreparedSignalNode {
-                    kind: PreparedSignalKind::Layer { layer_index: 0 },
-                },
-                PreparedSignalNode {
-                    kind: PreparedSignalKind::Output {
-                        inputs: vec![0].into(),
-                    },
-                },
-            ]
+            nodes: vec![PreparedSignalNode {
+                kind: PreparedSignalKind::Layer { layer_index: 0 },
+            }]
             .into(),
             vm_workspace_count: 0,
-            frame_nodes: vec![0, 1].into(),
-            frame_slots: vec![0, 1].into(),
-            frame_buffer_count: 2,
         };
         data.outputs[0].width = 12;
         data.patch.routes = vec![PreparedPixelRoute {
@@ -550,18 +540,10 @@ mod tests {
                 effects_by_layer: Box::new([]),
                 layers: Box::new([]),
                 plan: SignalPlan {
-                    output_index: 0,
+                    output: None,
                     target: 0,
-                    nodes: vec![PreparedSignalNode {
-                        kind: PreparedSignalKind::Output {
-                            inputs: Box::new([]),
-                        },
-                    }]
-                    .into(),
+                    nodes: Box::new([]),
                     vm_workspace_count: 0,
-                    frame_nodes: vec![0].into(),
-                    frame_slots: vec![0].into(),
-                    frame_buffer_count: 1,
                 },
             },
             PreparedPatch {
@@ -656,7 +638,7 @@ mod tests {
         data.signals.effects = effects.into();
         data.signals.effects_by_layer[0] = vec![0, 1].into();
         data.signals.plan = SignalPlan {
-            output_index: 2,
+            output: Some(1),
             target: 0,
             nodes: vec![
                 PreparedSignalNode {
@@ -674,17 +656,9 @@ mod tests {
                         vm_slot: 0,
                     },
                 },
-                PreparedSignalNode {
-                    kind: PreparedSignalKind::Output {
-                        inputs: vec![1].into(),
-                    },
-                },
             ]
             .into(),
             vm_workspace_count: 1,
-            frame_nodes: vec![1].into(),
-            frame_slots: vec![1, 0, 0].into(),
-            frame_buffer_count: 1,
         };
         restore_fixture(data.signals, data.patch, data.outputs).unwrap()
     }

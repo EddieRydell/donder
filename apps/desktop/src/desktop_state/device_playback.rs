@@ -347,7 +347,7 @@ impl DesktopState {
     /// The caller holds the transport operation lock.
     fn device_audio_schedule_playing(
         &self,
-        position: f32,
+        position: f64,
         advancing: Option<PlaybackRate>,
         rate: PlaybackRate,
         duration: u32,
@@ -362,8 +362,8 @@ impl DesktopState {
         )?;
         let result = lock_unpoisoned(&self.audio).play_at(
             schedule.deadline,
-            schedule.position as f32 / 1_000_000.0,
-            duration as f32 / 1_000_000.0,
+            f64::from(schedule.position) / 1_000_000.0,
+            f64::from(duration) / 1_000_000.0,
             rate,
         );
         match result {
@@ -402,7 +402,7 @@ impl DesktopState {
     pub(super) fn device_audio_hold(
         &self,
         mode: DevicePlaybackMode,
-        position: Option<f32>,
+        position: Option<f64>,
         set_home: bool,
     ) -> Result<AppSnapshot, String> {
         let _operation = lock_unpoisoned(&self.transport_operation);
@@ -413,7 +413,7 @@ impl DesktopState {
     fn device_audio_hold_locked(
         &self,
         mode: DevicePlaybackMode,
-        position: Option<f32>,
+        position: Option<f64>,
         set_home: bool,
     ) -> Result<AppSnapshot, String> {
         let audio = self.audio_snapshot();
@@ -445,7 +445,7 @@ impl DesktopState {
         lock_unpoisoned(&self.audio).hold_at(
             schedule.deadline,
             state,
-            schedule.position as f32 / 1_000_000.0,
+            f64::from(schedule.position) / 1_000_000.0,
             set_home,
         );
         // The audio backend has its pause scheduled already. Publish the final seek/hold
@@ -467,8 +467,8 @@ impl DesktopState {
     }
 }
 
-fn seconds_to_micros(seconds: f32) -> Result<u32, String> {
-    donder_runtime_types::sample_time_from_seconds_f32(seconds)
+fn seconds_to_micros(seconds: f64) -> Result<u32, String> {
+    donder_language::sample_time_from_seconds_f64(seconds)
         .map(|time| time.as_ticks())
         .map_err(|error| format!("Invalid playback position: {error:?}"))
 }

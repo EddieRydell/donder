@@ -22,7 +22,8 @@ export type EditorCommandId =
   | "transport.cycleFollowMode"
   | "transport.tapMark"
   | "transport.rewind"
-  | "sequence.toggleSliceTool";
+  | "sequence.toggleSliceTool"
+  | "sequence.selectMatching";
 
 /** The keymap of every editor surface. Surfaces implement commands, never keys. */
 export const EDITOR_SHORTCUTS: Record<EditorCommandId, Shortcut[]> = {
@@ -46,7 +47,8 @@ export const EDITOR_SHORTCUTS: Record<EditorCommandId, Shortcut[]> = {
   "transport.tapMark": [{ key: "m" }],
   // Mac keyboards have no Home key; Command-Left Arrow is the platform's line-start gesture.
   "transport.rewind": isMac ? [{ key: "Home" }, { key: "ArrowLeft", primary: true }] : [{ key: "Home" }],
-  "sequence.toggleSliceTool": [{ key: "c" }]
+  "sequence.toggleSliceTool": [{ key: "c" }],
+  "sequence.selectMatching": [{ key: "s", shift: true }]
 };
 
 const EDITOR_COMMAND_IDS = Object.keys(EDITOR_SHORTCUTS) as EditorCommandId[];

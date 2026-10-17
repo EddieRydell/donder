@@ -14,7 +14,7 @@ import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
+import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
 
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
@@ -64,8 +64,11 @@ import {
 } from "./sequenceAutomationLayout";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
-import { markSnapTimes, snapDeltaToMarks, snapToMark } from "./sequenceSnap";
+import { clipEdgeSnapTimes, markSnapTimes, snapDeltaToTimes, snapToTime } from "./sequenceSnap";
 import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
+import { CascadeDialog, ClipArrangeMenus } from "./ClipArrange";
+import { ClipMatchDialog, ClipMatchMenuItems, type ClipMatchSeed, type MatchClips } from "./ClipMatch";
+import { sameGuiDocument } from "../../../snapshotState";
 
 import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
@@ -295,6 +298,8 @@ export function SequenceCanvas({
   const audioStripBottom = audioStripTop + audioStripHeight;
   const markRulerHeight = viewport.markRulerHeight;
   const marksLaneOnly = settings?.sequenceMarksLaneOnly ?? false;
+  /** Drags snap when the snap setting is on; holding Alt inverts it for the gesture. */
+  const snaps = (altKey: boolean) => (settings?.sequenceSnap ?? false) !== altKey;
   const top = audioStripBottom + markRulerHeight;
   const inMarkRuler = (y: number) => y >= audioStripBottom && y < top;
   const targetMarkCollectionKey = activeMarkCollection(document.markCollections, activeMarkCollectionKey)?.key ?? null;
@@ -882,10 +887,10 @@ export function SequenceCanvas({
     void runSnapshotCommand(() => commands.audioSeek(positionSeconds));
   };
   const timeFromCanvasX = (x: number) => clamp(roundToNanosecond(viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond), 0, document.durationSeconds);
-  /** Range edges and the cut line snap to marks with Alt, like other timeline drags. */
+  /** Range edges and the cut line snap to marks like other timeline drags. */
   const rangeTimeFromCanvasX = (x: number, snap: boolean) => {
     const seconds = timeFromCanvasX(x);
-    return snap ? snapToMark(seconds, markTimes, viewport.pxPerSecond) ?? seconds : seconds;
+    return snap ? snapToTime(seconds, markTimes, viewport.pxPerSecond) ?? seconds : seconds;
   };
   const rangeFromDrag = (anchorSeconds: number, seconds: number): PlaybackRange =>
     ({ startSeconds: Math.min(anchorSeconds, seconds), endSeconds: Math.max(anchorSeconds, seconds) });
@@ -1019,26 +1024,30 @@ export function SequenceCanvas({
     });
   };
 
-  /** The clip-drag delta, snapped to marks while Alt is held. */
-  const clipGestureDelta = (current: Extract<SequenceDragState, { kind: "sequence" | "automation" }>, event: { altKey: boolean; nativeEvent: { offsetX: number } }) => {
+  /** The clip-drag delta, snapped to marks and to the edges of unselected clips in the row the grabbed clip lands in. */
+  const clipGestureDelta = (current: Extract<SequenceDragState, { kind: "sequence" | "automation" }>, event: { altKey: boolean; nativeEvent: { offsetX: number } }, selection: Extract<SequenceSelection, { type: "clips" }>, destinationLane: number) => {
     const delta = roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond);
-    if (!event.altKey) return delta;
+    if (!snaps(event.altKey)) return delta;
     const clip = current.kind === "automation"
       ? document.automationClips.find((candidate) => candidate.id === current.id)
       : document.effects.find((candidate) => candidate.id === current.id);
     if (clip === undefined) return delta;
     const end = clip.startSeconds + clip.durationSeconds;
     const edges = current.resize === "left" ? [clip.startSeconds] : current.resize === "right" ? [end] : [clip.startSeconds, end];
-    return roundToNanosecond(snapDeltaToMarks(edges, delta, markTimes, viewport.pxPerSecond));
+    const rowTarget = targetAtLane(document, current.resize === "none" ? destinationLane : current.laneIndex);
+    const peers = current.kind === "automation"
+      ? document.automationClips.filter((peer) => !selection.automationIds.includes(peer.id) && targetsEqual(peer.rowTarget, rowTarget))
+      : document.effects.filter((peer) => !selection.effectIds.includes(peer.id) && targetsEqual(peer.target, rowTarget));
+    return roundToNanosecond(snapDeltaToTimes(edges, delta, [...markTimes, ...clipEdgeSnapTimes(peers)], viewport.pxPerSecond));
   };
 
-  /** Move a curve point, aligning it to neighbors with Shift and snapping its time to marks with Alt. */
+  /** Move a curve point, aligning it to neighbors with Shift and snapping its time to marks when snapping applies. */
   const dragAutomationPoint = (layout: AutomationClipLayout, index: number, x: number, y: number, modifiers: { shiftKey: boolean; altKey: boolean }) => {
     const { clip } = layout;
     let point = automationCurvePointFromCanvas(layout.curveRect, x, y);
     let guide: AutomationGuide = { time: null, value: null };
-    if (modifiers.altKey) {
-      const mark = snapToMark(clip.contentStartSeconds + point.time * clip.contentDurationSeconds, markTimes, viewport.pxPerSecond);
+    if (snaps(modifiers.altKey)) {
+      const mark = snapToTime(clip.contentStartSeconds + point.time * clip.contentDurationSeconds, markTimes, viewport.pxPerSecond);
       const time = mark === null ? null : (mark - clip.contentStartSeconds) / clip.contentDurationSeconds;
       if (time !== null && time >= 0 && time <= 1) {
         point = { ...point, time };
@@ -1079,6 +1088,42 @@ export function SequenceCanvas({
   const activeSelection = sequenceSelection ?? selectionFromSingle(selected);
   const editable = () => !useAppStore.getState().guiEditPending;
   const hasSelection = () => editable() && activeSelection !== null && selectionCount(activeSelection) > 0;
+
+  const clipMatch = settings?.sequenceClipMatch ?? null;
+  const [clipMatchSeed, setClipMatchSeed] = useState<ClipMatchSeed | null>(null);
+  const matchClips = useCallback<MatchClips>((seed, criteria, params) => {
+    const request = useAppStore.getState().guiRequest;
+    if (request === null) return Promise.reject(new Error("No sequence is open."));
+    return commands.matchSequenceClips(request, { ...seed, criteria, params });
+  }, [commands, useAppStore]);
+  /** "Select Matching" seeds from the selected clips. */
+  const selectedClipSeed = (): ClipMatchSeed | null => {
+    const selection = sequenceSelectionRef.current;
+    return selection?.type === "clips" && selectionCount(selection) > 0 ? { effectIds: selection.effectIds, automationIds: selection.automationIds } : null;
+  };
+  const selectMatching = (seed: ClipMatchSeed, criteria: SequenceClipMatch, params: SequenceClipParamMatch[]) => {
+    const request = useAppStore.getState().guiRequest;
+    matchClips(seed, criteria, params).then((selection) => {
+      // A result for a sequence that is no longer open names its clips, not these.
+      if (!sameGuiDocument(useAppStore.getState().guiRequest, request)) return;
+      updateSequenceSelection(selection);
+      setSelected(singleSelectionFocus(selection));
+    }).catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
+  };
+  const [cascadeOpen, setCascadeOpen] = useState(false);
+  const arrangeClips = (arrangement: SequenceClipArrangement) => {
+    const seed = selectedClipSeed();
+    if (seed === null) return;
+    void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type: "arrangeClips", ...seed, arrangement })).then((result) => {
+      updateSequenceSelection(result.selection);
+      return result;
+    });
+  };
+  const saveClipMatch = (criteria: SequenceClipMatch) => {
+    const current = useAppStore.getState().snapshot?.settings;
+    if (current === undefined) return;
+    void runSnapshotCommand(() => commands.updateAppSettings({ ...current, sequenceClipMatch: criteria }));
+  };
   const transferSelection = (type: "copy" | "cut") => {
     if (activeSelection === null) return;
     void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type, selection: activeSelection })).then((result) => {
@@ -1175,7 +1220,14 @@ export function SequenceCanvas({
     "edit.delete": { enabled: editable, run: deleteSelection },
     "edit.moveLeft": arrowCommand(-1),
     "edit.moveRight": arrowCommand(1),
-    "sequence.toggleSliceTool": { run: toggleSliceTool }
+    "sequence.toggleSliceTool": { run: toggleSliceTool },
+    "sequence.selectMatching": {
+      enabled: () => clipMatch !== null && selectedClipSeed() !== null,
+      run: () => {
+        const seed = selectedClipSeed();
+        if (seed !== null && clipMatch !== null) selectMatching(seed, clipMatch, []);
+      }
+    }
   });
 
   return (
@@ -1238,7 +1290,8 @@ export function SequenceCanvas({
         const hit = hitSequence(visibleClips, x, y);
         if (hit !== null) {
           setSelected({ type: "effect", id: hit.effect.id });
-          updateSequenceSelection({ type: "clips", automationIds: [], effectIds: [hit.effect.id] });
+          const active = sequenceSelectionRef.current;
+          updateSequenceSelection(active?.type === "clips" && active.effectIds.includes(hit.effect.id) ? active : { type: "clips", automationIds: [], effectIds: [hit.effect.id] });
           setSequenceContextMenu({ kind: "effect", laneIndex: hit.laneIndex, startSeconds, effectId: hit.effect.id });
           return;
         }
@@ -1315,7 +1368,7 @@ export function SequenceCanvas({
             drag.current = { kind: "timeRange", startX: x, anchorSeconds: fromEnd ? range.startSeconds : range.endSeconds, fromEdge: true, active: false };
             return;
           }
-          drag.current = { kind: "timeRange", startX: x, anchorSeconds: rangeTimeFromCanvasX(x, event.altKey), fromEdge: false, active: false };
+          drag.current = { kind: "timeRange", startX: x, anchorSeconds: rangeTimeFromCanvasX(x, snaps(event.altKey)), fromEdge: false, active: false };
           return;
         }
         if (inMarkRuler(y)) {
@@ -1400,7 +1453,7 @@ export function SequenceCanvas({
         }
         if (tool === "slice" && x >= left && y >= top) {
           event.preventDefault();
-          const seconds = rangeTimeFromCanvasX(x, event.altKey);
+          const seconds = rangeTimeFromCanvasX(x, snaps(event.altKey));
           drag.current = { kind: "slice", seconds, startY: y };
           setSlice({ seconds, fromY: y, toY: y });
           return;
@@ -1546,7 +1599,7 @@ export function SequenceCanvas({
             if (Math.abs(event.nativeEvent.offsetX - current.startX) < SEQUENCE_DRAG_THRESHOLD_PX) return;
             current.active = true;
           }
-          setRangeDraft(rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, event.altKey)));
+          setRangeDraft(rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, snaps(event.altKey))));
           return;
         }
         if (current?.kind === "marquee") {
@@ -1611,7 +1664,7 @@ export function SequenceCanvas({
           setRowResizeHover(resizeHit === null ? null : { laneIndex: resizeHit.laneIndex, rowKind: resizeHit.rowKind });
           if (tool === "slice") {
             const inLanes = x >= left && y >= top;
-            setSlice(inLanes ? { seconds: rangeTimeFromCanvasX(x, event.altKey), fromY: y, toY: y } : null);
+            setSlice(inLanes ? { seconds: rangeTimeFromCanvasX(x, snaps(event.altKey)), fromY: y, toY: y } : null);
             if (inLanes) {
               setHover(null);
               setAutomationHover(null);
@@ -1658,7 +1711,7 @@ export function SequenceCanvas({
         if (selection?.type !== "clips") return;
         const sourceLane = current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event, selection, destinationLane), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         setGroupDraft(gesture.effects);
         setAutomationDrafts(gesture.automation);
       }}
@@ -1681,7 +1734,7 @@ export function SequenceCanvas({
         }
         if (current?.kind === "timeRange") {
           if (current.active) {
-            const range = rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, event.altKey));
+            const range = rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, snaps(event.altKey)));
             if (range.endSeconds <= range.startSeconds) {
               setRangeDraft(null);
               return;
@@ -1767,7 +1820,7 @@ export function SequenceCanvas({
         if (!current.active || selection?.type !== "clips") { clearDrafts(); return; }
         const sourceLane = current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event, selection, destinationLane), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         if (!gesture.changed) { clearDrafts(); return; }
         void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, gesture.edit), gestureRequest.current).then((result) => {
           updateSequenceSelection(result.selection);
@@ -1864,6 +1917,36 @@ export function SequenceCanvas({
                   Add Automation Clip
                 </ContextMenu.Item>
               )}
+              {(sequenceContextMenu.kind === "effect" || sequenceContextMenu.kind === "automation") && clipMatch !== null && (
+                <>
+                  <ContextMenu.Separator className="menu-separator" />
+                  <ContextMenu.Sub>
+                    <ContextMenu.SubTrigger className="menu-item">
+                      Select Matching <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
+                    </ContextMenu.SubTrigger>
+                    <ContextMenu.Portal container={overlayContainer}>
+                      <ContextMenu.SubContent className="menu-content">
+                        <ClipMatchMenuItems
+                          criteria={clipMatch}
+                          onCriteria={saveClipMatch}
+                          onSelectMatching={() => {
+                            const seed = selectedClipSeed();
+                            if (seed !== null) selectMatching(seed, clipMatch, []);
+                          }}
+                          onOptions={() => { setClipMatchSeed(selectedClipSeed()); }}
+                        />
+                      </ContextMenu.SubContent>
+                    </ContextMenu.Portal>
+                  </ContextMenu.Sub>
+                  <ClipArrangeMenus
+                    reference={sequenceContextMenu.kind === "effect" ? { type: "effect", id: sequenceContextMenu.effectId } : { type: "automation", id: sequenceContextMenu.clipId }}
+                    canAlign={activeSelection !== null && selectionCount(activeSelection) > 1}
+                    markCollections={markTimes.length === 0 ? [] : visibleMarkCollections.map((collection) => collection.key)}
+                    onArrange={arrangeClips}
+                    onCascade={() => { setCascadeOpen(true); }}
+                  />
+                </>
+              )}
               {sequenceContextMenu.kind === "effect" && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
@@ -1916,6 +1999,29 @@ export function SequenceCanvas({
           </ContextMenu.Portal>
         )}
       </ContextMenu.Root>
+      {cascadeOpen && (
+        <CascadeDialog
+          onCascade={(stepSeconds, reverse) => {
+            arrangeClips({ type: "cascade", stepSeconds, reverse });
+            setCascadeOpen(false);
+          }}
+          onClose={() => { setCascadeOpen(false); }}
+        />
+      )}
+      {clipMatchSeed !== null && clipMatch !== null && (
+        <ClipMatchDialog
+          document={document}
+          seed={clipMatchSeed}
+          criteria={clipMatch}
+          match={matchClips}
+          onSelect={(criteria, params) => {
+            saveClipMatch(criteria);
+            selectMatching(clipMatchSeed, criteria, params);
+            setClipMatchSeed(null);
+          }}
+          onClose={() => { setClipMatchSeed(null); }}
+        />
+      )}
       <div className="sequence-gutter-scrollbar-divider" style={{ left }} aria-hidden="true" />
       <Tooltip.Provider>
         <Tooltip.Root open={badgeTooltip !== null && badgeLane !== undefined}>

@@ -45,7 +45,7 @@ fn spatial_storage_is_shared_by_physical_fixture_and_only_kept_for_consumers() {
             builder.sample(&plain, window, other),
         ];
         let layer = builder.layer(true, effects);
-        builder.output([layer])
+        builder.output(Some(layer))
     });
     let graph = sequence.archive_data().signals;
     assert_eq!(graph.positions[0].len(), 150);
@@ -70,7 +70,7 @@ fn archive_roundtrip_preserves_boundary_controller_metadata_and_output_order() {
             let output = builder.port(controller, port);
             builder.padding(output, width);
         }
-        builder.output([])
+        builder.output(None)
     });
     let bytes = crate::archive::encode_sequence(&sequence).unwrap();
     let decoded =
@@ -104,7 +104,7 @@ fn full_rig_target_accepts_a_fixture_larger_than_u16_indices() {
         let geometry =
             FixtureGeometry::admit((0..65_537).map(|cell| [cell as f32, 0.0]).collect()).unwrap();
         builder.fixture(7, geometry);
-        builder.output([])
+        builder.output(None)
     });
     let graph = sequence.archive_data().signals;
     let target = graph.target(graph.plan.target);

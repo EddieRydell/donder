@@ -136,8 +136,8 @@ export function buildAutomationClipLayout(clips: AutomationClipView[], rows: Seq
   for (const [target, laneClips] of byAutomationLane) {
     const targetRows = rows.filter((row) => row.target.fixture === target && row.kind === "automation");
     if (targetRows.length === 0) throw new Error("Automation clip has no timeline row.");
-    for (const row of targetRows.filter((candidate) => candidate.height > 0)) for (const group of groupOverlappingClips(laneClips)) {
-      const assigned = assignOverlapSlots(group);
+    for (const row of targetRows.filter((candidate) => candidate.height > 0)) for (const group of groupOverlappingClips(laneClips, (clip) => clip)) {
+      const assigned = assignOverlapSlots(group, (clip) => clip);
       const slotCount = Math.max(1, Math.max(...assigned.map((clip) => clip.slot)) + 1);
       for (const clip of assigned) {
         const slotHeight = row.height / slotCount;
@@ -191,20 +191,28 @@ export function automationHoverEqual(left: AutomationHover | null, right: Automa
   return left.clipId === right.clipId && left.resize === right.resize;
 }
 
-type TimedClip = { id: number; startSeconds: number; durationSeconds: number };
+type ClipTiming = { id: number; startSeconds: number; durationSeconds: number };
 
-function compareAutomationClipsByTime(left: TimedClip, right: TimedClip) {
-  return left.startSeconds - right.startSeconds || left.startSeconds + left.durationSeconds - (right.startSeconds + right.durationSeconds) || left.id - right.id;
+/** A clip's edges at whole nanoseconds, so clips that touch in the model touch here. */
+function clipSpan(timing: ClipTiming) {
+  return { start: roundToNanosecond(timing.startSeconds), end: roundToNanosecond(timing.startSeconds + timing.durationSeconds) };
 }
 
-export function groupOverlappingClips<T extends TimedClip>(clips: T[]) {
-  const sorted = [...clips].sort(compareAutomationClipsByTime);
+function compareClipsByTime(left: ClipTiming, right: ClipTiming) {
+  const leftSpan = clipSpan(left);
+  const rightSpan = clipSpan(right);
+  return leftSpan.start - rightSpan.start || leftSpan.end - rightSpan.end || left.id - right.id;
+}
+
+/** A row's clips in runs that overlap in time; each run shares the row's height. */
+export function groupOverlappingClips<T>(clips: T[], timing: (clip: T) => ClipTiming) {
+  const sorted = [...clips].sort((left, right) => compareClipsByTime(timing(left), timing(right)));
   const groups: T[][] = [];
   let current: T[] = [];
   let currentEnd = -Infinity;
   for (const clip of sorted) {
-    const end = clip.startSeconds + clip.durationSeconds;
-    if (current.length === 0 || clip.startSeconds < currentEnd) {
+    const { start, end } = clipSpan(timing(clip));
+    if (current.length === 0 || start < currentEnd) {
       current.push(clip);
       currentEnd = Math.max(currentEnd, end);
     } else {
@@ -217,11 +225,11 @@ export function groupOverlappingClips<T extends TimedClip>(clips: T[]) {
   return groups;
 }
 
-export function assignOverlapSlots<T extends TimedClip>(group: T[]) {
+/** The slot of each clip in an overlapping run: the first slot free at its start. */
+export function assignOverlapSlots<T>(group: T[], timing: (clip: T) => ClipTiming) {
   const slotEnds: number[] = [];
-  return [...group].sort(compareAutomationClipsByTime).map((clip) => {
-    const start = clip.startSeconds;
-    const end = clip.startSeconds + clip.durationSeconds;
+  return [...group].sort((left, right) => compareClipsByTime(timing(left), timing(right))).map((clip) => {
+    const { start, end } = clipSpan(timing(clip));
     let slot = slotEnds.findIndex((slotEnd) => slotEnd <= start);
     if (slot === -1) slot = slotEnds.length;
     slotEnds[slot] = end;

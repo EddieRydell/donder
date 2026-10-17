@@ -65,7 +65,7 @@ impl Performance {
         keys.sort();
         PerformSession {
             rig: self.rig.clone(),
-            elapsed_seconds: sample_time_seconds_f32(self.clock.now()),
+            elapsed_seconds: f64::from(sample_time_seconds_f32(self.clock.now())),
             switches: self
                 .switches
                 .iter()
@@ -338,7 +338,7 @@ impl DesktopState {
             .map(|performance| crate::preview::PreviewClock {
                 generation: performance.generation,
                 state: AudioTransportState::Playing,
-                position_seconds: sample_time_seconds_f32(performance.clock.now()),
+                position_seconds: f64::from(sample_time_seconds_f32(performance.clock.now())),
                 start_delay_seconds: 0.0,
                 playback_speed: donder_runtime::PlaybackRate::NORMAL.into(),
             })

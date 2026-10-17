@@ -559,11 +559,11 @@ pub(super) fn edit_sequence(
                     .effects
                     .iter()
                     .find(|effect| &effect.id == effect_id)
-                    .map(|effect| effect.start.as_seconds_f32())
+                    .map(|effect| effect.start.as_seconds_f64())
                     .ok_or_else(|| {
                         GuiMutationError::Invalid("Effect was not found.".to_string())
                     })?,
-                AutomationTarget::CompositionNodeParam { .. } => clip.start.as_seconds_f32(),
+                AutomationTarget::CompositionNodeParam { .. } => clip.start.as_seconds_f64(),
             };
             let mapping = automation_target_mapping(session, &sequence_id, &binding.target)?;
             let value = automation_binding_value_at(&clip, &mapping, sample_seconds)?;

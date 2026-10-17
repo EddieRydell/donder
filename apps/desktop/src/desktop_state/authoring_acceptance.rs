@@ -1634,7 +1634,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         assert_eq!(result.source.owned_path.is_empty(), !inline);
         assert_eq!(result.source.path != "project.data.donder", new_file);
         let sequence = after.project.sequence(source.id()).unwrap();
-        assert_eq!(sequence.duration.as_seconds_f32(), 30.0);
+        assert_eq!(sequence.duration.as_seconds_f64(), 30.0);
         assert_eq!(sequence.frame_rate, 40);
         state.undo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *before);

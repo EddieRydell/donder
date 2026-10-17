@@ -114,7 +114,8 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
       return nodes.map((node) => {
         const local = localNodes.get(node.id);
         const active = gesture.current;
-        const keepDraft = active !== null && active.origin === request && active.ids.has(node.id);
+        // The edit's own snapshot event advances the request before its document arrives; finishMove settles a committing gesture.
+        const keepDraft = active !== null && active.ids.has(node.id) && (active.committing || active.origin === request);
         return { ...node, ...(local?.measured === undefined ? {} : { measured: local.measured }), selected: local?.selected ?? false,
           position: keepDraft && local !== undefined ? local.position : node.position,
           ...(local?.resizing === true ? { width: local.width, height: local.height, resizing: true } : {})

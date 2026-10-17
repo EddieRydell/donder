@@ -11,6 +11,20 @@ pub enum SecondsError {
 
 pub const NANOS_PER_SECOND: u64 = 1_000_000_000;
 
+fn nanos_from_seconds(seconds: f64) -> Result<u64, SecondsError> {
+    if !seconds.is_finite() {
+        return Err(SecondsError::NotFinite);
+    }
+    if seconds < 0.0 {
+        return Err(SecondsError::Negative);
+    }
+    let nanos = (seconds * NANOS_PER_SECOND as f64).round();
+    if nanos >= u64::MAX as f64 {
+        return Err(SecondsError::OutOfRange);
+    }
+    Ok(nanos as u64)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DonderTime(pub Duration);
 
@@ -18,16 +32,10 @@ pub struct DonderTime(pub Duration);
 pub struct DonderDuration(pub Duration);
 
 impl DonderTime {
-    pub fn try_from_seconds_f32(seconds: f32) -> Result<Self, SecondsError> {
-        if !seconds.is_finite() {
-            return Err(SecondsError::NotFinite);
-        }
-        if seconds < 0.0 {
-            return Err(SecondsError::Negative);
-        }
-        Duration::try_from_secs_f32(seconds)
-            .map(Self)
-            .map_err(|_| SecondsError::OutOfRange)
+    /// The nearest whole nanosecond, so a time that was itself whole
+    /// nanoseconds round-trips exactly through `as_seconds_f64`.
+    pub fn try_from_seconds_f64(seconds: f64) -> Result<Self, SecondsError> {
+        nanos_from_seconds(seconds).map(Self::from_nanos)
     }
 
     pub const fn from_nanos(nanos: u64) -> Self {
@@ -46,22 +54,16 @@ impl DonderTime {
         (self.as_nanos() + 500) / 1_000
     }
 
-    pub fn as_seconds_f32(&self) -> f32 {
-        self.0.as_secs_f32()
+    pub fn as_seconds_f64(&self) -> f64 {
+        self.0.as_secs_f64()
     }
 }
 
 impl DonderDuration {
-    pub fn try_from_seconds_f32(seconds: f32) -> Result<Self, SecondsError> {
-        if !seconds.is_finite() {
-            return Err(SecondsError::NotFinite);
-        }
-        if seconds < 0.0 {
-            return Err(SecondsError::Negative);
-        }
-        Duration::try_from_secs_f32(seconds)
-            .map(Self)
-            .map_err(|_| SecondsError::OutOfRange)
+    /// The nearest whole nanosecond, so a time that was itself whole
+    /// nanoseconds round-trips exactly through `as_seconds_f64`.
+    pub fn try_from_seconds_f64(seconds: f64) -> Result<Self, SecondsError> {
+        nanos_from_seconds(seconds).map(Self::from_nanos)
     }
 
     pub const fn from_nanos(nanos: u64) -> Self {
@@ -84,8 +86,8 @@ impl DonderDuration {
         self.0.is_zero()
     }
 
-    pub fn as_seconds_f32(&self) -> f32 {
-        self.0.as_secs_f32()
+    pub fn as_seconds_f64(&self) -> f64 {
+        self.0.as_secs_f64()
     }
 }
 
@@ -190,4 +192,14 @@ impl Default for Scale3 {
             z: 1.0,
         }
     }
+}
+
+/// A host clock position in seconds, as the runtime samples it.
+pub fn sample_time_from_seconds_f64(seconds: f64) -> Result<SampleTime, SampleTimeError> {
+    let time = DonderTime::try_from_seconds_f64(seconds).map_err(|error| match error {
+        SecondsError::NotFinite => SampleTimeError::NotFinite,
+        SecondsError::Negative => SampleTimeError::Negative,
+        SecondsError::OutOfRange => SampleTimeError::OutOfRange,
+    })?;
+    sample_time_from_donder_time(&time)
 }

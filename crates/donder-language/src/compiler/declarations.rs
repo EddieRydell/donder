@@ -12,14 +12,15 @@ pub struct OperatorInputDecl {
 pub struct ParamDecl {
     pub name: Identifier,
     pub ty: Type,
-    /// Present exactly for `int`, `float`, and `curve` params.
+    /// Present exactly for `int`, `float`, `curve` and `array<curve>` params.
     pub range: Option<ParamRange>,
     pub default: Option<Value>,
     /// Shown in the inspector beside the parameter.
     pub description: Option<String>,
 }
 
-/// Inclusive declared range. A curve param's range bounds its point values.
+/// Inclusive declared range. A curve param's range bounds its point values,
+/// and an `array<curve>` param's range bounds every item's point values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamRange {
     Int { min: i32, max: i32 },
@@ -34,6 +35,7 @@ impl ParamRange {
             (Self::Float { min, max }, Type::Float | Type::Curve) => {
                 min.is_finite() && max.is_finite() && min <= max
             }
+            (Self::Float { .. }, Type::Array(item)) if **item == Type::Curve => self.fits(item),
             _ => false,
         }
     }
@@ -54,6 +56,9 @@ impl ParamRange {
                 .points
                 .iter()
                 .all(|point| self.contains_float(point.value)),
+            (Self::Float { .. }, Value::Array(items)) => {
+                items.iter().all(|item| self.contains(item))
+            }
             _ => false,
         }
     }

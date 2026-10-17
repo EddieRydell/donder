@@ -208,7 +208,7 @@ pub enum RigMappingAction {
     rename_all_fields = "camelCase"
 )]
 pub enum RigTriggerLength {
-    Fixed { duration_seconds: f32 },
+    Fixed { duration_seconds: f64 },
     Held,
     Latched,
 }

@@ -8,7 +8,7 @@ use specta::Type;
 pub struct NewSequenceRequest {
     pub storage: NewSequenceStorage,
     pub initial_color: String,
-    pub duration_seconds: f32,
+    pub duration_seconds: f64,
     pub frame_rate: u32,
 }
 
@@ -79,6 +79,9 @@ pub struct AppSettings {
     pub autosave_project_edits: bool,
     pub sequence_initial_zoom_mode: SequenceInitialZoomMode,
     pub sequence_follow_mode: SequenceFollowMode,
+    /// Timeline drags snap to marks and clip edges; holding Alt inverts this for the gesture.
+    pub sequence_snap: bool,
+    pub sequence_clip_match: SequenceClipMatch,
     pub sequence_initial_px_per_second: f32,
     pub sequence_initial_lane_height_px: f32,
     #[serde(default)]
@@ -115,6 +118,8 @@ impl Default for AppSettings {
             autosave_project_edits: true,
             sequence_initial_zoom_mode: SequenceInitialZoomMode::FitToWidth,
             sequence_follow_mode: SequenceFollowMode::Page,
+            sequence_snap: false,
+            sequence_clip_match: SequenceClipMatch::default(),
             sequence_initial_px_per_second: 80.0,
             sequence_initial_lane_height_px: 42.0,
             sequence_spectrogram_enabled: false,
@@ -498,6 +503,44 @@ impl Default for SpatialSnapSettings {
             enabled: true,
             spacing_meters: 0.1,
             unit: SpatialUnit::Meters,
+        }
+    }
+}
+
+/// Which properties "Select Matching" compares between each seed clip and the
+/// other clips. Effect type applies only between effects.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceClipMatch {
+    pub effect_type: bool,
+    pub start: SequenceClipTimeMatch,
+    pub end: SequenceClipTimeMatch,
+    pub duration: SequenceClipTimeMatch,
+    pub same_lane: bool,
+    pub automation_clips: bool,
+}
+
+/// A time property matches within `tolerance_seconds` of the seed's.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceClipTimeMatch {
+    pub enabled: bool,
+    pub tolerance_seconds: f64,
+}
+
+impl Default for SequenceClipMatch {
+    fn default() -> Self {
+        let time = |enabled| SequenceClipTimeMatch {
+            enabled,
+            tolerance_seconds: 0.005,
+        };
+        Self {
+            effect_type: true,
+            start: time(true),
+            end: time(false),
+            duration: time(false),
+            same_lane: false,
+            automation_clips: false,
         }
     }
 }

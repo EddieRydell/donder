@@ -21,4 +21,5 @@ mod quantities;
 pub use quantities::{
     Distance, DistanceSpan, DonderDuration, DonderTime, NANOS_PER_SECOND, Point3, Rotation3,
     Scale3, SecondsError, sample_duration_from_donder_duration, sample_time_from_donder_time,
+    sample_time_from_seconds_f64,
 };

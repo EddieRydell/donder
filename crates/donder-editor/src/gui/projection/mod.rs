@@ -1,8 +1,9 @@
 mod params;
+pub(super) use params::effect_params;
+use params::graph_node_id;
 pub(super) use params::{
     composition_graph, curve_library, gradient_library, invocation_params, layers_to_gui,
 };
-use params::{effect_params, graph_node_id};
 
 /// The inspector's view of `effect_ids` in the requested sequence, in the
 /// requested order; ids the sequence does not have are skipped.
@@ -63,8 +64,8 @@ pub(super) fn project_sequence_clips(
             name: effect.name.as_str().to_string(),
             description: effect.description.clone(),
             layer_id: effect.layer_id.0,
-            start_seconds: effect.start.as_seconds_f32(),
-            duration_seconds: effect.duration.as_seconds_f32(),
+            start_seconds: effect.start.as_seconds_f64(),
+            duration_seconds: effect.duration.as_seconds_f64(),
             target: effect_target(&effect.target),
             target_label: effect_target_label(session, &effect.target),
             scope: match effect.scope {
@@ -93,7 +94,7 @@ pub(super) fn project_sequence_clips(
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
-            duration_seconds: sequence.duration.as_seconds_f32(),
+            duration_seconds: sequence.duration.as_seconds_f64(),
             frame_rate: sequence.frame_rate as f32,
             audio: sequence_audio(session, resolved.identity.document_id(), &sequence.audio),
             mark_collections: sequence
@@ -106,7 +107,7 @@ pub(super) fn project_sequence_clips(
                     marks_seconds: collection
                         .marks
                         .iter()
-                        .map(|mark| mark.time.as_seconds_f32())
+                        .map(|mark| mark.time.as_seconds_f64())
                         .collect(),
                     mark_labels: collection
                         .marks
@@ -133,8 +134,8 @@ fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomation
         .iter()
         .map(|clip| SequenceAutomationClip {
             id: clip.id.0,
-            start_seconds: clip.start.as_seconds_f32(),
-            duration_seconds: clip.duration.as_seconds_f32(),
+            start_seconds: clip.start.as_seconds_f64(),
+            duration_seconds: clip.duration.as_seconds_f64(),
             row_target: effect_target(&clip.row_target),
             curve: clip
                 .curve

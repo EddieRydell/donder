@@ -251,10 +251,6 @@ fn graph_port_to_gui(port: &OperatorPortDefinition) -> SequenceGraphPortDefiniti
     SequenceGraphPortDefinition {
         source_name: port.source_name.to_string(),
         display_name: port.display_name.to_string(),
-        cardinality: match port.cardinality {
-            OperatorPortCardinality::One => SequenceGraphPortCardinality::One,
-            OperatorPortCardinality::Many => SequenceGraphPortCardinality::Many,
-        },
     }
 }
 
@@ -276,7 +272,6 @@ fn graph_node_inputs(
         CompositionGraphNodeKind::Output => vec![SequenceGraphPortDefinition {
             source_name: "input".to_string(),
             display_name: "Input".to_string(),
-            cardinality: SequenceGraphPortCardinality::Many,
         }],
     }
 }
@@ -290,7 +285,6 @@ fn graph_node_outputs(
             vec![SequenceGraphPortDefinition {
                 source_name: "output".to_string(),
                 display_name: "Output".to_string(),
-                cardinality: SequenceGraphPortCardinality::Many,
             }]
         }
         CompositionGraphNodeKind::Operator(operator) => session
@@ -626,10 +620,7 @@ use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
 };
 use donder_model::{CurveSource, EffectParamValue, GradientSource};
-use donder_model::{
-    GraphOperatorNode, OperatorDefinition, OperatorPortCardinality, OperatorPortDefinition,
-    OperatorRef,
-};
+use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorPortDefinition, OperatorRef};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::{Identifier, Type, Value as EffectValue};
 
@@ -637,7 +628,6 @@ use donder_sequence_api::{
     SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam,
     SequenceEffectParamKind, SequenceEffectParamValue, SequenceGradientLibraryItem,
     SequenceGradientValue, SequenceGraphEdge, SequenceGraphNode, SequenceGraphNodeKind,
-    SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceGraphPortCardinality,
-    SequenceGraphPortDefinition, SequenceLayer, SequenceLibrarySource, SequenceParamAutomation,
-    SequenceParamRange,
+    SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceGraphPortDefinition,
+    SequenceLayer, SequenceLibrarySource, SequenceParamAutomation, SequenceParamRange,
 };

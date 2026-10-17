@@ -75,7 +75,7 @@ pub(crate) async fn audio_rewind_to_zero(
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn audio_seek(
-    position_seconds: f32,
+    position_seconds: f64,
     app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {

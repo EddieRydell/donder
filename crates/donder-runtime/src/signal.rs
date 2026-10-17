@@ -109,13 +109,11 @@ pub(crate) struct PreparedEffectAutomation<A = Box<[PreparedAutomation]>> {
 /// Graph connections and the buffer/VM schedule assigned during elaboration.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct SignalPlan<A = Box<[PreparedAutomation]>> {
-    pub output_index: usize,
+    /// The node the output shows; none is black.
+    pub output: Option<usize>,
     pub target: usize,
     pub nodes: Box<[PreparedSignalNode<A>]>,
     pub vm_workspace_count: usize,
-    pub frame_nodes: Box<[usize]>,
-    pub frame_slots: Box<[usize]>,
-    pub frame_buffer_count: usize,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -134,7 +132,8 @@ pub(crate) enum PreparedSignalKind<A = Box<[PreparedAutomation]>> {
         automation: A,
         vm_slot: usize,
     },
-    Output {
+    /// The channel-wise maximum of several signals fanning into one port.
+    Mix {
         inputs: Box<[usize]>,
     },
 }
@@ -179,7 +178,7 @@ impl PreparedPixel {
 /// operator VMs apart from the workspace every sampled node shares.
 #[derive(Debug)]
 pub(crate) struct EvaluationWorkspace {
-    pub(crate) signal_buffers: Box<[Color]>,
+    pub(crate) signal_buffer: Box<[Color]>,
     pub(crate) operator_automation: Box<[EffectAutomationWorkspace]>,
     /// One strip workspace per operator depth slot.
     pub(crate) operator_vm: Vec<StripWorkspace>,
@@ -276,26 +275,26 @@ impl EffectAutomationWorkspace {
 }
 
 impl PreparedSignalGraph {
-    /// Maximum number of temporary frames held by nested whole-frame sampling.
-    /// DSL frame caches own their storage separately, but may sample operators.
+    /// Maximum number of temporary frames held by nested whole-frame mixes.
+    /// DSL frame caches own their storage separately, but may sample mixes.
     pub(crate) fn frame_scratch_count(&self) -> usize {
         self.frame_scratch_count_with(|program| self.programs[program].frame_cache_count())
     }
 }
 
 impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, AutomationPlan> {
+    pub(crate) fn frame_scratch_count(&self) -> usize {
+        self.frame_scratch_count_with(|program| {
+            operator_frame_cache_count(self.operator_program(program))
+        })
+    }
+
     pub(crate) fn sample_program(&self, index: usize) -> &SampleProgram {
         self.programs.sample(index)
     }
 
     pub(crate) fn operator_program(&self, index: usize) -> &OperatorProgram {
         self.programs.operator(index)
-    }
-
-    pub(crate) fn frame_scratch_count(&self) -> usize {
-        self.frame_scratch_count_with(|program| {
-            operator_frame_cache_count(self.operator_program(program))
-        })
     }
 
     /// Preallocates frame buffers, strip workspaces and automation storage
@@ -318,13 +317,13 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
             operator_vm: (0..self.plan.vm_workspace_count)
                 .map(|_| StripWorkspace::default())
                 .collect(),
-            signal_buffers: vec![
+            signal_buffer: vec![
                 Color {
                     red: 0,
                     green: 0,
                     blue: 0
                 };
-                self.plan.frame_buffer_count * self.pixel_count
+                self.pixel_count
             ]
             .into_boxed_slice(),
             sampling: SamplingWorkspace {
@@ -482,12 +481,9 @@ impl<P, A> PreparedSignalGraph<P, A> {
                 .into_iter()
                 .map(&mut node)
                 .collect(),
-            output_index: self.plan.output_index,
+            output: self.plan.output,
             target: self.plan.target,
             vm_workspace_count: self.plan.vm_workspace_count,
-            frame_nodes: self.plan.frame_nodes,
-            frame_slots: self.plan.frame_slots,
-            frame_buffer_count: self.plan.frame_buffer_count,
         };
         PreparedSignalGraph {
             programs: self.programs,
@@ -507,33 +503,37 @@ impl<P, A> PreparedSignalGraph<P, A> {
         }
     }
 
+    /// Scratch frames held at once by whole-frame mixes: one per mix, while it
+    /// samples its later inputs. The root and frame-cached operator inputs
+    /// sample whole frames; other inputs sample strips, which mix on the stack.
     fn frame_scratch_count_with(&self, frame_cache_count: impl Fn(usize) -> usize) -> usize {
-        let samples_frames = |node: &PreparedSignalNode<A>| match &node.kind {
-            PreparedSignalKind::Operator { operator, .. } => {
-                frame_cache_count(operator.program) != 0
-            }
-            _ => false,
-        };
-        if !self.plan.nodes.iter().any(samples_frames) {
-            return 0;
-        }
-        let mut depths = Vec::with_capacity(self.plan.nodes.len());
-        let mut required = 0;
+        // Scratch below a node sampled as a whole frame, and as strips.
+        let mut frame = Vec::with_capacity(self.plan.nodes.len());
+        let mut strip = Vec::with_capacity(self.plan.nodes.len());
         for node in &self.plan.nodes {
-            let (inputs, extra) = match &node.kind {
-                PreparedSignalKind::Layer { .. } => (&[][..], 0),
-                PreparedSignalKind::Operator { inputs, .. } => (&inputs[..], 0),
-                PreparedSignalKind::Output { inputs } => {
-                    (&inputs[..], usize::from(inputs.len() > 1))
+            let (whole, strips) = match &node.kind {
+                PreparedSignalKind::Layer { .. } => (0, 0),
+                PreparedSignalKind::Mix { inputs } => (
+                    usize::from(inputs.len() > 1)
+                        + inputs.iter().map(|&input| frame[input]).max().unwrap_or(0),
+                    inputs.iter().map(|&input| strip[input]).max().unwrap_or(0),
+                ),
+                PreparedSignalKind::Operator {
+                    operator, inputs, ..
+                } => {
+                    let cached = frame_cache_count(operator.program) != 0;
+                    let below = inputs
+                        .iter()
+                        .map(|&input| if cached { frame[input] } else { strip[input] })
+                        .max()
+                        .unwrap_or(0);
+                    (below, below)
                 }
             };
-            let depth = inputs.iter().map(|&index| depths[index]).max().unwrap_or(0) + extra;
-            depths.push(depth);
-            if samples_frames(node) {
-                required = required.max(depth);
-            }
+            frame.push(whole);
+            strip.push(strips);
         }
-        required
+        self.plan.output.map_or(0, |output| frame[output])
     }
 
     pub(crate) fn target(&self, index: usize) -> &crate::targets::TargetPixels {
@@ -583,17 +583,19 @@ impl SignalGraph<'_> {
         sample_time: SampleTime,
         workspace: &'a mut EvaluationWorkspace,
     ) -> &'a [Color] {
-        if sample_time.as_ticks() >= self.duration.as_ticks() {
-            let range = crate::evaluation::frame_range(*self, self.plan.output_index);
-            let output = &mut workspace.signal_buffers[range];
-            output.fill(Color {
-                red: 0,
-                green: 0,
-                blue: 0,
-            });
-            return output;
+        match self.plan.output {
+            Some(output) if sample_time.as_ticks() < self.duration.as_ticks() => {
+                crate::evaluation::sample_signal_graph(*self, output, sample_time, workspace)
+            }
+            _ => {
+                workspace.signal_buffer.fill(Color {
+                    red: 0,
+                    green: 0,
+                    blue: 0,
+                });
+                &workspace.signal_buffer
+            }
         }
-        crate::evaluation::sample_signal_graph(*self, sample_time, workspace)
     }
 }
 

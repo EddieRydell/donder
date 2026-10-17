@@ -40,7 +40,7 @@ pub struct SequenceGuiDocument {
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
-    pub duration_seconds: f32,
+    pub duration_seconds: f64,
     pub frame_rate: f32,
     pub audio: Option<SequenceAudio>,
     pub mark_collections: Vec<SequenceMarkCollection>,
@@ -69,8 +69,8 @@ pub struct SequenceLayer {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceAutomationClip {
     pub id: u32,
-    pub start_seconds: f32,
-    pub duration_seconds: f32,
+    pub start_seconds: f64,
+    pub duration_seconds: f64,
     pub row_target: FixtureTarget,
     pub curve: Vec<SequenceCurvePoint>,
     pub bindings: Vec<SequenceAutomationBinding>,
@@ -155,8 +155,8 @@ pub struct SequenceEffect {
     pub name: String,
     pub description: Option<String>,
     pub layer_id: u32,
-    pub start_seconds: f32,
-    pub duration_seconds: f32,
+    pub start_seconds: f64,
+    pub duration_seconds: f64,
     pub target: FixtureTarget,
     pub target_label: String,
     pub scope: SequenceEffectScope,
@@ -179,6 +179,26 @@ pub struct SequenceEffectDetails {
 pub struct SequenceEffectDetailsResult {
     pub project_revision: u32,
     pub details: Vec<SequenceEffectDetails>,
+}
+
+/// "Select Matching": the clips matching any seed clip under `criteria` and
+/// every `params` entry the seed effect has.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceClipMatchRequest {
+    pub effect_ids: Vec<u32>,
+    pub automation_ids: Vec<u32>,
+    pub criteria: SequenceClipMatch,
+    pub params: Vec<SequenceClipParamMatch>,
+}
+
+/// A parameter matches when its value equals the seed's, with numbers within
+/// `tolerance` of the seed's.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceClipParamMatch {
+    pub name: String,
+    pub tolerance: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -247,14 +267,6 @@ pub struct SequenceGraphOperatorDefinition {
 pub struct SequenceGraphPortDefinition {
     pub source_name: String,
     pub display_name: String,
-    pub cardinality: SequenceGraphPortCardinality,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SequenceGraphPortCardinality {
-    One,
-    Many,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -336,7 +348,7 @@ pub struct SequenceMarkCollection {
     pub key: String,
     pub description: Option<String>,
     pub color: String,
-    pub marks_seconds: Vec<f32>,
+    pub marks_seconds: Vec<f64>,
     /// Each mark's label, in the same order as `marks_seconds`.
     pub mark_labels: Vec<Option<String>>,
 }

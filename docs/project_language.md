@@ -522,7 +522,8 @@ Sequence layer_test {
 Layers produce signals, operators combine and transform them, and the single
 output node is what plays. Nodes not connected to the output may remain while
 you edit, and are not prepared. An operator on the output path must have every
-input connected.
+input connected. Any input, the output's included, may have several sources:
+they combine by their channel-wise maximum, as the effects of a layer do.
 
 Every fixture or group has one clip row and one automation row. A member of
 several groups shows its rows under each, and every copy holds the same clips.
@@ -768,8 +769,8 @@ preparation does not repeat them.
   bounds that depend on an array or marks length must fit the 10,000-iteration
   limit with the supplied values.
 - The graph has one output, typed acyclic connections, and layer nodes that
-  reference distinct layers. Operator definitions, parameters, port types and
-  cardinality are checked even on disconnected branches.
+  reference distinct layers. Operator definitions, parameters and port types
+  are checked even on disconnected branches.
 - Active automation bindings target existing parameters that support
   automation. A clip binds a target at most once (active or detached), and clips
   that bind the same target do not overlap. Automation curve values lie in

@@ -1,10 +1,9 @@
-﻿//! Whole-frame evaluation: the frame's nodes, and each scan's frame. It runs
-//! once per frame and node rather than per strip, so it stays in flash, outside
+﻿//! Whole-frame evaluation: the output's frame, and each scan's frame. It runs
+//! once per frame rather than per strip, so it stays in flash, outside
 //! the instruction RAM that `pnpm firmware:build` checks the rest of
 //! evaluation against.
 use super::{
-    GraphSignals, Lent, black, compose_max, frame_range, sample_layer_frame, sample_operator,
-    sample_signal_run,
+    GraphSignals, Lent, black, compose_max, sample_layer_frame, sample_operator, sample_signal_run,
 };
 use crate::dsl::{ScanQuery, SourceWeights};
 use crate::scan::ScanColors;
@@ -16,12 +15,12 @@ use donder_runtime_types::{Color, SampleTime};
 #[inline(never)]
 pub(crate) fn sample_signal_graph<'a>(
     renderer: SignalGraph<'_>,
+    output: usize,
     sample_time: SampleTime,
     workspace: &'a mut EvaluationWorkspace,
 ) -> &'a [Color] {
-    let graph = &renderer.plan;
     let EvaluationWorkspace {
-        signal_buffers: buffers,
+        signal_buffer: buffer,
         operator_automation,
         operator_vm: operator_vms,
         sampling: workspace,
@@ -37,33 +36,18 @@ pub(crate) fn sample_signal_graph<'a>(
     for window in &mut workspace.operator_windows {
         window.key = None;
     }
-    for node_index in graph.frame_nodes.iter().copied() {
-        let destination = frame_range(renderer, node_index);
-        match &graph.nodes[node_index].kind {
-            PreparedSignalKind::Output { inputs } => {
-                buffers[destination.clone()].fill(black());
-                for input in inputs {
-                    let source = frame_range(renderer, *input);
-                    for (target, source) in destination.clone().zip(source) {
-                        let color = buffers[source];
-                        compose_max(&mut buffers[target], color);
-                    }
-                }
-            }
-            _ => sample_signal_frame(
-                renderer,
-                node_index,
-                sample_time,
-                &mut buffers[destination],
-                Lent {
-                    sampling: &mut *workspace,
-                    automation: &mut *operator_automation,
-                    strips: &mut *operator_vms,
-                },
-            ),
-        }
-    }
-    &buffers[frame_range(renderer, graph.output_index)]
+    sample_signal_frame(
+        renderer,
+        output,
+        sample_time,
+        buffer,
+        Lent {
+            sampling: &mut *workspace,
+            automation: &mut *operator_automation,
+            strips: &mut *operator_vms,
+        },
+    );
+    buffer
 }
 
 /// A whole plan-target frame of `node`.
@@ -84,7 +68,7 @@ pub(super) fn sample_signal_frame(
             let output = &mut output[..pixels];
             sample_operator(renderer, node_index, sample_time, 0, output, true, lent);
         }
-        PreparedSignalKind::Output { inputs } => {
+        PreparedSignalKind::Mix { inputs } => {
             output.fill(black());
             let Some((&first, rest)) = inputs.split_first() else {
                 return;
@@ -107,6 +91,7 @@ pub(super) fn sample_signal_frame(
         }
     }
 }
+
 /// Every pixel of `query`'s scan, reading the input a strip at a time.
 #[inline(never)]
 pub(super) fn scan_frame(

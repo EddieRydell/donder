@@ -76,8 +76,8 @@ impl Default for PersistedStore {
 pub struct PersistedProjectSession {
     pub tabs: Vec<String>,
     pub active_file: Option<String>,
-    pub audio_position_seconds: f32,
-    pub audio_home_seconds: f32,
+    pub audio_position_seconds: f64,
+    pub audio_home_seconds: f64,
     pub editor_states: BTreeMap<String, PersistedEditorViewState>,
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
     pub spatial_views: BTreeMap<String, PersistedSpatialViewState>,

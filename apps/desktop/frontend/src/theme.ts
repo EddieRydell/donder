@@ -262,7 +262,7 @@ export const THEME_METRICS = {
   automationAlignDistance: cssNumber("--donder-automation-align-distance"),
   automationGuideDash: cssNumber("--donder-automation-guide-dash"),
   automationValueLabelOffset: cssNumber("--donder-automation-value-label-offset"),
-  sequenceMarkSnapDistance: cssNumber("--donder-sequence-mark-snap-distance"),
+  sequenceSnapDistance: cssNumber("--donder-sequence-snap-distance"),
   automationGridRows: cssNumber("--donder-automation-grid-rows"),
   automationRowMinHeight: cssNumber("--donder-automation-row-min-height"),
   automationRowMaxHeight: cssNumber("--donder-automation-row-max-height"),

@@ -267,13 +267,6 @@ fn operator_params<'a>(
     }
 }
 
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-pub(crate) fn frame_range(renderer: SignalGraph<'_>, node_index: usize) -> core::ops::Range<usize> {
-    let slot = renderer.plan.frame_slots[node_index];
-    let start = slot * renderer.pixel_count;
-    start..start + renderer.pixel_count
-}
-
 // Called once per frame, from flash, but its loops over the layer's effects
 // stay here.
 #[inline(never)]
@@ -831,7 +824,7 @@ fn sample_signal_run(
         PreparedSignalKind::Operator { .. } => {
             sample_operator(renderer, node, time, first, output, false, lent);
         }
-        PreparedSignalKind::Output { inputs } => {
+        PreparedSignalKind::Mix { inputs } => {
             output.fill(black());
             let mut colors = [black(); STRIP];
             for chunk in (0..output.len()).step_by(STRIP) {

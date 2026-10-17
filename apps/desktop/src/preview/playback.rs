@@ -1,8 +1,9 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
+use donder_language::sample_time_from_seconds_f64;
 use donder_runtime::{LoadError, LoadLimits, decode_rig, decode_sequence};
 use donder_runtime::{PlaybackRate, PreparedSequence, RigPlayback, SequencePlayback};
-use donder_runtime_types::{RigEvent, SampleTime, sample_time_from_seconds_f32};
+use donder_runtime_types::{RigEvent, SampleTime};
 
 use super::protocol::PreviewArchive;
 use super::scene::PreviewColor;
@@ -18,7 +19,7 @@ pub(crate) enum PreviewPlaybackState {
 
 /// Audio positions advance once per output buffer and arrive after pipe delay,
 /// so smaller differences within one playback run are noise, not drift.
-const CLOCK_RESYNC_TOLERANCE_SECONDS: f32 = 0.025;
+const CLOCK_RESYNC_TOLERANCE_SECONDS: f64 = 0.025;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PreviewClockUpdate {
@@ -30,8 +31,8 @@ pub(crate) enum PreviewClockUpdate {
 pub(crate) struct PreviewClockSnapshot {
     pub(crate) generation: u32,
     pub(crate) state: PreviewPlaybackState,
-    pub(crate) position_seconds: f32,
-    pub(crate) start_delay_seconds: f32,
+    pub(crate) position_seconds: f64,
+    pub(crate) start_delay_seconds: f64,
     pub(crate) rate: PlaybackRate,
 }
 
@@ -42,15 +43,15 @@ struct ClockAnchor {
 }
 
 impl ClockAnchor {
-    fn position_at(self, now: Instant) -> f32 {
+    fn position_at(self, now: Instant) -> f64 {
         if self.snapshot.state == PreviewPlaybackState::Playing {
             let wall = (now
                 .saturating_duration_since(self.received_at)
-                .as_secs_f32()
+                .as_secs_f64()
                 - self.snapshot.start_delay_seconds)
                 .max(0.0);
             self.snapshot.position_seconds
-                + self.snapshot.rate.show_elapsed((wall * 1_000_000.0) as u64) as f32 / 1_000_000.0
+                + self.snapshot.rate.show_elapsed((wall * 1_000_000.0) as u64) as f64 / 1_000_000.0
         } else {
             self.snapshot.position_seconds
         }
@@ -207,7 +208,7 @@ impl PreviewPlayback {
             return Ok(changed);
         }
         let position = self.clock.position_at(now).max(0.0);
-        let sample_time = sample_time_from_seconds_f32(position)
+        let sample_time = sample_time_from_seconds_f64(position)
             .map_err(|_| PreviewPlaybackError::ClockPosition)?;
         let frame = self.clock.snapshot.rate.frame_at(
             u64::from(sample_time.as_ticks()),
@@ -229,20 +230,9 @@ impl PreviewPlayback {
         &self.colors
     }
 
-    pub(crate) fn next_deadline(&self, now: Instant) -> Option<Instant> {
-        let content = self.content.as_ref()?;
-        if self.clock.snapshot.state != PreviewPlaybackState::Playing {
-            return None;
-        }
-        let frame_rate = content.sequence().frame_rate();
-        if frame_rate == 0 {
-            return None;
-        }
-        let rate = self.clock.snapshot.rate;
-        let position = (self.clock.position_at(now).max(0.0) * 1_000_000.0) as u64;
-        let next_position = rate.frame_start(rate.frame_at(position, frame_rate) + 1, frame_rate);
-        let delay = Duration::from_micros(rate.wall_elapsed(next_position - position).max(1_000));
-        Some(now + delay)
+    /// Whether the frame changes with time, so the Preview draws every refresh.
+    pub(crate) fn is_playing(&self) -> bool {
+        self.content.is_some() && self.clock.snapshot.state == PreviewPlaybackState::Playing
     }
 }
 

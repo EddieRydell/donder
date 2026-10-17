@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
     EffectGraphEdge, EffectParamValue, GraphNodePosition, GraphOperatorNode, GraphPortId,
-    OperatorPortCardinality, OperatorRef, Rig, Sequence, SequenceCompositionGraph, SequenceLayer,
-    SequenceLayerId, SourceIdentity, validate_composition_graph,
+    OperatorRef, Rig, Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId,
+    SourceIdentity, validate_composition_graph,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
 use indexmap::IndexMap;
@@ -146,7 +146,7 @@ pub(super) fn edit_composition(
             let mut params = IndexMap::new();
             for declaration in definition.params() {
                 if declaration.default.is_none() {
-                    let value = EffectParamValue::initial_for_type(&declaration.ty, initial_color)
+                    let value = EffectParamValue::initial_for_param(declaration, initial_color)
                         .ok_or_else(|| {
                             GuiMutationError::Invalid(
                                 "A valid required operator parameter could not be created."
@@ -279,25 +279,6 @@ fn ensure_node_exists(
     }
 }
 
-fn input_cardinality(
-    definitions: &donder_model::OperatorDefinitionStore,
-    kind: &CompositionGraphNodeKind,
-    source_name: &str,
-) -> Option<OperatorPortCardinality> {
-    match kind {
-        CompositionGraphNodeKind::Layer { .. } => None,
-        CompositionGraphNodeKind::Operator(operator) => definitions
-            .resolve(&operator.operator)?
-            .inputs()
-            .iter()
-            .find(|port| port.source_name == source_name)
-            .map(|port| port.cardinality.clone()),
-        CompositionGraphNodeKind::Output => {
-            (source_name == "input").then_some(OperatorPortCardinality::Many)
-        }
-    }
-}
-
 fn next_node_id(composition: &impl Composition) -> u32 {
     composition
         .graph()
@@ -413,17 +394,6 @@ fn connect_nodes(
         to_port: GraphPortId(connection.to_port),
     };
     if !graph.edges.contains(&edge) {
-        let single_input = graph
-            .nodes
-            .iter()
-            .find(|node| node.id == edge.to)
-            .and_then(|node| input_cardinality(definitions, &node.kind, &edge.to_port.0))
-            == Some(OperatorPortCardinality::One);
-        if single_input {
-            graph
-                .edges
-                .retain(|existing| existing.to != edge.to || existing.to_port != edge.to_port);
-        }
         graph.edges.push(edge);
     }
     // DesktopState discards this candidate on failure; no partial disconnect reaches history.

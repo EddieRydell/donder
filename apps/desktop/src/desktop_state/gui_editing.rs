@@ -69,6 +69,18 @@ impl DesktopState {
         })
     }
 
+    /// "Select Matching" against the newest project snapshot.
+    pub fn match_sequence_clips(
+        &self,
+        request: GuiDocumentRequest,
+        query: donder_sequence_api::SequenceClipMatchRequest,
+    ) -> Result<donder_sequence_api::SequenceSelection, String> {
+        let project = self
+            .project_session()
+            .ok_or("The current project source is not ready for GUI editing.")?;
+        donder_editor::matching_sequence_clips(&project, &request, &query)
+    }
+
     pub fn get_gui_document(
         &self,
         request: GuiDocumentRequest,

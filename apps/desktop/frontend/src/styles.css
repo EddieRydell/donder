@@ -470,7 +470,8 @@
   --donder-automation-align-distance: 8px;
   --donder-automation-guide-dash: 3px;
   --donder-automation-value-label-offset: 8px;
-  --donder-sequence-mark-snap-distance: 8px;
+  --donder-sequence-snap-distance: 8px;
+  --donder-clip-options-max-height: 40vh;
   --donder-automation-grid-rows: 4;
   --donder-automation-row-min-height: 36px;
   --donder-automation-row-max-height: 96px;
@@ -4034,6 +4035,43 @@ fieldset.sequence-layer-row {
   display: flex;
   align-items: center;
   gap: var(--donder-space-3);
+  font-size: var(--donder-font-size-md);
+}
+
+.clip-options-dialog {
+  width: min(480px, calc(100vw - var(--donder-toolbar-height)));
+}
+
+.clip-options {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 10rem);
+  align-items: center;
+  gap: var(--donder-space-3) var(--donder-space-5);
+  max-height: var(--donder-clip-options-max-height);
+  overflow-y: auto;
+  border: var(--donder-border-width) solid var(--donder-border);
+  padding: var(--donder-space-5);
+}
+
+.clip-options p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.clip-options label {
+  display: flex;
+  align-items: center;
+  gap: var(--donder-space-3);
+  font-size: var(--donder-font-size-md);
+}
+
+.clip-options-value input {
+  min-width: 0;
+  flex: 1;
+}
+
+.clip-match-count {
+  margin-right: auto;
   font-size: var(--donder-font-size-md);
 }
 

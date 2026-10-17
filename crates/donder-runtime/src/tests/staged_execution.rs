@@ -182,7 +182,7 @@ fn strips_preserve_local_global_and_subset_target_addressing() {
                 let effect = builder.sample(&source, builder.whole_sequence(), subset);
                 let layer = builder.layer(true, [effect]);
                 let signal = builder.operator(op, |_| layer);
-                builder.output([signal])
+                builder.output(Some(signal))
             })
         };
         assert_same_playback(

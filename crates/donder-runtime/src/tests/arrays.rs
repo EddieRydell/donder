@@ -61,7 +61,7 @@ fn curve_items_sample_at_integer_and_float_positions() {
     use donder_runtime_types::{Curve, CurvePoint};
     let effect = compile_effect(
         "effect Indexed {
-            param shapes: array<curve>;
+            param shapes: array<curve> in 0.0..1.0;
             param integer: int in -2147483648..2147483647 = 0;
             param fraction: float in -1.0..1.0 = 0.0;
             sample {

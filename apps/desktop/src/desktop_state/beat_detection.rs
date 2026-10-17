@@ -16,10 +16,9 @@ impl DesktopState {
         }
         let times = donder_audio_analysis::detect_beats(audio.resolved_path.as_ref())
             .map_err(|error| error.to_string())?;
-        let seconds = |times: Vec<f64>| times.into_iter().map(|time| time as f32).collect();
         Ok(SequenceBeatDetection {
-            beats_seconds: seconds(times.beats),
-            downbeats_seconds: seconds(times.downbeats),
+            beats_seconds: times.beats,
+            downbeats_seconds: times.downbeats,
         })
     }
 }

@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
@@ -13,18 +13,18 @@ type KiraStreamingHandle = StreamingSoundHandle<FromFileError>;
 pub(super) struct LoadedSource {
     pub(super) audio: SequenceAudio,
     pub(super) canonical_path: String,
-    pub(super) duration_seconds: f32,
+    pub(super) duration_seconds: f64,
 }
 
 pub(super) struct SourceMetadata {
-    pub(super) duration_seconds: f32,
+    pub(super) duration_seconds: f64,
 }
 
 /// Where a stream stops early and the region it repeats, in source seconds.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub(super) struct PlaybackBounds {
-    pub(super) end_seconds: Option<f32>,
-    pub(super) loop_region: Option<(f32, f32)>,
+    pub(super) end_seconds: Option<f64>,
+    pub(super) loop_region: Option<(f64, f64)>,
 }
 
 pub(super) trait AudioDriver: Send {
@@ -32,35 +32,25 @@ pub(super) trait AudioDriver: Send {
     fn play(
         &mut self,
         path: &str,
-        position_seconds: f32,
+        position_seconds: f64,
         deadline: Option<Instant>,
         rate: PlaybackRate,
         bounds: PlaybackBounds,
     ) -> Result<Box<dyn AudioHandle>, String>;
-    fn debug_observe(&mut self) {}
-}
-
-pub(super) fn audio_debug(message: std::fmt::Arguments<'_>) {
-    if cfg!(debug_assertions) {
-        eprintln!(
-            "[audio {:?}] {message}",
-            SystemTime::now().duration_since(UNIX_EPOCH)
-        );
-    }
 }
 
 pub(super) trait AudioHandle: Send {
     fn observe(&mut self) -> BackendObservation;
     fn pause(&mut self, deadline: Option<Instant>);
     fn resume(&mut self);
-    fn seek_to(&mut self, position_seconds: f32);
+    fn seek_to(&mut self, position_seconds: f64);
     fn set_playback_rate(&mut self, rate: PlaybackRate);
     fn stop(&mut self);
 }
 
 pub(super) struct BackendObservation {
     pub(super) state: BackendPlaybackState,
-    pub(super) position_seconds: f32,
+    pub(super) position_seconds: f64,
     pub(super) error: Option<String>,
 }
 
@@ -73,51 +63,21 @@ pub(super) enum BackendPlaybackState {
 
 pub(super) struct KiraAudioDriver {
     manager: KiraManager,
-    last_debug_report: Instant,
 }
 
 impl KiraAudioDriver {
     pub(super) fn new() -> Result<Self, String> {
-        audio_debug(format_args!("creating audio manager"));
         AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
-            .inspect(|_| audio_debug(format_args!("audio manager created")))
-            .inspect_err(|error| audio_debug(format_args!("audio manager failed: {error:?}")))
-            .map(|manager| Self {
-                manager,
-                last_debug_report: Instant::now(),
-            })
+            .map(|manager| Self { manager })
             .map_err(|error| error.to_string())
     }
 }
 
 impl AudioDriver for KiraAudioDriver {
-    fn debug_observe(&mut self) {
-        if !cfg!(debug_assertions) {
-            return;
-        }
-        let backend = self.manager.backend_mut();
-        while let Some(error) = backend.pop_error() {
-            audio_debug(format_args!("output stream error: {error:?}"));
-        }
-        if self.last_debug_report.elapsed() >= Duration::from_secs(1) {
-            let elapsed = self.last_debug_report.elapsed();
-            self.last_debug_report = Instant::now();
-            let mut reports = 0;
-            while backend.pop_cpu_usage().is_some() {
-                reports += 1;
-            }
-            audio_debug(format_args!(
-                "output processing reports={reports} since_last_report={elapsed:?} discarded_stream_errors={:?}",
-                backend.num_stream_errors_discarded()
-            ));
-        }
-    }
-
     fn load_metadata(&mut self, path: &str) -> Result<SourceMetadata, String> {
-        audio_debug(format_args!("load metadata path={path:?}"));
         StreamingSoundData::from_file(path)
             .map(|sound| SourceMetadata {
-                duration_seconds: sound.duration().as_secs_f32(),
+                duration_seconds: sound.duration().as_secs_f64(),
             })
             .map_err(|error| error.to_string())
     }
@@ -125,25 +85,21 @@ impl AudioDriver for KiraAudioDriver {
     fn play(
         &mut self,
         path: &str,
-        position_seconds: f32,
+        position_seconds: f64,
         deadline: Option<Instant>,
         rate: PlaybackRate,
         bounds: PlaybackBounds,
     ) -> Result<Box<dyn AudioHandle>, String> {
-        audio_debug(format_args!(
-            "create sound path={path:?} position={position_seconds} bounds={bounds:?}"
-        ));
         let mut sound = StreamingSoundData::from_file(path)
-            .inspect_err(|error| audio_debug(format_args!("open sound failed: {error:?}")))
             .map_err(|error| error.to_string())?
-            .start_position(f64::from(position_seconds))
+            .start_position(position_seconds)
             .playback_rate(f64::from(rate.speed()));
         // A slice that starts at zero keeps reported positions in source seconds.
         if let Some(end) = bounds.end_seconds {
-            sound = sound.slice(..f64::from(end));
+            sound = sound.slice(..end);
         }
         if let Some((start, end)) = bounds.loop_region {
-            sound = sound.loop_region(f64::from(start)..f64::from(end));
+            sound = sound.loop_region(start..end);
         }
         if deadline.is_some_and(|deadline| deadline <= Instant::now()) {
             return Err("Audio start deadline passed while opening the source".into());
@@ -153,8 +109,6 @@ impl AudioDriver for KiraAudioDriver {
         }));
         self.manager
             .play(sound)
-            .inspect(|_| audio_debug(format_args!("sound handle created")))
-            .inspect_err(|error| audio_debug(format_args!("play sound failed: {error:?}")))
             .map(|handle| Box::new(KiraAudioHandle { handle }) as Box<dyn AudioHandle>)
             .map_err(|error| error.to_string())
     }
@@ -177,7 +131,7 @@ impl AudioHandle for KiraAudioHandle {
         };
         BackendObservation {
             state,
-            position_seconds: self.handle.position() as f32,
+            position_seconds: self.handle.position(),
             error: self.handle.pop_error().map(|error| error.to_string()),
         }
     }
@@ -195,8 +149,8 @@ impl AudioHandle for KiraAudioHandle {
         self.handle.resume(instant_tween());
     }
 
-    fn seek_to(&mut self, position_seconds: f32) {
-        self.handle.seek_to(f64::from(position_seconds));
+    fn seek_to(&mut self, position_seconds: f64) {
+        self.handle.seek_to(position_seconds);
     }
 
     fn set_playback_rate(&mut self, rate: PlaybackRate) {

@@ -25,7 +25,7 @@ pub struct PerformRig {
 #[serde(rename_all = "camelCase")]
 pub struct PerformSession {
     pub rig: PerformRig,
-    pub elapsed_seconds: f32,
+    pub elapsed_seconds: f64,
     pub switches: Vec<PerformSwitch>,
     /// The buttons held down.
     pub held: Vec<PerformButton>,

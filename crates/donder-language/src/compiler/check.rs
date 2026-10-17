@@ -1740,7 +1740,11 @@ fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnosti
     let ty = resolve_type(&param.ty)?;
     let span = param.name.span;
     let name = param.name.name.as_str();
-    let ranged = matches!(ty, Type::Int | Type::Float | Type::Curve);
+    let ranged = match &ty {
+        Type::Int | Type::Float | Type::Curve => true,
+        Type::Array(item) => **item == Type::Curve,
+        _ => false,
+    };
     let range = match (&param.range, ranged) {
         (None, true) => {
             return Err(Diagnostic::new(
@@ -1751,7 +1755,7 @@ fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnosti
         (Some((min, _)), false) => {
             return Err(Diagnostic::new(
                 min.span,
-                "only int, float and curve parameters take a range",
+                "only int, float, curve and array<curve> parameters take a range",
             ));
         }
         (None, false) => None,
@@ -1763,7 +1767,7 @@ fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnosti
                         _ => None,
                     }
                 }
-                (Type::Float | Type::Curve, min, max) => number(min)
+                (Type::Float | Type::Curve | Type::Array(_), min, max) => number(min)
                     .zip(number(max))
                     .map(|(min, max)| ParamRange::Float { min, max }),
                 _ => None,

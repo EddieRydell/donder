@@ -30,6 +30,7 @@ export type SequenceEditorCommands = {
   saveGraphViewState: (state: Wire.PersistedGraphViewStateUpdate) => Promise<EditorSnapshot>;
   saveSequenceViewportState: (state: Wire.PersistedSequenceViewportStateUpdate) => Promise<EditorSnapshot>;
   getSequenceEffectDetails: (request: Wire.GuiDocumentRequest, effectIds: number[]) => Promise<Wire.SequenceEffectDetailsResult>;
+  matchSequenceClips: (request: Wire.GuiDocumentRequest, query: Wire.SequenceClipMatchRequest) => Promise<Wire.SequenceSelection>;
   requestSequenceClipRasters: (request: Wire.SequenceClipRasterRequest) => Promise<Wire.SequenceClipRasterResponse>;
   takeSequenceClipRasterResults: (request: Wire.GuiDocumentRequest, sinceRevision: number) => Promise<Wire.SequenceClipRasterResultBatch>;
   finishCompositionGraphEditing: () => Promise<EditorSnapshot>;

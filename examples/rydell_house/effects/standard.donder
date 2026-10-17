@@ -130,22 +130,27 @@ effect MarkPulse {
   param section_width_pixels: int in 1..1000 = 5;
   param sections_per_mark: int in 1..100 = 3;
   param seed: float in 0.0..1000.0 = 0.0;
+  param overlap_marks: bool = false;
 
   -- Prepared section queries preserve fixture boundaries and short final sections.
-  -- A new mark retriggers the entire selection, discarding every older pulse.
+  -- Without overlap a new mark retriggers the entire selection, discarding every older pulse;
+  -- with it every pulse still decaying stays lit, and overlapping pulses keep the brighter color.
+  -- At most the 32 latest pulses overlap.
   sample {
-    let hit_time = mark_last(beats, time - offset_seconds);
-    let child_start = hit_time + offset_seconds;
-    let age = time - child_start;
-    -- Before the first mark the hit time is NaN, which renders black.
-    guard !(child_start < 0.0 || age < 0.0 || age >= decay_seconds);
+    let now = time - offset_seconds;
+    let latest = mark_last_index(beats, now);
+    let live = latest - mark_last_index(beats, now - decay_seconds);
     let total_sections = section_count(section_width_pixels);
     let current_section = section_index(section_width_pixels);
-    guard any for section in 0..sections_per_mark {
-      floor(rand((seed + hit_time * 1000.0) * 31.0 + section) * total_sections) == current_section
-    };
-    let child_progress = age / decay_seconds;
-    gradient_color_scaled(accent, child_progress, pulse_shape[child_progress])
+    max for back in 0..min(live, if overlap_marks { 32 } else { 1 }) {
+      let hit_time = mark_at(beats, latest - back);
+      guard hit_time + offset_seconds >= 0.0;
+      guard any for section in 0..sections_per_mark {
+        floor(rand((seed + hit_time * 1000.0) * 31.0 + section) * total_sections) == current_section
+      };
+      let child_progress = (now - hit_time) / decay_seconds;
+      gradient_color_scaled(accent, child_progress, pulse_shape[child_progress])
+    }
   }
 }
 
@@ -159,9 +164,12 @@ effect MarkChase {
   param section_width_pixels: int in 1..1000 = 5;
   param chase_position: curve in 0.0..1.0;
   param pulse_shape: curve in 0.0..1.0;
+  param overlap_marks: bool = false;
 
-  -- One arrival per mark and pixel: a new mark replaces this pulse only on arrival.
   -- All marks share the trajectory; its first crossing defines the travel delay.
+  -- Without overlap a new mark replaces this pixel's pulse on arrival; with it every
+  -- chase still running stays lit, and overlapping pulses keep the brighter color.
+  -- At most the 32 latest chases overlap.
   sample {
     let item_count = ceil(target.count / section_width_pixels);
     let item_index = floor(pixel.index / section_width_pixels);
@@ -169,20 +177,23 @@ effect MarkChase {
     let pulse_duration = pulse_overlap / item_count;
     let travel_end = max(0.0, 1.0 - pulse_duration);
     let hit = travel_end * curve_first_crossing(chase_position, position);
-    let mark = mark_last_index(beats, time - offset_seconds - chase_seconds * hit);
-    let hit_time = mark_at(beats, mark);
-    let age = time - hit_time - offset_seconds;
-    -- Before the first mark the hit time is NaN, which renders black.
-    guard !(hit_time + offset_seconds < 0.0 || age < 0.0 || age >= chase_seconds);
-    let child_progress = age / chase_seconds;
-    let selected_gradient = gradients[mark % len(gradients)];
-    let pulse_progress = (child_progress - hit) / pulse_duration;
-    let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
-    let gradient_position =
-      if gradient_mode == ThroughEffect { child_progress }
-      else if gradient_mode == AcrossItems { position }
-      else { pulse_progress };
-    gradient_color_scaled(selected_gradient, gradient_position, level)
+    let now = time - offset_seconds;
+    let latest = mark_last_index(beats, now - chase_seconds * hit);
+    let live = latest - mark_last_index(beats, now - chase_seconds);
+    max for back in 0..min(live, if overlap_marks { 32 } else { 1 }) {
+      let mark = latest - back;
+      let hit_time = mark_at(beats, mark);
+      guard hit_time + offset_seconds >= 0.0;
+      let child_progress = (now - hit_time) / chase_seconds;
+      let selected_gradient = gradients[mark % len(gradients)];
+      let pulse_progress = (child_progress - hit) / pulse_duration;
+      let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
+      let gradient_position =
+        if gradient_mode == ThroughEffect { child_progress }
+        else if gradient_mode == AcrossItems { position }
+        else { pulse_progress };
+      gradient_color_scaled(selected_gradient, gradient_position, level)
+    }
   }
 }
 
@@ -195,38 +206,44 @@ effect MarkWipe {
   param pulse_width: float in 0.01..1.0 = 0.15;
   -- Curve values are turns: 0 = 0 degrees, 0.25 = 90 degrees, 1 = 360 degrees.
   param direction_angle: curve in 0.0..1.0;
-  param wipe_positions: array<curve>;
+  param wipe_positions: array<curve> in 0.0..1.0;
   param pulse_shape: curve in 0.0..1.0;
+  param overlap_marks: bool = false;
 
-  -- Direction is sampled at the mark's time.
+  -- Direction is sampled at the mark's time. Without overlap a new mark restarts the wipe;
+  -- with it every wipe still running stays lit, and overlapping pulses keep the brighter color.
+  -- At most the 32 latest wipes overlap.
   sample {
-    let mark = mark_last_index(beats, time - offset_seconds);
-    let hit_time = mark_at(beats, mark);
-    let age = time - hit_time - offset_seconds;
-    -- Before the first mark the hit time is NaN, which renders black.
-    guard !(hit_time + offset_seconds < 0.0 || age < 0.0 || age >= wipe_seconds);
-    let child_progress = age / wipe_seconds;
-    let selected_gradient = gradients[mark % len(gradients)];
-    let wipe_position = wipe_positions[mark % len(wipe_positions)];
-    let angle = 360.0 * direction_angle[hit_time / duration];
-    let radians = angle * 0.017453292519943295;
-    let dx = cos(radians);
-    let dy = sin(radians);
-    let projection = pixel.x * dx + pixel.y * dy;
-    let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
-    let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
-    -- Pixels all at one position (a wipe across a line) take position zero.
-    -- Rounding can step just outside the projected span.
-    let position = if span > 0.0 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
+    let now = time - offset_seconds;
+    let latest = mark_last_index(beats, now);
+    let live = latest - mark_last_index(beats, now - wipe_seconds);
     let travel_end = max(0.0, 1.0 - pulse_width);
-    let query_position = if travel_end > 0.0 { child_progress / travel_end } else { 1.0 };
-    let hit = travel_end * curve_last_crossing(wipe_position, position, query_position);
-    let pulse_progress = (child_progress - hit) / pulse_width;
-    let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
-    let gradient_position =
-      if gradient_mode == ThroughEffect { child_progress }
-      else if gradient_mode == AcrossItems { position }
-      else { pulse_progress };
-    gradient_color_scaled(selected_gradient, gradient_position, level)
+    max for back in 0..min(live, if overlap_marks { 32 } else { 1 }) {
+      let mark = latest - back;
+      let hit_time = mark_at(beats, mark);
+      guard hit_time + offset_seconds >= 0.0;
+      let child_progress = (now - hit_time) / wipe_seconds;
+      let selected_gradient = gradients[mark % len(gradients)];
+      let wipe_position = wipe_positions[mark % len(wipe_positions)];
+      let angle = 360.0 * direction_angle[hit_time / duration];
+      let radians = angle * 0.017453292519943295;
+      let dx = cos(radians);
+      let dy = sin(radians);
+      let projection = pixel.x * dx + pixel.y * dy;
+      let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
+      let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
+      -- Pixels all at one position (a wipe across a line) take position zero.
+      -- Rounding can step just outside the projected span.
+      let position = if span > 0.0 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
+      let query_position = if travel_end > 0.0 { child_progress / travel_end } else { 1.0 };
+      let hit = travel_end * curve_last_crossing(wipe_position, position, query_position);
+      let pulse_progress = (child_progress - hit) / pulse_width;
+      let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
+      let gradient_position =
+        if gradient_mode == ThroughEffect { child_progress }
+        else if gradient_mode == AcrossItems { position }
+        else { pulse_progress };
+      gradient_color_scaled(selected_gradient, gradient_position, level)
+    }
   }
 }

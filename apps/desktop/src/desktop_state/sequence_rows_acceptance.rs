@@ -69,8 +69,8 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
             .find(|clip| clip.id.0 == timeline.effect)
             .unwrap()
             .duration
-            .as_seconds_f32(),
-        effect.duration.as_seconds_f32() + 1.0
+            .as_seconds_f64(),
+        effect.duration.as_seconds_f64() + 1.0
     );
     assert_eq!(
         resized
@@ -79,8 +79,8 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
             .find(|clip| clip.id.0 == timeline.automation)
             .unwrap()
             .duration
-            .as_seconds_f32(),
-        automation.duration.as_seconds_f32() + 1.0
+            .as_seconds_f64(),
+        automation.duration.as_seconds_f64() + 1.0
     );
     timeline.state.undo_active_edit();
     assert_eq!(timeline.sequence(), moved);
@@ -289,7 +289,7 @@ fn automation_row_placement_survives_target_reorder_and_history_without_rebindin
         .unwrap();
     timeline.edit(SequenceGuiEdit::MoveAutomationClip {
         id: timeline.automation,
-        start_seconds: original.start.as_seconds_f32(),
+        start_seconds: original.start.as_seconds_f64(),
         row_target: target.clone(),
     });
     let moved = timeline.sequence();

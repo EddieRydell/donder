@@ -13,7 +13,7 @@ const MAGIC: [u8; 4] = *b"DOND";
 /// A rig's archive frames its sequence data and command tables the same way.
 const RIG_MAGIC: [u8; 4] = *b"DRIG";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 61;
+pub const FORMAT_VERSION: u32 = 62;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -194,12 +194,7 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
         }
         Ok(())
     };
-    reserve(
-        signal.pixel_count,
-        plan.frame_buffer_count
-            .checked_mul(size_of::<Color>())
-            .ok_or(LoadError::Limit)?,
-    )?;
+    reserve(signal.pixel_count, size_of::<Color>())?;
     reserve(plan.vm_workspace_count, size_of::<Vec<CachedSignalFrame>>())?;
     reserve(
         plan.vm_workspace_count,
@@ -358,7 +353,7 @@ mod tests {
             let effect = builder.sample(&effect, builder.whole_sequence(), target);
             let layer = builder.layer(true, [effect]);
             let echo = builder.operator(&operator, |_| layer);
-            builder.output([echo])
+            builder.output(Some(echo))
         })
     }
 

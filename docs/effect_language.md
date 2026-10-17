@@ -62,8 +62,10 @@ expected: as a parameter's default and in comparisons with a value of that
 enum, such as `direction == Backward`. In data documents a clip's value for an
 enum parameter is the same bare option.
 
-`int`, `float` and `curve` parameters declare an inclusive range with `in min..max`;
-a curve's range bounds its point values. Defaults, authored values and edits
+`int`, `float`, `curve` and `array<curve>` parameters declare an inclusive range
+with `in min..max`; a curve's range bounds its point values, and an
+`array<curve>`'s range bounds every item's. The editor's curve axis spans the
+range, and a new curve rises from its minimum to its maximum. Defaults, authored values and edits
 outside the range are rejected, never clamped, so code can rely on it instead of
 re-validating its inputs.
 
@@ -368,7 +370,9 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
   where the curve first reaches it, so a new mark replaces the old pulse only when
   its chase arrives.
 - Mark effects stop at their clip boundary and after the pulse duration. Empty
-  mark or gradient collections produce black.
+  mark or gradient collections produce black. With `overlap_marks` on, a new
+  mark no longer cuts off earlier pulses: every pulse still running stays lit,
+  up to the 32 latest, and where pulses overlap the brighter color wins.
 
 `operators/standard.donder`:
 

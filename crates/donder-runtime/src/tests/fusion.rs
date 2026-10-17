@@ -278,7 +278,7 @@ fn fusion_quantizes_source_clocks_and_blacks_out_invalid_queries() {
                                 let upstream = b.operator(&upstream, |_| layer);
                                 b.operator(&unfused, |_| upstream)
                             };
-                            b.output([output])
+                            b.output(Some(output))
                         })
                     };
                     let mut original = show(false).into_playback();
@@ -351,7 +351,7 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
                     let inner = b.operator(&inner, |input| layers[input]);
                     b.operator(&outer, |input| [layers[2], inner][input])
                 };
-                b.output([output])
+                b.output(Some(output))
             })
         };
         let mut original = show(false).into_playback();

@@ -30,7 +30,7 @@ impl DesktopState {
                     .and_then(|id| project.project.sequence(id))
             })
             .filter(|sequence| matches!(sequence.audio, donder_model::SequenceAudio::None))
-            .map(|sequence| sequence.duration.as_seconds_f32());
+            .map(|sequence| sequence.duration.as_seconds_f64());
         let audio_transport = match silent_duration {
             Some(duration) => lock_unpoisoned(&self.audio).load_silent_sequence(duration),
             None => lock_unpoisoned(&self.audio).load(audio),
@@ -149,7 +149,7 @@ impl DesktopState {
         })
     }
 
-    pub fn audio_seek(&self, position_seconds: f32) -> AppSnapshot {
+    pub fn audio_seek(&self, position_seconds: f64) -> AppSnapshot {
         if self.device_playback.has_devices() {
             let duration = self.audio_snapshot().duration_seconds;
             if !position_seconds.is_finite() {
@@ -399,7 +399,7 @@ mod tests {
             transport.duration_seconds,
             loaded.project.reusable_sequences()[&imported]
                 .duration
-                .as_seconds_f32()
+                .as_seconds_f64()
         );
         assert_ne!(transport.state, AudioTransportState::Unloaded);
         assert!(transport.last_error.is_none());

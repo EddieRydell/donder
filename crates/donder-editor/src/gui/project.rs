@@ -78,19 +78,11 @@ pub fn create_sequence(
         GuiOwnershipEdit, GuiOwnershipSlot, NewSequenceStorage, ReusableStorage,
     };
     super::ensure_owned_gui_document(session, owner)?;
-    let duration =
-        std::time::Duration::try_from_secs_f32(request.duration_seconds).map_err(|_| {
-            GuiMutationError::Invalid("Sequence duration is outside the supported range.".into())
-        })?;
+    let duration = super::checked_gui_duration(request.duration_seconds)?;
     let color = super::model::parse_color(&request.initial_color)?;
     let index = session.project.root().sequences.len();
-    donder_model::add_sequence(
-        &mut session.project,
-        donder_language::DonderDuration(duration),
-        request.frame_rate,
-        color,
-    )
-    .map_err(GuiMutationError::Invalid)?;
+    donder_model::add_sequence(&mut session.project, duration, request.frame_rate, color)
+        .map_err(GuiMutationError::Invalid)?;
     let reusable = match request.storage {
         NewSequenceStorage::Inline => None,
         NewSequenceStorage::SameFile { name } => Some((name, ReusableStorage::SameFile)),

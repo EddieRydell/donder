@@ -21,7 +21,7 @@ pub fn copy_sequence_selection(
                 };
                 copied.push(ClipboardEffect {
                     effect: (**effect).clone(),
-                    start_seconds: effect.start.as_seconds_f32(),
+                    start_seconds: effect.start.as_seconds_f64(),
                     lane_index: target_lane_index(session, &effect.target).ok_or_else(|| {
                         GuiMutationError::Invalid("Effect row is missing.".into())
                     })?,
@@ -70,7 +70,7 @@ pub fn copy_sequence_selection(
                 };
                 copied.push(ClipboardMark {
                     collection_key: mark.collection_key.clone(),
-                    time_seconds: source.time.as_seconds_f32(),
+                    time_seconds: source.time.as_seconds_f64(),
                     label: source.label.clone(),
                 });
             }
@@ -171,9 +171,9 @@ pub(super) fn paste_sequence_clipboard(
                     .chain(
                         automation
                             .iter()
-                            .map(|entry| entry.clip.start.as_seconds_f32()),
+                            .map(|entry| entry.clip.start.as_seconds_f64()),
                     )
-                    .fold(f32::INFINITY, f32::min);
+                    .fold(f64::INFINITY, f64::min);
                 let min_lane = effects
                     .iter()
                     .map(|effect| effect.lane_index)
@@ -249,7 +249,7 @@ pub(super) fn paste_sequence_clipboard(
                     clip.id = donder_model::AutomationClipId(next_id);
                     clip.row_target = target;
                     clip.start = super::checked_gui_time(
-                        anchor.time_seconds + entry.clip.start.as_seconds_f32() - min_start,
+                        anchor.time_seconds + entry.clip.start.as_seconds_f64() - min_start,
                     )?;
                     // Copy bindings only within the copied selection. Cut may retain existing bindings
                     // in the same sequence when no overlapping clip has claimed them since the cut.
@@ -287,7 +287,7 @@ pub(super) fn paste_sequence_clipboard(
                 let min_time = marks
                     .iter()
                     .map(|mark| mark.time_seconds)
-                    .fold(f32::INFINITY, f32::min);
+                    .fold(f64::INFINITY, f64::min);
                 let mut pasted = Vec::new();
                 let mut skipped = 0u32;
                 let sequence = &mut draft;
@@ -299,20 +299,21 @@ pub(super) fn paste_sequence_clipboard(
                             continue;
                         }
                     };
-                    let time_seconds =
-                        (anchor.time_seconds + mark.time_seconds - min_time).max(0.0);
+                    let time = super::checked_gui_time(
+                        (anchor.time_seconds + mark.time_seconds - min_time).max(0.0),
+                    )?;
                     collection.marks.push(donder_model::Mark {
-                        time: super::checked_gui_time(time_seconds)?,
+                        time: time.clone(),
                         label: mark.label.clone(),
                     });
                     collection.marks.sort_by_key(|mark| mark.time.0);
                     let index = collection
                         .marks
                         .iter()
-                        .position(|value| {
-                            (value.time.as_seconds_f32() - time_seconds).abs() < f32::EPSILON
-                        })
-                        .unwrap_or_else(|| collection.marks.len().saturating_sub(1));
+                        .position(|value| value.time == time)
+                        .ok_or_else(|| {
+                            GuiMutationError::Invalid("Pasted mark is missing.".into())
+                        })?;
                     pasted.push(SequenceMarkRef {
                         collection_key: mark.collection_key.clone(),
                         index: index as u32,
@@ -491,7 +492,7 @@ pub(super) fn move_clip_selection(
     sequence_id: &SequenceId,
     effect_ids: &[u32],
     automation_ids: &[u32],
-    time_delta_seconds: f32,
+    time_delta_seconds: f64,
     anchor_lane: usize,
     lane_delta: i32,
 ) -> Result<(), GuiMutationError> {
@@ -536,8 +537,8 @@ pub(super) fn move_clip_selection(
     Ok(())
 }
 
-fn shifted_start(start: &DonderTime, delta: f32) -> Result<DonderTime, GuiMutationError> {
-    let seconds = start.as_seconds_f32() + delta;
+fn shifted_start(start: &DonderTime, delta: f64) -> Result<DonderTime, GuiMutationError> {
+    let seconds = start.as_seconds_f64() + delta;
     if !seconds.is_finite() || seconds < 0.0 {
         return Err(GuiMutationError::Invalid(
             "Clip start must be finite and nonnegative.".into(),
@@ -553,7 +554,7 @@ pub(super) fn resize_clip_selection(
     automation_ids: &[u32],
     edge: SequenceResizeEdge,
     automation: SequenceAutomationResize,
-    time_delta_seconds: f32,
+    time_delta_seconds: f64,
 ) -> Result<(), GuiMutationError> {
     let mut draft = session
         .project
@@ -562,7 +563,7 @@ pub(super) fn resize_clip_selection(
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
     let resize =
         |start: &mut DonderTime, duration: &mut DonderDuration| -> Result<(), GuiMutationError> {
-            let seconds = duration.as_seconds_f32()
+            let seconds = duration.as_seconds_f64()
                 + match edge {
                     SequenceResizeEdge::Left => -time_delta_seconds,
                     SequenceResizeEdge::Right => time_delta_seconds,
@@ -610,7 +611,7 @@ pub(super) fn move_mark_selection(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
     marks: &[SequenceMarkRef],
-    time_delta_seconds: f32,
+    time_delta_seconds: f64,
 ) -> Result<Vec<SequenceMarkRef>, GuiMutationError> {
     let mut draft = session
         .project
@@ -624,19 +625,16 @@ pub(super) fn move_mark_selection(
         for index in indexes {
             let collection = mark_collection_mut(sequence, &collection_key)?;
             if let Some(value) = collection.marks.get_mut(index) {
-                let time_seconds = (value.time.as_seconds_f32() + time_delta_seconds).max(0.0);
-                value.time = super::checked_gui_time(time_seconds)?;
-                moved_times.push(time_seconds);
+                value.time = super::checked_gui_time(
+                    (value.time.as_seconds_f64() + time_delta_seconds).max(0.0),
+                )?;
+                moved_times.push(value.time.clone());
             }
         }
         let collection = mark_collection_mut(sequence, &collection_key)?;
         collection.marks.sort_by_key(|mark| mark.time.0);
-        for time_seconds in moved_times {
-            if let Some(index) = collection
-                .marks
-                .iter()
-                .position(|value| (value.time.as_seconds_f32() - time_seconds).abs() < f32::EPSILON)
-            {
+        for time in moved_times {
+            if let Some(index) = collection.marks.iter().position(|value| value.time == time) {
                 moved.push(SequenceMarkRef {
                     collection_key: collection_key.clone(),
                     index: index as u32,
@@ -679,7 +677,7 @@ fn mark_indexes_by_collection(marks: &[SequenceMarkRef]) -> BTreeMap<String, Vec
 }
 
 /// The target of every timeline lane, in display order.
-fn lane_targets(session: &ProjectSession) -> Option<Vec<FixtureTarget>> {
+pub(super) fn lane_targets(session: &ProjectSession) -> Option<Vec<FixtureTarget>> {
     let layout = active_layout(session)?;
     Some(
         super::projection::lane_walk(layout)
@@ -693,7 +691,11 @@ fn lane_targets(session: &ProjectSession) -> Option<Vec<FixtureTarget>> {
 }
 
 /// The lane of `target` nearest `anchor`; the earlier one on a tie.
-fn nearest_lane(lanes: &[FixtureTarget], target: &FixtureTarget, anchor: usize) -> Option<usize> {
+pub(super) fn nearest_lane(
+    lanes: &[FixtureTarget],
+    target: &FixtureTarget,
+    anchor: usize,
+) -> Option<usize> {
     lanes
         .iter()
         .enumerate()
