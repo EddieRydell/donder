@@ -14,39 +14,43 @@
     )
 )]
 
+#[cfg(feature = "host")]
 extern crate alloc;
 
-// This facade is the complete external API. Language values and executable
-// definitions belong to donder-language; the VM is an implementation detail.
-pub use archive::{
-    FORMAT_VERSION, HEADER_BYTES, LoadError, LoadLimits, decode_rig, decode_sequence, encode_rig,
-    encode_sequence, payload_length,
-};
-pub use clip::{ClipSampler, SequenceClip};
+// This facade is the complete external API. The core plays an admitted image
+// in a caller's buffer without allocating; the host feature builds images and
+// owns them. Language values and executable definitions belong to
+// donder-language; the VM is an implementation detail.
+pub use playback::{FixtureFrame, OutputFrame, Playback, SequenceFrame};
 pub use playback_rate::{FrameTiming, PlaybackRate};
-pub use sequence::{
-    EffectHandle, FixtureHandle, LookupHandle, OutputHandle, SequenceBuilder, SequenceRoot,
-    SignalHandle, TargetHandle, WindowHandle,
+pub use show::{FORMAT_VERSION, LoadError, LoadLimits, Show, header_bytes, image_len};
+pub use workspace::{LIVE_MARK_CAPACITY, Layout};
+
+pub use donder_runtime_types::image::{Fixture, Output};
+
+#[cfg(feature = "host")]
+pub use host::{
+    ClipSampler, EffectHandle, FixtureHandle, LookupHandle, OutputHandle, PreparedRig,
+    PreparedSequence, RigPlayback, SequenceBuilder, SequenceClip, SequencePlayback, SequenceRoot,
+    SignalHandle, TargetHandle, VoiceLength, WindowHandle,
 };
-pub use sequence::{
-    FixtureFrame, OutputFrame, PreparedOutput, PreparedSequence, SequenceFrame, SequencePlayback,
-};
-pub use sequence::{LIVE_MARK_CAPACITY, PreparedRig, RigPlayback, VoiceLength};
-pub use signal::PreparedFixture;
 
 use donder_runtime_types::sampling;
 
-mod archive;
-mod clip;
+mod arena;
 mod dsl;
 mod evaluation;
+#[cfg(feature = "host")]
+mod host;
 mod patch;
+mod playback;
 mod playback_rate;
+mod resources;
 mod scan;
 mod sections;
-mod sequence;
-mod signal;
+mod show;
 mod targets;
+mod workspace;
 
 #[cfg(test)]
 extern crate std;

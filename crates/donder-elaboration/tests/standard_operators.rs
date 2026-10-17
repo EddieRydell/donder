@@ -185,7 +185,7 @@ fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -
 
 /// The archive bytes, which record every prepared signal and program.
 fn encoded(sequence: &PreparedSequence) -> Vec<u8> {
-    donder_runtime::encode_sequence(sequence).unwrap()
+    sequence.encode()
 }
 
 fn disable_layer(sequence: &mut Sequence) {

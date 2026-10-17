@@ -108,6 +108,7 @@ pub(crate) enum Context {
     Time,
     Progress,
     Duration,
+    FrameRate,
     PixelIndex,
     PixelFraction,
     PixelX,
@@ -130,7 +131,7 @@ impl Context {
     pub(crate) fn domain(self) -> Domain {
         match self {
             Self::Time | Self::Progress => Domain::TIME,
-            Self::Duration => Domain::PARAM,
+            Self::Duration | Self::FrameRate => Domain::PARAM,
             Self::PixelIndex | Self::PixelFraction | Self::PixelX | Self::PixelY => Domain::PIXEL,
             Self::TargetCount
             | Self::TargetMinX

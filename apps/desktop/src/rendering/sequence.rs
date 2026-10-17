@@ -219,12 +219,11 @@ impl SequenceRenderService {
             .map(|session| {
                 let sequence = session.playback.sequence();
                 Ok(EncodedPreviewSequence {
-                    bytes: donder_runtime::encode_sequence(sequence)
-                        .map_err(|error| format!("{error:?}"))?,
+                    bytes: sequence.encode(),
                     fixtures: sequence
                         .fixtures()
                         .iter()
-                        .map(|fixture| (fixture.id, fixture.pixel_count))
+                        .map(|fixture| (fixture.id, fixture.pixel_count as usize))
                         .collect(),
                 })
             })

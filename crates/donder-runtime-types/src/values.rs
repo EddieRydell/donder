@@ -191,8 +191,20 @@ pub fn sample_duration_seconds_f32(duration: SampleDuration) -> f32 {
 }
 
 #[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    Hash,
+    bytemuck::Pod,
+    bytemuck::Zeroable,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
 )]
+#[repr(C)]
 pub struct Color {
     pub red: u8,
     pub green: u8,
@@ -223,7 +235,8 @@ impl Color {
 
 /// A color inside a running program: each channel a fraction of full
 /// brightness, unclamped until it is written as a [`Color`].
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
 pub struct FloatColor {
     pub red: f32,
     pub green: f32,
@@ -266,7 +279,19 @@ pub struct Curve {
     pub points: Vec<CurvePoint>,
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    bytemuck::Pod,
+    bytemuck::Zeroable,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+#[repr(C)]
 pub struct CurvePoint {
     pub position: f32,
     pub value: f32,
@@ -443,6 +468,11 @@ impl Marks {
         }
     }
 
+    /// The window, `track[first..end]`, and the tick it is measured from.
+    pub fn bounds(&self) -> (u32, u32, u32) {
+        (self.first, self.end, self.origin)
+    }
+
     /// The shared track.
     pub fn track(&self) -> &crate::Shared<[u32]> {
         &self.track
@@ -474,10 +504,36 @@ impl Marks {
             .map(|&mark| SampleDuration::from_ticks(mark - self.origin))
     }
 
+    /// The window as playback reads it.
+    pub fn view(&self) -> MarkWindow<'_> {
+        MarkWindow {
+            ticks: self.ticks(),
+            origin: self.origin,
+        }
+    }
+}
+
+/// Mark times in ascending ticks, measured from `origin`: a window of a track,
+/// borrowed from an authored value or an image.
+#[derive(Clone, Copy, Debug)]
+pub struct MarkWindow<'a> {
+    pub ticks: &'a [u32],
+    pub origin: u32,
+}
+
+impl MarkWindow<'_> {
+    pub fn len(&self) -> usize {
+        self.ticks.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ticks.is_empty()
+    }
+
     /// `sample_duration_seconds_f32` of mark `index`, or NaN for a missing
     /// index.
     pub fn seconds(&self, index: usize) -> f32 {
-        self.ticks().get(index).map_or(f32::NAN, |&mark| {
+        self.ticks.get(index).map_or(f32::NAN, |&mark| {
             sample_duration_seconds_f32(SampleDuration::from_ticks(mark - self.origin))
         })
     }
@@ -486,13 +542,26 @@ impl Marks {
     /// Seconds rise with ticks, so those marks form a prefix: the search
     /// narrows by ticks near `seconds`, then settles the boundary by seconds,
     /// converting about twice. A NaN query matches no mark.
-    pub fn previous(&self, seconds: f32) -> Option<(usize, f32)> {
-        let ticks = self.ticks();
+    ///
+    /// `cursor` holds the boundary the last query found. Queries a strip
+    /// makes in turn are usually near one another, so the boundary is checked
+    /// there before the track is searched.
+    pub fn previous(&self, seconds: f32, cursor: &core::cell::Cell<usize>) -> Option<(usize, f32)> {
+        let ticks = self.ticks;
         // Saturating: NaN and negative queries start from the origin.
         let near = self
             .origin
             .saturating_add((seconds * MICROS_PER_SECOND as f32) as u32);
-        let mut count = ticks.partition_point(|&mark| mark <= near);
+        let hint = cursor.get();
+        let fits = hint <= ticks.len()
+            && (hint == 0 || ticks[hint - 1] <= near)
+            && (hint == ticks.len() || ticks[hint] > near);
+        let mut count = if fits {
+            hint
+        } else {
+            ticks.partition_point(|&mark| mark <= near)
+        };
+        cursor.set(count);
         while count < ticks.len() && self.seconds(count) <= seconds {
             count += 1;
         }

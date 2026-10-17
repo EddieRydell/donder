@@ -293,15 +293,6 @@ pub struct Invocation {
     live: Box<[u16]>,
 }
 
-/// How a definition addresses the pixels it samples.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SignalAddressing {
-    /// Samples a pixel of the current fixture by index.
-    pub local: bool,
-    /// Samples a pixel of the whole layout by index.
-    pub global: bool,
-}
-
 impl Invocation {
     pub fn params(&self) -> &BoundParams {
         &self.params
@@ -311,19 +302,17 @@ impl Invocation {
         &self.automation
     }
 
-    pub fn addressing(&self) -> SignalAddressing {
+    /// Whether it samples pixels of the current fixture other than the
+    /// current one: by index, by offset, or along it in a scan.
+    pub fn reads_fixture_pixels(&self) -> bool {
         let graph = &self.definition.graph;
-        let mut addressing = SignalAddressing::default();
-        for node in super::lower::reachable(graph, self.definition.root) {
-            // A scan reads its input along the whole fixture.
-            addressing.local |= matches!(graph.op(node), Op::Scan { .. });
-            if let Op::Sample { pixel, .. } = graph.op(node) {
-                addressing.local |=
-                    matches!(pixel, SignalPixel::Local(_) | SignalPixel::Shifted(..));
-                addressing.global |= matches!(pixel, SignalPixel::Global(_));
-            }
-        }
-        addressing
+        super::lower::reachable(graph, self.definition.root)
+            .into_iter()
+            .any(|node| match graph.op(node) {
+                Op::Scan { .. } => true,
+                Op::Sample { pixel, .. } => !matches!(pixel, SignalPixel::Current),
+                _ => false,
+            })
     }
 
     /// This invocation at one place in a prepared sequence.

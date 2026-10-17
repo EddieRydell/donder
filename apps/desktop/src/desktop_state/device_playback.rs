@@ -304,12 +304,7 @@ impl DesktopState {
                     donder_elaboration::PrepareOutputs::Ports(ports),
                 )
                 .ok_or("The sequence or a connected device output is unavailable.")?;
-                Ok((
-                    donder_runtime::encode_sequence(&prepared)
-                        .map_err(|error| format!("Could not encode device sequence: {error:?}"))?,
-                    widths,
-                    frame_rate,
-                ))
+                Ok((prepared.encode(), widths, frame_rate))
             },
         )?;
         Ok(duration)

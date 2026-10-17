@@ -34,10 +34,10 @@ const OPERATOR_TEMPLATE: &str = "operator Probe {
   param taps: int in 1..4 = 2;
   sample {
     let mirrored = source.at(time - gain, target.count - 1 - pixel.index);
-    let global = other.at_global(time, pixel.index + 1);
+    let neighbor = other.at(time, pixel.index + 1);
     let echo = sum for tap in 1..=taps { other.at(time - gain * tap) * pow(gain, tap) };
     guard intensity(source) < 0.99 else source;
-    max(max(source, mirrored), global + echo)
+    max(max(source, mirrored), neighbor + echo)
   }
 }";
 

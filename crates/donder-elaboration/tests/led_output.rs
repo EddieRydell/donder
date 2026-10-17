@@ -60,7 +60,7 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
     let mut buffers: Vec<_> = output
         .outputs()
         .iter()
-        .map(|port| vec![0; port.width])
+        .map(|port| vec![0; port.width as usize])
         .collect();
     let mut hashes = Vec::new();
     for frame in [8398, 8450, 8494] {

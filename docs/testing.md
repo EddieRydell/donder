@@ -49,7 +49,7 @@ Key contracts and their tests:
 | Save and reload preserve meaning | `donder-project-io` `semantic_preservation`, `roundtrip`, `path_refactor` |
 | Strict parsing with exact locations | `donder-project-io` `schema_strictness`, `diagnostics` |
 | Controller fragments match full playback | `donder-elaboration` `output_selection` |
-| Archive round trips and corruption rejection | `donder-elaboration` `sequence_archive`, `clip_sampling`; `donder-runtime` `archive` |
+| Image round trips and corruption rejection | `donder-elaboration` `sequence_archive`, `clip_sampling` |
 | Only well-formed programs are admitted | `donder-language` `admission` |
 | Any source compiles or reports diagnostics, without panics or stack overflow | `donder-language` `compiler_totality` |
 | Language semantics and diagnostics | `donder-runtime` `dsl`, `arrays`, `event_queries`, `hsv_intrinsics` |

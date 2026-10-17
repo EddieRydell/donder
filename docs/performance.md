@@ -90,6 +90,28 @@ became one `PerFixture` clip on a group. In interleaved runs that day, 60
 frames of controller output went from 88 ms to 58 ms and warm preparation from
 78 ms to 29 ms, while cold preparation rose from 205 ms to 236 ms.
 
+All We Are in `rydell_house` (25,314 pixels, 1,179 clips at 144 fps) measured
+on 2026-10-16 (Windows x64 release build, pinned to logical CPU 2) before and
+after one round of changes:
+
+| Measure | Before | After |
+| --- | --- | --- |
+| Frame, 67–88 s (Echo over a radius-10 Blur, 12 MarkPulse clips, Fire) | 90.9 ms | 8.8 ms |
+| Archive | 958 KB | 529 KB |
+| Playback workspace | 549 KB | 474 KB |
+
+Targets no longer store a fraction per pixel; it is computed as authoring
+computes it. Section queries cost one pass over a run's fixtures per strip,
+not per pixel. A layer sampled a strip at a time gathers the cells an effect
+covers where its segments overlap the run; the earlier binary search per pixel,
+per effect and per Echo tap was most of the 91 ms. Fused Echo of Blur keeps its
+stencil, which skips all-black neighborhoods. Row `any` no longer splits the
+selection where pixels decide (MarkPulse 5.8 to 4.3 ms). Removing whole-frame
+caches for current-pixel reads saved 300 KB of workspace but more than doubled
+Ding Dong's controller output (44.6 to 103.8 ms for 60 frames), so they stay.
+Idle frames still cost about 4.8 ms, most of it Blur's per-pixel weight total
+and Echo over 25k black pixels.
+
 Opening and editing `rydell_house` text (30 documents, 36 MB; Carol of the Bells
 is 6 MB in 199k lines) on 2026-10-11 (Windows x64 release build on an
 i9-13980HX, pinned to logical CPU 2): a project check fell from 7.5 s to 1.7 s
@@ -313,6 +335,18 @@ DRAM from the core-0 stack.
 Controller and release images use opt-level 3, fat LTO, one codegen unit and
 abort on panic. `debug = 2` keeps symbols without affecting optimization.
 
+Flat show images (October 17, 2026, Windows, Criterion pinned to CPU 2, against
+the October 16 baseline): images are read in place and playback runs in one
+caller buffer, with byte-identical output. Host playback is slower:
+`prepared_effect_suite_4x512_pixels` 101.6 µs (+22%),
+`prepared_600_pixels_4_layers_3_operators` 455.9 µs (+24%),
+`render_playback_dense_60_frames` 3.31 ms (+28%), `prepared_temporal/standard_echo`
++40 to 45%; preparation is 4 to 7% faster. A one-entry cache of the resource a
+strip's handles name recovered about a third of the first measured loss. For
+`all_we_are` the image is 526 KB (529 KB archive), of which per-pixel layout
+positions are 203 KB and instruction words 100 KB, and the playback buffer is
+447 KB, mostly three whole-frame operator caches.
+
 ## Hardware results
 
 These summarize device runs whose raw captures were not kept. Each describes the
@@ -337,6 +371,21 @@ firmware of its date.
   same interpreter averaged 960 µs; the previous 32-lane interpreter, measured
   the same day on the same show, averaged 1,250 µs (3.4 ms busy windows, 6.2 ms
   slowest frame).
+- **October 16, 2026:** Stanford `main` (150 pixels, format 64, `i2s-output`
+  image), every frame from 64 s to 91 s through `/frame`: evaluation averaged
+  5.27 ms (5.34 ms with the previous firmware), 95th percentile 6.39 ms
+  (6.61 ms), slowest 8.28 ms (9.42 ms). The archive is 26.6 KB (28.4 KB); 68.8
+  KB of heap stayed free after loading (70.5 KB).
+- **October 17, 2026:** flat show images (format 65), played from the flash
+  slot through the DROM window with only the playback buffer on the heap.
+  Stanford `main` on the Dig-Quad, every frame from 64 s to 91 s through
+  `/frame`: matching checksums and no evaluation allocations, but evaluation
+  averaged 8.85 ms (5.27 ms with format 64), 95th percentile 11.0 ms, slowest
+  14.9 ms. The image is 30.3 KB (26.6 KB archive) and needs no RAM copy; the
+  playback buffer is 39.8 KB, and 45 KB of the now 126 KiB heap stays free.
+  The likely cost is reading program words and records through the flash
+  cache; it was not isolated, because a RAM copy of the image did not fit the
+  heap layout.
 
 ## Measuring
 

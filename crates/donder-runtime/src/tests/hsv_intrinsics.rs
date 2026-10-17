@@ -10,8 +10,8 @@ const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::Spat
     max: [0.0; 2],
 };
 
-use crate::dsl::RuntimeError;
-use crate::dsl::StripWorkspace;
+use super::evaluation::RuntimeError;
+use super::evaluation::StripWorkspace;
 use donder_language::compiler::{compile_effects, compile_operators};
 use donder_runtime_types::Color;
 use donder_runtime_types::SampleTime;

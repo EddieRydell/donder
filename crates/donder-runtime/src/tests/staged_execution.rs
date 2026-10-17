@@ -8,8 +8,9 @@ use super::evaluation::{
 use super::std;
 use std::prelude::rust_2024::*;
 
+use super::evaluation::{Single, StripWorkspace};
 use crate::dsl::bytecode::{FloatBinary, Instruction};
-use crate::dsl::{BoundParams, DslBindCache, NoSignals, STRIP, Strip, StripWorkspace};
+use crate::dsl::{NoSignals, STRIP};
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::{FixtureGeometry, SpatialContext, TargetScope};
 use donder_runtime_types::{OperatorInvocation, OperatorProgram};
@@ -72,9 +73,9 @@ fn frame_caches_match_run_sampling_for_temporal_reductions_tails_seeks_and_neste
         "operator Temporal {
             input source;
             sample {
-                -- Query-uniform sample times use frame caches; times that
-                -- vary with a reduction index sample per iteration.
-                let base = mix(rgb(0.1, 0.2, 0.3), source.at(time - 0.04), 0.5);
+                -- Pixel reads at query-uniform times use frame caches; times
+                -- that vary with a reduction index sample per iteration.
+                let base = mix(rgb(0.1, 0.2, 0.3), source.at(time - 0.04, pixel.index), 0.5);
                 max(base, max for i in 0..3 {
                     let t = time - i * 0.04;
                     guard t >= 0.0;
@@ -153,12 +154,12 @@ fn frame_caches_preserve_choices_arrays_reductions_and_seeks() {
 }
 
 #[test]
-fn strips_preserve_local_global_and_subset_target_addressing() {
+fn strips_preserve_local_and_subset_target_addressing() {
     use donder_runtime_types::{OutputEncoding, RgbOrder};
     let source = effect("effect Source { sample { rgb(pixel.fraction, time * 0.2, 0.5) } }");
     let operator = operator(
         "operator Address { input source; sample {
-            max(source.at(time + 0.1), mix(source.at(time * 0.5, 1), source.at_global(time, 4), 0.3))
+            max(source.at(time + 0.1), mix(source.at(time * 0.5, 1), source.at(time, 4), 0.3))
         } }",
     );
     let reference_operator = uncached(&operator);
@@ -591,8 +592,12 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
                             1.0,
                         );
                         let expected = if pixel % 2 == 0 {
-                            crate::sampling::gradient_color_scaled(colors, progress, value * 3.0)
-                                .to_color()
+                            crate::sampling::gradient_color_scaled(
+                                &colors.stops,
+                                progress,
+                                value * 3.0,
+                            )
+                            .to_color()
                         } else {
                             crate::sampling::rgb(
                                 if value.is_nan() { 0.25 } else { value },
@@ -651,44 +656,39 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             .any(|op| matches!(op, Instruction::GradientSample { .. }))
     );
     assert!(bytecode.uses_pixel_context());
-    let params = BoundParams::from_validated(
-        invocation.program().bytecode(),
-        invocation.params(),
-        &mut DslBindCache::default(),
-    );
     let mut workspace = StripWorkspace::default();
-    workspace.reserve(bytecode);
     let run = context(9, 0, 0).run;
-    let mut strip = Strip::new(bytecode, &params, &run, None, &mut workspace);
-    for (pixel, pixel_count, max_x) in [
-        (0, 9, 0.0),
-        (1, 9, 0.25),
-        (2, 9, 0.25),
-        (3, 9, 1.0),
-        (4, 3, 1.0),
-        (5, 9, 0.25),
-    ] {
-        let pixels = strip.pixels();
-        pixels.index[0].set(-1);
-        pixels.index[1].set(pixel);
-        let mut colors = [Color::BLACK; 2];
-        strip.run(
-            pixel_count,
-            [0.0; 2],
-            [max_x, 1.0],
-            &mut NoSignals,
-            &mut colors,
-        );
-        let position = max_x * pixel_count as f32 / 9.0;
-        assert_eq!(
-            colors,
-            [
-                Color::BLACK,
-                crate::sampling::sample_gradient(&gradient, position).to_color()
-            ],
-            "count={pixel_count} max_x={max_x}"
-        );
-    }
+    Single::sample(&invocation).with_strip(&run, &mut workspace, |strip| {
+        for (pixel, pixel_count, max_x) in [
+            (0, 9, 0.0),
+            (1, 9, 0.25),
+            (2, 9, 0.25),
+            (3, 9, 1.0),
+            (4, 3, 1.0),
+            (5, 9, 0.25),
+        ] {
+            let pixels = strip.pixels();
+            pixels.index[0].set(-1);
+            pixels.index[1].set(pixel);
+            let mut colors = [Color::BLACK; 2];
+            strip.run(
+                pixel_count,
+                [0.0; 2],
+                [max_x, 1.0],
+                &mut NoSignals,
+                &mut colors,
+            );
+            let position = max_x * pixel_count as f32 / 9.0;
+            assert_eq!(
+                colors,
+                [
+                    Color::BLACK,
+                    crate::sampling::sample_gradient(&gradient, position).to_color()
+                ],
+                "count={pixel_count} max_x={max_x}"
+            );
+        }
+    });
 }
 
 #[test]

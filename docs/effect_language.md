@@ -222,6 +222,14 @@ let tail = scan forward input as light, previous {
 - A scan's whole frame is computed once per frame, so its cost does not depend
   on how far the light travels. `max` or `+` of a forward and a backward scan
   spreads light both ways.
+- `scan time` carries the value from frame to frame instead: `previous` is the
+  scan's value at the same pixel one frame earlier, black before the sequence
+  starts, so light lingers and fades however long its tail. Frames are the
+  sequence's; `frame_rate` gives their rate, so a decay of
+  `pow(0.1, 1.0 / (seconds * frame_rate))` fades to a tenth over `seconds`
+  at any frame rate. Each pixel keeps one running value. After a seek,
+  playback replays from black over the frames whose light can still show,
+  at most four seconds, so a replayed color can differ by one 8-bit step.
 
 Syntax nests at most 128 levels deep. Expressions, blocks and each operator
 of a chain such as `a + b + c` are levels.
@@ -281,9 +289,6 @@ An operator samples an immutable input signal by time and pixel:
 - `source.at(t, pixel)` samples a zero-based pixel of the current fixture
   instance. Local coordinates never wrap across fixtures. To read neighbors,
   use an `around` reduction.
-- `source.at_global(t, pixel)` samples a zero-based pixel of the full layout,
-  in instance order with each instance's pixels contiguous. This order does not
-  depend on which controller ports are selected.
 
 Out-of-range pixels and times outside the sequence return black, without
 evaluating the input. Samples can query other operators and combine spatial and
@@ -344,9 +349,8 @@ fixture; a whole-target effect sections the target's fixtures in order.
   error.
 - Reductions are bounded as described above.
 
-Preparation and playback never report errors at frame time. Prepared-archive
-decoding checks structure and resource budgets and trusts the compiler for the
-rest; see [ESP32 loading](esp32_loading.md).
+Preparation and playback never report errors at frame time. Image admission
+checks every record and program once when a show loads; see [ESP32 loading](esp32_loading.md).
 
 ## Standard library
 
@@ -392,6 +396,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | Threshold | `input` | Passes pixels whose brightness (`measure` = Brightest, Luminance or Average) exceeds `threshold = 0.5`, fading across `softness = 0.1`; `invert` passes the darker pixels instead |
 | Trail | `input` | Carries each pixel's light along each fixture's pixel order, keeping `decay = 0.8` of it per pixel, `Forward`, `Backward` or `Both` (the brighter) |
 | Bloom | `input` | Thresholds like Threshold (`threshold = 0.6`, `softness = 0.2`), spreads the passing light both ways along each fixture's pixel order with forward and backward scans, fading to a tenth over `radius = 6` pixels, scales it by `strength = 2.0` and `tint`, and combines it with the input by `blend` (Add, Screen, Lighten or GlowOnly). The glow fades off fixture ends, and its cost does not depend on the radius |
+| Afterglow | `input` | Holds light after it goes out, fading it to a tenth over `seconds = 0.5` with a time scan; steady light shows unchanged, and its cost does not depend on the tail's length |
 
 Samples before the sequence are black. The starter adds Gain and TimeWarp as
 separate operator documents. `examples/stanford_room` carries its own copy of the

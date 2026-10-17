@@ -29,12 +29,12 @@ use core::{
     fmt::Write as _,
     sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
+#[cfg(feature = "i2s-output")]
+use donder_runtime::FrameTiming;
+use donder_runtime::{Layout, LoadError, LoadLimits, SequenceFrame, header_bytes};
 use donder_runtime_types::SampleTime;
 #[cfg(feature = "i2s-output")]
 use donder_runtime_types::sample_time_from_frame;
-#[cfg(feature = "i2s-output")]
-use donder_runtime::FrameTiming;
-use donder_runtime::{HEADER_BYTES, LoadError, LoadLimits, SequencePlayback, decode_sequence};
 use embassy_net::StackResources;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
@@ -115,8 +115,59 @@ fn local_micros() -> u64 {
     Instant::now().duration_since_epoch().as_micros()
 }
 
+/// A show playing from its flash slot. Its playback is laid out once in a
+/// heap buffer and kept between frames, so a frame does not lay it out again.
+struct LoadedShow {
+    playback: core::mem::ManuallyDrop<Box<donder_runtime::Playback<'static, 'static>>>,
+    /// The playback's buffer, freed after the playback that borrows it.
+    buffer: *mut [u64],
+}
+
+// Safety: the buffer is owned by this value alone and only reached through
+// its playback, which moves between cores with it.
+unsafe impl Send for LoadedShow {}
+
+impl LoadedShow {
+    fn new(sequence: donder_runtime::Show<'static>, layout: &Layout) -> Option<Self> {
+        let buffer = Box::into_raw(vec![0u64; layout.words()].into_boxed_slice());
+        // Safety: the buffer stays allocated until `drop`, which drops the
+        // playback borrowing it first.
+        let words: &'static mut [u64] = unsafe { &mut *buffer };
+        match donder_runtime::Playback::new(sequence, layout, words) {
+            Some(playback) => Some(Self {
+                playback: core::mem::ManuallyDrop::new(Box::new(playback)),
+                buffer,
+            }),
+            None => {
+                // Safety: nothing borrows the buffer any more.
+                drop(unsafe { Box::from_raw(buffer) });
+                None
+            }
+        }
+    }
+
+    fn sequence(&self) -> donder_runtime::Show<'static> {
+        self.playback.show()
+    }
+
+    fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
+        self.playback.evaluate(time)
+    }
+}
+
+impl Drop for LoadedShow {
+    fn drop(&mut self) {
+        // Safety: the playback is dropped before the buffer it borrows, and
+        // neither is used again.
+        unsafe {
+            core::mem::ManuallyDrop::drop(&mut self.playback);
+            drop(Box::from_raw(self.buffer));
+        }
+    }
+}
+
 struct Playback {
-    show: SequencePlayback,
+    show: LoadedShow,
     #[cfg(feature = "i2s-output")]
     transport: transport::Transport,
     #[cfg(feature = "i2s-output")]
@@ -127,7 +178,7 @@ struct Playback {
 
 #[cfg(feature = "i2s-output")]
 impl Playback {
-    fn render(&mut self, display_time: u64) -> Option<donder_runtime::SequenceFrame<'_>> {
+    fn render(&mut self, display_time: u64) -> Option<SequenceFrame<'_>> {
         let (mode, position) = self
             .transport
             .sample(display_time, self.show.sequence().duration().as_ticks());
@@ -167,8 +218,7 @@ const DMA_BYTES: usize = DATA_SAMPLES + RESET_SAMPLES;
 /// The fastest frame rate the outputs carry: a frame's data and latch must
 /// fit in its period.
 #[cfg(feature = "i2s-output")]
-const MAX_FRAME_RATE: u32 =
-    (I2S_SAMPLE_RATE as usize / (DATA_SAMPLES + RESET_SAMPLES)) as u32;
+const MAX_FRAME_RATE: u32 = (I2S_SAMPLE_RATE as usize / (DATA_SAMPLES + RESET_SAMPLES)) as u32;
 /// Frame rate of the black frames sent while no show plays.
 #[cfg(feature = "i2s-output")]
 const IDLE_FRAME_RATE: u32 = 30;
@@ -183,7 +233,7 @@ const OUTPUT_DESCRIPTION: &str = "off";
 type ParallelOutput = I2sParallel<'static, Async>;
 
 const LIMITS: LoadLimits = LoadLimits {
-    payload_bytes: show_slots::MAX_PAYLOAD_BYTES,
+    image_bytes: show_slots::MAX_PAYLOAD_BYTES,
     pixels: 1600,
     graph_nodes: 128,
     workspace_bytes: 96 * 1024,
@@ -232,27 +282,18 @@ async fn uart_reply(
 const NETWORK_HEAP_RESERVE: usize = 10 * 1024;
 
 #[inline(never)]
-fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
+fn load(image: &'static [u8]) -> Result<Playback, LoadError> {
     let free = esp_alloc::HEAP.free();
-    println!("LOAD archive_bytes={} heap_free={}", bytes.len(), free);
-    // Measure the decoded show first: the workspace must fit in what remains
-    // after both the decoded data and the network reserve.
-    let decoded = {
-        let _measured = decode_sequence(bytes, LIMITS)?;
-        free.saturating_sub(esp_alloc::HEAP.free())
-    };
+    println!("LOAD image_bytes={} heap_free={}", image.len(), free);
+    // The image plays from flash; only the workspace takes heap, and it must
+    // leave the network reserve free.
     let limits = LoadLimits {
         workspace_bytes: LIMITS
             .workspace_bytes
-            .min(free.saturating_sub(decoded + NETWORK_HEAP_RESERVE)),
+            .min(free.saturating_sub(NETWORK_HEAP_RESERVE)),
         ..LIMITS
     };
-    println!(
-        "LOAD decoded_bytes={} workspace_limit={}",
-        decoded, limits.workspace_bytes
-    );
-    let sequence = decode_sequence(bytes, limits)?;
-    println!("LOAD decoded heap_free={}", esp_alloc::HEAP.free());
+    let sequence = donder_runtime::Show::admit(image, limits)?;
     #[cfg(feature = "i2s-output")]
     if sequence.outputs().is_empty()
         || sequence.frame_rate() > MAX_FRAME_RATE
@@ -260,17 +301,22 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
         || sequence
             .outputs()
             .iter()
-            .any(|output| output.width > OUTPUT_PIXELS * 3 || output.width % 3 != 0)
+            .any(|output| output.width as usize > OUTPUT_PIXELS * 3 || output.width % 3 != 0)
     {
         return Err(LoadError::Limit);
     }
-    let show = sequence.into_playback();
-    println!("LOAD workspace heap_free={}", esp_alloc::HEAP.free());
+    let layout = sequence.layout();
+    let show = LoadedShow::new(sequence, &layout).ok_or(LoadError::Limit)?;
+    println!(
+        "LOAD workspace_bytes={} heap_free={}",
+        layout.words() * 8,
+        esp_alloc::HEAP.free()
+    );
     Ok(Playback {
         #[cfg(feature = "i2s-output")]
-        archive_crc: u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        archive_crc: u32::from_le_bytes(image[12..16].try_into().unwrap()),
         #[cfg(feature = "i2s-output")]
-        archive_bytes: bytes.len() as u32,
+        archive_bytes: image.len() as u32,
         show,
         #[cfg(feature = "i2s-output")]
         transport: transport::Transport::new(),
@@ -565,7 +611,7 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
         }
         let capabilities = Capabilities {
             sequence_format: donder_runtime::FORMAT_VERSION,
-            max_payload_bytes: LIMITS.payload_bytes,
+            max_payload_bytes: LIMITS.image_bytes,
             max_pixels: LIMITS.pixels,
             max_graph_nodes: LIMITS.graph_nodes,
             max_workspace_bytes: LIMITS.workspace_bytes,
@@ -618,7 +664,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         };
 
         let length = request.body_connection.content_length();
-        if !(HEADER_BYTES..=HEADER_BYTES + LIMITS.payload_bytes).contains(&length) {
+        if !(header_bytes()..=LIMITS.image_bytes).contains(&length) {
             return (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "Sequence exceeds device limits\n",
@@ -757,9 +803,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                 };
                 (
                     StatusCode::UNPROCESSABLE_ENTITY,
-                    format_args!(
-                        "{reason}. Playback stopped; the previous saved show remains.\n"
-                    ),
+                    format_args!("{reason}. Playback stopped; the previous saved show remains.\n"),
                 )
                     .write_to(connection, response_writer)
                     .await
@@ -1338,10 +1382,11 @@ async fn recover_storage(
 async fn main(spawner: embassy_executor::Spawner) -> ! {
     let mut p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
-    // Keep the network core's stack space unchanged when reserving the larger
-    // render stack. Total heap with output enabled is 138 KiB.
+    // Shows play from flash, so the heap holds only their playback buffers;
+    // the rest of DRAM is the network core's stack, which loading a show and
+    // serving requests use deeply. Total heap with output enabled is 126 KiB.
     #[cfg(feature = "i2s-output")]
-    esp_alloc::heap_allocator!(size: 74 * 1024);
+    esp_alloc::heap_allocator!(size: 62 * 1024);
     #[cfg(not(feature = "i2s-output"))]
     esp_alloc::heap_allocator!(size: 92 * 1024);
     let timer = TimerGroup::new(p.TIMG0);
@@ -1531,7 +1576,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 }
 
 #[cfg(feature = "i2s-output")]
-fn encode_frame(frame: Option<donder_runtime::SequenceFrame<'_>>, buffer: &mut [u8]) {
+fn encode_frame(frame: Option<SequenceFrame<'_>>, buffer: &mut [u8]) {
     let mut lanes: [&[u8]; OUTPUT_LANES] = [&[]; OUTPUT_LANES];
     let count = match frame {
         Some(frame) => {

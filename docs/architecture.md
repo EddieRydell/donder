@@ -18,12 +18,12 @@ has one owner:
 
 | Crate | Owns |
 | --- | --- |
-| `donder-runtime-types` | What playback accepts and what it means, `no_std + alloc`: colors, curves, gradients, marks and sample time; the strip bytecode (`bytecode`); program, invocation and parameter-binding descriptions; prepared inputs such as sequence timing, fixture and target geometry and output encodings; and the sampling math (`sampling`) shared by constant folding and evaluation. An item belongs here only if the runtime consumes it and an upstream crate produces it. |
+| `donder-runtime-types` | What playback accepts and what it means, `no_std + alloc`: the show image's record layouts (`image`); colors, curves, gradients, marks and sample time; the strip bytecode (`bytecode`); program, invocation and parameter-binding descriptions; prepared inputs such as sequence timing, fixture and target geometry and output encodings; and the sampling math (`sampling`) shared by constant folding and evaluation. An item belongs here only if the runtime consumes it and an upstream crate produces it. |
 | `donder-language` | The text language. `data`: the data-document syntax tree, parser, printer, literal rules and schema traits. `compiler`: the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission). `analysis`: semantic tokens, symbols, hover and completion for editors. The root holds import syntax, naming rules and authored quantities (times, distances, transforms). It does not depend on the model or the runtime. |
 | `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, rigs, effect and operator definitions, ownership, identity, geometry preparation, validation, and the validated `ProjectEdit` batches and ownership edits that change it. |
 | `donder-project-io` | Source documents, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
-| `donder-runtime` | `no_std` prepared-sequence playback, the private strip interpreter, and the prepared archive format (`archive.rs`). |
+| `donder-runtime` | `no_std` show playback without `alloc`: admission of a show image borrowed in place (`Show`), and evaluation into one caller-provided buffer (`Playback`) by the private strip interpreter. The default `host` feature adds the image builder and owned shows and playbacks. |
 | `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
 | `donder-audio-analysis` | Beat and downbeat detection from song audio: decoding, the log-mel spectrogram and the embedded Beat This! model (small, MIT licensed) run with tract. Host-only. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
@@ -116,29 +116,36 @@ resolved. `outputs` is `PrepareOutputs::All`, `Controllers` or `Ports`.
 Preparation resolves everything symbolic (imports, names, layouts, groups,
 device selection) so that playback never does.
 
-`sequence.into_playback()` creates runtime-owned scratch and output storage once.
-`playback.evaluate(time)` then returns borrowed fixture colors and packed
-controller bytes for that frame. It cannot fail and does not allocate. The VM,
-execution plan and storage layout are private to the runtime; callers build
-sequences only through `SequenceBuilder`'s owner-bound handles.
+A prepared sequence is a show image: a header, a section table and sections of
+fixed-size records that refer to one another by index. Playback reads the
+records where they lie, in memory or in a controller's flash. A show's
+`Layout` gives the exact size of its playback buffer; `Playback::new` lays the
+frame, port bytes, strip workspaces, frame caches and automation state out in
+that buffer, and `Playback::resume` borrows them again on a later frame.
+`sequence.into_playback()` owns both on the host. `evaluate(time)` returns
+borrowed fixture colors and packed controller bytes for that frame. It cannot
+fail and does not allocate. The VM and record layouts are private to the
+runtime; callers build images only through `SequenceBuilder`'s owner-bound
+handles.
 
 The same `PreparedSequence` runs in three places. All three map wall time to
 show time and choose rendered frames through the runtime's `PlaybackRate`, so a
 playback speed and its frame timing (scaled or constant) behave identically
 everywhere:
 
-- **Preview.** The desktop sends the encoded archive, projected fixture
+- **Preview.** The desktop sends the encoded image, projected fixture
   geometry and clock anchors to a separate winit/wgpu process when their
   revisions change. Each pipe message is a JSON header and a binary payload;
-  the archive and fixture instances travel as raw bytes. That process evaluates frames itself, so pixels never cross
+  the image and fixture instances travel as raw bytes. That process evaluates frames itself, so pixels never cross
   Tauri IPC. Audio state arrives as timestamped anchors that the Preview
   interpolates and corrects to. A separate process also keeps GTK and wgpu from
   sharing one Wayland surface.
 - **Live output.** The desktop service evaluates controller bytes and sends them
   over E1.31 or Art-Net. Output is opt-in for each run and fails closed: stopping
   blacks out active ports and terminates E1.31 streams.
-- **Controllers.** Exported archives, prepared for a controller's ports, are
-  uploaded to the ESP32 loader.
+- **Controllers.** Exported images, prepared for a controller's ports, are
+  uploaded to the ESP32 loader, which plays them from the flash slot they were
+  written to; only the playback buffer is in RAM.
 
 Perform mode plays a rig instead of a sequence (`desktop_state/perform.rs`).
 Starting arms the rig on the active setup and starts a session clock; sequence
@@ -147,14 +154,17 @@ the Preview (forwarded over its event pipe) are stamped on the session clock
 when the desktop receives them, routed by the rig's `RigRouter`, and the
 resulting `RigEvent`s fan out in order to every evaluator: the live output
 worker plays its own `RigPlayback` on the session clock, and the Preview
-receives the rig archive as its content, then the events as they arrive, with
+receives the rig image as its content, then the events as they arrive, with
 the session time as its clock anchor. An evaluator that joins mid-performance
 replays the performance's events from the start. Frame caches include the
 events applied, since an event changes a frame without changing its time.
 
-Archive decoding checks the envelope, checksum, archive structure and resource
-budgets. It trusts a compatible Donder producer for graph and bytecode
-correctness, because the only producer is the runtime's own builder. The format
-is a numbered current version; a mismatch is rejected rather than migrated.
+Admission checks the header, checksum and section table, every cross-reference
+between records, every program's well-formedness for its use, and the limits on
+pixels, graph nodes and buffer size, once; playback then indexes records
+without checking them again. A rig is an image with voices, live mark
+collections and controls; their commands change only the playback buffer. The
+format is a numbered current version; a mismatch is rejected rather than
+migrated.
 
 Performance design is described in [performance](performance.md).

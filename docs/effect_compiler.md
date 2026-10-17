@@ -64,7 +64,7 @@ so equal expressions share a node by construction.
 | `Unary`, `Binary`, `Ternary` | Scalar, color, resource, mark and section operations |
 | `Select` | Pure choice. `&&` and `\|\|` are selects too |
 | `Reduce` with `LoopIndex` | A reduction; its bounds, body, filter and default live in its loop |
-| `Sample` | An input signal at a time and a current, local or global pixel |
+| `Sample` | An input signal at a time and the current pixel, a shift of it, or a pixel of its fixture |
 | `Items`, `Pick` | An array literal, and its item at a clamped index |
 
 Each node records its type, its domain and the reductions whose index it reads,
@@ -176,8 +176,9 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
 - Control flow is structured. A branch is an instruction followed by its arms:
   on a scalar condition one arm runs, on a row condition each arm runs for its
   own pixels. A reduction is an instruction followed by its loop and
-  contribution parts, with an accumulator; `first`, `last`, `any` and `all`
-  stop for each pixel that decides, and `last` counts down.
+  contribution parts, with an accumulator; `first` and `last` stop for each
+  pixel that decides, and `last` counts down. Over rows, `any` and `all`
+  combine every iteration branch-free and stop once every pixel has decided.
 - A program declares its parameters' types. An invocation binds them to two
   storages, each numbered in declaration order: one 32-bit word per float,
   int, bool, color or enum parameter, and one shared resource per curve,
@@ -207,12 +208,18 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   once per neighbor rather than once per offset that reads it, runs the offset
   code once per offset, and accumulates every offset in one instruction. A
   failed source guard is a zero weight and contributes nothing. Factor
-  products are reassociated, which may change rounding. An `around` that
-  ignores its neighbor is an ordinary reduction over the offsets that have one.
+  products are reassociated, which may change rounding. The sample time may
+  change between iterations of an enclosing reduction, as when Echo fuses a
+  Blur, but not with the offset. A strip whose whole neighborhood is black
+  skips the offsets. An `around` that ignores its neighbor is an ordinary
+  reduction over the offsets that have one.
 - A scan is one instruction with a source block, as a stencil's, computing the
   light's weight. Playback computes the scan for the whole frame on first use
   in a query, a strip of input at a time, into a frame cache of its own keyed
-  by the operator node and time; each strip copies its pixels from there.
+  by the operator node and time; each strip copies its pixels from there. A
+  time scan also keeps its running values per node across frames and steps
+  them once per frame; after a seek it replays from black over the frames
+  whose light can still show, at most four seconds.
 - Samples of one input at one query-uniform time share a whole-frame cache.
 - Every value starts in its own slot; liveness over the structured code then
   shares slots per bank and kind. A value read inside a reduction but defined
@@ -220,7 +227,7 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   are never shared.
 
 Admission (`SampleProgram::admit`, `OperatorProgram::admit`) checks every
-program, and archives are admitted again when they load: slot ranges per bank,
+program, and show images are admitted again when they load: slot ranges per bank,
 nesting, parameter reads, pools, inputs, and that a value is a row exactly when
 its operands vary by pixel. A definition's most general instance, with every
 parameter left to playback, must fit the row and nesting limits; that is checked

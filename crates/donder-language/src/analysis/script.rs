@@ -146,18 +146,11 @@ fn reducer_summary(name: &str) -> &'static str {
         .map_or("", |(_, summary)| summary)
 }
 
-const METHODS: [(&str, &str, &str); 2] = [
-    (
-        "at",
-        "at(time: float) -> color\nat(time: float, pixel: int) -> color",
-        "The input at another time, at this pixel or another pixel of this fixture.",
-    ),
-    (
-        "at_global",
-        "at_global(time: float, pixel: int) -> color",
-        "The input at another time and another pixel of the whole layout.",
-    ),
-];
+const METHODS: [(&str, &str, &str); 1] = [(
+    "at",
+    "at(time: float) -> color\nat(time: float, pixel: int) -> color",
+    "The input at another time, at this pixel or another pixel of this fixture.",
+)];
 
 fn method_documentation(name: &str) -> String {
     METHODS

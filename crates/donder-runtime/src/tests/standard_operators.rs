@@ -8,10 +8,10 @@ const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::Spat
     max: [0.0; 2],
 };
 
+use super::evaluation::RuntimeError;
 use super::evaluation::SignalSampler;
+use super::evaluation::StripWorkspace;
 use crate::dsl::RunContext;
-use crate::dsl::RuntimeError;
-use crate::dsl::StripWorkspace;
 use donder_language::compiler::CompiledOperator;
 use donder_language::compiler::compile_operators;
 use donder_runtime_types::Color;
@@ -72,6 +72,7 @@ fn sample(
                     progress: time as f32 / 10_000_000.0,
                     time: SampleDuration::from_ticks(time),
                     duration: SampleDuration::from_ticks(10_000_000),
+                    frame_rate: 40.0,
                     pixel_count: 1,
                 },
                 index: 0,

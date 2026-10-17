@@ -194,12 +194,11 @@ impl DesktopState {
                 generation: perform.generation.wrapping_add(1),
                 rig: described,
                 clock: SessionClock::start(sequence.duration()),
-                archive: donder_runtime::encode_rig(&armed.prepared)
-                    .map_err(|error| format!("Cannot encode the rig: {error:?}"))?,
+                archive: armed.prepared.encode(),
                 fixtures: sequence
                     .fixtures()
                     .iter()
-                    .map(|fixture| (fixture.id, fixture.pixel_count))
+                    .map(|fixture| (fixture.id, fixture.pixel_count as usize))
                     .collect(),
                 prepared: armed.prepared,
                 router: armed.router,

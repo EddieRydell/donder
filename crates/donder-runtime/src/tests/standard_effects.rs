@@ -8,8 +8,8 @@ const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::Spat
     max: [0.0; 2],
 };
 
+use super::evaluation::StripWorkspace;
 use crate::dsl::RunContext;
-use crate::dsl::StripWorkspace;
 use donder_language::compiler::compile_effects;
 use donder_runtime_types::Value;
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration};
@@ -69,6 +69,7 @@ fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
                     progress,
                     time: SampleDuration::from_ticks((progress * 1_000_000.0) as u32),
                     duration: SampleDuration::from_ticks(1_000_000),
+                    frame_rate: 40.0,
                     pixel_count: 1,
                 },
                 index: 0,

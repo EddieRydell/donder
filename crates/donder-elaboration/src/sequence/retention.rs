@@ -25,18 +25,14 @@ pub(crate) fn cells<'a>(
             cells[pixel.fixture()].insert(pixel.cell());
         }
     }
-    let mut local = false;
-    let mut global = false;
-    for operator in operators.filter(|operator| dependencies.contains(&operator.node().id)) {
-        let addressing = operator.invocation().addressing();
-        local |= addressing.local;
-        global |= addressing.global;
-    }
-    // Local reads can address every original cell of selected fixtures. Global
-    // reads can address unpatched fixtures, so preserve the original full rig.
-    if cells.iter().any(|cells| !cells.is_empty()) && (local || global) {
+    // Reads of other pixels of a fixture can address every original cell of
+    // the selected fixtures.
+    let local = operators
+        .filter(|operator| dependencies.contains(&operator.node().id))
+        .any(|operator| operator.invocation().reads_fixture_pixels());
+    if local {
         for (fixture, cells) in geometry.iter().zip(&mut cells) {
-            if global || !cells.is_empty() {
+            if !cells.is_empty() {
                 cells.extend(0..fixture.positions().len() as u32);
             }
         }

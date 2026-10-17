@@ -1,6 +1,6 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_runtime::{LoadLimits, decode_sequence, encode_sequence};
+use donder_runtime::LoadLimits;
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 
 fn main() {
@@ -33,8 +33,8 @@ fn main() {
         .map(|port| (controller.clone(), port.id))
         .collect::<Vec<_>>();
     let prepared = prepare(&project, id, PrepareOutputs::Ports(&ports)).unwrap();
-    let bytes = encode_sequence(&prepared).unwrap();
-    let decoded = decode_sequence(&bytes, LoadLimits::default()).unwrap();
+    let bytes = prepared.encode();
+    let decoded = donder_runtime::PreparedSequence::decode(&bytes, LoadLimits::default()).unwrap();
     let mut checksums = String::new();
     let mut times = [0, 7150, 7151, 8398, 8450, 8494, 9504, 15000]
         .map(|frame| sample_time_from_frame(frame, prepared.frame_rate()).unwrap())

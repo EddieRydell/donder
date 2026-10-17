@@ -1,24 +1,35 @@
 //! Private execution adapters shared by compiler/VM behavior tests. Programs
-//! run as one-pixel strips. Automation is not applied, so every parameter slot
-//! holds its bound value.
+//! run as one-pixel strips of a one-program show. Automation is not applied,
+//! so every parameter slot holds its bound value.
 use super::playback;
 use super::std;
+use crate::arena::{Carve, Size};
 use crate::dsl::bytecode::SignalPixel;
-use crate::dsl::{
-    BoundParams, DslBindCache, RunContext, RuntimeError, STRIP, SpatialContext, Strip,
-    StripSignals, StripWorkspace,
-};
+use crate::dsl::{Bound, NoSignals, RunContext, STRIP, Strip, StripSignals, StripSlots};
 use crate::dsl::{ScanQuery, SourceWeights};
+use crate::resources::ParamsView;
 use crate::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
 use donder_language::compiler::{
     CompiledEffect, CompiledOperator, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
 };
 use donder_runtime_types::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
 use donder_runtime_types::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetScope,
+    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SpatialContext, TargetScope,
 };
 use donder_runtime_types::{Identifier, OperatorInvocation, SampleInvocation, Type, Value};
 use std::prelude::rust_2024::*;
+
+/// A test signal source's failure, reported as the operator's result.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct RuntimeError {
+    pub(super) message: String,
+}
+
+/// Memory a test reuses across evaluations.
+#[derive(Default)]
+pub(super) struct StripWorkspace {
+    buffer: Vec<u64>,
+}
 
 /// A test signal source. An error is reported as the operator's result.
 pub(super) trait SignalSampler {
@@ -179,6 +190,107 @@ impl core::ops::Deref for PixelContext {
     }
 }
 
+/// One invocation's program in a show of its own: what a test strip runs.
+pub(super) struct Single {
+    sequence: PreparedSequence,
+    program: u32,
+    params: u32,
+}
+
+impl Single {
+    pub(super) fn sample(invocation: &SampleInvocation) -> Self {
+        let sequence = single(|builder, target| {
+            let window = builder.whole_sequence();
+            builder.sample(invocation, window, target);
+            builder.output(None)
+        });
+        let effect = sequence.show().s.effects[0];
+        Self {
+            sequence,
+            program: effect.program,
+            params: effect.params,
+        }
+    }
+
+    pub(super) fn operator(invocation: &OperatorInvocation) -> Self {
+        let sequence = single(|builder, _| {
+            let layer = builder.layer(true, []);
+            let operator = builder.operator(invocation, |_| layer);
+            builder.output(Some(operator))
+        });
+        let node = sequence.show().s.nodes[1];
+        Self {
+            sequence,
+            program: node.program,
+            params: node.params,
+        }
+    }
+
+    /// Run `run` with a strip of the program in `context`.
+    pub(super) fn with_strip<R>(
+        &self,
+        context: &RunContext,
+        workspace: &mut StripWorkspace,
+        run: impl FnOnce(&mut Strip<'_, '_>) -> R,
+    ) -> R {
+        let show = self.sequence.show();
+        let program = show.program(self.program);
+        let mut slots = StripSlots::default();
+        slots.include(program);
+        let mut size = Size::default();
+        slots.size(&mut size);
+        let words = size.bytes.div_ceil(8).max(workspace.buffer.len());
+        workspace.buffer.resize(words, 0);
+        let mut arena = Carve::new(bytemuck::cast_slice_mut(&mut workspace.buffer));
+        let mut strip_workspace = slots.carve(&mut arena).unwrap();
+        let bound = Bound {
+            show,
+            program,
+            params: ParamsView::image(show, self.params),
+            sections: None,
+        };
+        let mut strip = Strip::new(bound, context, &mut strip_workspace);
+        run(&mut strip)
+    }
+
+    /// One pixel in `context`.
+    pub(super) fn one(
+        &self,
+        context: &PixelContext,
+        spatial: &SpatialContext,
+        signals: &mut dyn StripSignals,
+        workspace: &mut StripWorkspace,
+    ) -> Color {
+        self.with_strip(&context.run, workspace, |strip| {
+            let pixels = strip.pixels();
+            pixels.index[0].set(context.index);
+            pixels.fraction[0].set(context.fraction);
+            pixels.x[0].set(spatial.position[0]);
+            pixels.y[0].set(spatial.position[1]);
+            let mut color = [Color::BLACK];
+            strip.run(
+                context.pixel_count as usize,
+                spatial.min,
+                spatial.max,
+                signals,
+                &mut color,
+            );
+            color[0]
+        })
+    }
+}
+
+/// A show of one pixel holding `build`'s program.
+fn single(
+    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
+) -> PreparedSequence {
+    PreparedSequence::build(playback::timing(1_000_000), |builder| {
+        let fixture = builder.fixture(0, FixtureGeometry::admit(vec![[0.0, 0.0]].into()).unwrap());
+        let target = builder.target([fixture], TargetScope::WholeTarget);
+        build(builder, target)
+    })
+}
+
 pub(super) trait SampleEvaluation {
     fn evaluate(
         &self,
@@ -195,20 +307,7 @@ impl SampleEvaluation for SampleInvocation {
         spatial: &SpatialContext,
         workspace: &mut StripWorkspace,
     ) -> Color {
-        let params = BoundParams::from_validated(
-            self.program().bytecode(),
-            self.params(),
-            &mut DslBindCache::default(),
-        );
-        let pixel = (context.index, context.fraction);
-        crate::dsl::sample_once(
-            self.program(),
-            &params,
-            &context.run,
-            pixel,
-            spatial,
-            workspace,
-        )
+        Single::sample(self).one(context, spatial, &mut NoSignals, workspace)
     }
 }
 
@@ -230,36 +329,16 @@ impl OperatorEvaluation for OperatorInvocation {
         sampler: &mut dyn SignalSampler,
         workspace: &mut StripWorkspace,
     ) -> Result<Color, RuntimeError> {
-        let params = BoundParams::from_validated(
-            self.program().bytecode(),
-            self.params(),
-            &mut DslBindCache::default(),
-        );
-        let program = self.program();
-        workspace.reserve(program.bytecode());
-        let mut strip = Strip::new(program.bytecode(), &params, &context.run, None, workspace);
-        let pixels = strip.pixels();
-        pixels.index[0].set(context.index);
-        pixels.fraction[0].set(context.fraction);
-        pixels.x[0].set(spatial.position[0]);
-        pixels.y[0].set(spatial.position[1]);
         let mut signals = Adapter {
             sampler,
             error: None,
             index: context.index,
             count: context.run.pixel_count,
         };
-        let mut color = [Color::BLACK];
-        strip.run(
-            context.pixel_count as usize,
-            spatial.min,
-            spatial.max,
-            &mut signals,
-            &mut color,
-        );
+        let color = Single::operator(self).one(context, spatial, &mut signals, workspace);
         match signals.error {
             Some(error) => Err(error),
-            None => Ok(color[0]),
+            None => Ok(color),
         }
     }
 }
@@ -271,6 +350,7 @@ pub(super) fn context(count: usize, pixel: usize, frame: usize) -> PixelContext 
             progress: time as f32 / 8_000_000.0,
             time: SampleDuration::from_ticks(time),
             duration: SampleDuration::from_ticks(8_000_000),
+            frame_rate: 40.0,
             pixel_count: count as i32,
         },
         index: pixel as i32,
@@ -287,6 +367,7 @@ pub(super) fn one_pixel(progress: f32) -> PixelContext {
             progress,
             time: SampleDuration::from_ticks(0),
             duration: SampleDuration::from_ticks(1_000_000),
+            frame_rate: 40.0,
             pixel_count: 1,
         },
         index: 0,

@@ -9,7 +9,7 @@ use super::std;
 use std::prelude::rust_2024::*;
 
 use super::evaluation::SignalSampler;
-use crate::dsl::{RuntimeError, StripWorkspace};
+use super::evaluation::{RuntimeError, StripWorkspace};
 use donder_language::compiler::ProgramConstants;
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::SpatialContext;

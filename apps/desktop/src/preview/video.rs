@@ -87,7 +87,7 @@ pub(crate) fn export_video(
     if !prepared
         .fixtures()
         .iter()
-        .map(|fixture| (fixture.id, fixture.pixel_count))
+        .map(|fixture| (fixture.id, fixture.pixel_count as usize))
         .eq(geometry.fixtures.iter().copied())
     {
         return Err("The prepared sequence does not match the active layout.".into());

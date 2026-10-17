@@ -77,7 +77,7 @@ fn compare(
     let fragment = prepare(project, id, PrepareOutputs::Ports(selected)).unwrap();
     let mut workspace = fragment.clone().into_playback();
     let setup = project.setup(project.root().setup.id()).unwrap();
-    let identity = |output: &donder_runtime::PreparedOutput| {
+    let identity = |output: &donder_runtime::Output| {
         (
             setup.controllers[output.controller_index as usize]
                 .id()
@@ -195,19 +195,13 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             &[ports[1].clone(), ports[0].clone()],
         );
     }
-    // Spatial reads must not see the compacted 37-pixel output domain. Local
-    // reads need the whole original fixture; global reads can reach unpatched
-    // fixtures. This also exercises nested temporal/spatial operator sampling.
-    for (query, expected_pixels) in [
-        (
-            "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
-            113,
-        ),
-        (
-            "source.at_global(time + offset_seconds, 226 + pixel.index)",
-            3390,
-        ),
-    ] {
+    // Spatial reads must not see the compacted 37-pixel output domain: local
+    // reads need the whole original fixture. This also exercises nested
+    // temporal/spatial operator sampling.
+    for (query, expected_pixels) in [(
+        "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
+        113,
+    )] {
         let compiled = donder_language::compiler::compile_operators(&format!(
             "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
         )).unwrap().remove(0);
@@ -238,12 +232,12 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         let fragment = compare(&project, id, &reference, &ports[1..2]);
         assert_eq!(fragment.pixel_count(), expected_pixels, "{query}");
         // Exercise the serialized representation as well as live preparation.
-        let encoded = donder_runtime::encode_sequence(&fragment).unwrap();
-        let decoded = donder_runtime::decode_sequence(
+        let encoded = fragment.encode();
+        let decoded = donder_runtime::PreparedSequence::decode(
             &encoded,
             donder_runtime::LoadLimits {
                 // This tests fragment round-tripping, not the device upload size limit.
-                payload_bytes: encoded.len() - donder_runtime::HEADER_BYTES,
+                image_bytes: encoded.len(),
                 workspace_bytes: 4 * 1024 * 1024,
                 ..Default::default()
             },
@@ -251,7 +245,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         .unwrap();
         let mut original_workspace = fragment.clone().into_playback();
         let mut decoded_workspace = decoded.into_playback();
-        let mut original = vec![vec![0; fragment.outputs()[0].width]];
+        let mut original = vec![vec![0; fragment.outputs()[0].width as usize]];
         let mut restored = original.clone();
         let time = SampleTime::from_ticks(59_000_000);
         for (snapshot, output) in original

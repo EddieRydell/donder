@@ -76,7 +76,11 @@ pub fn encode_fseq(
     step: FseqStep,
     media_file: Option<&str>,
 ) -> Result<Vec<u8>, FseqError> {
-    let channels: usize = sequence.outputs().iter().map(|output| output.width).sum();
+    let channels: usize = sequence
+        .outputs()
+        .iter()
+        .map(|output| output.width as usize)
+        .sum();
     let channel_count = u32::try_from(channels).map_err(|_| FseqError::TooManyChannels)?;
     let step_micros = u32::from(step.millis()) * MICROS_PER_MILLI;
     let frame_count = sequence.duration().as_ticks().div_ceil(step_micros);

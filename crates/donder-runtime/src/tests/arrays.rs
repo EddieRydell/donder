@@ -11,7 +11,7 @@ const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::Spat
     max: [0.0; 2],
 };
 
-use crate::dsl::StripWorkspace;
+use super::evaluation::StripWorkspace;
 use donder_runtime_types::Color;
 use donder_runtime_types::Value;
 

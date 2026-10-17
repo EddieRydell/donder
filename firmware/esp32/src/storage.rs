@@ -197,10 +197,14 @@ impl DeviceStorage {
     pub fn shows(&mut self) -> Shows<'_> {
         Shows(self)
     }
+    /// The slot's image through the DROM window, where playback reads it.
+    /// Uploads stop playback before writing a slot, and the playing slot is
+    /// only rewritten by the upload after next, so the image outlives its
+    /// playback.
     pub fn mapped_show(
         &mut self,
         slot: donder_device_storage::show_slots::Slot,
-    ) -> Result<&[u8], Error> {
+    ) -> Result<&'static [u8], Error> {
         let offset = slot.data_offset();
         if slot.index >= 2
             || offset
@@ -214,8 +218,8 @@ impl DeviceStorage {
             || with_other_core_parked(|| unsafe { flush_show_cache() }),
         );
         // Safety: startup mapped the validated show partition into this unused DROM
-        // window. This borrow prevents flash writes through this storage owner while
-        // the immutable archive slice is being validated and decoded on core 0.
+        // window, which stays mapped. A slot is written only after the playback
+        // reading it was dropped.
         Ok(unsafe {
             core::slice::from_raw_parts((SHOW_VIRTUAL as usize + offset) as *const u8, slot.length)
         })
@@ -413,10 +417,13 @@ unsafe fn map_shows_rom(physical: u32) -> u32 {
     }
     // Safety: the other core is not running, interrupts are disabled, this code
     // executes from IRAM, and the validated partition/window are 64-KiB aligned.
-    // No existing application DROM page is replaced. Only core 0 decodes archives.
+    // No existing application DROM page is replaced. Both cores read shows:
+    // core 0 admits them and serves frames, core 1 renders, so the window is
+    // mapped in each core's MMU table.
     unsafe {
         Cache_Read_Disable_rom(0);
-        let result = cache_flash_mmu_set_rom(0, 0, SHOW_VIRTUAL, physical, 64, 4);
+        let result = cache_flash_mmu_set_rom(0, 0, SHOW_VIRTUAL, physical, 64, 4)
+            | cache_flash_mmu_set_rom(1, 0, SHOW_VIRTUAL, physical, 64, 4);
         Cache_Flush_rom(0);
         Cache_Read_Enable_rom(0);
         result

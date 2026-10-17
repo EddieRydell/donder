@@ -227,3 +227,17 @@ operator Trail {
     }
   }
 }
+
+operator Afterglow {
+  input input;
+  -- Seconds for light that goes out to fade to a tenth.
+  param seconds: float in 0.01..10.0 = 0.5;
+
+  -- A time scan keeps one running value per pixel, so the tail costs the
+  -- same however long it is. Steady light shows unchanged.
+  sample {
+    let decay = pow(0.1, 1.0 / (seconds * frame_rate));
+    let glow = scan time input as light, previous { previous * decay + light * (1.0 - decay) };
+    max(input, glow)
+  }
+}

@@ -399,8 +399,10 @@ impl<'a> Emitter<'a> {
             }
             Op::Sample { input, time, pixel } => {
                 let seconds = self.operand(time);
-                let pixel = pixel.map(|index| self.operand(index));
+                // Only reads of arbitrary pixels need the whole frame; the current
+                // pixel and its shifts run the input over the strip.
                 let frame_cache = self.frame_cache(input, time);
+                let pixel = pixel.map(|index| self.operand(index));
                 Instruction::Sample {
                     dst: self.destination(node),
                     input: input as u16,
@@ -1057,6 +1059,7 @@ fn context_read(context: Context) -> ContextRead {
         Context::Time => ContextRead::Seconds,
         Context::Progress => ContextRead::Progress,
         Context::Duration => ContextRead::Duration,
+        Context::FrameRate => ContextRead::FrameRate,
         Context::TargetCount => ContextRead::PixelCount,
         Context::TargetMinX => ContextRead::TargetMinX,
         Context::TargetMinY => ContextRead::TargetMinY,

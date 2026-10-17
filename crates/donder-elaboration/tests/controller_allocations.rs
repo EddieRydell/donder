@@ -85,8 +85,8 @@ fn prepared_controller_sampling_does_not_allocate() {
             PrepareOutputs::Ports(&[(controller.clone(), port)]),
         )
         .unwrap();
-        let encoded = donder_runtime::encode_sequence(&selected).unwrap();
-        selected = donder_runtime::decode_sequence(&encoded, Default::default()).unwrap();
+        let encoded = selected.encode();
+        selected = donder_runtime::PreparedSequence::decode(&encoded, Default::default()).unwrap();
         assert_prepared_sampling_does_not_allocate(selected.clone(), &frames, "selected output");
         let measure = |accepted: PreparedSequence| {
             let before = LIVE_BYTES.load(Ordering::Relaxed);
@@ -127,7 +127,7 @@ fn prepared_controller_sampling_does_not_allocate() {
     assert_prepared_sampling_does_not_allocate(output, &[7150, 7151, 7152], "automated DSL effect");
     for query in [
         "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
-        "source.at_global(time + offset_seconds, 226 + pixel.index)",
+        "source.at(time + offset_seconds, pixel.index + 3)",
     ] {
         let compiled = donder_language::compiler::compile_operators(&format!(
             "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
