@@ -70,7 +70,7 @@ import { CascadeDialog, ClipArrangeMenus } from "./ClipArrange";
 import { ClipMatchDialog, ClipMatchMenuItems, type ClipMatchSeed, type MatchClips } from "./ClipMatch";
 import { sameGuiDocument } from "../../../snapshotState";
 
-import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
+import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
 const SEQUENCE_FOLLOW = {
   edge: THEME_METRICS.sequenceFollowEdge,
@@ -571,13 +571,14 @@ export function SequenceCanvas({
   }, [automationClipsForLayout, clipMarqueeOpen, document, groupDraft, left, rows, top, viewport]);
   const applyMarquee = (state: SequenceMarquee) => {
     const anchorX = left + (state.anchorSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
-    const anchorY = state.mode === "clips" ? top + state.anchorY - viewport.scrollY : state.anchorY;
+    const anchorY = state.mode === "marks" ? state.anchorY : top + state.anchorY - viewport.scrollY;
     const next = { ...state, active: state.active || Math.hypot(state.x - anchorX, state.y - anchorY) >= SEQUENCE_DRAG_THRESHOLD_PX };
     drag.current = { kind: "marquee", state: next };
     setMarquee(next);
     if (!next.active) return;
     let selectedByBox: SequenceSelection;
     if (next.mode === "marks") selectedByBox = selectionFromMarqueeMarks(visibleMarkCollections, { startX: anchorX, startY: anchorY, x: next.x, y: next.y }, left, viewport);
+    else if (next.mode === "span") selectedByBox = selectionFromTimeSpan(document, next.anchorSeconds, viewport.scrollXSeconds + (next.x - left) / viewport.pxPerSecond);
     else {
       // The layout of the whole sequence arrives in the render after the box opens.
       if (marqueeContent === null) return;
@@ -856,10 +857,11 @@ export function SequenceCanvas({
       }
     }
     if (marquee?.active === true) {
-      const clipBox = marquee.mode === "clips";
+      const clipBox = marquee.mode !== "marks";
       const anchorX = left + (marquee.anchorSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
       const anchorY = clipBox ? top + marquee.anchorY - viewport.scrollY : marquee.anchorY;
-      const box = normalizedRect(anchorX, anchorY, marquee.x, marquee.y);
+      // A span covers every lane, so it spans the whole timeline height.
+      const box = marquee.mode === "span" ? normalizedRect(anchorX, top, marquee.x, rect.height) : normalizedRect(anchorX, anchorY, marquee.x, marquee.y);
       // The box is drawn whole and clipped to the timeline, so edges scrolled out of view are not drawn.
       ctx.save();
       ctx.beginPath();
@@ -1218,6 +1220,13 @@ export function SequenceCanvas({
     "edit.cut": { enabled: hasSelection, run: () => { transferSelection("cut"); } },
     "edit.paste": { enabled: editable, run: paste },
     "edit.delete": { enabled: editable, run: deleteSelection },
+    "edit.selectAll": {
+      run: () => {
+        const all: SequenceSelection = { type: "clips", effectIds: document.effects.map((effect) => effect.id), automationIds: document.automationClips.map((clip) => clip.id) };
+        updateSequenceSelection(selectionCount(all) > 0 ? all : null);
+        setSelected(singleSelectionFocus(all));
+      }
+    },
     "edit.moveLeft": arrowCommand(-1),
     "edit.moveRight": arrowCommand(1),
     "sequence.toggleSliceTool": { run: toggleSliceTool },
@@ -1527,7 +1536,8 @@ export function SequenceCanvas({
           setSelectedTimeSeconds(timeSeconds);
           setSelected(null);
           updateSequenceSelection(null);
-          const state = { mode: "clips" as const, anchorSeconds: timeSeconds, anchorY: y - top + viewport.scrollY, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
+          // Alt-drag selects every clip in the time span; a plain drag box-selects.
+          const state: SequenceMarquee = { mode: event.altKey ? "span" : "clips", anchorSeconds: timeSeconds, anchorY: y - top + viewport.scrollY, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
           drag.current = { kind: "marquee", state };
           setMarquee(state);
         }

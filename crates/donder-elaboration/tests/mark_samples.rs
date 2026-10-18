@@ -134,9 +134,9 @@ fn configured_project(
     }));
     if matches!(effect, MarkEffect::Pulse) {
         set("accent", accent);
-        // 113 pixels per fixture deliberately leaves a partial final section.
-        set("section_width_pixels", EffectParamValue::Int(7));
-        set("sections_per_mark", EffectParamValue::Int(3));
+        // 113 pixels per fixture leaves partial clusters at fixture edges.
+        set("cluster_width_pixels", EffectParamValue::Int(7));
+        set("clusters_per_mark", EffectParamValue::Int(3));
         set("seed", EffectParamValue::Float(0.75));
     } else {
         set("gradients", EffectParamValue::Array(vec![accent]));
@@ -223,7 +223,7 @@ fn single_pass_reference(
         params.shift_remove(name).unwrap();
     }
     let gradient = if matches!(effect, MarkEffect::Pulse) {
-        for name in ["section_width_pixels", "sections_per_mark", "seed"] {
+        for name in ["cluster_width_pixels", "clusters_per_mark", "seed"] {
             params.shift_remove(name).unwrap();
         }
         params.shift_remove("accent").unwrap()
@@ -254,36 +254,33 @@ fn single_pass_reference(
     prepare(&project, &id, PrepareOutputs::All).unwrap()
 }
 
-// MarkPulse chooses fixture-aligned sections, including the short final section.
-// Mask ordinary Pulse output with the original seeded section selection rule.
-fn selected_sections(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bool> {
+// MarkPulse shifts its cluster grid by a random offset per mark and lights each
+// cluster by chance. Mask ordinary Pulse output with the same seeded rule.
+fn selected_clusters(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bool> {
+    use donder_runtime_types::sampling::deterministic_random_seed;
+    const WIDTH: f32 = 7.0;
+    let mark_seed = 0.75 + 1000.0;
+    let shift = (deterministic_random_seed(mark_seed) * WIDTH).floor();
     let total = sequence
         .fixtures()
         .iter()
-        .map(|fixture| (fixture.pixel_count as usize).div_ceil(7))
+        .map(|fixture| fixture.pixel_count as usize)
         .sum::<usize>();
     let mut base = 0;
     sequence
         .fixtures()
         .iter()
         .flat_map(|fixture| {
-            let count = match scope {
-                EffectScope::WholeTarget => total,
-                EffectScope::PerFixture => (fixture.pixel_count as usize).div_ceil(7),
+            let (count, start) = match scope {
+                EffectScope::WholeTarget => (total, base),
+                EffectScope::PerFixture => (fixture.pixel_count as usize, 0),
             };
-            let choices = [0.0, 1.0, 2.0].map(|choice| {
-                (donder_runtime_types::sampling::deterministic_random(
-                    [1000.75, choice].into_iter(),
-                ) * count as f32)
-                    .floor() as usize
-            });
-            let start = match scope {
-                EffectScope::WholeTarget => base,
-                EffectScope::PerFixture => 0,
-            };
-            base += (fixture.pixel_count as usize).div_ceil(7);
-            (0..fixture.pixel_count as usize)
-                .map(move |pixel| choices.contains(&(start + pixel / 7)))
+            base += fixture.pixel_count as usize;
+            let cluster_count = ((count as f32 - 1.0 + shift) / WIDTH).floor() + 1.0;
+            (0..fixture.pixel_count as usize).map(move |pixel| {
+                let cluster = (((start + pixel) as f32 + shift) / WIDTH).floor();
+                deterministic_random_seed(mark_seed * 31.0 + cluster) * cluster_count < 3.0
+            })
         })
         .collect()
 }
@@ -295,7 +292,7 @@ fn check_single_mark_lifetime(effect: MarkEffect) {
         let reference =
             single_pass_reference(&project, effect, 1000, scope.clone(), shape(0.0, 1.0));
         let mask =
-            matches!(effect, MarkEffect::Pulse).then(|| selected_sections(&reference, &scope));
+            matches!(effect, MarkEffect::Pulse).then(|| selected_clusters(&reference, &scope));
         let mut reference = reference.into_playback();
         let mut lit = false;
         for time in [0, 1124, 1125, 1250, 1500, 1750, 2000, 2125, 2500, 1250] {
