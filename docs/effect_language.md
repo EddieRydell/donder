@@ -381,9 +381,9 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
   `Pass` lights a pixel only while its pulse crosses it, `On` keeps it lit
   after the last pass, and `Off` lights it before the first.
 - **MarkPulse, MarkWipe and MarkImpactBurst** restart from the latest mark.
-  MarkPulse lights fixture-aware sections. MarkWipe cycles its gradients and
-  positions by mark index; its `direction_angle` curve is in turns, sampled
-  at the mark's time.
+  MarkPulse lights random clusters, placed anew on every mark. MarkWipe cycles
+  its gradients and positions by mark index; its `direction_angle` curve is in
+  turns, sampled at the mark's time.
 - **MarkChase** shares one chase curve across marks: a pixel's travel delay is
   where the curve first reaches it, so a new mark replaces the old pulse only when
   its chase arrives.

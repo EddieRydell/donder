@@ -130,12 +130,14 @@ effect MarkPulse {
   param pulse_shape: curve in 0.0..1.0;
   param offset_seconds: float in -1.0..1.0 = 0.0;
   param decay_seconds: float in 0.01..10.0 = 0.18;
-  param section_width_pixels: int in 1..1000 = 5;
-  param sections_per_mark: int in 1..100 = 3;
+  param cluster_width_pixels: int in 1..1000 = 5;
+  param clusters_per_mark: int in 1..100 = 3;
   param seed: float in 0.0..1000.0 = 0.0;
   param overlap_marks: bool = false;
 
-  -- Prepared section queries preserve fixture boundaries and short final sections.
+  -- Each mark shifts the cluster grid by a random offset, so clusters land anywhere,
+  -- and lights each cluster with chance `clusters_per_mark` over the cluster count:
+  -- `clusters_per_mark` is the average number lit, and every pixel decides alone.
   -- Without overlap a new mark retriggers the entire selection, discarding every older pulse;
   -- with it every pulse still decaying stays lit, and overlapping pulses keep the brighter color.
   -- At most the 32 latest pulses overlap.
@@ -143,14 +145,14 @@ effect MarkPulse {
     let now = time - offset_seconds;
     let latest = mark_last_index(beats, now);
     let live = latest - mark_last_index(beats, now - decay_seconds);
-    let total_sections = section_count(section_width_pixels);
-    let current_section = section_index(section_width_pixels);
     max for back in 0..min(live, if overlap_marks { 32 } else { 1 }) {
       let hit_time = mark_at(beats, latest - back);
       guard hit_time + offset_seconds >= 0.0;
-      guard any for section in 0..sections_per_mark {
-        floor(rand((seed + hit_time * 1000.0) * 31.0 + section) * total_sections) == current_section
-      };
+      let mark_seed = seed + hit_time * 1000.0;
+      let shift = floor(rand(mark_seed) * cluster_width_pixels);
+      let cluster_count = floor((target.count - 1 + shift) / cluster_width_pixels) + 1.0;
+      let cluster = floor((pixel.index + shift) / cluster_width_pixels);
+      guard rand(mark_seed * 31.0 + cluster) * cluster_count < clusters_per_mark;
       let child_progress = (now - hit_time) / decay_seconds;
       gradient_color_scaled(accent, child_progress, pulse_shape[child_progress])
     }

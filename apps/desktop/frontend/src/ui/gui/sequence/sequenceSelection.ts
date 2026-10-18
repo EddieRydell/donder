@@ -29,10 +29,10 @@ export type SequenceHover =
 
 /**
  * A box selection whose start stays on the timeline while the view scrolls: `anchorSeconds`, and
- * `anchorY`, a content offset below the ruler for clips or a canvas offset in the fixed mark ruler.
- * `x` and `y` are the pointer on the canvas.
+ * `anchorY`, a content offset below the ruler for clips and spans or a canvas offset in the fixed mark
+ * ruler. `x` and `y` are the pointer on the canvas. A span selects by time alone, across every lane.
  */
-export type SequenceMarquee = { mode: "clips" | "marks"; anchorSeconds: number; anchorY: number; x: number; y: number; active: boolean; shift: boolean; ctrl: boolean };
+export type SequenceMarquee = { mode: "clips" | "marks" | "span";anchorSeconds: number; anchorY: number; x: number; y: number; active: boolean; shift: boolean; ctrl: boolean };
 /** A box between two corners in one coordinate space. */
 export type MarqueeBox = { startX: number; startY: number; x: number; y: number };
 
@@ -346,6 +346,14 @@ export function selectionFromMarqueeEffects(clips: SequenceClipLayout[], automat
   const box = normalizedRect(marquee.startX, marquee.startY, marquee.x, marquee.y);
   // A clip drawn on several lanes is selected once.
   return { type: "clips", automationIds: [...new Set(automation.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.clip.id))], effectIds: [...new Set(clips.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.effect.id))] };
+}
+
+/** Every clip overlapping the time span, including clips on collapsed lanes. */
+export function selectionFromTimeSpan(document: SequenceEditorDocument, startSeconds: number, endSeconds: number): SequenceSelection {
+  const start = Math.min(startSeconds, endSeconds);
+  const end = Math.max(startSeconds, endSeconds);
+  const overlaps = (clip: { startSeconds: number; durationSeconds: number }) => clip.startSeconds < end && clip.startSeconds + clip.durationSeconds > start;
+  return { type: "clips", effectIds: document.effects.filter(overlaps).map((effect) => effect.id), automationIds: document.automationClips.filter(overlaps).map((clip) => clip.id) };
 }
 
 /** A mark-ruler marquee selects the marks its time span covers. */
