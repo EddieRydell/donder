@@ -419,6 +419,14 @@ firmware of its date.
   Float min, max and `value_or` inline into their row loops: color `max` once
   called the out-of-line `float_binary` per pixel, which made the dense render
   25% slower.
+- **October 18, 2026 (format 71):** reduction tables (`Tabulate`, `Lookup`),
+  prefix-sum interval sums for `around` reductions that ignore their neighbor,
+  run-based stencil accumulation and masked filtered reductions. Rydell House
+  `all_we_are` 55–62 s on the host: 11.15 ms to 6.88 ms per frame, all but the
+  last 3% from Blur's renormalization becoming a prefix-sum difference (it had
+  been 21 iterations of row code per pixel, over half of interpreter time).
+  Stanford `main` on the Dig-Quad: 4.67 ms mean (4.61 at format 70), matching
+  checksums; `.rwtext` 74.4 KB. Criterion against format 70: within ±5%.
 
 ## Measuring
 

@@ -15,12 +15,26 @@ pub(crate) const OUTSIDE: i32 = i32::MIN;
 /// A stencil's neighborhood: up to a strip of pixels and a strip of offsets.
 pub(super) const NEIGHBORHOOD: usize = 2 * STRIP;
 
+/// A run of positions whose fixture index less their position is `key`:
+/// consecutive pixels of one fixture.
+#[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub(super) struct Segment {
+    pub(super) start: i16,
+    pub(super) end: i16,
+    pub(super) key: i32,
+}
+
 /// The input colors, fixture indices and source weights of a stencil's
 /// neighborhood.
 pub(super) struct Neighborhood<'w> {
     pub(super) colors: &'w mut [Color],
     pub(super) locals: &'w mut [i32],
     pub(super) weights: &'w mut [f32],
+    /// The neighborhood's segments, and the selected pixels', keyed alike: a
+    /// pixel's neighbor is in its fixture where their keys agree.
+    pub(super) segments: &'w mut [Segment],
+    pub(super) runs: &'w mut [Segment],
 }
 
 /// The slots of every program a workspace runs.
@@ -86,6 +100,8 @@ impl StripSlots {
             size.values::<Color>(NEIGHBORHOOD);
             size.values::<i32>(NEIGHBORHOOD);
             size.values::<f32>(NEIGHBORHOOD);
+            size.values::<Segment>(NEIGHBORHOOD);
+            size.values::<Segment>(STRIP);
         }
     }
 
@@ -119,6 +135,8 @@ impl StripSlots {
                 colors: arena.values(NEIGHBORHOOD, Color::BLACK)?,
                 locals: arena.values(NEIGHBORHOOD, OUTSIDE)?,
                 weights: arena.values(NEIGHBORHOOD, 0.0)?,
+                segments: arena.values(NEIGHBORHOOD, Segment::default())?,
+                runs: arena.values(STRIP, Segment::default())?,
             }))
         } else {
             None

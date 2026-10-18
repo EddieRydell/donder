@@ -17,7 +17,7 @@
 #![cfg_attr(feature = "iram", allow(unsafe_code))]
 use super::RunContext;
 use super::context::Clock;
-use super::workspace::{NEIGHBORHOOD, Neighborhood, StripWorkspace};
+use super::workspace::{NEIGHBORHOOD, Neighborhood, Segment, StripWorkspace};
 use crate::dsl::bytecode::{
     Bank, ColorComponent, CompareOp, ContextRead, CurveOp, Direction, Edges, FloatBinary, Input,
     Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource, SignalPixel, Slot, SlotKind,
@@ -550,9 +550,11 @@ struct Term<'n, 'm> {
     /// The strip position of the neighborhood's first pixel.
     origin: i32,
     colors: &'n [Color],
-    locals: &'n [i32],
     weights: &'n [f32],
     pixel: Src<'m, f32>,
+    /// Skipped edges' neighborhood segments and selected pixel runs.
+    segments: &'n [Segment],
+    runs: &'n [Segment],
 }
 
 /// A scan's source block, run over strips of input colors.
@@ -799,6 +801,14 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
     }
 
+    /// The first entry of a table row.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn set_first<T: Copy>(dst: Dst<'_, T>, value: T) {
+        if let Dst::Many(row) = dst {
+            row[0].set(value);
+        }
+    }
+
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn set_scalar<T: Copy>(dst: Dst<'_, T>, value: T) {
         if let Dst::One(dst) = dst {
@@ -1024,6 +1034,20 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 Dst::Many(index) => each(participating, |i| index[i].set(index_at(i, k))),
             }
             self.block(loop_code, participating, inner, signals);
+            // With nothing to run behind it, a filter masks the combination
+            // instead of narrowing the selection every iteration.
+            if !early && !filter_slot.is_none() && contribute.is_empty() {
+                self.combine_where(reducer, bank, acc, value, filter_slot, participating);
+                if matches!(reducer, Reducer::Any | Reducer::All) {
+                    let (decided, any) = (self.boolean(acc), reducer == Reducer::Any);
+                    let mut open = false;
+                    each(sel, |i| open |= decided.at(i) != any);
+                    if !open {
+                        break;
+                    }
+                }
+                continue;
+            }
             let contributing = if filter_slot.is_none() {
                 participating
             } else {
@@ -1143,6 +1167,8 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             colors,
             locals,
             weights,
+            segments,
+            runs,
         } = &mut *neighborhood;
         signals.sample_range(
             usize::from(input),
@@ -1165,14 +1191,36 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
         let index = self.int_dst(index);
         let acc = self.color_rows(acc);
+        // Skipped edges read a neighbor only in the pixel's own fixture: where
+        // the neighbor's key, its fixture index less its position, is the
+        // pixel's. Both sides are runs of one key, so each offset combines
+        // whole runs.
+        let (segments, runs) = if edges == Edges::Skip {
+            let local = &self.ws.pixels.index;
+            let mut neighbors = 0;
+            for (at, &read) in locals[..len].iter().enumerate() {
+                if read != super::OUTSIDE {
+                    extend(segments, &mut neighbors, at as i32, read - at as i32);
+                }
+            }
+            let mut pixels = 0;
+            each(sel, |i| {
+                let key = local[i].get() - (i as i32 - origin);
+                extend(runs, &mut pixels, i as i32, key);
+            });
+            (&segments[..neighbors], &runs[..pixels])
+        } else {
+            (&segments[..0], &runs[..0])
+        };
         let term = Term {
             edges,
             count: self.context.pixel_count,
             origin,
             colors: &colors[..len],
-            locals: &locals[..len],
             weights: &weights[..len],
             pixel: self.float(pixel),
+            segments,
+            runs,
         };
         // A row scale is a table of the offsets.
         let scales = self.float(scale);
@@ -1200,46 +1248,57 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         sel: Sel<'_>,
         acc: [&Row<f32>; 3],
     ) {
-        let local = &self.ws.pixels.index;
         let max = reducer == Reducer::Max;
-        for range in sel.0 {
-            let (first, past) = range.get().get();
-            for i in usize::from(first)..usize::from(past).min(STRIP) {
-                let from = offset.wrapping_sub(start.at(i)) as u32;
-                if from >= offset_count(start, end, i) as u32 {
-                    continue;
-                }
-                let local = local[i].get();
-                let read = match term.edges {
-                    Edges::Skip => local.wrapping_add(offset),
-                    edges => match edges.local(local.wrapping_add(offset), term.count) {
-                        Some(read) => read,
-                        None => continue,
-                    },
-                };
-                let at = (i as i32 + read - local - term.origin) as usize;
-                let (Some(&weight), true) = (
-                    term.weights.get(at),
-                    term.edges != Edges::Skip || term.locals[at] == read,
-                ) else {
-                    continue;
-                };
-                if weight == 0.0 {
-                    continue;
-                }
-                let factor = weight * scale * term.pixel.at(i);
-                let color = term.colors[at];
-                for (acc, channel) in acc.iter().zip([color.red, color.green, color.blue]) {
-                    let term = channel * factor;
-                    let current = acc[i].get();
-                    acc[i].set(if max {
-                        max_float(current, term)
-                    } else {
-                        current + term
-                    });
+        // Uniform bounds hold every offset the stencil runs.
+        let bounded = !(start.is_scalar() && end.is_scalar());
+        let inside = |i: usize| {
+            !bounded
+                || (offset.wrapping_sub(start.at(i)) as u32) < offset_count(start, end, i) as u32
+        };
+        let shift = offset - term.origin;
+        if term.edges == Edges::Skip {
+            for run in term.runs {
+                for segment in term
+                    .segments
+                    .iter()
+                    .filter(|segment| segment.key == run.key)
+                {
+                    // The run's pixels whose neighbor lies in the segment.
+                    let first = i32::from(run.start).max(i32::from(segment.start) - shift);
+                    let past = i32::from(run.end).min(i32::from(segment.end) - shift);
+                    for i in first.max(0) as usize..past.max(0) as usize {
+                        if inside(i) {
+                            let at = (i as i32 + shift) as usize;
+                            combine_term(
+                                acc,
+                                i,
+                                term.colors[at],
+                                term.weights[at] * scale * term.pixel.at(i),
+                                max,
+                            );
+                        }
+                    }
                 }
             }
+            return;
         }
+        let local = &self.ws.pixels.index;
+        each(sel, |i| {
+            let local = local[i].get();
+            if let (true, Some(read)) = (
+                inside(i),
+                term.edges.local(local.wrapping_add(offset), term.count),
+            ) {
+                let at = (i as i32 + read - local - term.origin) as usize;
+                combine_term(
+                    acc,
+                    i,
+                    term.colors[at],
+                    term.weights[at] * scale * term.pixel.at(i),
+                    max,
+                );
+            }
+        });
     }
 
     /// A table: its block runs once per index, and each index's value lands
@@ -1255,6 +1314,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     ) {
         let Instruction::Tabulate {
             bank,
+            prefix,
             dst,
             index,
             start,
@@ -1267,13 +1327,22 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         };
         let (start, end) = (self.int(start).at(0), self.int(end).at(0));
         let index = self.int_dst(index);
-        for (k, at) in (start..end).take(STRIP).enumerate() {
+        // Prefix sums start from nothing and land one entry later.
+        let shift = usize::from(prefix);
+        if prefix {
+            match bank {
+                Bank::Int => Self::set_first(self.int_dst(dst), 0),
+                _ => Self::set_first(self.float_dst(dst), 0.0),
+            }
+        }
+        for (k, at) in (start..end).take(STRIP - shift).enumerate() {
             Self::set_scalar(index, at);
             self.block(body, sel, levels, signals);
             match bank {
                 Bank::Int => {
                     if let Dst::Many(row) = self.int_dst(dst) {
-                        row[k].set(self.int(value).at(0));
+                        let sum = if prefix { row[k].get() } else { 0 };
+                        row[k + shift].set(sum.wrapping_add(self.int(value).at(0)));
                     }
                 }
                 Bank::Bool => {
@@ -1283,7 +1352,8 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 }
                 _ => {
                     if let Dst::Many(row) = self.float_dst(dst) {
-                        row[k].set(self.float(value).at(0));
+                        let sum = if prefix { row[k].get() } else { 0.0 };
+                        row[k + shift].set(sum + self.float(value).at(0));
                     }
                 }
             }
@@ -1391,6 +1461,63 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 });
             }
             Bank::Resource => self.assign(bank, acc, value, sel),
+        }
+    }
+
+    /// `acc = acc ⊕ value` where the bool `mask` holds.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn combine_where(
+        &self,
+        reducer: Reducer,
+        bank: Bank,
+        acc: Slot,
+        value: Slot,
+        mask: Slot,
+        sel: Sel<'_>,
+    ) {
+        let mask = self.boolean(mask);
+        match bank {
+            Bank::Int => {
+                let (dst, a, b) = (self.int_dst(acc), self.int(acc), self.int(value));
+                let max = reducer == Reducer::Max;
+                pick_each(sel, dst, |i| {
+                    let (a, b) = (a.at(i), b.at(i));
+                    let combined = match reducer {
+                        Reducer::Max | Reducer::Min => {
+                            if (b > a) == max && b != a {
+                                b
+                            } else {
+                                a
+                            }
+                        }
+                        _ => a.wrapping_add(b),
+                    };
+                    choose(mask.at(i), combined, a)
+                });
+            }
+            Bank::Bool => {
+                let (a, b) = (self.boolean(acc), self.boolean(value));
+                let any = reducer == Reducer::Any;
+                pick_each(sel, self.bool_dst(acc), |i| {
+                    let (a, b, m) = (a.at(i), b.at(i), mask.at(i));
+                    if any { a | (m & b) } else { a & (!m | b) }
+                });
+            }
+            _ => {
+                for channel in 0..bank.width() {
+                    let (acc, value) = (acc.channel(channel), value.channel(channel));
+                    let (dst, a, b) = (self.float_dst(acc), self.float(acc), self.float(value));
+                    pick_each(sel, dst, |i| {
+                        let (a, b) = (a.at(i), b.at(i));
+                        let combined = match reducer {
+                            Reducer::Max => max_float(a, b),
+                            Reducer::Min => min_float(a, b),
+                            _ => a + b,
+                        };
+                        choose(mask.at(i), combined, a)
+                    });
+                }
+            }
         }
     }
 
@@ -2116,5 +2243,39 @@ fn destination<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Dst<'s, T> {
         SlotKind::Scalar(index) => Dst::One(store.scalar(index)),
         SlotKind::Row(index) => Dst::Many(store.row(index)),
         SlotKind::Input(_) => unreachable!("the compiler never writes pixel inputs"),
+    }
+}
+
+/// Add a position to the last segment when it continues it, or start one.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn extend(segments: &mut [Segment], count: &mut usize, at: i32, key: i32) {
+    if let Some(last) = count.checked_sub(1).map(|last| &mut segments[last])
+        && i32::from(last.end) == at
+        && last.key == key
+    {
+        last.end += 1;
+        return;
+    }
+    segments[*count] = Segment {
+        start: at as i16,
+        end: at as i16 + 1,
+        key,
+    };
+    *count += 1;
+}
+
+/// `acc += color * factor` at pixel `i`, or the channelwise max.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn combine_term(acc: [&Row<f32>; 3], i: usize, color: Color, factor: f32, max: bool) {
+    for (acc, channel) in acc.iter().zip([color.red, color.green, color.blue]) {
+        let term = channel * factor;
+        let current = acc[i].get();
+        acc[i].set(if max {
+            max_float(current, term)
+        } else {
+            current + term
+        });
     }
 }

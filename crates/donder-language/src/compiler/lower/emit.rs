@@ -900,6 +900,10 @@ impl<'a> Emitter<'a> {
             self.stencil(node, code);
             return;
         }
+        if let Some((pixel, count)) = self.plan.interval(node) {
+            self.interval_sum(node, pixel, count, code);
+            return;
+        }
         let children = self.plan.children[&node].clone();
         let bank = self.bank(node);
         let acc = self.destination(node);
@@ -957,6 +961,63 @@ impl<'a> Emitter<'a> {
         });
         code.append(&mut loop_code);
         code.append(&mut contribute);
+    }
+
+    /// A sum over the offsets whose neighbor is in the target, as the
+    /// difference of the prefix sums at the ends of the pixel's range of them:
+    /// `max(start, -pixel)` to `min(end, count - pixel)`, empty past its start.
+    fn interval_sum(&mut self, node: Node, pixel: Node, count: Node, code: &mut Vec<Instruction>) {
+        let Op::Reduce(id) = *self.graph.op(node) else {
+            unreachable!("interval sums are reductions")
+        };
+        let data = self.graph.loop_(id).clone();
+        let (start, end) = (self.operand(data.start), self.operand(data.end));
+        let (pixel, count) = (self.operand(pixel), self.operand(count));
+        let (table, _) = self.tables[&data.body];
+        let row = self.is_row(node);
+        let mut int = |emitter: &mut Self, op, a, b| {
+            let dst = emitter.fresh(Bank::Int, row);
+            code.push(Instruction::IntBinary { op, dst, a, b });
+            dst
+        };
+        let zero = self.constant(Constant {
+            value: Value::Int(0),
+            ty: Type::Int,
+        });
+        let below = int(self, IntBinary::Subtract, zero, pixel);
+        let first = int(self, IntBinary::Max, start, below);
+        let room = int(self, IntBinary::Subtract, count, pixel);
+        let past = int(self, IntBinary::Min, end, room);
+        let past = int(self, IntBinary::Max, past, first);
+        let bank = self.bank(node);
+        let mut lookup = |emitter: &mut Self, index| {
+            let dst = emitter.fresh(bank, row);
+            code.push(Instruction::Lookup {
+                bank,
+                dst,
+                table,
+                index,
+                start,
+            });
+            dst
+        };
+        let (upper, lower) = (lookup(self, past), lookup(self, first));
+        let dst = self.destination(node);
+        code.push(match bank {
+            Bank::Int => Instruction::IntBinary {
+                op: IntBinary::Subtract,
+                dst,
+                a: upper,
+                b: lower,
+            },
+            _ => Instruction::FloatBinary {
+                op: FloatBinary::Subtract,
+                colors: Colors::NONE,
+                dst,
+                a: upper,
+                b: lower,
+            },
+        });
     }
 
     /// A neighborhood reduction: its header, the source block sampling the
@@ -1124,6 +1185,7 @@ impl<'a> Emitter<'a> {
                 });
                 code.push(Instruction::Tabulate {
                     bank,
+                    prefix: table.interval.is_some(),
                     dst,
                     index,
                     start,

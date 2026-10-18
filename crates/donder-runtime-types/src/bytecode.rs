@@ -721,9 +721,12 @@ pub enum Instruction {
     /// A table, in a query or target block: for each index of `start..end`,
     /// which spans at most a strip, the next `len` words run as scalar code
     /// with `index` set, and `value`, of `bank`, lands in the row `dst` at the
-    /// index less `start`.
+    /// index less `start`. With `prefix`, entry `k` is instead the sum of the
+    /// values before index `start + k`, through `end`, so the range spans less
+    /// than a strip.
     Tabulate {
         bank: Bank,
+        prefix: bool,
         dst: Slot,
         index: Slot,
         start: Slot,

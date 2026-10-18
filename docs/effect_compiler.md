@@ -227,11 +227,28 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   scale), or neither (a pixel factor); anything else is an error. Playback
   reads the strip's neighborhood of the input once, computes the source weight
   once per neighbor rather than once per offset that reads it, runs the offset
-  code once per offset, and accumulates every offset in one instruction. A
-  failed source guard is a zero weight and contributes nothing. Factor
-  products are reassociated, which may change rounding. A strip whose whole neighborhood is black
-  skips the offsets. An `around` that ignores its neighbor is an ordinary
-  reduction over the offsets that have one.
+  code once per offset, and accumulates every offset in one instruction. With
+  skipped edges a neighbor counts where it is in the pixel's own fixture: the
+  neighborhood and the strip are runs of consecutive fixture pixels, and each
+  offset combines whole runs without testing pixels. A failed source guard is
+  a zero weight and contributes nothing. Factor products are reassociated,
+  which may change rounding. A strip whose whole neighborhood is black skips
+  the offsets. An `around` that ignores its neighbor is an ordinary reduction
+  over the offsets that have one.
+- Work inside a reduction that depends only on its index and on query or
+  target values is the same for every strip, so it becomes a table: a
+  `Tabulate` in the query or target block runs it once per index into a row,
+  and the loop reads it with `Lookup`; a stencil whose offset scale is a table
+  reads it per offset and runs no offset code. A reduction qualifies when its
+  bounds are constants spanning at most a strip, or it is a stencil, and the
+  work is at least two instructions.
+- A sum of such work over the offsets of an `around` that ignores its
+  neighbor, `[max(start, -pixel), min(end, count - pixel))`, is a difference
+  of two entries of a table of prefix sums: a renormalized kernel's weight
+  total costs a few instructions per pixel whatever its radius. Float prefix
+  sums round differently from summing in order.
+- A filtered reduction with no code behind its filter combines under the
+  filter instead of narrowing its selection every iteration.
 - A scan is one instruction with a source block, as a stencil's, computing the
   light's weight. It runs forward or backward along each fixture. Playback
   computes the scan over the whole input frame the first time the program reads
