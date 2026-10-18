@@ -119,7 +119,7 @@ export type DevicePlaybackStatus = {
 	mode: DevicePlaybackMode,
 	positionMicros: number,
 	durationMicros: number,
-	archiveCrc: number,
+	archiveId: number,
 	archiveBytes: number,
 	pendingCommand: number | null,
 	commandId: number,

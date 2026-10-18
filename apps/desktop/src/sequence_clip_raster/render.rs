@@ -54,9 +54,7 @@ pub(super) fn render_effect_raster(
             .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
         for (row, color) in sampler.evaluate(time).iter().enumerate() {
             let offset = (row * columns + column) * 4;
-            pixels_rgba[offset] = color.red;
-            pixels_rgba[offset + 1] = color.green;
-            pixels_rgba[offset + 2] = color.blue;
+            pixels_rgba[offset..offset + 3].copy_from_slice(&color.to_bytes());
             pixels_rgba[offset + 3] = 255;
         }
     }

@@ -4,11 +4,11 @@ use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
 use donder_runtime_types::{Color, SampleDuration, SampleTime, SampleTimeError, image};
 
 use crate::arena::{Carve, Size};
-use crate::dsl::StripSlots;
+use crate::dsl::{Invocation, NoSignals, StripSlots, invocation_params, scratch_shape};
 use crate::evaluation::{PixelSource, RunPixel, effect_sampler};
-use crate::resources::{LiveView, ParamsView};
+use crate::resources::LiveView;
 use crate::show::Show;
-use crate::workspace::{Timing, carve_effect_state, effect_state_size};
+use crate::workspace::{Timing, carve_scratch, scratch_size};
 
 #[derive(Clone, Copy)]
 pub struct SequenceClip<'a> {
@@ -34,18 +34,25 @@ impl<'a> SequenceClip<'a> {
         if columns == 0 || column >= columns {
             return Err(SampleTimeError::OutOfRange);
         }
-        let rate = u64::from(self.frame_rate());
-        let ticks = u64::from(self.start_time().as_ticks());
-        let end = ticks + u64::from(self.duration().as_ticks());
-        let micros = u64::from(donder_runtime_types::MICROS_PER_SECOND);
-        let start_frame = (ticks * rate).div_ceil(micros);
-        let end_frame = (end * rate).div_ceil(micros);
+        let rate = self.frame_rate();
+        let micros = donder_runtime_types::MICROS_PER_SECOND;
+        // The first frame starting at or after `ticks`.
+        let frame_from = |ticks: u32| {
+            let (frame, rest) = donder_runtime_types::mul_div(ticks, rate, micros)
+                .ok_or(SampleTimeError::OutOfRange)?;
+            Ok(frame + u32::from(rest != 0))
+        };
+        let ticks = self.start_time().as_ticks();
+        let start_frame = frame_from(ticks)?;
+        let end_frame = frame_from(ticks.saturating_add(self.duration().as_ticks()))?;
         let active_frames = end_frame.saturating_sub(start_frame).max(1);
         // floor((column + 0.5) * active_frames / columns), exactly.
-        let offset =
-            ((2 * column as u64 + 1) * active_frames / (2 * columns as u64)).min(active_frames - 1);
-        let frame = (start_frame + offset).min(u64::from(self.frame_count().saturating_sub(1)));
-        donder_runtime_types::sample_time_from_frame(frame as u32, self.frame_rate())
+        let (offset, _) =
+            donder_runtime_types::mul_div(2 * column as u32 + 1, active_frames, 2 * columns as u32)
+                .ok_or(SampleTimeError::OutOfRange)?;
+        let frame =
+            (start_frame + offset.min(active_frames - 1)).min(self.frame_count().saturating_sub(1));
+        donder_runtime_types::sample_time_from_frame(frame, self.frame_rate())
     }
 
     pub fn start_time(&self) -> SampleTime {
@@ -128,20 +135,22 @@ impl<'a> SequenceClip<'a> {
         slots.include(program);
         let mut size = Size::default();
         slots.size(&mut size);
-        effect_state_size(show, self.effect, &mut size);
+        let scratch = scratch_shape(show, effect.automation, effect.params);
+        scratch_size(&mut size, scratch);
         ClipSampler {
             clip: *self,
             output: vec![Color::BLACK; row_count],
             groups,
             pixels,
             slots,
-            buffer: vec![0; size.bytes.div_ceil(8)].into_boxed_slice(),
+            scratch,
+            buffer: vec![0; size.bytes.div_ceil(4)].into_boxed_slice(),
             fresh: true,
         }
     }
 }
 
-/// Reusable sparse evaluator borrowing an admitted show.
+/// Reusable sparse evaluator borrowing a show.
 pub struct ClipSampler<'a> {
     clip: SequenceClip<'a>,
     output: Vec<Color>,
@@ -149,8 +158,9 @@ pub struct ClipSampler<'a> {
     /// A pixel of each group.
     pixels: Vec<RunPixel>,
     slots: StripSlots,
-    /// The strip workspace and the effect's automation state.
-    buffer: Box<[u64]>,
+    scratch: [usize; 4],
+    /// The strip workspace and the automation scratch.
+    buffer: Box<[u32]>,
     /// Whether the buffer has not been carved yet.
     fresh: bool,
 }
@@ -179,23 +189,32 @@ impl ClipSampler<'_> {
             Carve::again(bytes)
         };
         self.fresh = false;
-        let (Some(mut workspace), Some(mut states)) = (
+        let (Some(mut workspace), Some(mut scratch)) = (
             self.slots.carve(&mut arena),
-            carve_effect_state(&mut arena, show, self.clip.effect),
+            carve_scratch(&mut arena, self.scratch),
         ) else {
             unreachable!("the buffer holds the sampler's size")
         };
-        let params = if states.records.is_empty() {
-            ParamsView::image(show, effect.params)
-        } else {
-            states.get(0).params_at(show, time, LiveView::default())
-        };
-        let sampler = effect_sampler(show, effect, timing, time, params);
+        let params = invocation_params(
+            show,
+            &mut scratch,
+            Invocation {
+                params: effect.params,
+                plan: effect.automation,
+                origin: effect.start,
+                effect: self.clip.effect as u32,
+            },
+            time,
+            &[],
+            LiveView::default(),
+        );
+        let sampler = effect_sampler(show, effect, timing, time, 1, params);
         let (groups, output) = (&self.groups, &mut self.output);
         sampler.sample_pixels(
             groups.len(),
             PixelSource::Listed(&self.pixels),
             &mut workspace,
+            &mut NoSignals,
             |group, color| {
                 for &row in &groups[group].rows {
                     output[row] = color;
@@ -214,9 +233,17 @@ fn evenly_sample_indices(source_count: usize, sample_count: usize) -> Vec<usize>
     if sample_count == 1 {
         return vec![0];
     }
-    let last_source = (source_count - 1) as u128;
-    let last_sample = (sample_count - 1) as u128;
-    (0..sample_count)
-        .map(|sample| ((sample as u128 * last_source + last_sample / 2) / last_sample) as usize)
+    let last_source = (source_count - 1) as u32;
+    let last_sample = (sample_count - 1) as u32;
+    // round(sample * last_source / last_sample), ties up.
+    (0..sample_count as u32)
+        .map(|sample| {
+            let Some((index, rest)) =
+                donder_runtime_types::mul_div(sample, last_source, last_sample)
+            else {
+                unreachable!("sample <= last_sample, so the index is at most last_source")
+            };
+            (index + u32::from(rest >= last_sample - last_sample / 2)) as usize
+        })
         .collect()
 }

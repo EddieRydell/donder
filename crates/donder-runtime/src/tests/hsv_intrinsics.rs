@@ -14,12 +14,11 @@ use super::evaluation::RuntimeError;
 use super::evaluation::StripWorkspace;
 use donder_language::compiler::{compile_effects, compile_operators};
 use donder_runtime_types::Color;
-use donder_runtime_types::SampleTime;
 use donder_runtime_types::Value;
 use donder_runtime_types::bytecode::SignalPixel;
 
-fn color([red, green, blue]: [u8; 3]) -> Color {
-    Color { red, green, blue }
+fn color(bytes: [u8; 3]) -> Color {
+    Color::from_bytes(bytes)
 }
 
 struct ConstantSignal(Color);
@@ -27,9 +26,7 @@ impl SignalSampler for ConstantSignal {
     fn sample_signal(
         &mut self,
         _input: usize,
-        _sample_time: SampleTime,
         _pixel: SignalPixel<i32>,
-        _frame_cache: Option<usize>,
     ) -> Result<Color, RuntimeError> {
         Ok(self.0)
     }
@@ -77,8 +74,10 @@ fn hsv_components_of_colors_execute_and_fold_alike() {
         ));
         for invocation in [fixed, selected] {
             assert_eq!(
-                invocation.evaluate(&one_pixel(0.0), &SPATIAL, &mut workspace),
-                color(output),
+                invocation
+                    .evaluate(&one_pixel(0.0), &SPATIAL, &mut workspace)
+                    .to_bytes(),
+                output,
                 "{input:?}"
             );
         }
@@ -118,6 +117,6 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
                 &mut workspace,
             )
             .unwrap();
-        assert_eq!(actual, color(output), "input={input:?}, shift={shift}");
+        assert_eq!(actual.to_bytes(), output, "input={input:?}, shift={shift}");
     }
 }

@@ -120,7 +120,7 @@ impl RequestHandlerService<LoaderState> for Control {
                 position_micros,
                 speed,
                 looping,
-                archive_crc,
+                archive_id,
                 archive_bytes,
             } => {
                 let clock = *state.clock.lock().await;
@@ -131,7 +131,7 @@ impl RequestHandlerService<LoaderState> for Control {
                     Some(_) if boot_id != state.boot_id || !clock.usable(clock_id, now) => {
                         Err("Clock is not synchronized")
                     }
-                    Some(p) if p.archive_crc != archive_crc || p.archive_bytes != archive_bytes => {
+                    Some(p) if p.archive_id != archive_id || p.archive_bytes != archive_bytes => {
                         Err("Sequence changed before scheduling")
                     }
                     Some(p) if position_micros > p.show.sequence().duration().as_ticks() => {

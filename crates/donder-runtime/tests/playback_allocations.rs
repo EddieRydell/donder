@@ -253,13 +253,13 @@ fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
         }
     });
     assert_eq!(count, 0, "prepared enum automation allocated");
-    for (colors, red) in observed.into_iter().zip([0, 255, 0, 255, 0]) {
+    for (colors, red) in observed.into_iter().zip([0.0, 1.0, 0.0, 1.0, 0.0]) {
         assert_eq!(
             colors,
             [Color {
                 red,
-                green: 0,
-                blue: 0
+                green: 0.0,
+                blue: 0.0
             }; 2]
         );
     }
@@ -273,14 +273,7 @@ fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
     );
     let mut workspace = playback::show(1, &playback::sample(&effect), 1).into_playback();
     let expected = workspace.evaluate(SampleTime::from_ticks(0)).colors()[0];
-    assert_eq!(
-        expected,
-        Color {
-            red: 51,
-            green: 77,
-            blue: 102
-        }
-    );
+    assert_eq!(expected.to_bytes(), [51, 77, 102]);
     let mut sampled = Color::BLACK;
     let count = allocations(|| sampled = workspace.evaluate(SampleTime::from_ticks(0)).colors()[0]);
     assert_eq!(sampled, expected);
@@ -333,19 +326,8 @@ fn reductions_do_not_allocate_at_any_iteration_count() {
                 .map(|ticks| workspace.evaluate(SampleTime::from_ticks(ticks)).colors()[0]);
         }));
         assert_eq!(
-            results,
-            [
-                Color {
-                    red: 64,
-                    green: 89,
-                    blue: 230
-                },
-                Color {
-                    red: 128,
-                    green: 153,
-                    blue: 230
-                },
-            ]
+            results.map(Color::to_bytes),
+            [[64, 89, 230], [128, 153, 230]]
         );
     }
     assert_eq!(
@@ -401,52 +383,14 @@ fn enum_choices_and_constant_loads_do_not_allocate() {
     );
     let mut workspace = playback::show(1, &playback::lower_sample(&invocation), 1).into_playback();
     workspace.evaluate(SampleTime::from_ticks(0));
-    let mut reds = [0; 3];
+    let mut reds = [0.0; 3];
     let count = allocations(|| {
         for (red, ticks) in reds.iter_mut().zip([6_000_000, 0, 6_000_000]) {
             *red = workspace.evaluate(SampleTime::from_ticks(ticks)).colors()[0].red;
         }
     });
     assert_eq!(count, 0, "enum copies allocated");
-    assert_eq!(reds, [255, 0, 255]);
-}
-
-#[test]
-fn many_signal_times_use_fixed_storage_from_the_first_frame() {
-    let sample = playback::sample(&compile_effect(RAMP_SOURCE));
-    let expected = playback::show(2, &sample, 1);
-    // The ramp brightens with time, so earlier samples never exceed the current one.
-    let operator = compile_operators(
-        "operator ManyTimes { input source; sample {
-            let history = max for i in 0..1100 { source.at(time - i * 0.001) };
-            max(history, max(source.at(time * 0.5), source.at(time)))
-        } }",
-    )
-    .unwrap()
-    .remove(0);
-    let operator = playback::operator(&operator);
-    let mut workspace = playback::chain(2, &sample, 1, &[operator]).into_playback();
-    let mut expected_workspace = expected.into_playback();
-    let mut actual = [vec![0; 6]];
-    let mut expected_bytes = [vec![0; 6]];
-    for frame in FRAMES {
-        for (snapshot, output) in expected_bytes
-            .iter_mut()
-            .zip(expected_workspace.evaluate(playback::time(frame)).outputs())
-        {
-            snapshot.copy_from_slice(output.bytes);
-        }
-        let count = allocations(|| {
-            for (snapshot, output) in actual
-                .iter_mut()
-                .zip(workspace.evaluate(playback::time(frame)).outputs())
-            {
-                snapshot.copy_from_slice(output.bytes);
-            }
-        });
-        assert_eq!(count, 0, "signal cache allocated");
-        assert_eq!(actual, expected_bytes);
-    }
+    assert_eq!(reds, [1.0, 0.0, 1.0]);
 }
 
 #[test]
@@ -554,11 +498,7 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
     let gradient = Value::Gradient(Arc::new(Gradient {
         stops: vec![GradientStop {
             position: 0.0,
-            color: Color {
-                red: 255,
-                green: 128,
-                blue: 64,
-            },
+            color: Color::from_bytes([255, 128, 64]),
         }],
     }));
     let automation = whole_sequence_automation(&pulse.params()[1], 1, Arc::clone(&shape));
@@ -679,10 +619,9 @@ const STARTER_EFFECTS: [&str; 7] = [
     include_str!("../../../examples/starter/effects/vixen.donder"),
 ];
 
-const OPERATOR_LIBRARIES: [&str; 4] = [
+const OPERATOR_LIBRARIES: [&str; 3] = [
     include_str!("../../../examples/starter/operators/standard.donder"),
     include_str!("../../../examples/starter/operators/gain.donder"),
-    include_str!("../../../examples/starter/operators/time-warp.donder"),
     // FreezeFrame and HueMap; its other operators repeat the starter's.
     include_str!("../../../examples/stanford_room/operators/standard.donder"),
 ];
@@ -692,7 +631,7 @@ const ADDRESSED_SOURCE: &str = "
 operator Mirror {
   input source;
 
-  sample { source.at(time, target.count - 1 - pixel.index) }
+  sample { source.at(target.count - 1 - pixel.index) }
 }
 
 operator Scatter {
@@ -701,14 +640,14 @@ operator Scatter {
   param spacing: float in 0.0..1.0 = 0.05;
 
   sample {
-    let blur = sum for i in 0..taps { source.at(time - spacing * i, pixel.index - i) * 0.25 };
-    let darkest = min for i in 0..taps { intensity(source.at(time, pixel.index + i)) };
+    let blur = sum for i in 0..taps { source.at(pixel.index - i) * spacing };
+    let darkest = min for i in 0..taps { intensity(source.at(pixel.index + i)) };
     guard (all for i in 0..taps { pixel.index >= i }) else blur;
     let brightest = first for i in 0..taps {
-      guard intensity(source.at(time, i)) > darkest;
+      guard intensity(source.at(i)) > darkest;
       i
     } else { 0 };
-    blur * (darkest + 0.5) + source.at(time + spacing, brightest)
+    blur * (darkest + 0.5) + previous.at(brightest)
   }
 }";
 
@@ -736,9 +675,9 @@ fn authored_value(ty: &Type, range: Option<ParamRange>) -> Value {
                 (1.0, [160, 64, 255]),
             ]
             .into_iter()
-            .map(|(position, [red, green, blue])| GradientStop {
+            .map(|(position, bytes)| GradientStop {
                 position,
-                color: Color { red, green, blue },
+                color: Color::from_bytes(bytes),
             })
             .collect(),
         })),
@@ -902,7 +841,6 @@ fn operators_do_not_allocate_from_the_first_frame() {
     for (name, instances, inputs) in &operators {
         for (automated, instance) in [false, true].into_iter().zip(instances) {
             let (count, lit) = first_frames(operator_show(&[(instance.clone(), inputs.clone())]));
-            // Automated delays can reach before the sequence start.
             assert!(lit || automated, "{name} rendered only black");
             if count != 0 {
                 allocating.push(format!("{name} automated={automated}: {count}"));
@@ -915,7 +853,6 @@ fn operators_do_not_allocate_from_the_first_frame() {
         .iter()
         .map(|(_, [fixed, _], inputs)| (fixed.clone(), inputs.clone()))
         .collect();
-    // Playback nests at most 16 operators deep.
     let mut any_fused = false;
     for chain in all.chunks(12) {
         let chain = chain.to_vec();

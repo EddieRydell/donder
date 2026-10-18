@@ -16,11 +16,7 @@ use donder_runtime_types::Color;
 use donder_runtime_types::Value;
 
 fn red(red: u8) -> Color {
-    Color {
-        red,
-        green: 0,
-        blue: 0,
-    }
+    Color::from_bytes([red, 0, 0])
 }
 
 #[test]
@@ -103,22 +99,16 @@ fn curve_items_sample_at_integer_and_float_positions() {
                 ],
             )
             .evaluate(&one_pixel(0.0), &SPATIAL, &mut workspace);
-            let channel = |position| {
-                (donder_runtime_types::sampling::sample_curve(&curve, position) * 255.0).round()
-                    as u8
-            };
+            let channel = |position| donder_runtime_types::sampling::sample_curve(&curve, position);
             assert_eq!(
-                sampled,
+                sampled.to_bytes(),
                 // A NaN channel is written as zero.
                 Color {
                     red: channel(integer as f32),
-                    green: if fraction.is_nan() {
-                        0
-                    } else {
-                        channel(fraction)
-                    },
-                    blue: 0,
-                },
+                    green: channel(fraction),
+                    blue: 0.0,
+                }
+                .to_bytes(),
                 "integer={integer} fraction={fraction}"
             );
         }
@@ -139,7 +129,7 @@ fn lets_keep_the_items_they_bound() {
     for progress in [0.25, 0.0, 0.25] {
         assert_eq!(
             fixed.evaluate(&one_pixel(progress), &SPATIAL, &mut workspace),
-            crate::sampling::rgb(progress, progress + 0.25, 0.5).to_color()
+            crate::sampling::rgb(progress, progress + 0.25, 0.5)
         );
     }
     for (body, expected) in [
@@ -169,7 +159,7 @@ fn lets_keep_the_items_they_bound() {
             assert_eq!(
                 effect
                     .evaluate(&one_pixel(progress), &SPATIAL, &mut workspace)
-                    .red,
+                    .to_bytes()[0],
                 expected,
                 "{body}"
             );
@@ -193,7 +183,7 @@ fn indices_clamp_and_empty_arrays_produce_defaults() {
         assert_eq!(
             effect
                 .evaluate(&one_pixel(0.25), &SPATIAL, &mut workspace)
-                .red,
+                .to_bytes()[0],
             expected_red,
             "{index}"
         );
@@ -257,8 +247,8 @@ fn dynamic_selection_preserves_typed_values() {
                 ctx.index = pixel as i32;
                 ctx.run.pixel_count = 3;
                 assert_eq!(
-                    effect.evaluate(&ctx, &SPATIAL, &mut workspace),
-                    red(expected),
+                    effect.evaluate(&ctx, &SPATIAL, &mut workspace).to_bytes(),
+                    red(expected).to_bytes(),
                     "{body}"
                 );
             }

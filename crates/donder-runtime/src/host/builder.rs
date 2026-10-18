@@ -4,14 +4,14 @@
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::marker::PhantomData;
 use donder_runtime_types::bytecode::{
-    Banks, BytecodeProgram, Instruction, ParamStorage, ParameterKind, param_bank,
+    Banks, BytecodeProgram, ParamStorage, ParameterKind, param_bank,
 };
 use donder_runtime_types::image::{self, NONE, Range, SectionsWriter};
 use donder_runtime_types::{
-    AutomatedQuantity, AutomationMapping, Curve, FixtureGeometry, Gradient, Identifier,
-    InstructionWord, Marks, OperatorInvocation, OperatorProgram, OutputEncoding, PixelEncoding,
-    PreparedAutomation, SampleDuration, SampleInvocation, SampleProgram, SampleTime,
-    SequenceTiming, Shared, SpatialContext, TargetGeometry, TargetScope, Type, Value,
+    AutomatedQuantity, AutomationMapping, Curve, FixtureGeometry, Gradient, Identifier, Marks,
+    OperatorInvocation, OperatorProgram, OutputEncoding, PixelEncoding, PreparedAutomation,
+    SampleDuration, SampleInvocation, SampleProgram, SampleTime, SequenceTiming, Shared,
+    SpatialContext, TargetGeometry, TargetScope, Type, Value,
 };
 
 use crate::targets::PreparedPixel;
@@ -139,20 +139,8 @@ fn shared<T: Copy + PartialEq>(section: &mut Vec<T>, known: &mut Vec<Range>, ite
 
 fn counts(banks: Banks) -> image::BankCounts {
     image::BankCounts {
-        counts: [
-            banks.floats,
-            banks.ints,
-            banks.bools,
-            banks.colors,
-            banks.resources,
-            0,
-        ],
+        counts: [banks.floats, banks.ints, banks.bools, banks.resources],
     }
-}
-
-/// A bound color word: red, green and blue in its low bytes.
-fn color_word(color: donder_runtime_types::Color) -> u32 {
-    u32::from_le_bytes([color.red, color.green, color.blue, 0])
 }
 
 fn enum_index(enums: &[Identifier], name: &Identifier) -> u32 {
@@ -163,6 +151,17 @@ fn enum_index(enums: &[Identifier], name: &Identifier) -> u32 {
 }
 
 impl SequenceBuilder<'_> {
+    /// A color's index in the colors section, shared by equal colors.
+    fn color(&mut self, color: donder_runtime_types::Color) -> u32 {
+        match self.w.colors.iter().position(|known| *known == color) {
+            Some(index) => index as u32,
+            None => {
+                self.w.colors.push(color);
+                (self.w.colors.len() - 1) as u32
+            }
+        }
+    }
+
     fn curve(&mut self, curve: &Shared<Curve>) -> u32 {
         if let Some((_, index)) = self
             .interner
@@ -173,17 +172,32 @@ impl SequenceBuilder<'_> {
             return *index;
         }
         let w = &mut self.w;
-        let points = push(&mut w.curve_points, curve.points.iter().copied());
-        let mut areas = vec![0.0; curve.points.len()];
-        donder_runtime_types::sampling::curve_prefix_areas(&curve.points, &mut areas);
+        // An empty curve is missing: one NaN point, so playback never meets
+        // an empty one.
+        let missing = [donder_runtime_types::CurvePoint {
+            position: 0.0,
+            value: f32::NAN,
+        }];
+        let source = if curve.points.is_empty() {
+            &missing[..]
+        } else {
+            &curve.points[..]
+        };
+        let points = push(&mut w.curve_points, source.iter().copied());
+        let mut areas = vec![0.0; source.len()];
+        donder_runtime_types::sampling::curve_prefix_areas(source, &mut areas);
         let areas = push(&mut w.curve_areas, areas);
-        let mut crossings = vec![image::CrossingSegment::default(); curve.points.len().max(1)];
-        let (kind, len) = crate::resources::curve_crossings(&curve.points, &mut crossings);
+        let mut slopes = vec![0.0; source.len()];
+        donder_runtime_types::sampling::curve_slopes(source, &mut slopes);
+        let slopes = push(&mut w.curve_slopes, slopes);
+        let mut crossings = vec![image::CrossingSegment::default(); source.len()];
+        let (kind, len) = crate::resources::curve_crossings(source, &mut crossings);
         let crossings = push(&mut w.crossings, crossings[..len].iter().copied());
         let index = w.curves.len() as u32;
         w.curves.push(image::Curve {
             points,
             areas,
+            slopes,
             crossings_kind: kind,
             crossings,
         });
@@ -201,12 +215,34 @@ impl SequenceBuilder<'_> {
             return *index;
         }
         let w = &mut self.w;
+        // An empty gradient is black: one black stop, so playback never
+        // meets an empty one.
+        let black = [image::GradientStop {
+            position: 0.0,
+            color: donder_runtime_types::Color::BLACK,
+            inverse: 0.0,
+        }];
+        let stops: Vec<_> = gradient
+            .stops
+            .iter()
+            .enumerate()
+            .map(|(index, stop)| image::GradientStop {
+                position: stop.position,
+                color: stop.color,
+                inverse: gradient.stops.get(index + 1).map_or(0.0, |next| {
+                    donder_runtime_types::sampling::Stop::inverse(stop, next)
+                }),
+            })
+            .collect();
         let stops = push(
             &mut w.gradient_stops,
-            gradient.stops.iter().map(|stop| image::GradientStop {
-                position: stop.position,
-                color: [stop.color.red, stop.color.green, stop.color.blue, 0],
-            }),
+            if stops.is_empty() {
+                &black[..]
+            } else {
+                &stops[..]
+            }
+            .iter()
+            .copied(),
         );
         let index = w.gradients.len() as u32;
         w.gradients.push(image::Gradient { stops });
@@ -274,7 +310,7 @@ impl SequenceBuilder<'_> {
             Value::Int(value) => (image::VALUE_INT, *value as u32),
             Value::Float(value) => (image::VALUE_FLOAT, value.to_bits()),
             Value::Bool(value) => (image::VALUE_BOOL, u32::from(*value)),
-            Value::Color(color) => (image::VALUE_COLOR, color_word(*color)),
+            Value::Color(color) => (image::VALUE_COLOR, self.color(*color)),
             Value::Enum(name) => (image::VALUE_ENUM, enum_index(enums, name)),
             Value::Marks(marks) => (image::VALUE_MARKS, self.marks(marks)),
             Value::Curve(curve) => (image::VALUE_CURVE, self.curve(curve)),
@@ -298,10 +334,7 @@ impl SequenceBuilder<'_> {
 
     /// Write `program`, an effect's or, with its input count, an operator's.
     fn program(&mut self, program: &BytecodeProgram, inputs: Option<usize>) -> u32 {
-        let code = push(
-            &mut self.w.code,
-            program.code.iter().map(InstructionWord::encode),
-        );
+        let code = push(&mut self.w.code, program.code.iter().copied());
         let params = push(
             &mut self.w.params,
             program
@@ -313,53 +346,15 @@ impl SequenceBuilder<'_> {
                     bank: u32::from(param_bank(&program.params, index)),
                 }),
         );
-        let operands = push(&mut self.w.operands, program.operands.iter().copied());
-        let curves: Vec<_> = program
-            .curves
+        let resources: Vec<u32> = program
+            .resources
             .iter()
-            .map(|curve| image::ResourceRef {
-                kind: image::RESOURCE_CURVE,
-                index: self.curve(curve),
-            })
+            .map(|value| self.resource(value, &program.enums).index)
             .collect();
-        let gradients: Vec<_> = program
-            .gradients
-            .iter()
-            .map(|gradient| image::ResourceRef {
-                kind: image::RESOURCE_GRADIENT,
-                index: self.gradient(gradient),
-            })
-            .collect();
-        let marks: Vec<_> = program
-            .marks
-            .iter()
-            .map(|marks| image::ResourceRef {
-                kind: image::RESOURCE_MARKS,
-                index: self.marks(marks),
-            })
-            .collect();
-        let arrays: Vec<_> = program
-            .arrays
-            .iter()
-            .map(|items| image::ResourceRef {
-                kind: image::RESOURCE_ARRAY,
-                index: self.array(items, &program.enums),
-            })
-            .collect();
-        let resources = &mut self.w.program_resources;
-        let (curves, gradients, marks, arrays) = (
-            push(resources, curves),
-            push(resources, gradients),
-            push(resources, marks),
-            push(resources, arrays),
-        );
-        let stencil = program
-            .body()
-            .iter()
-            .any(|instruction| matches!(instruction, Instruction::Stencil { .. }));
+        let resources = push(&mut self.w.program_resources, resources);
+        let stencil = program.has_stencil();
         let flags = [
             (inputs.is_some(), image::PROGRAM_OPERATOR),
-            (program.uses_progress(), image::PROGRAM_USES_PROGRESS),
             (program.uses_spatial_context(), image::PROGRAM_USES_SPATIAL),
             (program.uses_sections(), image::PROGRAM_USES_SECTIONS),
             (program.reads_target(), image::PROGRAM_READS_TARGET),
@@ -368,6 +363,7 @@ impl SequenceBuilder<'_> {
                 image::PROGRAM_USES_PIXEL_CONTEXT,
             ),
             (stencil, image::PROGRAM_HAS_STENCIL),
+            (program.reads_state(), image::PROGRAM_READS_STATE),
         ]
         .iter()
         .filter(|(set, _)| *set)
@@ -381,12 +377,8 @@ impl SequenceBuilder<'_> {
             scalars: counts(program.scalars),
             rows: counts(program.rows),
             params,
-            curves,
-            gradients,
-            marks,
-            arrays,
-            operands,
-            frame_caches: u32::from(program.frame_caches),
+            resources,
+            scans: u32::from(program.scans),
             inputs: inputs.unwrap_or(0) as u32,
             flags,
         });
@@ -409,7 +401,7 @@ impl SequenceBuilder<'_> {
                     (_, Value::Float(value)) => value.to_bits(),
                     (_, Value::Int(value)) => *value as u32,
                     (_, Value::Bool(value)) => u32::from(*value),
-                    (_, Value::Color(color)) => color_word(*color),
+                    (_, Value::Color(color)) => self.color(*color),
                     (_, Value::Enum(name)) => enum_index(&program.enums, name),
                     _ => unreachable!("word parameters hold scalar values"),
                 }),
@@ -426,12 +418,7 @@ impl SequenceBuilder<'_> {
 
     /// Write automation already checked with the invocation of `program`;
     /// [`NONE`] without bindings.
-    fn automation(
-        &mut self,
-        program: &BytecodeProgram,
-        bindings: &[PreparedAutomation],
-        origin: SampleTime,
-    ) -> u32 {
+    fn automation(&mut self, program: &BytecodeProgram, bindings: &[PreparedAutomation]) -> u32 {
         if bindings.is_empty() {
             return NONE;
         }
@@ -460,7 +447,7 @@ impl SequenceBuilder<'_> {
                     (kind, bank)
                 }
                 (_, AutomatedQuantity::Integral) => {
-                    unreachable!("admission accepts integrals of float automation only")
+                    unreachable!("the compiler accepts integrals of float automation only")
                 }
                 (
                     AutomationMapping::Int {
@@ -520,11 +507,9 @@ impl SequenceBuilder<'_> {
         }
         let bindings = push(&mut self.w.bindings, records);
         let windows = push(&mut self.w.windows, windows);
-        self.w.automation.push(image::Automation {
-            bindings,
-            windows,
-            origin: origin.as_ticks(),
-        });
+        self.w
+            .automation
+            .push(image::Automation { bindings, windows });
         (self.w.automation.len() - 1) as u32
     }
 }
@@ -691,7 +676,7 @@ impl<'id> SequenceBuilder<'id> {
             }
         };
         let params = self.param_set(bytecode, invocation.params());
-        let automation = self.automation(bytecode, invocation.automation(), window.start);
+        let automation = self.automation(bytecode, invocation.automation());
         self.w.effects.push(image::Effect {
             start: window.start.as_ticks(),
             duration: window.duration.as_ticks(),
@@ -699,7 +684,6 @@ impl<'id> SequenceBuilder<'id> {
             program,
             params,
             automation,
-            state: NONE,
         });
         EffectHandle::new(self.w.effects.len() - 1)
     }
@@ -784,8 +768,7 @@ impl<'id> SequenceBuilder<'id> {
             }
         };
         let params = self.param_set(bytecode, invocation.params());
-        let automation =
-            self.automation(bytecode, invocation.automation(), SampleTime::from_ticks(0));
+        let automation = self.automation(bytecode, invocation.automation());
         let inputs = (0..invocation.program().input_count())
             .map(|index| input(index).index as u32)
             .collect();
@@ -911,7 +894,7 @@ impl<'id> SequenceBuilder<'id> {
 
     /// The image: every record written, then the plan, layers, nodes and
     /// targets that the registered handles describe.
-    pub(crate) fn finish(mut self, root: SequenceRoot<'id>) -> alloc::boxed::Box<[u64]> {
+    pub(crate) fn finish(mut self, root: SequenceRoot<'id>) -> alloc::boxed::Box<[u32]> {
         let full = self.target(
             (0..self.geometry.len())
                 .map(FixtureHandle::new)
@@ -996,22 +979,72 @@ impl<'id> SequenceBuilder<'id> {
                 effects,
             });
         }
-        // Each operator's depth slot is the deepest of its inputs; the slots
-        // in use are the deepest operator's.
-        let mut depths = Vec::with_capacity(self.nodes.len());
-        let mut vm_slots = 0;
-        for node in &self.nodes {
-            let deepest = node
-                .inputs
-                .iter()
-                .fold(0, |depth, &input| depth.max(depths[input as usize]));
-            let (vm_slot, depth) = match node.kind {
-                image::NODE_OPERATOR => (deepest, deepest + 1),
-                _ => (0, deepest),
+        // A mix holds every input until it runs; chained, each input joins
+        // the running maximum once it is ready, so a mix holds two frames.
+        let root = root
+            .0
+            .map(|signal| chain_mixes(&mut self.nodes, signal.index));
+        // Only the nodes the output reads are written, inputs first as they
+        // were built. Each writes a frame buffer free from its start until its
+        // last reader runs; one that reads its previous frame keeps a state.
+        let mut live = vec![false; self.nodes.len()];
+        if let Some(root) = root {
+            live[root] = true;
+        }
+        for index in (0..self.nodes.len()).rev() {
+            if live[index] {
+                for &input in &self.nodes[index].inputs {
+                    live[input as usize] = true;
+                }
+            }
+        }
+        let mut node_index = vec![NONE; self.nodes.len()];
+        let mut last_read = vec![usize::MAX; self.nodes.len()];
+        for (index, node) in self.nodes.iter().enumerate() {
+            if live[index] {
+                for &input in &node.inputs {
+                    last_read[input as usize] = index;
+                }
+            }
+        }
+        let reads_state =
+            |program: u32| w.programs[program as usize].flags & image::PROGRAM_READS_STATE != 0;
+        let (mut free, mut buffers, mut states) = (Vec::<u32>::new(), 0, 0);
+        for (index, node) in self.nodes.iter().enumerate() {
+            if !live[index] {
+                continue;
+            }
+            let buffer = free.pop().unwrap_or_else(|| {
+                buffers += 1;
+                buffers - 1
+            });
+            let stateful = match node.kind {
+                image::NODE_LAYER => self.layers[node.layer as usize]
+                    .effects
+                    .iter()
+                    .any(|&effect| reads_state(w.effects[effect as usize].program)),
+                image::NODE_OPERATOR => reads_state(node.program),
+                _ => false,
             };
-            vm_slots = vm_slots.max(depth);
-            depths.push(depth);
-            let inputs = push(&mut w.node_inputs, node.inputs.iter().copied());
+            let state = if stateful {
+                states += 1;
+                states - 1
+            } else {
+                NONE
+            };
+            for &input in &node.inputs {
+                if last_read[input as usize] == index {
+                    let input = &w.nodes[node_index[input as usize] as usize];
+                    if !free.contains(&input.buffer) {
+                        free.push(input.buffer);
+                    }
+                }
+            }
+            node_index[index] = w.nodes.len() as u32;
+            let inputs = push(
+                &mut w.node_inputs,
+                node.inputs.iter().map(|&input| node_index[input as usize]),
+            );
             w.nodes.push(image::Node {
                 kind: node.kind,
                 layer: node.layer,
@@ -1019,9 +1052,28 @@ impl<'id> SequenceBuilder<'id> {
                 params: node.params,
                 inputs,
                 automation: node.automation,
-                vm_slot,
+                buffer,
+                state,
             });
         }
+        let buffers = buffers.max(1);
+        assert!(
+            buffers as usize <= crate::workspace::MAX_BUFFERS,
+            "a show's graph holds at most {} frames at once",
+            crate::workspace::MAX_BUFFERS
+        );
+        assert!(
+            states as usize <= crate::workspace::MAX_STATES,
+            "at most {} signals of a show read their previous frame",
+            crate::workspace::MAX_STATES
+        );
+        assert!(
+            w.programs
+                .iter()
+                .all(|program| program.scans as usize <= crate::workspace::MAX_SCANS),
+            "a program runs at most {} scans",
+            crate::workspace::MAX_SCANS
+        );
         let mut offset = 0;
         for output in &self.outputs {
             w.outputs.push(image::Output {
@@ -1031,18 +1083,6 @@ impl<'id> SequenceBuilder<'id> {
                 width: output.bytes as u32,
             });
             offset += output.bytes as u32;
-        }
-        let mut next = 0;
-        for (index, effect) in w.effects.iter_mut().enumerate() {
-            let read = self
-                .collections
-                .iter()
-                .flatten()
-                .any(|reader| reader.effect as usize == index);
-            if effect.automation != NONE || read {
-                effect.state = next;
-                next += 1;
-            }
         }
         for readers in &self.collections {
             let readers = push(&mut w.readers, readers.iter().copied());
@@ -1060,8 +1100,9 @@ impl<'id> SequenceBuilder<'id> {
             duration: self.timing.duration().as_ticks(),
             pixel_count: self.pixel_count as u32,
             plan_target: written[full.index],
-            output: root.0.map_or(NONE, |signal| signal.index as u32),
-            vm_slots,
+            output: root.map_or(NONE, |root| node_index[root]),
+            buffers,
+            states,
         });
         w.finish(crate::show::FORMAT_VERSION)
     }
@@ -1244,4 +1285,58 @@ fn keep<T: Copy>(items: &[T], range: &core::ops::Range<usize>) -> Vec<T> {
         .filter(|(index, _)| range.contains(index))
         .map(|(_, item)| *item)
         .collect()
+}
+
+/// Replace each mix of `nodes` by a chain of two-input mixes, each placed
+/// right after the input it adds, inputs first as before. Returns where
+/// node `root` went.
+fn chain_mixes(nodes: &mut Vec<Node>, root: usize) -> usize {
+    let mut readers = vec![Vec::<usize>::new(); nodes.len()];
+    for (index, node) in nodes.iter().enumerate() {
+        if node.kind == image::NODE_MIX {
+            for &input in &node.inputs {
+                if !readers[input as usize].contains(&index) {
+                    readers[input as usize].push(index);
+                }
+            }
+        }
+    }
+    let mix = |inputs| Node {
+        kind: image::NODE_MIX,
+        layer: 0,
+        program: 0,
+        params: 0,
+        inputs,
+        automation: NONE,
+    };
+    let mut chained = Vec::with_capacity(nodes.len());
+    let mut moved = vec![0u32; nodes.len()];
+    let mut running = vec![None::<u32>; nodes.len()];
+    for (index, node) in core::mem::take(nodes).into_iter().enumerate() {
+        moved[index] = if node.kind == image::NODE_MIX {
+            running[index].unwrap_or_else(|| {
+                chained.push(mix(Vec::new()));
+                (chained.len() - 1) as u32
+            })
+        } else {
+            let inputs = node
+                .inputs
+                .iter()
+                .map(|&input| moved[input as usize])
+                .collect();
+            chained.push(Node { inputs, ..node });
+            (chained.len() - 1) as u32
+        };
+        for &reader in &readers[index] {
+            running[reader] = Some(match running[reader] {
+                None => moved[index],
+                Some(sum) => {
+                    chained.push(mix(vec![sum, moved[index]]));
+                    (chained.len() - 1) as u32
+                }
+            });
+        }
+    }
+    *nodes = chained;
+    moved[root] as usize
 }

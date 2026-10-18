@@ -6,7 +6,7 @@ use donder_runtime_types::image;
 use donder_runtime_types::{RigEvent, SampleDuration, SampleTime, SequenceTiming, Shared};
 
 use crate::playback::{OutputFrame, Playback, SequenceFrame};
-use crate::show::{LoadError, LoadLimits, Show};
+use crate::show::{LoadError, Show};
 use crate::workspace::Layout;
 
 mod builder;
@@ -18,18 +18,18 @@ pub use builder::{
 };
 pub use clip::{ClipSampler, SequenceClip};
 
-/// An admitted show image in memory; authoring, elaboration, networking and
+/// A show image in memory; authoring, elaboration, networking and
 /// pin timing are external.
 #[derive(Clone)]
 pub struct PreparedSequence {
-    image: Shared<[u64]>,
+    image: Shared<[u32]>,
     layout: Layout,
 }
 
-/// 8-byte-aligned words holding `bytes`.
-fn aligned(bytes: &[u8]) -> Box<[u64]> {
-    let mut words = vec![0u64; bytes.len().div_ceil(8)].into_boxed_slice();
-    bytemuck::cast_slice_mut::<u64, u8>(&mut words)[..bytes.len()].copy_from_slice(bytes);
+/// 4-byte-aligned words holding `bytes`.
+fn aligned(bytes: &[u8]) -> Box<[u32]> {
+    let mut words = vec![0u32; bytes.len().div_ceil(4)].into_boxed_slice();
+    bytemuck::cast_slice_mut::<u32, u8>(&mut words)[..bytes.len()].copy_from_slice(bytes);
     words
 }
 
@@ -42,18 +42,17 @@ impl PreparedSequence {
     ) -> Self {
         let mut builder = SequenceBuilder::new(timing);
         let root = build(&mut builder);
-        let image: Shared<[u64]> = builder.finish(root).into();
+        let image: Shared<[u32]> = builder.finish(root).into();
         let bytes: &[u8] = bytemuck::cast_slice(&image);
-        debug_assert!(Show::admit(bytes, LoadLimits::UNLIMITED).is_ok());
         let layout = Layout::of(Show::trusted(bytes));
         Self { image, layout }
     }
 
-    /// Check an encoded image and keep a copy of it.
-    pub fn decode(bytes: &[u8], limits: LoadLimits) -> Result<Self, LoadError> {
-        let image: Shared<[u64]> = aligned(bytes).into();
+    /// Keep a copy of an encoded image of this format.
+    pub fn decode(bytes: &[u8]) -> Result<Self, LoadError> {
+        let image: Shared<[u32]> = aligned(bytes).into();
         let words: &[u8] = bytemuck::cast_slice(&image);
-        let show = Show::admit(&words[..bytes.len()], limits)?;
+        let show = Show::open(&words[..bytes.len()])?;
         let layout = Layout::of(show);
         Ok(Self { image, layout })
     }
@@ -61,9 +60,7 @@ impl PreparedSequence {
     /// The image's bytes, as [`Self::decode`] and the firmware accept them.
     pub fn encode(&self) -> Vec<u8> {
         let bytes: &[u8] = bytemuck::cast_slice(&self.image);
-        let Ok(len) = image::image_len(bytes, crate::show::FORMAT_VERSION) else {
-            unreachable!("an admitted image has a header")
-        };
+        let len = image::image_len(bytes);
         bytes[..len].to_vec()
     }
 
@@ -117,7 +114,7 @@ impl PreparedSequence {
 
     /// Bytes of the playback buffer.
     pub fn workspace_bytes(&self) -> usize {
-        self.layout.words() * 8
+        self.layout.words() * 4
     }
 
     /// Resolve an authored clip without loading or preparing its source again.
@@ -132,7 +129,7 @@ impl PreparedSequence {
     }
 
     pub fn into_playback(self) -> SequencePlayback {
-        let mut buffer = vec![0u64; self.layout.words()].into_boxed_slice();
+        let mut buffer = vec![0u32; self.layout.words()].into_boxed_slice();
         if Playback::new(self.show(), &self.layout, &mut buffer).is_none() {
             unreachable!("the buffer holds the layout's words")
         }
@@ -143,10 +140,10 @@ impl PreparedSequence {
     }
 }
 
-/// Owns an admitted show and its playback buffer.
+/// Owns a show and its playback buffer.
 pub struct SequencePlayback {
     sequence: PreparedSequence,
-    buffer: Box<[u64]>,
+    buffer: Box<[u32]>,
 }
 
 impl SequencePlayback {
@@ -202,9 +199,9 @@ impl PreparedRig {
         }
     }
 
-    pub fn decode(bytes: &[u8], limits: LoadLimits) -> Result<Self, LoadError> {
+    pub fn decode(bytes: &[u8]) -> Result<Self, LoadError> {
         Ok(Self {
-            sequence: PreparedSequence::decode(bytes, limits)?,
+            sequence: PreparedSequence::decode(bytes)?,
         })
     }
 

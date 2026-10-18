@@ -155,7 +155,7 @@ pub(crate) fn export_video(
             .min(last_frame);
         let time = sample_time_from_frame(frame, rate).map_err(|_| too_long())?;
         for (target, color) in colors.iter_mut().zip(playback.evaluate(time).colors()) {
-            *target = PreviewColor::opaque([color.red, color.green, color.blue]);
+            *target = PreviewColor::opaque(color.to_bytes());
         }
         renderer
             .render(&scene, &colors, style, &mut rgba)

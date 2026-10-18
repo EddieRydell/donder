@@ -98,6 +98,10 @@ impl LoopSet {
     pub(crate) fn is_empty(self) -> bool {
         self.0 == 0
     }
+    /// Its loop, when it holds exactly one.
+    pub(crate) fn only(self) -> Option<LoopId> {
+        (self.0.count_ones() == 1).then(|| LoopId(self.0.trailing_zeros()))
+    }
     pub(crate) fn innermost(self) -> Option<LoopId> {
         (self.0 != 0).then(|| LoopId(63 - self.0.leading_zeros()))
     }
@@ -109,6 +113,8 @@ pub(crate) enum Context {
     Progress,
     Duration,
     FrameRate,
+    /// Frames since the frame before; one after a seek.
+    FramesElapsed,
     PixelIndex,
     PixelFraction,
     PixelX,
@@ -123,14 +129,14 @@ pub(crate) enum Context {
 impl Context {
     pub(crate) fn ty(self) -> Type {
         match self {
-            Self::PixelIndex | Self::TargetCount => Type::Int,
+            Self::PixelIndex | Self::TargetCount | Self::FramesElapsed => Type::Int,
             _ => Type::Float,
         }
     }
 
     pub(crate) fn domain(self) -> Domain {
         match self {
-            Self::Time | Self::Progress => Domain::TIME,
+            Self::Time | Self::Progress | Self::FramesElapsed => Domain::TIME,
             Self::Duration | Self::FrameRate => Domain::PARAM,
             Self::PixelIndex | Self::PixelFraction | Self::PixelX | Self::PixelY => Domain::PIXEL,
             Self::TargetCount
@@ -146,6 +152,7 @@ impl Context {
 pub(crate) enum Unary {
     Negate,
     IntNegate,
+    IntAbs,
     Not,
     Sin,
     Cos,
@@ -175,10 +182,6 @@ pub(crate) enum Unary {
     /// Sections of an integer width over the pixel's section population.
     SectionCount,
     SectionIndex,
-    /// A fused source's clock at a consumer's query: quantized seconds and
-    /// progress, NaN outside the sequence.
-    QuerySeconds,
-    QueryProgress,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -295,6 +298,9 @@ impl Hash for Constant {
     }
 }
 
+/// The input index a [`Op::Sample`] of the node's own previous frame reads.
+pub(crate) const STATE: u32 = u32::MAX;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Op {
     Constant(Constant),
@@ -310,9 +316,10 @@ pub(crate) enum Op {
     /// Pure choice. Whether an arm is evaluated lazily is a scheduling decision.
     Select(Node, Node, Node),
     Reduce(LoopId),
+    /// An operator input, or the node's own previous frame as [`STATE`], at
+    /// this frame and a pixel.
     Sample {
         input: u32,
-        time: Node,
         pixel: SignalPixel<Node>,
     },
     /// An array literal. It exists only while it is indexed: playback never
@@ -342,7 +349,6 @@ pub(crate) enum Op {
     ScanTap {
         direction: Direction,
         input: u32,
-        time: Node,
         decay: Node,
         weight: Option<Node>,
     },
@@ -354,7 +360,6 @@ pub(crate) enum Op {
     Tap {
         id: LoopId,
         input: u32,
-        time: Node,
         edges: Edges,
         weight: Option<Node>,
         scale: Option<Node>,
@@ -383,22 +388,13 @@ impl Op {
                 .into_iter()
                 .flatten()
                 .collect(),
-            Self::ScanTap {
-                time,
-                decay,
-                weight,
-                ..
-            } => [Some(time), Some(decay), weight]
-                .into_iter()
-                .flatten()
-                .collect(),
+            Self::ScanTap { decay, weight, .. } => {
+                [Some(decay), weight].into_iter().flatten().collect()
+            }
             Self::Unary(_, a) => vec![a],
             Self::Binary(_, a, b) => vec![a, b],
             Self::Ternary(_, a, b, c) | Self::Select(a, b, c) => vec![a, b, c],
-            Self::Sample { time, pixel, .. } => match pixel.index() {
-                Some(&index) => vec![time, index],
-                None => vec![time],
-            },
+            Self::Sample { pixel, .. } => pixel.index().copied().into_iter().collect(),
             Self::Items(ref items) => items.to_vec(),
             Self::Pick { index, ref items } => {
                 let mut operands = vec![index];
@@ -406,15 +402,11 @@ impl Op {
                 operands
             }
             Self::Tap {
-                time,
                 weight,
                 scale,
                 pixel,
                 ..
-            } => [Some(time), weight, scale, pixel]
-                .into_iter()
-                .flatten()
-                .collect(),
+            } => [weight, scale, pixel].into_iter().flatten().collect(),
         }
     }
 }
@@ -760,6 +752,7 @@ pub(crate) fn value_type(value: &Value) -> Type {
 fn unary_type(op: Unary) -> Type {
     match op {
         Unary::IntNegate
+        | Unary::IntAbs
         | Unary::FloatToInt
         | Unary::Len
         | Unary::MarkCount
@@ -786,9 +779,7 @@ fn unary_type(op: Unary) -> Type {
         | Unary::Green
         | Unary::Blue
         | Unary::Saturation
-        | Unary::Intensity
-        | Unary::QuerySeconds
-        | Unary::QueryProgress => Type::Float,
+        | Unary::Intensity => Type::Float,
     }
 }
 

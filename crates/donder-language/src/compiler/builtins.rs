@@ -418,7 +418,7 @@ pub const BUILTINS: &[Builtin] = &[
         name: "intensity",
         group: G::Color,
         signatures: &[sig(&[("color", "color")], "float")],
-        summary: "A color's HSV value: its brightest channel divided by 255.",
+        summary: "A color's HSV value: its brightest channel as a fraction of full brightness.",
         details: "Black is zero and any fully bright channel is one.",
         example: "let masked = source * intensity(mask);",
     },
@@ -454,7 +454,7 @@ pub const BUILTINS: &[Builtin] = &[
         name: "invert",
         group: G::Color,
         signatures: &[sig(&[("color", "color")], "color")],
-        summary: "Each channel complemented: `255 - channel`.",
+        summary: "Each channel complemented: full brightness minus the channel.",
         details: "Inverting black gives white.",
         example: "invert(input)",
     },
@@ -646,7 +646,17 @@ pub(crate) const CONTEXT: &[ContextValue] = &[
     ContextValue {
         name: "frame_rate",
         ty: "float",
-        summary: "The sequence's frames per second; `scan time` steps once per frame.",
+        summary: "The sequence's frames per second.",
+    },
+    ContextValue {
+        name: "frames_elapsed",
+        ty: "int",
+        summary: "Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a rig command re-renders the same frame.",
+    },
+    ContextValue {
+        name: "previous",
+        ty: "color",
+        summary: "This pixel last frame: an operator's own output, or an effect's layer. `previous.at(i)` reads another pixel of the fixture and `around previous` its neighbors. Black until the first frame and for a clip previewed alone; kept as it was after a seek.",
     },
     ContextValue {
         name: "pixel.index",

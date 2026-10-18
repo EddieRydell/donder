@@ -97,16 +97,20 @@ without them. Read the existing effects in `effects/` before writing a new one.
 An operator that blurs, glows or spreads light along a fixture reads its
 neighbors with `sum for offset in -radius..=radius around input as neighbor {
 neighbor * weight }`, as `Blur` and `Bloom` do, rather than computing pixel
-indices with `input.at(time, ...)`. Trails and long glows that fade with
-distance use `scan forward input as light, previous { previous * decay + light
-}`, as `Trail` does, whose cost does not grow with the distance.
+indices with `input.at(...)`. Trails and long glows that fade with distance use
+`scan forward input as light, carried { carried * decay + light }`, as `Trail`
+does, whose cost does not grow with the distance. Light that lingers over time
+reads the operator's own last frame, `previous`, faded by the frames since, as
+`Afterglow` does: `max(input, previous * pow(decay, frames_elapsed))`. Effects
+and operators see only the current frame and `previous`; nothing reads another
+time of a signal.
 
 Do not write defensively. Every operation is defined for every value of its
 types, so no input can fail at playback: float division by zero gives infinity
 or NaN, integer `//` and `%` by zero give zero, NaN flows through arithmetic and
 a NaN color channel is written as zero, array indexes clamp, curves hold their
 end values (an empty curve reads NaN), empty gradients are black, and samples
-outside the sequence or a fixture are black. Write the plain expression; guards
+outside a fixture are black. Write the plain expression; guards
 such as `max(x, 0.000001)` divisors, near-zero checks or `if d > 0.0` branches
 only add work to every pixel. Branch only when a case should look different, and
 say why.

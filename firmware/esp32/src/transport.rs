@@ -133,10 +133,9 @@ impl Transport {
         if current.mode != Mode::Playing {
             return (current.mode, current.anchor_position);
         }
-        let position = u64::from(current.anchor_position)
-            + current
-                .rate
-                .show_elapsed(now.saturating_sub(current.anchor_time));
+        let wall = u32::try_from(now.saturating_sub(current.anchor_time)).unwrap_or(u32::MAX);
+        let position =
+            u64::from(current.anchor_position) + u64::from(current.rate.show_elapsed(wall));
         if current.looping {
             (Mode::Playing, (position % u64::from(duration)) as u32)
         } else if position >= u64::from(duration) {

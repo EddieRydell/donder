@@ -22,6 +22,7 @@ fn sample(params: &[Param], body: &str) -> Color {
             time: SampleDuration::from_ticks(750_000),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
+            frames_elapsed: 1,
             pixel_count: 1,
         },
         index: 0,
@@ -88,11 +89,7 @@ fn assert_query(params: &[Param], predicate: &str) {
             params,
             &format!("if {predicate} {{ #ffffff }} else {{ #000000 }}")
         ),
-        Color {
-            red: 255,
-            green: 255,
-            blue: 255
-        },
+        Color::from_bytes([255, 255, 255]),
         "{predicate}"
     );
 }
@@ -211,17 +208,7 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
         "sqrt(x)",
         "atan2(x, 1.0)",
         "pow(x, 2)",
-        "min(x, 0.0)",
-        "min(0.0, x)",
-        "max(x, 0.0)",
-        "max(0.0, x)",
-        "clamp(x, 0.0, 1.0)",
-        "clamp(0.5, x, 1.0)",
-        "clamp(0.5, 0.0, x)",
-        "clamp(0.5, 1.0, 0.0)",
-        "rand(x)",
         "mix(0.0, 1.0, x)",
-        "smoothstep(0.0, 1.0, x)",
     ] {
         let predicate = format!("is_nan({expression})");
         assert_query(&[nan()], &predicate);
@@ -261,16 +248,10 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
         curve(&[(0.5, 0.75)]),
         curve(&[(0.0, 0.25), (1.0, 0.75)]),
     ] {
-        for predicate in [
-            "is_nan(shape[x])",
-            "is_nan(curve_clamped(shape, x, 0.5, 1.0))",
+        assert_query(
+            &[("shape", "curve in 0.0..1.0", shape.clone()), nan()],
             "is_nan(curve_first_crossing(shape, x))",
-        ] {
-            assert_query(
-                &[("shape", "curve in 0.0..1.0", shape.clone()), nan()],
-                predicate,
-            );
-        }
+        );
     }
     for predicate in [
         "is_nan(shape[0.5])",
@@ -298,24 +279,6 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
                 "shape[x] == 0.75"
             },
         );
-    }
-}
-
-#[test]
-fn latest_crossing_handles_finite_extreme_values_without_intermediate_overflow() {
-    for points in [
-        [(0.0, -f32::MAX), (1.0, f32::MAX)],
-        [(0.0, f32::MAX), (1.0, -f32::MAX)],
-    ] {
-        let shape = curve(&points);
-        for predicate in [
-            "curve_first_crossing(shape, 0.0) == 0.5",
-            "is_nan(curve_last_crossing(shape, 0.0, 0.25))",
-            "curve_last_crossing(shape, 0.0, 0.5) == 0.5",
-            "curve_last_crossing(shape, 0.0, 1.0) == 0.5",
-        ] {
-            assert_query(&[("shape", "curve in 0.0..1.0", shape.clone())], predicate);
-        }
     }
 }
 

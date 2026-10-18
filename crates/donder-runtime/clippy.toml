@@ -1,0 +1,10 @@
+# The runtime runs on the ESP32, whose native word is 32 bits: 64-bit integer
+# and double-precision arithmetic there are software routines. The firmware
+# build also rejects runtime code that the compiler lowers to them.
+disallowed-types = [
+    { path = "u64", reason = "the runtime is 32-bit" },
+    { path = "i64", reason = "the runtime is 32-bit" },
+    { path = "u128", reason = "the runtime is 32-bit" },
+    { path = "i128", reason = "the runtime is 32-bit" },
+    { path = "f64", reason = "the runtime uses f32" },
+]

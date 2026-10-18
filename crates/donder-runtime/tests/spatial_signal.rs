@@ -5,10 +5,10 @@ use donder_runtime_types::FixtureGeometry;
 use donder_runtime_types::OperatorInvocation;
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::TargetScope;
-use donder_test_support::{playback, workload};
+use donder_test_support::playback;
 
 /// Fixtures of `sizes` pixels under one whole-target effect whose colors
-/// encode each pixel's place in its fixture and the sampled time.
+/// encode each pixel's place in its fixture and the time.
 fn sequence(sizes: &[usize], operator: Option<&OperatorInvocation>) -> PreparedSequence {
     let effect = compile_effects(
         "effect Positions { sample { rgb(pixel.index / 255.0, time / 8.0, pixel.fraction) } }",
@@ -35,10 +35,9 @@ fn sequence(sizes: &[usize], operator: Option<&OperatorInvocation>) -> PreparedS
     })
 }
 
-/// With and without frame caches, `query` over fixtures of `sizes` shows at
-/// each pixel `n` the source pixel `indices[n]` (black for `None`) as it was
-/// `delay` ticks earlier.
-fn assert_query(sizes: &[usize], query: &str, delay: u32, indices: &[Option<usize>]) {
+/// `query` over fixtures of `sizes` shows at each pixel `n` the source pixel
+/// `indices[n]` (black for `None`).
+fn assert_query(sizes: &[usize], query: &str, indices: &[Option<usize>]) {
     let invocation = compile_operators(&format!(
         "operator Spatial {{ input source; sample {{ {query} }} }}"
     ))
@@ -48,46 +47,29 @@ fn assert_query(sizes: &[usize], query: &str, delay: u32, indices: &[Option<usiz
     .unwrap();
     assert!(invocation.reads_fixture_pixels(), "{query}");
     let lowered = playback::lower_operator(&invocation);
-    // Every sample time here is query-uniform.
-    assert!(
-        workload::cached_samples(lowered.program().bytecode()) > 0,
-        "{query}"
-    );
-    let uncached = workload::edit_operator(&lowered, workload::without_frame_caches);
-    for (cached, operator) in [(true, &lowered), (false, &uncached)] {
-        let mut workspace = sequence(sizes, Some(operator)).into_playback();
-        let mut source_workspace = sequence(sizes, None).into_playback();
-        for ticks in [0, 500_000, 2_000_000, 100_000, 0] {
-            let time = SampleTime::from_ticks(ticks);
-            let expected = match ticks.checked_sub(delay) {
-                Some(source_ticks) => {
-                    let source = source_workspace
-                        .evaluate(SampleTime::from_ticks(source_ticks))
-                        .colors();
-                    indices
-                        .iter()
-                        .map(|index| index.map_or(Color::BLACK, |index| source[index]))
-                        .collect::<Vec<_>>()
-                }
-                None => vec![Color::BLACK; indices.len()],
-            };
-            assert_eq!(
-                workspace.evaluate(time).colors(),
-                expected,
-                "{query}, cached={cached}, time={ticks}"
-            );
-        }
+    let mut workspace = sequence(sizes, Some(&lowered)).into_playback();
+    let mut source_workspace = sequence(sizes, None).into_playback();
+    for ticks in [0, 500_000, 2_000_000, 100_000, 0] {
+        let time = SampleTime::from_ticks(ticks);
+        let source = source_workspace.evaluate(time).colors();
+        let expected = indices
+            .iter()
+            .map(|index| index.map_or(Color::BLACK, |index| source[index]))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            workspace.evaluate(time).colors(),
+            expected,
+            "{query}, time={ticks}"
+        );
     }
 }
 
 #[test]
-fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() {
-    // Each query, how it addresses pixels, how many ticks earlier it samples,
-    // and the source pixel each output pixel shows.
-    for (query, delay, indices) in [
+fn spatial_queries_match_explicit_source_pixels() {
+    // Each query and the source pixel each output pixel shows.
+    for (query, indices) in [
         (
-            "source.at(time, target.count - 1 - pixel.index)",
-            0,
+            "source.at(target.count - 1 - pixel.index)",
             vec![
                 Some(3),
                 Some(2),
@@ -100,8 +82,7 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
             ],
         ),
         (
-            "source.at(time, pixel.index + 1)",
-            0,
+            "source.at(pixel.index + 1)",
             vec![
                 Some(1),
                 Some(2),
@@ -113,11 +94,10 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
                 None,
             ],
         ),
-        ("source.at(time, -1)", 0, vec![None; 8]),
+        ("source.at(-1)", vec![None; 8]),
         // A reduction gathers every pixel of the current fixture.
         (
-            "max for i in 0..4 { source.at(time, i) }",
-            0,
+            "max for i in 0..4 { source.at(i) }",
             vec![
                 Some(3),
                 Some(3),
@@ -127,25 +107,10 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
                 Some(7),
                 Some(7),
                 Some(7),
-            ],
-        ),
-        // Spatial and temporal changes combine; before the sequence is black.
-        (
-            "source.at(time - 0.25, target.count - 1 - pixel.index)",
-            250_000,
-            vec![
-                Some(3),
-                Some(2),
-                Some(1),
-                Some(0),
-                Some(7),
-                Some(6),
-                Some(5),
-                Some(4),
             ],
         ),
     ] {
-        assert_query(&[4, 4], query, delay, &indices);
+        assert_query(&[4, 4], query, &indices);
     }
 }
 
@@ -168,26 +133,22 @@ fn spatial_queries_reach_pixels_of_other_strips() {
         }
         indices
     };
-    let queries: [(&str, u32, Address); 3] = [
+    let queries: [(&str, Address); 3] = [
         (
-            "source.at(time, target.count - 1 - pixel.index)",
-            0,
+            "source.at(target.count - 1 - pixel.index)",
             |first, size, index| Some(first + size - 1 - index),
         ),
-        (
-            "source.at(time, pixel.index + 120)",
-            0,
-            |first, size, index| (index + 120 < size).then_some(first + index + 120),
-        ),
+        ("source.at(pixel.index + 120)", |first, size, index| {
+            (index + 120 < size).then_some(first + index + 120)
+        }),
         // The source brightens with the index, so the reduction shows its
         // last tap inside the fixture.
         (
-            "max for i in 0..4 { source.at(time - 0.25, i * 40) }",
-            250_000,
+            "max for i in 0..4 { source.at(i * 40) }",
             |first, size, _| Some(first + 40 * ((size - 1) / 40).min(3)),
         ),
     ];
-    for (query, delay, address) in queries {
-        assert_query(&SIZES, query, delay, &indices(address));
+    for (query, address) in queries {
+        assert_query(&SIZES, query, &indices(address));
     }
 }

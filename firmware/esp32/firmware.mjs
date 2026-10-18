@@ -40,6 +40,39 @@ function checkInstructionRamPlacement(nm) {
   console.log(`Instruction RAM: ${placed} interpreter functions placed.`);
 }
 
+// The runtime is 32-bit: 64-bit integer and double-precision arithmetic are
+// software routines on the ESP32. Clippy bans the types in its source; this
+// catches what the compiler lowers to them anyway, in any runtime function.
+const RUNTIME_MODULES = /^<?donder_runtime(_types)?(\[[0-9a-f]+\])?::/;
+const WIDE_ROUTINES = new RegExp(`<(__(?:${[
+  'muldi3', 'divdi3', 'udivdi3', 'moddi3', 'umoddi3', 'ashldi3', 'ashrdi3', 'lshrdi3',
+  'cmpdi2', 'ucmpdi2', 'negdi2', 'fixsfdi', 'fixunssfdi', 'floatdisf', 'floatundisf',
+  'adddf3', 'subdf3', 'muldf3', 'divdf3', 'extendsfdf2', 'truncdfsf2', 'fixdfsi', 'fixunsdfsi',
+  'fixdfdi', 'fixunsdfdi', 'floatsidf', 'floatunsidf', 'floatdidf', 'floatundidf',
+  'eqdf2', 'nedf2', 'ltdf2', 'ledf2', 'gtdf2', 'gedf2', 'unorddf2',
+].join('|')}))>`);
+
+function checkRuntimeWidth(objdump) {
+  const elf = join(directory, 'target/xtensa-esp32-none-elf/release/loader');
+  const listed = spawnSync(objdump, ['--disassemble', '--demangle', '--no-show-raw-insn', elf], { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+  if (listed.error) throw listed.error;
+  if (listed.status !== 0) throw new Error(`objdump failed (${listed.status}).`);
+  let current = null;
+  const wide = new Set();
+  for (const line of listed.stdout.split(/\r?\n/)) {
+    const header = line.match(/^[0-9a-f]+ <(.+)>:$/);
+    if (header) {
+      current = RUNTIME_MODULES.test(header[1]) ? header[1] : null;
+      continue;
+    }
+    if (current === null) continue;
+    const call = line.match(WIDE_ROUTINES);
+    if (call) wide.add(`${current} calls ${call[1]}`);
+  }
+  if (wide.size > 0) throw new Error(`Runtime code uses 64-bit or double-precision arithmetic:\n${[...wide].join('\n')}`);
+  console.log('Runtime width: no 64-bit or double-precision routines.');
+}
+
 function main() {
   const [mode, ...args] = process.argv.slice(2);
   const digQuad = mode === 'build' && args.length === 2 && args[0] === '--board' && args[1] === 'dig-quad';
@@ -73,6 +106,7 @@ function main() {
   run('espflash', ['--version']);
   run('cargo', ['+esp', 'build', '--release', '--bin', 'loader', '--features', digQuad ? 'dig-quad' : 'i2s-output', '--locked']);
   checkInstructionRamPlacement(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-nm.exe' : 'xtensa-esp32-elf-nm'));
+  checkRuntimeWidth(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-objdump.exe' : 'xtensa-esp32-elf-objdump'));
   const output = join(root, 'target/firmware');
   mkdirSync(output, { recursive: true });
   const pending = join(output, 'donder-esp32.build.bin');

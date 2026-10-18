@@ -20,6 +20,5 @@ impl Clock {
     }
 }
 
-/// Effects never query signals; sample admission rejects every signal
-/// instruction, including trusted-archive conversion.
+/// Signals of a clip sampled alone.
 pub(crate) struct NoSignals;

@@ -14,12 +14,12 @@ fn operator_names_require_project_definitions_and_explicit_imports() {
     let original = project_source_texts(&root).unwrap();
     let path = Utf8PathBuf::from("sequences/layer_test.data.donder");
     let source = &original[&path];
-    assert!(source.contains("operator: operators.TimeWarp"));
+    assert!(source.contains("operator: operators.Afterglow"));
     // Every operator name goes through the same reference resolution.
     let mut overrides = original.clone();
     overrides.insert(
         path.clone(),
-        source.replace("operator: operators.TimeWarp", "operator: max"),
+        source.replace("operator: operators.Afterglow", "operator: max"),
     );
     let report = check_project_with_overrides(&root, &overrides);
     assert!(report.session.is_none(), "unimported operator max resolved");

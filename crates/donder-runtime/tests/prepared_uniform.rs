@@ -5,7 +5,7 @@
 use donder_runtime::{PreparedSequence, SequencePlayback};
 use donder_runtime_types::AutomationMapping;
 use donder_runtime_types::bytecode::{
-    BytecodeProgram, ContextRead, FloatUnary, Instruction, STRIP,
+    BytecodeProgram, ContextRead, FloatUnary, Instruction, STRIP, instructions,
 };
 use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
@@ -62,7 +62,7 @@ fn automation(
 
 /// Whether the query block, which runs once per query, holds an instruction.
 fn in_query_block(bytecode: &BytecodeProgram, instruction: impl Fn(&Instruction) -> bool) -> bool {
-    bytecode.prefix().0.iter().any(instruction)
+    instructions(bytecode.query()).any(|op| instruction(&op))
 }
 
 fn is_sin(instruction: &Instruction) -> bool {
@@ -83,7 +83,7 @@ fn unstaged_operator(operator: &OperatorInvocation) -> OperatorInvocation {
     let mut bytecode = program.into_bytecode();
     workload::unstaged(&mut bytecode);
     OperatorInvocation::bind(
-        OperatorProgram::admit(bytecode, inputs).unwrap(),
+        OperatorProgram::new(bytecode, inputs),
         operator.params().iter_values().collect(),
     )
     .unwrap()
@@ -95,7 +95,7 @@ fn unstaged_operator(operator: &OperatorInvocation) -> OperatorInvocation {
 fn unstaged_program(program: &SampleProgram) -> SampleProgram {
     let mut bytecode = program.clone().into_bytecode();
     workload::unstaged(&mut bytecode);
-    SampleProgram::admit(bytecode).unwrap()
+    SampleProgram::new(bytecode)
 }
 
 fn unstaged_sample(invocation: &SampleInvocation) -> SampleInvocation {
@@ -181,19 +181,11 @@ fn uniform_gradient() -> Gradient {
         stops: vec![
             GradientStop {
                 position: 0.0,
-                color: Color {
-                    red: 255,
-                    green: 64,
-                    blue: 16,
-                },
+                color: Color::from_bytes([255, 64, 16]),
             },
             GradientStop {
                 position: 1.0,
-                color: Color {
-                    red: 16,
-                    green: 96,
-                    blue: 255,
-                },
+                color: Color::from_bytes([16, 96, 255]),
             },
         ],
     }
@@ -273,13 +265,10 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
         "effect Source { sample { rgb(pixel.fraction, progress, 0.25) } }",
     ));
     let gain = compile_operator(
-        "operator Gain { input source; param gain: float in 0.0..1.0 = 0.5; sample { source.at(time) * gain } }",
+        "operator Gain { input source; param gain: float in 0.0..1.0 = 0.5; sample { source * gain } }",
     );
-    for source in [
-        playback::IDENTITY_SOURCE,
-        "operator Mix { input source; sample { max(source.at(time), source.at(time * 0.5)) } }",
-    ] {
-        let outer = playback::operator(&compile_operator(source));
+    {
+        let outer = playback::operator(&compile_operator(playback::IDENTITY_SOURCE));
         for min in [0.0, 0.4] {
             let gain = playback::lower_operator(
                 &gain
@@ -298,17 +287,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
                 playback::chain(200, &sample, 1, &[gain.clone(), outer.clone()]).into_playback();
             for ticks in [3_000_000, 6_000_000, 1_000_000, 3_000_000] {
                 let actual = frame(&mut playback, SampleTime::from_ticks(ticks));
-                let mut expected =
-                    frame(&mut direct().into_playback(), SampleTime::from_ticks(ticks));
-                if source != playback::IDENTITY_SOURCE {
-                    let past = frame(
-                        &mut direct().into_playback(),
-                        SampleTime::from_ticks(ticks / 2),
-                    );
-                    for (now, past) in expected.iter_mut().zip(&past) {
-                        *now = (*now).max(*past);
-                    }
-                }
+                let expected = frame(&mut direct().into_playback(), SampleTime::from_ticks(ticks));
                 assert_eq!(actual, expected, "ticks={ticks} min={min}");
                 assert!(actual.iter().any(|&byte| byte != 0));
             }
@@ -332,7 +311,7 @@ fn assert_same_frames(staged: PreparedSequence, unstaged: PreparedSequence, what
 }
 
 #[test]
-fn staged_upstream_matches_unstaged_execution_across_effects_and_times() {
+fn staged_upstream_matches_unstaged_execution_across_effects() {
     let effect = compile_effect(
         "effect Source { sample {
             let gain = sin(time * 7.0) * 0.5 + 0.5;
@@ -350,7 +329,7 @@ fn staged_upstream_matches_unstaged_execution_across_effects_and_times() {
     assert!(in_query_block(sample.program.bytecode(), is_sin));
     for (source, count) in [
         playback::IDENTITY_SOURCE,
-        "operator Mix { input source; sample { max(source.at(time), source.at(time * 0.5)) } }",
+        "operator Mix { input source; sample { max(source, source.at(pixel.index + 1)) } }",
     ]
     .into_iter()
     .flat_map(|source| [1, 2].map(|count| (source, count)))
@@ -393,12 +372,12 @@ fn staged_operators_match_unstaged_evaluation_with_nested_signals() {
     for source in [
         "operator Wave { input source; sample {
             let gain = sin(time * 7.0) * 0.5 + 0.5;
-            source.at(time) * gain
+            source * gain
         } }",
         "operator Wave { input source; sample {
             let gain = sin(time * 7.0) * 0.5 + 0.5;
             let gain = if pixel.index % 2 == 0 { gain * pixel.fraction } else { gain };
-            source.at(time * 0.5) * gain
+            source.at(pixel.index + 1) * gain
         } }",
     ] {
         let operator = workload::operator_invocation(&compile_operator(source));
@@ -422,19 +401,17 @@ fn staged_operators_match_unstaged_evaluation_with_nested_signals() {
 }
 
 #[test]
-fn staged_nested_operators_track_sibling_parameters_and_temporal_revisits() {
+fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
     let effect = compile_effect("effect Source { sample { rgb(pixel.fraction, progress, 0.25) } }")
         .bind(std::iter::empty())
         .unwrap();
     let gain = compile_operator(
         "operator Gain { input source; param gain: float in 0.0..1.0 = 0.5;
-            sample { source.at(time) * (gain * progress) } }",
+            sample { source * (gain * progress) } }",
     );
     let mix = workload::operator_invocation(&compile_operator(
         "operator Mix { input a; input b; sample {
-            let now = time;
-            let past = now * 0.5;
-            max(max(a.at(now), b.at(now)), max(a.at(past), a.at(now)))
+            max(max(a, b), max(a.at(pixel.index + 1), a))
         } }",
     ));
     // The parameter's product with the query's progress runs once per query.

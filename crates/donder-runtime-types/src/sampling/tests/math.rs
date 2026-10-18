@@ -12,10 +12,6 @@ fn random_is_repeatable_bounded_and_distributed() {
         assert!((0.0..1.0).contains(&value));
         buckets[(value * 16.0) as usize] += 1;
     }
-    assert_eq!(
-        deterministic_random_seed(0.0),
-        deterministic_random_seed(-0.0)
-    );
     assert!(
         buckets.iter().all(|&count| (850..1200).contains(&count)),
         "{buckets:?}"

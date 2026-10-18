@@ -168,15 +168,13 @@ pixels; a single sample is a one-pixel strip.
   inlined into every loop.
 - Resources are references to parameters, constants or array items; nothing is
   reference-counted while a frame runs.
-- Operators evaluate their inputs over the same strip when the sample time is
-  uniform, and per pixel otherwise. Query-uniform times use whole-frame input
-  caches. Any other uniform-time read of addressed pixels, such as a Blur
-  nested under an Echo, fills one window per operator depth in a single run:
-  the strip and the strip shifted to the read, with 16 pixels on each side,
-  so the strip's reads at nearby offsets reuse it. Nested layers reuse a
-  gathered cell map for each strip.
-- Each operator depth has a preallocated workspace, and graph depths order
-  upstream slots first, so evaluation needs no allocation.
+- Every node writes its whole frame before its consumers run, so an operator
+  reads an input at any pixel with one load, and each node runs exactly once
+  per frame. Frame buffers are reused once their last reader has run, and a
+  node that reads `previous` copies its frame into its state buffer.
+- One strip workspace, one automation scratch and one register file serve
+  every program, and the buffer's layout is exact from preparation, so
+  evaluation needs no allocation.
 
 Host evaluation on October 6, 2026 (Windows, Criterion and a release harness
 over every frame):
@@ -386,6 +384,41 @@ firmware of its date.
   The likely cost is reading program words and records through the flash
   cache; it was not isolated, because a RAM copy of the image did not fit the
   heap layout.
+- **October 17, 2026 (later):** push evaluation, f32 colors and a 32-bit
+  runtime (format 68), image still played from flash. Stanford `main` on the
+  Dig-Quad, every frame from 64 s to 91 s through `/frame`: matching checksums,
+  evaluation averaged 6.92 ms (8.85 ms with format 65, 5.27 ms with format 64),
+  95th percentile 8.49 ms, slowest 11.7 ms. The image is 30.0 KB; loading
+  takes 31.4 KB of heap. On the host, Rydell House `all_we_are` (25,314
+  pixels) averaged 10.1 ms per frame, of which Blur (radius 10) took about
+  5.5 ms; Chase-heavy Criterion benchmarks stayed about 40% slower than the
+  October 16 baseline.
+- **October 17, 2026 (format 69):** resource handles name image resources
+  directly, a handle uniform across a strip resolves once per instruction, and
+  curves and gradients store per-segment slopes and span reciprocals. Stanford
+  `main` on the Dig-Quad, same window: 6.10 ms mean, 95th percentile 7.53 ms,
+  slowest 11.1 ms, matching checksums. On the host, the Chase benchmarks went
+  from about 40% slower to 3–6% faster than the October 16 baseline, and
+  `all_we_are` averaged 9.8 ms per frame.
+- **October 17, 2026 (format 69, prepared sequence in RAM):** the loader reads
+  the prepared sequence from its flash slot into the heap and plays it there.
+  Stanford `main` on the Dig-Quad, same window, two runs: 4.60 ms mean, 95th
+  percentile 5.55 ms, slowest 8.5 ms, matching checksums; loading takes
+  62.2 KB of heap (30.8 KB prepared sequence, 30.5 KB playback buffer). The
+  same firmware reading the prepared sequence through the flash cache averaged
+  6.10 ms.
+- **October 18, 2026 (format 70):** 8-byte instruction words, colors as three
+  float slots that float arithmetic, mixes, choices and copies take as
+  operands, merged constant, parameter, comparison, curve and length
+  instructions, and prefix slots freed after their block. Stanford `main`'s
+  prepared sequence went from 30.8 KB to 22.8 KB (code 11.6 KB to 4.1 KB) and
+  loading takes about 9 KB less heap; on the Dig-Quad, same window, two runs:
+  4.61 ms mean, 95th percentile 5.6 ms, matching checksums. `.rwtext` is
+  70.4 KB. On the host, against format 69, per-pixel playback is 15–31% faster,
+  the dense starter render 3–6% faster and the uniform benchmarks 2–6% slower.
+  Float min, max and `value_or` inline into their row loops: color `max` once
+  called the out-of-line `float_binary` per pixel, which made the dense render
+  25% slower.
 
 ## Measuring
 

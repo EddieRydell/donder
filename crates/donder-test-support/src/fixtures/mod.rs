@@ -130,11 +130,7 @@ fn sparkle_comet_params() -> IndexMap<Identifier, Value> {
         ("color_mode", enum_value("RainbowHue")),
         (
             "head_color",
-            Value::Color(Color {
-                red: 255,
-                green: 255,
-                blue: 255,
-            }),
+            Value::Color(Color::from_bytes([255, 255, 255])),
         ),
         ("reverse", Value::Bool(false)),
         ("wrap", Value::Bool(true)),
@@ -149,23 +145,12 @@ fn sparkle_comet_params() -> IndexMap<Identifier, Value> {
 
 fn shimmer_field_params() -> IndexMap<Identifier, Value> {
     params([
-        (
-            "base",
-            Value::Color(Color {
-                red: 0,
-                green: 0,
-                blue: 0,
-            }),
-        ),
+        ("base", Value::Color(Color::from_bytes([0, 0, 0]))),
         ("palette", Value::Gradient(gradient())),
         ("color_mode", enum_value("FromPalette")),
         (
             "sparkle_color",
-            Value::Color(Color {
-                red: 255,
-                green: 255,
-                blue: 255,
-            }),
+            Value::Color(Color::from_bytes([255, 255, 255])),
         ),
         ("density", Value::Float(0.35)),
         ("shimmer_level", Value::Float(0.4)),
@@ -235,6 +220,6 @@ fn gradient() -> Arc<Gradient> {
 fn color_point(position: f32, red: u8, green: u8, blue: u8) -> GradientStop {
     GradientStop {
         position,
-        color: Color { red, green, blue },
+        color: Color::from_bytes([red, green, blue]),
     }
 }

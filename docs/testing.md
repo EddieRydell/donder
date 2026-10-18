@@ -49,14 +49,13 @@ Key contracts and their tests:
 | Save and reload preserve meaning | `donder-project-io` `semantic_preservation`, `roundtrip`, `path_refactor` |
 | Strict parsing with exact locations | `donder-project-io` `schema_strictness`, `diagnostics` |
 | Controller fragments match full playback | `donder-elaboration` `output_selection` |
-| Image round trips and corruption rejection | `donder-elaboration` `sequence_archive`, `clip_sampling` |
-| Only well-formed programs are admitted | `donder-language` `admission` |
+| Image round trips and version rejection | `donder-elaboration` `sequence_archive`, `clip_sampling` |
 | Any source compiles or reports diagnostics, without panics or stack overflow | `donder-language` `compiler_totality` |
 | Language semantics and diagnostics | `donder-runtime` `dsl`, `arrays`, `event_queries`, `hsv_intrinsics` |
 | Preparation folds, slots and stages the right work | `donder-runtime` `optimization` |
 | Playback does not allocate | `donder-runtime` `playback_allocations`, `donder-elaboration` `controller_allocations` |
 | A strip computes every pixel as that pixel alone | `donder-runtime` `strips` |
-| Staged, fused and cached execution match plain sampling | `donder-runtime` `prepared_uniform`, `staged_execution`, `fusion`, `dsl_temporal`, `spatial_signal` |
+| Staged and fused execution match plain sampling | `donder-runtime` `prepared_uniform`, `staged_execution`, `fusion`, `spatial_signal` |
 | Black inputs fold away during preparation | `donder-elaboration` `standard_operators` |
 | GUI edits, history and save | desktop `authoring_acceptance`, `working_copy`, `sequence_rows_acceptance` |
 | Starter frame checksums | `donder-elaboration` `starter_sequence_behavioral_checksums...`, `led_output` |

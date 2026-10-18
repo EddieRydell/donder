@@ -1,42 +1,14 @@
 use crate::automation::{AutomationMapping, AutomationValue, automation_value_at_position};
 use crate::sampling::{curve_last_crossing, sample_curve, sample_gradient};
 use crate::types::Type;
-use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use crate::values::{Color, Curve, CurvePoint, Gradient};
 use alloc::vec;
-
-#[test]
-fn single_point_resources_are_total_even_when_their_position_is_invalid() {
-    let curve = Curve {
-        points: vec![CurvePoint {
-            position: f32::NAN,
-            value: 0.75,
-        }],
-    };
-    assert!(curve.validate().is_err());
-    assert_eq!(sample_curve(&curve, 0.25), 0.75);
-    assert!(sample_curve(&curve, f32::NAN).is_nan());
-
-    let color = Color {
-        red: 1,
-        green: 2,
-        blue: 3,
-    };
-    let gradient = Gradient {
-        stops: vec![GradientStop {
-            position: f32::NAN,
-            color,
-        }],
-    };
-    assert!(gradient.validate().is_err());
-    assert_eq!(sample_gradient(&gradient, 0.25).to_color(), color);
-    assert_eq!(sample_gradient(&gradient, f32::NAN).to_color(), color);
-}
 
 #[test]
 fn empty_gradient_is_valid_and_samples_black() {
     let gradient = Gradient { stops: vec![] };
     assert!(gradient.validate().is_ok());
-    assert_eq!(sample_gradient(&gradient, 0.5).to_color(), Color::BLACK);
+    assert_eq!(sample_gradient(&gradient, 0.5), Color::BLACK);
 }
 
 #[test]

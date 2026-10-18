@@ -189,11 +189,7 @@ impl Type {
             Self::Int => Value::Int(0),
             Self::Float => Value::Float(0.0),
             Self::Bool => Value::Bool(false),
-            Self::Color => Value::Color(Color {
-                red: 0,
-                green: 0,
-                blue: 0,
-            }),
+            Self::Color => Value::Color(Color::BLACK),
             Self::Marks => Value::Marks(Arc::new(Marks::empty())),
             Self::Curve => Value::Curve(Arc::new(Curve { points: Vec::new() })),
             Self::Gradient => Value::Gradient(Arc::new(Gradient { stops: Vec::new() })),

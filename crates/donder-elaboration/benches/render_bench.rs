@@ -36,7 +36,7 @@ const SCENARIOS: [RenderScenario; 7] = [
     },
     RenderScenario {
         frame: 8530,
-        checksum: 0x21eb_73d7_acc4_328f,
+        checksum: 0xc379_3ec9_60b2_ca9d,
         active_effect_count: 3,
     },
     RenderScenario {
@@ -46,12 +46,12 @@ const SCENARIOS: [RenderScenario; 7] = [
     },
     RenderScenario {
         frame: 9504,
-        checksum: 0x6f0a_d10d_ae94_437f,
+        checksum: 0x1786_8a6c_5a4b_c3d1,
         active_effect_count: 1,
     },
     RenderScenario {
         frame: 9650,
-        checksum: 0x4892_76da_8964_1b37,
+        checksum: 0xa122_9e90_b926_5ab3,
         active_effect_count: 2,
     },
 ];
@@ -336,11 +336,7 @@ fn bench_mark_playback(c: &mut Criterion) {
         assert_eq!(prepared.effect_count(), 1);
         let start = 3_000_000;
         let mut workspace = prepared.clone().into_playback();
-        let black = Color {
-            red: 0,
-            green: 0,
-            blue: 0,
-        };
+        let black = Color::BLACK;
         for frame in [0, 15, 3, 0] {
             let time = SampleTime::from_ticks(start + frame * 8333);
             let colors = workspace.evaluate(time).colors();
@@ -440,22 +436,13 @@ fn bench_operators(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().nth(1).unwrap();
     let invocation = effect_fixtures::prepared_effect(name, source, params);
-    for (group, modes) in [
-        (
-            "prepared_operator",
-            [
-                ("full", workload::OPERATOR_SOURCE, false),
-                ("reuse", workload::OPERATOR_SOURCE, true),
-            ],
-        ),
-        (
-            "prepared_temporal",
-            [
-                ("grouped", workload::GROUPED_SOURCE, true),
-                ("alternating", workload::ALTERNATING_SOURCE, true),
-            ],
-        ),
-    ] {
+    for (group, modes) in [(
+        "prepared_operator",
+        [
+            ("full", workload::OPERATOR_SOURCE, false),
+            ("reuse", workload::OPERATOR_SOURCE, true),
+        ],
+    )] {
         for count in workload::COUNTS {
             let mut expected = None;
             for (mode, source, reuse) in modes {
@@ -496,9 +483,9 @@ fn bench_operators(c: &mut Criterion) {
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
-    let echo = standard
+    let afterglow = standard
         .iter()
-        .find(|operator| operator.name().as_str() == "Echo")
+        .find(|operator| operator.name().as_str() == "Afterglow")
         .unwrap();
     let invert = standard
         .iter()
@@ -506,19 +493,17 @@ fn bench_operators(c: &mut Criterion) {
         .unwrap();
     for count in workload::COUNTS {
         for (name, nested) in [
-            ("standard_echo", false),
-            ("standard_echo_nested_invert", true),
+            ("standard_afterglow", false),
+            ("standard_afterglow_nested_invert", true),
         ] {
             let mut show = workload::chase_pulse_show(count, 4);
-            workload::apply_compiled_operator(&mut show, echo);
+            workload::apply_compiled_operator(&mut show, afterglow);
             if nested {
-                // Layer -> Echo -> Invert -> Echo mixes scalar temporal requests
-                // with a uniform upstream query that must not promote back to frames.
+                // Layer -> Afterglow -> Invert -> Afterglow: two stateful nodes.
                 workload::insert_invert(&mut show, invert);
             }
             let mut workspace = show.clone().prepare().into_playback();
             let mut output = [vec![0; count * 3]];
-            let mut fresh_output = [vec![0; count * 3]];
             let mut any_lit = false;
             for frame in (0..workload::FRAMES).chain([12, 0, workload::FRAMES - 1]) {
                 let time = playback::time(frame);
@@ -526,25 +511,11 @@ fn bench_operators(c: &mut Criterion) {
                 {
                     snapshot.copy_from_slice(output.bytes);
                 }
-                for (snapshot, output) in fresh_output.iter_mut().zip(
-                    show.clone()
-                        .prepare()
-                        .into_playback()
-                        .evaluate(time)
-                        .outputs(),
-                ) {
-                    snapshot.copy_from_slice(output.bytes);
-                }
-                assert_eq!(
-                    workload::checksum(&output[0]),
-                    workload::checksum(&fresh_output[0]),
-                    "{name}/{count} frame {frame}: reused workspace differs from fresh"
-                );
                 any_lit |= output[0].iter().any(|&byte| byte != 0);
             }
             assert!(any_lit, "{name}/{count} produced only black frames");
             let mut frame = 0;
-            c.bench_function(&format!("prepared_temporal/{name}/{count}"), |b| {
+            c.bench_function(&format!("prepared_stateful/{name}/{count}"), |b| {
                 b.iter(|| {
                     frame = (frame + 1) % workload::FRAMES;
                     black_box(workspace.evaluate(black_box(playback::time(frame))));
@@ -754,9 +725,7 @@ fn checksum_colors_with_seed(hash: u64, colors: &[Color]) -> u64 {
 }
 
 fn checksum_color(hash: u64, color: Color) -> u64 {
-    [color.red, color.green, color.blue]
-        .into_iter()
-        .fold(hash, checksum_u8)
+    color.to_bytes().into_iter().fold(hash, checksum_u8)
 }
 
 fn checksum_u64(hash: u64, value: u64) -> u64 {

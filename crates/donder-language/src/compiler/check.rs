@@ -5,8 +5,8 @@ use super::builtins::{BuiltinFunction, builtin};
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange};
 use super::ir::interval::{Bounds, interval};
 use super::ir::{
-    Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, Ternary, Unary, check_stencil,
-    reads, source_only,
+    Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, STATE, Ternary, Unary,
+    check_stencil, reads, source_only,
 };
 use super::syntax::ast::*;
 use super::syntax::lexer::TextSpan;
@@ -598,11 +598,9 @@ impl Checker {
         if let Some(input) = self.inputs.iter().position(|input| input == name)
             && !in_function
         {
-            // A signal used as a color samples the current pixel now.
-            let time = self.graph.add(Op::Context(Context::Time));
+            // A signal used as a color samples the current pixel.
             return Some(Operand::Node(self.graph.add(Op::Sample {
                 input: input as u32,
-                time,
                 pixel: SignalPixel::Current,
             })));
         }
@@ -610,6 +608,11 @@ impl Checker {
             "time" => self.graph.add(Op::Context(Context::Time)),
             "duration" => self.graph.add(Op::Context(Context::Duration)),
             "frame_rate" => self.graph.add(Op::Context(Context::FrameRate)),
+            "frames_elapsed" => self.graph.add(Op::Context(Context::FramesElapsed)),
+            "previous" => self.graph.add(Op::Sample {
+                input: STATE,
+                pixel: SignalPixel::Current,
+            }),
             "progress" => self.graph.add(Op::Context(Context::Progress)),
             "PI" => self.graph.float(core::f32::consts::PI),
             "TAU" => self.graph.float(core::f32::consts::TAU),
@@ -657,6 +660,19 @@ impl Checker {
         Some(self.graph.add(Op::Context(context)))
     }
 
+    /// The signal `name` reads: an operator input, or `previous`, the node's
+    /// own previous frame. Not inside a function, where inputs are out of
+    /// scope.
+    fn signal(&self, name: &Identifier) -> Option<u32> {
+        if !self.frames.is_empty() || self.scopes.iter().any(|(known, _)| known == name) {
+            return None;
+        }
+        match self.inputs.iter().position(|input| input == name) {
+            Some(index) => Some(index as u32),
+            None => (name.as_str() == "previous").then_some(STATE),
+        }
+    }
+
     fn method(
         &mut self,
         target: &Expr,
@@ -665,19 +681,23 @@ impl Checker {
         span: TextSpan,
     ) -> Checked<Node> {
         let input = match &target.kind {
-            ExprKind::Name(name) if self.frames.is_empty() => {
-                self.inputs.iter().position(|input| input == name)
-            }
+            ExprKind::Name(name) => self.signal(name),
             _ => None,
         };
         let Some(input) = input else {
-            self.error(method.span, "only operator inputs have methods");
+            self.error(
+                method.span,
+                "only operator inputs and `previous` have methods",
+            );
             return None;
         };
         match method.name.as_str() {
-            "at" if (1..=2).contains(&args.len()) => {}
+            "at" if args.len() == 1 => {}
             "at" => {
-                self.error(span, "`at` takes a time and optionally a local pixel index");
+                self.error(
+                    span,
+                    "`at` takes a local pixel index; signals are read at this frame",
+                );
                 return None;
             }
             _ => {
@@ -689,16 +709,8 @@ impl Checker {
                 return None;
             }
         }
-        let time = self.float(&args[0])?;
-        let pixel = match args.get(1) {
-            None => SignalPixel::Current,
-            Some(index) => SignalPixel::Local(self.int(index)?),
-        };
-        Some(self.graph.add(Op::Sample {
-            input: input as u32,
-            time,
-            pixel,
-        }))
+        let pixel = SignalPixel::Local(self.int(&args[0])?);
+        Some(self.graph.add(Op::Sample { input, pixel }))
     }
 
     /// An array literal of one item type; ints widen when any item is a float.
@@ -1134,23 +1146,16 @@ impl Checker {
             previous,
             body,
         } = scan;
-        let index = self
-            .inputs
-            .iter()
-            .position(|known| *known == input.name)
-            .filter(|_| self.frames.is_empty());
-        let Some(index) = index else {
+        let Some(index) = self.signal(&input.name) else {
             let message = format!(
-                "`scan` reads an operator input; `{}` is not one",
+                "`scan` reads an operator input or `previous`; `{}` is neither",
                 input.name.as_str()
             );
             self.error(input.span, message);
             return None;
         };
-        let time = self.graph.add(Op::Context(Context::Time));
         let sample = self.graph.add(Op::Sample {
-            input: index as u32,
-            time,
+            input: index,
             pixel: SignalPixel::Current,
         });
         let before = self.graph.add(Op::Previous);
@@ -1217,23 +1222,16 @@ impl Checker {
     /// The input `around` names, read `offset` pixels along the fixture.
     fn neighbor(&mut self, around: &Around, offset: Node) -> Checked<Node> {
         let name = &around.input;
-        let input = self
-            .inputs
-            .iter()
-            .position(|input| *input == name.name)
-            .filter(|_| self.frames.is_empty());
-        let Some(input) = input else {
+        let Some(input) = self.signal(&name.name) else {
             let message = format!(
-                "`around` reads an operator input; `{}` is not one",
+                "`around` reads an operator input or `previous`; `{}` is neither",
                 name.name.as_str()
             );
             self.error(name.span, message);
             return None;
         };
-        let time = self.graph.add(Op::Context(Context::Time));
         Some(self.graph.add(Op::Sample {
-            input: input as u32,
-            time,
+            input,
             pixel: SignalPixel::Shifted(offset, around.edges),
         }))
     }
@@ -1386,10 +1384,7 @@ impl Checker {
             F::Abs | F::Sign => {
                 let value = self.value(&args[0])?;
                 match (self.ty(value).clone(), builtin.function) {
-                    (Type::Int, F::Abs) => {
-                        let negated = self.graph.unary(Unary::IntNegate, value);
-                        self.graph.binary(Binary::IntMax, value, negated)
-                    }
+                    (Type::Int, F::Abs) => self.graph.unary(Unary::IntAbs, value),
                     (Type::Int, _) => {
                         let zero = self.graph.int(0);
                         let positive = self.graph.binary(Binary::IntGreater, value, zero);

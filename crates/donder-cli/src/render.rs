@@ -113,19 +113,15 @@ fn selected_fixtures(layout: &Layout, targets: &[String]) -> Result<Option<HashS
     Ok(Some(selected))
 }
 
-/// Colors in pixel order, each run of one color written once with its length.
+/// Colors in pixel order as 8-bit hex, each run of one color written once
+/// with its length.
 fn runs(pixels: &[Color]) -> String {
     let mut text = String::new();
-    for run in pixels.chunk_by(|a, b| a == b) {
-        let color = run[0];
+    for run in pixels.chunk_by(|a, b| a.to_bytes() == b.to_bytes()) {
         if !text.is_empty() {
             text.push(' ');
         }
-        let _ = write!(
-            text,
-            "#{:02x}{:02x}{:02x}",
-            color.red, color.green, color.blue
-        );
+        text.push_str(&run[0].to_hex());
         if run.len() > 1 {
             let _ = write!(text, "×{}", run.len());
         }

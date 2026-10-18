@@ -1,3 +1,5 @@
+mod support;
+
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
 use donder_model::FixtureInstanceId;
@@ -196,53 +198,28 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         );
     }
     // Spatial reads must not see the compacted 37-pixel output domain: local
-    // reads need the whole original fixture. This also exercises nested
-    // temporal/spatial operator sampling.
-    for (query, expected_pixels) in [(
-        "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
-        113,
-    )] {
-        let compiled = donder_language::compiler::compile_operators(&format!(
-            "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
-        )).unwrap().remove(0);
-        let definition_id = project
-            .definitions()
-            .operators
-            .definitions
-            .iter()
-            .find(|(_, definition)| definition.declaration_name == "TimeWarp")
-            .unwrap()
-            .0
-            .clone();
-        let definition = donder_model::custom_operator_definition(definition_id.clone(), compiled);
-        project
-            .apply_edits([donder_model::ProjectEdit::SetOperatorDefinition {
-                id: definition_id,
-                value: definition,
-            }])
-            .unwrap();
+    // reads need the whole original fixture.
+    for (query, expected_pixels) in [("source.at(target.count - 1 - pixel.index)", 113)] {
         let id = project
             .root()
             .sequences
             .iter()
             .map(|source| source.id())
             .find(|id| id.0.root_source().object() == "layer_test")
-            .unwrap();
-        let reference = prepare_reference(&project, id);
-        let fragment = compare(&project, id, &reference, &ports[1..2]);
+            .unwrap()
+            .clone();
+        let compiled = donder_language::compiler::compile_operators(&format!(
+            "operator Mirror {{ input source; sample {{ {query} }} }}"
+        ))
+        .unwrap()
+        .remove(0);
+        support::append_operator(&mut project, &id, compiled);
+        let reference = prepare_reference(&project, &id);
+        let fragment = compare(&project, &id, &reference, &ports[1..2]);
         assert_eq!(fragment.pixel_count(), expected_pixels, "{query}");
         // Exercise the serialized representation as well as live preparation.
         let encoded = fragment.encode();
-        let decoded = donder_runtime::PreparedSequence::decode(
-            &encoded,
-            donder_runtime::LoadLimits {
-                // This tests fragment round-tripping, not the device upload size limit.
-                image_bytes: encoded.len(),
-                workspace_bytes: 4 * 1024 * 1024,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+        let decoded = donder_runtime::PreparedSequence::decode(&encoded).unwrap();
         let mut original_workspace = fragment.clone().into_playback();
         let mut decoded_workspace = decoded.into_playback();
         let mut original = vec![vec![0; fragment.outputs()[0].width as usize]];

@@ -1,5 +1,5 @@
-//! Staging and preparation: query and target blocks run before the body,
-//! frame caches reuse query-uniform samples, and values fixed for an instance
+//! Staging and preparation: query and target blocks run before the body, and
+//! values fixed for an instance
 //! are computed before playback without changing what playback produces.
 use super::evaluation::{
     SampleEvaluation, bind, chain, compile_effect, compile_operator, context, effect, operator,
@@ -9,9 +9,9 @@ use super::std;
 use std::prelude::rust_2024::*;
 
 use super::evaluation::{Single, StripWorkspace};
-use crate::dsl::bytecode::{FloatBinary, Instruction};
+use crate::dsl::bytecode::{CurveOp, FloatBinary, Instruction, instructions};
 use crate::dsl::{NoSignals, STRIP};
-use donder_runtime_types::SampleTime;
+use donder_runtime_types::{Color, SampleTime};
 use donder_runtime_types::{FixtureGeometry, SpatialContext, TargetScope};
 use donder_runtime_types::{OperatorInvocation, OperatorProgram};
 use donder_runtime_types::{SampleInvocation, Value};
@@ -28,24 +28,19 @@ const SPATIAL: SpatialContext = SpatialContext {
 /// Pixel counts around the strip boundaries.
 const COUNTS: [usize; 5] = [1, 7, STRIP, STRIP + 1, 2 * STRIP + 1];
 
-/// `operator` with its query and target blocks rerun for every strip and
-/// without frame caches: every query samples its run upstream.
-fn uncached(operator: &OperatorInvocation) -> OperatorInvocation {
+/// `operator` with its query and target blocks rerun for every strip.
+fn unstaged(operator: &OperatorInvocation) -> OperatorInvocation {
     let program = (**operator.program()).clone();
     let inputs = program.input_count();
     let mut bytecode = program.into_bytecode();
     workload::unstaged(&mut bytecode);
     OperatorInvocation::bind(
-        OperatorProgram::admit(bytecode, inputs).unwrap(),
+        OperatorProgram::new(bytecode, inputs),
         operator.params().iter_values().collect(),
     )
     .unwrap()
     .with_automation(operator.automation().into())
     .unwrap()
-}
-
-fn has_frame_cache(operator: &OperatorInvocation) -> bool {
-    operator.program().bytecode().frame_cache_count() > 0
 }
 
 fn assert_same_playback(
@@ -67,102 +62,15 @@ fn assert_same_playback(
 }
 
 #[test]
-fn frame_caches_match_run_sampling_for_temporal_reductions_tails_seeks_and_nested_graphs() {
-    let effect = effect("effect Source { sample { rgb(pixel.fraction, time * 0.1, progress) } }");
-    let operator = operator(
-        "operator Temporal {
-            input source;
-            sample {
-                -- Pixel reads at query-uniform times use frame caches; times
-                -- that vary with a reduction index sample per iteration.
-                let base = mix(rgb(0.1, 0.2, 0.3), source.at(time - 0.04, pixel.index), 0.5);
-                max(base, max for i in 0..3 {
-                    let t = time - i * 0.04;
-                    guard t >= 0.0;
-                    mix(invert(base), source.at(t) * (1.0 - i * 0.2), 0.25)
-                })
-            }
-        }",
-    );
-    assert!(has_frame_cache(&operator));
-    let reference_operator = uncached(&operator);
-    assert!(!has_frame_cache(&reference_operator));
-    for count in COUNTS {
-        assert_same_playback(
-            chain(count, &effect, 2, &[operator.clone(), operator.clone()]),
-            chain(
-                count,
-                &effect,
-                2,
-                &[reference_operator.clone(), reference_operator.clone()],
-            ),
-            &[0, 1, 39_999, 40_000, 90_000, 3_083_333, 0, 7_999_999],
-            &format!("count={count}"),
-        );
-    }
-}
-
-#[test]
-fn frame_caches_preserve_choices_arrays_reductions_and_seeks() {
-    let effect = effect("effect Source { sample { hsv(pixel.fraction + time * 0.03, 0.7, 0.8) } }");
-    let outer = operator(playback::IDENTITY_SOURCE);
-    for source in [
-        "operator P { input source; sample {
-            let c = source.at(time - 0.04);
-            hsv(hue(c) + pixel.fraction, saturation(c), intensity(c))
-        } }",
-        "operator P { input source; sample {
-            guard pixel.index % 3 != 0 else #123456;
-            let c = source.at(time + 0.04);
-            if intensity(c) > 0.5 { invert(c) } else { c }
-        } }",
-        "operator P { input source; sample {
-            max for i in 0..pixel.index % 4 {
-                let c = source.at(time);
-                let channels = [hue(c), saturation(c), intensity(c)];
-                hsv(channels[0] + i * 0.1, channels[1], channels[2])
-            }
-        } }",
-    ] {
-        let operator = operator(source);
-        let reference_operator = uncached(&operator);
-        for count in COUNTS {
-            assert_same_playback(
-                chain(
-                    count,
-                    &effect,
-                    2,
-                    &[operator.clone(), operator.clone(), outer.clone()],
-                ),
-                chain(
-                    count,
-                    &effect,
-                    2,
-                    &[
-                        reference_operator.clone(),
-                        reference_operator.clone(),
-                        outer.clone(),
-                    ],
-                ),
-                &[
-                    0, 1, 39_999, 40_000, 3_083_333, 0, 7_959_999, 7_999_999, 8_000_000,
-                ],
-                &format!("count={count} source={source}"),
-            );
-        }
-    }
-}
-
-#[test]
 fn strips_preserve_local_and_subset_target_addressing() {
     use donder_runtime_types::{OutputEncoding, RgbOrder};
     let source = effect("effect Source { sample { rgb(pixel.fraction, time * 0.2, 0.5) } }");
     let operator = operator(
         "operator Address { input source; sample {
-            max(source.at(time + 0.1), mix(source.at(time * 0.5, 1), source.at(time, 4), 0.3))
+            max(source.at(pixel.index + 1), mix(source.at(1), source.at(4), 0.3))
         } }",
     );
-    let reference_operator = uncached(&operator);
+    let reference_operator = unstaged(&operator);
     // The second fixture fits one strip, or spans several.
     for right_count in [7, 2 * STRIP + 3] {
         let build = |op: &OperatorInvocation| {
@@ -217,8 +125,10 @@ fn literal_colors_render_as_runtime_expressions() {
                 .evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default());
         let runtime = runtime_effect(&dynamic, &[], &[("amount", Value::Float(amount))]);
         assert_eq!(
-            runtime.evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default()),
-            constant,
+            runtime
+                .evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default())
+                .to_bytes(),
+            constant.to_bytes(),
             "{literal}"
         );
         if !amount.is_nan() {
@@ -247,7 +157,7 @@ fn assert_same_pixels(actual: &SampleInvocation, expected: &SampleInvocation, wh
 }
 
 fn divides(invocation: &SampleInvocation) -> bool {
-    invocation.program().bytecode().code.iter().any(|op| {
+    invocation.program().bytecode().instructions().any(|op| {
         matches!(
             op,
             Instruction::FloatBinary {
@@ -327,7 +237,7 @@ fn fixed_divisors_become_prepared_reciprocals_that_share_programs() {
                 for (pixel, (a, b)) in actual.colors().iter().zip(expected.colors()).enumerate() {
                     // Multiplying by a reciprocal may round differently.
                     assert!(
-                        a.red.abs_diff(b.red) <= u8::from(safe),
+                        a.to_bytes()[0].abs_diff(b.to_bytes()[0]) <= u8::from(safe),
                         "divisor={divisor} count={count} pixel={pixel}: {a:?} != {b:?}"
                     );
                     assert_eq!((a.green, a.blue), (b.green, b.blue));
@@ -362,8 +272,7 @@ fn divisors_left_to_playback_or_varying_per_pixel_keep_division() {
                 };
                 let quotient = fraction / current;
                 let expected =
-                    crate::sampling::rgb(if quotient.is_nan() { 0.7 } else { quotient }, 0.0, 0.0)
-                        .to_color();
+                    crate::sampling::rgb(if quotient.is_nan() { 0.7 } else { quotient }, 0.0, 0.0);
                 assert_eq!(
                     runtime.evaluate(&ctx, &SPATIAL, &mut StripWorkspace::default()),
                     expected,
@@ -380,8 +289,8 @@ fn divisors_left_to_playback_or_varying_per_pixel_keep_division() {
                     assert!(
                         fixed
                             .evaluate(&ctx, &SPATIAL, &mut StripWorkspace::default())
-                            .red
-                            .abs_diff(expected.red)
+                            .to_bytes()[0]
+                            .abs_diff(expected.to_bytes()[0])
                             <= 1,
                         "divisor={divisor} pixel={pixel}"
                     );
@@ -392,7 +301,7 @@ fn divisors_left_to_playback_or_varying_per_pixel_keep_division() {
 }
 
 #[test]
-fn prepared_operators_match_runtime_parameters_across_choices_reductions_and_time() {
+fn prepared_operators_match_runtime_parameters_across_choices_and_reductions() {
     let operator = compile_operator(
         "operator Prepared {
             input source;
@@ -401,9 +310,8 @@ fn prepared_operators_match_runtime_parameters_across_choices_reductions_and_tim
             sample {
                 let offset = max(delay, 0.0) * 0.5;
                 sum for i in 0..3 {
-                    let t = time - i * offset;
-                    guard t >= 0.0;
-                    source.at(t) * clamp(gain, 0.0, 1.0)
+                    guard pixel.index >= i;
+                    source.at(pixel.index - i) * (clamp(gain, 0.0, 1.0) * (1.0 - i * offset))
                 }
             }
         }",
@@ -530,19 +438,11 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
         stops: vec![
             GradientStop {
                 position: 0.0,
-                color: Color {
-                    red: 40,
-                    green: 100,
-                    blue: 200,
-                },
+                color: Color::from_bytes([40, 100, 200]),
             },
             GradientStop {
                 position: 1.0,
-                color: Color {
-                    red: 120,
-                    green: 30,
-                    blue: 90,
-                },
+                color: Color::from_bytes([120, 30, 90]),
             },
         ],
     };
@@ -558,26 +458,25 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
             // The samples at the query's progress run once per query; the
             // clamps by pixel bounds run per strip, so nothing is fused.
             let bytecode = invocation.program().bytecode();
-            let (query, _) = bytecode.prefix();
-            assert!(
-                query
-                    .iter()
-                    .any(|op| matches!(op, Instruction::CurveSample { .. }))
-            );
-            assert!(
-                query
-                    .iter()
-                    .any(|op| matches!(op, Instruction::GradientSample { .. }))
-            );
-            assert!(!bytecode.code.iter().any(|op| matches!(
+            let query: Vec<_> = instructions(bytecode.query()).collect();
+            assert!(query.iter().any(|op| matches!(
                 op,
-                Instruction::CurveClamped { .. } | Instruction::GradientScaled { .. }
+                Instruction::Curve {
+                    op: CurveOp::Sample,
+                    ..
+                }
             )));
             assert!(
-                bytecode
-                    .body()
+                query
                     .iter()
-                    .any(|op| matches!(op, Instruction::Clamp { .. }))
+                    .any(|op| matches!(op, Instruction::Gradient { .. }))
+            );
+            assert!(!bytecode.instructions().any(|op| matches!(
+                op,
+                Instruction::Gradient { scale, .. } if !scale.is_none()
+            )));
+            assert!(
+                instructions(bytecode.body()).any(|op| matches!(op, Instruction::Clamp { .. }))
             );
             for count in COUNTS {
                 let mut playback = chain(count, &invocation, 1, &[]).into_playback();
@@ -592,23 +491,26 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
                             1.0,
                         );
                         let expected = if pixel % 2 == 0 {
-                            crate::sampling::gradient_color_scaled(
-                                &colors.stops,
-                                progress,
-                                value * 3.0,
+                            crate::sampling::scale_color(
+                                crate::sampling::sample_gradient(colors, progress),
+                                crate::sampling::clamp_float(value * 3.0, 0.0, 1.0),
                             )
-                            .to_color()
                         } else {
                             crate::sampling::rgb(
                                 if value.is_nan() { 0.25 } else { value },
                                 0.0,
                                 0.0,
                             )
-                            .to_color()
                         };
-                        assert_eq!(
-                            actual, expected,
-                            "count={count} pixel={pixel} ticks={ticks}"
+                        // The query block may order float arithmetic differently.
+                        let close = actual
+                            .to_bytes()
+                            .iter()
+                            .zip(expected.to_bytes())
+                            .all(|(a, b)| a.abs_diff(b) <= 1);
+                        assert!(
+                            close,
+                            "count={count} pixel={pixel} ticks={ticks}: {actual:?} != {expected:?}"
                         );
                     }
                 }
@@ -634,11 +536,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             },
             GradientStop {
                 position: 1.0,
-                color: Color {
-                    red: 50,
-                    green: 100,
-                    blue: 200,
-                },
+                color: Color::from_bytes([50, 100, 200]),
             },
         ],
     };
@@ -649,11 +547,11 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
     let bytecode = invocation.program().bytecode();
     // The sample reads only the target, so it runs once per target shape;
     // the guard reads the pixel, so the result is a row.
-    let (_, target) = bytecode.prefix();
+    let target: Vec<_> = instructions(bytecode.target()).collect();
     assert!(
         target
             .iter()
-            .any(|op| matches!(op, Instruction::GradientSample { .. }))
+            .any(|op| matches!(op, Instruction::Gradient { .. }))
     );
     assert!(bytecode.uses_pixel_context());
     let mut workspace = StripWorkspace::default();
@@ -683,7 +581,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
                 colors,
                 [
                     Color::BLACK,
-                    crate::sampling::sample_gradient(&gradient, position).to_color()
+                    crate::sampling::sample_gradient(&gradient, position)
                 ],
                 "count={pixel_count} max_x={max_x}"
             );
@@ -699,32 +597,65 @@ fn section_reciprocal_preserves_boundaries_and_missing_values() {
             sample { rgb(value_or(section_position(width), 0.75), 0.0, 0.0) }
         }",
     );
-    for width in [f32::NAN, -1.0, 0.0, 1.0, 4.0, 7.5, 19.0] {
+    for width in [-1.0, 0.0, 1.0, 4.0, 7.5, 19.0] {
         let runtime = runtime_effect(&effect, &[], &[("width", Value::Float(width))]);
         let fixed = (0.0..=20.0)
             .contains(&width)
             .then(|| playback::lower_sample(&bind(&effect, &[("width", Value::Float(width))])));
         for pixel in [0, 1, 3, 4, 7, 8, 14, 15, 19, 20, 57] {
             let normalized = width.max(1.0);
-            let position = if width.is_nan() {
-                0.75
-            } else {
-                (pixel as f32 - libm::floorf(pixel as f32 / normalized) * normalized) / normalized
-            };
-            let expected = (position.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+            let position =
+                (pixel as f32 - libm::floorf(pixel as f32 / normalized) * normalized) / normalized;
+            let expected = position;
             for invocation in [Some(&runtime), fixed.as_ref()].into_iter().flatten() {
-                assert_eq!(
-                    invocation
-                        .evaluate(
-                            &context(64, pixel, 0),
-                            &SPATIAL,
-                            &mut StripWorkspace::default()
-                        )
-                        .red,
-                    expected,
-                    "width={width} pixel={pixel}"
+                let actual = invocation
+                    .evaluate(
+                        &context(64, pixel, 0),
+                        &SPATIAL,
+                        &mut StripWorkspace::default(),
+                    )
+                    .red;
+                assert!(
+                    (actual - expected).abs() <= 1e-6,
+                    "width={width} pixel={pixel}: {actual} != {expected}"
                 );
             }
         }
+    }
+}
+
+#[test]
+fn previous_frames_persist_between_frames_and_step_once_after_a_seek() {
+    // White for the first four frames at 120 frames per second, then black.
+    let source = effect("effect Flash { sample { if time < 0.03 { #ffffff } else { #000000 } } }");
+    let trail = operator("operator Trail { input source; sample { max(source, previous * 0.5) } }");
+    let mut playback = chain(3, &source, 1, &[trail]).into_playback();
+    let white = Color::from_bytes([255, 255, 255]);
+    let half = |color| crate::sampling::scale_color(color, 0.5);
+    let mut expected = white;
+    // Frame, and the color it holds: each frame halves the one before;
+    // the same frame again is held; a seek steps once from the state held.
+    for (frame, step) in [
+        (0, None),
+        (3, None),
+        (4, Some(1)),
+        (5, Some(1)),
+        (6, Some(1)),
+        (50, Some(1)),
+        (50, Some(0)),
+        (51, Some(1)),
+        (2, None),
+    ] {
+        expected = match step {
+            None => white,
+            Some(0) => expected,
+            Some(_) => half(expected),
+        };
+        let time = donder_runtime_types::sample_time_from_frame(frame, 120).unwrap();
+        assert_eq!(
+            playback.evaluate(time).colors(),
+            [expected; 3],
+            "frame={frame}"
+        );
     }
 }

@@ -84,9 +84,7 @@ fn checksum_frame(frame_index: u32, frame: &SequenceFrame<'_>) -> u64 {
     for fixture in frame.fixtures() {
         hash = checksum_u32(hash, fixture.fixture_id);
         for color in fixture.pixels {
-            for channel in [color.red, color.green, color.blue] {
-                hash = checksum_u8(hash, channel);
-            }
+            hash = color.to_bytes().into_iter().fold(hash, checksum_u8);
         }
     }
     hash

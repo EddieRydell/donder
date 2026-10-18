@@ -62,41 +62,20 @@ operator HueShift {
   sample { hsv(hue(source) + shift, saturation(source), intensity(source)) }
 }
 
-operator Delay {
-  input input;
-  param seconds: float in 0.0..60.0 = 0.1;
-
-  sample { input.at(time - seconds) }
-}
-
-operator Echo {
-  input input;
-  param seconds: float in 0.0..60.0 = 0.1;
-  param repeats: int in 1..32 = 3;
-  param decay: float in 0.0..1.0 = 0.5;
-
-  -- Samples before the sequence are black, so early echoes add nothing.
-  sample {
-    max for repeat in 0..=repeats {
-      input.at(time - seconds * repeat) * pow(decay, repeat)
-    }
-  }
-}
-
 operator FreezeFrame {
   input input;
   param interval_seconds: float in 0.001..10.0 = 0.01;
   param fade_seconds: float in 0.001..60.0 = 1.0;
 
-  -- Keeps at most 32 snapshots; samples before the sequence are black.
+  -- Each interval captures the input over what it holds; between captures
+  -- the held frame fades to a hundredth over `fade_seconds`.
   sample {
-    let capture_index = floor(time / interval_seconds);
-    let snapshots = int(min(32.0, ceil(fade_seconds / interval_seconds)));
-    max for snapshot in 0..snapshots {
-      let snapshot_time = (capture_index - snapshot) * interval_seconds;
-      let age = time - snapshot_time;
-      guard age < fade_seconds;
-      input.at(snapshot_time) * (1.0 - age / fade_seconds)
+    let elapsed = frames_elapsed / frame_rate;
+    let held = previous * pow(0.01, elapsed / fade_seconds);
+    if floor(time / interval_seconds) != floor((time - elapsed) / interval_seconds) {
+      max(input, held)
+    } else {
+      held
     }
   }
 }
@@ -188,11 +167,11 @@ operator Bloom {
   sample {
     let decay = exp(-2.302585 / radius);
     let scale = strength * (1.0 - decay) / 2.0;
-    let forward = scan forward input as light, previous {
-      previous * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
+    let forward = scan forward input as light, carried {
+      carried * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
     };
-    let backward = scan backward input as light, previous {
-      previous * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
+    let backward = scan backward input as light, carried {
+      carried * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
     };
     let glow = (forward + backward) * tint;
     if blend == Add {
@@ -216,8 +195,8 @@ operator Trail {
 
   -- Light builds up in floats and is rounded once, so faint tails keep fading.
   sample {
-    let forward = scan forward input as light, previous { previous * decay + light };
-    let backward = scan backward input as light, previous { previous * decay + light };
+    let forward = scan forward input as light, carried { carried * decay + light };
+    let backward = scan backward input as light, carried { carried * decay + light };
     if direction == Forward {
       forward
     } else if direction == Backward {
@@ -233,11 +212,10 @@ operator Afterglow {
   -- Seconds for light that goes out to fade to a tenth.
   param seconds: float in 0.01..10.0 = 0.5;
 
-  -- A time scan keeps one running value per pixel, so the tail costs the
-  -- same however long it is. Steady light shows unchanged.
+  -- Each frame keeps the brighter of the input and its own previous frame,
+  -- faded by the frames since then. Steady light shows unchanged.
   sample {
     let decay = pow(0.1, 1.0 / (seconds * frame_rate));
-    let glow = scan time input as light, previous { previous * decay + light * (1.0 - decay) };
-    max(input, glow)
+    max(input, previous * pow(decay, frames_elapsed))
   }
 }

@@ -2,7 +2,6 @@
 //! (`Instance::with_black_input`) keep what playback produces.
 use super::evaluation::{
     OperatorEvaluation, SignalSampler, bind, build, chain, compile_operator, context, effect,
-    lower_runtime_operator, runtime_instance,
 };
 use super::evaluation::{RuntimeError, StripWorkspace};
 use super::playback;
@@ -49,20 +48,18 @@ fn gradient_source() -> SampleInvocation {
 }
 
 #[test]
-fn fusion_samples_conditionally_and_only_at_valid_clocks() {
+fn fusion_samples_conditionally() {
     struct Observe {
-        calls: Vec<(usize, u32)>,
+        calls: Vec<(usize, SignalPixel<i32>)>,
         fail: Option<usize>,
     }
     impl SignalSampler for Observe {
         fn sample_signal(
             &mut self,
             input: usize,
-            time: SampleTime,
-            _: SignalPixel<i32>,
-            _: Option<usize>,
+            pixel: SignalPixel<i32>,
         ) -> Result<Color, RuntimeError> {
-            self.calls.push((input, time.as_ticks()));
+            self.calls.push((input, pixel));
             if self.fail == Some(input) {
                 Err(RuntimeError {
                     message: "source failed".into(),
@@ -74,53 +71,50 @@ fn fusion_samples_conditionally_and_only_at_valid_clocks() {
     }
     let definitions = operators(
         "operator Inner { input first; input second; sample {
-            let value = first.at(time);
-            if pixel.index == 0 { value } else { value + second.at(time + 0.25) }
+            let value = first;
+            if pixel.index == 0 { value } else { value + second }
         } }
-        operator Outer { input other; input source; param at: float in -10.0..10.0 = 1.0; sample {
+        operator Outer { input other; input source; sample {
             guard pixel.index != -1;
-            other.at(0.25) + source.at(at) + other.at(0.5)
+            other.at(0) + source + other.at(1)
         } }",
     );
     let source = instance(&definitions[0], &[]);
-    for (seconds, valid) in [(1.0, true), (-1.0, false), (f32::NAN, false), (8.0, false)] {
-        let (caller, slots) =
-            runtime_instance(&definitions[1], &[], &[("at", Value::Float(seconds))]);
-        let fused = caller.fuse_input(1, &source).unwrap();
-        assert_eq!(fused.inputs(), 3);
-        let fused = lower_runtime_operator(&fused, slots);
-        for pixel in [0, 1] {
-            for fail in [None, Some(0), Some(1), Some(2)] {
-                let mut expected = vec![(0, 250_000), (0, 500_000)];
-                if valid {
-                    expected.push((1, 1_000_000));
-                    if pixel == 1 {
-                        expected.push((2, 1_250_000));
-                    }
-                }
-                // A failed query is reported after the program finishes.
-                let error = expected.iter().any(|(input, _)| Some(*input) == fail);
-                let mut sampler = Observe {
-                    calls: Vec::new(),
-                    fail,
-                };
-                let result = fused.evaluate(
-                    &context(2, pixel, 0),
-                    &SpatialContext {
-                        position: [0.0; 2],
-                        min: [0.0; 2],
-                        max: [0.0; 2],
-                    },
-                    &mut sampler,
-                    &mut StripWorkspace::default(),
-                );
-                assert_eq!(result.is_err(), error);
-                sampler.calls.sort();
-                assert_eq!(
-                    sampler.calls, expected,
-                    "seconds={seconds} pixel={pixel} fail={fail:?}"
-                );
+    let caller = instance(&definitions[1], &[]);
+    let fused = caller.fuse_input(1, &source).unwrap();
+    assert_eq!(fused.inputs(), 3);
+    let fused = fused.operator();
+    for pixel in [0, 1] {
+        for fail in [None, Some(0), Some(1), Some(2)] {
+            let mut expected = vec![
+                (0, SignalPixel::Local(0)),
+                (0, SignalPixel::Local(1)),
+                (1, SignalPixel::Current),
+            ];
+            if pixel == 1 {
+                expected.push((2, SignalPixel::Current));
             }
+            // A failed query is reported after the program finishes.
+            let error = expected.iter().any(|(input, _)| Some(*input) == fail);
+            let mut sampler = Observe {
+                calls: Vec::new(),
+                fail,
+            };
+            let result = fused.evaluate(
+                &context(2, pixel, 0),
+                &SpatialContext {
+                    position: [0.0; 2],
+                    min: [0.0; 2],
+                    max: [0.0; 2],
+                },
+                &mut sampler,
+                &mut StripWorkspace::default(),
+            );
+            assert_eq!(result.is_err(), error);
+            sampler
+                .calls
+                .sort_by_key(|&(input, pixel)| (input, pixel.index().copied()));
+            assert_eq!(sampler.calls, expected, "pixel={pixel} fail={fail:?}");
         }
     }
 }
@@ -130,7 +124,7 @@ fn fusing_a_black_source_folds_its_consumer() {
     let definitions = operators(
         "operator Black { input source; sample { #000000 } }
         operator Conditional { input source; sample {
-            let value = source.at(time);
+            let value = source;
             if value != #000000 { value + sum for i in 0..3 { [#010203, #020304, #030405][i] } } else { value }
         } }",
     );
@@ -143,12 +137,13 @@ fn fusing_a_black_source_folds_its_consumer() {
     for folded in [&fused, &substituted] {
         assert_eq!(folded.constant_color(), Some(Color::BLACK));
         let operator = folded.operator();
-        let code = &operator.program().bytecode().code;
+        let bytecode = operator.program().bytecode();
         assert!(
-            !code
-                .iter()
+            !bytecode
+                .instructions()
                 .any(|instruction| matches!(instruction, Instruction::Reduce { .. })),
-            "{code:?}"
+            "{}",
+            donder_runtime_types::bytecode::listing(bytecode)
         );
     }
     assert_eq!(fused.inputs(), 1);
@@ -195,8 +190,6 @@ fn black_inputs_fold_samples_and_shift_later_inputs() {
     // multiplied by black, scaled by zero intensity or given zero value.
     for (name, input) in [
         ("Dim", 0),
-        ("Echo", 0),
-        ("Delay", 0),
         ("Multiply", 0),
         ("Multiply", 1),
         ("IntensityModulate", 0),
@@ -219,83 +212,8 @@ fn black_inputs_fold_samples_and_shift_later_inputs() {
         instance(find("Invert"), &[])
             .with_black_input(0)
             .constant_color(),
-        Some(Color {
-            red: 255,
-            green: 255,
-            blue: 255
-        })
+        Some(Color::from_bytes([255, 255, 255]))
     );
-}
-
-#[test]
-fn fusion_quantizes_source_clocks_and_blacks_out_invalid_queries() {
-    let effect =
-        effect("effect Source { sample { rgb(pixel.fraction, time - floor(time), progress) } }");
-    let sources = operators(
-        "operator Clock { input source; sample {
-            max(source.at(time + 0.0000003), rgb(progress, time - floor(time), 0.1))
-        } }
-        operator Constant { input source; sample { #123456 } }",
-    );
-    let caller = compile_operator(
-        "operator Query { input source; param at: float in -10.0..10.0 = 0.0; sample { source.at(at) } }",
-    );
-    for source in &sources {
-        let upstream = instance(source, &[]);
-        for seconds in [
-            -1.0,
-            -0.0000003,
-            -0.0,
-            0.0,
-            0.0000003,
-            0.0000006,
-            3.0000002,
-            7.9999995,
-            8.0,
-            3456.789,
-            4000.0,
-            4294.968,
-            f32::NAN,
-            f32::INFINITY,
-        ] {
-            let (consumer, slots) =
-                runtime_instance(&caller, &[], &[("at", Value::Float(seconds))]);
-            let fused = consumer
-                .fuse_input(0, &upstream)
-                .expect("one sample on the current pixel");
-            let fused = lower_runtime_operator(&fused, slots.clone());
-            let unfused = lower_runtime_operator(&consumer, slots);
-            let upstream = upstream.operator();
-            for duration in [8_000_000, 4_000_000_001] {
-                for count in [1, 33] {
-                    let show = |fuse| {
-                        build(count, duration, |b, target| {
-                            let effect = b.sample(&effect, b.whole_sequence(), target);
-                            let layer = b.layer(true, [effect]);
-                            let output = if fuse {
-                                b.operator(&fused, |_| layer)
-                            } else {
-                                let upstream = b.operator(&upstream, |_| layer);
-                                b.operator(&unfused, |_| upstream)
-                            };
-                            b.output(Some(output))
-                        })
-                    };
-                    let mut original = show(false).into_playback();
-                    let mut composed = show(true).into_playback();
-                    for ticks in [0, 1, 3_000_001, duration - 1, 1] {
-                        let time = SampleTime::from_ticks(ticks);
-                        assert_eq!(
-                            original.evaluate(time).colors(),
-                            composed.evaluate(time).colors(),
-                            "{} seconds={seconds} duration={duration} count={count} ticks={ticks}",
-                            source.name().as_str()
-                        );
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[test]
@@ -305,14 +223,14 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
             param gain: float in 0.0..1.0 = 0.7; param first: bool = true; param tint: color = #314159;
             sample {
                 guard pixel.index % 3 != 0 else tint;
-                max for i in 0..3 { (if first { a.at(time) } else { b.at(time) }) * (gain - i * 0.2) }
+                max for i in 0..3 { (if first { a } else { b }) * (gain - i * 0.2) }
             }
         }
         operator Outer { input other; input source;
             param gain: float in 0.0..1.0 = 0.4;
             sample {
                 guard pixel.index != -1;
-                max(source.at(time) * gain, other.at(time))
+                max(source * gain, other)
             }
         }",
     );
@@ -324,14 +242,7 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
             &definitions[0],
             &[
                 ("first", Value::Bool(first)),
-                (
-                    "tint",
-                    Value::Color(Color {
-                        red: 49,
-                        green: 65,
-                        blue: 89,
-                    }),
-                ),
+                ("tint", Value::Color(Color::from_bytes([49, 65, 89]))),
             ],
         );
         let fused = outer
@@ -380,14 +291,14 @@ fn fusion_preserves_resource_parameters() {
                 let gain = values[pixel.index % 3];
                 let gain = if mode == First { gain * 0.5 } else { gain };
                 let gain = gain + sum for i in 0..len(beats) { mark_at(beats, i) * 0.01 };
-                max(source.at(time) * gain, colors[progress])
+                max(source * gain, colors[progress])
             }
         }
         operator Outer { input source;
             param unused: array<float>; param unused_shape: curve in 0.0..1.0;
             param unused_colors: gradient; param unused_mode: enum { First, Second } = First;
             param unused_beats: marks;
-            sample { source.at(time) * 0.7 }
+            sample { source * 0.7 }
         }",
     );
     let inner = instance(
@@ -422,19 +333,11 @@ fn fusion_preserves_resource_parameters() {
                         stops: vec![
                             GradientStop {
                                 position: 0.0,
-                                color: Color {
-                                    red: 4,
-                                    green: 8,
-                                    blue: 12,
-                                },
+                                color: Color::from_bytes([4, 8, 12]),
                             },
                             GradientStop {
                                 position: 1.0,
-                                color: Color {
-                                    red: 4,
-                                    green: 16,
-                                    blue: 2,
-                                },
+                                color: Color::from_bytes([4, 16, 2]),
                             },
                         ],
                     }
@@ -477,15 +380,15 @@ fn fusion_preserves_resource_parameters() {
 }
 
 #[test]
-fn automated_sources_fuse_only_at_the_consumers_own_time() {
+fn automated_sources_and_consumers_fuse_with_their_automation() {
     use donder_runtime_types::AutomationMapping;
     use donder_runtime_types::{Curve, CurvePoint, SampleDuration};
     let definitions = operators(
         "operator Gain { input source; param gain: float in 0.0..1.0 = 0.7;
-            sample { source.at(time) * gain }
+            sample { source * gain }
         }
-        operator Delayed { input source; param gain: float in 0.0..1.0 = 0.4;
-            sample { source.at(time - 0.125) * gain }
+        operator Scaled { input source; param gain: float in 0.0..1.0 = 0.4;
+            sample { source * (gain * 0.5) }
         }",
     );
     let automation = || {
@@ -517,20 +420,18 @@ fn automated_sources_fuse_only_at_the_consumers_own_time() {
             .instance(ProgramConstants::default())
     };
     let gain = instance(&definitions[0], &[]);
-    let delayed = automated(&definitions[1]);
-    // The source's automation would resolve at the delayed query.
-    assert!(delayed.fuse_input(0, &automated(&definitions[0])).is_none());
+    let scaled = automated(&definitions[1]);
     let source = gradient_source();
     // The consumer's own automation is kept.
-    let fused = delayed.fuse_input(0, &gain).unwrap();
+    let fused = scaled.fuse_input(0, &gain).unwrap();
     assert_fused_playback(
         17,
         &source,
-        &[gain.operator(), delayed.operator()],
+        &[gain.operator(), scaled.operator()],
         &fused.operator(),
         "consumer automation",
     );
-    // At the consumer's time, the source's automation is the same either way.
+    // The source's automation is kept too.
     let consumer = instance(&definitions[0], &[("gain", Value::Float(0.4))]);
     let upstream = automated(&definitions[0]);
     let fused = consumer.fuse_input(0, &upstream).unwrap();
@@ -551,9 +452,10 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
         &[],
     );
     for consumer in [
-        "max(source.at(time), source.at(time - 0.1))",
-        "source.at(time, pixel.index + 1)",
-        "source.at(time, pixel.index)",
+        "max(source, source.at(pixel.index + 1))",
+        "source.at(pixel.index + 1)",
+        "source.at(pixel.index)",
+        "max(source, previous)",
     ] {
         let consumer = instance(
             &compile_operator(&format!(
@@ -566,8 +468,8 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
     // One sample site inside a reduction runs the source per iteration.
     let consumer = instance(
         &compile_operator(
-            "operator Echo { input source; sample {
-                max for i in 0..3 { source.at(time - i * 0.125) * (1.0 - i * 0.25) }
+            "operator Steps { input source; sample {
+                max for i in 0..3 { guard pixel.index >= i; source * (1.0 - i * 0.25) }
             } }",
         ),
         &[],

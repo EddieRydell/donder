@@ -78,7 +78,7 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
                 feed(byte);
             }
             for color in fixture.pixels {
-                for byte in [color.red, color.green, color.blue] {
+                for byte in color.to_bytes() {
                     feed(byte);
                 }
             }
@@ -92,7 +92,10 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
             let expected: Vec<_> = fixture
                 .pixels
                 .iter()
-                .flat_map(|color| [color.green, color.red, color.blue])
+                .flat_map(|color| {
+                    let [red, green, blue] = color.to_bytes();
+                    [green, red, blue]
+                })
                 .collect();
             assert_eq!(*buffer, expected);
         }

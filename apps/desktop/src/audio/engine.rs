@@ -2,7 +2,7 @@ use donder_runtime::PlaybackRate;
 use donder_sequence_api::{
     AudioTransportSnapshot, AudioTransportState, PlaybackRange, SequenceAudio,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::backend::{
     AudioDriver, AudioHandle, BackendPlaybackState, KiraAudioDriver, LoadedSource, PlaybackBounds,
@@ -769,8 +769,13 @@ impl AudioEngine {
     }
 }
 
+/// A wall duration in the 32-bit microseconds the show clock uses, saturating.
+fn micros(duration: Duration) -> u32 {
+    u32::try_from(duration.as_micros()).unwrap_or(u32::MAX)
+}
+
 fn show_seconds_between(rate: PlaybackRate, start: Instant, now: Instant) -> f64 {
-    rate.show_elapsed(now.saturating_duration_since(start).as_micros() as u64) as f64 / 1_000_000.0
+    rate.show_elapsed(micros(now.saturating_duration_since(start))) as f64 / 1_000_000.0
 }
 
 impl Drop for AudioEngine {

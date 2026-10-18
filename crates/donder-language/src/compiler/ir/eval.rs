@@ -5,10 +5,10 @@
 //! Playback computes colors in floats and rounds them only when written, so a
 //! color folds only when its float value is an 8-bit color.
 use super::{Binary, Graph, Node, Op, Reducer, Ternary, Unary};
+use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::MAX_ITERATIONS;
 use donder_runtime_types::bytecode::{FloatBinary, FloatUnary};
 use donder_runtime_types::sampling;
-use donder_runtime_types::{Color, FloatColor};
 use donder_runtime_types::{Type, Value};
 use std::collections::HashMap;
 
@@ -18,6 +18,7 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
     match op {
         Negate => Some(Value::Float(-as_float(value)?)),
         IntNegate => Some(Value::Int(as_int(value)?.wrapping_neg())),
+        IntAbs => Some(Value::Int(as_int(value)?.wrapping_abs())),
         Not => Some(Value::Bool(!as_bool(value)?)),
         Abs => float(FloatUnary::Abs),
         Floor => float(FloatUnary::Floor),
@@ -31,25 +32,22 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
         Rand => Some(Value::Float(sampling::deterministic_random_seed(as_float(
             value,
         )?))),
-        Hue => Some(Value::Float(sampling::color_hue(float_color(value)?))),
-        Red => Some(Value::Float(float_color(value)?.red)),
-        Green => Some(Value::Float(float_color(value)?.green)),
-        Blue => Some(Value::Float(float_color(value)?.blue)),
-        Saturation => Some(Value::Float(sampling::color_saturation(float_color(
-            value,
-        )?))),
-        Intensity => Some(Value::Float(sampling::color_intensity(float_color(value)?))),
-        Invert => folded(sampling::invert_color(float_color(value)?)),
+        Hue => Some(Value::Float(sampling::color_hue(as_color(value)?))),
+        Red => Some(Value::Float(as_color(value)?.red)),
+        Green => Some(Value::Float(as_color(value)?.green)),
+        Blue => Some(Value::Float(as_color(value)?.blue)),
+        Saturation => Some(Value::Float(sampling::color_saturation(as_color(value)?))),
+        Intensity => Some(Value::Float(sampling::color_intensity(as_color(value)?))),
+        Invert => folded(sampling::invert_color(as_color(value)?)),
         Len => match value {
-            Value::Array(items) => Some(Value::Int(sampling::length_int(items.len()))),
+            Value::Array(items) => Some(Value::Int(items.len() as i32)),
             _ => None,
         },
         MarkCount => match value {
-            Value::Marks(marks) => Some(Value::Int(sampling::length_int(marks.len()))),
+            Value::Marks(marks) => Some(Value::Int(marks.len() as i32)),
             _ => None,
         },
-        Sin | Cos | Tan | Exp | Log | SectionCount | SectionIndex | QuerySeconds
-        | QueryProgress => None,
+        Sin | Cos | Tan | Exp | Log | SectionCount | SectionIndex => None,
     }
 }
 
@@ -57,7 +55,7 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
     use Binary::*;
     let floats = || Some((as_float(left)?, as_float(right)?));
     let ints = || Some((as_int(left)?, as_int(right)?));
-    let colors = || Some((float_color(left)?, float_color(right)?));
+    let colors = || Some((as_color(left)?, as_color(right)?));
     Some(match op {
         Add => floats().map(|(a, b)| Value::Float(a + b))?,
         Subtract => floats().map(|(a, b)| Value::Float(a - b))?,
@@ -92,7 +90,7 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
         ColorAdd => colors().and_then(|(a, b)| folded(sampling::add_colors(a, b)))?,
         ColorMultiply => colors().and_then(|(a, b)| folded(sampling::multiply_colors(a, b)))?,
         ColorMax => colors().and_then(|(a, b)| folded(sampling::max_colors(a, b)))?,
-        ColorScale => folded(sampling::scale_color(float_color(left)?, as_float(right)?))?,
+        ColorScale => folded(sampling::scale_color(as_color(left)?, as_float(right)?))?,
         GradientSample => match left {
             Value::Gradient(gradient) => {
                 folded(sampling::sample_gradient(gradient, as_float(right)?))?
@@ -136,11 +134,9 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             _ => return None,
         },
         CurveFirstCrossing => match left {
-            Value::Curve(curve) => Value::Float(sampling::curve_crossing(
-                &curve.points,
-                as_float(right)?,
-                f32::NAN,
-            )),
+            Value::Curve(curve) if !curve.points.is_empty() => Value::Float(
+                sampling::curve_first_crossing(&curve.points, as_float(right)?),
+            ),
             _ => return None,
         },
         Power => Value::Float(power(as_float(left)?, as_int(right)?)),
@@ -160,18 +156,16 @@ pub(super) fn ternary(op: Ternary, a: &Value, b: &Value, c: &Value) -> Option<Va
             Value::Float(left + (right - left) * amount)
         }
         Ternary::MixColor => folded(sampling::mix_colors(
-            float_color(a)?,
-            float_color(b)?,
+            as_color(a)?,
+            as_color(b)?,
             as_float(c)?,
         ))?,
         Ternary::Rgb => folded(sampling::rgb(as_float(a)?, as_float(b)?, as_float(c)?))?,
         Ternary::Hsv => folded(sampling::hsv(as_float(a)?, as_float(b)?, as_float(c)?))?,
         Ternary::CurveLastCrossing => match a {
-            Value::Curve(curve) => Value::Float(sampling::curve_last_crossing(
-                &curve.points,
-                as_float(b)?,
-                as_float(c)?,
-            )),
+            Value::Curve(curve) if !curve.points.is_empty() => Value::Float(
+                sampling::curve_last_crossing(&curve.points, as_float(b)?, as_float(c)?),
+            ),
             _ => return None,
         },
     })
@@ -189,11 +183,6 @@ pub(crate) fn power(x: f32, n: i32) -> f32 {
 /// The value of a reduction with no contributions. `first` and `last` use
 /// their default instead.
 pub(crate) fn reduce_identity(reducer: Reducer, ty: &Type) -> Option<Value> {
-    const WHITE: Color = Color {
-        red: 255,
-        green: 255,
-        blue: 255,
-    };
     Some(match (reducer, ty) {
         (Reducer::Max, Type::Float) => Value::Float(f32::NEG_INFINITY),
         (Reducer::Min, Type::Float) => Value::Float(f32::INFINITY),
@@ -202,7 +191,6 @@ pub(crate) fn reduce_identity(reducer: Reducer, ty: &Type) -> Option<Value> {
         (Reducer::Min, Type::Int) => Value::Int(i32::MAX),
         (Reducer::Sum, Type::Int) => Value::Int(0),
         (Reducer::Max | Reducer::Sum, Type::Color) => Value::Color(Color::BLACK),
-        (Reducer::Min, Type::Color) => Value::Color(WHITE),
         (Reducer::Any, Type::Bool) => Value::Bool(false),
         (Reducer::All, Type::Bool) => Value::Bool(true),
         _ => return None,
@@ -403,17 +391,9 @@ pub(crate) fn as_bool(value: &Value) -> Option<bool> {
     }
 }
 
-/// `color` as a constant, when it is an 8-bit color to within float rounding.
-fn folded(color: FloatColor) -> Option<Value> {
-    let constant = color.to_color();
-    let exact = FloatColor::from(constant);
-    let near = |a: f32, b: f32| (a - b).abs() <= 1e-6;
-    (near(exact.red, color.red) && near(exact.green, color.green) && near(exact.blue, color.blue))
-        .then_some(Value::Color(constant))
-}
-
-fn float_color(value: &Value) -> Option<FloatColor> {
-    as_color(value).map(FloatColor::from)
+/// `color` as a constant: color math is exact in channels.
+fn folded(color: Color) -> Option<Value> {
+    Some(Value::Color(color))
 }
 
 pub(crate) fn as_color(value: &Value) -> Option<Color> {

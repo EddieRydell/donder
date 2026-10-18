@@ -28,7 +28,7 @@ pub(super) struct RuntimeError {
 /// Memory a test reuses across evaluations.
 #[derive(Default)]
 pub(super) struct StripWorkspace {
-    buffer: Vec<u64>,
+    buffer: Vec<u32>,
 }
 
 /// A test signal source. An error is reported as the operator's result.
@@ -36,9 +36,7 @@ pub(super) trait SignalSampler {
     fn sample_signal(
         &mut self,
         input: usize,
-        sample_time: SampleTime,
         pixel: SignalPixel<i32>,
-        frame_cache: Option<usize>,
     ) -> Result<Color, RuntimeError>;
 }
 
@@ -53,14 +51,8 @@ struct Adapter<'a> {
 }
 
 impl Adapter<'_> {
-    fn sample(
-        &mut self,
-        input: usize,
-        time: SampleTime,
-        pixel: SignalPixel<i32>,
-        frame_cache: Option<usize>,
-    ) -> Color {
-        match self.sampler.sample_signal(input, time, pixel, frame_cache) {
+    fn sample(&mut self, input: usize, pixel: SignalPixel<i32>) -> Color {
+        match self.sampler.sample_signal(input, pixel) {
             Ok(color) => color,
             Err(error) => {
                 self.error.get_or_insert(error);
@@ -71,24 +63,11 @@ impl Adapter<'_> {
 }
 
 impl StripSignals for Adapter<'_> {
-    fn sample_strip(
-        &mut self,
-        input: usize,
-        time: SampleTime,
-        frame_cache: Option<usize>,
-        output: &mut [Color; STRIP],
-    ) {
-        output[0] = self.sample(input, time, SignalPixel::Current, frame_cache);
+    fn sample_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
+        output[0] = self.sample(input, SignalPixel::Current);
     }
 
-    fn sample_pixel(
-        &mut self,
-        input: usize,
-        time: SampleTime,
-        _: usize,
-        pixel: SignalPixel<i32>,
-        frame_cache: Option<usize>,
-    ) -> Color {
+    fn sample_pixel(&mut self, input: usize, _: usize, pixel: SignalPixel<i32>) -> Color {
         let pixel = match pixel {
             SignalPixel::Shifted(shift, edges) => {
                 let read = edges.local(self.index + shift, self.count);
@@ -96,7 +75,7 @@ impl StripSignals for Adapter<'_> {
             }
             pixel => pixel,
         };
-        self.sample(input, time, pixel, frame_cache)
+        self.sample(input, pixel)
     }
 
     fn scan(
@@ -106,14 +85,7 @@ impl StripSignals for Adapter<'_> {
         output: &mut [Color; STRIP],
     ) {
         let colors: Vec<Color> = (0..self.count)
-            .map(|index| {
-                self.sample(
-                    query.input,
-                    query.time,
-                    SignalPixel::Local(index),
-                    query.frame_cache,
-                )
-            })
+            .map(|index| self.sample(query.input, SignalPixel::Local(index)))
             .collect();
         output[0] = scan_fixture(query, weights, &colors)[self.index as usize];
     }
@@ -123,15 +95,13 @@ impl StripSignals for Adapter<'_> {
     fn sample_range(
         &mut self,
         input: usize,
-        time: SampleTime,
         start: isize,
-        frame_cache: Option<usize>,
         colors: &mut [Color],
         locals: &mut [i32],
     ) {
         for (k, (color, local)) in colors.iter_mut().zip(locals).enumerate() {
             *local = self.index + start as i32 + k as i32;
-            *color = self.sample(input, time, SignalPixel::Local(*local), frame_cache);
+            *color = self.sample(input, SignalPixel::Local(*local));
         }
     }
 }
@@ -163,13 +133,10 @@ pub(super) fn scan_fixture(
         };
         let Color { red, green, blue } = colors[index];
         for (value, channel) in running.iter_mut().zip([red, green, blue]) {
-            *value = *value * decay + f32::from(channel) * weight;
+            *value = *value * decay + channel * weight;
         }
-        scanned[index] = Color {
-            red: donder_runtime_types::sampling::byte_channel(running[0]),
-            green: donder_runtime_types::sampling::byte_channel(running[1]),
-            blue: donder_runtime_types::sampling::byte_channel(running[2]),
-        };
+        let [red, green, blue] = running;
+        scanned[index] = Color { red, green, blue };
     }
     scanned
 }
@@ -239,7 +206,7 @@ impl Single {
         slots.include(program);
         let mut size = Size::default();
         slots.size(&mut size);
-        let words = size.bytes.div_ceil(8).max(workspace.buffer.len());
+        let words = size.bytes.div_ceil(4).max(workspace.buffer.len());
         workspace.buffer.resize(words, 0);
         let mut arena = Carve::new(bytemuck::cast_slice_mut(&mut workspace.buffer));
         let mut strip_workspace = slots.carve(&mut arena).unwrap();
@@ -351,6 +318,7 @@ pub(super) fn context(count: usize, pixel: usize, frame: usize) -> PixelContext 
             time: SampleDuration::from_ticks(time),
             duration: SampleDuration::from_ticks(8_000_000),
             frame_rate: 40.0,
+            frames_elapsed: 1,
             pixel_count: count as i32,
         },
         index: pixel as i32,
@@ -368,6 +336,7 @@ pub(super) fn one_pixel(progress: f32) -> PixelContext {
             time: SampleDuration::from_ticks(0),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
+            frames_elapsed: 1,
             pixel_count: 1,
         },
         index: 0,

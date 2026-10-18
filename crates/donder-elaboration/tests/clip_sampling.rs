@@ -1,18 +1,12 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, EffectGraphEdge, GraphPortId};
-use donder_runtime::LoadLimits;
 use donder_runtime_types::SampleTime;
 
 #[test]
 fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let project = donder_project_io::load_project(&root).unwrap().project;
-    let limits = LoadLimits {
-        image_bytes: 32 * 1024 * 1024,
-        workspace_bytes: 32 * 1024 * 1024,
-        ..LoadLimits::default()
-    };
     let mut sample_checked = false;
     for sequence in project
         .root()
@@ -21,7 +15,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
         .map(|source| project.sequence(source.id()).unwrap())
     {
         let prepared = prepare(&project, &sequence.id, PrepareOutputs::All).unwrap();
-        let decoded = donder_runtime::PreparedSequence::decode(&prepared.encode(), limits).unwrap();
+        let decoded = donder_runtime::PreparedSequence::decode(&prepared.encode()).unwrap();
         for authored in sequence.effects.iter().take(2) {
             sample_checked = true;
             // Prepare the authored clip alone through a plain layer/output graph.

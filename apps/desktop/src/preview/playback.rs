@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use donder_language::sample_time_from_seconds_f64;
-use donder_runtime::{LoadError, LoadLimits, PreparedRig};
+use donder_runtime::{LoadError, PreparedRig};
 use donder_runtime::{PlaybackRate, PreparedSequence, RigPlayback, SequencePlayback};
 use donder_runtime_types::{RigEvent, SampleTime};
 
@@ -51,7 +51,7 @@ impl ClockAnchor {
                 - self.snapshot.start_delay_seconds)
                 .max(0.0);
             self.snapshot.position_seconds
-                + self.snapshot.rate.show_elapsed((wall * 1_000_000.0) as u64) as f64 / 1_000_000.0
+                + self.snapshot.rate.show_elapsed((wall * 1_000_000.0) as u32) as f64 / 1_000_000.0
         } else {
             self.snapshot.position_seconds
         }
@@ -83,7 +83,7 @@ impl PreviewContent {
 
 /// The frame last evaluated: the clock generation, the rig commands applied
 /// before it and its frame index.
-type FrameKey = (u32, u64, u64);
+type FrameKey = (u32, u64, u32);
 
 pub(crate) struct PreviewPlayback {
     content: Option<PreviewContent>,
@@ -135,12 +135,12 @@ impl PreviewPlayback {
         let content = match archive {
             None => None,
             Some(PreviewArchive::Sequence(bytes)) => Some(PreviewContent::Sequence(Box::new(
-                PreparedSequence::decode(bytes, preview_load_limits())
+                PreparedSequence::decode(bytes)
                     .map_err(PreviewPlaybackError::Decode)?
                     .into_playback(),
             ))),
             Some(PreviewArchive::Rig(bytes)) => Some(PreviewContent::Rig(Box::new(
-                PreparedRig::decode(bytes, preview_load_limits())
+                PreparedRig::decode(bytes)
                     .map_err(PreviewPlaybackError::Decode)?
                     .into_playback(),
             ))),
@@ -210,17 +210,18 @@ impl PreviewPlayback {
         let position = self.clock.position_at(now).max(0.0);
         let sample_time = sample_time_from_seconds_f64(position)
             .map_err(|_| PreviewPlaybackError::ClockPosition)?;
-        let frame = self.clock.snapshot.rate.frame_at(
-            u64::from(sample_time.as_ticks()),
-            content.sequence().frame_rate(),
-        );
+        let frame = self
+            .clock
+            .snapshot
+            .rate
+            .frame_at(sample_time.as_ticks(), content.sequence().frame_rate());
         let key = (self.clock.snapshot.generation, self.commands, frame);
         if self.last_frame == Some(key) {
             return Ok(false);
         }
         let evaluated = content.evaluate(sample_time);
         for (target, color) in self.colors.iter_mut().zip(evaluated.colors()) {
-            *target = PreviewColor::opaque([color.red, color.green, color.blue]);
+            *target = PreviewColor::opaque(color.to_bytes());
         }
         self.last_frame = Some(key);
         Ok(true)
@@ -233,15 +234,6 @@ impl PreviewPlayback {
     /// Whether the frame changes with time, so the Preview draws every refresh.
     pub(crate) fn is_playing(&self) -> bool {
         self.content.is_some() && self.clock.snapshot.state == PreviewPlaybackState::Playing
-    }
-}
-
-fn preview_load_limits() -> LoadLimits {
-    LoadLimits {
-        image_bytes: 16 * 1024 * 1024,
-        pixels: 1_000_000,
-        graph_nodes: 100_000,
-        workspace_bytes: 64 * 1024 * 1024,
     }
 }
 

@@ -196,7 +196,9 @@ fn simplify<'id>(
         }
         input += 1;
     }
-    if instance.constant_color() == Some(Color::BLACK) {
+    if instance.constant_color() == Some(Color::BLACK)
+        || (inputs.is_empty() && instance.stays_black())
+    {
         Pending::Black
     } else {
         Pending::Operator {

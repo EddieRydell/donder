@@ -47,7 +47,7 @@ fn uniform_resource_samples_preserve_branches_and_empty_gradient_defaults() {
         } else {
             assert_eq!(
                 result,
-                crate::sampling::rgb(0.0, context(200, 0, 0).progress, 0.0).to_color()
+                crate::sampling::rgb(0.0, context(200, 0, 0).progress, 0.0)
             );
         }
     }

@@ -5,7 +5,7 @@
 //! global signal graph before they are lowered.
 use super::check::Definition;
 use super::ir::{
-    Binary, Context, Domain, Graph, Node, Op, Param, Rebuild, Substitute, TooManyLoops, Unary,
+    Binary, Context, Domain, Graph, Node, Op, Param, Rebuild, STATE, Substitute, TooManyLoops,
 };
 use donder_runtime_types::BoundParams;
 use donder_runtime_types::Color;
@@ -192,6 +192,17 @@ impl Instance {
         }
     }
 
+    /// Whether this instance, once its inputs are all black, is black at
+    /// every frame: black while its previous frame is, which starts black.
+    pub(crate) fn stays_black(&self) -> bool {
+        let mut graph = Graph::new(self.graph.params().to_vec(), self.graph.inputs());
+        let Ok(root) = Rebuild::new(&self.graph).node(&mut graph, self.root, &mut BlackState)
+        else {
+            return false;
+        };
+        matches!(graph.constant_value(root), Some(Value::Color(color)) if *color == Color::BLACK)
+    }
+
     /// Replace every sample of `input` with black, for a signal that is black
     /// everywhere. The input is removed and later inputs shift down.
     pub(crate) fn with_black_input(&self, input: u32) -> Result<Self, TooManyLoops> {
@@ -229,16 +240,14 @@ impl Instance {
             return None;
         }
         let Op::Sample {
-            time,
             pixel: SignalPixel::Current,
             ..
         } = *self.graph.op(*site)
         else {
             return None;
         };
-        // Automation resolves parameters at the consumer's own time.
-        let now = matches!(self.graph.op(time), Op::Context(Context::Time));
-        if !upstream.automation.is_empty() && !now {
+        // A node's previous frame is its own; fused, it would be another's.
+        if self.reads_state() || upstream.reads_state() {
             return None;
         }
         // Playback rebinds live marks by the parameter index preparation recorded.
@@ -272,6 +281,14 @@ impl Instance {
             values,
             automation,
             live: Vec::new(),
+        })
+    }
+
+    /// Whether the program reads its node's previous frame.
+    fn reads_state(&self) -> bool {
+        self.graph.nodes().any(|node| {
+            matches!(self.graph.op(node), Op::Sample { input, .. } if *input == STATE)
+                && self.reaches(node)
         })
     }
 
@@ -348,17 +365,34 @@ impl Substitute for BlackInput {
         &mut self,
         target: &mut Graph,
         input: u32,
-        time: Node,
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
         Ok(match input.cmp(&self.input) {
+            _ if input == STATE => target.add(Op::Sample { input, pixel }),
             core::cmp::Ordering::Equal => target.color(Color::BLACK),
-            core::cmp::Ordering::Less => target.add(Op::Sample { input, time, pixel }),
+            core::cmp::Ordering::Less => target.add(Op::Sample { input, pixel }),
             core::cmp::Ordering::Greater => target.add(Op::Sample {
                 input: input - 1,
-                time,
                 pixel,
             }),
+        })
+    }
+}
+
+/// Reads of the previous frame as black.
+struct BlackState;
+
+impl Substitute for BlackState {
+    fn sample(
+        &mut self,
+        target: &mut Graph,
+        input: u32,
+        pixel: SignalPixel<Node>,
+    ) -> Result<Node, TooManyLoops> {
+        Ok(if input == STATE {
+            target.color(Color::BLACK)
+        } else {
+            target.add(Op::Sample { input, pixel })
         })
     }
 }
@@ -376,61 +410,40 @@ impl Substitute for Fuse<'_> {
         &mut self,
         target: &mut Graph,
         input: u32,
-        time: Node,
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
         if input != self.input {
             let input = if input > self.input { input - 1 } else { input };
-            return Ok(target.add(Op::Sample { input, time, pixel }));
+            return Ok(target.add(Op::Sample { input, pixel }));
         }
-        // The source's clock at this query; invalid times leave it black.
-        let seconds = target.unary(Unary::QuerySeconds, time);
-        let mut clock = Clock {
-            seconds,
-            progress: target.unary(Unary::QueryProgress, time),
+        let mut source = Source {
             offset: self.offset,
             first_input: self.remaining,
         };
-        let body =
-            Rebuild::new(&self.upstream.graph).node(target, self.upstream.root, &mut clock)?;
-        let valid = target.binary(Binary::Equal, seconds, seconds);
-        let black = target.color(Color::BLACK);
-        Ok(target.select(valid, body, black))
+        Rebuild::new(&self.upstream.graph).node(target, self.upstream.root, &mut source)
     }
 }
 
-/// A fused source's leaves: its clock, its parameters after the consumer's,
-/// and its inputs after the consumer's remaining inputs.
-struct Clock {
-    seconds: Node,
-    progress: Node,
+/// A fused source's leaves: its parameters after the consumer's, and its
+/// inputs after the consumer's remaining inputs.
+struct Source {
     offset: u32,
     first_input: u32,
 }
 
-impl Substitute for Clock {
+impl Substitute for Source {
     fn param(&mut self, target: &mut Graph, index: u32) -> Node {
         target.add(Op::Param(index + self.offset))
-    }
-
-    fn context(&mut self, target: &mut Graph, context: Context) -> Node {
-        match context {
-            Context::Time => self.seconds,
-            Context::Progress => self.progress,
-            context => target.add(Op::Context(context)),
-        }
     }
 
     fn sample(
         &mut self,
         target: &mut Graph,
         input: u32,
-        time: Node,
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
         Ok(target.add(Op::Sample {
             input: input + self.first_input,
-            time,
             pixel,
         }))
     }

@@ -158,9 +158,9 @@ impl SequenceRenderService {
             frame: RenderedSequenceFrame {
                 frame_index,
                 frame_rate,
-                frame_interval: Duration::from_micros(
+                frame_interval: Duration::from_micros(u64::from(
                     rate.wall_elapsed(rate.frame_start(1, frame_rate)),
-                ),
+                )),
                 sample_time,
                 fixtures: rendered
                     .fixtures()
@@ -312,6 +312,5 @@ fn playback_rate(audio: &AudioTransportSnapshot) -> Result<PlaybackRate, Sequenc
 }
 
 fn playback_frame_index(rate: PlaybackRate, sample_time: SampleTime, frame_rate: u32) -> u32 {
-    rate.frame_at(u64::from(sample_time.as_ticks()), frame_rate)
-        .min(u64::from(u32::MAX)) as u32
+    rate.frame_at(sample_time.as_ticks(), frame_rate)
 }

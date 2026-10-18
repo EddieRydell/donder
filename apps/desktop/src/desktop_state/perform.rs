@@ -474,7 +474,7 @@ mod tests {
         assert!(
             colors
                 .iter()
-                .any(|color| color.red > 0 || color.green > 0 || color.blue > 0)
+                .any(|color| color.red > 0.0 || color.green > 0.0 || color.blue > 0.0)
         );
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut buffer = [0u8; 1024];

@@ -226,20 +226,21 @@ parameters take one too (`effect TwoDots "Two dots chasing." {`,
 ## 12. A first operator
 
 ```text
-operator Trail {
+operator Linger {
   input source;
-  param seconds: float in 0.0..2.0 = 0.2;
-  param fade: float in 0.0..1.0 = 0.5;
+  param fade: float in 0.0..1.0 = 0.9;
 
-  sample { max(source, source.at(time - seconds) * fade) }
+  sample { max(source, previous * pow(fade, frames_elapsed)) }
 }
 ```
 
 An operator transforms other signals instead of drawing from nothing. It
 declares `input`s, which you connect in the sequence's composition graph. Using
-an input as a color samples the current pixel now; `source.at(time)` samples it
-at another time, and `source.at(time, index)` at another pixel of the same
-fixture. `max` of two colors keeps the brighter of each channel.
+an input as a color samples the current pixel; `source.at(index)` samples
+another pixel of the same fixture. `previous` is the operator's own output one
+frame earlier, and `frames_elapsed` counts the frames since, so this keeps
+`fade` of its last frame per frame. `max` of two colors keeps the brighter of
+each channel.
 
 ## Next steps
 

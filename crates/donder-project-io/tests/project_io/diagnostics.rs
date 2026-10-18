@@ -334,8 +334,8 @@ fn invalid_operator_dsl_reports_script_compile_diagnostic() {
         .unwrap();
     assert_eq!(diagnostic.path, Utf8Path::new("operators/bad.donder"));
     assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
-    // The sample time must be a number; the diagnostic covers the bad argument.
-    assert!(diagnostic.message.contains("float"), "{diagnostic:?}");
+    // The pixel index must be an int; the diagnostic covers the bad argument.
+    assert!(diagnostic.message.contains("int"), "{diagnostic:?}");
     let start = source.find("true").unwrap() as u32;
     assert_range(diagnostic.range.as_ref().unwrap(), 0, start, 0, start + 4);
 }

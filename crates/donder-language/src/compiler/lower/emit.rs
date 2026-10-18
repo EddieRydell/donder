@@ -1,19 +1,19 @@
 //! Strip bytecode. The query and target stages become scalar blocks and the
 //! pixel region tree becomes the body: a branch is a `Branch` with its arms
 //! inline, a reduction a `Reduce` with its parts inline. A value that varies
-//! by pixel or signal is a row; every other value is a scalar.
+//! by pixel or signal is a row; every other value is a scalar. A color is
+//! three float slots, and color arithmetic is float arithmetic on them.
 use super::schedule::{Plan, RegionId, Stage, is_leaf};
 use super::{LowerError, slots};
 use crate::compiler::ir::{
     self, Binary, Constant, Context, Domain, Graph, Node, Op, Ternary, Unary,
 };
-use donder_runtime_types::Shared as Arc;
 use donder_runtime_types::bytecode::{
-    Bank, BytecodeProgram, ColorBinary, ColorComponent, CompareOp, ContextRead, FloatBinary,
-    FloatUnary, Input, Instruction, IntBinary, MAX_DEPTH, MAX_ROW_BYTES, MarkOp, NO_FRAME_CACHE,
-    Reducer, Resource, SignalPixel, Slot, Span, param_bank,
+    Bank, Banks, BytecodeProgram, ColorComponent, Colors, CompareOp, ContextRead, CurveOp,
+    FloatBinary, FloatUnary, Input, Instruction, IntBinary, IntUnary, MAX_DEPTH, MAX_ROW_BYTES,
+    MarkOp, Reducer, Resource, SignalPixel, Slot, param_bank,
 };
-use donder_runtime_types::{Color, Identifier, Type, Value};
+use donder_runtime_types::{Color, Identifier, InstructionWord, Type, Value};
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn emit(graph: &Graph, root: Node, plan: &Plan) -> Result<BytecodeProgram, LowerError> {
@@ -33,16 +33,23 @@ pub(super) fn emit(graph: &Graph, root: Node, plan: &Plan) -> Result<BytecodePro
             emitter.node(node, &mut query);
         }
     }
+    emitter.tables(Stage::Query, &mut query);
     let mut target = Vec::new();
     for &node in &plan.target {
         if !emitter.absorbed.contains(&node) {
             emitter.node(node, &mut target);
         }
     }
+    emitter.tables(Stage::Target, &mut target);
     let mut body = Vec::new();
     emitter.region(0, &mut body);
     let result = emitter.operand(root);
     emitter.finish(query, target, body, result)
+}
+
+/// Words of code `code` takes.
+fn words(code: &[Instruction]) -> usize {
+    code.iter().map(Instruction::width).sum()
 }
 
 struct Emitter<'a> {
@@ -56,19 +63,14 @@ struct Emitter<'a> {
     head: Vec<Instruction>,
     constants: HashMap<Constant, Slot>,
     leaves: HashMap<Node, Slot>,
-    /// Virtual slots allocated so far, by bank and kind.
+    /// Virtual slots allocated so far, by storage bank and kind.
     next: HashMap<(Bank, bool), u16>,
-    curves: Vec<Arc<donder_runtime_types::Curve>>,
-    gradients: Vec<Arc<donder_runtime_types::Gradient>>,
-    marks: Vec<Arc<donder_runtime_types::Marks>>,
-    arrays: Vec<Arc<[Value]>>,
+    resources: Vec<Value>,
     enums: Vec<Identifier>,
-    operands: Vec<Slot>,
-    /// Whole-frame input caches, one per input and query-uniform time: samples
-    /// of one input at one time share its frame.
-    frame_caches: HashMap<(u32, Node), u16>,
-    /// Frame caches so far: the inputs', then each scan's own.
-    frame_cache_count: u16,
+    /// Each table output's table row and its index's start.
+    tables: HashMap<Node, (Slot, Slot)>,
+    /// Frame caches so far, one per scan.
+    scan_count: u16,
     /// Selections open at the current point, and the most at any point.
     depth: u16,
     deepest: u16,
@@ -87,23 +89,19 @@ impl<'a> Emitter<'a> {
             constants: HashMap::new(),
             leaves: HashMap::new(),
             next: HashMap::new(),
-            curves: Vec::new(),
-            gradients: Vec::new(),
-            marks: Vec::new(),
-            arrays: Vec::new(),
+            resources: Vec::new(),
             enums: Vec::new(),
-            operands: Vec::new(),
-            frame_caches: HashMap::new(),
-            frame_cache_count: 0,
+            tables: HashMap::new(),
+            scan_count: 0,
             depth: 0,
             deepest: 0,
             error: None,
         }
     }
 
-    /// Mark nodes emitted as part of their only user: curve samples feeding
-    /// a clamp, gradient samples feeding a unit-clamped scale, and a color's
-    /// saturation and intensity (and hue, when shifted) feeding `hsv`.
+    /// Mark nodes emitted as part of their only user: gradient samples
+    /// feeding a unit-clamped scale, and a color's saturation and intensity
+    /// (and hue, when shifted) feeding `hsv`.
     fn absorb(&mut self, nodes: &[Node]) {
         let (graph, plan) = (self.graph, self.plan);
         let single = |node: Node, user: Node| {
@@ -117,12 +115,6 @@ impl<'a> Emitter<'a> {
                 continue;
             }
             match *graph.op(node) {
-                Op::Ternary(Ternary::Clamp, value, ..)
-                    if matches!(graph.op(value), Op::Binary(Binary::CurveSample, ..))
-                        && single(value, node) =>
-                {
-                    self.absorbed.insert(value);
-                }
                 Op::Binary(Binary::ColorScale, color, scale)
                     if matches!(graph.op(color), Op::Binary(Binary::GradientSample, ..))
                         && unit_clamp(graph, scale).is_some()
@@ -182,11 +174,12 @@ impl<'a> Emitter<'a> {
         self.error.get_or_insert(error);
     }
 
+    /// A new virtual slot; a color's is the first of three floats.
     fn fresh(&mut self, bank: Bank, row: bool) -> Slot {
-        let next = self.next.entry((bank, row)).or_insert(0);
+        let next = self.next.entry((bank.storage(), row)).or_insert(0);
         let index = *next;
-        *next = next.saturating_add(1);
-        if index >= Slot::LIMIT {
+        *next = next.saturating_add(bank.width());
+        if u32::from(index) + u32::from(bank.width()) > u32::from(Slot::VIRTUAL) {
             self.fail(LowerError::Slots);
         }
         if row {
@@ -228,43 +221,45 @@ impl<'a> Emitter<'a> {
         }
     }
 
+    fn float_constant(&mut self, value: f32) -> Slot {
+        self.constant(Constant {
+            value: Value::Float(value),
+            ty: Type::Float,
+        })
+    }
+
     fn constant(&mut self, constant: Constant) -> Slot {
         if let Some(&slot) = self.constants.get(&constant) {
             return slot;
         }
         let bank = Bank::for_type(&constant.ty);
         let dst = self.fresh(bank, false);
-        let load = match &constant.value {
-            Value::Float(value) => Instruction::FloatConst {
-                dst,
-                bits: value.to_bits(),
-            },
-            Value::Int(value) => Instruction::IntConst { dst, value: *value },
-            Value::Bool(value) => Instruction::BoolConst { dst, value: *value },
-            Value::Color(value) => Instruction::ColorConst { dst, value: *value },
-            Value::Enum(name) => Instruction::IntConst {
-                dst,
-                value: i32::from(self.enum_index(name)),
-            },
-            Value::Curve(curve) => {
-                self.curves.push(Arc::clone(curve));
-                resource(dst, Resource::Curve, self.curves.len())
+        let scalar = |bank, bits| Instruction::Const { bank, dst, bits };
+        match &constant.value {
+            Value::Float(value) => self.head.push(scalar(Bank::Float, value.to_bits())),
+            Value::Int(value) => self.head.push(scalar(Bank::Int, *value as u32)),
+            Value::Bool(value) => self.head.push(scalar(Bank::Bool, u32::from(*value))),
+            Value::Enum(name) => {
+                let index = self.enum_index(name);
+                self.head.push(scalar(Bank::Int, u32::from(index)));
             }
-            Value::Gradient(gradient) => {
-                self.gradients.push(Arc::clone(gradient));
-                resource(dst, Resource::Gradient, self.gradients.len())
+            Value::Color(color) => {
+                for (channel, value) in [color.red, color.green, color.blue].into_iter().enumerate()
+                {
+                    self.head.push(Instruction::Const {
+                        bank: Bank::Float,
+                        dst: dst.channel(channel as u16),
+                        bits: value.to_bits(),
+                    });
+                }
             }
-            Value::Marks(marks) => {
-                self.marks.push(Arc::clone(marks));
-                resource(dst, Resource::Marks, self.marks.len())
-            }
-            Value::Array(items) => {
-                self.arrays.push(Arc::clone(items));
-                resource(dst, Resource::Array, self.arrays.len())
+            Value::Curve(_) | Value::Gradient(_) | Value::Marks(_) | Value::Array(_) => {
+                self.resources.push(constant.value.clone());
+                let index = self.resources.len() as u32 - 1;
+                self.head.push(scalar(Bank::Resource, index));
             }
             Value::Void => unreachable!("checked constants have values"),
-        };
-        self.head.push(load);
+        }
         self.constants.insert(constant, dst);
         dst
     }
@@ -278,19 +273,14 @@ impl<'a> Emitter<'a> {
             unreachable!("only parameters are leaves besides constants")
         };
         let ty = self.graph.ty(node).clone();
-        let dst = self.fresh(Bank::for_type(&ty), false);
-        let bank = self.bank_index(index as usize);
-        let load = match Resource::for_type(&ty) {
-            Some(kind) => Instruction::ResourceParam { dst, kind, bank },
-            None => {
-                debug_assert!(
-                    matches!(ty, Type::Enum(_)),
-                    "primitive parameters are scheduled"
-                );
-                Instruction::IntParam { dst, bank }
-            }
-        };
-        self.head.push(load);
+        let bank = Bank::for_type(&ty);
+        debug_assert!(
+            bank == Bank::Resource || matches!(ty, Type::Enum(_)),
+            "primitive parameters are scheduled"
+        );
+        let dst = self.fresh(bank, false);
+        let index = self.bank_index(index as usize);
+        self.head.push(Instruction::Param { bank, dst, index });
         self.leaves.insert(node, dst);
         dst
     }
@@ -320,37 +310,31 @@ impl<'a> Emitter<'a> {
 
     fn node(&mut self, node: Node, code: &mut Vec<Instruction>) {
         let graph = self.graph;
-        let instruction = match graph.op(node).clone() {
+        match graph.op(node).clone() {
             // Constants and resource parameters load on first use.
-            Op::Constant(_) => return,
+            Op::Constant(_) => {}
             Op::ParamIntegral(_) => unreachable!("instantiation replaces parameter integrals"),
-            Op::Param(_) if is_leaf(graph, node) => return,
+            Op::Param(_) if is_leaf(graph, node) => {}
             Op::Param(index) => {
-                let bank = self.bank_index(index as usize);
+                let index = self.bank_index(index as usize);
+                let bank = self.bank(node);
                 let dst = self.destination(node);
-                match self.bank(node) {
-                    Bank::Float => Instruction::FloatParam { dst, bank },
-                    Bank::Int => Instruction::IntParam { dst, bank },
-                    Bank::Bool => Instruction::BoolParam { dst, bank },
-                    Bank::Color => Instruction::ColorParam { dst, bank },
-                    Bank::Resource => unreachable!("resource parameters are leaves"),
-                }
+                code.push(Instruction::Param { bank, dst, index });
             }
             Op::Context(context) => match pixel_input(context) {
                 Some(input) => {
                     self.values.insert(node, Slot::input(input));
-                    return;
                 }
-                None => Instruction::Context {
+                None => code.push(Instruction::Context {
                     dst: self.destination(node),
                     read: context_read(context),
-                },
+                }),
             },
             // A reduction writes its own index.
-            Op::LoopIndex(_) => return,
-            Op::Unary(op, a) => self.unary(node, op, a),
-            Op::Binary(op, a, b) => self.binary(node, op, a, b),
-            Op::Ternary(op, a, b, c) => self.ternary(node, op, a, b, c),
+            Op::LoopIndex(_) => {}
+            Op::Unary(op, a) => self.unary(node, op, a, code),
+            Op::Binary(op, a, b) => self.binary(node, op, a, b, code),
+            Op::Ternary(op, a, b, c) => self.ternary(node, op, a, b, c, code),
             Op::Select(condition, yes, no) => {
                 if self.plan.branches.contains(&node) {
                     self.branch(node, code);
@@ -358,142 +342,172 @@ impl<'a> Emitter<'a> {
                 }
                 let condition = self.operand(condition);
                 let (yes, no) = (self.operand(yes), self.operand(no));
-                Instruction::Select {
-                    bank: self.bank(node),
-                    dst: self.destination(node),
-                    condition,
-                    yes,
-                    no,
-                }
+                let bank = self.bank(node);
+                let dst = self.destination(node);
+                select(bank, dst, condition, yes, no, code);
             }
-            Op::Reduce(_) => {
-                self.reduce(node, code);
-                return;
-            }
+            Op::Reduce(_) => self.reduce(node, code),
             // A stencil emits its tap and its source.
-            Op::Tap { .. } => return,
+            Op::Tap { .. } => {}
             Op::Source => unreachable!("a stencil places its source"),
-            Op::ScanTap { .. } => {
-                self.scan(node, code);
-                return;
-            }
+            Op::ScanTap { .. } => self.scan(node, code),
             Op::Previous | Op::Scan { .. } => unreachable!("lowering turns scans into scan taps"),
             Op::Items(_) => unreachable!("array literals are folded into picks"),
-            Op::Pick { index, items } => {
-                let index = self.operand(index);
-                let sources: Vec<Slot> = items.iter().map(|&item| self.operand(item)).collect();
-                let items = Span {
-                    start: self.operands.len() as u16,
-                    len: sources.len() as u16,
-                };
-                if self.operands.len() + sources.len() > usize::from(u16::MAX) {
-                    self.fail(LowerError::Code);
-                }
-                self.operands.extend(sources);
-                Instruction::Pick {
-                    bank: self.bank(node),
-                    dst: self.destination(node),
-                    index,
-                    items,
-                }
-            }
-            Op::Sample { input, time, pixel } => {
-                let seconds = self.operand(time);
-                // Only reads of arbitrary pixels need the whole frame; the current
-                // pixel and its shifts run the input over the strip.
-                let frame_cache = self.frame_cache(input, time);
+            Op::Pick { index, items } => self.pick(node, index, &items, code),
+            Op::Sample { input, pixel } => {
                 let pixel = pixel.map(|index| self.operand(index));
-                Instruction::Sample {
+                code.push(Instruction::Sample {
                     dst: self.destination(node),
                     input: input as u16,
-                    seconds,
                     pixel,
-                    frame_cache,
-                }
+                });
             }
-        };
-        code.push(instruction);
-    }
-
-    /// The whole-frame cache of `input` at a query-uniform `time`.
-    fn frame_cache(&mut self, input: u32, time: Node) -> u16 {
-        let cached =
-            self.graph.constant_value(time).is_some() || self.plan.stage(time) == Stage::Query;
-        if !cached {
-            return NO_FRAME_CACHE;
         }
-        let next = &mut self.frame_cache_count;
-        *self.frame_caches.entry((input, time)).or_insert_with(|| {
-            *next += 1;
-            *next - 1
-        })
     }
 
-    fn unary(&mut self, node: Node, op: Unary, a: Node) -> Instruction {
+    /// One of `items` at a clamped index: the last, unless the index is
+    /// below an earlier one's successor.
+    fn pick(&mut self, node: Node, index: Node, items: &[Node], code: &mut Vec<Instruction>) {
+        let index = self.operand(index);
+        let sources: Vec<Slot> = items.iter().map(|&item| self.operand(item)).collect();
+        let (bank, row) = (self.bank(node), self.is_row(node));
+        let Some((&last, rest)) = sources.split_last() else {
+            unreachable!("checked picks have items")
+        };
+        let mut chosen = last;
+        for (at, &item) in rest.iter().enumerate().rev() {
+            let bound = self.constant(Constant {
+                value: Value::Int(at as i32 + 1),
+                ty: Type::Int,
+            });
+            let below = self.fresh(Bank::Bool, row);
+            code.push(Instruction::Compare {
+                op: CompareOp::Less,
+                bank: Bank::Int,
+                dst: below,
+                a: index,
+                b: bound,
+            });
+            let dst = if at == 0 {
+                self.destination(node)
+            } else {
+                self.fresh(bank, row)
+            };
+            select(bank, dst, below, item, chosen, code);
+            chosen = dst;
+        }
+        if rest.is_empty() {
+            self.values.insert(node, last);
+        }
+    }
+
+    fn unary(&mut self, node: Node, op: Unary, a: Node, code: &mut Vec<Instruction>) {
+        let color = self.graph.ty(a) == &Type::Color;
         let a = self.operand(a);
-        let float = |op| (op, a);
-        let float_op = match op {
-            Unary::Negate => Some(float(FloatUnary::Negate)),
-            Unary::Sin => Some(float(FloatUnary::Sin)),
-            Unary::Cos => Some(float(FloatUnary::Cos)),
-            Unary::Tan => Some(float(FloatUnary::Tan)),
-            Unary::Exp => Some(float(FloatUnary::Exp)),
-            Unary::Log => Some(float(FloatUnary::Log)),
-            Unary::Abs => Some(float(FloatUnary::Abs)),
-            Unary::Floor => Some(float(FloatUnary::Floor)),
-            Unary::Ceil => Some(float(FloatUnary::Ceil)),
-            Unary::Trunc => Some(float(FloatUnary::Trunc)),
-            Unary::Sqrt => Some(float(FloatUnary::Sqrt)),
-            Unary::Smoothstep => Some(float(FloatUnary::Smoothstep)),
-            Unary::Rand => Some(float(FloatUnary::Rand)),
+        // A channel is the color's own slot.
+        let channel = match op {
+            Unary::Red => Some(0),
+            Unary::Green => Some(1),
+            Unary::Blue => Some(2),
             _ => None,
         };
-        let dst = self.destination(node);
-        if let Some((op, a)) = float_op {
-            return Instruction::FloatUnary { op, dst, a };
+        if let Some(channel) = channel {
+            debug_assert!(color, "channels are of colors");
+            self.values.insert(node, a.channel(channel));
+            return;
         }
-        match op {
-            Unary::QuerySeconds | Unary::QueryProgress => Instruction::Clock {
-                progress: op == Unary::QueryProgress,
+        let float = |op| Some(op);
+        let float_op = match op {
+            Unary::Negate => float(FloatUnary::Negate),
+            Unary::Sin => float(FloatUnary::Sin),
+            Unary::Cos => float(FloatUnary::Cos),
+            Unary::Tan => float(FloatUnary::Tan),
+            Unary::Exp => float(FloatUnary::Exp),
+            Unary::Log => float(FloatUnary::Log),
+            Unary::Abs => float(FloatUnary::Abs),
+            Unary::Floor => float(FloatUnary::Floor),
+            Unary::Ceil => float(FloatUnary::Ceil),
+            Unary::Trunc => float(FloatUnary::Trunc),
+            Unary::Sqrt => float(FloatUnary::Sqrt),
+            Unary::Smoothstep => float(FloatUnary::Smoothstep),
+            Unary::Rand => float(FloatUnary::Rand),
+            _ => None,
+        };
+        if let Some(op) = float_op {
+            let dst = self.destination(node);
+            code.push(Instruction::FloatUnary { op, dst, a });
+            return;
+        }
+        if op == Unary::Invert {
+            let one = self.float_constant(1.0);
+            let dst = self.destination(node);
+            code.push(Instruction::FloatBinary {
+                op: FloatBinary::Subtract,
+                colors: Colors::NONE.with(1),
                 dst,
-                seconds: a,
+                a: one,
+                b: a,
+            });
+            return;
+        }
+        if op == Unary::Not {
+            let no = self.constant(Constant {
+                value: Value::Bool(false),
+                ty: Type::Bool,
+            });
+            let dst = self.destination(node);
+            code.push(Instruction::Compare {
+                op: CompareOp::Equal,
+                bank: Bank::Bool,
+                dst,
+                a,
+                b: no,
+            });
+            return;
+        }
+        let dst = self.destination(node);
+        code.push(match op {
+            Unary::IntNegate => Instruction::IntUnary {
+                op: IntUnary::Negate,
+                dst,
+                a,
             },
-            Unary::IntNegate => Instruction::IntNegate { dst, a },
-            Unary::Not => Instruction::Not { dst, a },
+            Unary::IntAbs => Instruction::IntUnary {
+                op: IntUnary::Abs,
+                dst,
+                a,
+            },
             Unary::IntToFloat => Instruction::IntToFloat { dst, a },
             Unary::FloatToInt => Instruction::FloatToInt { dst, a },
-            Unary::Hue
-            | Unary::Saturation
-            | Unary::Intensity
-            | Unary::Red
-            | Unary::Green
-            | Unary::Blue => Instruction::ColorComponent {
+            Unary::Hue | Unary::Saturation | Unary::Intensity => Instruction::ColorComponent {
                 op: match op {
                     Unary::Hue => ColorComponent::Hue,
                     Unary::Saturation => ColorComponent::Saturation,
-                    Unary::Red => ColorComponent::Red,
-                    Unary::Green => ColorComponent::Green,
-                    Unary::Blue => ColorComponent::Blue,
                     _ => ColorComponent::Intensity,
                 },
                 dst,
                 color: a,
             },
-            Unary::Invert => Instruction::Invert { dst, color: a },
-            Unary::Len => Instruction::Len { dst, array: a },
-            Unary::MarkCount => Instruction::Mark {
-                op: MarkOp::Count,
+            Unary::Len => Instruction::Length {
+                kind: Resource::Array,
                 dst,
-                marks: a,
-                operand: Slot::NONE,
+                resource: a,
             },
-            Unary::SectionCount => Instruction::SectionCount { dst, width: a },
-            Unary::SectionIndex => Instruction::SectionIndex { dst, width: a },
-            _ => unreachable!("float unaries are handled above"),
-        }
+            Unary::MarkCount => Instruction::Length {
+                kind: Resource::Marks,
+                dst,
+                resource: a,
+            },
+            Unary::SectionCount | Unary::SectionIndex => Instruction::Section {
+                index: op == Unary::SectionIndex,
+                dst,
+                width: a,
+            },
+            _ => unreachable!("other unaries are handled above"),
+        });
     }
 
-    fn binary(&mut self, node: Node, op: Binary, a: Node, b: Node) -> Instruction {
+    fn binary(&mut self, node: Node, op: Binary, a: Node, b: Node, code: &mut Vec<Instruction>) {
         use Binary::*;
         let graph = self.graph;
         if op == ColorScale && self.absorbed.contains(&a) {
@@ -506,28 +520,66 @@ impl<'a> Emitter<'a> {
                 self.operand(position),
                 self.operand(scale),
             );
-            return Instruction::GradientScaled {
+            code.push(Instruction::Gradient {
                 dst: self.destination(node),
                 gradient,
                 position,
                 scale,
-            };
+            });
+            return;
         }
-        let left_ty = graph.ty(a).clone();
+        if op == SectionPosition {
+            self.section_position(node, a, b, code);
+            return;
+        }
+        let left = Bank::for_type(graph.ty(a));
         let (a, b) = (self.operand(a), self.operand(b));
+        if matches!(op, Equal | NotEqual) && left == Bank::Color {
+            self.color_equal(node, op == NotEqual, a, b, code);
+            return;
+        }
         let dst = self.destination(node);
-        let float = |op| Instruction::FloatBinary { op, dst, a, b };
+        let float = |op| Instruction::FloatBinary {
+            op,
+            colors: Colors::NONE,
+            dst,
+            a,
+            b,
+        };
         let int = |op| Instruction::IntBinary { op, dst, a, b };
-        let float_compare = |op| Instruction::FloatCompare { op, dst, a, b };
-        let int_compare = |op| Instruction::IntCompare { op, dst, a, b };
-        let color = |op| Instruction::ColorBinary { op, dst, a, b };
+        let compare = |op, bank| Instruction::Compare {
+            op,
+            bank,
+            dst,
+            a,
+            b,
+        };
+        let curve = |op| Instruction::Curve {
+            op,
+            dst,
+            curve: a,
+            value: b,
+            before: Slot::NONE,
+        };
         let mark = |op| Instruction::Mark {
             op,
             dst,
             marks: a,
             operand: b,
         };
-        match op {
+        // Color arithmetic: a color, and a color or a float.
+        let color = |op, b_is_color: bool| Instruction::FloatBinary {
+            op,
+            colors: if b_is_color {
+                Colors::NONE.with(0).with(1)
+            } else {
+                Colors::NONE.with(0)
+            },
+            dst,
+            a,
+            b,
+        };
+        let instruction = match op {
             Add => float(FloatBinary::Add),
             Subtract => float(FloatBinary::Subtract),
             Multiply => float(FloatBinary::Multiply),
@@ -545,52 +597,38 @@ impl<'a> Emitter<'a> {
             IntFloorDivide => int(IntBinary::FloorDivide),
             IntMin => int(IntBinary::Min),
             IntMax => int(IntBinary::Max),
-            Less => float_compare(CompareOp::Less),
-            LessEqual => float_compare(CompareOp::LessEqual),
-            Greater => float_compare(CompareOp::Greater),
-            GreaterEqual => float_compare(CompareOp::GreaterEqual),
-            IntLess => int_compare(CompareOp::Less),
-            IntLessEqual => int_compare(CompareOp::LessEqual),
-            IntGreater => int_compare(CompareOp::Greater),
-            IntGreaterEqual => int_compare(CompareOp::GreaterEqual),
-            Equal | NotEqual => Instruction::Equal {
-                bank: Bank::for_type(&left_ty),
-                negate: op == NotEqual,
-                dst,
-                a,
-                b,
-            },
-            ColorAdd => color(ColorBinary::Add),
-            ColorMultiply => color(ColorBinary::Multiply),
-            ColorMax => color(ColorBinary::Max),
-            ColorScale => Instruction::ColorScale {
-                dst,
-                color: a,
-                scale: b,
-            },
-            CurveSample => Instruction::CurveSample {
-                dst,
-                curve: a,
-                position: b,
-            },
-            CurveIntegral => Instruction::CurveIntegral {
-                dst,
-                curve: a,
-                position: b,
-            },
-            GradientSample => Instruction::GradientSample {
+            Less => compare(CompareOp::Less, Bank::Float),
+            LessEqual => compare(CompareOp::LessEqual, Bank::Float),
+            Greater => compare(CompareOp::Greater, Bank::Float),
+            GreaterEqual => compare(CompareOp::GreaterEqual, Bank::Float),
+            IntLess => compare(CompareOp::Less, Bank::Int),
+            IntLessEqual => compare(CompareOp::LessEqual, Bank::Int),
+            IntGreater => compare(CompareOp::Greater, Bank::Int),
+            IntGreaterEqual => compare(CompareOp::GreaterEqual, Bank::Int),
+            Equal => compare(CompareOp::Equal, left),
+            NotEqual => compare(CompareOp::NotEqual, left),
+            ColorAdd => color(FloatBinary::Add, true),
+            ColorMultiply => color(FloatBinary::Multiply, true),
+            ColorMax => color(FloatBinary::Max, true),
+            ColorScale => color(FloatBinary::Multiply, false),
+            CurveSample => curve(CurveOp::Sample),
+            CurveIntegral => curve(CurveOp::Integral),
+            CurveFirstCrossing => curve(CurveOp::Crossing),
+            GradientSample => Instruction::Gradient {
                 dst,
                 gradient: a,
                 position: b,
+                scale: Slot::NONE,
             },
             Index => {
                 let ty = graph.ty(node).clone();
+                let bank = Bank::for_type(&ty);
                 let default = self.constant(Constant {
                     value: ty.default_value(),
                     ty,
                 });
                 Instruction::Index {
-                    bank: self.bank(node),
+                    bank,
                     dst,
                     array: a,
                     index: b,
@@ -600,26 +638,127 @@ impl<'a> Emitter<'a> {
             MarkAt => mark(MarkOp::At),
             MarkLast => mark(MarkOp::Last),
             MarkLastIndex => mark(MarkOp::LastIndex),
-            CurveFirstCrossing => Instruction::CurveCrossing {
-                dst,
-                curve: a,
-                value: b,
-                before: Slot::NONE,
-            },
-            SectionPosition => Instruction::SectionPosition {
-                dst,
-                width: a,
-                inverse: b,
-            },
-            Power => Instruction::Power {
-                dst,
-                base: a,
-                count: b,
-            },
+            // A float multiplied by itself an int number of times.
+            Power => {
+                let exponent = self.fresh(Bank::Float, !b.is_scalar());
+                code.push(Instruction::IntToFloat {
+                    dst: exponent,
+                    a: b,
+                });
+                Instruction::FloatBinary {
+                    op: FloatBinary::Power,
+                    colors: Colors::NONE,
+                    dst,
+                    a,
+                    b: exponent,
+                }
+            }
+            SectionPosition => unreachable!("lowered above"),
+        };
+        code.push(instruction);
+    }
+
+    /// Bool: whether two colors are equal in every channel, or with `negate`
+    /// differ in one.
+    fn color_equal(
+        &mut self,
+        node: Node,
+        negate: bool,
+        a: Slot,
+        b: Slot,
+        code: &mut Vec<Instruction>,
+    ) {
+        let row = self.is_row(node);
+        let op = if negate {
+            CompareOp::NotEqual
+        } else {
+            CompareOp::Equal
+        };
+        // Equal: each channel equal, else false; not equal: any differs.
+        let decided = self.constant(Constant {
+            value: Value::Bool(negate),
+            ty: Type::Bool,
+        });
+        let mut combined: Option<Slot> = None;
+        for channel in 0..3 {
+            let compared = self.fresh(Bank::Bool, row);
+            code.push(Instruction::Compare {
+                op,
+                bank: Bank::Float,
+                dst: compared,
+                a: a.channel(channel),
+                b: b.channel(channel),
+            });
+            combined = Some(match combined {
+                None => compared,
+                Some(previous) => {
+                    let joined = if channel == 2 {
+                        self.destination(node)
+                    } else {
+                        self.fresh(Bank::Bool, row)
+                    };
+                    let (yes, no) = if negate {
+                        (decided, compared)
+                    } else {
+                        (compared, decided)
+                    };
+                    code.push(Instruction::Select {
+                        bank: Bank::Bool,
+                        dst: joined,
+                        condition: previous,
+                        yes,
+                        no,
+                    });
+                    joined
+                }
+            });
         }
     }
 
-    fn ternary(&mut self, node: Node, op: Ternary, a: Node, b: Node, c: Node) -> Instruction {
+    /// The position within the pixel's section, from a float width and its
+    /// reciprocal: `(i - floor(i * inverse) * width) * inverse`.
+    fn section_position(
+        &mut self,
+        node: Node,
+        width: Node,
+        inverse: Node,
+        code: &mut Vec<Instruction>,
+    ) {
+        let (width, inverse) = (self.operand(width), self.operand(inverse));
+        let mut row = || self.fresh(Bank::Float, true);
+        let (index, scaled, floored, start, within) = (row(), row(), row(), row(), row());
+        let binary = |op, dst, a, b| Instruction::FloatBinary {
+            op,
+            colors: Colors::NONE,
+            dst,
+            a,
+            b,
+        };
+        code.push(Instruction::IntToFloat {
+            dst: index,
+            a: Slot::input(Input::PixelIndex),
+        });
+        code.push(binary(FloatBinary::Multiply, scaled, index, inverse));
+        code.push(Instruction::FloatUnary {
+            op: FloatUnary::Floor,
+            dst: floored,
+            a: scaled,
+        });
+        code.push(binary(FloatBinary::Multiply, start, floored, width));
+        code.push(binary(FloatBinary::Subtract, within, index, start));
+        let dst = self.destination(node);
+        code.push(binary(FloatBinary::Multiply, dst, within, inverse));
+    }
+
+    fn ternary(
+        &mut self,
+        node: Node,
+        op: Ternary,
+        a: Node,
+        b: Node,
+        c: Node,
+        code: &mut Vec<Instruction>,
+    ) {
         let graph = self.graph;
         if op == Ternary::Hsv && self.absorbed.contains(&b) {
             let color = recolored(graph, b, c).unwrap_or_else(|| unreachable!("absorbed recolor"));
@@ -628,66 +767,59 @@ impl<'a> Emitter<'a> {
                 _ => (a, false),
             };
             let (color, hue) = (self.operand(color), self.operand(hue));
-            return Instruction::Recolor {
+            code.push(Instruction::Recolor {
                 shift,
                 dst: self.destination(node),
                 color,
                 hue,
-            };
-        }
-        if op == Ternary::Clamp && self.absorbed.contains(&a) {
-            let Op::Binary(Binary::CurveSample, curve, position) = *graph.op(a) else {
-                unreachable!("an absorbed clamp operand is a curve sample")
-            };
-            let (curve, position) = (self.operand(curve), self.operand(position));
-            let (min, max) = (self.operand(b), self.operand(c));
-            return Instruction::CurveClamped {
-                dst: self.destination(node),
-                curve,
-                position,
-                min,
-                max,
-            };
+            });
+            return;
         }
         let (a, b, c) = (self.operand(a), self.operand(b), self.operand(c));
         let dst = self.destination(node);
         match op {
-            Ternary::Clamp => Instruction::Clamp {
+            Ternary::Clamp => code.push(Instruction::Clamp {
                 dst,
                 value: a,
                 min: b,
                 max: c,
-            },
-            Ternary::Mix => Instruction::Mix {
+            }),
+            Ternary::Mix => code.push(Instruction::Mix {
+                colors: Colors::NONE,
                 dst,
                 a,
                 b,
                 amount: c,
-            },
-            Ternary::MixColor => Instruction::MixColor {
+            }),
+            Ternary::MixColor => code.push(Instruction::Mix {
+                colors: Colors::NONE.with(0).with(1),
                 dst,
                 a,
                 b,
                 amount: c,
-            },
-            Ternary::Rgb => Instruction::Rgb {
-                dst,
-                red: a,
-                green: b,
-                blue: c,
-            },
-            Ternary::Hsv => Instruction::Hsv {
+            }),
+            Ternary::Rgb => {
+                for (channel, src) in [a, b, c].into_iter().enumerate() {
+                    code.push(Instruction::Move {
+                        bank: Bank::Float,
+                        dst: dst.channel(channel as u16),
+                        src,
+                    });
+                }
+            }
+            Ternary::Hsv => code.push(Instruction::Hsv {
                 dst,
                 hue: a,
                 saturation: b,
                 value: c,
-            },
-            Ternary::CurveLastCrossing => Instruction::CurveCrossing {
+            }),
+            Ternary::CurveLastCrossing => code.push(Instruction::Curve {
+                op: CurveOp::LastCrossing,
                 dst,
                 curve: a,
                 value: b,
                 before: c,
-            },
+            }),
         }
     }
 
@@ -695,11 +827,7 @@ impl<'a> Emitter<'a> {
     fn assign(&mut self, result: Slot, value: Node, code: &mut Vec<Instruction>) {
         let src = self.operand(value);
         if src != result {
-            code.push(Instruction::Move {
-                bank: self.bank(value),
-                dst: result,
-                src,
-            });
+            copy(self.bank(value), result, src, code);
         }
     }
 
@@ -710,7 +838,10 @@ impl<'a> Emitter<'a> {
             && !is_leaf(self.graph, value)
             && !matches!(
                 self.graph.op(value),
-                Op::Reduce(_) | Op::LoopIndex(_) | Op::Context(_)
+                Op::Reduce(_)
+                    | Op::LoopIndex(_)
+                    | Op::Context(_)
+                    | Op::Unary(Unary::Red | Unary::Green | Unary::Blue, _)
             )
             && self.is_row(value) == !result.is_scalar()
         {
@@ -719,7 +850,7 @@ impl<'a> Emitter<'a> {
     }
 
     fn length(&mut self, code: &[Instruction]) -> u16 {
-        u16::try_from(code.len()).unwrap_or_else(|_| {
+        u16::try_from(words(code)).unwrap_or_else(|_| {
             self.fail(LowerError::Code);
             0
         })
@@ -784,17 +915,14 @@ impl<'a> Emitter<'a> {
                 self.constant(Constant { value, ty })
             }
         };
-        code.push(Instruction::Move {
-            bank,
-            dst: acc,
-            src: initial,
-        });
+        copy(bank, acc, initial, code);
         let (start, end) = (self.operand(data.start), self.operand(data.end));
         let index = self.fresh(Bank::Int, self.is_row(data.index));
         self.values.insert(data.index, index);
         let opened = u16::from(!acc.is_scalar());
         self.open(opened);
         let mut loop_code = Vec::new();
+        self.lookups(node, index, None, &mut loop_code);
         self.region(children[0], &mut loop_code);
         let filter = match data.filter {
             Some(filter) => self.operand(filter),
@@ -841,7 +969,6 @@ impl<'a> Emitter<'a> {
         let data = graph.loop_(id).clone();
         let Op::Tap {
             input,
-            time,
             edges,
             weight,
             scale,
@@ -857,23 +984,26 @@ impl<'a> Emitter<'a> {
             value: Value::Color(Color::BLACK),
             ty: Type::Color,
         });
-        code.push(Instruction::Move {
-            bank: Bank::Color,
-            dst: acc,
-            src: black,
-        });
+        copy(Bank::Color, acc, black, code);
         let (start, end) = (self.operand(data.start), self.operand(data.end));
-        let one = self.constant(Constant {
-            value: Value::Float(1.0),
-            ty: Type::Float,
-        });
+        let one = self.float_constant(1.0);
         let pixel = pixel.map_or(one, |pixel| self.operand(pixel));
         let index = self.fresh(Bank::Int, false);
         self.values.insert(data.index, index);
-        let (mut source, weight) = self.source_block(input, time, weight, one);
+        let (mut source, weight) = self.source_block(input, weight, one);
+        // A tabulated scale is read by offset from its table.
+        let table =
+            scale.and_then(|scale| self.tables.get(&scale).map(|&(table, _)| (scale, table)));
+        let skip = table
+            .filter(|&(scale, _)| self.plan.uses(scale) == 1)
+            .map(|(scale, _)| scale);
         let mut taps = Vec::new();
+        self.lookups(node, index, skip, &mut taps);
         self.region(children[0], &mut taps);
-        let scale = scale.map_or(one, |scale| self.operand(scale));
+        let scale = match table {
+            Some((_, table)) => table,
+            None => scale.map_or(one, |scale| self.operand(scale)),
+        };
         let (source_len, tap_len) = (self.length(&source), self.length(&taps));
         code.push(Instruction::Stencil {
             reducer: match data.reducer {
@@ -900,7 +1030,6 @@ impl<'a> Emitter<'a> {
     fn source_block(
         &mut self,
         input: u32,
-        time: Node,
         weight: Option<Node>,
         one: Slot,
     ) -> (Vec<Instruction>, Slot) {
@@ -908,9 +1037,7 @@ impl<'a> Emitter<'a> {
         let mut source = vec![Instruction::Sample {
             dst: sample,
             input: input as u16,
-            seconds: self.operand(time),
             pixel: SignalPixel::Current,
-            frame_cache: self.frame_cache(input, time),
         }];
         let Some(weight) = weight else {
             return (source, one);
@@ -937,21 +1064,20 @@ impl<'a> Emitter<'a> {
         let Op::ScanTap {
             direction,
             input,
-            time,
             decay,
             weight,
         } = *self.graph.op(node)
         else {
             unreachable!("scans are scan taps")
         };
-        let one = self.constant(Constant {
-            value: Value::Float(1.0),
-            ty: Type::Float,
-        });
+        let one = self.float_constant(1.0);
         let decay = self.operand(decay);
-        let (mut source, weight) = self.source_block(input, time, weight, one);
-        let cache = self.frame_cache_count;
-        self.frame_cache_count += 1;
+        let (mut source, weight) = self.source_block(input, weight, one);
+        let cache = u8::try_from(self.scan_count).unwrap_or_else(|_| {
+            self.fail(LowerError::Code);
+            0
+        });
+        self.scan_count += 1;
         let source_len = self.length(&source);
         let dst = self.destination(node);
         code.push(Instruction::Scan {
@@ -963,6 +1089,78 @@ impl<'a> Emitter<'a> {
             source_len,
         });
         code.append(&mut source);
+    }
+
+    /// The tables `stage` fills, at the end of its block: for each output, a
+    /// `Tabulate` and the code computing it from the reduction's index.
+    fn tables(&mut self, stage: Stage, code: &mut Vec<Instruction>) {
+        for table in self.plan.tables.clone() {
+            if table.stage != stage {
+                continue;
+            }
+            let Op::Reduce(id) = *self.graph.op(table.reduction) else {
+                unreachable!("tables are of reductions")
+            };
+            let data = self.graph.loop_(id).clone();
+            let (start, end) = (self.operand(data.start), self.operand(data.end));
+            for (output, cone) in &table.outputs {
+                let index = self.fresh(Bank::Int, false);
+                self.values.insert(data.index, index);
+                let mut body = Vec::new();
+                for &node in cone {
+                    if !self.absorbed.contains(&node) {
+                        self.node(node, &mut body);
+                    }
+                }
+                let value = self.operand(*output);
+                for node in cone.iter().chain([&data.index]) {
+                    self.values.remove(node);
+                }
+                let bank = self.bank(*output);
+                let dst = self.fresh(bank, true);
+                let len = u8::try_from(words(&body)).unwrap_or_else(|_| {
+                    self.fail(LowerError::Code);
+                    0
+                });
+                code.push(Instruction::Tabulate {
+                    bank,
+                    dst,
+                    index,
+                    start,
+                    end,
+                    value,
+                    len,
+                });
+                code.append(&mut body);
+                self.tables.insert(*output, (dst, start));
+            }
+        }
+    }
+
+    /// Read `reduction`'s table outputs at `index`, but `skip`.
+    fn lookups(
+        &mut self,
+        reduction: Node,
+        index: Slot,
+        skip: Option<Node>,
+        code: &mut Vec<Instruction>,
+    ) {
+        for output in self.plan.table_outputs(reduction) {
+            if Some(output) == skip {
+                continue;
+            }
+            let (table, start) = self.tables[&output];
+            let bank = self.bank(output);
+            let dst = self.fresh(bank, !index.is_scalar());
+            code.push(Instruction::Lookup {
+                bank,
+                dst,
+                table,
+                index,
+                start,
+            });
+            self.values.insert(output, dst);
+        }
     }
 
     /// The source-stage nodes `weight` is computed from, operands first.
@@ -988,9 +1186,9 @@ impl<'a> Emitter<'a> {
     ) -> Result<BytecodeProgram, LowerError> {
         let mut code = core::mem::take(&mut self.head);
         code.extend(query);
-        let query_end = code.len();
+        let query_end = words(&code);
         code.extend(target);
-        let target_end = code.len();
+        let target_end = words(&code);
         code.extend(body);
         if let Some(error) = self.error {
             return Err(error);
@@ -998,50 +1196,73 @@ impl<'a> Emitter<'a> {
         let (Ok(query_end), Ok(target_end), Ok(_)) = (
             u16::try_from(query_end),
             u16::try_from(target_end),
-            u16::try_from(code.len()),
+            u16::try_from(words(&code)),
         ) else {
             return Err(LowerError::Code);
         };
         let params = self.param_types().into();
-        let mut operands = self.operands;
         let (scalars, rows) = slots::allocate(
             &mut code,
-            &mut operands,
             &mut result,
-            usize::from(target_end),
+            [usize::from(query_end), usize::from(target_end)],
         );
+        if !fits(scalars, Slot::SCALARS) || !fits(rows, Slot::ROWS) {
+            return Err(LowerError::Slots);
+        }
         if rows.row_bytes() > MAX_ROW_BYTES {
             return Err(LowerError::Rows(rows.row_bytes()));
         }
         if self.deepest > MAX_DEPTH {
             return Err(LowerError::Depth(self.deepest));
         }
+        let mut words = Vec::with_capacity(code.len());
+        for instruction in &code {
+            InstructionWord::encode(instruction, &mut words);
+        }
         Ok(BytecodeProgram {
             params,
-            code: code.into(),
+            code: words.into(),
             query_end,
             target_end,
             result,
             scalars,
             rows,
             depth: self.deepest,
-            curves: self.curves.into(),
-            gradients: self.gradients.into(),
-            marks: self.marks.into(),
-            arrays: self.arrays.into(),
+            resources: self.resources.into(),
             enums: self.enums.into(),
-            operands: operands.into(),
-            frame_caches: self.frame_cache_count,
+            scans: self.scan_count,
         })
     }
 }
 
-fn resource(dst: Slot, kind: Resource, pool_len: usize) -> Instruction {
-    Instruction::ResourceConst {
+/// Whether every bank's count is below `limit`.
+fn fits(banks: Banks, limit: u16) -> bool {
+    [banks.floats, banks.ints, banks.bools, banks.resources]
+        .iter()
+        .all(|&count| count <= limit)
+}
+
+/// `dst = src` of `bank`.
+fn copy(bank: Bank, dst: Slot, src: Slot, code: &mut Vec<Instruction>) {
+    code.push(Instruction::Move { bank, dst, src });
+}
+
+/// A choice of `bank`.
+fn select(
+    bank: Bank,
+    dst: Slot,
+    condition: Slot,
+    yes: Slot,
+    no: Slot,
+    code: &mut Vec<Instruction>,
+) {
+    code.push(Instruction::Select {
+        bank,
         dst,
-        kind,
-        index: (pool_len - 1) as u16,
-    }
+        condition,
+        yes,
+        no,
+    });
 }
 
 fn pixel_input(context: Context) -> Option<Input> {
@@ -1060,6 +1281,7 @@ fn context_read(context: Context) -> ContextRead {
         Context::Progress => ContextRead::Progress,
         Context::Duration => ContextRead::Duration,
         Context::FrameRate => ContextRead::FrameRate,
+        Context::FramesElapsed => ContextRead::FramesElapsed,
         Context::TargetCount => ContextRead::PixelCount,
         Context::TargetMinX => ContextRead::TargetMinX,
         Context::TargetMinY => ContextRead::TargetMinY,

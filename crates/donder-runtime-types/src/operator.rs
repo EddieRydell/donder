@@ -1,5 +1,5 @@
 //! Admitted operator programs, which also sample their input signals.
-use crate::bytecode::{BytecodeProgram, ProgramContext};
+use crate::bytecode::BytecodeProgram;
 use crate::{BindingError, BoundParams, Type, Value};
 use alloc::vec::Vec;
 
@@ -10,24 +10,18 @@ pub struct OperatorProgram {
     uses_spatial_context: bool,
     uses_sections: bool,
     reads_target: bool,
-    uses_progress: bool,
 }
 
 impl OperatorProgram {
-    /// A well-formed operator program over `inputs` signals and its declared
-    /// parameters.
-    pub fn admit(bytecode: BytecodeProgram, inputs: usize) -> Option<Self> {
-        if !bytecode.is_well_formed(ProgramContext::Operator { inputs }) {
-            return None;
-        }
-        Some(Self {
+    /// An operator program over `inputs` signals and its declared parameters.
+    pub fn new(bytecode: BytecodeProgram, inputs: usize) -> Self {
+        Self {
             uses_spatial_context: bytecode.uses_spatial_context(),
             uses_sections: bytecode.uses_sections(),
             reads_target: bytecode.reads_target(),
-            uses_progress: bytecode.uses_progress(),
             bytecode,
             inputs,
-        })
+        }
     }
 
     pub fn bytecode(&self) -> &BytecodeProgram {
@@ -57,10 +51,6 @@ impl OperatorProgram {
     /// Strips must not mix target pixel counts or bounds.
     pub fn reads_target(&self) -> bool {
         self.reads_target
-    }
-
-    pub fn uses_progress(&self) -> bool {
-        self.uses_progress
     }
 
     pub fn into_bytecode(self) -> BytecodeProgram {

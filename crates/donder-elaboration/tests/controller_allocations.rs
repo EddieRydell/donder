@@ -5,9 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
-use donder_model::AutomationTarget;
 use donder_project_io::load_project;
-use donder_runtime_types::Identifier;
 use donder_runtime_types::sample_time_from_frame;
 
 struct CountingAllocator;
@@ -86,7 +84,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         )
         .unwrap();
         let encoded = selected.encode();
-        selected = donder_runtime::PreparedSequence::decode(&encoded, Default::default()).unwrap();
+        selected = donder_runtime::PreparedSequence::decode(&encoded).unwrap();
         assert_prepared_sampling_does_not_allocate(selected.clone(), &frames, "selected output");
         let measure = |accepted: PreparedSequence| {
             let before = LIVE_BYTES.load(Ordering::Relaxed);
@@ -113,57 +111,18 @@ fn prepared_controller_sampling_does_not_allocate() {
         .find(|id| id.0.root_source().object() == "layer_test")
         .expect("starter project should include layer_test")
         .clone();
-    let mut sequence = project
-        .sequence(&sequence_id)
-        .expect("layer_test should resolve")
-        .clone();
-    sequence.automation_clips[0].bindings[0].target = AutomationTarget::EffectParam {
-        effect_id: sequence.effects[0].id.clone(),
-        param: Identifier::new("pulse_overlap".to_string()).expect("static identifier is valid"),
-    };
-    project.replace_sequence(&sequence_id, sequence).unwrap();
-    let output = prepare(&project, &sequence_id, PrepareOutputs::All)
-        .expect("automated DSL output should prepare");
-    assert_prepared_sampling_does_not_allocate(output, &[7150, 7151, 7152], "automated DSL effect");
-    for query in [
-        "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
-        "source.at(time + offset_seconds, pixel.index + 3)",
-    ] {
-        let compiled = donder_language::compiler::compile_operators(&format!(
-            "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
-        )).unwrap().remove(0);
-        let definition_id = project
-            .definitions()
-            .operators
-            .definitions
-            .iter()
-            .find(|(_, definition)| definition.declaration_name == "TimeWarp")
-            .unwrap()
-            .0
-            .clone();
-        let definition = donder_model::custom_operator_definition(definition_id.clone(), compiled);
-        project
-            .apply_edits([donder_model::ProjectEdit::SetOperatorDefinition {
-                id: definition_id,
-                value: definition,
-            }])
-            .unwrap();
-        let output = prepare(&project, &sequence_id, PrepareOutputs::All).unwrap();
-        assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 7152, 0], query);
-    }
-
-    // Exercise the project-owned bounded Echo loop through the same prepared
-    // controller path, including temporal queries and backward seeks.
-    let echo = donder_language::compiler::compile_operators(include_str!(
+    // A stateful operator through the same prepared controller path,
+    // including seeks backward.
+    let afterglow = donder_language::compiler::compile_operators(include_str!(
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
     .into_iter()
-    .find(|operator| operator.name().as_str() == "Echo")
+    .find(|operator| operator.name().as_str() == "Afterglow")
     .unwrap();
-    support::append_operator(&mut project, &sequence_id, echo);
+    support::append_operator(&mut project, &sequence_id, afterglow);
     let output = prepare(&project, &sequence_id, PrepareOutputs::All).unwrap();
-    assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 0], "DSL Echo");
+    assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 0], "Afterglow");
 }
 
 fn assert_prepared_sampling_does_not_allocate(

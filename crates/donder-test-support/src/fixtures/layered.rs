@@ -1,5 +1,5 @@
 //! Mixed playback workload: four independently evaluated layers, followed by
-//! hue adjustment, a two-repeat temporal echo, and output dimming.
+//! hue adjustment, an afterglow, and output dimming.
 use donder_language::compiler::{ProgramConstants, compile_operators};
 use donder_runtime::PreparedSequence;
 use donder_runtime_types::Value;
@@ -20,14 +20,7 @@ pub fn layered_600() -> PreparedSequence {
     .unwrap();
     let operators = [
         ("HueShift", vec![("shift", Value::Float(0.13))]),
-        (
-            "Echo",
-            vec![
-                ("seconds", Value::Float(0.075)),
-                ("repeats", Value::Int(2)),
-                ("decay", Value::Float(0.5)),
-            ],
-        ),
+        ("Afterglow", vec![("seconds", Value::Float(0.075))]),
         ("Dim", vec![("amount", Value::Float(0.8))]),
     ]
     .map(|(name, values)| {

@@ -380,6 +380,11 @@ impl Instance {
         self.0.constant_color()
     }
 
+    /// Whether this instance without inputs is black at every frame.
+    pub fn stays_black(&self) -> bool {
+        self.0.stays_black()
+    }
+
     /// Replace an input that is black everywhere; later inputs shift down.
     pub fn with_black_input(&self, input: usize) -> Self {
         Self(
@@ -417,8 +422,7 @@ impl Instance {
             .0
             .lower()
             .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"));
-        let program = SampleProgram::admit(lowered.bytecode)
-            .unwrap_or_else(|| unreachable!("lowering emits admissible effect programs"));
+        let program = SampleProgram::new(lowered.bytecode);
         let invocation = SampleInvocation::bind(program, lowered.values)
             .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
             .unwrap_or_else(|_| unreachable!("lowered values match their program"));
@@ -431,8 +435,7 @@ impl Instance {
             .0
             .lower()
             .unwrap_or_else(|error| unreachable!("fused operators fit their banks: {error:?}"));
-        let program = OperatorProgram::admit(lowered.bytecode, inputs)
-            .unwrap_or_else(|| unreachable!("lowering emits admissible operator programs"));
+        let program = OperatorProgram::new(lowered.bytecode, inputs);
         OperatorInvocation::bind(program, lowered.values)
             .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
             .unwrap_or_else(|_| unreachable!("lowered values match their program"))

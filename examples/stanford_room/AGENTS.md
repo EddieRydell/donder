@@ -22,7 +22,7 @@ with the show, tell the author.
 - `effects/*.donder` and `operators/*.donder` are scripts: the effects clips play
   (`Pulse`, `Gradient`, `Chase`, `Wipe`, `Spin`, the mark-driven `MarkPulse`,
   `MarkChase`, `MarkWipe`, `ImpactBurst`, `MarkImpactBurst`) and the operators
-  the graph uses (`HueShift`, `HueMap`, `Dim`, `Blur`, `Delay`, `Echo`,
+  the graph uses (`HueShift`, `HueMap`, `Dim`, `Blur`, `Afterglow`,
   `FreezeFrame` and others). Read a definition's parameters before using it.
 - `setups/main.data.donder` and `patches/main.data.donder` wire the strips to the
   controller. Leave them alone unless the author is changing hardware.

@@ -15,20 +15,14 @@ use crate::show::Show;
 pub(crate) struct CurveView<'a> {
     pub(crate) points: &'a [CurvePoint],
     pub(crate) areas: &'a [f32],
+    pub(crate) slopes: &'a [f32],
     pub(crate) kind: u32,
     pub(crate) crossings: &'a [CrossingSegment],
 }
 
 impl<'a> CurveView<'a> {
-    pub(crate) const EMPTY: CurveView<'static> = CurveView {
-        points: &[],
-        areas: &[],
-        kind: CROSSINGS_INCREASING,
-        crossings: &[],
-    };
-
     pub(crate) fn sample(self, position: f32) -> f32 {
-        sampling::sample_curve_points(self.points, position)
+        sampling::sample_curve_sloped(self.points, |index| self.slopes[index], position)
     }
 
     pub(crate) fn integral(self, position: f32) -> f32 {
@@ -44,11 +38,7 @@ impl<'a> CurveView<'a> {
     pub(crate) fn crossing(self, value: f32) -> f32 {
         let fallback = f32::NAN;
         let crossing = |segment: &CrossingSegment| {
-            if !(segment.max_value - segment.min_value).is_finite() {
-                // Extreme finite endpoints need a wider intermediate difference;
-                // their stored f32 slope cannot represent the inverse accurately.
-                Some(sampling::curve_crossing(self.points, value, fallback))
-            } else if value >= segment.min_value && value <= segment.max_value {
+            if value >= segment.min_value && value <= segment.max_value {
                 Some(segment.position_bias + value * segment.position_scale)
             } else {
                 None
@@ -88,7 +78,7 @@ pub(crate) fn curve_crossings(
         increasing &= start.value <= end.value;
         decreasing &= start.value >= end.value;
         let span = end.value - start.value;
-        let position_scale = if span.abs() <= 1e-9 {
+        let position_scale = if span == 0.0 {
             0.0
         } else {
             (end.position - start.position) / span
@@ -175,7 +165,7 @@ pub(crate) struct LiveView<'a> {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum ResourceList<'a> {
+pub(crate) enum ResourceList<'a> {
     Image(&'a [ResourceRef]),
     Slots(&'a [ResourceSlot]),
 }
@@ -184,12 +174,13 @@ enum ResourceList<'a> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ParamsView<'a> {
     pub(crate) words: &'a [u32],
-    resources: ResourceList<'a>,
-    windows: &'a [WindowState],
-    points: &'a [CurvePoint],
-    areas: &'a [f32],
-    crossings: &'a [CrossingSegment],
-    live: LiveView<'a>,
+    pub(crate) resources: ResourceList<'a>,
+    pub(crate) windows: &'a [WindowState],
+    pub(crate) points: &'a [CurvePoint],
+    pub(crate) areas: &'a [f32],
+    pub(crate) slopes: &'a [f32],
+    pub(crate) crossings: &'a [CrossingSegment],
+    pub(crate) live: LiveView<'a>,
 }
 
 impl<'a> ParamsView<'a> {
@@ -203,45 +194,18 @@ impl<'a> ParamsView<'a> {
             windows: &[],
             points: &[],
             areas: &[],
+            slopes: &[],
             crossings: &[],
             live: LiveView::default(),
         }
     }
 
-    /// A workspace copy: its words, resources and curve windows.
-    pub(crate) fn copy(
-        words: &'a [u32],
-        resources: &'a [ResourceSlot],
-        windows: &'a [WindowState],
-        points: &'a [CurvePoint],
-        areas: &'a [f32],
-        crossings: &'a [CrossingSegment],
-        live: LiveView<'a>,
-    ) -> Self {
-        Self {
-            words,
-            resources: ResourceList::Slots(resources),
-            windows,
-            points,
-            areas,
-            crossings,
-            live,
-        }
-    }
-
-    fn slot(&self, bank: u16) -> Option<ResourceSlot> {
+    /// Resource parameter `bank`.
+    pub(crate) fn resource(&self, bank: u16) -> ResourceSlot {
         match self.resources {
-            ResourceList::Image(resources) => resources
-                .get(usize::from(bank))
-                .copied()
-                .map(ResourceSlot::image),
-            ResourceList::Slots(slots) => slots.get(usize::from(bank)).copied(),
+            ResourceList::Image(resources) => ResourceSlot::image(resources[usize::from(bank)]),
+            ResourceList::Slots(slots) => slots[usize::from(bank)],
         }
-    }
-
-    /// Resource parameter `bank`, if it holds a resource of `kind`.
-    pub(crate) fn resource(&self, bank: u16, kind: u32) -> Option<ResourceSlot> {
-        self.slot(bank).filter(|slot| slot.kind == kind)
     }
 
     // Once per resource instruction, so it stays in flash.
@@ -253,6 +217,7 @@ impl<'a> ParamsView<'a> {
             return CurveView {
                 points: &self.points[range.clone()],
                 areas: &self.areas[range.clone()],
+                slopes: &self.slopes[range.clone()],
                 kind: window.kind,
                 crossings: &self.crossings[range],
             };
@@ -263,12 +228,7 @@ impl<'a> ParamsView<'a> {
     #[inline(never)]
     pub(crate) fn marks(&self, show: Show<'a>, slot: ResourceSlot) -> MarkWindow<'a> {
         if slot.source == SOURCE_LIVE {
-            let Some(track) = self.live.tracks.get(slot.index as usize) else {
-                return MarkWindow {
-                    ticks: &[],
-                    origin: slot.origin,
-                };
-            };
+            let track = self.live.tracks[slot.index as usize];
             let ticks = &self.live.ticks[track.start as usize..(track.start + track.len) as usize];
             let first = ticks.partition_point(|&mark| mark < slot.origin);
             return MarkWindow {
@@ -288,6 +248,7 @@ impl<'a> Show<'a> {
         CurveView {
             points: curve.points.get(s.curve_points),
             areas: curve.areas.get(s.curve_areas),
+            slopes: curve.slopes.get(s.curve_slopes),
             kind: curve.crossings_kind,
             crossings: curve.crossings.get(s.crossings),
         }

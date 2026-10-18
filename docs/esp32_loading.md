@@ -51,8 +51,8 @@ in LittleFS. Archives use two 128 KiB slots in a separate
 256 KiB partition. An upload:
 1. blacks out output and releases the current show;
 2. streams the archive to the inactive slot;
-3. validates and decodes it directly from memory-mapped flash;
-4. commits the slot only after admission succeeds.
+3. opens it directly from memory-mapped flash;
+4. commits the slot only after the show loads.
 
 A failed or interrupted upload leaves no show loaded, but the previous committed
 show stays saved. Reboot restores the newest committed slot, stopped. A saved
@@ -60,24 +60,28 @@ show that the current firmware rejects is left in place and the controller boots
 without one; the editor uploads a current show on its next Play.
 Concurrent uploads are rejected, and an explicit erase clears both partitions.
 
-The loader plays the show from its flash slot, through the mapped DROM window;
-only the playback buffer is allocated. Admission checks the header, version and
-CRC, the section table, every cross-reference between records, and these
-limits:
-- 96 KiB of image;
-- 1,600 pixels;
-- 128 graph nodes;
-- 96 KiB of playback buffer, and no more than the free heap minus 10 KiB for
-  the network. The buffer's size is exact, from the show's layout. Wi-Fi keeps
-  four static receive buffers to leave heap for shows.
+The loader reads the show's prepared sequence from its flash slot into RAM
+and plays it there, beside its playback buffer: reading it through the flash
+cache cost Stanford `main` about a quarter of each frame. The playback stays
+open while the show plays. The prepared sequence is trusted: the editor built
+it, so the loader checks only its format version. It rejects a show
+- of another format version;
+- whose prepared sequence and playback buffer together would leave less than
+  10 KiB of heap for the network (the buffer's size is exact, from the show's
+  layout; Wi-Fi keeps four static receive buffers to leave heap for shows), or
+  whose playback buffer exceeds 64 KiB;
+- with more outputs, wider outputs or a higher frame rate than the board drives.
 
-It also admits every program as the compiler does: slot ranges and kinds per
-bank, nesting, row and selection limits, constants, parameter types, signal
-reads within an operator's inputs and frame caches. It checks prepared
-automation mappings too. Playback allocates nothing after admission: each strip
-workspace is sized by the programs it runs.
+`GET /capabilities` reports the controller's limits (64 KiB of prepared
+sequence, 1,600 pixels, 128 graph nodes, 64 KiB of playback buffer); about
+75 KiB of heap is free for a show's prepared sequence and playback buffer
+together. The editor checks the size against it before it uploads.
 
-A show that fails admission is answered with HTTP 422 and the reason. The
+A panic restarts the controller. Its message survives the restart in RTC
+memory and `GET /panic` returns it (`none` when there was none); on a
+Dig-Quad, whose UART pins drive LEDs, that is the only place it shows. Playback allocates nothing after the show loads.
+
+A rejected show is answered with HTTP 422 and the reason. The
 editor does not send that show to the controller again until the show changes
 or the controller reconnects.
 
@@ -140,7 +144,9 @@ Clock synchronization:
   acknowledgment with at least 40 ms to spare. A failed setup cancels every
   command that may have been armed.
 - **Command checks.** Boot identity, clock-master identity, command order and
-  archive CRC and size are checked before a scheduled command is accepted.
+  the archive's id and size are checked before a scheduled command is accepted.
+  The id is the hash the editor writes into the image header; the controller
+  only reports and compares it.
 - **Playback timing.** Frames follow elapsed show time, so a late evaluation
   skips frames rather than drifting.
 

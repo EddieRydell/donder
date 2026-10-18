@@ -148,7 +148,6 @@ impl DeviceStorage {
         {
             return Err("Invalid show partition");
         }
-        map_shows(shows.offset())?;
         Ok(Self {
             flash,
             offset: entry.offset(),
@@ -191,38 +190,27 @@ impl Storage for DeviceStorage {
     }
 }
 
-const SHOW_VIRTUAL: u32 = 0x3f700000;
-
 impl DeviceStorage {
     pub fn shows(&mut self) -> Shows<'_> {
         Shows(self)
     }
-    /// The slot's image through the DROM window, where playback reads it.
-    /// Uploads stop playback before writing a slot, and the playing slot is
-    /// only rewritten by the upload after next, so the image outlives its
-    /// playback.
-    pub fn mapped_show(
+    /// The slot's prepared sequence, read into RAM as little-endian 4-byte
+    /// words, where playback reads it.
+    pub fn read_show(
         &mut self,
         slot: donder_device_storage::show_slots::Slot,
-    ) -> Result<&'static [u8], Error> {
-        let offset = slot.data_offset();
-        if slot.index >= 2
-            || offset
-                .checked_add(slot.length)
-                .is_none_or(|end| end > donder_device_storage::show_slots::PARTITION_BYTES)
-        {
-            return Err(Error::INVALID);
+    ) -> Result<alloc::boxed::Box<[u32]>, Error> {
+        let mut words = alloc::vec![0u32; slot.length.div_ceil(4)].into_boxed_slice();
+        let mut chunk = [0u8; 1024];
+        let mut shows = self.shows();
+        for (index, words) in words.chunks_mut(chunk.len() / 4).enumerate() {
+            let bytes = &mut chunk[..words.len() * 4];
+            shows.read(slot.data_offset() + index * 1024, bytes)?;
+            for (word, bytes) in words.iter_mut().zip(bytes.chunks_exact(4)) {
+                *word = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+            }
         }
-        embassy_sync::blocking_mutex::raw::RawMutex::lock(
-            &embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex::new(),
-            || with_other_core_parked(|| unsafe { flush_show_cache() }),
-        );
-        // Safety: startup mapped the validated show partition into this unused DROM
-        // window, which stays mapped. A slot is written only after the playback
-        // reading it was dropped.
-        Ok(unsafe {
-            core::slice::from_raw_parts((SHOW_VIRTUAL as usize + offset) as *const u8, slot.length)
-        })
+        Ok(words)
     }
 }
 
@@ -381,80 +369,3 @@ unsafe fn restore_app_cache(enabled: bool) {
     }
 }
 
-fn map_shows(physical: u32) -> Result<(), &'static str> {
-    unsafe extern "C" {
-        static _rodata_end: u8;
-    }
-    if (core::ptr::addr_of!(_rodata_end) as usize).next_multiple_of(65536) > SHOW_VIRTUAL as usize {
-        return Err("Firmware rodata overlaps the show mapping window");
-    }
-    // Map once, during startup before Wi-Fi and the second core start. The SDK's
-    // flash writer subsequently flushes caches while parking the rendering core.
-    let result = embassy_sync::blocking_mutex::raw::RawMutex::lock(
-        &embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex::new(),
-        || unsafe { map_shows_rom(physical) },
-    );
-    if result != 0 {
-        return Err("Cannot map show partition");
-    }
-    Ok(())
-}
-
-#[esp_hal::ram]
-unsafe fn map_shows_rom(physical: u32) -> u32 {
-    unsafe extern "C" {
-        fn cache_flash_mmu_set_rom(
-            cpu: i32,
-            pid: i32,
-            virtual_address: u32,
-            physical_address: u32,
-            page_kib: i32,
-            pages: i32,
-        ) -> u32;
-        fn Cache_Read_Disable_rom(cpu: u32);
-        fn Cache_Read_Enable_rom(cpu: u32);
-        fn Cache_Flush_rom(cpu: u32);
-    }
-    // Safety: the other core is not running, interrupts are disabled, this code
-    // executes from IRAM, and the validated partition/window are 64-KiB aligned.
-    // No existing application DROM page is replaced. Both cores read shows:
-    // core 0 admits them and serves frames, core 1 renders, so the window is
-    // mapped in each core's MMU table.
-    unsafe {
-        Cache_Read_Disable_rom(0);
-        let result = cache_flash_mmu_set_rom(0, 0, SHOW_VIRTUAL, physical, 64, 4)
-            | cache_flash_mmu_set_rom(1, 0, SHOW_VIRTUAL, physical, 64, 4);
-        Cache_Flush_rom(0);
-        Cache_Read_Enable_rom(0);
-        result
-    }
-}
-
-#[esp_hal::ram]
-unsafe fn flush_show_cache() {
-    unsafe extern "C" {
-        fn Cache_Read_Disable_rom(cpu: u32);
-        fn Cache_Read_Enable_rom(cpu: u32);
-        fn Cache_Flush_rom(cpu: u32);
-    }
-    // ESP32 cache/MMU operations can disturb the other core's in-flight cache
-    // fill even when it does not read the show. Follow the SDK's both-cache
-    // policy: the other core is parked, interrupts are disabled, and all code
-    // here executes from IRAM or ROM. Preserve the pre-existing cache enables.
-    let dport = esp_hal::peripherals::DPORT::regs();
-    let app_enabled = dport.app_cache_ctrl().read().app_cache_enable().bit();
-    unsafe {
-        Cache_Read_Disable_rom(0);
-        if app_enabled {
-            Cache_Read_Disable_rom(1);
-        }
-        Cache_Flush_rom(0);
-        if app_enabled {
-            Cache_Flush_rom(1);
-        }
-        Cache_Read_Enable_rom(0);
-        if app_enabled {
-            Cache_Read_Enable_rom(1);
-        }
-    }
-}

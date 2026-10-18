@@ -26,10 +26,10 @@ the library doesn't have, you can write it yourself.
   gradients. → [Effect language](docs/effect_language.md),
   [tutorial](docs/effect_tutorial.md)
 - **A layer graph, not a layer stack.** Layers feed a node graph of operators:
-  blends, dimming, hue shifts, delays, echoes, mirrors, time warps. Operators
-  are written the same way as effects, and they can sample their inputs at any
-  time and any pixel. A time warp is a single line:
-  `sample { source.at(time + offset_seconds) }`.
+  blends, dimming, hue shifts, blurs, blooms, trails, afterglows, mirrors.
+  Operators are written the same way as effects, and they can sample their
+  inputs at any pixel and their own previous frame. An afterglow is one line:
+  `sample { max(input, previous * pow(decay, frames_elapsed)) }`.
   → [Operator inputs](docs/effect_language.md#operator-inputs)
 - **Automation like a DAW.** An automation clip is a curve on the timeline that
   can drive any number of effect and operator parameters at once. Beat marks
