@@ -168,6 +168,7 @@ pub(super) fn allocate(
                 end,
                 value,
                 len,
+                ..
             } => {
                 // The block runs once per index; the bounds and the value are
                 // read after each, and the table written last.

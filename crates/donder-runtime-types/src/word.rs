@@ -437,6 +437,7 @@ impl InstructionWord {
             }
             I::Tabulate {
                 bank,
+                prefix,
                 dst,
                 index,
                 start,
@@ -444,8 +445,8 @@ impl InstructionWord {
                 value,
                 len,
             } => {
-                let mut word =
-                    w(op::TABULATE, bank.to_wire()).slots(&[dst, index, start, end, value]);
+                let mut word = w(op::TABULATE, both(bank.to_wire(), u8::from(prefix)))
+                    .slots(&[dst, index, start, end, value]);
                 word.0[7] = len;
                 code.push(word.done());
             }
@@ -668,6 +669,7 @@ impl InstructionWord {
             },
             op::TABULATE => I::Tabulate {
                 bank: word.low(),
+                prefix: word.0[1] >> 4 != 0,
                 dst: s(2),
                 index: s(3),
                 start: s(4),

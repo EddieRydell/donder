@@ -907,18 +907,18 @@ fn slot_along(key: float, speed: float, variation: float, span: float) -> float 
   time * (2.0 * speed + (rand(key + 0.1) - 0.5) * 2.0 * variation) + rand(key + 0.2) * span
 }
 
--- PIXEL: Meteors falling, in random directions or exploding from the center, on
--- a Strings or Locations grid. Each of `count` slots launches meteors along one
--- path after another at a random speed; a meteor's tail tapers by tail_taper
--- (default 100 -> 0). Default gradients red/lime/blue.
+-- PIXEL: Meteors falling, or rising, in one direction on a Strings or Locations
+-- grid. Paths run in lanes one cell apart across the direction, and each lane
+-- launches meteors one trip after another at a random speed, so a pixel checks
+-- only the lanes it touches. About `count` slots of meteors share the lanes; a
+-- trip shows with the slots' share of the lanes. A meteor's tail tapers by
+-- tail_taper (default 100 -> 0). Default gradients red/lime/blue.
 effect VixenMeteors {
   param colors: array<gradient>;
   param tail_taper: curve in 0.0..100.0;
   param color_type: enum { Rainbow, Range, Palette, Gradient } = Palette;
-  param meteor_effect: enum { Falling, RandomDirection, Explode } = Falling;
+  param meteor_effect: enum { Falling, Rising } = Falling;
   param direction: int in 1..360 = 180;
-  param min_direction: int in 0..360 = 0;
-  param max_direction: int in 0..360 = 360;
   param speed: float in 0.0..100.0 = 14.0;
   param speed_variation: float in 0.0..100.0 = 12.0;
   param count: float in 0.0..100.0 = 10.0;
@@ -941,30 +941,36 @@ effect VixenMeteors {
     let y = string_y(strings, across, string_length, pixel_size) + 0.5;
     let length = 1.0 + tail_length * 0.99;
     let tail = max(1.0, if h < 10.0 { floor(length / 10.0) } else { floor(h * length / 100.0) });
-    let explode = meteor_effect == Explode;
     let base = rand(random_seed);
-    -- Explode paths run from the center, the others cross the whole grid.
-    let span = if explode { max(w, h) / 2.0 + tail } else { w + h + tail };
+    let span = w + h + tail;
+    let degrees = if meteor_effect == Rising { direction + 180.0 } else { direction * 1.0 };
+    let ux = sin(degrees * 0.017453292519943295);
+    let uy = cos(degrees * 0.017453292519943295);
+    -- Lanes across the direction, the slots of each, and the share of trips shown.
+    let lanes = max(1.0, ceil(abs(uy) * w + abs(ux) * h));
+    let slots = floor(1.0 + count * 1.99);
+    let per_lane = int(clamp(ceil(slots / lanes), 1.0, slots));
+    let shown = slots / (lanes * per_lane);
+    let half = 0.5 * max(abs(ux), abs(uy)) + 0.5 * min(abs(ux), abs(uy));
+    -- The pixel along the direction from the grid's center, and across it in lanes.
+    let dx = x - w / 2.0;
+    let dy = y - h / 2.0;
+    let ahead = dx * ux + dy * uy;
+    let side = dx * uy - dy * ux + lanes / 2.0;
+    let first_lane = floor(side - half);
+    let touched = floor(side + half) - first_lane;
     -- The highest covering slot as slot * 4 + its tail fraction.
-    let code = last for slot in 0..int(1.0 + count * 1.99) {
+    let code = last for i in 0..3 * per_lane {
+      let step = i // per_lane;
+      let lane = first_lane + step;
+      guard step <= touched && lane >= 0.0 && lane < lanes;
+      let slot = lane * per_lane + i % per_lane;
       let key = rand(base + slot);
       let along = slot_along(key, speed, speed_variation, span);
       let trip = floor(along / span);
-      let along = along - trip * span;
       let trip_key = rand(key + trip);
-      let degrees =
-        if meteor_effect == Falling { direction * 1.0 }
-        else if explode { trip_key * 360.0 }
-        else if max_direction > min_direction { min_direction + trip_key * (max_direction - min_direction) }
-        else { min_direction + trip_key * (max_direction + 360 - min_direction) };
-      let ux = sin(degrees * 0.017453292519943295);
-      let uy = cos(degrees * 0.017453292519943295);
-      let offset = (rand(trip_key + 0.3) - 0.5) * (abs(uy) * w + abs(ux) * h);
-      let head_x = if explode { w / 2.0 + ux * along } else { w / 2.0 + ux * (along - span / 2.0) + uy * offset };
-      let head_y = if explode { h / 2.0 + uy * along } else { h / 2.0 + uy * (along - span / 2.0) - ux * offset };
-      let behind = (head_x - x) * ux + (head_y - y) * uy;
-      let beside = (x - head_x) * uy - (y - head_y) * ux;
-      guard behind > -0.5 && behind < tail - 0.5 && abs(beside) <= 0.5 * max(abs(ux), abs(uy)) + 0.5 * min(abs(ux), abs(uy));
+      let behind = along - trip * span - span / 2.0 - ahead;
+      guard rand(trip_key + 0.35) < shown && behind > -0.5 && behind < tail - 0.5 && abs(side - lane - 0.5) <= half;
       slot * 4.0 + clamp(behind / tail, 0.0, 0.999)
     } else { -1.0 };
     guard code >= 0.0;

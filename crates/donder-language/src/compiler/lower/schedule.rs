@@ -7,7 +7,7 @@
 //! the same for every strip: it becomes a table, filled once in its stage and
 //! read by index in the loop.
 use super::structural_operands;
-use crate::compiler::ir::{Binary, Context, Domain, Graph, Node, Op, Unary};
+use crate::compiler::ir::{Binary, Context, Domain, Graph, Node, Op, Reducer, Unary};
 use donder_runtime_types::bytecode::STRIP;
 use donder_runtime_types::{Type, Value};
 use std::collections::{HashMap, HashSet};
@@ -75,6 +75,21 @@ pub(crate) struct Table {
     pub(crate) reduction: Node,
     pub(crate) stage: Stage,
     pub(crate) outputs: Vec<(Node, Vec<Node>)>,
+    /// A sum over the offsets that have a neighbor in the pixel's fixture,
+    /// with the pixel index and target count that bound them: the table holds
+    /// its body's prefix sums, so the sum is a difference of two entries.
+    pub(crate) interval: Option<(Node, Node)>,
+}
+
+impl Plan {
+    /// The pixel index and target count bounding `reduction`, when its table
+    /// replaces its loop.
+    pub(crate) fn interval(&self, reduction: Node) -> Option<(Node, Node)> {
+        self.tables
+            .iter()
+            .find(|table| table.reduction == reduction)
+            .and_then(|table| table.interval)
+    }
 }
 
 impl Plan {
@@ -135,6 +150,34 @@ pub(crate) fn schedule(graph: &Graph, root: Node) -> Plan {
     plan
 }
 
+/// The pixel index and target count of a filter that holds where the pixel
+/// `index` offsets away is in the target, `0 <= pixel + index < count`, as
+/// checking writes it for an `around` that ignores its neighbor.
+fn present(graph: &Graph, filter: Option<Node>, index: Node) -> Option<(Node, Node)> {
+    let Op::Select(low, high, no) = *graph.op(filter?) else {
+        return None;
+    };
+    let (Op::Binary(Binary::IntGreaterEqual, at, zero), Op::Binary(Binary::IntLess, other, count)) =
+        (graph.op(low).clone(), graph.op(high).clone())
+    else {
+        return None;
+    };
+    let Op::Binary(Binary::IntAdd, a, b) = *graph.op(at) else {
+        return None;
+    };
+    let pixel = match (a == index, b == index) {
+        (true, _) => b,
+        (_, true) => a,
+        _ => return None,
+    };
+    let fits = other == at
+        && graph.constant_value(zero) == Some(&Value::Int(0))
+        && graph.constant_value(no) == Some(&Value::Bool(false))
+        && matches!(graph.op(pixel), Op::Context(Context::PixelIndex))
+        && matches!(graph.op(count), Op::Context(Context::TargetCount));
+    fits.then_some((pixel, count))
+}
+
 /// A stage of the blocks that run before the strips.
 fn prefix(stage: Stage) -> bool {
     matches!(stage, Stage::Query | Stage::Target)
@@ -161,11 +204,13 @@ fn tables(graph: &Graph, nodes: &[Node], stage: &mut HashMap<Node, Stage>) -> Ve
             graph.constant_value(data.end),
         ) {
             (Some(Value::Int(start)), Some(Value::Int(end))) => {
-                i64::from(*end) - i64::from(*start) <= STRIP as i64
+                Some(i64::from(*end) - i64::from(*start))
             }
-            _ => matches!(graph.op(data.body), Op::Tap { .. }),
+            _ => None,
         };
-        if !prefix(bounds) || !span {
+        let span_fits = span.is_some_and(|span| span <= STRIP as i64)
+            || matches!(graph.op(data.body), Op::Tap { .. });
+        if !prefix(bounds) || !span_fits {
             continue;
         }
         let mut members: HashSet<Node> = HashSet::new();
@@ -193,7 +238,15 @@ fn tables(graph: &Graph, nodes: &[Node], stage: &mut HashMap<Node, Stage>) -> Ve
                 members.insert(node);
             }
         }
-        if members.len() < TABLE_WORK {
+        // A sum of an index-only body over the offsets with a neighbor is a
+        // difference of prefix sums, which take one entry more than the range.
+        let interval = present(graph, data.filter, data.index).filter(|_| {
+            data.reducer == Reducer::Sum
+                && members.contains(&data.body)
+                && matches!(graph.ty(reduction), Type::Int | Type::Float)
+                && span.is_some_and(|span| span < STRIP as i64)
+        });
+        if interval.is_none() && members.len() < TABLE_WORK {
             continue;
         }
         // Members read by code outside the table, each with its cone.
@@ -205,7 +258,10 @@ fn tables(graph: &Graph, nodes: &[Node], stage: &mut HashMap<Node, Stage>) -> Ve
             .collect();
         let outputs = nodes
             .iter()
-            .filter(|node| read_outside.contains(node))
+            .filter(|node| match interval {
+                Some(_) => **node == data.body,
+                None => read_outside.contains(node),
+            })
             .map(|&output| {
                 let mut cone = HashSet::new();
                 let mut pending = vec![output];
@@ -226,6 +282,7 @@ fn tables(graph: &Graph, nodes: &[Node], stage: &mut HashMap<Node, Stage>) -> Ve
             reduction,
             stage: fills,
             outputs,
+            interval,
         });
     }
     tables
