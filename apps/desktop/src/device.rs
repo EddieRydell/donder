@@ -177,7 +177,7 @@ impl DeviceClient {
             .ok_or(UploadError::Rejected(
                 "Compiled sequence header is missing.".into(),
             ))?;
-        let format = u32::from_le_bytes([header[4], header[5], header[6], header[7]]);
+        let format = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
         if capabilities.sequence_format != format {
             return Err(UploadError::Rejected("Device firmware and Donder use different sequence formats. Rebuild the firmware and re-export together.".into()));
         }
@@ -257,17 +257,17 @@ mod tests {
                 (
                     "POST",
                     "/transport/play",
-                    r#"{"playback":{"mode":"playing","positionMicros":0,"durationMicros":1000000,"archiveCrc":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"playing","positionMicros":0,"durationMicros":1000000,"archiveId":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/pause",
-                    r#"{"playback":{"mode":"paused","positionMicros":500000,"durationMicros":1000000,"archiveCrc":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"paused","positionMicros":500000,"durationMicros":1000000,"archiveId":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/stop",
-                    r#"{"playback":{"mode":"stopped","positionMicros":0,"durationMicros":1000000,"archiveCrc":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"stopped","positionMicros":0,"durationMicros":1000000,"archiveId":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
             ] {
                 let (mut stream, _) = listener.accept().unwrap();
@@ -368,7 +368,7 @@ mod tests {
                     let response = if path == "/capabilities" {
                         r#"{"sequenceFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"maxFrameRate":158,"clockUdpPort":80},"sequenceStorage":"persistent"}"#
                     } else {
-                        assert_eq!(&body[..4], b"DOND");
+                        assert_eq!(&body[..4], &6u32.to_le_bytes());
                         "LOADED sequence"
                     };
                     write!(
@@ -382,8 +382,7 @@ mod tests {
             });
             let client = DeviceClient::new(address, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
             let mut bytes = vec![0; 16];
-            bytes[..4].copy_from_slice(b"DOND");
-            bytes[4..8].copy_from_slice(&6u32.to_le_bytes());
+            bytes[..4].copy_from_slice(&6u32.to_le_bytes());
             let result = client.upload(bytes, &[width], 60);
             if should_upload {
                 assert!(result.unwrap().contains("uploaded"));

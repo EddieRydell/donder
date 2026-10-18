@@ -552,8 +552,6 @@ name = "donder-runtime-types"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "crc32fast",
- "fugit",
  "libm",
  "micromath",
  "rkyv",

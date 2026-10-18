@@ -32,11 +32,7 @@ fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
                     Gradient {
                         stops: vec![GradientStop {
                             position: 0.0,
-                            color: Color {
-                                red: 255,
-                                green: 255,
-                                blue: 255,
-                            },
+                            color: Color::from_bytes([255, 255, 255]),
                         }],
                     }
                     .into(),
@@ -70,6 +66,7 @@ fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
                     time: SampleDuration::from_ticks((progress * 1_000_000.0) as u32),
                     duration: SampleDuration::from_ticks(1_000_000),
                     frame_rate: 40.0,
+                    frames_elapsed: 1,
                     pixel_count: 1,
                 },
                 index: 0,
@@ -78,8 +75,6 @@ fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
             &SPATIAL,
             &mut StripWorkspace::default(),
         );
-        assert_eq!(color.red, brightness, "progress={progress}");
-        assert_eq!(color.green, brightness);
-        assert_eq!(color.blue, brightness);
+        assert_eq!(color.to_bytes(), [brightness; 3], "progress={progress}");
     }
 }

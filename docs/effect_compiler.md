@@ -11,7 +11,7 @@ source ─► syntax (lexer, parser, AST)
        ─► global signal graph: black inputs, fusion                donder-elaboration
        ─► prepare: fixed values become parameter slots             lower/mod.rs
        ─► schedule: stages and regions                             lower/schedule.rs
-       ─► emit: strip bytecode, then admission                     lower/emit.rs
+       ─► emit: strip bytecode                                    lower/emit.rs
 ```
 
 The IR is the center: a typed, hash-consed, pure dataflow graph whose
@@ -64,7 +64,7 @@ so equal expressions share a node by construction.
 | `Unary`, `Binary`, `Ternary` | Scalar, color, resource, mark and section operations |
 | `Select` | Pure choice. `&&` and `\|\|` are selects too |
 | `Reduce` with `LoopIndex` | A reduction; its bounds, body, filter and default live in its loop |
-| `Sample` | An input signal at a time and the current pixel, a shift of it, or a pixel of its fixture |
+| `Sample` | An input signal of this frame, or the node's previous frame (`previous`), at the current pixel, a shift of it, or a pixel of its fixture |
 | `Items`, `Pick` | An array literal, and its item at a clamped index |
 
 Each node records its type, its domain and the reductions whose index it reads,
@@ -73,7 +73,7 @@ computed when it is built:
 | Domain bit | Varies with |
 | --- | --- |
 | `PARAM` | the instance: fixed parameters, clip duration, uniform pixel count |
-| `TIME` | the query: `time`, `progress`, automated parameters |
+| `TIME` | the query: `time`, `progress`, `frames_elapsed`, automated parameters |
 | `TARGET` | the target run: pixel count of mixed fixtures and target bounds |
 | `PIXEL` | the pixel |
 | `SIGNAL` | an upstream sample |
@@ -128,10 +128,11 @@ stay runtime nodes: the active clip set changes with time.
    folds to black (`Instance::with_black_input`), and an operator that becomes
    constant black is dropped from its consumers and the output.
 2. **Fusion.** An operator consumed once is substituted into its consumer
-   (`Instance::fuse_input`) at its only sample site, on the current pixel. Its
-   clock becomes the consumer's query, quantized, and an invalid query yields
-   black. A source with automation fuses only at the consumer's own time. A
-   fused program beyond the row or nesting limits keeps the boundary.
+   (`Instance::fuse_input`) at its only sample site, on the current pixel, and
+   runs at the consumer's time. A site a scan reads, a program with live marks,
+   and a source or consumer that reads `previous` keep the boundary, since a
+   node's previous frame is its own. A fused program beyond the row or nesting
+   limits keeps the boundary too.
 3. Every remaining instance is lowered and equal programs are interned.
 
 ## Preparation
@@ -167,6 +168,25 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
 
 `lower::emit` targets the strip interpreter in `donder-runtime`
 (`donder-runtime-types/src/bytecode.rs` defines the format):
+- Every instruction is one 8-byte word (`word.rs`): an opcode, a byte of
+  small enum operands, then its slots, one byte each, and its constants and
+  lengths in a layout its opcode fixes. A reduction and a stencil continue into
+  a second word; lengths of nested code and block ends count words. A slot
+  byte names a scalar (0 to 126), a row (up to 124) or a pixel input, so a
+  program holds at most 127 scalars and 124 rows of each bank.
+- A color is three floats: a color operand names the first of three
+  consecutive float slots, red, green and blue. Only instructions that produce
+  or consume a whole color (`hsv`, recoloring, hue, saturation and intensity,
+  gradients, samples, stencils, scans and color array items) name one. Float
+  arithmetic and mixes mark which operands are colors, read channel by
+  channel while a float operand serves every channel, so `c * level` is one
+  instruction; choices and copies take a color bank. A channel read is the
+  channel's own slot.
+- A float, int or bool constant is an instruction's 32-bit immediate; a
+  resource constant indexes the program's resource list. Instructions the
+  word set leaves out are lowered: `power` with an int count raises to its
+  float, `!` compares with false, and a section position is float arithmetic
+  on the pixel index.
 - A program runs over strips of up to 128 pixels. Its query block runs once per
   program and query, its target block again whenever the target's pixel count or
   bounds change, and its body once per strip.
@@ -181,7 +201,8 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   combine every iteration branch-free and stop once every pixel has decided.
 - A program declares its parameters' types. An invocation binds them to two
   storages, each numbered in declaration order: one 32-bit word per float,
-  int, bool, color or enum parameter, and one shared resource per curve,
+  int, bool, color or enum parameter (a color's word indexes the image's
+  colors), and one shared resource per curve,
   gradient, marks or array parameter. Equal resources bound anywhere in a
   sequence share one allocation; a marks value is a window of its
   collection's shared track.
@@ -189,14 +210,14 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   its parameters' and values' enums; an enum parameter is bound as its index
   and read as an int. Resources are references to parameters, constants or
   array items, never copies.
-- Single-use patterns become fused instructions: clamped curve samples, scaled
-  gradient samples, and hue replacements, `hsv(h, saturation(c), intensity(c))`
+- Single-use patterns become fused instructions: scaled gradient samples, and
+  hue replacements, `hsv(h, saturation(c), intensity(c))`
   or the same with `hue(c) + t`, which compute the color's components once.
 - A reduction whose bounds vary by pixel but stay within a strip's width of
   indices, as the instance's values prove, shares one index: it runs the
   union of the pixels' ranges, each pixel taking part in its own, so work that
   depends only on the index (a kernel weight) runs once per iteration.
-- `input.at(time, pixel.index + offset)` is a shifted read, and an `around`
+- `input.at(pixel.index + offset)` is a shifted read, and an `around`
   neighbor is one with the reduction's edges.
 - An `around` reduction that reads its neighbor is a stencil. Checking proves
   its offsets span at most a strip (reaching at most half a strip each way when
@@ -208,30 +229,27 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   once per neighbor rather than once per offset that reads it, runs the offset
   code once per offset, and accumulates every offset in one instruction. A
   failed source guard is a zero weight and contributes nothing. Factor
-  products are reassociated, which may change rounding. The sample time may
-  change between iterations of an enclosing reduction, as when Echo fuses a
-  Blur, but not with the offset. A strip whose whole neighborhood is black
+  products are reassociated, which may change rounding. A strip whose whole neighborhood is black
   skips the offsets. An `around` that ignores its neighbor is an ordinary
   reduction over the offsets that have one.
 - A scan is one instruction with a source block, as a stencil's, computing the
-  light's weight. Playback computes the scan for the whole frame on first use
-  in a query, a strip of input at a time, into a frame cache of its own keyed
-  by the operator node and time; each strip copies its pixels from there. A
-  time scan also keeps its running values per node across frames and steps
-  them once per frame; after a seek it replays from black over the frames
-  whose light can still show, at most four seconds.
-- Samples of one input at one query-uniform time share a whole-frame cache.
+  light's weight. It runs forward or backward along each fixture. Playback
+  computes the scan over the whole input frame the first time the program reads
+  it in a frame, into a scan frame of its own (at most 8 per program); each
+  strip copies its pixels from there.
+- A sample reads the whole frame its input already wrote this frame, or the
+  node's state buffer for `previous`.
 - Every value starts in its own slot; liveness over the structured code then
   shares slots per bank and kind. A value read inside a reduction but defined
-  before it lives through the whole loop; slots of the query and target blocks
-  are never shared.
+  before it lives through the whole loop. A value of the query or target block
+  read after its block lives to the end and is never shared, since its block
+  does not run again before every read; one read only within its block frees
+  its slot there. A color's three slots are allocated together.
 
-Admission (`SampleProgram::admit`, `OperatorProgram::admit`) checks every
-program, and show images are admitted again when they load: slot ranges per bank,
-nesting, parameter reads, pools, inputs, and that a value is a row exactly when
-its operands vary by pixel. A definition's most general instance, with every
-parameter left to playback, must fit the row and nesting limits; that is checked
-at compilation.
+Programs are trusted: only the compiler writes them, and neither playback nor
+the host checks them again. A definition's most general instance, with every
+parameter left to playback, must fit the slot, row and nesting limits; that is
+checked at compilation.
 
 ## Interpreter
 

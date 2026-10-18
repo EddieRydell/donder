@@ -2,7 +2,7 @@
 //! an instance, by preparation.
 use super::evaluation::{
     OperatorEvaluation, PixelContext, SampleEvaluation, SignalSampler, bind, compile_effect,
-    compile_operator, effect, operator, runtime_effect, runtime_operator, try_bind,
+    effect, operator, runtime_effect, try_bind,
 };
 use super::evaluation::{RuntimeError, StripWorkspace};
 use super::playback;
@@ -11,7 +11,7 @@ use crate::dsl::RunContext;
 use donder_language::compiler::{compile_effects, compile_operators};
 use donder_runtime_types::bytecode::SignalPixel;
 use donder_runtime_types::{Color, Value};
-use donder_runtime_types::{Marks, SampleDuration, SampleTime};
+use donder_runtime_types::{Marks, SampleDuration};
 use std::prelude::rust_2024::*;
 
 const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::SpatialContext {
@@ -20,11 +20,7 @@ const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::Spat
     max: [0.0; 2],
 };
 
-const WHITE: Color = Color {
-    red: 255,
-    green: 255,
-    blue: 255,
-};
+const WHITE: Color = Color::from_bytes([255, 255, 255]);
 
 /// One pixel of a one-pixel target, `progress` through a one-second clip.
 fn at(progress: f32) -> PixelContext {
@@ -34,6 +30,7 @@ fn at(progress: f32) -> PixelContext {
             time: SampleDuration::from_ticks((progress * 1_000_000.0) as u32),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
+            frames_elapsed: 1,
             pixel_count: 1,
         },
         index: 0,
@@ -117,7 +114,7 @@ fn let_refinements_and_choices_do_not_leak_between_evaluations() {
     for (progress, red) in [(0.0, 0.4375), (1.0, 0.6875), (0.0, 0.4375)] {
         assert_eq!(
             effect.evaluate(&at(progress), &SPATIAL, &mut workspace),
-            crate::sampling::rgb(red, 0.0, 0.0).to_color()
+            crate::sampling::rgb(red, 0.0, 0.0)
         );
     }
 }
@@ -142,7 +139,7 @@ fn length_bounded_reductions_iterate_marks_and_reject_long_collections() {
     };
     assert_eq!(
         sample(marks(&[1_000_000, 2_000_000])),
-        crate::sampling::rgb(0.3, 0.0, 0.0).to_color()
+        crate::sampling::rgb(0.3, 0.0, 0.0)
     );
     assert_eq!(sample(marks(&[])), Color::BLACK);
 
@@ -227,7 +224,7 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
         } }",
     );
     for (count, red, green) in [(-3, 0, 5), (0, 0, 2), (3, 3, 0), (4, 6, 0)] {
-        let expected = crate::sampling::rgb(red as f32 / 10.0, green as f32 / 10.0, 0.0).to_color();
+        let expected = crate::sampling::rgb(red as f32 / 10.0, green as f32 / 10.0, 0.0);
         let runtime = runtime_effect(&effect, &[], &[("count", Value::Int(count))]);
         let fixed = playback::lower_sample(&bind(&effect, &[("count", Value::Int(count))]));
         for invocation in [runtime, fixed] {
@@ -274,7 +271,7 @@ fn array_literals_are_indexed_and_measured_through_lets() {
     for _ in 0..3 {
         assert_eq!(
             effect.evaluate(&at(0.25), &SPATIAL, &mut workspace),
-            crate::sampling::rgb(0.25, 0.5, 0.75).to_color()
+            crate::sampling::rgb(0.25, 0.5, 0.75)
         );
     }
     for (body, message) in [
@@ -310,18 +307,11 @@ fn guards_skip_to_black_or_produce_their_else_value() {
     let mut workspace = StripWorkspace::default();
     for (index, expected) in [
         (0, Color::BLACK),
-        (
-            1,
-            Color {
-                red: 255,
-                green: 0,
-                blue: 0,
-            },
-        ),
-        (2, crate::sampling::rgb(0.0, 0.5, 0.0).to_color()),
-        (3, crate::sampling::rgb(0.0, 0.0, 1.0).to_color()),
+        (1, Color::from_bytes([255, 0, 0])),
+        (2, crate::sampling::rgb(0.0, 0.5, 0.0)),
+        (3, crate::sampling::rgb(0.0, 0.0, 1.0)),
         (4, Color::BLACK),
-        (5, crate::sampling::rgb(0.0, 1.0, 0.0).to_color()),
+        (5, crate::sampling::rgb(0.0, 1.0, 0.0)),
         (0, Color::BLACK),
     ] {
         assert_eq!(
@@ -376,7 +366,8 @@ fn reductions_start_from_their_identity_and_skip_guarded_iterations() {
             4,
             "first for i in 0..n { guard i > 0; [0.25, 0.5, 0.75][i] } else { 0.0 } == 0.5",
         ),
-        (4, "sum for i in 0..n { #404040 } == #ffffff"),
+        // Light adds past full brightness; output clamps it.
+        (4, "intensity(sum for i in 0..n { #404040 }) > 1.0"),
         (
             4,
             "max for i in 0..n { [#ff0000, #00ff00, #0000ff, #000000][i] } == #ffffff",
@@ -576,8 +567,8 @@ fn signals_are_only_operator_inputs() {
             .contains("unknown type `Signal`")
     );
     assert!(
-        operator_error("operator Bad { input source; sample { let t = time; t.at(0.0) } }")
-            .contains("only operator inputs have methods")
+        operator_error("operator Bad { input source; sample { let t = time; t.at(0) } }")
+            .contains("only operator inputs and `previous` have methods")
     );
     assert!(
         operator_error("operator Bad { input source; sample { source.later(time) } }")
@@ -593,7 +584,7 @@ fn signals_are_only_operator_inputs() {
 fn signal_sampling_and_color_operations_execute() {
     let operator = operator(
         "operator Colors { input source; sample {
-            let sampled = source.at(time);
+            let sampled = source;
             max(invert(sampled) * 0.5 + #010203, sampled * #ffffff)
         } }",
     );
@@ -601,22 +592,11 @@ fn signal_sampling_and_color_operations_execute() {
         .evaluate(
             &at(0.25),
             &SPATIAL,
-            &mut ConstantSignal(Color {
-                red: 10,
-                green: 20,
-                blue: 30,
-            }),
+            &mut ConstantSignal(Color::from_bytes([10, 20, 30])),
             &mut StripWorkspace::default(),
         )
         .unwrap();
-    assert_eq!(
-        color,
-        Color {
-            red: 124,
-            green: 120,
-            blue: 116
-        }
-    );
+    assert_eq!(color.to_bytes(), [124, 120, 116]);
 }
 
 #[test]
@@ -684,7 +664,7 @@ fn required_parameters_have_no_default_and_ranges_reject_values() {
     let bound = playback::lower_sample(&bind(&effect, &[("amount", Value::Float(1.0))]));
     assert_eq!(
         bound.evaluate(&at(0.0), &SPATIAL, &mut StripWorkspace::default()),
-        crate::sampling::rgb(1.0, 0.0, 0.0).to_color()
+        crate::sampling::rgb(1.0, 0.0, 0.0)
     );
     for (declaration, message) in [
         ("param amount: float;", "`amount` must declare its range"),
@@ -766,9 +746,7 @@ impl SignalSampler for ConstantSignal {
     fn sample_signal(
         &mut self,
         _input: usize,
-        _sample_time: SampleTime,
         _pixel: SignalPixel<i32>,
-        _frame_cache: Option<usize>,
     ) -> Result<Color, RuntimeError> {
         Ok(self.0)
     }
@@ -776,93 +754,40 @@ impl SignalSampler for ConstantSignal {
 
 /// Records every sample and answers with a color derived from it.
 #[derive(Default)]
-struct Samples(Vec<(usize, u32, SignalPixel<i32>)>);
+struct Samples(Vec<(usize, SignalPixel<i32>)>);
 
 impl SignalSampler for Samples {
     fn sample_signal(
         &mut self,
         input: usize,
-        time: SampleTime,
         pixel: SignalPixel<i32>,
-        _frame_cache: Option<usize>,
     ) -> Result<Color, RuntimeError> {
-        self.0.push((input, time.as_ticks(), pixel));
+        self.0.push((input, pixel));
         Ok(Color {
-            red: (time.as_ticks() / 1000).min(255) as u8,
-            green: input as u8,
-            blue: pixel.index().copied().unwrap_or_default() as u8,
+            red: 0.0,
+            green: input as f32,
+            blue: pixel.index().copied().unwrap_or_default() as f32,
         })
     }
 }
 
 impl Samples {
-    fn sorted(&self) -> Vec<(usize, u32, SignalPixel<i32>)> {
+    fn sorted(&self) -> Vec<(usize, SignalPixel<i32>)> {
         let mut samples = self.0.clone();
-        samples.sort_by_key(|&(input, time, pixel)| {
+        samples.sort_by_key(|&(input, pixel)| {
             let address = match pixel {
                 SignalPixel::Current => (0, 0),
                 SignalPixel::Local(index) => (1, index),
                 SignalPixel::Shifted(shift, _) => (3, shift),
             };
-            (input, time, address)
+            (input, address)
         });
         samples
     }
 }
 
-#[test]
-fn signal_sampling_outside_the_portable_clock_returns_black_without_sampling() {
-    let operator = compile_operator(
-        "operator Query {
-            input source;
-            param query_seconds: float in -1.0..1.0 = 0.0;
-            sample { source.at(query_seconds) }
-        }",
-    );
-    let source_color = Color {
-        red: 17,
-        green: 34,
-        blue: 51,
-    };
-    for (seconds, expected) in [
-        (0.0, Some(source_color)),
-        (0.5, Some(source_color)),
-        (-1.0, None),
-        (f32::NAN, None),
-        (f32::INFINITY, None),
-        (f32::NEG_INFINITY, None),
-        (f32::MAX, None),
-    ] {
-        let invocation =
-            runtime_operator(&operator, &[], &[("query_seconds", Value::Float(seconds))]);
-        let mut sampler = Samples::default();
-        let color = invocation
-            .evaluate(
-                &at(0.0),
-                &SPATIAL,
-                &mut sampler,
-                &mut StripWorkspace::default(),
-            )
-            .unwrap();
-        match expected {
-            Some(_) => assert_eq!(sampler.0.len(), 1, "{seconds}"),
-            None => {
-                assert!(sampler.0.is_empty(), "{seconds}");
-                assert_eq!(color, Color::BLACK, "{seconds}");
-            }
-        }
-        let mut constant = ConstantSignal(source_color);
-        let color = invocation
-            .evaluate(
-                &at(0.0),
-                &SPATIAL,
-                &mut constant,
-                &mut StripWorkspace::default(),
-            )
-            .unwrap();
-        assert_eq!(color, expected.unwrap_or(Color::BLACK), "{seconds}");
-    }
-}
+/// The input index `previous` samples.
+const PREVIOUS: usize = donder_runtime_types::bytecode::STATE_INPUT as usize;
 
 #[test]
 fn spatial_signal_queries_keep_their_coordinate_domains() {
@@ -870,13 +795,12 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
         "operator Spatial {
             input source;
             sample {
-                let t = time;
                 let p = pixel.index;
-                let a = source.at(t, p);
-                let c = source.at(t);
-                let d = source.at(t, p);
+                let a = source.at(p);
+                let c = source;
+                let d = source.at(p);
                 let p = p + 1;
-                max(max(a, max(c, d)), source.at(t, p))
+                max(max(a, max(c, d)), source.at(p))
             }
         }",
     );
@@ -893,17 +817,18 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
     assert_eq!(
         samples.sorted(),
         [
-            (0, 250_000, SignalPixel::Current),
-            (0, 250_000, SignalPixel::Local(3)),
-            (0, 250_000, SignalPixel::Local(4)),
+            (0, SignalPixel::Current),
+            (0, SignalPixel::Local(3)),
+            (0, SignalPixel::Local(4)),
         ]
     );
-    assert_eq!(result.blue, 4);
+    assert_eq!(result.blue, 4.0);
     for query in [
         "source.at()",
-        "source.at(0.0, 1.0)",
-        "source.at(0.0, 1, 2)",
-        "source.at_global(0.0, 1)",
+        "source.at(1.0)",
+        "source.at(0.0, 1)",
+        "source.at(1, 2)",
+        "source.at_global(1)",
         "source.at(#ffffff)",
     ] {
         assert!(
@@ -920,37 +845,36 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
 fn equal_signal_queries_share_one_sample() {
     for (body, calls) in [
         (
-            "max(max(source.at(time), other.at(time)), source)",
-            vec![(0, 250_000), (1, 250_000)],
+            "max(max(source, other), source)",
+            vec![(0, SignalPixel::Current), (1, SignalPixel::Current)],
         ),
         (
-            "let past = time - 0.125;
-             max(max(source.at(time), source.at(past)), max(source.at(time), source.at(past)))",
-            vec![(0, 125_000), (0, 250_000)],
+            "let a = source;
+             let b = if progress > 0.5 { source } else { a };
+             max(b, source)",
+            vec![(0, SignalPixel::Current)],
         ),
         (
-            "let a = source.at(time); let t = time + 0.125; max(a, source.at(t))",
-            vec![(0, 250_000), (0, 375_000)],
+            "max for i in 0..2 { max(source, source) }",
+            vec![(0, SignalPixel::Current)],
         ),
         (
-            "let a = source.at(time);
-             let b = if progress > 0.5 { source.at(time) } else { a };
-             max(b, source.at(time))",
-            vec![(0, 250_000)],
+            "max(max(source.at(2), source.at(2)), max(previous, previous))",
+            vec![(0, SignalPixel::Local(2)), (PREVIOUS, SignalPixel::Current)],
         ),
         (
-            "max for i in 0..2 { max(source.at(time), source.at(time)) }",
-            vec![(0, 250_000)],
-        ),
-        (
-            "max for i in 0..3 { source.at(time - i * 0.125) }",
-            vec![(0, 0), (0, 125_000), (0, 250_000)],
+            "max for i in 0..3 { source.at(i) }",
+            vec![
+                (0, SignalPixel::Local(0)),
+                (0, SignalPixel::Local(1)),
+                (0, SignalPixel::Local(2)),
+            ],
         ),
     ] {
         let operator = operator(&format!(
             "operator Reads {{ input source; input other; sample {{ {body} }} }}"
         ));
-        let mut context = at(0.25);
+        let mut context = pixel(0, 4);
         context.run.progress = 1.0;
         let mut samples = Samples::default();
         operator
@@ -961,10 +885,6 @@ fn equal_signal_queries_share_one_sample() {
                 &mut StripWorkspace::default(),
             )
             .unwrap();
-        let calls: Vec<_> = calls
-            .into_iter()
-            .map(|(input, time)| (input, time, SignalPixel::Current))
-            .collect();
         assert_eq!(samples.sorted(), calls, "{body}");
     }
 }

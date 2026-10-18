@@ -29143,14 +29143,14 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
     Clip {
       name: mark_chase_2_2,
       description: none,
-      layer: default,
+      layer: blur,
       start: 66.9277187s,
       duration: 2.416329015s,
       target: layouts.main.stairs_01,
@@ -29166,14 +29166,14 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
     Clip {
       name: mark_chase_2_2_2,
       description: none,
-      layer: default,
+      layer: blur,
       start: 72.337703707s,
       duration: 2.596308058s,
       target: layouts.main.stairs_01,
@@ -29189,14 +29189,14 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
     Clip {
       name: mark_chase_2_3,
       description: none,
-      layer: default,
+      layer: blur,
       start: 75.063302675s,
       duration: 1.189638088s,
       target: layouts.main.stairs_01,
@@ -29212,14 +29212,14 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
     Clip {
       name: mark_chase_2_3_2,
       description: none,
-      layer: default,
+      layer: blur,
       start: 76.115072849s,
       duration: 1.382827047s,
       target: layouts.main.stairs_01,
@@ -29235,14 +29235,14 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
     Clip {
       name: mark_chase_2_2_2_2,
       description: none,
-      layer: default,
+      layer: blur,
       start: 77.535114473s,
       duration: 2.596308058s,
       target: layouts.main.stairs_01,
@@ -29258,14 +29258,14 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
     Clip {
       name: mark_chase_2_4,
       description: none,
-      layer: default,
+      layer: blur,
       start: 80.192766422s,
       duration: 2.663265497s,
       target: layouts.main.stairs_01,
@@ -29281,7 +29281,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29304,14 +29304,14 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
     Clip {
       name: mark_chase_2_4_2,
       description: none,
-      layer: default,
+      layer: blur,
       start: 85.601510567s,
       duration: 2.663265497s,
       target: layouts.main.stairs_01,
@@ -29327,7 +29327,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29350,7 +29350,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29373,7 +29373,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29396,7 +29396,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29419,7 +29419,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29442,7 +29442,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29465,7 +29465,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29488,7 +29488,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29511,7 +29511,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29534,7 +29534,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29557,7 +29557,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29580,7 +29580,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29603,7 +29603,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29626,7 +29626,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29649,7 +29649,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29672,7 +29672,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29695,7 +29695,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29718,7 +29718,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29741,7 +29741,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29764,7 +29764,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29787,7 +29787,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29810,7 +29810,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29833,7 +29833,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29856,7 +29856,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29879,7 +29879,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29902,7 +29902,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29925,7 +29925,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29948,7 +29948,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29971,7 +29971,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -29994,7 +29994,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30017,7 +30017,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30040,7 +30040,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30063,7 +30063,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30086,7 +30086,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30109,7 +30109,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30132,7 +30132,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30155,7 +30155,7 @@ Sequence all_we_are {
         chase_position: [
           (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: [(0.0, 0.0), (0.197, 1.0), (1.0, 0.0)],
         overlap_marks: true,
       },
     },
@@ -30200,9 +30200,9 @@ Sequence all_we_are {
         position: (746.9965, 752.2158),
       },
       OperatorNode {
-        name: echo,
-        operator: operators.Echo,
-        params: {},
+        name: afterglow,
+        operator: operators.Afterglow,
+        params: { seconds: 0.2 },
         position: (1133.7883, 530.816),
       },
     ],
@@ -30217,8 +30217,8 @@ Sequence all_we_are {
       Edge { from: grayscale, to: grayscale_2.input },
       Edge { from: grayscale_2, to: output },
       Edge { from: blur, to: blur_2.input },
-      Edge { from: blur_2, to: echo.input },
-      Edge { from: echo, to: output },
+      Edge { from: blur_2, to: afterglow.input },
+      Edge { from: afterglow, to: output },
     ],
   },
   automation: [

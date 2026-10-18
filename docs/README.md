@@ -24,7 +24,7 @@ pages with relative paths.
   controllers and ports.
 
 **Hardware and performance**
-- [ESP32 controllers](esp32_loading.md): install, upload, admission, editor
+- [ESP32 controllers](esp32_loading.md): install, upload, loading, editor
   playback, clock sync and output pins.
 - [Performance](performance.md): compiler, preparation and interpreter design,
   timings and memory placement.

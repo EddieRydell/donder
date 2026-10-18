@@ -53,7 +53,7 @@ enum Control {
         position_micros: u32,
         speed: PlaybackSpeed,
         looping: bool,
-        archive_crc: u32,
+        archive_id: u32,
         archive_bytes: u32,
     },
     Cancel {
@@ -426,14 +426,14 @@ impl DevicePlaybackService {
             let checksum = u32::from_le_bytes(
                 prepared
                     .bytes
-                    .get(12..16)
+                    .get(8..12)
                     .ok_or("Prepared archive header is missing")?
                     .try_into()
                     .map_err(|_| "Invalid prepared archive header")?,
             );
             let matches = status.playback.as_ref().is_some_and(|playback| {
                 playback.archive_bytes as usize == prepared.bytes.len()
-                    && playback.archive_crc == checksum
+                    && playback.archive_id == checksum
             });
             if binding.uploaded != Some(prepared.hash) || !matches {
                 if let Some((hash, reason)) = &binding.rejected
@@ -487,12 +487,12 @@ impl DevicePlaybackService {
             let crc = u32::from_le_bytes(
                 prepared
                     .bytes
-                    .get(12..16)
+                    .get(8..12)
                     .ok_or("Prepared archive header is missing")?
                     .try_into()
                     .map_err(|_| "Invalid prepared archive header")?,
             );
-            if status.archive_crc != crc || status.archive_bytes as usize != prepared.bytes.len() {
+            if status.archive_id != crc || status.archive_bytes as usize != prepared.bytes.len() {
                 return Err(format!(
                     "Controller {} has a different show loaded; press Play to upload the current sequence",
                     binding.client.address
@@ -526,11 +526,14 @@ impl DevicePlaybackService {
             .map_err(|_| "Playback clock overflow")?;
         let deadline = origin + Duration::from_micros(at);
         let position = match advancing {
-            Some(current) => (u64::from(position)
-                + current.show_elapsed(
-                    deadline.saturating_duration_since(observed_at).as_micros() as u64
-                ))
-            .min(u64::from(duration)) as u32,
+            Some(current) => position
+                .saturating_add(
+                    current.show_elapsed(
+                        u32::try_from(deadline.saturating_duration_since(observed_at).as_micros())
+                            .unwrap_or(u32::MAX),
+                    ),
+                )
+                .min(duration),
             None => position.min(duration),
         };
         let mut commands = Vec::new();
@@ -548,7 +551,7 @@ impl DevicePlaybackService {
                 position_micros: position,
                 speed: rate.into(),
                 looping: false,
-                archive_crc: status.archive_crc,
+                archive_id: status.archive_id,
                 archive_bytes: status.archive_bytes,
             };
             // Include the current target in cancellation: a lost reply may hide acceptance.

@@ -1747,8 +1747,6 @@ name = "donder-runtime-types"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "crc32fast",
- "fugit",
  "libm",
  "micromath",
  "rkyv",
@@ -2117,15 +2115,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fugit"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e88e2d6927cbdbbbdc85fc550cee539e63ae0f76445f13094833f63bb65b62f5"
-dependencies = [
- "gcd",
-]
-
-[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2202,12 +2191,6 @@ dependencies = [
  "pin-project-lite",
  "slab",
 ]
-
-[[package]]
-name = "gcd"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 
 [[package]]
 name = "gdk"

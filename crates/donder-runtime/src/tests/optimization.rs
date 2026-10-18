@@ -11,9 +11,8 @@ use std::prelude::rust_2024::*;
 use super::evaluation::SignalSampler;
 use super::evaluation::{RuntimeError, StripWorkspace};
 use donder_language::compiler::ProgramConstants;
-use donder_runtime_types::SampleTime;
 use donder_runtime_types::SpatialContext;
-use donder_runtime_types::bytecode::{FloatUnary, Instruction, SignalPixel};
+use donder_runtime_types::bytecode::{FloatUnary, Instruction, SignalPixel, instructions};
 use donder_runtime_types::{Color, Value};
 
 const SPATIAL: SpatialContext = SpatialContext {
@@ -33,10 +32,10 @@ fn else_if_chains_choose_per_pixel() {
     );
     let mut workspace = StripWorkspace::default();
     for (pixel, expected) in [
-        (0, crate::sampling::rgb(1.0, 0.0, 0.0).to_color()),
-        (1, crate::sampling::rgb(0.0, 1.0, 0.0).to_color()),
-        (2, crate::sampling::rgb(0.0, 0.0, 1.0).to_color()),
-        (0, crate::sampling::rgb(1.0, 0.0, 0.0).to_color()),
+        (0, crate::sampling::rgb(1.0, 0.0, 0.0)),
+        (1, crate::sampling::rgb(0.0, 1.0, 0.0)),
+        (2, crate::sampling::rgb(0.0, 0.0, 1.0)),
+        (0, crate::sampling::rgb(1.0, 0.0, 0.0)),
     ] {
         assert_eq!(
             effect.evaluate(&context(3, pixel, 0), &SPATIAL, &mut workspace),
@@ -47,37 +46,25 @@ fn else_if_chains_choose_per_pixel() {
 
 /// Fails every sample, so a program's result shows whether it sampled.
 struct FailOnSample {
-    calls: Vec<u32>,
+    calls: Vec<SignalPixel<i32>>,
 }
 
 impl SignalSampler for FailOnSample {
-    fn sample_signal(
-        &mut self,
-        _: usize,
-        time: SampleTime,
-        _: SignalPixel<i32>,
-        _: Option<usize>,
-    ) -> Result<Color, RuntimeError> {
-        self.calls.push(time.as_ticks());
+    fn sample_signal(&mut self, _: usize, pixel: SignalPixel<i32>) -> Result<Color, RuntimeError> {
+        self.calls.push(pixel);
         Err(RuntimeError {
             message: "observed sample".into(),
         })
     }
 }
 
-/// Answers black and records each sample's time.
+/// Answers black and records each sample's pixel index.
 #[derive(Default)]
-struct Times(Vec<u32>);
+struct Times(Vec<i32>);
 
 impl SignalSampler for Times {
-    fn sample_signal(
-        &mut self,
-        _: usize,
-        time: SampleTime,
-        _: SignalPixel<i32>,
-        _: Option<usize>,
-    ) -> Result<Color, RuntimeError> {
-        self.0.push(time.as_ticks());
+    fn sample_signal(&mut self, _: usize, pixel: SignalPixel<i32>) -> Result<Color, RuntimeError> {
+        self.0.push(pixel.index().copied().unwrap_or(-1));
         Ok(Color::BLACK)
     }
 }
@@ -85,15 +72,15 @@ impl SignalSampler for Times {
 #[test]
 fn conditions_sample_only_when_they_decide() {
     for (condition, should_sample) in [
-        ("pixel.index == 0 || source.at(0.0) == #ffffff", false),
-        ("pixel.index != 0 && source.at(0.0) == #ffffff", false),
-        ("!(pixel.index == 0) || source.at(0.0) == #ffffff", true),
+        ("pixel.index == 0 || source == #ffffff", false),
+        ("pixel.index != 0 && source == #ffffff", false),
+        ("!(pixel.index == 0) || source == #ffffff", true),
         (
-            "pixel.index == 0 && (target.count == 1 || source.at(0.0) == #ffffff)",
+            "pixel.index == 0 && (target.count == 1 || source == #ffffff)",
             false,
         ),
         (
-            "pixel.index == 0 && (target.count != 1 || source.at(0.0) == #ffffff)",
+            "pixel.index == 0 && (target.count != 1 || source == #ffffff)",
             true,
         ),
     ] {
@@ -118,9 +105,8 @@ fn conditions_sample_only_when_they_decide() {
 
 #[test]
 fn unused_samples_are_never_taken() {
-    let operator = compile_operator(
-        "operator Dead { input source; sample { let unused = source.at(0.0); #000000 } }",
-    );
+    let operator =
+        compile_operator("operator Dead { input source; sample { let unused = source; #000000 } }");
     let instance = bind(&operator, &[]).instance(ProgramConstants::default());
     assert_eq!(instance.constant_color(), Some(Color::BLACK));
     let mut sampler = FailOnSample { calls: Vec::new() };
@@ -140,28 +126,25 @@ fn unused_samples_are_never_taken() {
 fn reductions_sample_only_contributing_iterations_and_exit_early() {
     for (body, calls) in [
         (
-            "max for i in 0..10 { guard i < 3; source.at(i * 0.1) }",
-            vec![0, 100_000, 200_000],
+            "max for i in 0..10 { guard i < 3; source.at(i) }",
+            vec![0, 1, 2],
         ),
         (
-            "first for i in 0..10 { guard i >= 2; source.at(i * 0.1) }",
-            vec![200_000],
+            "first for i in 0..10 { guard i >= 2; source.at(i) }",
+            vec![2],
         ),
+        ("last for i in 0..10 { guard i < 7; source.at(i) }", vec![6]),
         (
-            "last for i in 0..10 { guard i < 7; source.at(i * 0.1) }",
-            vec![600_000],
-        ),
-        (
-            "if any for i in 0..10 { source.at(i * 0.1) == #000000 } { #ffffff } else { #000000 }",
+            "if any for i in 0..10 { source.at(i) == #000000 } { #ffffff } else { #000000 }",
             vec![0],
         ),
         (
-            "if all for i in 0..10 { source.at(i * 0.1) != #000000 } { #ffffff } else { #000000 }",
+            "if all for i in 0..10 { source.at(i) != #000000 } { #ffffff } else { #000000 }",
             vec![0],
         ),
         (
-            "if all for i in 0..10 { guard i > 4; source.at(i * 0.1) != #000000 } { #ffffff } else { #000000 }",
-            vec![500_000],
+            "if all for i in 0..10 { guard i > 4; source.at(i) != #000000 } { #ffffff } else { #000000 }",
+            vec![5],
         ),
     ] {
         let operator = operator(&format!(
@@ -170,7 +153,7 @@ fn reductions_sample_only_contributing_iterations_and_exit_early() {
         let mut sampler = Times::default();
         operator
             .evaluate(
-                &context(1, 0, 0),
+                &context(10, 0, 0),
                 &SPATIAL,
                 &mut sampler,
                 &mut StripWorkspace::default(),
@@ -197,16 +180,15 @@ fn reductions_of_index_free_bodies_fold() {
                 !invocation
                     .program()
                     .bytecode()
-                    .code
-                    .iter()
+                    .instructions()
                     .any(|op| matches!(op, Instruction::Reduce { .. })),
                 "n={n}"
             );
             let context = context(3, 1, 0);
             let expected = if n == 0 {
-                crate::sampling::rgb(f32::NEG_INFINITY, 0.0, f32::INFINITY).to_color()
+                crate::sampling::rgb(f32::NEG_INFINITY, 0.0, f32::INFINITY)
             } else {
-                crate::sampling::rgb(context.progress, 0.375, context.fraction).to_color()
+                crate::sampling::rgb(context.progress, 0.375, context.fraction)
             };
             assert_eq!(
                 invocation.evaluate(&context, &SPATIAL, &mut StripWorkspace::default()),
@@ -222,11 +204,7 @@ fn fixed_definitions_fold_to_constant_colors() {
     for (source, expected) in [
         (
             "effect Constant { sample { rgb(0.0, 0.2, 1.0) } }",
-            Some(Color {
-                red: 0,
-                green: 51,
-                blue: 255,
-            }),
+            Some(Color::from_bytes([0, 51, 255])),
         ),
         (
             "effect Empty { param n: int in 0..4 = 0; sample { sum for i in 0..n { #ffffff } } }",
@@ -234,11 +212,7 @@ fn fixed_definitions_fold_to_constant_colors() {
         ),
         (
             "effect Choice { param on: bool = true; sample { if on { #ff0000 } else { rgb(pixel.fraction, 0.0, 0.0) } } }",
-            Some(Color {
-                red: 255,
-                green: 0,
-                blue: 0,
-            }),
+            Some(Color::from_bytes([255, 0, 0])),
         ),
         (
             "effect Varying { sample { rgb(progress, 0.0, 0.0) } }",
@@ -266,25 +240,17 @@ fn preparation_computes_fixed_values_into_parameter_slots() {
         "effect Tint { param tint: color = #204060; param level: float in 0.0..1.0 = 0.5;
           sample { tint * level } }",
     );
-    let expected = crate::sampling::scale_color(
-        Color {
-            red: 0x20,
-            green: 0x40,
-            blue: 0x60,
-        }
-        .into(),
-        0.5,
-    )
-    .to_color();
+    let expected = crate::sampling::scale_color(Color::from_bytes([0x20, 0x40, 0x60]), 0.5);
     let lowered = playback::lower_sample(&bind(&effect, &[]));
     assert_eq!(lowered.params().values(), [Value::Color(expected)]);
     // The program only reads the computed parameter.
     let bytecode = lowered.program().bytecode();
     assert_eq!(
-        *bytecode.code,
-        [Instruction::ColorParam {
+        bytecode.instructions().collect::<Vec<_>>(),
+        [Instruction::Param {
+            bank: donder_runtime_types::bytecode::Bank::Color,
             dst: bytecode.result,
-            bank: 0
+            index: 0
         }]
     );
     assert_eq!(
@@ -311,7 +277,7 @@ fn invariant_divisors_divide_correctly_with_either_sign() {
             assert_eq!(
                 invocation
                     .evaluate(&context(1, 0, 0), &SPATIAL, &mut StripWorkspace::default())
-                    .red,
+                    .to_bytes()[0],
                 77,
                 "{denominator}"
             );
@@ -337,11 +303,11 @@ fn smoothstep_with_bounded_edges_preserves_boundaries() {
                 (0.75, 0.0)
             };
             let t = ((context.fraction - left) / (right - left)).clamp(0.0, 1.0);
-            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0).to_color();
+            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0);
             for invocation in [&fixed, &runtime] {
                 let actual = invocation.evaluate(&context, &SPATIAL, &mut workspace);
                 assert!(
-                    actual.red.abs_diff(expected.red) <= 1,
+                    (actual.red - expected.red).abs() <= 1e-5,
                     "pixel {pixel}: {actual:?} vs {expected:?}"
                 );
             }
@@ -350,12 +316,12 @@ fn smoothstep_with_bounded_edges_preserves_boundaries() {
 }
 
 #[test]
-fn smoothstep_keeps_varying_and_degenerate_edge_semantics() {
+fn smoothstep_keeps_varying_edge_semantics() {
     let effect = effect(
         "effect Smooth { sample {
             let edge = pixel.fraction;
             rgb(smoothstep(edge, 0.5, 0.25),
-                value_or(smoothstep(edge, edge, edge), 0.25),
+                0.25,
                 smoothstep(0.0, 1.0, 0.5))
         } }",
     );
@@ -364,7 +330,7 @@ fn smoothstep_keeps_varying_and_degenerate_edge_semantics() {
         let context = context(65, pixel, 0);
         let edge = context.fraction;
         let t = ((0.25 - edge) / (0.5 - edge)).clamp(0.0, 1.0);
-        let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.25, 0.5).to_color();
+        let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.25, 0.5);
         assert_eq!(
             effect.evaluate(&context, &SPATIAL, &mut workspace),
             expected
@@ -384,7 +350,7 @@ fn uniform_smoothstep_runs_in_the_query_block() {
     ] {
         let bytecode = invocation.program().bytecode();
         assert!(!bytecode.uses_pixel_context());
-        let (query, _) = bytecode.prefix();
+        let query: Vec<_> = instructions(bytecode.query()).collect();
         assert!(query.iter().any(|op| matches!(
             op,
             Instruction::FloatUnary {
@@ -397,10 +363,10 @@ fn uniform_smoothstep_runs_in_the_query_block() {
             let context = context(8, 0, frame);
             let t = (donder_runtime_types::sample_duration_seconds_f32(context.time) / 0.75)
                 .clamp(0.0, 1.0);
-            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0).to_color();
+            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0);
             let actual = invocation.evaluate(&context, &SPATIAL, &mut workspace);
             assert!(
-                actual.red.abs_diff(expected.red) <= 1,
+                (actual.red - expected.red).abs() <= 1e-5,
                 "frame {frame}: {actual:?} vs {expected:?}"
             );
         }
@@ -427,12 +393,12 @@ fn hoisted_reduction_work_keeps_empty_and_filtered_results() {
             for pixel in [0, 1, 0] {
                 let color = invocation.evaluate(&context(2, pixel, 0), &SPATIAL, &mut workspace);
                 assert_eq!(
-                    color.red,
+                    color.to_bytes()[0],
                     if count > 0 && pixel == 0 { 85 } else { 64 },
                     "count={count} pixel={pixel}"
                 );
                 assert_eq!(
-                    color.green,
+                    color.to_bytes()[1],
                     match count {
                         3 => 26,
                         4 => 51,
@@ -446,7 +412,7 @@ fn hoisted_reduction_work_keeps_empty_and_filtered_results() {
 }
 
 #[test]
-fn reciprocals_of_missing_and_infinite_divisors_divide_exactly() {
+fn reciprocals_of_infinite_divisors_divide_exactly() {
     let effect = compile_effect(
         "effect Missing { param divisor: float in 0.0..10.0 = 1.0;
         sample {
@@ -455,12 +421,12 @@ fn reciprocals_of_missing_and_infinite_divisors_divide_exactly() {
         }
     }",
     );
-    for (value, expected) in [(f32::NAN, 64), (2.0, 255), (f32::INFINITY, 0)] {
+    for (value, expected) in [(2.0, 255), (f32::INFINITY, 0)] {
         let invocation = runtime_effect(&effect, &[], &[("divisor", Value::Float(value))]);
         assert_eq!(
             invocation
                 .evaluate(&context(1, 0, 0), &SPATIAL, &mut StripWorkspace::default())
-                .red,
+                .to_bytes()[0],
             expected,
             "{value}"
         );

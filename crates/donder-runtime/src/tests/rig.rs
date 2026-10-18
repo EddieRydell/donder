@@ -12,11 +12,7 @@ use donder_runtime_types::{
 use std::prelude::rust_2024::*;
 
 const SESSION: u32 = 10_000_000;
-const WHITE: Color = Color {
-    red: 255,
-    green: 255,
-    blue: 255,
-};
+const WHITE: Color = Color::from_bytes([255, 255, 255]);
 
 fn at(seconds: f32) -> SampleTime {
     SampleTime::from_ticks((seconds * 1_000_000.0) as u32)
@@ -91,9 +87,7 @@ fn archived_rig_plays_like_the_prepared_one() {
         builder.output(Some(layer))
     });
     let bytes = prepared.encode();
-    let mut rig = crate::PreparedRig::decode(&bytes, crate::LoadLimits::default())
-        .unwrap()
-        .into_playback();
+    let mut rig = crate::PreparedRig::decode(&bytes).unwrap().into_playback();
     rig.apply(event(1.0, RigCommand::Start { voice: 0 }));
     assert_eq!(color(&mut rig, 2.0), WHITE);
 }

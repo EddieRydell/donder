@@ -23,7 +23,7 @@ has one owner:
 | `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, rigs, effect and operator definitions, ownership, identity, geometry preparation, validation, and the validated `ProjectEdit` batches and ownership edits that change it. |
 | `donder-project-io` | Source documents, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
-| `donder-runtime` | `no_std` show playback without `alloc`: admission of a show image borrowed in place (`Show`), and evaluation into one caller-provided buffer (`Playback`) by the private strip interpreter. The default `host` feature adds the image builder and owned shows and playbacks. |
+| `donder-runtime` | `no_std` show playback without `alloc`: a trusted show image borrowed in place (`Show`), and evaluation into one caller-provided buffer (`Playback`) by the private strip interpreter. The default `host` feature adds the image builder and owned shows and playbacks. |
 | `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
 | `donder-audio-analysis` | Beat and downbeat detection from song audio: decoding, the log-mel spectrogram and the embedded Beat This! model (small, MIT licensed) run with tract. Host-only. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
@@ -119,14 +119,28 @@ device selection) so that playback never does.
 A prepared sequence is a show image: a header, a section table and sections of
 fixed-size records that refer to one another by index. Playback reads the
 records where they lie, in memory or in a controller's flash. A show's
-`Layout` gives the exact size of its playback buffer; `Playback::new` lays the
-frame, port bytes, strip workspaces, frame caches and automation state out in
-that buffer, and `Playback::resume` borrows them again on a later frame.
+`Layout` (`Show::layout`) gives the exact size of its playback buffer;
+`Playback::new` lays the nodes' frame buffers, their state buffers, scan
+frames, port bytes, the strip workspace and the automation scratch out in that
+buffer, and `Playback::resume` borrows them again on a later frame.
 `sequence.into_playback()` owns both on the host. `evaluate(time)` returns
-borrowed fixture colors and packed controller bytes for that frame. It cannot
+borrowed fixture colors and packed controller bytes for the frame nearest
+`time`; asking for the same frame again returns the frame it holds. It cannot
 fail and does not allocate. The VM and record layouts are private to the
 runtime; callers build images only through `SequenceBuilder`'s owner-bound
 handles.
+
+Evaluation pushes whole frames through the signal graph. The nodes run in
+topological order, each into a frame buffer that is reused once its last
+reader has run (at most 16 at once): a layer max-composites its active clips,
+found by a binary search over its clips' start order and latest ends; an
+operator runs over every pixel and reads its inputs' frames of this frame at
+any pixel; a mix keeps each channel's maximum. A layer or operator that reads
+`previous` (at most 16) copies its frame into a state buffer once it has run,
+which it reads on the next frame. Colors are 16 bits per channel throughout;
+only packing the output bytes narrows them, through each route's gamma lookup.
+The builder asserts the limits on frame buffers, state buffers and scans per
+program (8).
 
 The same `PreparedSequence` runs in three places. All three map wall time to
 show time and choose rendered frames through the runtime's `PlaybackRate`, so a
@@ -143,9 +157,9 @@ everywhere:
 - **Live output.** The desktop service evaluates controller bytes and sends them
   over E1.31 or Art-Net. Output is opt-in for each run and fails closed: stopping
   blacks out active ports and terminates E1.31 streams.
-- **Controllers.** Exported images, prepared for a controller's ports, are
-  uploaded to the ESP32 loader, which plays them from the flash slot they were
-  written to; only the playback buffer is in RAM.
+- **Controllers.** Prepared sequences, built for a controller's ports, are
+  uploaded to the ESP32 loader, which stores them in a flash slot and plays
+  them from a copy in RAM beside their playback buffer.
 
 Perform mode plays a rig instead of a sequence (`desktop_state/perform.rs`).
 Starting arms the rig on the active setup and starts a session clock; sequence
@@ -159,12 +173,12 @@ the session time as its clock anchor. An evaluator that joins mid-performance
 replays the performance's events from the start. Frame caches include the
 events applied, since an event changes a frame without changing its time.
 
-Admission checks the header, checksum and section table, every cross-reference
-between records, every program's well-formedness for its use, and the limits on
-pixels, graph nodes and buffer size, once; playback then indexes records
-without checking them again. A rig is an image with voices, live mark
-collections and controls; their commands change only the playback buffer. The
-format is a numbered current version; a mismatch is rejected rather than
-migrated.
+The image is trusted: only the host builder writes it, so `Show::open` checks
+nothing but its format version and playback indexes records without checking
+them. The header holds an `id`, a hash of the image the builder writes, which a
+controller reports so a host can tell which show it holds; playback never reads
+it. A rig is an image with voices, live mark
+collections and controls; their commands change only the playback buffer. The format is a numbered current version; a mismatch is rejected
+(`LoadError::Version`) rather than migrated.
 
 Performance design is described in [performance](performance.md).

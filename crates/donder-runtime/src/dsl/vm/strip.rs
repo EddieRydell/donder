@@ -10,7 +10,7 @@
 //! scalar and masks every pixel to it, a row's masks nothing. Reading a pixel
 //! is then one branch-free load whatever the operand's kind, so one loop serves
 //! every kind of operand; the cheapest operations also have loops of their own
-//! for rows and for a row with a scalar.
+//! for rows and for a row with a scalar. A color is three consecutive floats.
 //!
 //! With the `iram` feature, every function here is linked into instruction RAM
 //! (see `docs/performance.md`); `pnpm firmware:build` checks the placement.
@@ -19,70 +19,51 @@ use super::RunContext;
 use super::context::Clock;
 use super::workspace::{NEIGHBORHOOD, Neighborhood, StripWorkspace};
 use crate::dsl::bytecode::{
-    Bank, ColorBinary, ColorComponent, CompareOp, ContextRead, Direction, Edges, FloatBinary,
-    Input, Instruction, IntBinary, MAX_ITERATIONS, MarkOp, NO_FRAME_CACHE, Reducer, Resource,
-    SignalPixel, Slot, SlotKind,
+    Bank, ColorComponent, CompareOp, ContextRead, CurveOp, Direction, Edges, FloatBinary, Input,
+    Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource, SignalPixel, Slot, SlotKind,
 };
 use crate::resources::{CurveView, ParamsView};
 use crate::sampling::{
-    add_colors, clamp_array_index, clamp_float, color_hue, color_intensity, color_saturation,
-    float_binary, float_unary, gradient_color_scaled, hsv, int_binary, invert_color, length_int,
-    mark_at, max_colors, mix_colors, multiply_colors, previous_mark, previous_mark_index,
-    query_progress, query_seconds, rgb, sample_gradient_stops, scale_color, section_position,
+    clamp_array_index, color_hue, color_intensity, color_saturation, float_binary, float_unary,
+    gradient_color_scaled, hsv, int_binary, mark_at, max_float, min_float, previous_mark,
+    previous_mark_index, sample_gradient_stops, value_or,
 };
 use crate::sections::{RunSections, SectionsView, single_section_query};
 use crate::show::{ProgramView, Show};
 use core::cell::Cell;
 use donder_runtime_types::image::{self, GradientStop, SectionPixel};
-use donder_runtime_types::{Color, FloatColor, InstructionWord, MarkWindow, SampleTime};
+use donder_runtime_types::{Color, InstructionWord, MarkWindow};
 
 pub(crate) use crate::dsl::bytecode::STRIP;
 const MASK: usize = STRIP - 1;
 
 pub(super) use crate::arena::Row;
 
-/// The instruction a word of an admitted program encodes; one copy serves
-/// every dispatch.
+/// The instruction at the start of trusted code; one copy serves every
+/// dispatch.
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn decoded(word: &InstructionWord) -> Instruction {
-    let Some(instruction) = word.decode_trusted() else {
-        unreachable!("admission decodes every word")
-    };
-    instruction
+fn decoded(code: &[InstructionWord]) -> Instruction {
+    InstructionWord::decode(code)
 }
 
-/// A bound color word: red, green and blue in its low bytes.
+/// A bound color word: the index of its color in the image.
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn word_color(word: u32) -> Color {
-    let [red, green, blue, _] = word.to_le_bytes();
-    Color { red, green, blue }
+fn word_color(show: Show<'_>, word: u32) -> Color {
+    show.s.colors[word as usize]
 }
 
 /// Signal queries of a running strip. Pixel `n` of a strip is its `n`th
 /// pixel; the provider knows which pixels the strip covers.
 pub(crate) trait StripSignals {
-    /// `input` at `time` for every pixel of the strip, each at its own pixel.
-    fn sample_strip(
-        &mut self,
-        input: usize,
-        time: SampleTime,
-        frame_cache: Option<usize>,
-        output: &mut [Color; STRIP],
-    );
+    /// `input` for every pixel of the strip, each at its own pixel.
+    fn sample_strip(&mut self, input: usize, output: &mut [Color; STRIP]);
 
-    /// `input` at `time` for one pixel at an explicit address.
-    fn sample_pixel(
-        &mut self,
-        input: usize,
-        time: SampleTime,
-        offset: usize,
-        pixel: SignalPixel<i32>,
-        frame_cache: Option<usize>,
-    ) -> Color;
+    /// `input` for one pixel at an explicit address.
+    fn sample_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color;
 
     /// The strip's pixels of `query`'s scan, computed for the whole frame
-    /// when the query's frame cache does not hold it yet.
+    /// the first time the node reads it.
     fn scan(
         &mut self,
         query: &ScanQuery,
@@ -90,27 +71,22 @@ pub(crate) trait StripSignals {
         output: &mut [Color; STRIP],
     );
 
-    /// `input` at `time` for the pixels from `start` pixels after the strip's
+    /// `input` for the pixels from `start` pixels after the strip's
     /// first, in the target's order: their colors and indices in their
     /// fixtures, black and [`OUTSIDE`] past the target's ends.
     fn sample_range(
         &mut self,
         input: usize,
-        time: SampleTime,
         start: isize,
-        frame_cache: Option<usize>,
         colors: &mut [Color],
         locals: &mut [i32],
     );
 }
 
-/// A scan: its input, the frame cache of its input and of its result, and
-/// how it runs.
+/// A scan: its input, the scratch frame of its result, and how it runs.
 #[derive(Clone, Copy)]
 pub(crate) struct ScanQuery {
     pub(crate) input: usize,
-    pub(crate) time: SampleTime,
-    pub(crate) frame_cache: Option<usize>,
     pub(crate) cache: usize,
     pub(crate) direction: Direction,
     pub(crate) decay: f32,
@@ -121,41 +97,27 @@ pub(crate) trait SourceWeights {
     fn weights(&mut self, colors: &[Color], weights: &mut [f32]);
 }
 
-/// Effects never query signals; admission rejects the instruction.
+/// A clip sampled alone: it has no layer, so its previous frame is black.
 impl StripSignals for super::NoSignals {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn sample_strip(&mut self, _: usize, _: SampleTime, _: Option<usize>, _: &mut [Color; STRIP]) {
-        unreachable!("effect admission excludes signal instructions")
+    fn sample_strip(&mut self, _: usize, output: &mut [Color; STRIP]) {
+        output.fill(Color::BLACK);
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn sample_pixel(
-        &mut self,
-        _: usize,
-        _: SampleTime,
-        _: usize,
-        _: SignalPixel<i32>,
-        _: Option<usize>,
-    ) -> Color {
-        unreachable!("effect admission excludes signal instructions")
+    fn sample_pixel(&mut self, _: usize, _: usize, _: SignalPixel<i32>) -> Color {
+        Color::BLACK
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn sample_range(
-        &mut self,
-        _: usize,
-        _: SampleTime,
-        _: isize,
-        _: Option<usize>,
-        _: &mut [Color],
-        _: &mut [i32],
-    ) {
-        unreachable!("effect admission excludes signal instructions")
+    fn sample_range(&mut self, _: usize, _: isize, colors: &mut [Color], locals: &mut [i32]) {
+        colors.fill(Color::BLACK);
+        locals.fill(super::OUTSIDE);
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn scan(&mut self, _: &ScanQuery, _: &mut dyn SourceWeights, _: &mut [Color; STRIP]) {
-        unreachable!("effect admission excludes signal instructions")
+    fn scan(&mut self, _: &ScanQuery, _: &mut dyn SourceWeights, output: &mut [Color; STRIP]) {
+        output.fill(Color::BLACK);
     }
 }
 
@@ -168,65 +130,41 @@ pub(crate) struct Pixels<'w> {
     pub(crate) sections: &'w Row<SectionPixel>,
 }
 
-/// A resource: a parameter or constant of the program, or an item of an
-/// array parameter or constant.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum HandleKind {
-    Empty,
-    Param(Resource, u16),
-    Constant(Resource, u16),
-    ParamItem(u16, u16),
-    ConstantItem(u16, u16),
-}
-
-/// A [`HandleKind`] as plain data, so a workspace bank can hold it.
+/// A resource: one of the image's, by index into its kind's section, or a
+/// parameter the invocation rewrites (an automated curve's window, live
+/// marks), by its resource bank.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub(super) struct Handle {
-    tag: u16,
-    a: u16,
-    b: u16,
-}
+#[repr(transparent)]
+pub(super) struct Handle(u32);
 
-const RESOURCES: [Resource; 4] = [
-    Resource::Curve,
-    Resource::Gradient,
-    Resource::Marks,
-    Resource::Array,
-];
+const PARAM_HANDLE: u32 = 1 << 31;
 
 impl Handle {
-    pub(super) const EMPTY: Self = Self { tag: 0, a: 0, b: 0 };
+    pub(super) const EMPTY: Self = Self(0);
 
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn new(kind: HandleKind) -> Self {
-        let resource = |resource: Resource| resource as u16;
-        let (tag, a, b) = match kind {
-            HandleKind::Empty => (0, 0, 0),
-            HandleKind::Param(kind, bank) => (1, resource(kind), bank),
-            HandleKind::Constant(kind, index) => (2, resource(kind), index),
-            HandleKind::ParamItem(bank, index) => (3, bank, index),
-            HandleKind::ConstantItem(array, index) => (4, array, index),
-        };
-        Self { tag, a, b }
+    fn image(index: u32) -> Self {
+        Self(index)
     }
 
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn kind(self) -> HandleKind {
-        let resource = || RESOURCES[usize::from(self.a & 3)];
-        match self.tag {
-            1 => HandleKind::Param(resource(), self.b),
-            2 => HandleKind::Constant(resource(), self.b),
-            3 => HandleKind::ParamItem(self.a, self.b),
-            4 => HandleKind::ConstantItem(self.a, self.b),
-            _ => HandleKind::Empty,
+    fn param(bank: u16) -> Self {
+        Self(PARAM_HANDLE | u32::from(bank))
+    }
+
+    /// The parameter bank of a rewritten resource, or the image index.
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn kind(self) -> Result<u32, u16> {
+        if self.0 & PARAM_HANDLE == 0 {
+            Ok(self.0)
+        } else {
+            Err(self.0 as u16)
         }
     }
 }
-
-pub(super) const NO_COLOR: FloatColor = FloatColor::BLACK;
 
 /// One bank's slots: its scalars, then its rows, in one array. A bank with
 /// scalars but no rows keeps a row of padding, so every scalar has a
@@ -422,6 +360,42 @@ enum Dst<'r, T> {
     Many(&'r Row<T>),
 }
 
+/// A color operand: its channels.
+type ColorSrc<'r> = [Src<'r, f32>; 3];
+type ColorDst<'r> = [Dst<'r, f32>; 3];
+
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn color_at(color: ColorSrc<'_>, index: usize) -> Color {
+    Color {
+        red: color[0].at(index),
+        green: color[1].at(index),
+        blue: color[2].at(index),
+    }
+}
+
+/// Write `value(i)` at the selected pixels of a color, or once for a scalar.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn pick_color(sel: Sel<'_>, dst: ColorDst<'_>, value: impl Fn(usize) -> Color) {
+    match dst {
+        [Dst::Many(red), Dst::Many(green), Dst::Many(blue)] => each(sel, |i| {
+            let color = value(i);
+            red[i].set(color.red);
+            green[i].set(color.green);
+            blue[i].set(color.blue);
+        }),
+        [red, green, blue] => {
+            let color = value(0);
+            for (dst, channel) in [(red, color.red), (green, color.green), (blue, color.blue)] {
+                if let Dst::One(dst) = dst {
+                    dst.set(channel);
+                }
+            }
+        }
+    }
+}
+
 /// Cheap operations: rows, and a row with a scalar, have their own loops.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
@@ -533,13 +507,6 @@ fn binary(op: FloatBinary, a: f32, b: f32) -> f32 {
     float_binary(op, a, b)
 }
 
-/// Colors compare as the 8-bit colors they are written as.
-#[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn same_color(a: FloatColor, b: FloatColor) -> bool {
-    a.to_color() == b.to_color()
-}
-
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn int(op: IntBinary, a: i32, b: i32) -> i32 {
@@ -548,12 +515,9 @@ fn int(op: IntBinary, a: i32, b: i32) -> i32 {
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn component(op: ColorComponent, color: FloatColor) -> f32 {
+fn component(op: ColorComponent, color: Color) -> f32 {
     match op {
         ColorComponent::Hue => color_hue(color),
-        ColorComponent::Red => color.red,
-        ColorComponent::Green => color.green,
-        ColorComponent::Blue => color.blue,
         ColorComponent::Saturation => color_saturation(color),
         ColorComponent::Intensity => color_intensity(color),
     }
@@ -561,43 +525,21 @@ fn component(op: ColorComponent, color: FloatColor) -> f32 {
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn mix_color(a: FloatColor, b: FloatColor, amount: f32) -> FloatColor {
-    mix_colors(a, b, amount)
-}
-
-#[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn rgb_color(red: f32, green: f32, blue: f32) -> FloatColor {
-    rgb(red, green, blue)
-}
-
-#[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn hsv_color(hue: f32, saturation: f32, value: f32) -> FloatColor {
+fn hsv_color(hue: f32, saturation: f32, value: f32) -> Color {
     hsv(hue, saturation, value)
 }
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn recolor(color: FloatColor, hue: f32, shift: bool) -> FloatColor {
+fn recolor(color: Color, hue: f32, shift: bool) -> Color {
     crate::sampling::recolor(color, hue, shift)
-}
-
-#[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn power(base: f32, count: i32) -> f32 {
-    let mut power = 1.0;
-    for _ in 0..count.clamp(0, MAX_ITERATIONS) {
-        power *= base;
-    }
-    power
 }
 
 /// Offsets of pixel `i`'s range, as a reduction counts its iterations.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn offset_count(start: Src<'_, i32>, end: Src<'_, i32>, i: usize) -> i32 {
-    end.at(i).wrapping_sub(start.at(i)).clamp(0, MAX_ITERATIONS)
+    end.at(i).wrapping_sub(start.at(i)).max(0)
 }
 
 /// A stencil's neighborhood, read by every offset.
@@ -625,13 +567,8 @@ struct Weights<'s, 'm, 'w> {
 impl SourceWeights for Weights<'_, '_, '_> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn weights(&mut self, colors: &[Color], weights: &mut [f32]) {
-        let Dst::Many(row) = self.machine.color_dst(self.sample) else {
-            unreachable!()
-        };
         for (colors, weights) in colors.chunks(STRIP).zip(weights.chunks_mut(STRIP)) {
-            for (cell, color) in row.iter().zip(colors) {
-                cell.set((*color).into());
-            }
+            self.machine.fill_sample(self.sample, colors);
             let all = range(0, colors.len() as u8);
             self.machine
                 .block(self.code, Sel(&all), self.levels, &mut super::NoSignals);
@@ -661,8 +598,6 @@ pub(crate) struct Strip<'a, 'w> {
     shape: Option<(i32, [u32; 4])>,
     min: [f32; 2],
     max: [f32; 2],
-    /// The latest sample seconds and their time.
-    query: Cell<Option<(u32, Option<SampleTime>)>>,
 }
 
 impl<'a, 'w> Strip<'a, 'w> {
@@ -680,7 +615,6 @@ impl<'a, 'w> Strip<'a, 'w> {
             shape: None,
             min: [0.0; 2],
             max: [0.0; 2],
-            query: Cell::new(None),
         }
     }
 
@@ -724,9 +658,6 @@ impl<'a, 'w> Strip<'a, 'w> {
             min: self.min,
             max: self.max,
             ws: self.workspace,
-            query: &self.query,
-            curves: Cell::new((Handle::EMPTY, CurveView::EMPTY)),
-            marks: Cell::new((Handle::EMPTY, None)),
         };
         let code = self.bound.program.code;
         let record = self.bound.program.record;
@@ -747,7 +678,7 @@ impl<'a, 'w> Strip<'a, 'w> {
         machine.block(body, Sel(&strip), levels, signals);
         let result = machine.color(Slot::from_bits(record.result as u16));
         for (index, output) in output.iter_mut().enumerate() {
-            *output = result.at(index).to_color();
+            *output = color_at(result, index);
         }
     }
 }
@@ -759,11 +690,6 @@ struct Machine<'m, 'w> {
     min: [f32; 2],
     max: [f32; 2],
     ws: &'m StripWorkspace<'w>,
-    query: &'m Cell<Option<(u32, Option<SampleTime>)>>,
-    /// The resource each kind's latest handle named: a strip's pixels and
-    /// instructions mostly read one, which is resolved once.
-    curves: Cell<(Handle, CurveView<'m>)>,
-    marks: Cell<(Handle, Option<MarkWindow<'m>>)>,
 }
 
 impl<'m, 'w: 'm> Machine<'m, 'w> {
@@ -803,10 +729,13 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         operand(&self.ws.bools, slot)
     }
 
-    #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn color(&self, slot: Slot) -> Src<'m, FloatColor> {
-        operand(&self.ws.colors, slot)
+    fn color(&self, slot: Slot) -> ColorSrc<'m> {
+        [
+            self.float(slot),
+            self.float(slot.channel(1)),
+            self.float(slot.channel(2)),
+        ]
     }
 
     #[inline(never)]
@@ -833,16 +762,41 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         destination(&self.ws.bools, slot)
     }
 
-    #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn color_dst(&self, slot: Slot) -> Dst<'m, FloatColor> {
-        destination(&self.ws.colors, slot)
+    fn color_dst(&self, slot: Slot) -> ColorDst<'m> {
+        [
+            self.float_dst(slot),
+            self.float_dst(slot.channel(1)),
+            self.float_dst(slot.channel(2)),
+        ]
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn handle_dst(&self, slot: Slot) -> Dst<'m, Handle> {
         destination(&self.ws.handles, slot)
+    }
+
+    /// The rows of the color row `slot`.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn color_rows(&self, slot: Slot) -> [&'m Row<f32>; 3] {
+        let row = |dst| match dst {
+            Dst::Many(row) => row,
+            Dst::One(_) => unreachable!("the compiler keeps samples in rows"),
+        };
+        let [red, green, blue] = self.color_dst(slot);
+        [row(red), row(green), row(blue)]
+    }
+
+    /// Write the first pixels of the color row `slot` from `colors`.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn fill_sample(&self, slot: Slot, colors: &[Color]) {
+        let [red, green, blue] = self.color_rows(slot);
+        for (k, color) in colors.iter().enumerate() {
+            red[k].set(color.red);
+            green[k].set(color.green);
+            blue[k].set(color.blue);
+        }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
@@ -862,8 +816,8 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     ) {
         let mut at = 0;
         while at < code.len() {
-            let instruction = &decoded(&code[at]);
-            at += 1;
+            let instruction = &decoded(&code[at..]);
+            at += instruction.width();
             match *instruction {
                 Instruction::Branch {
                     condition,
@@ -902,6 +856,11 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     let source = &code[at..at + usize::from(source_len)];
                     at += usize::from(source_len);
                     self.scan(instruction, source, sel, levels, signals);
+                }
+                Instruction::Tabulate { len, .. } => {
+                    let body = &code[at..at + usize::from(len)];
+                    at += usize::from(len);
+                    self.tabulate(instruction, body, sel, levels, signals);
                 }
                 _ => self.step(instruction, sel, signals),
             }
@@ -974,7 +933,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             reducer,
             Reducer::Any | Reducer::All | Reducer::First | Reducer::Last
         );
-        let count = |i: usize| end.at(i).wrapping_sub(start.at(i)).clamp(0, MAX_ITERATIONS);
+        let count = |i: usize| end.at(i).wrapping_sub(start.at(i)).max(0);
         let index_at = |i: usize, k: i32| {
             if last {
                 end.at(i).wrapping_sub(1).wrapping_sub(k)
@@ -1020,34 +979,29 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 running += 1;
             });
         }
-        let (mut first, mut past) = (i64::MAX, i64::MIN);
+        let (mut first, mut past) = (i32::MAX, i32::MIN);
         let mut iterations = 0;
         if shared {
             each(sel, |i| {
                 let count = count(i);
                 if count > 0 {
-                    first = first.min(i64::from(start.at(i)));
-                    past = past.max(i64::from(start.at(i)) + i64::from(count));
+                    first = first.min(start.at(i));
+                    past = past.max(start.at(i).wrapping_add(count));
                 }
             });
-            iterations = past
-                .saturating_sub(first)
-                .clamp(0, i64::from(MAX_ITERATIONS)) as i32;
+            // No pixel takes part when none has a count.
+            iterations = if past > first { past - first } else { 0 };
         } else {
             each(sel, |i| iterations = iterations.max(count(i)));
         }
         // The shared index at iteration `k`, ascending or, for `last`, descending.
         let shared_at = |k: i32| {
-            if last {
-                past - 1 - i64::from(k)
-            } else {
-                first + i64::from(k)
-            }
+            if last { past - 1 - k } else { first + k }
         };
         let takes_part = |i: usize, k: i32| {
             if shared {
-                let (index, start) = (shared_at(k), i64::from(start.at(i)));
-                index >= start && index < start + i64::from(count(i))
+                let (index, start) = (shared_at(k), start.at(i));
+                index >= start && index < start.wrapping_add(count(i))
             } else {
                 k < count(i)
             }
@@ -1065,7 +1019,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 continue;
             }
             match index_dst {
-                Dst::One(index) if shared => index.set(shared_at(k) as i32),
+                Dst::One(index) if shared => index.set(shared_at(k)),
                 Dst::One(index) => index.set(index_at(0, k)),
                 Dst::Many(index) => each(participating, |i| index[i].set(index_at(i, k))),
             }
@@ -1141,18 +1095,10 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             unreachable!()
         };
         let Instruction::Sample {
-            dst: sample,
-            input,
-            seconds,
-            frame_cache,
-            ..
-        } = decoded(&source[0])
+            dst: sample, input, ..
+        } = decoded(source)
         else {
             unreachable!()
-        };
-        // Missing samples are black, and black terms leave the identity.
-        let Some(time) = self.query_time(self.float(seconds).at(0)) else {
-            return;
         };
         let (start, end) = (self.int(start), self.int(end));
         let (mut first, mut past) = (i32::MAX, i32::MIN);
@@ -1198,12 +1144,9 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             locals,
             weights,
         } = &mut *neighborhood;
-        let frame_cache = (frame_cache != NO_FRAME_CACHE).then_some(usize::from(frame_cache));
         signals.sample_range(
             usize::from(input),
-            time,
             origin as isize,
-            frame_cache,
             &mut colors[..len],
             &mut locals[..len],
         );
@@ -1211,14 +1154,9 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         if colors[..len].iter().all(|color| *color == Color::BLACK) {
             return;
         }
-        let Dst::Many(row) = self.color_dst(sample) else {
-            unreachable!()
-        };
         for chunk in (0..len).step_by(STRIP) {
             let size = (len - chunk).min(STRIP);
-            for k in 0..size {
-                row[k].set(colors[chunk + k].into());
-            }
+            self.fill_sample(sample, &colors[chunk..chunk + size]);
             self.block(&source[1..], Sel(&range(0, size as u8)), levels, signals);
             let computed = self.float(weight);
             for k in 0..size {
@@ -1226,9 +1164,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             }
         }
         let index = self.int_dst(index);
-        let Dst::Many(acc) = self.color_dst(acc) else {
-            unreachable!()
-        };
+        let acc = self.color_rows(acc);
         let term = Term {
             edges,
             count: self.context.pixel_count,
@@ -1238,11 +1174,13 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             weights: &weights[..len],
             pixel: self.float(pixel),
         };
+        // A row scale is a table of the offsets.
+        let scales = self.float(scale);
         for k in 0..offsets {
             let offset = first + k as i32;
             Self::set_scalar(index, offset);
             self.block(taps, sel, levels, signals);
-            let scale = self.float(scale).at(0);
+            let scale = scales.at(k);
             self.accumulate(reducer, &term, offset, scale, start, end, sel, acc);
         }
     }
@@ -1260,9 +1198,10 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         start: Src<'_, i32>,
         end: Src<'_, i32>,
         sel: Sel<'_>,
-        acc: &Row<FloatColor>,
+        acc: [&Row<f32>; 3],
     ) {
         let local = &self.ws.pixels.index;
+        let max = reducer == Reducer::Max;
         for range in sel.0 {
             let (first, past) = range.get().get();
             for i in usize::from(first)..usize::from(past).min(STRIP) {
@@ -1288,11 +1227,65 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 if weight == 0.0 {
                     continue;
                 }
-                let color = scale_color(term.colors[at].into(), weight * scale * term.pixel.at(i));
-                acc[i].set(match reducer {
-                    Reducer::Max => max_colors(acc[i].get(), color),
-                    _ => add_colors(acc[i].get(), color),
-                });
+                let factor = weight * scale * term.pixel.at(i);
+                let color = term.colors[at];
+                for (acc, channel) in acc.iter().zip([color.red, color.green, color.blue]) {
+                    let term = channel * factor;
+                    let current = acc[i].get();
+                    acc[i].set(if max {
+                        max_float(current, term)
+                    } else {
+                        current + term
+                    });
+                }
+            }
+        }
+    }
+
+    /// A table: its block runs once per index, and each index's value lands
+    /// in the table row.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn tabulate(
+        &self,
+        instruction: &Instruction,
+        body: &[InstructionWord],
+        sel: Sel<'_>,
+        levels: Levels<'w>,
+        signals: &mut dyn StripSignals,
+    ) {
+        let Instruction::Tabulate {
+            bank,
+            dst,
+            index,
+            start,
+            end,
+            value,
+            ..
+        } = *instruction
+        else {
+            unreachable!("dispatched by block")
+        };
+        let (start, end) = (self.int(start).at(0), self.int(end).at(0));
+        let index = self.int_dst(index);
+        for (k, at) in (start..end).take(STRIP).enumerate() {
+            Self::set_scalar(index, at);
+            self.block(body, sel, levels, signals);
+            match bank {
+                Bank::Int => {
+                    if let Dst::Many(row) = self.int_dst(dst) {
+                        row[k].set(self.int(value).at(0));
+                    }
+                }
+                Bank::Bool => {
+                    if let Dst::Many(row) = self.bool_dst(dst) {
+                        row[k].set(self.boolean(value).at(0));
+                    }
+                }
+                _ => {
+                    if let Dst::Many(row) = self.float_dst(dst) {
+                        row[k].set(self.float(value).at(0));
+                    }
+                }
             }
         }
     }
@@ -1320,26 +1313,13 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             unreachable!()
         };
         let Instruction::Sample {
-            dst: sample,
-            input,
-            seconds,
-            frame_cache,
-            ..
-        } = decoded(&source[0])
+            dst: sample, input, ..
+        } = decoded(source)
         else {
             unreachable!()
         };
-        let Dst::Many(dst) = self.color_dst(dst) else {
-            unreachable!()
-        };
-        let Some(time) = self.query_time(self.float(seconds).at(0)) else {
-            each(sel, |i| dst[i].set(NO_COLOR));
-            return;
-        };
         let query = ScanQuery {
             input: usize::from(input),
-            time,
-            frame_cache: (frame_cache != NO_FRAME_CACHE).then_some(usize::from(frame_cache)),
             cache: usize::from(cache),
             direction,
             decay: self.float(decay).at(0),
@@ -1353,7 +1333,8 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         };
         let mut samples = self.ws.samples.borrow_mut();
         signals.scan(&query, &mut weights, &mut samples);
-        each(sel, |i| dst[i].set(samples[i].into()));
+        let samples = &**samples;
+        pick_color(sel, self.color_dst(dst), |i| samples[i]);
     }
 
     /// Whether `value` at pixel `i` ends an early-exit reduction there.
@@ -1370,16 +1351,15 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn combine(&self, reducer: Reducer, bank: Bank, acc: Slot, value: Slot, sel: Sel<'_>) {
         match bank {
-            Bank::Float => {
-                let (dst, a, b) = (self.float_dst(acc), self.float(acc), self.float(value));
-                match reducer {
-                    Reducer::Max => {
-                        map2(sel, dst, a, b, |a, b| float_binary(FloatBinary::Max, a, b))
+            Bank::Float | Bank::Color => {
+                for channel in 0..bank.width() {
+                    let (acc, value) = (acc.channel(channel), value.channel(channel));
+                    let (dst, a, b) = (self.float_dst(acc), self.float(acc), self.float(value));
+                    match reducer {
+                        Reducer::Max => map2(sel, dst, a, b, max_float),
+                        Reducer::Min => map2(sel, dst, a, b, min_float),
+                        _ => map2(sel, dst, a, b, |a, b| a + b),
                     }
-                    Reducer::Min => {
-                        map2(sel, dst, a, b, |a, b| float_binary(FloatBinary::Min, a, b))
-                    }
-                    _ => map2(sel, dst, a, b, |a, b| a + b),
                 }
             }
             Bank::Int => {
@@ -1397,13 +1377,6 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         )
                     }
                     _ => map2(sel, dst, a, b, i32::wrapping_add),
-                }
-            }
-            Bank::Color => {
-                let (dst, a, b) = (self.color_dst(acc), self.color(acc), self.color(value));
-                match reducer {
-                    Reducer::Max => map2(sel, dst, a, b, max_colors),
-                    _ => map2(sel, dst, a, b, add_colors),
                 }
             }
             Bank::Bool => {
@@ -1424,234 +1397,140 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn assign(&self, bank: Bank, dst: Slot, src: Slot, sel: Sel<'_>) {
         match bank {
-            Bank::Float => map1(sel, self.float_dst(dst), self.float(src), |v| v),
+            Bank::Float | Bank::Color => {
+                for channel in 0..bank.width() {
+                    let (dst, src) = (dst.channel(channel), src.channel(channel));
+                    map1(sel, self.float_dst(dst), self.float(src), |v| v);
+                }
+            }
             Bank::Int => map1(sel, self.int_dst(dst), self.int(src), |v| v),
             Bank::Bool => map1(sel, self.bool_dst(dst), self.boolean(src), |v| v),
-            Bank::Color => map1(sel, self.color_dst(dst), self.color(src), |v| v),
             Bank::Resource => map1(sel, self.handle_dst(dst), self.handle(src), |v| v),
         }
     }
 
+    /// A bound resource parameter.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn query_time(&self, seconds: f32) -> Option<SampleTime> {
-        let bits = seconds.to_bits();
-        if let Some((previous, time)) = self.query.get()
-            && previous == bits
-        {
-            return time;
-        }
-        let time = donder_runtime_types::sample_time_from_seconds_f32(seconds).ok();
-        self.query.set(Some((bits, time)));
-        time
-    }
-
-    /// A bound resource parameter of `kind`, or none when it holds another.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn resource(&self, bank: u16, kind: u32) -> Option<crate::resources::ResourceSlot> {
-        self.bound.params.resource(bank, kind)
-    }
-
-    /// The image resource of `kind` that constant `index` of the program
-    /// names.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn constant(&self, kind: Resource, index: u16) -> u32 {
-        let program = &self.bound.program;
-        let pool = match kind {
-            Resource::Curve => program.curves,
-            Resource::Gradient => program.gradients,
-            Resource::Marks => program.marks,
-            Resource::Array => program.arrays,
-        };
-        pool[usize::from(index)].index
+    fn resource(&self, bank: u16) -> crate::resources::ResourceSlot {
+        self.bound.params.resource(bank)
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn curve(&self, handle: Handle) -> CurveView<'m> {
-        let (known, resource) = self.curves.get();
-        if known == handle {
-            return resource;
-        }
-        let resource = self.resolve_curve(handle);
-        self.curves.set((handle, resource));
-        resource
-    }
-
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn resolve_curve(&self, handle: Handle) -> CurveView<'m> {
         let show = self.bound.show;
         match handle.kind() {
-            HandleKind::Param(Resource::Curve, bank) => self
-                .resource(bank, image::RESOURCE_CURVE)
-                .map_or(CurveView::EMPTY, |slot| self.bound.params.curve(show, slot)),
-            HandleKind::Constant(Resource::Curve, index) => {
-                show.curve(self.constant(Resource::Curve, index))
-            }
-            _ => match self.item(handle) {
-                Some(item) if item.kind == image::VALUE_CURVE => show.curve(item.word),
-                _ => CurveView::EMPTY,
-            },
+            Ok(index) => show.curve(index),
+            Err(bank) => self.bound.params.curve(show, self.resource(bank)),
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn gradient(&self, handle: Handle) -> &'m [GradientStop] {
-        let show = self.bound.show;
         match handle.kind() {
-            HandleKind::Param(Resource::Gradient, bank) => self
-                .resource(bank, image::RESOURCE_GRADIENT)
-                .map_or(&[], |slot| show.gradient(slot.index)),
-            HandleKind::Constant(Resource::Gradient, index) => {
-                show.gradient(self.constant(Resource::Gradient, index))
-            }
-            _ => match self.item(handle) {
-                Some(item) if item.kind == image::VALUE_GRADIENT => show.gradient(item.word),
-                _ => &[],
-            },
+            Ok(index) => self.bound.show.gradient(index),
+            Err(_) => unreachable!("image gradients resolve when bound"),
         }
-    }
-
-    /// `None` for a handle that names no marks, which hold none.
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn marks(&self, handle: Handle) -> Option<MarkWindow<'m>> {
-        let (known, resource) = self.marks.get();
-        if known == handle {
-            return resource;
-        }
-        let resource = self.resolve_marks(handle);
-        self.marks.set((handle, resource));
-        resource
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn resolve_marks(&self, handle: Handle) -> Option<MarkWindow<'m>> {
+    fn marks(&self, handle: Handle) -> MarkWindow<'m> {
         let show = self.bound.show;
         match handle.kind() {
-            HandleKind::Param(Resource::Marks, bank) => self
-                .resource(bank, image::RESOURCE_MARKS)
-                .map(|slot| self.bound.params.marks(show, slot)),
-            HandleKind::Constant(Resource::Marks, index) => {
-                Some(show.marks(self.constant(Resource::Marks, index)))
-            }
-            _ => match self.item(handle) {
-                Some(item) if item.kind == image::VALUE_MARKS => Some(show.marks(item.word)),
-                _ => None,
-            },
+            Ok(index) => show.marks(index),
+            Err(bank) => self.bound.params.marks(show, self.resource(bank)),
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn array(&self, handle: Handle) -> &'m [image::Value] {
-        let show = self.bound.show;
         match handle.kind() {
-            HandleKind::Param(Resource::Array, bank) => self
-                .resource(bank, image::RESOURCE_ARRAY)
-                .map_or(&[], |slot| show.array(slot.index)),
-            HandleKind::Constant(Resource::Array, index) => {
-                show.array(self.constant(Resource::Array, index))
-            }
-            _ => &[],
-        }
-    }
-
-    /// The item an item handle names; `Index` clamped it to its array.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn item(&self, handle: Handle) -> Option<&'m image::Value> {
-        let show = self.bound.show;
-        match handle.kind() {
-            HandleKind::ParamItem(bank, index) => self
-                .resource(bank, image::RESOURCE_ARRAY)
-                .and_then(|slot| show.array(slot.index).get(usize::from(index))),
-            HandleKind::ConstantItem(array, index) => show
-                .array(self.constant(Resource::Array, array))
-                .get(usize::from(index)),
-            _ => None,
+            Ok(index) => self.bound.show.array(index),
+            Err(_) => unreachable!("image arrays resolve when bound"),
         }
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve_sample(&self, curve: Handle, position: f32) -> f32 {
-        self.curve(curve).sample(position)
+    fn curve_query(&self, op: CurveOp, curve: Handle, value: f32, before: f32) -> f32 {
+        let curve = self.curve(curve);
+        match op {
+            CurveOp::Sample => curve.sample(value),
+            CurveOp::Integral => curve.integral(value),
+            CurveOp::Crossing => curve.crossing(value),
+            CurveOp::LastCrossing => curve.last_crossing(value, before),
+        }
+    }
+
+    /// `gradient_color_scaled` of one gradient over a strip.
+    #[inline(never)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn gradient_strip(
+        sel: Sel<'_>,
+        dst: ColorDst<'_>,
+        stops: &[GradientStop],
+        position: Src<'_, f32>,
+        scale: Option<Src<'_, f32>>,
+    ) {
+        match scale {
+            Some(scale) => pick_color(sel, dst, |i| {
+                gradient_color_scaled(stops, position.at(i), scale.at(i))
+            }),
+            None => pick_color(sel, dst, |i| sample_gradient_stops(stops, position.at(i))),
+        }
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve_integral(&self, curve: Handle, position: f32) -> f32 {
-        self.curve(curve).integral(position)
+    fn gradient_at(&self, gradient: Handle, position: f32, scale: Option<f32>) -> Color {
+        let stops = self.gradient(gradient);
+        match scale {
+            Some(scale) => gradient_color_scaled(stops, position, scale),
+            None => sample_gradient_stops(stops, position),
+        }
     }
 
+    /// A gradient of each pixel's own at its position.
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve_crossing(&self, curve: Handle, value: f32) -> f32 {
-        self.curve(curve).crossing(value)
-    }
-
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve_last_crossing(&self, curve: Handle, value: f32, before: f32) -> f32 {
-        self.curve(curve).last_crossing(value, before)
-    }
-
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn gradient_sample(&self, gradient: Handle, position: f32) -> FloatColor {
-        sample_gradient_stops(self.gradient(gradient), position)
-    }
-
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn gradient_scaled(&self, gradient: Handle, position: f32, scale: f32) -> FloatColor {
-        gradient_color_scaled(self.gradient(gradient), position, scale)
-    }
-
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn previous_mark(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> f32 {
-        self.marks(marks)
-            .and_then(|marks| previous_mark(&marks, seconds, cursor))
-            .map_or(f32::NAN, |(_, time)| time)
-    }
-
-    // Per-pixel bodies too large to inline stay named methods, so that the
-    // `iram` attribute places them; an out-of-line closure would land in flash.
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve_clamped(
+    fn gradients(
         &self,
         sel: Sel<'_>,
-        dst: Dst<'_, f32>,
-        curve: Src<'m, Handle>,
-        position: Src<'m, f32>,
-        min: Src<'m, f32>,
-        max: Src<'m, f32>,
+        dst: ColorDst<'_>,
+        gradient: Src<'_, Handle>,
+        position: Src<'_, f32>,
+        scale: Option<Src<'_, f32>>,
     ) {
-        pick_each(sel, dst, |i| {
-            let value = self.curve_sample(curve.at(i), position.at(i));
-            clamp_float(value, min.at(i), max.at(i))
+        pick_color(sel, dst, |i| {
+            self.gradient_at(gradient.at(i), position.at(i), scale.map(|s| s.at(i)))
         });
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn mark_count(&self, marks: Handle) -> i32 {
-        length_int(self.marks(marks).map_or(0, |marks| marks.len()))
+    fn previous_mark(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> f32 {
+        previous_mark(&self.marks(marks), seconds, cursor).map_or(f32::NAN, |(_, time)| time)
     }
 
-    /// Item `index` of `array`, clamped to it, with the item's position; none
-    /// of an empty array.
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array_item(&self, array: Handle, index: i32) -> Option<(Handle, usize, &'m image::Value)> {
+    fn length(&self, kind: Resource, resource: Handle) -> i32 {
+        match kind {
+            Resource::Marks => self.marks(resource).len() as i32,
+            _ => self.array(resource).len() as i32,
+        }
+    }
+
+    /// Item `index` of `array`, clamped to it; none of an empty array.
+    #[inline(never)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn array_item(&self, array: Handle, index: i32) -> Option<&'m image::Value> {
         let items = self.array(array);
         if items.is_empty() {
             return None;
         }
-        let at = clamp_array_index(index, items.len());
-        Some((array, at, &items[at]))
+        Some(&items[clamp_array_index(index, items.len())])
     }
 
     /// An int array item: an int, or an enum option's index.
@@ -1669,34 +1548,13 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn mark_at(&self, marks: Handle, index: i32) -> f32 {
-        self.marks(marks)
-            .map_or(f32::NAN, |marks| mark_at(&marks, index))
+        mark_at(&self.marks(marks), index)
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn previous_mark_index(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> i32 {
-        self.marks(marks)
-            .map_or(-1, |marks| previous_mark_index(&marks, seconds, cursor))
-    }
-
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array_len(&self, array: Handle) -> i32 {
-        length_int(self.array(array).len())
-    }
-
-    /// Pixel `i` of the item that `index` picks from `items`.
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn picked<T: Copy + 'm>(
-        &self,
-        operand: impl Fn(&Self, Slot) -> Src<'m, T>,
-        items: &[Slot],
-        index: i32,
-        i: usize,
-    ) -> T {
-        operand(self, items[clamp_array_index(index, items.len())]).at(i)
+        previous_mark_index(&self.marks(marks), seconds, cursor)
     }
 
     #[inline(never)]
@@ -1729,10 +1587,19 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         sections.query(pixel, index)
     }
 
-    #[inline(never)]
+    /// A scalar of the query or target.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn section_position(&self, width: f32, inverse: f32, i: usize) -> f32 {
-        section_position(self.ws.pixels.index[i & MASK].get(), width, inverse)
+    fn context_float(&self, read: ContextRead) -> f32 {
+        match read {
+            ContextRead::Seconds => self.clock.seconds,
+            ContextRead::Progress => self.context.progress,
+            ContextRead::Duration => self.clock.duration,
+            ContextRead::FrameRate => self.context.frame_rate,
+            ContextRead::TargetMinX => self.min[0],
+            ContextRead::TargetMinY => self.min[1],
+            ContextRead::TargetMaxX => self.max[0],
+            _ => self.max[1],
+        }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
@@ -1740,55 +1607,46 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         use Instruction as I;
         let params = self.bound.params;
         match *instruction {
-            I::FloatConst { dst, bits } => {
-                Self::set_scalar(self.float_dst(dst), f32::from_bits(bits))
-            }
-            I::IntConst { dst, value } => Self::set_scalar(self.int_dst(dst), value),
-            I::BoolConst { dst, value } => Self::set_scalar(self.bool_dst(dst), value),
-            I::ColorConst { dst, value } => Self::set_scalar(self.color_dst(dst), value.into()),
-            I::ResourceConst { dst, kind, index } => {
-                Self::set_scalar(
-                    self.handle_dst(dst),
-                    Handle::new(HandleKind::Constant(kind, index)),
-                );
-            }
-            I::FloatParam { dst, bank } => {
-                let word = params.words[usize::from(bank)];
-                Self::set_scalar(self.float_dst(dst), f32::from_bits(word));
-            }
-            I::IntParam { dst, bank } => {
-                Self::set_scalar(self.int_dst(dst), params.words[usize::from(bank)] as i32);
-            }
-            I::BoolParam { dst, bank } => {
-                Self::set_scalar(self.bool_dst(dst), params.words[usize::from(bank)] != 0);
-            }
-            I::ColorParam { dst, bank } => {
-                let word = params.words[usize::from(bank)];
-                Self::set_scalar(self.color_dst(dst), word_color(word).into());
-            }
-            I::ResourceParam { dst, kind, bank } => {
-                Self::set_scalar(
-                    self.handle_dst(dst),
-                    Handle::new(HandleKind::Param(kind, bank)),
-                );
+            I::Const { bank, dst, bits } => match bank {
+                Bank::Float => Self::set_scalar(self.float_dst(dst), f32::from_bits(bits)),
+                Bank::Int => Self::set_scalar(self.int_dst(dst), bits as i32),
+                Bank::Bool => Self::set_scalar(self.bool_dst(dst), bits != 0),
+                _ => {
+                    let index = self.bound.program.resources[bits as usize];
+                    Self::set_scalar(self.handle_dst(dst), Handle::image(index));
+                }
+            },
+            I::Param { bank, dst, index } => {
+                let word = || params.words[usize::from(index)];
+                match bank {
+                    Bank::Float => Self::set_scalar(self.float_dst(dst), f32::from_bits(word())),
+                    Bank::Int => Self::set_scalar(self.int_dst(dst), word() as i32),
+                    Bank::Bool => Self::set_scalar(self.bool_dst(dst), word() != 0),
+                    Bank::Color => {
+                        let color = word_color(self.bound.show, word());
+                        pick_color(sel, self.color_dst(dst), |_| color);
+                    }
+                    Bank::Resource => {
+                        // An image resource resolves now; a rewritten one
+                        // when read.
+                        let slot = self.resource(index);
+                        let handle = if slot.source == crate::resources::SOURCE_IMAGE {
+                            Handle::image(slot.index)
+                        } else {
+                            Handle::param(index)
+                        };
+                        Self::set_scalar(self.handle_dst(dst), handle);
+                    }
+                }
             }
             I::Context { dst, read } => match read {
                 ContextRead::PixelCount => {
                     Self::set_scalar(self.int_dst(dst), self.context.pixel_count);
                 }
-                read => Self::set_scalar(
-                    self.float_dst(dst),
-                    match read {
-                        ContextRead::Seconds => self.clock.seconds,
-                        ContextRead::Progress => self.context.progress,
-                        ContextRead::Duration => self.clock.duration,
-                        ContextRead::FrameRate => self.context.frame_rate,
-                        ContextRead::TargetMinX => self.min[0],
-                        ContextRead::TargetMinY => self.min[1],
-                        ContextRead::TargetMaxX => self.max[0],
-                        _ => self.max[1],
-                    },
-                ),
+                ContextRead::FramesElapsed => {
+                    Self::set_scalar(self.int_dst(dst), self.context.frames_elapsed as i32);
+                }
+                read => Self::set_scalar(self.float_dst(dst), self.context_float(read)),
             },
             I::FloatUnary { op, dst, a } => {
                 let (dst, a) = (self.float_dst(dst), self.float(a));
@@ -1799,19 +1657,30 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     op => apply1(sel, dst, a, |v| unary(op, v)),
                 }
             }
-            I::FloatBinary { op, dst, a, b } => {
-                let (dst, a, b) = (self.float_dst(dst), self.float(a), self.float(b));
+            I::FloatBinary {
+                op,
+                colors,
+                dst,
+                a,
+                b,
+            } => {
                 use FloatBinary as B;
-                match op {
-                    B::Add => map2(sel, dst, a, b, |a, b| a + b),
-                    B::Subtract => map2(sel, dst, a, b, |a, b| a - b),
-                    B::Multiply => map2(sel, dst, a, b, |a, b| a * b),
-                    B::Divide => map2(sel, dst, a, b, |a, b| a / b),
-                    B::Remainder => apply2(sel, dst, a, b, |a, b| binary(B::Remainder, a, b)),
-                    B::Min => map2(sel, dst, a, b, |a, b| float_binary(B::Min, a, b)),
-                    B::Max => map2(sel, dst, a, b, |a, b| float_binary(B::Max, a, b)),
-                    B::ValueOr => map2(sel, dst, a, b, |a, b| float_binary(B::ValueOr, a, b)),
-                    op => apply2(sel, dst, a, b, |a, b| binary(op, a, b)),
+                for channel in 0..colors.channels() {
+                    let (dst, a, b) = (
+                        self.float_dst(dst.channel(channel)),
+                        self.float(colors.operand(a, 0, channel)),
+                        self.float(colors.operand(b, 1, channel)),
+                    );
+                    match op {
+                        B::Add => map2(sel, dst, a, b, |a, b| a + b),
+                        B::Subtract => map2(sel, dst, a, b, |a, b| a - b),
+                        B::Multiply => map2(sel, dst, a, b, |a, b| a * b),
+                        B::Divide => map2(sel, dst, a, b, |a, b| a / b),
+                        B::Min => map2(sel, dst, a, b, min_float),
+                        B::Max => map2(sel, dst, a, b, max_float),
+                        B::ValueOr => map2(sel, dst, a, b, value_or),
+                        op => apply2(sel, dst, a, b, |a, b| binary(op, a, b)),
+                    }
                 }
             }
             I::Clamp {
@@ -1825,38 +1694,33 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 self.float(value),
                 self.float(min),
                 self.float(max),
-                clamp_float,
+                crate::sampling::clamp_float,
             ),
-            I::Mix { dst, a, b, amount } => map3(
-                sel,
-                self.float_dst(dst),
-                self.float(a),
-                self.float(b),
-                self.float(amount),
-                |a, b, t| a + (b - a) * t,
-            ),
-            I::Power { dst, base, count } => apply2(
-                sel,
-                self.float_dst(dst),
-                self.float(base),
-                self.int(count),
-                power,
-            ),
-            I::Clock {
-                progress,
+            I::Mix {
+                colors,
                 dst,
-                seconds,
+                a,
+                b,
+                amount,
             } => {
-                let duration = self.context.duration;
-                let (dst, seconds) = (self.float_dst(dst), self.float(seconds));
-                let clock = if progress {
-                    query_progress
-                } else {
-                    query_seconds
-                };
-                apply1(sel, dst, seconds, |s| clock(s, duration));
+                for channel in 0..colors.channels() {
+                    map3(
+                        sel,
+                        self.float_dst(dst.channel(channel)),
+                        self.float(colors.operand(a, 0, channel)),
+                        self.float(colors.operand(b, 1, channel)),
+                        self.float(colors.operand(amount, 2, channel)),
+                        |a, b, t| a + (b - a) * t,
+                    );
+                }
             }
-            I::IntNegate { dst, a } => map1(sel, self.int_dst(dst), self.int(a), i32::wrapping_neg),
+            I::IntUnary { op, dst, a } => {
+                let (dst, a) = (self.int_dst(dst), self.int(a));
+                match op {
+                    IntUnary::Negate => map1(sel, dst, a, i32::wrapping_neg),
+                    IntUnary::Abs => map1(sel, dst, a, i32::wrapping_abs),
+                }
+            }
             I::IntBinary { op, dst, a, b } => {
                 let (dst, a, b) = (self.int_dst(dst), self.int(a), self.int(b));
                 match op {
@@ -1869,160 +1733,44 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             I::IntToFloat { dst, a } => map1(sel, self.float_dst(dst), self.int(a), |v| v as f32),
             // `as` truncates toward zero, saturates, and maps NaN to zero.
             I::FloatToInt { dst, a } => map1(sel, self.int_dst(dst), self.float(a), |v| v as i32),
-            I::Not { dst, a } => map1(sel, self.bool_dst(dst), self.boolean(a), |v| !v),
-            I::FloatCompare { op, dst, a, b } => {
-                let (dst, a, b) = (self.bool_dst(dst), self.float(a), self.float(b));
-                match op {
-                    CompareOp::Less => map2(sel, dst, a, b, |a, b| a < b),
-                    CompareOp::LessEqual => map2(sel, dst, a, b, |a, b| a <= b),
-                    CompareOp::Greater => map2(sel, dst, a, b, |a, b| a > b),
-                    CompareOp::GreaterEqual => map2(sel, dst, a, b, |a, b| a >= b),
-                }
-            }
-            I::IntCompare { op, dst, a, b } => {
-                let (dst, a, b) = (self.bool_dst(dst), self.int(a), self.int(b));
-                match op {
-                    CompareOp::Less => map2(sel, dst, a, b, |a, b| a < b),
-                    CompareOp::LessEqual => map2(sel, dst, a, b, |a, b| a <= b),
-                    CompareOp::Greater => map2(sel, dst, a, b, |a, b| a > b),
-                    CompareOp::GreaterEqual => map2(sel, dst, a, b, |a, b| a >= b),
-                }
-            }
-            I::Equal {
+            I::Compare {
+                op,
                 bank,
-                negate,
                 dst,
                 a,
                 b,
-            } => {
-                let dst = self.bool_dst(dst);
-                match bank {
-                    Bank::Float => {
-                        map2(sel, dst, self.float(a), self.float(b), |a, b| {
-                            (a == b) != negate
-                        });
-                    }
-                    Bank::Int => map2(sel, dst, self.int(a), self.int(b), |a, b| {
-                        (a == b) != negate
-                    }),
-                    Bank::Bool => map2(sel, dst, self.boolean(a), self.boolean(b), |a, b| {
-                        (a == b) != negate
-                    }),
-                    Bank::Color => {
-                        map2(sel, dst, self.color(a), self.color(b), |a, b| {
-                            same_color(a, b) != negate
-                        });
-                    }
-                    Bank::Resource => unreachable!("admission rejects resource equality"),
-                }
-            }
-            I::ColorBinary { op, dst, a, b } => {
-                let (dst, a, b) = (self.color_dst(dst), self.color(a), self.color(b));
-                match op {
-                    ColorBinary::Add => map2(sel, dst, a, b, add_colors),
-                    ColorBinary::Multiply => map2(sel, dst, a, b, multiply_colors),
-                    ColorBinary::Max => map2(sel, dst, a, b, max_colors),
-                }
-            }
-            I::ColorScale { dst, color, scale } => map2(
-                sel,
-                self.color_dst(dst),
-                self.color(color),
-                self.float(scale),
-                scale_color,
-            ),
-            I::MixColor { dst, a, b, amount } => apply3(
-                sel,
-                self.color_dst(dst),
-                self.color(a),
-                self.color(b),
-                self.float(amount),
-                mix_color,
-            ),
+            } => self.compare(op, bank, dst, a, b, sel),
             I::ColorComponent { op, dst, color } => {
-                apply1(sel, self.float_dst(dst), self.color(color), |color| {
-                    component(op, color)
-                })
+                let color = self.color(color);
+                pick_each(sel, self.float_dst(dst), |i| {
+                    component(op, color_at(color, i))
+                });
             }
-            I::Invert { dst, color } => {
-                map1(sel, self.color_dst(dst), self.color(color), invert_color);
-            }
-            I::Rgb {
-                dst,
-                red,
-                green,
-                blue,
-            } => apply3(
-                sel,
-                self.color_dst(dst),
-                self.float(red),
-                self.float(green),
-                self.float(blue),
-                rgb_color,
-            ),
             I::Hsv {
                 dst,
                 hue,
                 saturation,
                 value,
-            } => apply3(
-                sel,
-                self.color_dst(dst),
-                self.float(hue),
-                self.float(saturation),
-                self.float(value),
-                hsv_color,
-            ),
+            } => {
+                let (hue, saturation, value) =
+                    (self.float(hue), self.float(saturation), self.float(value));
+                pick_color(sel, self.color_dst(dst), |i| {
+                    hsv_color(hue.at(i), saturation.at(i), value.at(i))
+                });
+            }
             I::Recolor {
                 shift,
                 dst,
                 color,
                 hue,
-            } => apply2(
-                sel,
-                self.color_dst(dst),
-                self.color(color),
-                self.float(hue),
-                |color, hue| recolor(color, hue, shift),
-            ),
-            I::CurveSample {
-                dst,
-                curve,
-                position,
-            } => apply2(
-                sel,
-                self.float_dst(dst),
-                self.handle(curve),
-                self.float(position),
-                |curve, position| self.curve_sample(curve, position),
-            ),
-            I::CurveIntegral {
-                dst,
-                curve,
-                position,
-            } => apply2(
-                sel,
-                self.float_dst(dst),
-                self.handle(curve),
-                self.float(position),
-                |curve, position| self.curve_integral(curve, position),
-            ),
-            I::CurveClamped {
-                dst,
-                curve,
-                position,
-                min,
-                max,
             } => {
-                let (dst, curve, position) = (
-                    self.float_dst(dst),
-                    self.handle(curve),
-                    self.float(position),
-                );
-                let (min, max) = (self.float(min), self.float(max));
-                self.curve_clamped(sel, dst, curve, position, min, max);
+                let (color, hue) = (self.color(color), self.float(hue));
+                pick_color(sel, self.color_dst(dst), |i| {
+                    recolor(color_at(color, i), hue.at(i), shift)
+                });
             }
-            I::CurveCrossing {
+            I::Curve {
+                op,
                 dst,
                 curve,
                 value,
@@ -2030,45 +1778,48 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             } => {
                 let (dst, curve, value) =
                     (self.float_dst(dst), self.handle(curve), self.float(value));
-                if before.is_none() {
-                    apply2(sel, dst, curve, value, |curve, value| {
-                        self.curve_crossing(curve, value)
-                    });
-                } else {
-                    apply3(
+                // One curve for the strip resolves once.
+                match (op, curve.mask) {
+                    (CurveOp::Sample, 0) => {
+                        let view = self.curve(curve.at(0));
+                        map1(sel, dst, value, |value| view.sample(value));
+                    }
+                    (CurveOp::Crossing, 0) => {
+                        let view = self.curve(curve.at(0));
+                        map1(sel, dst, value, |value| view.crossing(value));
+                    }
+                    (CurveOp::LastCrossing, _) => apply3(
                         sel,
                         dst,
                         curve,
                         value,
                         self.float(before),
-                        |curve, value, before| self.curve_last_crossing(curve, value, before),
-                    );
+                        |curve, value, before| self.curve_query(op, curve, value, before),
+                    ),
+                    _ => apply2(sel, dst, curve, value, |curve, value| {
+                        self.curve_query(op, curve, value, 0.0)
+                    }),
                 }
             }
-            I::GradientSample {
-                dst,
-                gradient,
-                position,
-            } => apply2(
-                sel,
-                self.color_dst(dst),
-                self.handle(gradient),
-                self.float(position),
-                |gradient, position| self.gradient_sample(gradient, position),
-            ),
-            I::GradientScaled {
+            I::Gradient {
                 dst,
                 gradient,
                 position,
                 scale,
-            } => apply3(
-                sel,
-                self.color_dst(dst),
-                self.handle(gradient),
-                self.float(position),
-                self.float(scale),
-                |gradient, position, scale| self.gradient_scaled(gradient, position, scale),
-            ),
+            } => {
+                let (dst, gradient, position) = (
+                    self.color_dst(dst),
+                    self.handle(gradient),
+                    self.float(position),
+                );
+                let scale = (!scale.is_none()).then(|| self.float(scale));
+                if gradient.mask == 0 {
+                    let stops = self.gradient(gradient.at(0));
+                    Self::gradient_strip(sel, dst, stops, position, scale);
+                } else {
+                    self.gradients(sel, dst, gradient, position, scale);
+                }
+            }
             I::Mark {
                 op,
                 dst,
@@ -2078,10 +1829,27 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 let marks = self.handle(marks);
                 // One search per strip; the pixels after it start from its place.
                 let cursor = Cell::new(0);
+                if marks.mask == 0 {
+                    let window = self.marks(marks.at(0));
+                    match op {
+                        MarkOp::At => map1(sel, self.float_dst(dst), self.int(operand), |index| {
+                            mark_at(&window, index)
+                        }),
+                        MarkOp::Last => {
+                            map1(sel, self.float_dst(dst), self.float(operand), |seconds| {
+                                previous_mark(&window, seconds, &cursor)
+                                    .map_or(f32::NAN, |(_, time)| time)
+                            });
+                        }
+                        MarkOp::LastIndex => {
+                            map1(sel, self.int_dst(dst), self.float(operand), |seconds| {
+                                previous_mark_index(&window, seconds, &cursor)
+                            });
+                        }
+                    }
+                    return;
+                }
                 match op {
-                    MarkOp::Count => apply1(sel, self.int_dst(dst), marks, |marks| {
-                        self.mark_count(marks)
-                    }),
                     MarkOp::At => apply2(
                         sel,
                         self.float_dst(dst),
@@ -2105,8 +1873,12 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     ),
                 }
             }
-            I::Len { dst, array } => apply1(sel, self.int_dst(dst), self.handle(array), |array| {
-                self.array_len(array)
+            I::Length {
+                kind,
+                dst,
+                resource,
+            } => apply1(sel, self.int_dst(dst), self.handle(resource), |resource| {
+                self.length(kind, resource)
             }),
             I::Index {
                 bank,
@@ -2115,32 +1887,6 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 index,
                 default,
             } => self.index(bank, dst, array, index, default, sel),
-            I::Pick {
-                bank,
-                dst,
-                index,
-                items,
-            } => {
-                let items = &self.bound.program.operands[items.range()];
-                let index = self.int(index);
-                match bank {
-                    Bank::Float => pick_each(sel, self.float_dst(dst), |i| {
-                        self.picked(Self::float, items, index.at(i), i)
-                    }),
-                    Bank::Int => pick_each(sel, self.int_dst(dst), |i| {
-                        self.picked(Self::int, items, index.at(i), i)
-                    }),
-                    Bank::Bool => pick_each(sel, self.bool_dst(dst), |i| {
-                        self.picked(Self::boolean, items, index.at(i), i)
-                    }),
-                    Bank::Color => pick_each(sel, self.color_dst(dst), |i| {
-                        self.picked(Self::color, items, index.at(i), i)
-                    }),
-                    Bank::Resource => pick_each(sel, self.handle_dst(dst), |i| {
-                        self.picked(Self::handle, items, index.at(i), i)
-                    }),
-                }
-            }
             I::Select {
                 bank,
                 dst,
@@ -2150,26 +1896,14 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             } => {
                 let condition = self.boolean(condition);
                 match bank {
-                    Bank::Float => {
-                        map3(
-                            sel,
-                            self.float_dst(dst),
-                            condition,
-                            self.float(yes),
-                            self.float(no),
-                            choose,
-                        );
-                    }
-                    Bank::Int => {
-                        map3(
-                            sel,
-                            self.int_dst(dst),
-                            condition,
-                            self.int(yes),
-                            self.int(no),
-                            choose,
-                        );
-                    }
+                    Bank::Int => map3(
+                        sel,
+                        self.int_dst(dst),
+                        condition,
+                        self.int(yes),
+                        self.int(no),
+                        choose,
+                    ),
                     Bank::Bool => map3(
                         sel,
                         self.bool_dst(dst),
@@ -2178,16 +1912,6 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         self.boolean(no),
                         choose,
                     ),
-                    Bank::Color => {
-                        map3(
-                            sel,
-                            self.color_dst(dst),
-                            condition,
-                            self.color(yes),
-                            self.color(no),
-                            choose,
-                        );
-                    }
                     Bank::Resource => map3(
                         sel,
                         self.handle_dst(dst),
@@ -2196,30 +1920,94 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         self.handle(no),
                         choose,
                     ),
+                    _ => {
+                        for channel in 0..bank.width() {
+                            map3(
+                                sel,
+                                self.float_dst(dst.channel(channel)),
+                                condition,
+                                self.float(yes.channel(channel)),
+                                self.float(no.channel(channel)),
+                                choose,
+                            );
+                        }
+                    }
                 }
             }
             I::Move { bank, dst, src } => self.assign(bank, dst, src, sel),
-            I::SectionCount { dst, width } | I::SectionIndex { dst, width } => {
-                let index = matches!(instruction, I::SectionIndex { .. });
+            I::Section { index, dst, width } => {
                 let (dst, width) = (self.int_dst(dst), self.int(width));
                 let run = Cell::new(None);
                 pick_each(sel, dst, |i| {
                     self.section_query(width.at(i), index, i, &run)
                 });
             }
-            I::SectionPosition {
+            I::Sample { .. } => self.sample(instruction, sel, signals),
+            I::Lookup {
+                bank,
                 dst,
-                width,
-                inverse,
+                table,
+                index,
+                start,
             } => {
-                let (width, inverse) = (self.float(width), self.float(inverse));
-                pick_each(sel, self.float_dst(dst), |i| {
-                    self.section_position(width.at(i), inverse.at(i), i)
+                let (index, start) = (self.int(index), self.int(start));
+                let at = |i: usize| index.at(i).wrapping_sub(start.at(i)) as usize;
+                match bank {
+                    Bank::Int => {
+                        let table = self.int(table);
+                        pick_each(sel, self.int_dst(dst), |i| table.at(at(i)));
+                    }
+                    Bank::Bool => {
+                        let table = self.boolean(table);
+                        pick_each(sel, self.bool_dst(dst), |i| table.at(at(i)));
+                    }
+                    _ => {
+                        let table = self.float(table);
+                        pick_each(sel, self.float_dst(dst), |i| table.at(at(i)));
+                    }
+                }
+            }
+            I::Branch { .. }
+            | I::Reduce { .. }
+            | I::Stencil { .. }
+            | I::Scan { .. }
+            | I::Tabulate { .. } => {
+                unreachable!("dispatched by block")
+            }
+        }
+    }
+
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn compare(&self, op: CompareOp, bank: Bank, dst: Slot, a: Slot, b: Slot, sel: Sel<'_>) {
+        let dst = self.bool_dst(dst);
+        match bank {
+            Bank::Bool => {
+                let negate = op == CompareOp::NotEqual;
+                map2(sel, dst, self.boolean(a), self.boolean(b), |a, b| {
+                    (a == b) != negate
                 });
             }
-            I::Sample { .. } => self.sample(instruction, sel, signals),
-            I::Branch { .. } | I::Reduce { .. } | I::Stencil { .. } | I::Scan { .. } => {
-                unreachable!("dispatched by block")
+            Bank::Int => {
+                let (a, b) = (self.int(a), self.int(b));
+                match op {
+                    CompareOp::Less => map2(sel, dst, a, b, |a, b| a < b),
+                    CompareOp::LessEqual => map2(sel, dst, a, b, |a, b| a <= b),
+                    CompareOp::Greater => map2(sel, dst, a, b, |a, b| a > b),
+                    CompareOp::GreaterEqual => map2(sel, dst, a, b, |a, b| a >= b),
+                    CompareOp::Equal => map2(sel, dst, a, b, |a, b| a == b),
+                    CompareOp::NotEqual => map2(sel, dst, a, b, |a, b| a != b),
+                }
+            }
+            _ => {
+                let (a, b) = (self.float(a), self.float(b));
+                match op {
+                    CompareOp::Less => map2(sel, dst, a, b, |a, b| a < b),
+                    CompareOp::LessEqual => map2(sel, dst, a, b, |a, b| a <= b),
+                    CompareOp::Greater => map2(sel, dst, a, b, |a, b| a > b),
+                    CompareOp::GreaterEqual => map2(sel, dst, a, b, |a, b| a >= b),
+                    CompareOp::Equal => map2(sel, dst, a, b, |a, b| a == b),
+                    CompareOp::NotEqual => map2(sel, dst, a, b, |a, b| a != b),
+                }
             }
         }
     }
@@ -2233,47 +2021,37 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             Bank::Float => {
                 let default = self.float(default);
                 pick_each(sel, self.float_dst(dst), |i| match item(i) {
-                    Some((_, _, item)) if item.kind == image::VALUE_FLOAT => {
-                        f32::from_bits(item.word)
-                    }
-                    Some((_, _, item)) if item.kind == image::VALUE_INT => item.word as i32 as f32,
+                    Some(item) if item.kind == image::VALUE_FLOAT => f32::from_bits(item.word),
+                    Some(item) if item.kind == image::VALUE_INT => item.word as i32 as f32,
                     _ => default.at(i),
                 });
             }
             Bank::Int => {
                 let default = self.int(default);
                 pick_each(sel, self.int_dst(dst), |i| {
-                    self.int_item(item(i).map(|(_, _, value)| value), default.at(i))
+                    self.int_item(item(i), default.at(i))
                 });
             }
             Bank::Bool => {
                 let default = self.boolean(default);
                 pick_each(sel, self.bool_dst(dst), |i| match item(i) {
-                    Some((_, _, item)) if item.kind == image::VALUE_BOOL => item.word != 0,
+                    Some(item) if item.kind == image::VALUE_BOOL => item.word != 0,
                     _ => default.at(i),
                 });
             }
             Bank::Color => {
                 let default = self.color(default);
-                pick_each(sel, self.color_dst(dst), |i| match item(i) {
-                    Some((_, _, item)) if item.kind == image::VALUE_COLOR => {
-                        word_color(item.word).into()
+                pick_color(sel, self.color_dst(dst), |i| match item(i) {
+                    Some(item) if item.kind == image::VALUE_COLOR => {
+                        word_color(self.bound.show, item.word)
                     }
-                    _ => default.at(i),
+                    _ => color_at(default, i),
                 });
             }
             Bank::Resource => {
                 let default = self.handle(default);
                 pick_each(sel, self.handle_dst(dst), |i| match item(i) {
-                    Some((array, at, _)) => match array.kind() {
-                        HandleKind::Param(Resource::Array, bank) => {
-                            Handle::new(HandleKind::ParamItem(bank, at as u16))
-                        }
-                        HandleKind::Constant(Resource::Array, array) => {
-                            Handle::new(HandleKind::ConstantItem(array, at as u16))
-                        }
-                        _ => default.at(i),
-                    },
+                    Some(item) => Handle::image(item.word),
                     _ => default.at(i),
                 });
             }
@@ -2282,47 +2060,27 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn sample(&self, instruction: &Instruction, sel: Sel<'_>, signals: &mut dyn StripSignals) {
-        let Instruction::Sample {
-            dst,
-            input,
-            seconds,
-            pixel,
-            frame_cache,
-        } = *instruction
-        else {
+        let Instruction::Sample { dst, input, pixel } = *instruction else {
             unreachable!("dispatched by step")
         };
         let input = usize::from(input);
-        let frame_cache = (frame_cache != NO_FRAME_CACHE).then_some(usize::from(frame_cache));
-        let Dst::Many(dst) = self.color_dst(dst) else {
-            unreachable!("admission keeps samples in rows")
-        };
-        let seconds = self.float(seconds);
-        if seconds.is_scalar() && matches!(pixel, SignalPixel::Current) {
-            let Some(time) = self.query_time(seconds.at(0)) else {
-                each(sel, |i| dst[i].set(NO_COLOR));
-                return;
-            };
+        let dst = self.color_dst(dst);
+        if matches!(pixel, SignalPixel::Current) {
             let mut samples = self.ws.samples.borrow_mut();
-            signals.sample_strip(input, time, frame_cache, &mut samples);
-            each(sel, |i| dst[i].set(samples[i].into()));
+            signals.sample_strip(input, &mut samples);
+            let samples = &**samples;
+            pick_color(sel, dst, |i| samples[i]);
             return;
         }
         let address = pixel.map(|index| self.int(index));
+        let [Dst::Many(red), Dst::Many(green), Dst::Many(blue)] = dst else {
+            unreachable!("the compiler keeps samples in rows")
+        };
         each(sel, |i| {
-            let color = match self.query_time(seconds.at(i)) {
-                Some(time) => signals
-                    .sample_pixel(
-                        input,
-                        time,
-                        i,
-                        address.map(|index| index.at(i)),
-                        frame_cache,
-                    )
-                    .into(),
-                None => NO_COLOR,
-            };
-            dst[i].set(color);
+            let color = signals.sample_pixel(input, i, address.map(|index| index.at(i)));
+            red[i].set(color.red);
+            green[i].set(color.green);
+            blue[i].set(color.blue);
         });
     }
 }
@@ -2348,7 +2106,7 @@ fn operand<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Src<'s, T> {
     match slot.kind() {
         SlotKind::Scalar(index) => store.one(index),
         SlotKind::Row(index) => store.many(index),
-        SlotKind::Input(_) => unreachable!("admission keeps pixel inputs in their banks"),
+        SlotKind::Input(_) => unreachable!("the compiler keeps pixel inputs in their banks"),
     }
 }
 
@@ -2357,6 +2115,6 @@ fn destination<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Dst<'s, T> {
     match slot.kind() {
         SlotKind::Scalar(index) => Dst::One(store.scalar(index)),
         SlotKind::Row(index) => Dst::Many(store.row(index)),
-        SlotKind::Input(_) => unreachable!("admission never writes pixel inputs"),
+        SlotKind::Input(_) => unreachable!("the compiler never writes pixel inputs"),
     }
 }

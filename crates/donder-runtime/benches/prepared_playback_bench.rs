@@ -13,12 +13,16 @@ fn bench_prepared_playback(c: &mut Criterion) {
         let invocation = playback::lower_sample(&fixtures::prepared_effect(name, source, params));
         playback::show(512, &invocation, 1).into_playback()
     });
-    let time = SampleTime::from_ticks(3_250_000);
+    // Two adjacent frames in turn, so every evaluation renders a frame rather
+    // than returning the one it holds.
+    let times = [3_250_000, 3_266_667].map(SampleTime::from_ticks);
+    let mut turn = 0;
 
     c.bench_function("prepared_effect_suite_4x512_pixels", |b| {
         b.iter(|| {
+            turn ^= 1;
             for playback in &mut playbacks {
-                black_box(playback.evaluate(black_box(time)));
+                black_box(playback.evaluate(black_box(times[turn])));
             }
         });
     });
@@ -26,7 +30,8 @@ fn bench_prepared_playback(c: &mut Criterion) {
     let mut layered = layered::layered_600().into_playback();
     c.bench_function("prepared_600_pixels_4_layers_3_operators", |b| {
         b.iter(|| {
-            black_box(layered.evaluate(black_box(time)));
+            turn ^= 1;
+            black_box(layered.evaluate(black_box(times[turn])));
         });
     });
 }

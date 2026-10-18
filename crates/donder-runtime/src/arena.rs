@@ -5,7 +5,7 @@
 use core::cell::Cell;
 
 /// Every region starts on this alignment.
-pub(crate) const ALIGN: usize = 8;
+pub(crate) const ALIGN: usize = 4;
 
 pub(crate) type Row<T> = [Cell<T>; crate::dsl::STRIP];
 
@@ -31,10 +31,6 @@ impl<'w> Carve<'w> {
             rest: buffer,
             fill: false,
         }
-    }
-
-    pub(crate) fn fills(&self) -> bool {
-        self.fill
     }
 
     fn bytes(&mut self, len: usize) -> Option<&'w mut [u8]> {
@@ -88,7 +84,7 @@ impl<'w> Carve<'w> {
     }
 }
 
-/// Counts the bytes of [`Carve`]'s regions in an 8-byte-aligned buffer.
+/// Counts the bytes of [`Carve`]'s regions in a 4-byte-aligned buffer.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Size {
     pub(crate) bytes: usize,

@@ -27,6 +27,19 @@ pub(crate) fn explain(prepared: &Prepared, plan: &Plan, listing: &str) -> String
             let _ = writeln!(text, "  {}", line(graph, node));
         }
     }
+    for table in &plan.tables {
+        let _ = writeln!(
+            text,
+            "table of n{} ({:?}):",
+            table.reduction.index(),
+            table.stage
+        );
+        for (_, cone) in &table.outputs {
+            for &node in cone {
+                let _ = writeln!(text, "  {}", line(graph, node));
+            }
+        }
+    }
     let _ = writeln!(text, "pixel:");
     region(graph, plan, 0, 1, &mut text);
     let _ = writeln!(text, "bytecode:\n{listing}");

@@ -73,8 +73,8 @@ impl<'a> SectionsView<'a> {
             };
         };
         let width = normalize_width(width as f32);
-        let mut count = 0_u64;
-        let mut base = 0_i64;
+        let mut count = 0_u32;
+        let mut base = 0_i32;
         let mut previous = None;
         for (run_index, run) in self.runs.iter().enumerate() {
             if self.per_fixture && run.fixture != current.fixture {
@@ -82,18 +82,18 @@ impl<'a> SectionsView<'a> {
             }
             let first = run.first / width;
             let last = run.last / width;
-            let merge = u64::from(previous == Some((run.fixture, first)));
+            let merge = u32::from(previous == Some((run.fixture, first)));
             if run_index == pixel.run as usize {
-                base = (count - merge) as i64 - i64::from(first);
+                base = (count - merge) as i32 - first as i32;
             }
-            count += u64::from(last - first) + 1 - merge;
+            count += last - first + 1 - merge;
             previous = Some((run.fixture, last));
         }
         RunSections {
             key,
             width,
             base,
-            count: count.min(i32::MAX as u64) as i32,
+            count: count.min(i32::MAX as u32) as i32,
             missing: false,
         }
     }
@@ -106,7 +106,7 @@ pub(crate) struct RunSections {
     pub(crate) key: (u32, i32),
     width: u32,
     /// A pixel's section index is `base + pixel.index / width`.
-    base: i64,
+    base: i32,
     count: i32,
     missing: bool,
 }
@@ -120,7 +120,7 @@ impl RunSections {
         if self.missing {
             return -1;
         }
-        (self.base + i64::from(pixel.index / self.width)).min(i64::from(i32::MAX)) as i32
+        self.base + (pixel.index / self.width) as i32
     }
 }
 
@@ -132,7 +132,7 @@ pub(crate) fn single_section_query(pixel: i32, count: i32, width: i32, index: bo
     }
     let width = normalize_width(width as f32);
     if index {
-        (pixel.clamp(0, count - 1) as u32 / width) as i32
+        (pixel as u32 / width) as i32
     } else {
         (1 + (count as u32 - 1) / width) as i32
     }

@@ -25,7 +25,7 @@ pub enum Command {
         position_micros: u32,
         speed: Speed,
         looping: bool,
-        archive_crc: u32,
+        archive_id: u32,
         archive_bytes: u32,
     },
     Cancel {
@@ -103,7 +103,7 @@ mod tests {
     }
     #[test]
     fn scheduled_and_cancel_commands_decode_with_the_embedded_parser() {
-        let payload = br#"{"schedule":{"bootId":1,"clockId":2,"commandId":3,"atMicros":4294967400,"mode":"playing","positionMicros":1000000,"speed":{"showMicrosPerSecond":500000,"frameTiming":"constant"},"looping":false,"archiveCrc":123,"archiveBytes":11860}}"#;
+        let payload = br#"{"schedule":{"bootId":1,"clockId":2,"commandId":3,"atMicros":4294967400,"mode":"playing","positionMicros":1000000,"speed":{"showMicrosPerSecond":500000,"frameTiming":"constant"},"looping":false,"archiveId":123,"archiveBytes":11860}}"#;
         let (command, used) = serde_json_core::from_slice::<Command>(payload).unwrap();
         assert_eq!(used, payload.len());
         assert!(matches!(
@@ -120,7 +120,7 @@ mod tests {
                     frame_timing: FrameTiming::Constant
                 },
                 looping: false,
-                archive_crc: 123,
+                archive_id: 123,
                 archive_bytes: 11860
             }
         ));

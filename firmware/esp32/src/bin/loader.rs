@@ -31,7 +31,7 @@ use core::{
 };
 #[cfg(feature = "i2s-output")]
 use donder_runtime::FrameTiming;
-use donder_runtime::{Layout, LoadError, LoadLimits, SequenceFrame, header_bytes};
+use donder_runtime::{Layout, SequenceFrame, header_bytes};
 use donder_runtime_types::SampleTime;
 #[cfg(feature = "i2s-output")]
 use donder_runtime_types::sample_time_from_frame;
@@ -115,12 +115,37 @@ fn local_micros() -> u64 {
     Instant::now().duration_since_epoch().as_micros()
 }
 
-/// A show playing from its flash slot. Its playback is laid out once in a
+/// A prepared sequence in RAM, freed when dropped.
+struct RamSequence(*mut [u32]);
+
+impl RamSequence {
+    fn new(words: Box<[u32]>) -> Self {
+        Self(Box::into_raw(words))
+    }
+
+    /// The prepared sequence's bytes. Valid until it is dropped.
+    fn bytes(&self, len: usize) -> &'static [u8] {
+        // Safety: the words hold `len` bytes; the owner drops every borrow
+        // before the copy.
+        unsafe { core::slice::from_raw_parts((*self.0).as_ptr().cast::<u8>(), len) }
+    }
+}
+
+impl Drop for RamSequence {
+    fn drop(&mut self) {
+        // Safety: nothing borrows the copy once its owner drops it.
+        drop(unsafe { Box::from_raw(self.0) });
+    }
+}
+
+/// A show playing from RAM. Its playback is laid out once in a
 /// heap buffer and kept between frames, so a frame does not lay it out again.
 struct LoadedShow {
     playback: core::mem::ManuallyDrop<Box<donder_runtime::Playback<'static, 'static>>>,
     /// The playback's buffer, freed after the playback that borrows it.
-    buffer: *mut [u64],
+    buffer: *mut [u32],
+    /// The prepared sequence the playback reads, dropped after it.
+    _prepared: RamSequence,
 }
 
 // Safety: the buffer is owned by this value alone and only reached through
@@ -128,15 +153,20 @@ struct LoadedShow {
 unsafe impl Send for LoadedShow {}
 
 impl LoadedShow {
-    fn new(sequence: donder_runtime::Show<'static>, layout: &Layout) -> Option<Self> {
-        let buffer = Box::into_raw(vec![0u64; layout.words()].into_boxed_slice());
+    fn new(
+        sequence: donder_runtime::Show<'static>,
+        layout: &Layout,
+        prepared: RamSequence,
+    ) -> Option<Self> {
+        let buffer = Box::into_raw(vec![0u32; layout.words()].into_boxed_slice());
         // Safety: the buffer stays allocated until `drop`, which drops the
         // playback borrowing it first.
-        let words: &'static mut [u64] = unsafe { &mut *buffer };
+        let words: &'static mut [u32] = unsafe { &mut *buffer };
         match donder_runtime::Playback::new(sequence, layout, words) {
             Some(playback) => Some(Self {
                 playback: core::mem::ManuallyDrop::new(Box::new(playback)),
                 buffer,
+                _prepared: prepared,
             }),
             None => {
                 // Safety: nothing borrows the buffer any more.
@@ -171,7 +201,7 @@ struct Playback {
     #[cfg(feature = "i2s-output")]
     transport: transport::Transport,
     #[cfg(feature = "i2s-output")]
-    archive_crc: u32,
+    archive_id: u32,
     #[cfg(feature = "i2s-output")]
     archive_bytes: u32,
 }
@@ -190,7 +220,7 @@ impl Playback {
         let frame_rate = self.show.sequence().frame_rate();
         let time = match rate.frame_timing() {
             FrameTiming::Scaled => {
-                let frame = rate.frame_at(u64::from(position), frame_rate) as u32;
+                let frame = rate.frame_at(position, frame_rate);
                 sample_time_from_frame(frame, frame_rate).unwrap()
             }
             FrameTiming::Constant => SampleTime::from_ticks(position),
@@ -232,12 +262,33 @@ const OUTPUT_DESCRIPTION: &str = "off";
 #[cfg(feature = "i2s-output")]
 type ParallelOutput = I2sParallel<'static, Async>;
 
-const LIMITS: LoadLimits = LoadLimits {
-    image_bytes: show_slots::MAX_PAYLOAD_BYTES,
+/// What this controller can play, as it reports to hosts.
+struct Limits {
+    sequence_bytes: usize,
+    pixels: usize,
+    graph_nodes: usize,
+    workspace_bytes: usize,
+}
+
+const LIMITS: Limits = Limits {
+    // A playing show holds its prepared sequence and its playback buffer in
+    // the heap beside the network; about 75 KiB of it is free for both.
+    sequence_bytes: 64 * 1024,
     pixels: 1600,
     graph_nodes: 128,
-    workspace_bytes: 96 * 1024,
+    workspace_bytes: 64 * 1024,
 };
+
+/// Why a show does not load.
+enum LoadError {
+    /// It needs more memory, outputs or frames per second than this
+    /// controller has.
+    Limit,
+    /// It was prepared for another format.
+    Version,
+    /// Its flash slot could not be read.
+    Read,
+}
 
 #[unsafe(no_mangle)]
 fn _esp_alloc_alloc(
@@ -258,11 +309,74 @@ fn _esp_alloc_alloc(
 #[unsafe(no_mangle)]
 fn _esp_alloc_dealloc(_: &esp_alloc::EspHeap, _: usize, _: usize) {}
 
+/// The last panic's message, kept in RTC memory across the reset that follows
+/// it: a Dig-Quad's UART pins drive LEDs, so this is the only place it shows.
+#[esp_hal::ram(unstable(rtc_fast, persistent))]
+static mut PANIC_MESSAGE: [u8; 256] = [0; 256];
+/// `PANIC_MAGIC` when `PANIC_MESSAGE` holds a message, with its length.
+#[esp_hal::ram(unstable(rtc_fast, persistent))]
+static mut PANIC_RECORD: [u32; 2] = [0; 2];
+const PANIC_MAGIC: u32 = 0x5041_4e43;
+
+/// Writes into the panic record, dropping what does not fit.
+struct PanicWriter(usize);
+
+impl core::fmt::Write for PanicWriter {
+    fn write_str(&mut self, text: &str) -> core::fmt::Result {
+        let message = core::ptr::addr_of_mut!(PANIC_MESSAGE);
+        for &byte in text.as_bytes() {
+            if self.0 < 256 {
+                // Safety: only the panicking core writes, once, before reset.
+                unsafe { (*message)[self.0] = byte };
+                self.0 += 1;
+            }
+        }
+        Ok(())
+    }
+}
+
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("LOADER PANIC: {}", info);
-    loop {
-        core::hint::spin_loop();
+    let mut writer = PanicWriter(0);
+    let _ = core::fmt::Write::write_fmt(&mut writer, format_args!("{info}"));
+    // Safety: as above.
+    unsafe { *core::ptr::addr_of_mut!(PANIC_RECORD) = [PANIC_MAGIC, writer.0 as u32] };
+    // Restart rather than hang: the board comes back and serves `/panic`.
+    esp_hal::system::software_reset()
+}
+
+/// The message the last panic recorded, if any.
+fn last_panic() -> Option<&'static str> {
+    // Safety: the record is written only by the panic handler, before reset.
+    let [magic, len] = unsafe { *core::ptr::addr_of!(PANIC_RECORD) };
+    if magic != PANIC_MAGIC {
+        return None;
+    }
+    let message = unsafe { &*core::ptr::addr_of!(PANIC_MESSAGE) };
+    Some(core::str::from_utf8(&message[..(len as usize).min(256)]).unwrap_or("(not text)"))
+}
+
+struct LastPanic;
+
+impl RequestHandlerService<LoaderState> for LastPanic {
+    async fn call_request_handler_service<
+        R: picoserve::io::Read,
+        W: picoserve::response::ResponseWriter<Error = R::Error>,
+    >(
+        &self,
+        _: &LoaderState,
+        (): (),
+        request: picoserve::request::Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        let connection = request.body_connection.finalize().await?;
+        match last_panic() {
+            Some(message) => (StatusCode::OK, format_args!("{message}\n"))
+                .write_to(connection, response_writer)
+                .await,
+            None => (StatusCode::OK, "none\n").write_to(connection, response_writer).await,
+        }
     }
 }
 
@@ -282,18 +396,24 @@ async fn uart_reply(
 const NETWORK_HEAP_RESERVE: usize = 10 * 1024;
 
 #[inline(never)]
-fn load(image: &'static [u8]) -> Result<Playback, LoadError> {
+fn load(
+    storage: &mut storage::DeviceStorage,
+    slot: show_slots::Slot,
+) -> Result<Playback, LoadError> {
     let free = esp_alloc::HEAP.free();
-    println!("LOAD image_bytes={} heap_free={}", image.len(), free);
-    // The image plays from flash; only the workspace takes heap, and it must
-    // leave the network reserve free.
-    let limits = LoadLimits {
-        workspace_bytes: LIMITS
-            .workspace_bytes
-            .min(free.saturating_sub(NETWORK_HEAP_RESERVE)),
-        ..LIMITS
-    };
-    let sequence = donder_runtime::Show::admit(image, limits)?;
+    println!("LOAD bytes={} heap_free={}", slot.length, free);
+    // The prepared sequence plays from RAM; it and the workspace must leave
+    // the network reserve free.
+    if slot.length + NETWORK_HEAP_RESERVE > free {
+        return Err(LoadError::Limit);
+    }
+    let copy = RamSequence::new(storage.read_show(slot).map_err(|_| LoadError::Read)?);
+    let prepared = copy.bytes(slot.length);
+    let workspace_bytes = LIMITS
+        .workspace_bytes
+        .min(esp_alloc::HEAP.free().saturating_sub(NETWORK_HEAP_RESERVE));
+    let sequence =
+        donder_runtime::Show::open(prepared).map_err(|_| LoadError::Version)?;
     #[cfg(feature = "i2s-output")]
     if sequence.outputs().is_empty()
         || sequence.frame_rate() > MAX_FRAME_RATE
@@ -306,17 +426,20 @@ fn load(image: &'static [u8]) -> Result<Playback, LoadError> {
         return Err(LoadError::Limit);
     }
     let layout = sequence.layout();
-    let show = LoadedShow::new(sequence, &layout).ok_or(LoadError::Limit)?;
+    if layout.words() * 4 > workspace_bytes {
+        return Err(LoadError::Limit);
+    }
+    let show = LoadedShow::new(sequence, &layout, copy).ok_or(LoadError::Limit)?;
     println!(
         "LOAD workspace_bytes={} heap_free={}",
-        layout.words() * 8,
+        layout.words() * 4,
         esp_alloc::HEAP.free()
     );
     Ok(Playback {
         #[cfg(feature = "i2s-output")]
-        archive_crc: u32::from_le_bytes(image[12..16].try_into().unwrap()),
+        archive_id: u32::from_le_bytes(prepared[8..12].try_into().unwrap()),
         #[cfg(feature = "i2s-output")]
-        archive_bytes: image.len() as u32,
+        archive_bytes: prepared.len() as u32,
         show,
         #[cfg(feature = "i2s-output")]
         transport: transport::Transport::new(),
@@ -611,7 +734,7 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
         }
         let capabilities = Capabilities {
             sequence_format: donder_runtime::FORMAT_VERSION,
-            max_payload_bytes: LIMITS.image_bytes,
+            max_payload_bytes: LIMITS.sequence_bytes,
             max_pixels: LIMITS.pixels,
             max_graph_nodes: LIMITS.graph_nodes,
             max_workspace_bytes: LIMITS.workspace_bytes,
@@ -664,7 +787,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         };
 
         let length = request.body_connection.content_length();
-        if !(header_bytes()..=LIMITS.image_bytes).contains(&length) {
+        if !(header_bytes()..=LIMITS.sequence_bytes).contains(&length) {
             return (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "Sequence exceeds device limits\n",
@@ -756,22 +879,11 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                 .write_to(connection, response_writer)
                 .await;
         }
-        let bytes = match storage.mapped_show(slot) {
-            Ok(bytes) => bytes,
-            Err(_) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Cannot read staged sequence\n",
-                )
-                    .write_to(connection, response_writer)
-                    .await;
-            }
-        };
         #[cfg(not(feature = "dig-quad"))]
         println!("UPLOAD loading bytes={}", length);
         let free = esp_alloc::HEAP.free();
         let start = Instant::now();
-        match load(bytes) {
+        match load(&mut storage, slot) {
             Ok(playback) => {
                 let pixels = playback.show.sequence().pixel_count();
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
@@ -797,9 +909,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                         "the show needs more memory, outputs or frames per second than this controller has"
                     }
                     LoadError::Version => "the show's format does not match this firmware",
-                    LoadError::Header | LoadError::Checksum | LoadError::Archive => {
-                        "the show is damaged"
-                    }
+                    LoadError::Read => "the staged show could not be read back",
                 };
                 (
                     StatusCode::UNPROCESSABLE_ENTITY,
@@ -906,7 +1016,7 @@ struct PlaybackStatus {
     mode: transport::Mode,
     position_micros: u32,
     duration_micros: u32,
-    archive_crc: u32,
+    archive_id: u32,
     archive_bytes: u32,
     pending_command: Option<u32>,
     command_id: u32,
@@ -995,7 +1105,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
                     .sample(now, playback.show.sequence().duration().as_ticks())
                     .1,
                 duration_micros: playback.show.sequence().duration().as_ticks(),
-                archive_crc: playback.archive_crc,
+                archive_id: playback.archive_id,
                 archive_bytes: playback.archive_bytes,
                 pending_command: playback.transport.pending.map(|command| command.id),
                 command_id: playback.transport.command_id,
@@ -1020,6 +1130,7 @@ impl AppBuilder for WebApp {
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
         let router = picoserve::Router::new()
             .route("/capabilities", get_service(DeviceCapabilities))
+            .route("/panic", get_service(LastPanic))
             .route("/sequence", put_service(UploadSequence))
             .route("/frame", post_service(EvaluateFrame))
             .route("/claim", post_service(Claim))
@@ -1185,7 +1296,7 @@ async fn render_outputs(
             .map_or(IDLE_FRAME_RATE, |p| p.show.sequence().frame_rate());
         let signature = current
             .as_ref()
-            .map(|p| (p.archive_crc, p.archive_bytes, p.transport.generation));
+            .map(|p| (p.archive_id, p.archive_bytes, p.transport.generation));
         if signature != ready_signature {
             if let Some(p) = current.as_mut() {
                 let rendered = p.render(ready_display_time);
@@ -1236,7 +1347,7 @@ async fn render_outputs(
         encode_frame(rendered, spare_buffer.as_mut_slice());
         ready_signature = active
             .as_ref()
-            .map(|p| (p.archive_crc, p.archive_bytes, p.transport.generation));
+            .map(|p| (p.archive_id, p.archive_bytes, p.transport.generation));
         ready_display_time = next_latch;
         drop(active);
         let encoding_us = u32::try_from(encoding_start.elapsed().as_micros()).unwrap();
@@ -1306,10 +1417,7 @@ async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
     };
     let mut storage = storage.lock().await;
     let restored = match show_slots::latest(&mut storage.shows()) {
-        Ok(Some(slot)) => storage
-            .mapped_show(slot)
-            .ok()
-            .and_then(|bytes| load(bytes).ok()),
+        Ok(Some(slot)) => load(&mut storage, slot).ok(),
         Ok(None) => return,
         Err(_) => None,
     };
@@ -1382,8 +1490,9 @@ async fn recover_storage(
 async fn main(spawner: embassy_executor::Spawner) -> ! {
     let mut p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
-    // Shows play from flash, so the heap holds only their playback buffers;
-    // the rest of DRAM is the network core's stack, which loading a show and
+    // The heap holds the playing show's prepared sequence and playback
+    // buffer beside the network's buffers; the rest of DRAM is the network
+    // core's stack, which loading a show and
     // serving requests use deeply. Total heap with output enabled is 126 KiB.
     #[cfg(feature = "i2s-output")]
     esp_alloc::heap_allocator!(size: 62 * 1024);

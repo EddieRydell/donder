@@ -8,7 +8,7 @@ crates/donder-language/         The text language: data-document syntax, effect 
 crates/donder-model/            Domain model: fixtures, layouts, setups, sequences, validated edits
 crates/donder-project-io/       Project loading, imports, diagnostics and saving
 crates/donder-elaboration/      Preparing a sequence for selected outputs
-crates/donder-runtime/          Portable no_std playback runtime: show images and their admission
+crates/donder-runtime/          Portable no_std playback runtime: trusted show images and their evaluation
 crates/donder-output/           E1.31 and Art-Net transports, FSEQ export
 crates/donder-audio-analysis/   Beat and downbeat detection from song audio
 crates/donder-language-server/  Language server for documents and scripts

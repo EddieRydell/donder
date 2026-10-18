@@ -171,7 +171,7 @@ impl Analysis<'_> {
         let value = self.of(a);
         match op {
             Unary::Negate | Unary::IntNegate => Interval::new(-value.max, -value.min, value.nan),
-            Unary::Abs => {
+            Unary::Abs | Unary::IntAbs => {
                 let low = if value.min <= 0.0 && value.max >= 0.0 {
                     0.0
                 } else {

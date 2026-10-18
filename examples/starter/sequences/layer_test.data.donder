@@ -1,6 +1,6 @@
 import elements from <layouts/outputs.data.donder>;
 import effects from <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>, <effects/scan-sweep.donder>, <effects/shimmer-field.donder>, <effects/sparkle-comet.donder>, <effects/standard.donder>;
-import operators from <operators/gain.donder>, <operators/standard.donder>, <operators/time-warp.donder>;
+import operators from <operators/gain.donder>, <operators/standard.donder>;
 import curves from <curves/basic_curves.data.donder>;
 import gradients from <gradients/basic_gradients.data.donder>;
 
@@ -15,13 +15,13 @@ Sequence layer_test {
   ],
   layers: [
     Layer { name: default, description: none, color: #38bdf8, enabled: true },
-    Layer { name: time_warp, description: none, color: #e0414f, enabled: true },
+    Layer { name: afterglow, description: none, color: #e0414f, enabled: true },
   ],
   clips: [
     Clip {
       name: spin,
       description: none,
-      layer: time_warp,
+      layer: afterglow,
       start: 58.979683s,
       duration: 1.341234s,
       target: elements.outputs_layout.all_outputs,
@@ -52,7 +52,7 @@ Sequence layer_test {
     Clip {
       name: spin_2,
       description: none,
-      layer: time_warp,
+      layer: afterglow,
       start: 59.202995s,
       duration: 1.341234s,
       target: elements.outputs_layout.all_outputs,
@@ -72,7 +72,7 @@ Sequence layer_test {
     Clip {
       name: spin_3,
       description: none,
-      layer: time_warp,
+      layer: afterglow,
       start: 64.321722s,
       duration: 2.728596s,
       target: elements.outputs_layout.all_outputs,
@@ -484,44 +484,19 @@ Sequence layer_test {
     nodes: [
       LayerNode { layer: default, position: (566.45416, -474.141) },
       OutputNode { position: (1393.0885, -375.6623) },
-      LayerNode { layer: time_warp, position: (444.03857, -40.094635) },
+      LayerNode { layer: afterglow, position: (444.03857, -40.094635) },
       OperatorNode {
-        name: time_warp_2,
-        operator: operators.TimeWarp,
+        name: afterglow_2,
+        operator: operators.Afterglow,
         params: {},
         position: (815.0807, -62.519207),
       },
     ],
     edges: [
       Edge { from: default, to: output },
-      Edge { from: time_warp, to: time_warp_2.source },
-      Edge { from: time_warp_2, to: output },
+      Edge { from: afterglow, to: afterglow_2.input },
+      Edge { from: afterglow_2, to: output },
     ],
   },
-  automation: [
-    AutomationClip {
-      row: elements.outputs_layout.all_outputs,
-      start: 0s,
-      duration: 249.753832s,
-      curve: [
-        (0.0, 0.505), (0.10324826, 0.787), (0.21766204, 0.372), (0.2180522, 0.42),
-        (0.21922265, 0.168), (0.2196128, 0.511), (0.2210954, 0.468), (0.22148556, 0.431),
-        (0.22249997, 0.174), (0.22390452, 0.426), (0.22445074, 0.152), (0.2364331, 0.496),
-        (0.23976414, 0.491), (0.24020831, 0.47), (0.24052176, 0.442), (0.24077949, 0.372),
-        (0.24108455, 0.197), (0.24139322, 0.0), (0.2419952, 0.302), (0.24247344, 0.0),
-        (0.24345018, 0.479), (0.24385941, 0.56), (0.24430604, 0.56), (0.24451965, 0.012),
-        (0.24473326, 0.625), (0.247549, 0.609), (0.2575356, 0.484), (0.26094308, 0.491),
-        (0.26568782, 0.512), (0.26572064, 0.239), (0.26581794, 1.0), (0.2658683, 0.477),
-        (0.2660406, 0.505), (0.2660957, 0.0), (0.26616442, 0.03), (0.26620468, 0.505),
-        (0.26638517, 0.498), (0.26642615, 1.0), (0.2665985, 0.505), (0.2666643, 0.023),
-        (0.26674616, 0.498), (0.26679108, 1.0), (0.26689798, 1.0), (0.26695126, 0.477),
-        (0.26698276, 0.0), (0.26714817, 0.491), (0.26722234, 0.965), (0.26731223, 0.47),
-        (0.26737347, 1.0), (0.2674599, 0.505), (0.26754305, 0.477), (0.26758727, 0.009),
-        (0.26767576, 0.0), (0.26772735, 0.449), (0.267855, 0.484), (0.26792216, 1.0),
-        (0.26816395, 1.0), (0.2681774, 0.512), (1.0, 1.0),
-      ],
-      bindings: [NodeParam { node: time_warp_2, param: offset_seconds }],
-      detached: [],
-    },
-  ],
+  automation: [],
 }

@@ -71,7 +71,7 @@ pub fn automation_value_at_position<'a>(
     mapping: &'a AutomationMapping,
     position: f32,
 ) -> Option<AutomationValue<'a>> {
-    let normalized = sample_curve(curve, position).clamp(0.0, 1.0);
+    let normalized = sample_curve(curve, position);
     Some(match mapping {
         AutomationMapping::Float { min, max } => {
             AutomationValue::Float(lerp(*min, *max, normalized))
@@ -153,5 +153,5 @@ pub fn curve_window_points(
 }
 
 fn lerp(min: f32, max: f32, amount: f32) -> f32 {
-    min + (max - min) * amount.clamp(0.0, 1.0)
+    min + (max - min) * amount
 }

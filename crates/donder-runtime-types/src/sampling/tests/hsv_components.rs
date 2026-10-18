@@ -1,16 +1,12 @@
 use crate::sampling::{color_hue, color_intensity, color_saturation, hsv};
-use crate::values::{Color, FloatColor};
-
-fn color([red, green, blue]: [u8; 3]) -> Color {
-    Color { red, green, blue }
-}
+use crate::values::Color;
 
 #[test]
 fn quantized_colors_round_trip_at_zero_and_full_turns() {
     for red in [0, 1, 2, 63, 64, 127, 128, 254, 255] {
         for green in [0, 1, 2, 63, 64, 127, 128, 254, 255] {
             for blue in [0, 1, 2, 63, 64, 127, 128, 254, 255] {
-                let c = FloatColor::from(color([red, green, blue]));
+                let c = Color::from_bytes([red, green, blue]);
                 for shift in [0.0, -1.0, 1.0] {
                     assert_eq!(
                         hsv(
@@ -18,8 +14,8 @@ fn quantized_colors_round_trip_at_zero_and_full_turns() {
                             color_saturation(c),
                             color_intensity(c)
                         )
-                        .to_color(),
-                        c.to_color()
+                        .to_bytes(),
+                        c.to_bytes()
                     );
                 }
             }
@@ -42,7 +38,7 @@ fn hsv_components_cover_every_byte_denominator_and_sector() {
                     [middle, min, max],
                     [max, min, middle],
                 ] {
-                    let c = FloatColor::from(color(rgb));
+                    let c = Color::from_bytes(rgb);
                     let [r, g, b] = rgb.map(f32::from);
                     let chroma = f32::from(max - min);
                     let hue = if chroma == 0.0 {
@@ -70,8 +66,8 @@ fn hsv_components_cover_every_byte_denominator_and_sector() {
                         "{c:?}"
                     );
                     assert_eq!(
-                        hsv(color_hue(c), color_saturation(c), color_intensity(c)).to_color(),
-                        c.to_color()
+                        hsv(color_hue(c), color_saturation(c), color_intensity(c)).to_bytes(),
+                        c.to_bytes()
                     );
                 }
             }

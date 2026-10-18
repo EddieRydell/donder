@@ -1,19 +1,34 @@
-use crate::values::{Curve, CurvePoint, FloatColor, Gradient, GradientStop};
+//! The arithmetic programs run. Floats follow IEEE 754: NaN and infinities
+//! propagate through the hardware, so nothing here tests for them.
+use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
 
 #[cfg(test)]
 mod tests;
 
+/// The left float unless it is NaN, otherwise the right. NaN is the missing
+/// value: this is its one test.
 #[inline(always)]
-pub fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
-    if min.is_nan() || max.is_nan() || min > max {
-        f32::NAN
-    } else {
-        value.clamp(min, max)
-    }
+pub fn value_or(left: f32, right: f32) -> f32 {
+    if left.is_nan() { right } else { left }
 }
 
-/// Floored remainder: a nonzero result takes the divisor's sign. Remainder by
-/// zero and `i32::MIN % -1` are zero.
+/// The smaller of two floats by one compare.
+#[inline(always)]
+pub fn min_float(left: f32, right: f32) -> f32 {
+    if left < right { left } else { right }
+}
+
+/// The larger of two floats by one compare.
+#[inline(always)]
+pub fn max_float(left: f32, right: f32) -> f32 {
+    if left > right { left } else { right }
+}
+
+#[inline(always)]
+pub fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
+    min_float(max_float(value, min), max)
+}
+
 #[inline(always)]
 pub fn int_binary(op: crate::bytecode::IntBinary, left: i32, right: i32) -> i32 {
     use crate::bytecode::IntBinary;
@@ -28,8 +43,8 @@ pub fn int_binary(op: crate::bytecode::IntBinary, left: i32, right: i32) -> i32 
     }
 }
 
-/// Floored quotient, consistent with [`int_remainder`]: `value == quotient *
-/// divisor + remainder`. Division by zero is zero and `i32::MIN // -1` wraps.
+/// Floored quotient, consistent with [`int_remainder`]. Integer division by
+/// zero traps in hardware, so it is zero.
 pub fn int_floor_divide(value: i32, divisor: i32) -> i32 {
     if divisor == 0 {
         return 0;
@@ -42,8 +57,13 @@ pub fn int_floor_divide(value: i32, divisor: i32) -> i32 {
     }
 }
 
+/// Floored remainder: a nonzero result takes the divisor's sign. Remainder by
+/// zero traps in hardware, so it is zero.
 pub fn int_remainder(value: i32, divisor: i32) -> i32 {
-    let remainder = value.checked_rem(divisor).unwrap_or(0);
+    if divisor == 0 {
+        return 0;
+    }
+    let remainder = value.wrapping_rem(divisor);
     if remainder != 0 && (remainder < 0) != (divisor < 0) {
         remainder + divisor
     } else {
@@ -51,50 +71,67 @@ pub fn int_remainder(value: i32, divisor: i32) -> i32 {
     }
 }
 
-/// Floored remainder, within `[0, divisor)` for a positive divisor. Remainder
-/// by zero is NaN.
+/// Floored remainder: a nonzero result takes the divisor's sign.
 #[inline(always)]
 pub fn float_remainder(value: f32, divisor: f32) -> f32 {
     let remainder = value % divisor;
     if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
-        // A tiny negative remainder can round onto the divisor itself.
-        let wrapped = remainder + divisor;
-        if wrapped == divisor { 0.0 } else { wrapped }
+        remainder + divisor
     } else {
         remainder
     }
 }
 
-/// Round a byte-domain value to a channel, saturating to 0..=255; NaN becomes 0.
-/// Equal to `(value.clamp(0.0, 255.0) + 0.5) as u8` for every f32, but clamps
-/// the converted integer, which avoids float compares on Xtensa.
 #[inline(always)]
-pub fn byte_channel(value: f32) -> u8 {
-    ((value + 0.5) as i32).clamp(0, 255) as u8
-}
-
-#[inline(always)]
-pub fn rgb(red: f32, green: f32, blue: f32) -> FloatColor {
-    FloatColor { red, green, blue }
+pub fn rgb(red: f32, green: f32, blue: f32) -> Color {
+    Color { red, green, blue }
 }
 
 #[inline(always)]
 pub fn sample_curve(curve: &Curve, position: f32) -> f32 {
+    // An authored curve may be empty, which is missing; images never are.
+    if curve.points.is_empty() {
+        return f32::NAN;
+    }
     sample_curve_points(&curve.points, position)
 }
 
+/// The slope of the segment from `start` to `finish`.
+#[inline(always)]
+pub fn segment_slope(start: &CurvePoint, finish: &CurvePoint) -> f32 {
+    (finish.value - start.value) / (finish.position - start.position)
+}
+
+/// Each point's slope from the point before it, for [`sample_curve_sloped`];
+/// the first point's is zero.
+pub fn curve_slopes(points: &[CurvePoint], slopes: &mut [f32]) {
+    slopes[0] = 0.0;
+    for (index, slope) in slopes.iter_mut().enumerate().take(points.len()).skip(1) {
+        *slope = segment_slope(&points[index - 1], &points[index]);
+    }
+}
+
+/// A curve's value at `position`, holding its end values beyond its points.
+/// A curve has at least one point.
 #[inline(always)]
 pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
-    if position.is_nan() {
-        return f32::NAN;
-    }
-    let Some(first) = points.first() else {
-        return f32::NAN;
-    };
-    if points.len() == 1 {
-        return first.value;
-    }
-    if position < first.position {
+    sample_curve_sloped(
+        points,
+        |index| segment_slope(&points[index - 1], &points[index]),
+        position,
+    )
+}
+
+/// [`sample_curve_points`] with each segment's slope given by the index of
+/// its last point: a search, then a multiply-add.
+#[inline(always)]
+pub fn sample_curve_sloped(
+    points: &[CurvePoint],
+    slope: impl Fn(usize) -> f32,
+    position: f32,
+) -> f32 {
+    let first = &points[0];
+    if points.len() == 1 || position < first.position {
         return first.value;
     }
     let last = &points[points.len() - 1];
@@ -103,10 +140,7 @@ pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
     }
     let index = 1 + points[1..points.len() - 1].partition_point(|point| point.position <= position);
     let previous = &points[index - 1];
-    let point = &points[index];
-    let span = (point.position - previous.position).max(1e-9);
-    let t = unit_span_fraction(position - previous.position, span).clamp(0.0, 1.0);
-    previous.value + (point.value - previous.value) * t
+    previous.value + (position - previous.position) * slope(index)
 }
 
 /// The area under the curve from position 0 to `position`. End values are
@@ -116,8 +150,7 @@ pub fn curve_integral(points: &[CurvePoint], position: f32) -> f32 {
 }
 
 /// Each point's area from the first point, for [`curve_integral_table`].
-/// Accumulated in the order [`curve_area`] adds segments, so the two agree
-/// exactly.
+/// Accumulated in the order [`curve_area`] adds segments, so the two agree.
 pub fn curve_prefix_areas(points: &[CurvePoint], areas: &mut [f32]) {
     let mut area = 0.0;
     for (index, slot) in areas.iter_mut().enumerate().take(points.len()) {
@@ -132,9 +165,6 @@ pub fn curve_prefix_areas(points: &[CurvePoint], areas: &mut [f32]) {
 /// [`curve_integral`] from the points' prefix areas: a search for the
 /// segment, not a walk over the segments before it.
 pub fn curve_integral_table(points: &[CurvePoint], areas: &[f32], position: f32) -> f32 {
-    if position.is_nan() || points.is_empty() {
-        return f32::NAN;
-    }
     area_from_start_table(points, areas, position) - area_from_start_table(points, areas, 0.0)
 }
 
@@ -157,9 +187,6 @@ fn area_from_start_table(points: &[CurvePoint], areas: &[f32], position: f32) ->
 /// The signed area under the curve between two positions, holding end values
 /// beyond the authored points.
 pub fn curve_area(points: &[CurvePoint], from: f32, to: f32) -> f32 {
-    if from.is_nan() || to.is_nan() || points.is_empty() {
-        return f32::NAN;
-    }
     curve_area_from_start(points, to) - curve_area_from_start(points, from)
 }
 
@@ -183,47 +210,38 @@ fn curve_area_from_start(points: &[CurvePoint], position: f32) -> f32 {
     area + (position - last.position) * last.value
 }
 
-#[inline]
-pub fn curve_crossing(points: &[CurvePoint], value: f32, fallback: f32) -> f32 {
-    let Some(first) = points.first() else {
-        return fallback;
-    };
-    let mut previous = first;
-    for point in points {
-        let min = previous.value.min(point.value);
-        let max = previous.value.max(point.value);
-        if value >= min && value <= max {
-            let span = point.value - previous.value;
-            if span.abs() <= 1e-9 {
-                return previous.position;
-            }
-            let t = if span.is_finite() {
-                unit_span_fraction(value - previous.value, span)
-            } else {
-                ((f64::from(value) - f64::from(previous.value))
-                    / (f64::from(point.value) - f64::from(previous.value))) as f32
-            }
-            .clamp(0.0, 1.0);
-            return previous.position + (point.position - previous.position) * t;
-        }
-        previous = point;
+/// The first position where the curve reaches `value`, or NaN; a flat
+/// segment at `value` is reached at its start.
+pub fn curve_first_crossing(points: &[CurvePoint], value: f32) -> f32 {
+    if let [point] = points {
+        return if point.value == value {
+            point.position
+        } else {
+            f32::NAN
+        };
     }
-    fallback
+    for pair in points.windows(2) {
+        let (start, finish) = (&pair[0], &pair[1]);
+        if value >= start.value.min(finish.value) && value <= start.value.max(finish.value) {
+            let span = finish.value - start.value;
+            if span == 0.0 {
+                return start.position;
+            }
+            return start.position
+                + (finish.position - start.position) * (value - start.value) / span;
+        }
+    }
+    f32::NAN
 }
 
-/// Latest arrival at `value`, including an exact touch. A plateau triggers on
-/// arrival, not continuously while held or again when leaving it. Endpoint
-/// extension is a sampling rule and does not create crossing events.
+/// Latest arrival at `value`, including an exact touch, or NaN. A plateau
+/// triggers on arrival, not continuously while held or again when leaving
+/// it. Endpoint extension is a sampling rule and does not create crossing
+/// events.
 pub fn curve_last_crossing(points: &[CurvePoint], value: f32, before: f32) -> f32 {
-    if value.is_nan() || before.is_nan() {
-        return f32::NAN;
-    }
     let end = points.partition_point(|point| point.position <= before);
     // Include the segment containing the query position, if there is one.
-    for pair in points[..end.saturating_add(1).min(points.len())]
-        .windows(2)
-        .rev()
-    {
+    for pair in points[..(end + 1).min(points.len())].windows(2).rev() {
         let (start, finish) = (&pair[0], &pair[1]);
         if value == start.value
             || value < start.value.min(finish.value)
@@ -239,35 +257,40 @@ pub fn curve_last_crossing(points: &[CurvePoint], value: f32, before: f32) -> f3
         let position = if value == finish.value {
             finish.position
         } else {
-            let span = finish.value - start.value;
-            let fraction = if span.is_finite() {
-                (value - start.value) / span
-            } else {
-                // Finite opposite-sign endpoints can overflow a f32 difference.
-                ((f64::from(value) - f64::from(start.value))
-                    / (f64::from(finish.value) - f64::from(start.value))) as f32
-            };
-            start.position + (finish.position - start.position) * fraction
+            start.position
+                + (finish.position - start.position) * (value - start.value)
+                    / (finish.value - start.value)
         };
         if position <= before {
             return position;
         }
     }
-    points
-        .first()
-        .filter(|point| point.value == value && point.position <= before)
-        .map_or(f32::NAN, |point| point.position)
+    let first = &points[0];
+    if first.value == value && first.position <= before {
+        first.position
+    } else {
+        f32::NAN
+    }
 }
 
 #[inline]
-pub fn sample_gradient(gradient: &Gradient, position: f32) -> FloatColor {
+pub fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
+    // An authored gradient may be empty, which is black; images never are.
+    if gradient.stops.is_empty() {
+        return Color::BLACK;
+    }
     sample_gradient_stops(&gradient.stops, position)
 }
 
 /// A gradient stop as an image or an authored value holds it.
-pub trait Stop {
+pub trait Stop: Sized {
     fn position(&self) -> f32;
-    fn color(&self) -> crate::values::Color;
+    fn color(&self) -> Color;
+    /// One over the width of the span from this stop to `next`.
+    #[inline(always)]
+    fn inverse(&self, next: &Self) -> f32 {
+        1.0 / (next.position() - self.position())
+    }
 }
 
 impl Stop for GradientStop {
@@ -276,7 +299,7 @@ impl Stop for GradientStop {
         self.position
     }
     #[inline(always)]
-    fn color(&self) -> crate::values::Color {
+    fn color(&self) -> Color {
         self.color
     }
 }
@@ -287,59 +310,59 @@ impl Stop for crate::image::GradientStop {
         self.position
     }
     #[inline(always)]
-    fn color(&self) -> crate::values::Color {
-        let [red, green, blue, _] = self.color;
-        crate::values::Color { red, green, blue }
+    fn color(&self) -> Color {
+        self.color
+    }
+    #[inline(always)]
+    fn inverse(&self, _: &Self) -> f32 {
+        self.inverse
     }
 }
 
-/// Equal-position stops form a step: the last stop wins at the exact position.
-pub fn sample_gradient_stops<S: Stop>(stops: &[S], position: f32) -> FloatColor {
-    let Some(first) = stops.first() else {
-        return FloatColor::BLACK;
-    };
-    let last = &stops[stops.len() - 1];
+/// A gradient's color at `position`. Equal-position stops form a step: the
+/// last stop wins at the exact position. A gradient has at least one stop.
+pub fn sample_gradient_stops<S: Stop>(stops: &[S], position: f32) -> Color {
+    let first = &stops[0];
     if stops.len() == 1 || position < first.position() {
-        return first.color().into();
+        return first.color();
     }
+    let last = &stops[stops.len() - 1];
     if position >= last.position() {
-        return last.color().into();
+        return last.color();
     }
-    let index = 1 + stops[1..stops.len() - 1].partition_point(|stop| stop.position() <= position);
+    // Gradients hold a few stops: a scan finds the span. It ends before the
+    // last stop, which is past `position`.
+    let mut index = 1;
+    while stops[index].position() <= position {
+        index += 1;
+    }
     let previous = &stops[index - 1];
     let stop = &stops[index];
-    let span = (stop.position() - previous.position()).max(1e-9);
     mix_colors(
-        previous.color().into(),
-        stop.color().into(),
-        unit_span_fraction(position - previous.position(), span).clamp(0.0, 1.0),
+        previous.color(),
+        stop.color(),
+        (position - previous.position()) * previous.inverse(stop),
     )
 }
 
 #[inline(always)]
-fn unit_span_fraction(numerator: f32, span: f32) -> f32 {
-    if span == 1.0 {
-        numerator
-    } else if span == -1.0 {
-        -numerator
-    } else {
-        numerator / span
+fn per_channel(a: Color, b: Color, f: impl Fn(f32, f32) -> f32) -> Color {
+    Color {
+        red: f(a.red, b.red),
+        green: f(a.green, b.green),
+        blue: f(a.blue, b.blue),
     }
 }
 
+/// `left` to `right` by `t`.
 #[inline(always)]
-pub fn mix_colors(left: FloatColor, right: FloatColor, t: f32) -> FloatColor {
-    let channel = |left: f32, right: f32| left + (right - left) * t;
-    FloatColor {
-        red: channel(left.red, right.red),
-        green: channel(left.green, right.green),
-        blue: channel(left.blue, right.blue),
-    }
+pub fn mix_colors(left: Color, right: Color, t: f32) -> Color {
+    per_channel(left, right, |a, b| a + (b - a) * t)
 }
 
 #[inline(always)]
-pub fn scale_color(color: FloatColor, scale: f32) -> FloatColor {
-    FloatColor {
+pub fn scale_color(color: Color, scale: f32) -> Color {
+    Color {
         red: color.red * scale,
         green: color.green * scale,
         blue: color.blue * scale,
@@ -347,35 +370,23 @@ pub fn scale_color(color: FloatColor, scale: f32) -> FloatColor {
 }
 
 #[inline(always)]
-pub fn add_colors(left: FloatColor, right: FloatColor) -> FloatColor {
-    FloatColor {
-        red: left.red + right.red,
-        green: left.green + right.green,
-        blue: left.blue + right.blue,
-    }
+pub fn add_colors(left: Color, right: Color) -> Color {
+    per_channel(left, right, |a, b| a + b)
 }
 
 #[inline(always)]
-pub fn multiply_colors(left: FloatColor, right: FloatColor) -> FloatColor {
-    FloatColor {
-        red: left.red * right.red,
-        green: left.green * right.green,
-        blue: left.blue * right.blue,
-    }
+pub fn multiply_colors(left: Color, right: Color) -> Color {
+    per_channel(left, right, |a, b| a * b)
 }
 
 #[inline(always)]
-pub fn max_colors(left: FloatColor, right: FloatColor) -> FloatColor {
-    FloatColor {
-        red: left.red.max(right.red),
-        green: left.green.max(right.green),
-        blue: left.blue.max(right.blue),
-    }
+pub fn max_colors(left: Color, right: Color) -> Color {
+    per_channel(left, right, max_float)
 }
 
 #[inline(always)]
-pub fn invert_color(color: FloatColor) -> FloatColor {
-    FloatColor {
+pub fn invert_color(color: Color) -> Color {
+    Color {
         red: 1.0 - color.red,
         green: 1.0 - color.green,
         blue: 1.0 - color.blue,
@@ -383,86 +394,77 @@ pub fn invert_color(color: FloatColor) -> FloatColor {
 }
 
 #[inline(always)]
-pub fn color_intensity(color: FloatColor) -> f32 {
-    color.red.max(color.green).max(color.blue)
+fn brightest(color: Color) -> f32 {
+    max_float(max_float(color.red, color.green), color.blue)
+}
+
+#[inline(always)]
+fn dimmest(color: Color) -> f32 {
+    min_float(min_float(color.red, color.green), color.blue)
+}
+
+#[inline(always)]
+pub fn color_intensity(color: Color) -> f32 {
+    brightest(color)
 }
 
 /// HSV hue in turns, in [0, 1). Achromatic colors have hue zero.
 #[inline]
-pub fn color_hue(color: FloatColor) -> f32 {
-    let max = color_intensity(color);
-    let min = color.red.min(color.green).min(color.blue);
-    hue_between(color, max, min)
-}
-
-fn hue_between(color: FloatColor, max: f32, min: f32) -> f32 {
-    let chroma = max - min;
-    if chroma <= 0.0 {
+pub fn color_hue(color: Color) -> f32 {
+    let (max, min) = (brightest(color), dimmest(color));
+    if max == min {
         return 0.0;
     }
-    let inverse = 1.0 / chroma;
+    let chroma = max - min;
     let sector = if max == color.red {
-        (color.green - color.blue) * inverse
+        (color.green - color.blue) / chroma
     } else if max == color.green {
-        (color.blue - color.red) * inverse + 2.0
+        (color.blue - color.red) / chroma + 2.0
     } else {
-        (color.red - color.green) * inverse + 4.0
+        (color.red - color.green) / chroma + 4.0
     };
     let hue = sector * (1.0 / 6.0);
     if hue < 0.0 { hue + 1.0 } else { hue }
 }
 
-/// HSV saturation in [0, 1]. Black and grayscale have saturation zero.
+/// HSV saturation in [0, 1]. Black has saturation zero.
 #[inline]
-pub fn color_saturation(color: FloatColor) -> f32 {
-    let max = color_intensity(color);
-    let min = color.red.min(color.green).min(color.blue);
-    saturation_between(max, min)
+pub fn color_saturation(color: Color) -> f32 {
+    let (max, min) = (brightest(color), dimmest(color));
+    if max == 0.0 { 0.0 } else { (max - min) / max }
 }
 
-fn saturation_between(max: f32, min: f32) -> f32 {
-    if max <= 0.0 { 0.0 } else { (max - min) / max }
+/// `color` with its hue replaced by `hue`, or shifted by it when `shift`,
+/// keeping its saturation and intensity: the same chroma over the same
+/// dimmest channel.
+pub fn recolor(color: Color, hue: f32, shift: bool) -> Color {
+    let (max, min) = (brightest(color), dimmest(color));
+    let hue = if shift { color_hue(color) + hue } else { hue };
+    hue_color(hue, max - min, min)
 }
 
-/// `color` with its hue replaced by `hue`, or shifted by it when `shift`:
-/// `hsv(hue, saturation(color), intensity(color))`, or the same with
-/// `hue(color) + hue`, computing the color's components once.
-pub fn recolor(color: FloatColor, hue: f32, shift: bool) -> FloatColor {
-    let max = color_intensity(color);
-    let min = color.red.min(color.green).min(color.blue);
-    let hue = if shift {
-        hue_between(color, max, min) + hue
-    } else {
-        hue
+/// The color of `hue` with `chroma` above the dimmest channel `base`.
+fn hue_color(hue: f32, chroma: f32, base: f32) -> Color {
+    let sector = (hue - libm::floorf(hue)) * 6.0;
+    let whole = sector as i32;
+    let rise = sector - whole as f32;
+    let (up, down) = (chroma * rise, chroma * (1.0 - rise));
+    let (red, green, blue) = match whole {
+        0 => (chroma, up, 0.0),
+        1 => (down, chroma, 0.0),
+        2 => (0.0, chroma, up),
+        3 => (0.0, down, chroma),
+        4 => (up, 0.0, chroma),
+        _ => (chroma, 0.0, down),
     };
-    hsv(hue, saturation_between(max, min), max)
+    rgb(red + base, green + base, blue + base)
 }
 
+/// HSV from hue in turns, and saturation and value.
 #[inline]
-pub fn hsv(h: f32, s: f32, v: f32) -> FloatColor {
-    let h = h - libm::floorf(h);
-    let sector = h * 6.0;
-    let c = v * s;
-    let x = c * (1.0 - (sector - libm::floorf(sector / 2.0) * 2.0 - 1.0).abs());
-    let m = v - c;
-    let (r, g, b) = if sector < 1.0 {
-        (c, x, 0.0)
-    } else if sector < 2.0 {
-        (x, c, 0.0)
-    } else if sector < 3.0 {
-        (0.0, c, x)
-    } else if sector < 4.0 {
-        (0.0, x, c)
-    } else if sector < 5.0 {
-        (x, 0.0, c)
-    } else {
-        (c, 0.0, x)
-    };
-    FloatColor {
-        red: r + m,
-        green: g + m,
-        blue: b + m,
-    }
+pub fn hsv(h: f32, s: f32, v: f32) -> Color {
+    let chroma = v * s;
+    hue_color(h, chroma, v - chroma)
 }
 
 #[inline(always)]
@@ -471,15 +473,11 @@ pub fn deterministic_random(values: impl Iterator<Item = f32>) -> f32 {
     deterministic_random_seed(seed)
 }
 
+/// MurmurHash3's 32-bit avalanche finalizer over the seed's bits: stateless,
+/// allocation-free and 32-bit.
 #[inline(always)]
 pub fn deterministic_random_seed(seed: f32) -> f32 {
-    if seed.is_nan() {
-        return f32::NAN;
-    }
-    // MurmurHash3's 32-bit avalanche finalizer. Hash the seed representation,
-    // not its sine: this is stateless, allocation-free and uses no doubles.
-    // Normalize signed zero so numerically equal zero seeds agree.
-    let mut value = if seed == 0.0 { 0 } else { seed.to_bits() };
+    let mut value = seed.to_bits();
     value ^= value >> 16;
     value = value.wrapping_mul(0x85eb_ca6b);
     value ^= value >> 13;
@@ -489,32 +487,23 @@ pub fn deterministic_random_seed(seed: f32) -> f32 {
     (value >> 8) as f32 * (1.0 / 16_777_216.0)
 }
 
-/// Unary math propagates NaN before its implementation sees it; negation,
-/// smoothstep and random seeds take NaN as it is.
 #[inline(always)]
 pub fn float_unary(op: crate::bytecode::FloatUnary, value: f32) -> f32 {
     use crate::bytecode::FloatUnary;
-    let math = |function: fn(f32) -> f32| {
-        if value.is_nan() {
-            f32::NAN
-        } else {
-            function(value)
-        }
-    };
     match op {
         FloatUnary::Negate => -value,
         FloatUnary::Smoothstep => smoothstep(value),
         FloatUnary::Rand => deterministic_random_seed(value),
-        FloatUnary::Sin => math(micromath::F32Ext::sin),
-        FloatUnary::Cos => math(micromath::F32Ext::cos),
-        FloatUnary::Tan => math(tan),
-        FloatUnary::Exp => math(exp),
-        FloatUnary::Log => math(log),
-        FloatUnary::Abs => math(f32::abs),
-        FloatUnary::Floor => math(libm::floorf),
-        FloatUnary::Ceil => math(libm::ceilf),
-        FloatUnary::Trunc => math(libm::truncf),
-        FloatUnary::Sqrt => math(libm::sqrtf),
+        FloatUnary::Sin => micromath::F32Ext::sin(value),
+        FloatUnary::Cos => micromath::F32Ext::cos(value),
+        FloatUnary::Tan => tan(value),
+        FloatUnary::Exp => exp(value),
+        FloatUnary::Log => log(value),
+        FloatUnary::Abs => f32::abs(value),
+        FloatUnary::Floor => libm::floorf(value),
+        FloatUnary::Ceil => libm::ceilf(value),
+        FloatUnary::Trunc => libm::truncf(value),
+        FloatUnary::Sqrt => libm::sqrtf(value),
     }
 }
 
@@ -526,16 +515,9 @@ pub fn float_binary(op: crate::bytecode::FloatBinary, left: f32, right: f32) -> 
         FloatBinary::Multiply => left * right,
         FloatBinary::Divide => left / right,
         FloatBinary::Remainder => float_remainder(left, right),
-        FloatBinary::ValueOr => {
-            if left.is_nan() {
-                right
-            } else {
-                left
-            }
-        }
-        FloatBinary::Min | FloatBinary::Max if left.is_nan() || right.is_nan() => f32::NAN,
-        FloatBinary::Min => left.min(right),
-        FloatBinary::Max => left.max(right),
+        FloatBinary::ValueOr => value_or(left, right),
+        FloatBinary::Min => min_float(left, right),
+        FloatBinary::Max => max_float(left, right),
         FloatBinary::Atan2 => libm::atan2f(left, right),
         FloatBinary::Power => power(left, right),
     }
@@ -543,9 +525,10 @@ pub fn float_binary(op: crate::bytecode::FloatBinary, left: f32, right: f32) -> 
 
 // Large math routines stay out of line, so firmware keeps them in flash
 // rather than copying them into every caller in instruction RAM.
+// f32 throughout: libm's `tanf` computes in double precision.
 #[inline(never)]
 fn tan(value: f32) -> f32 {
-    libm::tanf(value)
+    micromath::F32Ext::tan(value)
 }
 
 #[inline(never)]
@@ -563,29 +546,11 @@ fn power(base: f32, exponent: f32) -> f32 {
     libm::powf(base, exponent)
 }
 
-/// Clamped cubic interpolation of an already normalized position.
+/// Cubic interpolation of a position clamped to 0..1.
 #[inline(always)]
 pub fn smoothstep(value: f32) -> f32 {
-    let t = value.clamp(0.0, 1.0);
+    let t = clamp_float(value, 0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
-}
-
-/// A source query inside the effect duration, in seconds; NaN outside it.
-pub fn query_seconds(seconds: f32, duration: crate::values::SampleDuration) -> f32 {
-    crate::values::sample_time_from_seconds_f32(seconds)
-        .ok()
-        .filter(|time| time.as_ticks() < duration.as_ticks())
-        .map_or(f32::NAN, crate::values::sample_time_seconds_f32)
-}
-
-pub fn query_progress(seconds: f32, duration: crate::values::SampleDuration) -> f32 {
-    let duration = duration.as_ticks();
-    crate::values::sample_time_from_seconds_f32(seconds)
-        .ok()
-        .filter(|time| time.as_ticks() < duration)
-        .map_or(f32::NAN, |time| {
-            (time.as_ticks() as f32 / duration as f32).clamp(0.0, 1.0)
-        })
 }
 
 /// Position within a section of `width` pixels, given the width's reciprocal.
@@ -596,22 +561,19 @@ pub fn section_position(pixel_index: i32, width: f32, inverse: f32) -> f32 {
 }
 
 #[inline(always)]
-pub fn gradient_color_scaled<S: Stop>(stops: &[S], position: f32, scale: f32) -> FloatColor {
-    let scale = scale.clamp(0.0, 1.0);
-    if scale <= 0.0 {
-        FloatColor::BLACK
-    } else {
-        scale_color(sample_gradient_stops(stops, position), scale)
-    }
+pub fn gradient_color_scaled<S: Stop>(stops: &[S], position: f32, scale: f32) -> Color {
+    scale_color(
+        sample_gradient_stops(stops, position),
+        clamp_float(scale, 0.0, 1.0),
+    )
 }
 
 /// Time of the mark at `index`, or NaN for a missing index.
 pub fn mark_at(marks: &crate::values::MarkWindow<'_>, index: i32) -> f32 {
-    usize::try_from(index).map_or(f32::NAN, |index| marks.seconds(index))
+    marks.seconds(index as usize)
 }
 
 /// The last mark at or before `seconds`: its index and its time in seconds.
-/// A NaN query matches no mark.
 #[inline(never)]
 pub fn previous_mark(
     marks: &crate::values::MarkWindow<'_>,
@@ -627,14 +589,7 @@ pub fn previous_mark_index(
     seconds: f32,
     cursor: &core::cell::Cell<usize>,
 ) -> i32 {
-    previous_mark(marks, seconds, cursor)
-        .map(|(index, _)| length_int(index))
-        .unwrap_or(-1)
-}
-
-#[inline(always)]
-pub fn length_int(length: usize) -> i32 {
-    i32::try_from(length).unwrap_or(i32::MAX)
+    previous_mark(marks, seconds, cursor).map_or(-1, |(index, _)| index as i32)
 }
 
 /// Array indices clamp to the first or last element of a nonempty array.

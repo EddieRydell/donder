@@ -129,11 +129,7 @@ fn configured_project(
     let accent = EffectParamValue::Gradient(GradientSource::Inline(Gradient {
         stops: vec![GradientStop {
             position: 0.0,
-            color: Color {
-                red: 255,
-                green: 128,
-                blue: 64,
-            },
+            color: Color::from_bytes([255, 128, 64]),
         }],
     }));
     if matches!(effect, MarkEffect::Pulse) {

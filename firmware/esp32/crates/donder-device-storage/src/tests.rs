@@ -60,16 +60,13 @@ fn interrupted_show_replacement_preserves_a_complete_committed_slot() {
 }
 
 #[test]
-fn committed_show_corruption_and_invalid_chunk_bounds_are_rejected() {
+fn chunks_past_the_staged_length_are_rejected() {
     let mut flash = Flash::blank();
     let slot = stage_show(&mut flash, &vec![0x35; 78392]).unwrap();
     assert_eq!(
         show_slots::append(&mut flash, slot, slot.length, &[0; 4]),
         Err(Error::INVALID)
     );
-    show_slots::commit(&mut flash, slot).unwrap();
-    flash.bytes[slot.data_offset() + 1234] ^= 1;
-    assert_eq!(show_slots::latest(&mut flash), Err(Error::CORRUPTION));
 }
 
 #[derive(Clone)]

@@ -23,7 +23,6 @@ pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
         // A read at the current pixel's index plus an offset is shifted.
         Op::Sample {
             input,
-            time,
             pixel: SignalPixel::Local(index),
         } => match *graph.op(index) {
             Op::Binary(Binary::IntAdd, a, b)
@@ -31,7 +30,6 @@ pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
             {
                 Op::Sample {
                     input,
-                    time,
                     pixel: SignalPixel::Shifted(b, Edges::Skip),
                 }
             }
@@ -40,13 +38,11 @@ pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
             {
                 Op::Sample {
                     input,
-                    time,
                     pixel: SignalPixel::Shifted(a, Edges::Skip),
                 }
             }
             _ => Op::Sample {
                 input,
-                time,
                 pixel: SignalPixel::Local(index),
             },
         },

@@ -136,8 +136,8 @@ identities in document order.
 
 A layer node is named by its layer and the output node is named `output`, so a
 graph node's name never collides with a layer's. The GUI derives names from what
-it creates (`pulse`, `pulse_2`, `time_warp`), and a name typed in the GUI is
-converted to `snake_case` (`Time Warp` becomes `time_warp`).
+it creates (`pulse`, `pulse_2`, `afterglow`), and a name typed in the GUI is
+converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 
 **References** are dotted paths resolved from where they are written:
 
@@ -439,7 +439,7 @@ Sequence layer_test {
   ],
   layers: [
     Layer { name: default, description: none, color: #38bdf8, enabled: true },
-    Layer { name: time_warp, description: none, color: #e0414f, enabled: true },
+    Layer { name: glow, description: none, color: #e0414f, enabled: true },
   ],
   clips: [
     Clip {
@@ -458,18 +458,18 @@ Sequence layer_test {
     nodes: [
       LayerNode { layer: default, position: (566.45416, -474.141) },
       OutputNode { position: (1393.0885, -375.6623) },
-      LayerNode { layer: time_warp, position: (444.03857, -40.094635) },
+      LayerNode { layer: glow, position: (444.03857, -40.094635) },
       OperatorNode {
-        name: time_warp_2,
-        operator: operators.TimeWarp,
+        name: afterglow,
+        operator: operators.Afterglow,
         params: {},
         position: (815.0807, -62.519207),
       },
     ],
     edges: [
       Edge { from: default, to: output },
-      Edge { from: time_warp, to: time_warp_2.source },
-      Edge { from: time_warp_2, to: output },
+      Edge { from: glow, to: afterglow.input },
+      Edge { from: afterglow, to: output },
     ],
   },
   automation: [
@@ -478,7 +478,7 @@ Sequence layer_test {
       start: 0s,
       duration: 249.753832s,
       curve: [(0.0, 0.505), (0.103248, 0.787)],
-      bindings: [NodeParam { node: time_warp_2, param: offset_seconds }],
+      bindings: [NodeParam { node: afterglow, param: seconds }],
       detached: [],
     },
   ],
@@ -511,7 +511,7 @@ Sequence layer_test {
   - `OutputNode { position }`, named `output`, exactly one.
 
   Every node has one output, so an edge names only the input it reaches:
-  `to: time_warp_2.source` names an operator input and `to: output` the output
+  `to: afterglow.input` names an operator input and `to: output` the output
   node. `position` is the node's place on the graph canvas.
 - `AutomationClip`: `row` (the fixture or group whose automation row holds it),
   `start`, `duration`, `curve`, `bindings` and `detached`. A binding is

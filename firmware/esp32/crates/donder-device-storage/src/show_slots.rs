@@ -1,4 +1,4 @@
-//! Two contiguous flash slots. Payloads remain memory-mappable during admission.
+//! Two contiguous flash slots. Payloads stay memory-mappable for playback.
 use crate::{Error, Storage};
 
 pub const SLOT_BYTES: usize = 128 * 1024;
@@ -20,27 +20,15 @@ impl Slot {
     }
 }
 
-fn checksum<S: Storage>(storage: &mut S, slot: Slot) -> Result<u32, Error> {
-    let mut crc = crc32fast::Hasher::new();
-    let mut scratch = [0; 256];
-    for offset in (0..slot.length).step_by(scratch.len()) {
-        let count = scratch.len().min(slot.length - offset);
-        let aligned = count.next_multiple_of(S::READ_SIZE);
-        storage.read(slot.data_offset() + offset, &mut scratch[..aligned])?;
-        crc.update(&scratch[..count]);
-    }
-    Ok(crc.finalize())
-}
-
 pub fn latest<S: Storage>(storage: &mut S) -> Result<Option<Slot>, Error> {
     let mut selected: Option<Slot> = None;
     for index in 0..2 {
-        let mut header = [0; 20];
+        let mut header = [0; 16];
         storage.read(index * SLOT_BYTES, &mut header)?;
         // A torn header is uncommitted; it cannot supersede the previous slot.
         if &header[..4] != MAGIC
-            || crc32fast::hash(&header[..16])
-                != u32::from_le_bytes(header[16..20].try_into().unwrap())
+            || crc32fast::hash(&header[..12])
+                != u32::from_le_bytes(header[12..16].try_into().unwrap())
         {
             continue;
         }
@@ -49,9 +37,7 @@ pub fn latest<S: Storage>(storage: &mut S) -> Result<Option<Slot>, Error> {
             generation: u32::from_le_bytes(header[4..8].try_into().unwrap()),
             length: u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize,
         };
-        if !(16..=16 + MAX_PAYLOAD_BYTES).contains(&slot.length)
-            || checksum(storage, slot)? != u32::from_le_bytes(header[12..16].try_into().unwrap())
-        {
+        if !(16..=16 + MAX_PAYLOAD_BYTES).contains(&slot.length) {
             return Err(Error::CORRUPTION);
         }
         if selected.is_none_or(|old| slot.generation.wrapping_sub(old.generation) as i32 > 0) {
@@ -97,18 +83,17 @@ pub fn append<S: Storage>(
     Ok(())
 }
 
-/// Commit only after the caller has admitted the complete staged archive.
+/// Commit only after the complete archive is staged and loads.
 pub fn commit<S: Storage>(storage: &mut S, slot: Slot) -> Result<(), Error> {
     if slot.index >= 2 || !(16..=16 + MAX_PAYLOAD_BYTES).contains(&slot.length) {
         return Err(Error::INVALID);
     }
-    let mut header = [0; 20];
+    let mut header = [0; 16];
     header[..4].copy_from_slice(MAGIC);
     header[4..8].copy_from_slice(&slot.generation.to_le_bytes());
     header[8..12].copy_from_slice(&(slot.length as u32).to_le_bytes());
-    header[12..16].copy_from_slice(&checksum(storage, slot)?.to_le_bytes());
-    let crc = crc32fast::hash(&header[..16]);
-    header[16..20].copy_from_slice(&crc.to_le_bytes());
+    let crc = crc32fast::hash(&header[..12]);
+    header[12..16].copy_from_slice(&crc.to_le_bytes());
     storage.write(slot.index * SLOT_BYTES, &header)?;
     Ok(())
 }

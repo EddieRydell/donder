@@ -7,15 +7,13 @@ use super::evaluation::{
 };
 use super::playback;
 use super::std;
-use crate::dsl::bytecode::{BytecodeProgram, ContextRead, Instruction, SignalPixel};
+use crate::dsl::bytecode::{BytecodeProgram, ContextRead, Instruction, SignalPixel, instructions};
 use crate::dsl::{NoSignals, RunContext, STRIP, Strip, StripSignals};
 use donder_language::compiler::{
     CompiledEffect, ParamDecl, ParamRange, compile_effects, compile_operators,
 };
 use donder_runtime_types::bytecode::listing;
-use donder_runtime_types::{
-    Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
-};
+use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration};
 use donder_runtime_types::{SampleInvocation, Type, Value};
 use donder_runtime_types::{SampleProgram, SpatialContext};
 use std::prelude::rust_2024::*;
@@ -71,6 +69,7 @@ fn run_context(ticks: u32, count: usize) -> RunContext {
         time: SampleDuration::from_ticks(ticks),
         duration: SampleDuration::from_ticks(DURATION),
         frame_rate: 40.0,
+        frames_elapsed: 1,
         pixel_count: count as i32,
     }
 }
@@ -226,7 +225,11 @@ fn assert_same(
     expected: &[Color],
     program: &BytecodeProgram,
 ) {
-    if let Some(pixel) = (0..actual.len()).find(|&pixel| actual[pixel] != expected[pixel]) {
+    // Bitwise, so NaN pixels match NaN pixels.
+    let bits = |color: Color| [color.red, color.green, color.blue].map(f32::to_bits);
+    if let Some(pixel) =
+        (0..actual.len()).find(|&pixel| bits(actual[pixel]) != bits(expected[pixel]))
+    {
         std::panic!(
             "{what} pixel {pixel}: strip {:?}, alone {:?}\n{}",
             actual[pixel],
@@ -401,7 +404,7 @@ fn starter_effects_compute_each_pixel_of_a_strip_as_alone() {
 
 fn has_branch(invocation: &SampleInvocation, row: bool) -> bool {
     let body = invocation.program().bytecode().body();
-    body.iter().any(|instruction| match instruction {
+    instructions(body).any(|instruction| match instruction {
         Instruction::Branch { condition, .. } => condition.is_scalar() != row,
         _ => false,
     })
@@ -443,7 +446,7 @@ fn assert_program(
 }
 
 fn rgb(red: f32, green: f32, blue: f32) -> Color {
-    crate::sampling::rgb(red, green, blue).to_color()
+    crate::sampling::rgb(red, green, blue)
 }
 
 #[test]
@@ -902,7 +905,7 @@ fn a_new_target_shape_reinitializes_the_target_block() {
             playback::lower_sample(&bind(&compile_effect(source), &[])),
         );
         let program = bound.program().bytecode();
-        let (_, target_block) = program.prefix();
+        let target_block: Vec<_> = instructions(program.target()).collect();
         assert!(
             target_block.iter().any(|instruction| matches!(
                 instruction,
@@ -956,24 +959,19 @@ fn a_new_target_shape_reinitializes_the_target_block() {
     }
 }
 
-/// A signal with a color of its own at each input, time and pixel.
-fn signal(input: usize, time: SampleTime, pixel: usize) -> Color {
-    let (ticks, pixel) = (time.as_ticks(), pixel as u32);
-    Color {
-        red: (ticks / 7_919 + pixel * 13) as u8,
-        green: (input as u32 * 101 + pixel * 7 + ticks / 100_000) as u8,
-        blue: ((ticks / 1_000) ^ pixel) as u8,
-    }
+/// A signal with a color of its own at each input and pixel; `previous` is
+/// input [`crate::dsl::bytecode::STATE_INPUT`].
+fn signal(input: usize, pixel: usize) -> Color {
+    let (input, pixel) = (input as u32, pixel as u32);
+    Color::from_bytes([
+        (input * 31 + pixel * 13) as u8,
+        (input * 101 + pixel * 7) as u8,
+        ((input * 17) ^ pixel) as u8,
+    ])
 }
 
 /// A query from pixel `current` of a fixture of `count` pixels.
-fn query(
-    input: usize,
-    time: SampleTime,
-    current: usize,
-    count: usize,
-    pixel: SignalPixel<i32>,
-) -> Color {
+fn query(input: usize, current: usize, count: usize, pixel: SignalPixel<i32>) -> Color {
     let (input, index) = match pixel {
         SignalPixel::Current => (input, Some(current)),
         SignalPixel::Local(index) => (input, usize::try_from(index).ok()),
@@ -986,7 +984,7 @@ fn query(
     };
     index
         .filter(|&index| index < count)
-        .map_or(Color::BLACK, |index| signal(input, time, index))
+        .map_or(Color::BLACK, |index| signal(input, index))
 }
 
 /// The signals of one lone pixel.
@@ -999,11 +997,9 @@ impl SignalSampler for Lone {
     fn sample_signal(
         &mut self,
         input: usize,
-        time: SampleTime,
         pixel: SignalPixel<i32>,
-        _: Option<usize>,
     ) -> Result<Color, RuntimeError> {
-        Ok(query(input, time, self.pixel, self.count, pixel))
+        Ok(query(input, self.pixel, self.count, pixel))
     }
 }
 
@@ -1014,27 +1010,14 @@ struct Run {
 }
 
 impl StripSignals for Run {
-    fn sample_strip(
-        &mut self,
-        input: usize,
-        time: SampleTime,
-        _: Option<usize>,
-        output: &mut [Color; STRIP],
-    ) {
+    fn sample_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
         for (offset, color) in output.iter_mut().enumerate() {
-            *color = signal(input, time, self.first + offset);
+            *color = signal(input, self.first + offset);
         }
     }
 
-    fn sample_pixel(
-        &mut self,
-        input: usize,
-        time: SampleTime,
-        offset: usize,
-        pixel: SignalPixel<i32>,
-        _: Option<usize>,
-    ) -> Color {
-        query(input, time, self.first + offset, self.count, pixel)
+    fn sample_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color {
+        query(input, self.first + offset, self.count, pixel)
     }
 
     fn scan(
@@ -1044,7 +1027,7 @@ impl StripSignals for Run {
         output: &mut [Color; STRIP],
     ) {
         let colors: Vec<Color> = (0..self.count)
-            .map(|index| signal(query.input, query.time, index))
+            .map(|index| signal(query.input, index))
             .collect();
         let scanned = super::evaluation::scan_fixture(query, weights, &colors);
         for (offset, color) in output.iter_mut().enumerate() {
@@ -1057,16 +1040,14 @@ impl StripSignals for Run {
     fn sample_range(
         &mut self,
         input: usize,
-        time: SampleTime,
         start: isize,
-        _: Option<usize>,
         colors: &mut [Color],
         locals: &mut [i32],
     ) {
         for (k, (color, local)) in colors.iter_mut().zip(locals).enumerate() {
             let index = (self.first as isize + start + k as isize) as usize;
             (*color, *local) = if index < self.count {
-                (signal(input, time, index), index as i32)
+                (signal(input, index), index as i32)
             } else {
                 (Color::BLACK, crate::dsl::OUTSIDE)
             };
@@ -1074,26 +1055,27 @@ impl StripSignals for Run {
     }
 }
 
-/// Starter operators, and samples at per-pixel times and addresses, inside
+/// Starter operators, and samples at per-pixel addresses and of the previous
+/// frame, inside
 /// per-pixel branches and inside reductions with per-pixel bounds.
 #[test]
 fn operator_samples_in_strips_match_lone_pixels() {
     let mut sources = starter_sources("operators", ".donder");
     sources.push(
-        "operator Smear { input source; sample { source.at(time - pixel.fraction * 0.5) } }
+        "operator Rotate { input source; sample { source.at((pixel.index + 3) % target.count) } }
         operator Shift { input source; sample {
-            max(source.at(time, pixel.index + 1), source.at(time - 0.125, pixel.index - 2))
+            max(source.at(pixel.index + 1), previous.at(pixel.index - 2))
         } }
-        operator Mirror { input source; sample { source.at(time, target.count - 1 - pixel.index) } }
+        operator Mirror { input source; sample { source.at(target.count - 1 - pixel.index) } }
         operator Split { input source; input other; sample {
-            if pixel.index % 2 == 0 { source.at(time) * 0.75 + #101010 }
-            else { invert(other.at(time - 0.25)) * pixel.fraction }
+            if pixel.index % 2 == 0 { source * 0.75 + #101010 }
+            else { invert(previous) * pixel.fraction }
         } }
         operator Trail { input source; sample {
-            max for k in 0..pixel.index % 4 + 1 { source.at(time - k * 0.125) * (1.0 - k * 0.25) }
+            max for k in 0..pixel.index % 4 + 1 { source.at(pixel.index - k) * (1.0 - k * 0.25) }
         } }
         operator Gate { input source; input other; sample {
-            guard intensity(source) > 0.5 else other.at(time, pixel.index - pixel.index % 2);
+            guard intensity(source) > 0.5 else other.at(pixel.index - pixel.index % 2);
             source
         } }"
         .into(),

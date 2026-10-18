@@ -112,13 +112,13 @@ pub fn time(frame: usize) -> SampleTime {
     SampleTime::from_ticks(3_000_000 + frame as u32 * 8_333)
 }
 
-/// Whether two frames agree within one level per channel. Programs keep colors
-/// in floats, so a fused operator, which reads its source unrounded, may round
-/// a channel differently from one reading an 8-bit frame.
+/// Whether two frames agree to well within one 8-bit level per channel: a
+/// fused operator may order its float arithmetic differently from one
+/// reading a frame.
 pub fn assert_frames_close(left: &[Color], right: &[Color], what: &str) {
     assert_eq!(left.len(), right.len(), "{what}");
     for (index, (a, b)) in left.iter().zip(right).enumerate() {
-        let close = |x: u8, y: u8| x.abs_diff(y) <= 1;
+        let close = |x: f32, y: f32| (x - y).abs() <= 1.0 / 1024.0 || x.to_bits() == y.to_bits();
         assert!(
             close(a.red, b.red) && close(a.green, b.green) && close(a.blue, b.blue),
             "{what}: pixel {index}: {a:?} != {b:?}"

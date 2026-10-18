@@ -1,12 +1,10 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
 use donder_runtime::LoadError;
-use donder_runtime::LoadLimits;
-use donder_runtime::header_bytes;
 use donder_runtime_types::sample_time_from_frame;
 
 #[test]
-fn selected_sequences_roundtrip_and_structurally_corrupt_uploads_are_rejected() {
+fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let project = donder_project_io::load_project(&path).unwrap().project;
     let setup = &project.reusable_setups()[project.root().setup.id()];
@@ -21,8 +19,7 @@ fn selected_sequences_roundtrip_and_structurally_corrupt_uploads_are_rejected() 
         .unwrap();
         let original = prepared;
         let bytes = original.encode();
-        let decoded =
-            donder_runtime::PreparedSequence::decode(&bytes, LoadLimits::default()).unwrap();
+        let decoded = donder_runtime::PreparedSequence::decode(&bytes).unwrap();
         assert_eq!(
             decoded.encode(),
             bytes,
@@ -54,52 +51,11 @@ fn selected_sequences_roundtrip_and_structurally_corrupt_uploads_are_rejected() 
             }
             assert_eq!(actual, expected);
         }
-        for end in [0, header_bytes() - 1, header_bytes(), bytes.len() - 1] {
-            assert!(
-                donder_runtime::PreparedSequence::decode(&bytes[..end], LoadLimits::default())
-                    .is_err()
-            );
-        }
-        let mut corrupt = bytes.clone();
-        corrupt[header_bytes()] ^= 0x80;
-        assert!(matches!(
-            donder_runtime::PreparedSequence::decode(&corrupt, LoadLimits::default()),
-            Err(LoadError::Checksum)
-        ));
-        corrupt[header_bytes()..].fill(0xff);
-        // The checksum covers the section table and payload after the header.
-        let fixed = size_of::<donder_runtime_types::image::Header>();
-        let checksum = crc32fast::hash(&corrupt[fixed..]);
-        corrupt[12..16].copy_from_slice(&checksum.to_le_bytes());
-        assert!(matches!(
-            donder_runtime::PreparedSequence::decode(&corrupt, LoadLimits::default()),
-            Err(LoadError::Archive)
-        ));
         let mut version = bytes.clone();
-        version[4..8].copy_from_slice(&999u32.to_le_bytes());
+        version[0..4].copy_from_slice(&999u32.to_le_bytes());
         assert!(matches!(
-            donder_runtime::PreparedSequence::decode(&version, LoadLimits::default()),
+            donder_runtime::PreparedSequence::decode(&version),
             Err(LoadError::Version)
-        ));
-        assert!(matches!(
-            donder_runtime::PreparedSequence::decode(
-                &bytes,
-                LoadLimits {
-                    workspace_bytes: 0,
-                    ..LoadLimits::default()
-                }
-            ),
-            Err(LoadError::Limit)
-        ));
-        assert!(matches!(
-            donder_runtime::PreparedSequence::decode(
-                &bytes,
-                LoadLimits {
-                    pixels: 1,
-                    ..LoadLimits::default()
-                }
-            ),
-            Err(LoadError::Limit)
         ));
         println!(
             "{} archive bytes={}",

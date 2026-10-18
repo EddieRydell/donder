@@ -1,19 +1,18 @@
-//! The show image: what preparation writes and playback borrows. An image is a
-//! header and a table of sections; each section is an array of fixed-size
-//! records, and records refer to one another by index. Playback reads the
-//! records in place, from flash or from memory, without decoding them.
+//! The prepared sequence's format: what preparation writes and playback
+//! borrows. It is a header and a table of sections; each section is an array
+//! of fixed-size records, and records refer to one another by index. Playback
+//! reads the records in place, without decoding them.
 //!
 //! Every record is `#[repr(C)]` plain data of 32-bit fields (16-bit where a
 //! word is made of them), so its bytes are the same on every little-endian
-//! target and casting a section checks only its length and alignment. Records
-//! that index other sections are checked once when an image is admitted.
+//! target. The format is trusted: preparation wrote it, so playback checks
+//! only its version.
 use bytemuck::{Pod, Zeroable};
 
-pub const MAGIC: [u8; 4] = *b"DNDR";
 /// No index: an absent optional reference.
 pub const NONE: u32 = u32::MAX;
 /// Every section starts on this alignment within the payload.
-pub const ALIGN: usize = 8;
+pub const ALIGN: usize = 4;
 
 /// One section's place in the payload: a byte offset and a record count.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -27,13 +26,14 @@ pub struct SectionEntry {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub struct Header {
-    pub magic: [u8; 4],
+    /// The format version; an image of another version is not read.
     pub version: u32,
     /// Payload bytes after the header and section table.
     pub payload: u32,
-    /// CRC-32 of the section table and payload.
-    pub crc: u32,
-    pub sections: u32,
+    /// The image's identity, a hash of its table and payload: a controller
+    /// reports it so a host can tell which show it holds. Playback never
+    /// reads it.
+    pub id: u32,
     pub reserved: u32,
 }
 
@@ -55,14 +55,7 @@ impl Range {
 
     pub fn get<T>(self, items: &[T]) -> &[T] {
         let start = self.start as usize;
-        items.get(start..start + self.len as usize).unwrap_or(&[])
-    }
-
-    /// Whether this range lies within `count` records.
-    pub fn within(self, count: usize) -> bool {
-        (self.start as usize)
-            .checked_add(self.len as usize)
-            .is_some_and(|end| end <= count)
+        &items[start..start + self.len as usize]
     }
 }
 
@@ -79,8 +72,10 @@ pub struct Meta {
     pub plan_target: u32,
     /// The node the output shows, or [`NONE`] for black.
     pub output: u32,
-    /// Operator depth slots, each with a strip workspace.
-    pub vm_slots: u32,
+    /// Frame buffers the nodes write, each one plan-target frame.
+    pub buffers: u32,
+    /// State buffers: the previous frames of the nodes that read them.
+    pub states: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -191,9 +186,6 @@ pub struct Effect {
     pub params: u32,
     /// Its automation plan, or [`NONE`].
     pub automation: u32,
-    /// Its playback state, numbered among effects with automation or live
-    /// marks, or [`NONE`].
-    pub state: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -229,23 +221,28 @@ pub struct Node {
     pub inputs: Range,
     /// Its automation plan, or [`NONE`].
     pub automation: u32,
-    pub vm_slot: u32,
+    /// The frame buffer it writes.
+    pub buffer: u32,
+    /// Its state buffer, which holds its previous frame, or [`NONE`]. A
+    /// layer's clips read it as `previous`, as an operator does its own.
+    pub state: u32,
 }
 
 /// Program flags.
 pub const PROGRAM_OPERATOR: u32 = 1;
-pub const PROGRAM_USES_PROGRESS: u32 = 1 << 1;
 pub const PROGRAM_USES_SPATIAL: u32 = 1 << 2;
 pub const PROGRAM_USES_SECTIONS: u32 = 1 << 3;
 pub const PROGRAM_READS_TARGET: u32 = 1 << 4;
 pub const PROGRAM_USES_PIXEL_CONTEXT: u32 = 1 << 5;
 pub const PROGRAM_HAS_STENCIL: u32 = 1 << 6;
+/// The program reads `previous`.
+pub const PROGRAM_READS_STATE: u32 = 1 << 7;
 
-/// Slot counts per bank: floats, ints, bools, colors, resources.
+/// Slot counts per storage bank: floats, ints, bools, resources.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub struct BankCounts {
-    pub counts: [u16; 6],
+    pub counts: [u16; 4],
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -260,14 +257,11 @@ pub struct Program {
     pub rows: BankCounts,
     /// The storage of each declared parameter, in the parameter section.
     pub params: Range,
-    /// Constant resources by kind, as resource references.
-    pub curves: Range,
-    pub gradients: Range,
-    pub marks: Range,
-    pub arrays: Range,
-    /// `Pick` item slots, in the operand section.
-    pub operands: Range,
-    pub frame_caches: u32,
+    /// Constant resources, as indices into their kinds' sections, in the
+    /// program resources section.
+    pub resources: Range,
+    /// Whole-frame scans, each with a scratch frame while the node runs.
+    pub scans: u32,
     /// An operator's input count; zero for an effect.
     pub inputs: u32,
     pub flags: u32,
@@ -313,6 +307,9 @@ pub struct Curve {
     pub points: Range,
     /// Each point's area from the first, in the curve areas section.
     pub areas: Range,
+    /// Each point's slope from the point before it, in the curve slopes
+    /// section.
+    pub slopes: Range,
     pub crossings_kind: u32,
     pub crossings: Range,
 }
@@ -336,8 +333,9 @@ pub struct Gradient {
 #[repr(C)]
 pub struct GradientStop {
     pub position: f32,
-    /// Red, green and blue, then zero.
-    pub color: [u8; 4],
+    pub color: Color,
+    /// One over the width of the span to the next stop; zero for the last.
+    pub inverse: f32,
 }
 
 /// A window of a mark track: ticks `first..end` of the track, measured from
@@ -369,7 +367,8 @@ pub const VALUE_CURVE: u32 = 7;
 pub const VALUE_GRADIENT: u32 = 8;
 pub const VALUE_ARRAY: u32 = 9;
 
-/// An array item: its kind and a word, or for a resource its index.
+/// An array item: its kind and a word: a scalar's bits, or for a color or
+/// a resource its index.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub struct Value {
@@ -382,8 +381,6 @@ pub struct Value {
 pub struct Automation {
     pub bindings: Range,
     pub windows: Range,
-    /// Where the program's time starts: its clip's start, or zero.
-    pub origin: u32,
 }
 
 /// What an automation binding writes.
@@ -498,7 +495,7 @@ pub struct ControlTarget {
     pub binding: u32,
 }
 
-pub use crate::values::{Color, CurvePoint, FloatColor};
+pub use crate::values::{Color, CurvePoint};
 pub use crate::word::InstructionWord;
 
 macro_rules! sections {
@@ -512,13 +509,16 @@ macro_rules! sections {
         pub const SECTION_COUNT: usize = [$(stringify!($name)),+].len();
 
         impl<'a> Sections<'a> {
-            /// Borrow each section of `table` from `payload`; `None` when one
-            /// lies outside it or is misaligned.
-            pub fn borrow(payload: &'a [u8], table: &[SectionEntry]) -> Option<Self> {
-                let mut entries = table.iter();
-                Some(Self {
-                    $($name: section::<$ty>(payload, entries.next()?)?,)+
-                })
+            /// Each section of `table`, borrowed from `payload`.
+            fn borrow(payload: &'a [u8], table: &[SectionEntry]) -> Self {
+                let mut at = 0;
+                let mut next = || {
+                    at += 1;
+                    table[at - 1]
+                };
+                Self {
+                    $($name: section::<$ty>(payload, next()),)+
+                }
             }
         }
 
@@ -530,8 +530,8 @@ macro_rules! sections {
 
         impl SectionsWriter {
             /// The image: its header, section table and payload, each section
-            /// aligned to [`ALIGN`] bytes. The buffer is 8-byte aligned.
-            pub fn finish(&self, version: u32) -> alloc::boxed::Box<[u64]> {
+            /// aligned to [`ALIGN`] bytes. The buffer is 4-byte aligned.
+            pub fn finish(&self, version: u32) -> alloc::boxed::Box<[u32]> {
                 let mut table = alloc::vec::Vec::new();
                 let mut payload = alloc::vec::Vec::<u8>::new();
                 $(
@@ -574,14 +574,15 @@ sections! {
     programs: Program,
     code: InstructionWord,
     params: Param,
-    operands: crate::bytecode::Slot,
-    program_resources: ResourceRef,
+    program_resources: u32,
     param_sets: ParamSet,
     words: u32,
+    colors: Color,
     resources: ResourceRef,
     curves: Curve,
     curve_points: CurvePoint,
     curve_areas: f32,
+    curve_slopes: f32,
     crossings: CrossingSegment,
     gradients: Gradient,
     gradient_stops: GradientStop,
@@ -603,101 +604,51 @@ sections! {
     control_targets: ControlTarget,
 }
 
-fn section<'a, T: Pod>(payload: &'a [u8], entry: &SectionEntry) -> Option<&'a [T]> {
+fn section<T: Pod>(payload: &[u8], entry: SectionEntry) -> &[T] {
     let start = entry.offset as usize;
-    let bytes = (entry.count as usize).checked_mul(size_of::<T>())?;
-    let slice = payload.get(start..start.checked_add(bytes)?)?;
-    bytemuck::try_cast_slice(slice).ok()
+    bytemuck::cast_slice(&payload[start..start + entry.count as usize * size_of::<T>()])
 }
 
-/// A header, section table and payload in one 8-byte-aligned buffer.
-fn frame(version: u32, table: &[SectionEntry], payload: &[u8]) -> alloc::boxed::Box<[u64]> {
+/// A header, section table and payload in one 4-byte-aligned buffer.
+fn frame(version: u32, table: &[SectionEntry], payload: &[u8]) -> alloc::boxed::Box<[u32]> {
     let table_bytes: &[u8] = bytemuck::cast_slice(table);
-    let mut crc = crc32fast::Hasher::new();
-    crc.update(table_bytes);
-    crc.update(payload);
+    // FNV-1a.
+    let id = table_bytes
+        .iter()
+        .chain(payload)
+        .fold(0x811c_9dc5u32, |hash, &byte| {
+            (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
+        });
     let header = Header {
-        magic: MAGIC,
         version,
         payload: payload.len() as u32,
-        crc: crc.finalize(),
-        sections: table.len() as u32,
+        id,
         reserved: 0,
     };
     let mut bytes = alloc::vec::Vec::with_capacity(header_bytes() + payload.len());
     bytes.extend_from_slice(bytemuck::bytes_of(&header));
     bytes.extend_from_slice(table_bytes);
     bytes.extend_from_slice(payload);
-    let mut words = alloc::vec![0u64; bytes.len().div_ceil(8)];
-    bytemuck::cast_slice_mut::<u64, u8>(&mut words)[..bytes.len()].copy_from_slice(&bytes);
+    let mut words = alloc::vec![0u32; bytes.len().div_ceil(4)];
+    bytemuck::cast_slice_mut::<u32, u8>(&mut words)[..bytes.len()].copy_from_slice(&bytes);
     words.into_boxed_slice()
-}
-
-/// Why an image is not accepted.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FrameError {
-    /// Too short, misaligned, or not an image.
-    Header,
-    /// An image of another format version.
-    Version,
-    /// Damaged in transit or storage.
-    Checksum,
-    /// Larger than the limit.
-    Limit,
-    /// A section outside the payload or misaligned.
-    Sections,
 }
 
 /// The image's length from its header: the header, section table and
 /// payload. Lets a receiver size the rest of a transfer.
-pub fn image_len(header: &[u8], version: u32) -> Result<usize, FrameError> {
-    let header: &Header = bytemuck::try_from_bytes(
-        header
-            .get(..size_of::<Header>())
-            .ok_or(FrameError::Header)?,
-    )
-    .map_err(|_| FrameError::Header)?;
-    if header.magic != MAGIC {
-        return Err(FrameError::Header);
-    }
+pub fn image_len(header: &[u8]) -> usize {
+    let header: Header = bytemuck::pod_read_unaligned(&header[..size_of::<Header>()]);
+    header_bytes() + header.payload as usize
+}
+
+/// The image's sections, or `None` for an image of another format version.
+/// The image is trusted otherwise: only its producer writes it. `bytes` must
+/// be 4-byte aligned, as the writer's buffers and flash mappings are.
+pub fn open(bytes: &[u8], version: u32) -> Option<Sections<'_>> {
+    let header: Header = bytemuck::pod_read_unaligned(&bytes[..size_of::<Header>()]);
     if header.version != version {
-        return Err(FrameError::Version);
+        return None;
     }
-    if header.sections as usize != SECTION_COUNT {
-        return Err(FrameError::Header);
-    }
-    Ok(header_bytes() + header.payload as usize)
-}
-
-/// Borrow an image's sections after checking its header and checksum.
-/// `bytes` must be 4-byte aligned, as flash mappings and the writer's
-/// buffers are.
-pub fn borrow(bytes: &[u8], version: u32, limit: usize) -> Result<Sections<'_>, FrameError> {
-    let len = image_len(bytes, version)?;
-    if len > limit {
-        return Err(FrameError::Limit);
-    }
-    if bytes.len() < len {
-        return Err(FrameError::Header);
-    }
-    let table_bytes = &bytes[size_of::<Header>()..header_bytes()];
-    let payload = &bytes[header_bytes()..len];
-    let header: &Header =
-        bytemuck::try_from_bytes(&bytes[..size_of::<Header>()]).map_err(|_| FrameError::Header)?;
-    let mut crc = crc32fast::Hasher::new();
-    crc.update(table_bytes);
-    crc.update(payload);
-    if crc.finalize() != header.crc {
-        return Err(FrameError::Checksum);
-    }
-    let table: &[SectionEntry] =
-        bytemuck::try_cast_slice(table_bytes).map_err(|_| FrameError::Header)?;
-    Sections::borrow(payload, table).ok_or(FrameError::Sections)
-}
-
-/// Borrow sections already checked by [`borrow`], as a host that keeps an
-/// admitted image re-borrows it.
-pub fn borrow_trusted(bytes: &[u8]) -> Option<Sections<'_>> {
-    let table = bytemuck::try_cast_slice(bytes.get(size_of::<Header>()..header_bytes())?).ok()?;
-    Sections::borrow(bytes.get(header_bytes()..)?, table)
+    let table = bytemuck::cast_slice(&bytes[size_of::<Header>()..header_bytes()]);
+    Some(Sections::borrow(&bytes[header_bytes()..], table))
 }

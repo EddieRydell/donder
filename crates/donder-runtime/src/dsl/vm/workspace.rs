@@ -1,13 +1,13 @@
 //! Strip workspaces: the slots, selections and buffers a strip interpreter
 //! runs in, carved from the playback buffer for every program they run.
 //! Carving runs once, so it stays out of instruction RAM.
-use super::strip::{Handle, Levels, NO_COLOR, Pixels, Range, STRIP, Store};
+use super::strip::{Handle, Levels, Pixels, Range, STRIP, Store};
 use crate::arena::{Carve, Size};
 use crate::show::ProgramView;
 use core::cell::{Cell, RefCell};
+use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::Banks;
 use donder_runtime_types::image::{self, SectionPixel};
-use donder_runtime_types::{Color, FloatColor};
 
 /// The fixture index of a position beyond the target, which no pixel's
 /// neighbor has.
@@ -29,7 +29,6 @@ pub(crate) struct StripWorkspace<'w> {
     pub(super) floats: Store<'w, f32>,
     pub(super) ints: Store<'w, i32>,
     pub(super) bools: Store<'w, bool>,
-    pub(super) colors: Store<'w, FloatColor>,
     pub(super) handles: Store<'w, Handle>,
     pub(super) levels: Levels<'w>,
     /// Signal samples land here before they are written to the selection.
@@ -57,13 +56,12 @@ impl StripSlots {
         self.stencils |= program.flag(image::PROGRAM_HAS_STENCIL);
     }
 
-    fn banks(&self) -> [(usize, usize); 5] {
+    fn banks(&self) -> [(usize, usize); 4] {
         let bank = |scalars: u16, rows: u16| (usize::from(scalars), usize::from(rows));
         [
             bank(self.scalars.floats, self.rows.floats),
             bank(self.scalars.ints, self.rows.ints),
             bank(self.scalars.bools, self.rows.bools),
-            bank(self.scalars.colors, self.rows.colors),
             bank(self.scalars.resources, self.rows.resources),
         ]
     }
@@ -75,11 +73,10 @@ impl StripSlots {
         size.row::<f32>();
         size.row::<f32>();
         size.row::<SectionPixel>();
-        let [floats, ints, bools, colors, handles] = self.banks();
+        let [floats, ints, bools, handles] = self.banks();
         size.values::<f32>(Store::<f32>::len(floats.0, floats.1));
         size.values::<i32>(Store::<i32>::len(ints.0, ints.1));
         size.flags(Store::<bool>::len(bools.0, bools.1));
-        size.values::<FloatColor>(Store::<FloatColor>::len(colors.0, colors.1));
         size.values::<Handle>(Store::<Handle>::len(handles.0, handles.1));
         let depth = usize::from(self.depth);
         size.values::<Range>(2 * STRIP * depth);
@@ -100,17 +97,13 @@ impl StripSlots {
             y: arena.row(0.0)?,
             sections: arena.row(SectionPixel::default())?,
         };
-        let [floats, ints, bools, colors, handles] = self.banks();
+        let [floats, ints, bools, handles] = self.banks();
         let floats = Store::new(
             arena.cells(Store::<f32>::len(floats.0, floats.1), 0.0)?,
             floats,
         );
         let ints = Store::new(arena.cells(Store::<i32>::len(ints.0, ints.1), 0)?, ints);
         let bools = Store::new(arena.flags(Store::<bool>::len(bools.0, bools.1))?, bools);
-        let colors = Store::new(
-            arena.cells(Store::<FloatColor>::len(colors.0, colors.1), NO_COLOR)?,
-            colors,
-        );
         let handles = Store::new(
             arena.cells(Store::<Handle>::len(handles.0, handles.1), Handle::EMPTY)?,
             handles,
@@ -135,7 +128,6 @@ impl StripSlots {
             floats,
             ints,
             bools,
-            colors,
             handles,
             levels,
             samples: RefCell::new(samples),

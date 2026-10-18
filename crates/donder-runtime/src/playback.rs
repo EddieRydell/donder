@@ -1,14 +1,15 @@
-//! Playback of an admitted show in a caller's buffer: frames, and the rig
-//! commands that start and stop voices, add live marks and set controls.
+//! Playback of a show in a caller's buffer: frames, and the rig commands
+//! that start and stop voices, add live marks and set controls.
 //!
 //! Commands change only the workspace: a voice's start and duration, its
-//! layer's start order, live marks, and the parameter values automation
-//! already writes each frame. Frame evaluation is unchanged.
+//! layer's start order, live marks, and the controls' parameter values.
 use donder_runtime_types::image::{self, NONE};
-use donder_runtime_types::{Color, RigCommand, RigEvent, SampleTime};
+use donder_runtime_types::{Color, MICROS_PER_SECOND, RigCommand, RigEvent, SampleTime, mul_div};
 
+use crate::dsl::set_value;
+use crate::evaluation::{Timeline, evaluate_frame, index_layer, output_buffer};
 use crate::show::Show;
-use crate::workspace::{DORMANT, LIVE_MARK_CAPACITY, Layout, Timing, Workspace, carve};
+use crate::workspace::{LIVE_MARK_CAPACITY, Layout, Timing, Workspace, carve};
 
 /// A show playing in a caller's buffer of [`Layout::words`] words.
 pub struct Playback<'a, 'w> {
@@ -18,7 +19,7 @@ pub struct Playback<'a, 'w> {
 
 impl<'a, 'w> Playback<'a, 'w> {
     /// Start `show` in `buffer`; `None` when it is smaller than the show needs.
-    pub fn new(show: Show<'a>, layout: &Layout, buffer: &'w mut [u64]) -> Option<Self> {
+    pub fn new(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
         Some(Self {
             show,
             workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), true)?,
@@ -27,7 +28,7 @@ impl<'a, 'w> Playback<'a, 'w> {
 
     /// Continue `show` in the `buffer` an earlier playback of it left, as a
     /// caller that keeps the buffer between frames does.
-    pub fn resume(show: Show<'a>, layout: &Layout, buffer: &'w mut [u64]) -> Option<Self> {
+    pub fn resume(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
         Some(Self {
             show,
             workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), false)?,
@@ -39,10 +40,10 @@ impl<'a, 'w> Playback<'a, 'w> {
     }
 
     pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
-        run(self.show, &mut self.workspace, time);
+        let buffer = run(self.show, &mut self.workspace, time);
         SequenceFrame {
             show: self.show,
-            colors: self.workspace.signal_buffer,
+            colors: self.workspace.buffers[buffer],
             outputs: self.workspace.outputs,
         }
     }
@@ -52,15 +53,16 @@ impl<'a, 'w> Playback<'a, 'w> {
     where
         'a: 'w,
     {
-        run(self.show, &mut self.workspace, time);
+        let buffer = run(self.show, &mut self.workspace, time);
         let Workspace {
-            signal_buffer,
-            outputs,
-            ..
+            buffers, outputs, ..
         } = self.workspace;
+        let Some(colors) = buffers.into_iter().nth(buffer) else {
+            unreachable!("evaluation names one of the buffers")
+        };
         SequenceFrame {
             show: self.show,
-            colors: signal_buffer,
+            colors,
             outputs,
         }
     }
@@ -75,13 +77,8 @@ impl<'a, 'w> Playback<'a, 'w> {
 
     /// Effects active at `time` as commands have placed them.
     pub fn active_effect_count(&self, time: SampleTime) -> usize {
-        let sampling = &self.workspace.sampling;
-        let timeline = crate::evaluation::Timeline::new(
-            self.show,
-            sampling.timing,
-            sampling.layer_order,
-            sampling.layer_ends,
-        );
+        let rig = &self.workspace.rig;
+        let timeline = Timeline::new(self.show, rig.timing, rig.layer_order, rig.layer_ends);
         (0..self.show.effect_count())
             .filter(|&effect| timeline.timing(effect).is_active(time))
             .count()
@@ -94,10 +91,35 @@ impl<'a, 'w> Playback<'a, 'w> {
     }
 }
 
-/// Evaluate a frame in `workspace`: its colors, then its output bytes.
-pub(crate) fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) {
-    crate::evaluation::sample_signal_graph(show, time, workspace);
-    crate::patch::evaluate(show, workspace.signal_buffer, workspace.outputs);
+/// The frame of `time` at the show's frame rate: the nearest, as frame times
+/// can land microseconds off a frame's start.
+fn frame_at(time: SampleTime, frame_rate: u32) -> u32 {
+    let Some((frame, rest)) = mul_div(time.as_ticks(), frame_rate, MICROS_PER_SECOND) else {
+        unreachable!("frame rates are below a million")
+    };
+    frame + u32::from(rest >= MICROS_PER_SECOND - rest)
+}
+
+/// Evaluate the frame of `time` in `workspace` unless its buffers still hold
+/// it: its colors, then its output bytes. Returns the buffer holding the
+/// colors. A frame after the one before advances its state by the frames
+/// between them, the same frame after a command by none, and any other is a
+/// seek: one frame on from the state it has.
+pub(crate) fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize {
+    let frame = frame_at(time, show.frame_rate());
+    let [last, held] = *workspace.frame;
+    if last == frame && held != 0 {
+        return output_buffer(show);
+    }
+    let frames_elapsed = if last == NONE || frame < last {
+        1
+    } else {
+        frame - last
+    };
+    *workspace.frame = [frame, 1];
+    let buffer = evaluate_frame(show, workspace, time, frames_elapsed);
+    crate::patch::evaluate(show, workspace.buffers[buffer], workspace.outputs);
+    buffer
 }
 
 /// Borrowed logical colors and packed controller outputs from one evaluation.
@@ -188,12 +210,11 @@ pub(crate) fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEve
     let s = &show.s;
     let time = event.time;
     let ticks = time.as_ticks();
-    let sampling = &mut workspace.sampling;
+    let rig = &mut workspace.rig;
     match event.command {
         RigCommand::Start { voice } => {
             let voice = &s.voices[usize::from(voice)];
-            let effect = voice.effect as usize;
-            sampling.timing[effect] = Timing {
+            rig.timing[voice.effect as usize] = Timing {
                 start: ticks,
                 duration: if voice.duration == NONE {
                     show.duration().as_ticks().saturating_sub(ticks)
@@ -201,96 +222,55 @@ pub(crate) fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEve
                     voice.duration
                 },
             };
-            if let Some(state) = state_of(show, effect) {
-                sampling.effect_states.get(state).restart_at(ticks);
-            }
             if let Some(layer) = s
                 .layers
                 .iter()
                 .find(|layer| layer.effects.get(s.layer_order).contains(&voice.effect))
             {
-                crate::evaluation::index_layer(
-                    layer,
-                    sampling.timing,
-                    sampling.layer_order,
-                    sampling.layer_ends,
-                );
+                index_layer(layer, rig.timing, rig.layer_order, rig.layer_ends);
             }
-            bind_marks(show, workspace, effect);
         }
         RigCommand::Stop { voice } => {
             let effect = s.voices[usize::from(voice)].effect as usize;
-            let timing = &mut sampling.timing[effect];
+            let timing = &mut rig.timing[effect];
             if timing.is_active(time) {
                 timing.duration = ticks - timing.start;
             }
         }
         RigCommand::Mark { collection } => {
-            let index = usize::from(collection);
-            let track = &mut sampling.live_tracks[index];
-            let ticks_buffer = &mut sampling.live_ticks
-                [track.start as usize..track.start as usize + LIVE_MARK_CAPACITY];
+            let track = &mut rig.live_tracks[usize::from(collection)];
+            let start = track.start as usize;
+            let marks = &mut rig.live_ticks[start..start + LIVE_MARK_CAPACITY];
             if track.len as usize == LIVE_MARK_CAPACITY {
-                ticks_buffer.copy_within(1.., 0);
+                marks.copy_within(1.., 0);
                 track.len -= 1;
             }
-            ticks_buffer[track.len as usize] = ticks;
+            marks[track.len as usize] = ticks;
             track.len += 1;
-            for reader in s.collections[index].readers.get(s.readers) {
-                bind_marks(show, workspace, reader.effect as usize);
-            }
         }
         RigCommand::Control { control, value } => {
             for target in s.controls[usize::from(control)]
                 .targets
                 .get(s.control_targets)
             {
-                if let Some(state) = state_of(show, target.effect as usize) {
-                    sampling.effect_states.get(state).set_value(
-                        show,
-                        target.binding as usize,
-                        value,
-                        time,
-                    );
-                }
-            }
-        }
-    }
-    workspace.forget_samples();
-}
-
-fn state_of(show: Show<'_>, effect: usize) -> Option<usize> {
-    let state = show.s.effects[effect].state;
-    (state != NONE).then_some(state as usize)
-}
-
-/// Bind each live collection `effect` reads, measured from its start.
-fn bind_marks(show: Show<'_>, workspace: &mut Workspace<'_>, effect: usize) {
-    let s = &show.s;
-    let sampling = &mut workspace.sampling;
-    let origin = crate::evaluation::Timeline::new(
-        show,
-        sampling.timing,
-        sampling.layer_order,
-        sampling.layer_ends,
-    )
-    .timing(effect)
-    .start;
-    if origin == DORMANT {
-        return;
-    }
-    let Some(state) = state_of(show, effect) else {
-        return;
-    };
-    for (collection, record) in s.collections.iter().enumerate() {
-        for reader in record.readers.get(s.readers) {
-            if reader.effect as usize == effect {
-                sampling.effect_states.get(state).bind_live(
-                    reader.bank as usize,
-                    collection as u32,
+                let effect = target.effect as usize;
+                let Some(plan) = show.plan(s.effects[effect].automation) else {
+                    continue;
+                };
+                let start = plan.bindings.start as usize;
+                let overrides = &mut rig.overrides[start..start + plan.bindings.len as usize];
+                let origin = rig.timing[effect].start;
+                set_value(
+                    show,
+                    plan,
+                    overrides,
+                    target.binding as usize,
+                    value,
+                    time,
                     origin,
                 );
             }
         }
     }
+    workspace.frame[1] = 0;
 }

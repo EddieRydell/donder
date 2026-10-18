@@ -1,6 +1,9 @@
-//! Packing a frame's colors into its outputs' bytes.
+//! Packing a frame's colors into its outputs' bytes: each channel becomes
+//! the nearest byte, through the route's lookup table when it has one. Light
+//! below 0 or NaN is off and light above 1 is full, as the cast saturates.
 use donder_runtime_types::Color;
 use donder_runtime_types::image::{self, NONE};
+use donder_runtime_types::sampling::min_float;
 
 use crate::show::Show;
 
@@ -24,7 +27,7 @@ pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8]) {
                 [order[0], order[1], order[2], order[3]],
                 lookup,
                 |c| {
-                    let white = c.red.min(c.green).min(c.blue);
+                    let white = min_float(min_float(c.red, c.green), c.blue);
                     [c.red - white, c.green - white, c.blue - white, white]
                 },
             );
@@ -36,24 +39,30 @@ pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8]) {
     }
 }
 
+/// A channel as the nearest byte.
+#[inline(always)]
+fn byte(channel: f32) -> u8 {
+    (channel * 255.0 + 0.5) as u8
+}
+
 fn pack<const N: usize>(
     colors: &[Color],
     output: &mut [u8],
     order: [u8; N],
     lookup: Option<&[u8; 256]>,
-    channels: impl Fn(Color) -> [u8; N],
+    channels: impl Fn(Color) -> [f32; N],
 ) {
     if let Some(lookup) = lookup {
         for (color, output) in colors.iter().zip(output.as_chunks_mut::<N>().0) {
             let channels = channels(*color);
             output.copy_from_slice(
-                &order.map(|index| lookup[usize::from(channels[usize::from(index)])]),
+                &order.map(|index| lookup[usize::from(byte(channels[usize::from(index)]))]),
             );
         }
     } else {
         for (color, output) in colors.iter().zip(output.as_chunks_mut::<N>().0) {
             let channels = channels(*color);
-            output.copy_from_slice(&order.map(|index| channels[usize::from(index)]));
+            output.copy_from_slice(&order.map(|index| byte(channels[usize::from(index)])));
         }
     }
 }

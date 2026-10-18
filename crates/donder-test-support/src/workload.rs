@@ -3,9 +3,10 @@
 use core::num::NonZeroU32;
 use donder_language::compiler::{CompiledOperator, Invocation, ProgramConstants};
 use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, SignalHandle};
-use donder_runtime_types::bytecode::{Bank, BytecodeProgram, Instruction, NO_FRAME_CACHE, Slot};
+use donder_runtime_types::bytecode::{Bank, BytecodeProgram, Instruction, Slot};
 use donder_runtime_types::{
-    BoundParams, OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram, Shared,
+    BoundParams, InstructionWord, OperatorInvocation, OperatorProgram, SampleInvocation,
+    SampleProgram, Shared,
 };
 use donder_runtime_types::{
     FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SequenceTiming, SequenceWindow,
@@ -106,7 +107,7 @@ impl Workload {
                 layers.push(builder.layer(true, effects));
             }
             // Operator fixtures measure Layer 0 -> operator chain, including
-            // the four-layer Chase/Pulse source used by the Echo cases.
+            // the four-layer Chase/Pulse source used by the Afterglow cases.
             // Preserve that input selection; layer-only cases mix every layer.
             let mut signal = if layers.len() == 1 || !self.operators.is_empty() {
                 layers[0]
@@ -188,11 +189,11 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
             Gradient {
                 stops: vec![GradientStop {
                     position: 0.0,
-                    color: Color {
-                        red: (47 + index * 31) as u8,
-                        green: (193 + index * 17) as u8,
-                        blue: (89 + index * 43) as u8,
-                    },
+                    color: Color::from_bytes([
+                        (47 + index * 31) as u8,
+                        (193 + index * 17) as u8,
+                        (89 + index * 43) as u8,
+                    ]),
                 }],
             }
             .into(),
@@ -290,7 +291,7 @@ pub fn edit_operator(
     let mut bytecode = program.into_bytecode();
     edit(&mut bytecode);
     OperatorInvocation::bind(
-        OperatorProgram::admit(bytecode, inputs).unwrap(),
+        OperatorProgram::new(bytecode, inputs),
         invocation.params().iter_values().collect(),
     )
     .unwrap()
@@ -303,7 +304,7 @@ pub fn edit_effect(show: &mut Workload, edit: impl FnOnce(&mut BytecodeProgram))
     let effect = &mut show.layers[0][0];
     let mut program = effect.program.clone().into_bytecode();
     edit(&mut program);
-    effect.program = SampleProgram::admit(program).unwrap();
+    effect.program = SampleProgram::new(program);
 }
 
 /// Without `reuse`, make the first effect's uniform result a row, which
@@ -314,66 +315,28 @@ pub fn set_uniform_upstream(show: &mut Workload, reuse: bool) {
     }
     edit_effect(show, |program| {
         assert!(!program.uses_pixel_context());
-        let row = Slot::row(program.rows.colors);
-        program.rows.colors += 1;
+        let row = Slot::row(program.rows.floats);
+        program.rows.floats += 3;
         let mut code = core::mem::take(&mut program.code).into_vec();
-        code.push(Instruction::Move {
+        let copy = Instruction::Move {
             bank: Bank::Color,
             dst: row,
             src: program.result,
-        });
+        };
+        InstructionWord::encode(&copy, &mut code);
         program.code = code.into();
         program.result = row;
     });
 }
 
-pub const GROUPED_SOURCE: &str = "operator Times { input source; sample {
-    let past = time - 0.1;
-    let a = source.at(time); let b = source.at(time);
-    let c = source.at(past); let d = source.at(past);
-    max(max(a, b), max(c, d))
-} }";
-pub const ALTERNATING_SOURCE: &str = "operator Times { input source; sample {
-    let past = time - 0.1;
-    let a = source.at(time); let b = source.at(past);
-    let c = source.at(time); let d = source.at(past);
-    max(max(a, b), max(c, d))
-} }";
-
 pub const OPERATOR_SOURCE: &str = "operator Wave { input source;
     sample { source * (sin(time * 7.0) * 0.5 + 0.5) }
 }";
 
-/// Run the query and target blocks with the body, for every strip, and
-/// sample inputs without frame caches.
+/// Run the query and target blocks with the body, for every strip.
 pub fn unstaged(program: &mut BytecodeProgram) {
     program.query_end = 0;
     program.target_end = 0;
-    without_frame_caches(program);
-}
-
-/// Sample every input directly instead of through a whole-frame cache.
-pub fn without_frame_caches(program: &mut BytecodeProgram) {
-    program.frame_caches = 0;
-    for instruction in &mut program.code {
-        if let Instruction::Sample { frame_cache, .. } = instruction {
-            *frame_cache = NO_FRAME_CACHE;
-        }
-    }
-}
-
-/// Input samples that read a whole-frame cache.
-pub fn cached_samples(program: &BytecodeProgram) -> usize {
-    program
-        .code
-        .iter()
-        .filter(|instruction| {
-            matches!(
-                instruction,
-                Instruction::Sample { frame_cache, .. } if *frame_cache != NO_FRAME_CACHE
-            )
-        })
-        .count()
 }
 
 // The firmware receives this host-prepared lookup as data.

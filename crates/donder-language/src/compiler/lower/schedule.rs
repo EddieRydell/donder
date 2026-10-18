@@ -2,10 +2,14 @@
 //! outermost loops: a node runs once per query, once per target run, or per
 //! pixel, as its domain and the backend allow. Within the pixel stage, branch
 //! arms and reduction bodies are regions; a node is placed where its uses meet,
-//! then hoisted out of every reduction it does not depend on.
+//! then hoisted out of every reduction it does not depend on. Work inside a
+//! reduction that depends only on its index and on query or target values is
+//! the same for every strip: it becomes a table, filled once in its stage and
+//! read by index in the loop.
 use super::structural_operands;
 use crate::compiler::ir::{Binary, Context, Domain, Graph, Node, Op, Unary};
-use donder_runtime_types::Type;
+use donder_runtime_types::bytecode::STRIP;
+use donder_runtime_types::{Type, Value};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -16,6 +20,8 @@ pub(crate) enum Stage {
     Source,
     /// Once per run with the same target shape.
     Target,
+    /// Once per index of a reduction, into a table its stage fills.
+    Table,
     /// Per pixel.
     Body,
 }
@@ -57,6 +63,29 @@ pub(crate) struct Plan {
     pub(crate) children: HashMap<Node, Vec<RegionId>>,
     pub(crate) uses: HashMap<Node, u32>,
     pub(crate) stage: HashMap<Node, Stage>,
+    /// The tables of reductions' index-only values.
+    pub(crate) tables: Vec<Table>,
+}
+
+/// A reduction's values that depend only on its index and on values of
+/// `stage`, the query or the target stage, which fills them. Each output is
+/// read in the loop; its cone, operands first, computes it.
+#[derive(Clone, Debug)]
+pub(crate) struct Table {
+    pub(crate) reduction: Node,
+    pub(crate) stage: Stage,
+    pub(crate) outputs: Vec<(Node, Vec<Node>)>,
+}
+
+impl Plan {
+    /// The table outputs read in `reduction`'s loop.
+    pub(crate) fn table_outputs(&self, reduction: Node) -> Vec<Node> {
+        self.tables
+            .iter()
+            .filter(|table| table.reduction == reduction)
+            .flat_map(|table| table.outputs.iter().map(|(output, _)| *output))
+            .collect()
+    }
 }
 
 impl Plan {
@@ -74,7 +103,8 @@ const CHOICE_WORK: usize = 2;
 
 pub(crate) fn schedule(graph: &Graph, root: Node) -> Plan {
     let nodes = super::reachable(graph, root);
-    let stage = stages(graph, &nodes);
+    let mut stage = stages(graph, &nodes);
+    let tables = tables(graph, &nodes, &mut stage);
     let mut uses = HashMap::new();
     for &node in &nodes {
         for operand in structural_operands(graph, node) {
@@ -101,7 +131,104 @@ pub(crate) fn schedule(graph: &Graph, root: Node) -> Plan {
     });
     let mut plan = place(graph, root, &nodes, &stage, &branches);
     plan.uses = uses;
+    plan.tables = tables;
     plan
+}
+
+/// A stage of the blocks that run before the strips.
+fn prefix(stage: Stage) -> bool {
+    matches!(stage, Stage::Query | Stage::Target)
+}
+
+/// Fewest index-only nodes of a reduction worth a table: a single one costs
+/// what its lookup does.
+const TABLE_WORK: usize = 2;
+
+/// The tables of every reduction whose bounds the query or target stage
+/// knows and whose range spans at most a strip; their nodes move to the
+/// table stage.
+fn tables(graph: &Graph, nodes: &[Node], stage: &mut HashMap<Node, Stage>) -> Vec<Table> {
+    let mut tables = Vec::new();
+    for &reduction in nodes {
+        let Op::Reduce(id) = *graph.op(reduction) else {
+            continue;
+        };
+        let data = graph.loop_(id);
+        let bounds = stage[&data.start].max(stage[&data.end]);
+        // A stencil's offsets span at most a strip, as checking proves.
+        let span = match (
+            graph.constant_value(data.start),
+            graph.constant_value(data.end),
+        ) {
+            (Some(Value::Int(start)), Some(Value::Int(end))) => {
+                i64::from(*end) - i64::from(*start) <= STRIP as i64
+            }
+            _ => matches!(graph.op(data.body), Op::Tap { .. }),
+        };
+        if !prefix(bounds) || !span {
+            continue;
+        }
+        let mut members: HashSet<Node> = HashSet::new();
+        let mut fills = bounds;
+        for &node in nodes {
+            let candidate = graph.loops_of(node).only() == Some(id)
+                && stage[&node] == Stage::Body
+                && !is_leaf(graph, node)
+                && prefix_capable(graph, node)
+                && matches!(graph.ty(node), Type::Int | Type::Float | Type::Bool)
+                && !graph
+                    .domain(node)
+                    .intersects(Domain::PIXEL.union(Domain::SIGNAL))
+                && structural_operands(graph, node).iter().all(|operand| {
+                    members.contains(operand)
+                        || matches!(graph.op(*operand), Op::LoopIndex(loop_) if *loop_ == id)
+                        || prefix(stage[operand])
+                });
+            if candidate {
+                for operand in structural_operands(graph, node) {
+                    if !members.contains(&operand) && prefix(stage[&operand]) {
+                        fills = fills.max(stage[&operand]);
+                    }
+                }
+                members.insert(node);
+            }
+        }
+        if members.len() < TABLE_WORK {
+            continue;
+        }
+        // Members read by code outside the table, each with its cone.
+        let read_outside: HashSet<Node> = nodes
+            .iter()
+            .filter(|user| !members.contains(user))
+            .flat_map(|&user| structural_operands(graph, user))
+            .filter(|operand| members.contains(operand))
+            .collect();
+        let outputs = nodes
+            .iter()
+            .filter(|node| read_outside.contains(node))
+            .map(|&output| {
+                let mut cone = HashSet::new();
+                let mut pending = vec![output];
+                while let Some(node) = pending.pop() {
+                    if members.contains(&node) && cone.insert(node) {
+                        pending.extend(structural_operands(graph, node));
+                    }
+                }
+                let mut cone: Vec<Node> = cone.into_iter().collect();
+                cone.sort();
+                (output, cone)
+            })
+            .collect();
+        for &node in &members {
+            stage.insert(node, Stage::Table);
+        }
+        tables.push(Table {
+            reduction,
+            stage: fills,
+            outputs,
+        });
+    }
+    tables
 }
 
 fn is_primitive(ty: &Type) -> bool {
@@ -230,6 +357,7 @@ fn place(
         children: HashMap::new(),
         uses: HashMap::new(),
         stage: stage.clone(),
+        tables: Vec::new(),
     };
     // Where each body node is used, by region.
     let mut use_regions: HashMap<Node, Vec<Use>> = HashMap::new();
@@ -300,7 +428,7 @@ fn place(
                     _ => {}
                 }
             }
-            Stage::Query => {}
+            Stage::Query | Stage::Table => {}
         }
     }
     plan.query.reverse();

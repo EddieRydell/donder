@@ -17,13 +17,13 @@
 #[cfg(feature = "host")]
 extern crate alloc;
 
-// This facade is the complete external API. The core plays an admitted image
+// This facade is the complete external API. The core plays a trusted image
 // in a caller's buffer without allocating; the host feature builds images and
 // owns them. Language values and executable definitions belong to
 // donder-language; the VM is an implementation detail.
 pub use playback::{FixtureFrame, OutputFrame, Playback, SequenceFrame};
 pub use playback_rate::{FrameTiming, PlaybackRate};
-pub use show::{FORMAT_VERSION, LoadError, LoadLimits, Show, header_bytes, image_len};
+pub use show::{FORMAT_VERSION, LoadError, Show, header_bytes, image_len};
 pub use workspace::{LIVE_MARK_CAPACITY, Layout};
 
 pub use donder_runtime_types::image::{Fixture, Output};

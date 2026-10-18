@@ -1,6 +1,0 @@
-operator TimeWarp {
-  input source;
-  param offset_seconds: float in -1.0..1.0 = 0.0;
-
-  sample { source.at(time + offset_seconds) }
-}

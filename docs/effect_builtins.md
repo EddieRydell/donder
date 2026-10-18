@@ -11,7 +11,9 @@ Every builtin function and context value of the [effect language](effect_languag
 | `time` | float | Seconds since the effect's clip started; in an operator, since the sequence started. |
 | `duration` | float | The clip's duration in seconds; in an operator, the sequence's. |
 | `progress` | float | `time / duration`, in 0..1. |
-| `frame_rate` | float | The sequence's frames per second; `scan time` steps once per frame. |
+| `frame_rate` | float | The sequence's frames per second. |
+| `frames_elapsed` | int | Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a rig command re-renders the same frame. |
+| `previous` | color | This pixel last frame: an operator's own output, or an effect's layer. `previous.at(i)` reads another pixel of the fixture and `around previous` its neighbors. Black until the first frame and for a clip previewed alone; kept as it was after a seek. |
 | `pixel.index` | int | The pixel's zero-based index within the target; in an operator, within its fixture instance. |
 | `pixel.fraction` | float | The pixel's index scaled to 0..1 across the target; in an operator, across its fixture instance. |
 | `pixel.x` | float | The pixel's layout x coordinate in meters, after fixture transforms. |
@@ -410,7 +412,7 @@ let pastel = saturation(source) < 0.5;
 intensity(color: color) -> float
 ```
 
-A color's HSV value: its brightest channel divided by 255.
+A color's HSV value: its brightest channel as a fraction of full brightness.
 Black is zero and any fully bright channel is one.
 
 ```text
@@ -460,7 +462,7 @@ let gray = (red(source) + green(source) + blue(source)) / 3.0;
 invert(color: color) -> color
 ```
 
-Each channel complemented: `255 - channel`.
+Each channel complemented: full brightness minus the channel.
 Inverting black gives white.
 
 ```text

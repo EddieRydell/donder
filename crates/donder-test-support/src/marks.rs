@@ -50,11 +50,7 @@ pub fn mark_show(count: usize, pulse: bool) -> Workload {
         Gradient {
             stops: vec![GradientStop {
                 position: 0.0,
-                color: Color {
-                    red: 193,
-                    green: 89,
-                    blue: 47,
-                },
+                color: Color::from_bytes([193, 89, 47]),
             }],
         }
         .into(),

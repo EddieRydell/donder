@@ -55,27 +55,6 @@ operator HueShift {
   sample { hsv(hue(source) + shift, saturation(source), intensity(source)) }
 }
 
-operator Delay {
-  input input;
-  param seconds: float in 0.0..60.0 = 0.1;
-
-  sample { input.at(time - seconds) }
-}
-
-operator Echo {
-  input input;
-  param seconds: float in 0.0..60.0 = 0.1;
-  param repeats: int in 1..32 = 3;
-  param decay: float in 0.0..1.0 = 0.5;
-
-  -- Samples before the sequence are black, so early echoes add nothing.
-  sample {
-    max for repeat in 0..=repeats {
-      input.at(time - seconds * repeat) * pow(decay, repeat)
-    }
-  }
-}
-
 operator Blur {
   input input;
   -- Pixels averaged on each side, along each fixture's pixel order.
@@ -163,11 +142,11 @@ operator Bloom {
   sample {
     let decay = exp(-2.302585 / radius);
     let scale = strength * (1.0 - decay) / 2.0;
-    let forward = scan forward input as light, previous {
-      previous * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
+    let forward = scan forward input as light, carried {
+      carried * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
     };
-    let backward = scan backward input as light, previous {
-      previous * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
+    let backward = scan backward input as light, carried {
+      carried * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
     };
     let glow = (forward + backward) * tint;
     if blend == Add {
@@ -191,8 +170,8 @@ operator Trail {
 
   -- Light builds up in floats and is rounded once, so faint tails keep fading.
   sample {
-    let forward = scan forward input as light, previous { previous * decay + light };
-    let backward = scan backward input as light, previous { previous * decay + light };
+    let forward = scan forward input as light, carried { carried * decay + light };
+    let backward = scan backward input as light, carried { carried * decay + light };
     if direction == Forward {
       forward
     } else if direction == Backward {
@@ -208,11 +187,10 @@ operator Afterglow {
   -- Seconds for light that goes out to fade to a tenth.
   param seconds: float in 0.01..10.0 = 0.5;
 
-  -- A time scan keeps one running value per pixel, so the tail costs the
-  -- same however long it is. Steady light shows unchanged.
+  -- Each frame keeps the brighter of the input and its own previous frame,
+  -- faded by the frames since then. Steady light shows unchanged.
   sample {
     let decay = pow(0.1, 1.0 / (seconds * frame_rate));
-    let glow = scan time input as light, previous { previous * decay + light * (1.0 - decay) };
-    max(input, glow)
+    max(input, previous * pow(decay, frames_elapsed))
   }
 }

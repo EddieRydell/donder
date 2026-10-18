@@ -25,10 +25,9 @@ pub(crate) trait Substitute {
         &mut self,
         target: &mut Graph,
         input: u32,
-        time: Node,
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
-        Ok(target.add(Op::Sample { input, time, pixel }))
+        Ok(target.add(Op::Sample { input, pixel }))
     }
     /// A node to multiply by instead of dividing by `divisor`.
     fn reciprocal(&mut self, _target: &mut Graph, _divisor: Node) -> Option<Node> {
@@ -201,7 +200,6 @@ impl<'a> Rebuild<'a> {
                 match *target.op(light) {
                     Op::Sample {
                         input,
-                        time,
                         pixel: SignalPixel::Current,
                     } if substitute.stencils() => {
                         let weight = weight.map(|weight| {
@@ -210,7 +208,6 @@ impl<'a> Rebuild<'a> {
                         target.add(Op::ScanTap {
                             direction,
                             input,
-                            time,
                             decay,
                             weight,
                         })
@@ -225,8 +222,7 @@ impl<'a> Rebuild<'a> {
                     _ => target.color(donder_runtime_types::Color::BLACK),
                 }
             }
-            Op::Sample { input, time, pixel } => {
-                let time = self.node(target, time, substitute)?;
+            Op::Sample { input, pixel } => {
                 let pixel = match pixel {
                     SignalPixel::Current => SignalPixel::Current,
                     SignalPixel::Local(index) => {
@@ -236,7 +232,7 @@ impl<'a> Rebuild<'a> {
                         SignalPixel::Shifted(self.node(target, offset, substitute)?, edges)
                     }
                 };
-                substitute.sample(target, input, time, pixel)?
+                substitute.sample(target, input, pixel)?
             }
         };
         self.memo.insert(node, built);

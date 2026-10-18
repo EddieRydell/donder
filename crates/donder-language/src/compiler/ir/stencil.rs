@@ -58,7 +58,6 @@ type Factor = (Node, bool);
 struct Parts {
     sample: Node,
     input: u32,
-    time: Node,
     edges: Edges,
     /// Factors and conditions of each part, by [`Part`].
     parts: [(Vec<Factor>, Vec<Node>); 3],
@@ -86,7 +85,6 @@ pub(super) fn tap(
     let Parts {
         sample,
         input,
-        time,
         edges,
         parts,
     } = split(graph, id, reducer, body, filter).ok()?;
@@ -117,7 +115,6 @@ pub(super) fn tap(
     Some(graph.add(Op::Tap {
         id,
         input,
-        time,
         edges,
         weight,
         scale: offset,
@@ -152,13 +149,12 @@ fn split(
     };
     let Op::Sample {
         input,
-        time,
         pixel: SignalPixel::Shifted(offset, edges),
     } = *graph.op(sample)
     else {
         return Err(StencilError::Shape);
     };
-    if offset != index || !uniform(graph, time, Some(id)) {
+    if offset != index {
         return Err(StencilError::Shape);
     }
     let mut reads = Reads {
@@ -186,7 +182,6 @@ fn split(
     Ok(Parts {
         sample,
         input,
-        time,
         edges,
         parts,
     })

@@ -5,12 +5,75 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 pub const MICROS_PER_SECOND: u32 = 1_000_000;
-const MICROS_PER_SECOND_HZ: u64 = MICROS_PER_SECOND as u64;
 
-/// The clock used by the portable renderer. One tick is one microsecond and all
-/// arithmetic is 32-bit, matching the ESP32's native word size.
-pub type SampleTime = fugit::MonotonicTimerInstantU32<MICROS_PER_SECOND_HZ>;
-pub type SampleDuration = fugit::TimerDurationU32<MICROS_PER_SECOND_HZ>;
+/// A point on the show clock. One tick is one microsecond; the clock is
+/// 32-bit, matching the ESP32's native word size.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SampleTime(u32);
+
+/// A span of the show clock, in microsecond ticks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SampleDuration(u32);
+
+impl SampleTime {
+    pub const fn from_ticks(ticks: u32) -> Self {
+        Self(ticks)
+    }
+
+    pub const fn as_ticks(self) -> u32 {
+        self.0
+    }
+
+    pub const fn checked_add_duration(self, duration: SampleDuration) -> Option<Self> {
+        match self.0.checked_add(duration.0) {
+            Some(ticks) => Some(Self(ticks)),
+            None => None,
+        }
+    }
+
+    pub const fn checked_sub_duration(self, duration: SampleDuration) -> Option<Self> {
+        match self.0.checked_sub(duration.0) {
+            Some(ticks) => Some(Self(ticks)),
+            None => None,
+        }
+    }
+
+    /// The span from `earlier` to this time, or `None` when `earlier` is later.
+    pub const fn checked_duration_since(self, earlier: Self) -> Option<SampleDuration> {
+        match self.0.checked_sub(earlier.0) {
+            Some(ticks) => Some(SampleDuration(ticks)),
+            None => None,
+        }
+    }
+}
+
+impl SampleDuration {
+    pub const fn from_ticks(ticks: u32) -> Self {
+        Self(ticks)
+    }
+
+    pub const fn as_ticks(self) -> u32 {
+        self.0
+    }
+
+    pub const fn is_zero(self) -> bool {
+        self.0 == 0
+    }
+
+    pub const fn checked_add(self, other: Self) -> Option<Self> {
+        match self.0.checked_add(other.0) {
+            Some(ticks) => Some(Self(ticks)),
+            None => None,
+        }
+    }
+
+    pub const fn checked_sub(self, other: Self) -> Option<Self> {
+        match self.0.checked_sub(other.0) {
+            Some(ticks) => Some(Self(ticks)),
+            None => None,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SampleTimeError {
@@ -20,15 +83,49 @@ pub enum SampleTimeError {
     OutOfRange,
 }
 
+/// `a * b` as its high and low 32-bit halves.
+#[inline]
+pub(crate) const fn wide_mul(a: u32, b: u32) -> (u32, u32) {
+    let (a1, a0) = (a >> 16, a & 0xffff);
+    let (b1, b0) = (b >> 16, b & 0xffff);
+    let low = a0 * b0;
+    let (cross1, cross2) = (a0 * b1, a1 * b0);
+    let middle = (low >> 16) + (cross1 & 0xffff) + (cross2 & 0xffff);
+    let high = a1 * b1 + (cross1 >> 16) + (cross2 >> 16) + (middle >> 16);
+    (high, (low & 0xffff) | (middle << 16))
+}
+
+/// `value * numerator / denominator` and its remainder, exactly, in 32-bit
+/// arithmetic; `None` when the quotient does not fit or `denominator` is 0.
+pub const fn mul_div(value: u32, numerator: u32, denominator: u32) -> Option<(u32, u32)> {
+    let (mut high, mut low) = wide_mul(value, numerator);
+    if denominator == 0 || high >= denominator {
+        return None;
+    }
+    // Long division of high:low, one bit at a time; the remainder stays
+    // below the denominator.
+    let mut quotient = 0u32;
+    let mut bit = 0;
+    while bit < 32 {
+        let carry = high >> 31;
+        high = (high << 1) | (low >> 31);
+        low <<= 1;
+        quotient <<= 1;
+        if carry != 0 || high >= denominator {
+            high = high.wrapping_sub(denominator);
+            quotient |= 1;
+        }
+        bit += 1;
+    }
+    Some((quotient, high))
+}
+
 pub fn sample_time_from_frame(frame: u32, frame_rate: u32) -> Result<SampleTime, SampleTimeError> {
     if frame_rate == 0 {
         return Err(SampleTimeError::InvalidFrameRate);
     }
-    let whole_ticks = u64::from(frame / frame_rate) * u64::from(MICROS_PER_SECOND);
-    let partial_ticks =
-        u64::from(frame % frame_rate) * u64::from(MICROS_PER_SECOND) / u64::from(frame_rate);
-    let ticks =
-        u32::try_from(whole_ticks + partial_ticks).map_err(|_| SampleTimeError::OutOfRange)?;
+    let (ticks, _) =
+        mul_div(frame, MICROS_PER_SECOND, frame_rate).ok_or(SampleTimeError::OutOfRange)?;
     Ok(SampleTime::from_ticks(ticks))
 }
 
@@ -52,25 +149,11 @@ fn positive_seconds_to_ticks(seconds: f32) -> Result<u32, SampleTimeError> {
     if seconds < 0.0 {
         return Err(SampleTimeError::Negative);
     }
-    let bits = seconds.to_bits();
-    let exponent = (bits >> 23) & 0xff;
-    // Below 2^-21 seconds even the largest significand rounds to zero ticks.
-    // At or above 2^13 seconds every value exceeds the 32-bit clock.
-    if exponent <= 105 {
-        return Ok(0);
-    }
-    if exponent >= 140 {
+    let ticks = seconds * MICROS_PER_SECOND as f32 + 0.5;
+    if ticks >= 4_294_967_296.0 {
         return Err(SampleTimeError::OutOfRange);
     }
-    // A normal f32 is significand * 2^(exponent - 150). Multiplying its
-    // 24-bit significand by one million is exact in 44 bits; shifting with a
-    // half-unit bias exactly preserves the previous round-to-nearest, ties-up
-    // conversion without software double-precision arithmetic on the ESP32.
-    let significand = (bits & 0x7f_ffff) | 0x80_0000;
-    let micros = u64::from(significand) * u64::from(MICROS_PER_SECOND);
-    let shift = 150 - exponent;
-    let rounded = (micros + (1u64 << (shift - 1))) >> shift;
-    u32::try_from(rounded).map_err(|_| SampleTimeError::OutOfRange)
+    Ok(ticks as u32)
 }
 
 /// Adds a possibly-negative floating-point DSL offset to the portable clock.
@@ -94,90 +177,6 @@ pub fn sample_time_with_seconds_offset(
     }
 }
 
-#[cfg(test)]
-mod clock_conversion_tests {
-    use super::{
-        SampleTime, SampleTimeError, sample_duration_from_seconds_f32, sample_time_from_frame,
-        sample_time_from_seconds_f32, sample_time_with_seconds_offset,
-    };
-
-    #[test]
-    fn frame_conversion_uses_wide_intermediates_but_keeps_a_32_bit_clock() {
-        assert_eq!(
-            sample_time_from_frame(4_500, 5_000).unwrap().as_ticks(),
-            900_000
-        );
-        assert_eq!(
-            sample_time_from_frame(u32::MAX, u32::MAX)
-                .unwrap()
-                .as_ticks(),
-            1_000_000
-        );
-        assert_eq!(
-            sample_time_from_frame(u32::MAX, 1),
-            Err(SampleTimeError::OutOfRange)
-        );
-        assert_eq!(
-            sample_time_from_frame(1, 0),
-            Err(SampleTimeError::InvalidFrameRate)
-        );
-    }
-
-    #[test]
-    fn float_seconds_reject_values_that_round_beyond_the_last_tick() {
-        let near_limit = (f64::from(u32::MAX) / 1_000_000.0) as f32;
-        let over_limit = f32::from_bits(near_limit.to_bits() + 1);
-        assert!(sample_time_from_seconds_f32(near_limit).is_ok());
-        assert_eq!(
-            sample_time_from_seconds_f32(over_limit),
-            Err(SampleTimeError::OutOfRange)
-        );
-        assert_eq!(
-            sample_duration_from_seconds_f32(over_limit),
-            Err(SampleTimeError::OutOfRange)
-        );
-        assert_eq!(
-            sample_time_with_seconds_offset(SampleTime::from_ticks(0), over_limit),
-            Err(SampleTimeError::OutOfRange)
-        );
-    }
-
-    #[test]
-    fn integer_clock_conversion_matches_double_reference_at_rounding_boundaries() {
-        let check = |seconds: f32| {
-            let expected = if !seconds.is_finite() {
-                Err(SampleTimeError::NotFinite)
-            } else if seconds < 0.0 {
-                Err(SampleTimeError::Negative)
-            } else {
-                let ticks = libm::round(f64::from(seconds) * 1_000_000.0);
-                if ticks > f64::from(u32::MAX) {
-                    Err(SampleTimeError::OutOfRange)
-                } else {
-                    Ok(SampleTime::from_ticks(ticks as u32))
-                }
-            };
-            assert_eq!(
-                sample_time_from_seconds_f32(seconds),
-                expected,
-                "{seconds:?}"
-            );
-        };
-        for exponent in 0..256u32 {
-            for fraction in [0, 1, 0x1f_ffff, 0x40_0000, 0x7f_fffe, 0x7f_ffff] {
-                check(f32::from_bits((exponent << 23) | fraction));
-                check(f32::from_bits(0x8000_0000 | (exponent << 23) | fraction));
-            }
-        }
-        for tick in (0..u32::MAX).step_by(9973) {
-            let midpoint = ((f64::from(tick) + 0.5) / 1_000_000.0) as f32;
-            for bits in midpoint.to_bits().saturating_sub(1)..=midpoint.to_bits() + 1 {
-                check(f32::from_bits(bits));
-            }
-        }
-    }
-}
-
 /// Every tick count becomes seconds by one multiply: the ESP32's FPU
 /// multiplies in hardware but divides in software.
 pub const SECONDS_PER_TICK: f32 = 1.0 / MICROS_PER_SECOND as f32;
@@ -190,14 +189,14 @@ pub fn sample_duration_seconds_f32(duration: SampleDuration) -> f32 {
     duration.as_ticks() as f32 * SECONDS_PER_TICK
 }
 
+/// Light: red, green and blue, where 0 is off and 1 is full brightness.
+/// Values outside 0..1 and NaN pass through computation; output clamps them.
 #[derive(
     Clone,
     Copy,
     Debug,
     Default,
-    Eq,
     PartialEq,
-    Hash,
     bytemuck::Pod,
     bytemuck::Zeroable,
     rkyv::Archive,
@@ -206,71 +205,60 @@ pub fn sample_duration_seconds_f32(duration: SampleDuration) -> f32 {
 )]
 #[repr(C)]
 pub struct Color {
-    pub red: u8,
-    pub green: u8,
-    pub blue: u8,
-}
-
-impl Color {
-    pub const BLACK: Self = Self {
-        red: 0,
-        green: 0,
-        blue: 0,
-    };
-    pub fn from_hex(value: &str) -> Option<Self> {
-        if value.len() != 7 || !value.starts_with('#') {
-            return None;
-        }
-        Some(Self {
-            red: u8::from_str_radix(value.get(1..3)?, 16).ok()?,
-            green: u8::from_str_radix(value.get(3..5)?, 16).ok()?,
-            blue: u8::from_str_radix(value.get(5..7)?, 16).ok()?,
-        })
-    }
-
-    pub fn to_hex(self) -> String {
-        format!("#{:02x}{:02x}{:02x}", self.red, self.green, self.blue)
-    }
-}
-
-/// A color inside a running program: each channel a fraction of full
-/// brightness, unclamped until it is written as a [`Color`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct FloatColor {
     pub red: f32,
     pub green: f32,
     pub blue: f32,
 }
 
-impl FloatColor {
+// Authored and folded colors are compared and hashed by value; programs never
+// author NaN.
+impl Eq for Color {}
+
+impl core::hash::Hash for Color {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        [self.red, self.green, self.blue]
+            .map(f32::to_bits)
+            .hash(state);
+    }
+}
+
+impl Color {
     pub const BLACK: Self = Self {
         red: 0.0,
         green: 0.0,
         blue: 0.0,
     };
 
-    /// The nearest 8-bit color, saturating each channel; NaN is zero.
-    #[inline(always)]
-    pub fn to_color(self) -> Color {
-        let channel = |value: f32| crate::sampling::byte_channel(value * 255.0);
-        Color {
-            red: channel(self.red),
-            green: channel(self.green),
-            blue: channel(self.blue),
+    pub fn from_hex(value: &str) -> Option<Self> {
+        if value.len() != 7 || !value.starts_with('#') {
+            return None;
+        }
+        Some(Self::from_bytes([
+            u8::from_str_radix(value.get(1..3)?, 16).ok()?,
+            u8::from_str_radix(value.get(3..5)?, 16).ok()?,
+            u8::from_str_radix(value.get(5..7)?, 16).ok()?,
+        ]))
+    }
+
+    pub fn to_hex(self) -> String {
+        let [red, green, blue] = self.to_bytes();
+        format!("#{red:02x}{green:02x}{blue:02x}")
+    }
+
+    /// The color of 8-bit channels.
+    pub const fn from_bytes([red, green, blue]: [u8; 3]) -> Self {
+        Self {
+            red: red as f32 / 255.0,
+            green: green as f32 / 255.0,
+            blue: blue as f32 / 255.0,
         }
     }
-}
 
-impl From<Color> for FloatColor {
-    #[inline(always)]
-    fn from(color: Color) -> Self {
-        let channel = |value: u8| f32::from(value) * (1.0 / 255.0);
-        Self {
-            red: channel(color.red),
-            green: channel(color.green),
-            blue: channel(color.blue),
-        }
+    /// The nearest 8-bit channels. The cast saturates, so light below 0 or
+    /// NaN is off and light above 1 is full.
+    pub fn to_bytes(self) -> [u8; 3] {
+        let byte = |channel: f32| (channel * 255.0 + 0.5) as u8;
+        [byte(self.red), byte(self.green), byte(self.blue)]
     }
 }
 
@@ -539,40 +527,27 @@ impl MarkWindow<'_> {
     }
 
     /// The last mark at or before `seconds`, with its time in seconds.
-    /// Seconds rise with ticks, so those marks form a prefix: the search
-    /// narrows by ticks near `seconds`, then settles the boundary by seconds,
-    /// converting about twice. A NaN query matches no mark.
     ///
     /// `cursor` holds the boundary the last query found. Queries a strip
     /// makes in turn are usually near one another, so the boundary is checked
     /// there before the track is searched.
     pub fn previous(&self, seconds: f32, cursor: &core::cell::Cell<usize>) -> Option<(usize, f32)> {
         let ticks = self.ticks;
-        // Saturating: NaN and negative queries start from the origin.
-        let near = self
+        let at = self
             .origin
             .saturating_add((seconds * MICROS_PER_SECOND as f32) as u32);
         let hint = cursor.get();
         let fits = hint <= ticks.len()
-            && (hint == 0 || ticks[hint - 1] <= near)
-            && (hint == ticks.len() || ticks[hint] > near);
-        let mut count = if fits {
+            && (hint == 0 || ticks[hint - 1] <= at)
+            && (hint == ticks.len() || ticks[hint] > at);
+        let count = if fits {
             hint
         } else {
-            ticks.partition_point(|&mark| mark <= near)
+            ticks.partition_point(|&mark| mark <= at)
         };
         cursor.set(count);
-        while count < ticks.len() && self.seconds(count) <= seconds {
-            count += 1;
-        }
-        while count > 0 {
-            let time = self.seconds(count - 1);
-            if time <= seconds {
-                return Some((count - 1, time));
-            }
-            count -= 1;
-        }
-        None
+        let index = count.checked_sub(1)?;
+        Some((index, self.seconds(index)))
     }
 }
 

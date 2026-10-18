@@ -122,7 +122,7 @@ pub struct DevicePlaybackStatus {
     pub mode: DevicePlaybackMode,
     pub position_micros: u32,
     pub duration_micros: u32,
-    pub archive_crc: u32,
+    pub archive_id: u32,
     pub archive_bytes: u32,
     pub pending_command: Option<u32>,
     pub command_id: u32,

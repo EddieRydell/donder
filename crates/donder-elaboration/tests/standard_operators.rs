@@ -58,7 +58,7 @@ fn project_operator(project: &DonderProject, id: u32, name: &str) -> Composition
 }
 
 #[test]
-fn fusion_preserves_shared_sources_and_query_clocks() {
+fn fusion_preserves_shared_sources_and_addressed_reads() {
     use donder_language::compiler::compile_operators;
     use donder_model::ProjectEdit;
     use donder_model::SourceIdentity;
@@ -70,10 +70,10 @@ fn fusion_preserves_shared_sources_and_query_clocks() {
         sample { max(source, rgb(progress, 0.05, 0.1)) }
     }
     operator Early { input source;
-        sample { source.at(time - 0.125) * 0.4 }
+        sample { source.at(pixel.index - 1) * 0.4 }
     }
     operator Late { input source;
-        sample { source.at(time + 0.25) * 0.8 }
+        sample { source.at(pixel.index + 2) * 0.8 }
     }",
     )
     .unwrap();
@@ -124,9 +124,9 @@ fn fusion_preserves_shared_sources_and_query_clocks() {
     };
     project.replace_sequence(&id, sequence.clone()).unwrap();
     let shared = prepare(&project, &id, PrepareOutputs::All).unwrap();
-    // The shared clock stays a graph node. Duplicating it gives each consumer a
-    // private source, which is fused into it with the consumer's query time as
-    // the source's clock, while preserving the authored behavior.
+    // The shared source stays a graph node. Duplicating it gives each consumer
+    // a private source, which stays a boundary for the consumers' addressed
+    // reads, while preserving the authored behavior.
     sequence
         .composition_graph
         .nodes
@@ -201,13 +201,13 @@ fn empty_layer(sequence: &mut Sequence) {
 fn operators_that_keep_black_inputs_black_are_not_prepared() {
     for blacken in [disable_layer, empty_layer] {
         let direct = encoded(&black_layer_through(blacken, &[]));
-        // Scaling, recoloring, delaying and reducing operators map black to
+        // Scaling, recoloring, trailing and reducing operators map black to
         // black, so each folds away, including along a chain.
         for operators in [
             &[("Dim", "input")][..],
-            &[("TimeWarp", "source")][..],
-            &[("Echo", "input"), ("Dim", "input")][..],
-            &[("Delay", "input"), ("Gain", "source")][..],
+            &[("Afterglow", "input")][..],
+            &[("Afterglow", "input"), ("Dim", "input")][..],
+            &[("Blur", "input"), ("Gain", "source")][..],
             &[("HueShift", "source")][..],
             &[("Colorize", "input")][..],
         ] {

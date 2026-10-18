@@ -33,9 +33,9 @@ const OPERATOR_TEMPLATE: &str = "operator Probe {
   param gain: float in 0.0..1.0 = 0.5;
   param taps: int in 1..4 = 2;
   sample {
-    let mirrored = source.at(time - gain, target.count - 1 - pixel.index);
-    let neighbor = other.at(time, pixel.index + 1);
-    let echo = sum for tap in 1..=taps { other.at(time - gain * tap) * pow(gain, tap) };
+    let mirrored = source.at(target.count - 1 - pixel.index);
+    let neighbor = other.at(pixel.index + 1);
+    let echo = sum for tap in 1..=taps { previous.at(pixel.index - tap) * pow(gain, tap) };
     guard intensity(source) < 0.99 else source;
     max(max(source, mirrored), neighbor + echo)
   }
@@ -55,12 +55,12 @@ const MARKS_TEMPLATE: &str = "effect Probe {
     let age = time - hit;
     guard age >= 0.0 && age < decay;
     let next = first for i in 0..len(beats) { guard mark_at(beats, i) > hit; mark_at(beats, i) } else { duration };
-    let previous = last for i in 0..len(beats) { guard mark_at(beats, i) < hit; i } else { -1 };
+    let prior = last for i in 0..len(beats) { guard mark_at(beats, i) < hit; i } else { -1 };
     let lit = (any for i in 0..len(beats) { mark_at(beats, i) <= time }) && (all for j in 0..=2 { j < 3 });
     guard lit;
     let section = section_index(3);
     let sparkle = rand((seed + hit * 1000.0) * 31.0 + section);
-    hsv(hue(tint) + sparkle, 1.0, shape[age / decay]) * value_or(next - hit, 1.0) * (previous + 2)
+    hsv(hue(tint) + sparkle, 1.0, shape[age / decay]) * value_or(next - hit, 1.0) * (prior + 2)
   }
 }";
 
@@ -279,11 +279,7 @@ fn populated_value(ty: &Type) -> Value {
                 },
                 GradientStop {
                     position: 1.0,
-                    color: Color {
-                        red: 255,
-                        green: 128,
-                        blue: 0,
-                    },
+                    color: Color::from_bytes([255, 128, 0]),
                 },
             ],
         })),

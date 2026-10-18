@@ -166,8 +166,8 @@ mod tests {
             ("Dim", &["input"][..]),
             ("Invert", &["input"][..]),
             ("Colorize", &["input"][..]),
-            ("Delay", &["input"][..]),
-            ("Echo", &["input"][..]),
+            ("Afterglow", &["input"][..]),
+            ("Blur", &["input"][..]),
             ("HueShift", &["source"][..]),
         ];
         // Chain every operator between the layer node and the output node.
