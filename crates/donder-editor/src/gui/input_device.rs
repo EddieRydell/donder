@@ -1,15 +1,23 @@
 //! Input devices: the hardware rigs play from.
 use donder_model::{
-    ButtonInput, InputControl, InputControlId, InputControlKind, InputDevice, InputDeviceId,
-    InputDriver, KeyCode,
+    ButtonInput, DialInput, InputControl, InputControlId, InputControlKind, InputDevice,
+    InputDeviceId, InputDriver, KeyCode, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_sequence_api::{
-    GuiButtonInput, GuiDocument, GuiInputControl, GuiInputDriver, InputDeviceGuiDocument,
-    SetupInputDevice,
+    GuiControlInput, GuiDocument, GuiInputControl, GuiInputControlKind, GuiInputDriver,
+    GuiInputLimits, InputDeviceGuiDocument, SetupInputDevice,
 };
+
+/// The highest MIDI inputs a control can read.
+pub(super) fn input_limits() -> GuiInputLimits {
+    GuiInputLimits {
+        max_note: MAX_MIDI_NOTE,
+        max_control_change: MAX_MIDI_CONTROL_CHANGE,
+    }
+}
 
 /// Every key a control can read, in the language's order.
 pub(super) fn key_codes() -> Vec<String> {
@@ -28,24 +36,78 @@ pub(super) fn project_input_device(
         name: id.0.declared_name().to_string(),
         source_ref: super::patch::object_ref(&id.0, SourceObjectKind::InputDevice),
         read_only: !session.source.is_project_owned(id.0.document_id()),
-        driver: match device.driver {
+        driver: match &device.driver {
             InputDriver::Keyboard => GuiInputDriver::Keyboard,
+            InputDriver::Midi { port } => GuiInputDriver::Midi { port: port.clone() },
         },
-        controls: device
-            .controls
-            .iter()
-            .map(|control| GuiInputControl {
-                id: control.id.0,
-                name: control.name.as_str().to_string(),
-                description: control.description.clone(),
-                input: match control.kind {
-                    InputControlKind::Button(ButtonInput::Key(code)) => GuiButtonInput::Key {
-                        code: code.name().to_string(),
-                    },
-                },
-            })
-            .collect(),
+        controls: device.controls.iter().map(gui_control).collect(),
     }
+}
+
+fn gui_control(control: &InputControl) -> GuiInputControl {
+    let (kind, input) = match control.kind {
+        InputControlKind::Button(input) => (
+            GuiInputControlKind::Button,
+            match input {
+                ButtonInput::Key(code) => GuiControlInput::Key {
+                    code: code.name().to_string(),
+                },
+                ButtonInput::Note(note) => GuiControlInput::Note { note },
+                ButtonInput::ControlChange(number) => GuiControlInput::ControlChange { number },
+            },
+        ),
+        InputControlKind::Dial(input) => (
+            GuiInputControlKind::Dial,
+            match input {
+                DialInput::ControlChange(number) => GuiControlInput::ControlChange { number },
+                DialInput::PitchBend => GuiControlInput::PitchBend,
+            },
+        ),
+    };
+    GuiInputControl {
+        id: control.id.0,
+        name: control.name.as_str().to_string(),
+        description: control.description.clone(),
+        kind,
+        input,
+    }
+}
+
+/// The control a GUI control describes, or why it describes none.
+fn domain_control_kind(
+    kind: GuiInputControlKind,
+    input: &GuiControlInput,
+) -> Result<InputControlKind, GuiMutationError> {
+    Ok(match (kind, input) {
+        (GuiInputControlKind::Button, GuiControlInput::Key { code }) => {
+            InputControlKind::Button(ButtonInput::Key(
+                KeyCode::from_name(code)
+                    .ok_or_else(|| GuiMutationError::Invalid(format!("`{code}` is not a key.")))?,
+            ))
+        }
+        (GuiInputControlKind::Button, GuiControlInput::Note { note }) => {
+            InputControlKind::Button(ButtonInput::Note(*note))
+        }
+        (GuiInputControlKind::Button, GuiControlInput::ControlChange { number }) => {
+            InputControlKind::Button(ButtonInput::ControlChange(*number))
+        }
+        (GuiInputControlKind::Dial, GuiControlInput::ControlChange { number }) => {
+            InputControlKind::Dial(DialInput::ControlChange(*number))
+        }
+        (GuiInputControlKind::Dial, GuiControlInput::PitchBend) => {
+            InputControlKind::Dial(DialInput::PitchBend)
+        }
+        (GuiInputControlKind::Button, GuiControlInput::PitchBend) => {
+            return Err(GuiMutationError::Invalid(
+                "Pitch bend is a dial, not a button.".into(),
+            ));
+        }
+        (GuiInputControlKind::Dial, GuiControlInput::Key { .. } | GuiControlInput::Note { .. }) => {
+            return Err(GuiMutationError::Invalid(
+                "Keys and notes are buttons, not dials.".into(),
+            ));
+        }
+    })
 }
 
 pub(super) fn project_document(
@@ -63,6 +125,7 @@ pub(super) fn project_document(
             object_key: resolved.identity.object().to_string(),
             device: project_input_device(session, &id, device),
             key_codes: key_codes(),
+            input_limits: input_limits(),
         },
     }
 }
@@ -96,14 +159,12 @@ pub(super) fn domain_input_device(
     let controls = controls
         .into_iter()
         .map(|control| {
-            let GuiButtonInput::Key { code } = &control.input;
-            let code = KeyCode::from_name(code)
-                .ok_or_else(|| GuiMutationError::Invalid(format!("`{code}` is not a key.")))?;
+            let kind = domain_control_kind(control.kind, &control.input)?;
             Ok(InputControl {
                 id: InputControlId(control.id),
                 name: super::model::typed_name(&control.name)?,
                 description: super::description::normalized(control.description),
-                kind: InputControlKind::Button(ButtonInput::Key(code)),
+                kind,
             })
         })
         .collect::<Result<_, GuiMutationError>>()?;
@@ -112,6 +173,11 @@ pub(super) fn domain_input_device(
         description,
         driver: match driver {
             GuiInputDriver::Keyboard => InputDriver::Keyboard,
+            GuiInputDriver::Midi { port } => InputDriver::Midi {
+                port: port
+                    .map(|port| port.trim().to_string())
+                    .filter(|port| !port.is_empty()),
+            },
         },
         controls,
     };

@@ -31,6 +31,17 @@ pub struct PerformSession {
     pub held: Vec<PerformButton>,
     /// The `KeyboardEvent.code` of every key the rig plays from.
     pub keys: Vec<String>,
+    /// The rig's MIDI connections, when it plays from MIDI.
+    pub midi: Option<PerformMidi>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformMidi {
+    /// The ports connected now.
+    pub ports: Vec<String>,
+    /// Why the last look for ports failed to list or connect one.
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

@@ -239,6 +239,7 @@ pub struct SetupGuiDocument {
     pub available_input_devices: Vec<SetupInputDevice>,
     /// Every key a new input device's control can read, in the language's order.
     pub key_codes: Vec<String>,
+    pub input_limits: GuiInputLimits,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

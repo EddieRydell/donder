@@ -15,8 +15,8 @@ use donder_model::{
     AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio,
 };
 use donder_model::{
-    ButtonInput, ButtonRef, InputControlKind, InputDevice, InputDriver, SequenceCompositionGraph,
-    SequenceLayer,
+    ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver,
+    SequenceCompositionGraph, SequenceLayer,
 };
 use donder_model::{
     ControlTarget, MappingAction, Rig, RigEffect, TriggerLength, VoicePolicy, When,
@@ -536,7 +536,7 @@ impl Encoder<'_> {
     }
 
     /// `device.control`: a button's device reference and the control's name.
-    fn button(&self, input: &ButtonRef) -> Result<Reference, ExportProjectError> {
+    fn button(&self, input: &ControlRef) -> Result<Reference, ExportProjectError> {
         let mut reference =
             self.object_reference(SourceObjectKind::InputDevice, &input.device.0)?;
         let control = self
@@ -870,22 +870,41 @@ fn scope_document(scope: &donder_model::EffectScope) -> types::Scope {
 pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice {
     types::InputDevice {
         description: device.description.clone(),
-        driver: match device.driver {
+        driver: match &device.driver {
             InputDriver::Keyboard => types::InputDriver::Keyboard,
+            InputDriver::Midi { port } => types::InputDriver::Midi { port: port.clone() },
         },
         controls: device
             .controls
             .iter()
-            .map(|control| match control.kind {
-                InputControlKind::Button(input) => types::InputControl::Button {
-                    name: name(&control.name),
-                    description: control.description.clone(),
-                    input: match input {
-                        ButtonInput::Key(code) => types::ButtonInput::Key {
-                            code: types::KeyCode(code),
+            .map(|control| {
+                let name = name(&control.name);
+                let description = control.description.clone();
+                match control.kind {
+                    InputControlKind::Button(input) => types::InputControl::Button {
+                        name,
+                        description,
+                        input: match input {
+                            ButtonInput::Key(code) => types::ButtonInput::Key {
+                                code: types::KeyCode(code),
+                            },
+                            ButtonInput::Note(note) => types::ButtonInput::Note { note },
+                            ButtonInput::ControlChange(number) => {
+                                types::ButtonInput::ControlChange { number }
+                            }
                         },
                     },
-                },
+                    InputControlKind::Dial(input) => types::InputControl::Dial {
+                        name,
+                        description,
+                        input: match input {
+                            DialInput::ControlChange(number) => {
+                                types::DialInput::ControlChange { number }
+                            }
+                            DialInput::PitchBend => types::DialInput::PitchBend,
+                        },
+                    },
+                }
             })
             .collect(),
     }

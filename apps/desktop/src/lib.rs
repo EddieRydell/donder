@@ -19,6 +19,7 @@ mod desktop_foundation_tests;
 mod desktop_state;
 mod device;
 mod language_server;
+mod midi;
 mod output;
 mod persistence;
 mod preview;

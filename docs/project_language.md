@@ -116,7 +116,7 @@ does not also report the fields the error swallowed.
 ## Names and references
 
 **Every object other objects refer to has a name**: setups, controllers, ports,
-input devices, buttons, layouts, fixtures, groups, fixture definitions, fixture
+input devices, controls, layouts, fixtures, groups, fixture definitions, fixture
 shapes, patches, sequences, layers, clips, mark collections, graph operator
 nodes, rigs, live mark collections, voices, switches, mappings, curves and
 gradients. The name is the object's only identity: references use it, and the
@@ -147,7 +147,7 @@ converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 - `alias.name` reaches a top-level declaration of an imported document;
 - `layout.fixture` reaches a fixture or group of a layout, whatever groups list
   it, so changing group membership changes no reference;
-- `device.button` reaches a button of an input device;
+- `device.control` reaches a button or dial of an input device;
 - an owned object is reached through its owner and the owning fields:
   `show.setup.layout`, `show.setup.controllers.main`, `show.setup.layout.desk`,
   `show.setup.input_devices.pad.hit`.
@@ -314,23 +314,31 @@ InputDevice keyboard {
 
 - `InputDevice`: `description`, `driver`, `controls`. The setup lists the input
   devices its rigs play from.
-- `driver` is `Keyboard`, the computer keyboard.
-- A control is `Button { name, description, input }`, pressed or released, with
-  `input` `Key { code }`. `code` is a key by its browser `KeyboardEvent.code`
-  name: `KeyA` to `KeyZ`, `Digit0` to `Digit9`, `F1` to `F12`, `Space`, `Enter`,
-  `Tab`, `Escape`, `Backspace`, `ArrowUp`, `ArrowDown`, `ArrowLeft`,
-  `ArrowRight`, `ShiftLeft`, `ShiftRight`, `ControlLeft`, `ControlRight`,
-  `AltLeft`, `AltRight`, `Minus`, `Equal`, `BracketLeft`, `BracketRight`,
-  `Backslash`, `Semicolon`, `Quote`, `Comma`, `Period`, `Slash`, `Backquote`,
-  `Numpad0` to `Numpad9`, `NumpadAdd`, `NumpadSubtract`, `NumpadMultiply`,
-  `NumpadDivide`, `NumpadDecimal`, `NumpadEnter`, `Insert`, `Delete`, `Home`,
-  `End`, `PageUp`, `PageDown` and `CapsLock`. `donder_model::KeyCode` is the
-  one list of key names; the schema reads it.
-- Button names are unique within their device, and no two controls read the
+- `driver` is `Keyboard`, the computer keyboard, or `Midi { port }`: the MIDI
+  input ports whose name contains `port`, ignoring case, or every port when it
+  is `none`.
+- A control is `Button { name, description, input }`, pressed or released, or
+  `Dial { name, description, input }`, a position from 0 to 1.
+- A keyboard button's `input` is `Key { code }`. `code` is a key by its browser
+  `KeyboardEvent.code` name: `KeyA` to `KeyZ`, `Digit0` to `Digit9`, `F1` to
+  `F12`, `Space`, `Enter`, `Tab`, `Escape`, `Backspace`, `ArrowUp`,
+  `ArrowDown`, `ArrowLeft`, `ArrowRight`, `ShiftLeft`, `ShiftRight`,
+  `ControlLeft`, `ControlRight`, `AltLeft`, `AltRight`, `Minus`, `Equal`,
+  `BracketLeft`, `BracketRight`, `Backslash`, `Semicolon`, `Quote`, `Comma`,
+  `Period`, `Slash`, `Backquote`, `Numpad0` to `Numpad9`, `NumpadAdd`,
+  `NumpadSubtract`, `NumpadMultiply`, `NumpadDivide`, `NumpadDecimal`,
+  `NumpadEnter`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown` and
+  `CapsLock`. `donder_model::KeyCode` is the one list of key names; the schema
+  reads it.
+- A MIDI button's `input` is `Note { note }`, a note number from 0 to 127 held
+  from note on to note off, or `ControlChange { number }`, from 0 to 119, held
+  at 64 and above. A MIDI dial's `input` is `ControlChange { number }` or
+  `PitchBend`.
+- Control names are unique within their device, and no two controls read the
   same input.
 
-The GUI has no input device editor yet; an input device opens in the text
-editor.
+In the GUI, the setup adds and attaches input devices, and an input device
+opens in its own editor.
 
 ### Layouts and fixtures
 
@@ -675,10 +683,10 @@ Rig jam {
   `params`. A scene voice plays for the whole session: a clip without `start`
   or `duration`. Parameters are a clip's, except that a marks value names one
   of the rig's live mark collections, or is `none`.
-- `Switch`: `name`, `description`, `input`. A switch is off when the session
-  starts, and each press of `input` toggles it.
+- `Switch`: `name`, `description`, `input`, a button. A switch is off when the
+  session starts, and each press of `input` toggles it.
 - `Mapping`: `name`, `description`, `input`, `when`, `action`. An `input` is a
-  button, `device.button`. `when` is `none`, `On { switch }` or
+  button or a dial, `device.control`; a dial plays only `Control`. `when` is `none`, `On { switch }` or
   `Off { switch }`: the mapping acts only while that switch of the rig is on or
   off. `action` is one of:
   - `Trigger { layer, target, scope, effect, params, length, voices }` starts an
@@ -689,7 +697,8 @@ Rig jam {
     oldest) or `Mono` (one voice; presses while it plays are ignored).
   - `Mark { marks }` adds a mark to that live mark collection.
   - `Control { voice, param }` holds a parameter at the top of its range while
-    the button is held and at the bottom otherwise; the control's `0..1` maps
+    a button is held and at the bottom otherwise, or follows a dial's position;
+    the control's `0..1` maps
     onto the parameter exactly as an automation curve does. `voice` names a
     scene voice or a `Trigger` mapping (all its voices), and the parameter is a
     float, int, bool, enum or curve.
@@ -717,7 +726,7 @@ Gradient warm_gradient {
 
 ### Descriptions
 
-The project, setups, controllers, input devices and buttons, layouts, fixtures
+The project, setups, controllers, input devices and their controls, layouts, fixtures
 and groups, fixture definitions, patches, sequences, layers, mark collections,
 clips, rigs, live mark collections, voices, switches, mappings, curves and
 gradients have a `description`. The GUI edits an open object's description in
@@ -779,7 +788,8 @@ preparation does not repeat them.
   follow the clip rules without timing, a `Fixed` length is positive, a stack
   has 1 to 16 voices, `when` names a switch of the rig, `Mark` a live mark
   collection, and `Control` an automatable parameter of a voice or trigger.
-  Inputs are buttons of input devices in the project's setup.
+  Inputs are controls of input devices in the project's setup; switches and
+  every action but `Control` are played from buttons.
 
 ## Saving
 

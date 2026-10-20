@@ -10,6 +10,7 @@ export function InputDeviceEditor({ document }: { document: InputDeviceGuiDocume
       key={JSON.stringify([document.device.driver, document.device.controls])}
       device={document.device}
       keyCodes={document.keyCodes}
+      limits={document.inputLimits}
       onSave={async (driver, controls) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "inputDevice", driver, controls })); }}
     /></section>
   </main>;

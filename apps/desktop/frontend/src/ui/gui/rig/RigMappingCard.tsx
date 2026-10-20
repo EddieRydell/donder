@@ -54,7 +54,7 @@ export function RigMappingCard({ document, mapping }: { document: RigGuiDocument
       <button type="button" onClick={() => void applyRigEdit({ type: "delete", item })}>Delete mapping</button>
     </div>
     <DescriptionField description={mapping.description} onCommit={(description) => applyRigEdit({ type: "setDescription", item, description })} />
-    <RigInputPicker document={document} input={mapping.input} onChange={(input) => void applyRigEdit({ type: "setMappingInput", id: mapping.id, input })} />
+    <RigInputPicker document={document} input={mapping.input} dials={mapping.action.type === "control"} onChange={(input) => void applyRigEdit({ type: "setMappingInput", id: mapping.id, input })} />
     <div className="inspector-inline-row">
       <label>When<select value={when} onChange={(event) => {
         const [type, id] = event.currentTarget.value.split(":");

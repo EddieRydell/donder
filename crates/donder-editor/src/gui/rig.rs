@@ -1,7 +1,7 @@
 //! Rigs: effects played live from input devices.
 use donder_model::{
-    ButtonRef, CompositionGraphNodeKind, ControlTarget, EffectRef, EffectScope, FixtureInstanceId,
-    FixtureTarget as DomainFixtureTarget, InputControlKind, InputDeviceId, LiveMarks,
+    CompositionGraphNodeKind, ControlRef, ControlTarget, EffectRef, EffectScope, FixtureInstanceId,
+    FixtureTarget as DomainFixtureTarget, InputDevice, InputDeviceId, LiveMarks,
     MAX_STACKED_VOICES, Mapping, MappingAction, MarkCollectionKey, Rig, RigId, RigMappingId,
     RigSwitchId, RigVoiceId, SequenceLayerId, SourceIdentity, Switch, Trigger, TriggerLength,
     Voice, VoicePolicy, When,
@@ -19,8 +19,8 @@ use super::projection::{
 };
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_sequence_api::{
-    FixtureTarget, GuiDocument, RigActionChoice, RigButtonRef, RigControlTarget, RigEffectEdit,
-    RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput, RigInputButton, RigInputDevice, RigItem,
+    FixtureTarget, GuiDocument, RigActionChoice, RigControlRef, RigControlTarget, RigEffectEdit,
+    RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl, RigInputDevice, RigItem,
     RigLiveMarks, RigMapping, RigMappingAction, RigSwitch, RigTriggerLength, RigVoice,
     RigVoicePolicy, RigWhen, SequenceEffectReference, SequenceEffectScope,
 };
@@ -174,10 +174,10 @@ fn project_mapping(session: &ProjectSession, mapping: &Mapping) -> RigMapping {
     }
 }
 
-fn project_input(session: &ProjectSession, input: &ButtonRef) -> RigInput {
+fn project_input(session: &ProjectSession, input: &ControlRef) -> RigInput {
     let device = session.project.input_device(&input.device);
     RigInput {
-        button: RigButtonRef {
+        button: RigControlRef {
             device: super::patch::object_ref(&input.device.0, SourceObjectKind::InputDevice),
             control: input.control.0,
         },
@@ -189,7 +189,20 @@ fn project_input(session: &ProjectSession, input: &ButtonRef) -> RigInput {
     }
 }
 
-/// The active setup's input devices and their buttons.
+/// A device's buttons, or its dials.
+fn controls(device: &InputDevice, buttons: bool) -> Vec<RigInputControl> {
+    device
+        .controls
+        .iter()
+        .filter(|control| control.kind.is_button() == buttons)
+        .map(|control| RigInputControl {
+            control: control.id.0,
+            name: control.name.as_str().to_string(),
+        })
+        .collect()
+}
+
+/// The active setup's input devices and their buttons and dials.
 fn input_devices(session: &ProjectSession) -> Vec<RigInputDevice> {
     let Some(setup) = session.project.setup(session.project.root().setup.id()) else {
         return Vec::new();
@@ -203,15 +216,8 @@ fn input_devices(session: &ProjectSession) -> Vec<RigInputDevice> {
             Some(RigInputDevice {
                 device: super::patch::object_ref(&id.0, SourceObjectKind::InputDevice),
                 name: id.0.declared_name().to_string(),
-                buttons: device
-                    .controls
-                    .iter()
-                    .filter(|control| matches!(control.kind, InputControlKind::Button(_)))
-                    .map(|control| RigInputButton {
-                        control: control.id.0,
-                        name: control.name.as_str().to_string(),
-                    })
-                    .collect(),
+                buttons: controls(device, true),
+                dials: controls(device, false),
             })
         })
         .collect()
@@ -545,8 +551,8 @@ fn target_from_gui(
 fn button_from_gui(
     session: &mut ProjectSession,
     owner: &SourceIdentity,
-    button: &RigButtonRef,
-) -> Result<ButtonRef, GuiMutationError> {
+    button: &RigControlRef,
+) -> Result<ControlRef, GuiMutationError> {
     let device = InputDeviceId(object_identity_from_gui(&button.device)?);
     donder_project_io::ensure_document_can_reference_object(
         session,
@@ -554,7 +560,7 @@ fn button_from_gui(
         &device.0,
     )
     .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-    Ok(ButtonRef {
+    Ok(ControlRef {
         device,
         control: donder_model::InputControlId(button.control),
     })
