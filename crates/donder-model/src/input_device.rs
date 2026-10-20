@@ -52,6 +52,21 @@ pub enum InputControlKind {
     Button(ButtonInput),
     /// A position from 0 to 1.
     Dial(DialInput),
+    /// A range of MIDI notes, each its own press: a piano's keys.
+    Keys(KeyRange),
+}
+
+/// MIDI notes from `low` through `high`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct KeyRange {
+    pub low: u8,
+    pub high: u8,
+}
+
+impl KeyRange {
+    pub fn contains(self, note: u8) -> bool {
+        (self.low..=self.high).contains(&note)
+    }
 }
 
 /// The highest MIDI note number.
@@ -87,18 +102,44 @@ pub enum InputSource {
 }
 
 impl InputControlKind {
-    pub fn source(self) -> InputSource {
+    /// Every input the control reads: one, or each key of its range.
+    pub fn sources(self) -> Vec<InputSource> {
         match self {
-            Self::Button(ButtonInput::Key(code)) => InputSource::Key(code),
-            Self::Button(ButtonInput::Note(note)) => InputSource::Note(note),
+            Self::Button(ButtonInput::Key(code)) => vec![InputSource::Key(code)],
+            Self::Button(ButtonInput::Note(note)) => vec![InputSource::Note(note)],
             Self::Button(ButtonInput::ControlChange(number))
-            | Self::Dial(DialInput::ControlChange(number)) => InputSource::ControlChange(number),
-            Self::Dial(DialInput::PitchBend) => InputSource::PitchBend,
+            | Self::Dial(DialInput::ControlChange(number)) => {
+                vec![InputSource::ControlChange(number)]
+            }
+            Self::Dial(DialInput::PitchBend) => vec![InputSource::PitchBend],
+            Self::Keys(range) => (range.low..=range.high).map(InputSource::Note).collect(),
         }
     }
 
+    /// Whether it is a single button, which switches and `Control` mappings
+    /// can play from.
     pub fn is_button(self) -> bool {
         matches!(self, Self::Button(_))
+    }
+
+    /// Whether it is pressed and released, as a button or the keys of a
+    /// range are, so it can trigger effects and add marks.
+    pub fn is_pressed(self) -> bool {
+        matches!(self, Self::Button(_) | Self::Keys(_))
+    }
+
+    /// The notes a press can carry: a note button's, or its range.
+    pub fn notes(self) -> Option<KeyRange> {
+        match self {
+            Self::Button(ButtonInput::Note(note)) => Some(KeyRange {
+                low: note,
+                high: note,
+            }),
+            Self::Keys(range) => Some(range),
+            Self::Button(ButtonInput::Key(_) | ButtonInput::ControlChange(_)) | Self::Dial(_) => {
+                None
+            }
+        }
     }
 }
 
@@ -270,7 +311,8 @@ pub enum InputDeviceValidationError {
     DuplicateInput(Identifier),
     /// A control reads an input its device's driver does not have.
     ForeignInput(Identifier),
-    /// A note or control change number MIDI does not have.
+    /// A note or control change number MIDI does not have, or keys whose
+    /// lowest note is above their highest.
     InputOutOfRange(Identifier),
 }
 
@@ -295,7 +337,7 @@ impl std::fmt::Display for InputDeviceValidationError {
             ),
             Self::InputOutOfRange(name) => write!(
                 f,
-                "control `{}` reads a note above {MAX_MIDI_NOTE} or a control change above {MAX_MIDI_CONTROL_CHANGE}",
+                "control `{}` reads a note above {MAX_MIDI_NOTE}, a control change above {MAX_MIDI_CONTROL_CHANGE}, or keys from a higher note to a lower one",
                 name.as_str()
             ),
         }
@@ -318,18 +360,18 @@ impl InputDevice {
                     control.name.clone(),
                 ));
             }
-            let source = control.kind.source();
-            if !self.driver.reads(source) {
+            let sources = control.kind.sources();
+            if sources.iter().any(|source| !self.driver.reads(*source)) {
                 return Err(InputDeviceValidationError::ForeignInput(
                     control.name.clone(),
                 ));
             }
-            if !source.in_range() {
+            if sources.is_empty() || sources.iter().any(|source| !source.in_range()) {
                 return Err(InputDeviceValidationError::InputOutOfRange(
                     control.name.clone(),
                 ));
             }
-            if !inputs.insert(source) {
+            if !sources.into_iter().all(|source| inputs.insert(source)) {
                 return Err(InputDeviceValidationError::DuplicateInput(
                     control.name.clone(),
                 ));

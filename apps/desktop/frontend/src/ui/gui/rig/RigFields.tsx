@@ -1,22 +1,29 @@
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { THEME_COLORS } from "../../../theme";
-import type { RigEffect, RigEffectOwner, RigGuiDocument, RigInput, RigInputDevice, RigControlRef, SequenceEffectScope } from "../../../types";
+import type { RigEffect, RigEffectOwner, RigGuiDocument, RigInput, RigInputDevice, RigControlRef, RigMappingAction, SequenceEffectScope } from "../../../types";
 import { EffectDefinitionPicker } from "../sequence/definitionMenu";
 import { TypedParamInput } from "../sequence/params/TypedParamInput";
 import { editRigEffect } from "./rigEditing";
 
-/** A button of the setup's input devices, or a dial when `dials` is set:
- * the device, then its control. */
-export function RigInputPicker({ document, input, dials = false, onChange }: {
+/** What plays from an input: a switch, or a mapping's action. */
+export type RigInputUse = "switch" | RigMappingAction["type"];
+
+/** A control of the setup's input devices that `use` can play from: the
+ * device, then its control. Switches play from buttons, `Control` mappings
+ * from buttons and dials, and triggers and marks from buttons and keys. */
+export function RigInputPicker({ document, input, use, onChange }: {
   document: RigGuiDocument;
   input: RigInput;
-  /** Whether the input may be a dial, as a `Control` mapping's may. */
-  dials?: boolean;
+  use: RigInputUse;
   onChange: (control: RigControlRef) => void;
 }) {
   const currentKey = guiObjectKey(input.button.device);
   const device = document.inputDevices.find((candidate) => guiObjectKey(candidate.device) === currentKey);
-  const choices = (candidate: RigInputDevice) => dials ? [...candidate.buttons, ...candidate.dials] : candidate.buttons;
+  const choices = (candidate: RigInputDevice) => [
+    ...candidate.buttons,
+    ...use === "control" ? candidate.dials : [],
+    ...use === "trigger" || use === "mark" ? candidate.keys : []
+  ];
   const controls = device === undefined ? [] : choices(device);
   return <div className="inspector-inline-row">
     <label>Device<select value={currentKey} onChange={(event) => {
@@ -27,12 +34,13 @@ export function RigInputPicker({ document, input, dials = false, onChange }: {
       {device === undefined && <option value={currentKey} disabled>{input.deviceName} (not in the setup)</option>}
       {document.inputDevices.map((candidate) => <option key={guiObjectKey(candidate.device)} value={guiObjectKey(candidate.device)} disabled={choices(candidate).length === 0}>{candidate.name}</option>)}
     </select></label>
-    <label>{dials ? "Control" : "Button"}<select value={input.button.control} onChange={(event) => {
+    <label>{use === "switch" ? "Button" : "Control"}<select value={input.button.control} onChange={(event) => {
       if (device !== undefined) onChange({ device: device.device, control: Number(event.currentTarget.value) });
     }}>
       {!controls.some((control) => control.control === input.button.control) && <option value={input.button.control} disabled>{input.controlName}</option>}
       {device?.buttons.map((button) => <option key={button.control} value={button.control}>{button.name}</option>)}
-      {dials && device?.dials.map((dial) => <option key={dial.control} value={dial.control}>{dial.name} (dial)</option>)}
+      {use === "control" && device?.dials.map((dial) => <option key={dial.control} value={dial.control}>{dial.name} (dial)</option>)}
+      {(use === "trigger" || use === "mark") && device?.keys.map((keys) => <option key={keys.control} value={keys.control}>{keys.name} (keys)</option>)}
     </select></label>
   </div>;
 }

@@ -10,7 +10,8 @@ use crate::midi::{Held, MidiInputs, MidiMessage};
 use crate::rendering::{RigOutput, SessionClock};
 use donder_elaboration::{PreparationCache, PrepareOutputs, RigRouter};
 use donder_model::{
-    ControllerId, DonderProject, InputControlKind, InputDriver, InputSource, KeyCode, RigId,
+    ButtonInput, ControllerId, DialInput, DonderProject, InputControlKind, InputDriver, KeyCode,
+    KeyRange, RigId,
 };
 use donder_runtime::PreparedRig;
 use donder_runtime_types::{RigEvent, SampleTime, sample_time_seconds_f32};
@@ -41,10 +42,21 @@ pub(crate) struct PreviewPerformance {
 struct MidiBinding {
     /// Ports whose name contains this, ignoring case, or every port.
     port: Option<String>,
-    source: InputSource,
-    /// The router input, a button or a dial.
+    reads: MidiRead,
+    /// The router input.
     input: usize,
-    button: bool,
+}
+
+/// What a MIDI control reads.
+#[derive(Clone, Copy)]
+enum MidiRead {
+    Note(u8),
+    Keys(KeyRange),
+    /// A control change read as a button, as a pedal is.
+    Pedal(u8),
+    /// A control change read as a dial.
+    Dial(u8),
+    PitchBend,
 }
 
 /// Whether a device that reads `wanted` reads the port named `port`: one
@@ -213,21 +225,30 @@ impl DesktopState {
                     device: device.id.0.declared_name().to_string(),
                     control: control.name.as_str().to_string(),
                 });
-                // Every button of the setup with this key, note or pedal plays.
-                match (&device.driver, control.kind.source()) {
-                    (InputDriver::Keyboard, InputSource::Key(code)) => {
+                // Every control of the setup with this key, note or pedal plays.
+                let reads = match control.kind {
+                    InputControlKind::Button(ButtonInput::Key(code)) => {
                         keys.entry(code).or_default().push(index);
+                        continue;
                     }
-                    (InputDriver::Midi { port }, source) => midi.push(MidiBinding {
-                        port: port.clone(),
-                        source,
-                        input: index,
-                        button: matches!(control.kind, InputControlKind::Button(_)),
-                    }),
-                    (InputDriver::Keyboard, _) => {
-                        return Err("A keyboard control reads a MIDI input.".into());
+                    InputControlKind::Button(ButtonInput::Note(note)) => MidiRead::Note(note),
+                    InputControlKind::Button(ButtonInput::ControlChange(number)) => {
+                        MidiRead::Pedal(number)
                     }
-                }
+                    InputControlKind::Dial(DialInput::ControlChange(number)) => {
+                        MidiRead::Dial(number)
+                    }
+                    InputControlKind::Dial(DialInput::PitchBend) => MidiRead::PitchBend,
+                    InputControlKind::Keys(range) => MidiRead::Keys(range),
+                };
+                let InputDriver::Midi { port } = &device.driver else {
+                    return Err("A keyboard control reads a MIDI input.".into());
+                };
+                midi.push(MidiBinding {
+                    port: port.clone(),
+                    reads,
+                    input: index,
+                });
             }
             let generation = perform.generation.wrapping_add(1);
             let midi_inputs = (!midi.is_empty()).then(|| {
@@ -332,42 +353,58 @@ impl DesktopState {
     }
 
     /// A MIDI message from `port` while performance `generation` plays.
-    /// Notes and pedals press and release buttons; control changes and
-    /// pitch bend turn dials.
+    /// Notes strike note buttons and keys, pedals press and release buttons,
+    /// and control changes and pitch bend turn dials.
     fn perform_midi(&self, generation: u32, port: &str, message: MidiMessage) {
         self.route(|performance, time| {
             if performance.generation != generation {
                 return None;
             }
-            let (source, value) = match message {
-                MidiMessage::NoteOn { note, .. } => (InputSource::Note(note), 1.0),
-                MidiMessage::NoteOff { note } => (InputSource::Note(note), 0.0),
-                MidiMessage::ControlChange { number, value } => {
-                    (InputSource::ControlChange(number), f32::from(value) / 127.0)
-                }
-                MidiMessage::PitchBend { value } => {
-                    (InputSource::PitchBend, f32::from(value) / 16383.0)
-                }
-            };
-            let inputs = performance
-                .midi
-                .iter()
-                .filter(|binding| {
-                    binding.source == source && reads_port(binding.port.as_deref(), port)
-                })
-                .map(|binding| (binding.input, binding.button))
-                .collect::<Vec<_>>();
             let mut events = Vec::new();
-            for (input, button) in inputs {
-                events.extend(match (button, message) {
-                    (true, MidiMessage::NoteOn { .. }) => performance.router.press(input, time),
-                    (true, MidiMessage::NoteOff { .. }) => performance.router.release(input, time),
-                    // A pedal is down at 64 and above.
-                    (true, MidiMessage::ControlChange { value, .. }) if value >= 64 => {
-                        performance.router.press(input, time)
+            for binding in &performance.midi {
+                if !reads_port(binding.port.as_deref(), port) {
+                    continue;
+                }
+                let router = &mut performance.router;
+                let input = binding.input;
+                events.extend(match (binding.reads, message) {
+                    (MidiRead::Note(read), MidiMessage::NoteOn { note, velocity })
+                        if read == note =>
+                    {
+                        router.strike(input, note, f32::from(velocity) / 127.0, time)
                     }
-                    (true, _) => performance.router.release(input, time),
-                    (false, _) => performance.router.turn(input, value, time),
+                    (MidiRead::Keys(range), MidiMessage::NoteOn { note, velocity })
+                        if range.contains(note) =>
+                    {
+                        router.strike(input, note, f32::from(velocity) / 127.0, time)
+                    }
+                    (MidiRead::Note(read), MidiMessage::NoteOff { note }) if read == note => {
+                        router.release_note(input, note, time)
+                    }
+                    (MidiRead::Keys(range), MidiMessage::NoteOff { note })
+                        if range.contains(note) =>
+                    {
+                        router.release_note(input, note, time)
+                    }
+                    // A pedal is down at 64 and above.
+                    (MidiRead::Pedal(read), MidiMessage::ControlChange { number, value })
+                        if read == number =>
+                    {
+                        if value >= 64 {
+                            router.press(input, time)
+                        } else {
+                            router.release(input, time)
+                        }
+                    }
+                    (MidiRead::Dial(read), MidiMessage::ControlChange { number, value })
+                        if read == number =>
+                    {
+                        router.turn(input, f32::from(value) / 127.0, time)
+                    }
+                    (MidiRead::PitchBend, MidiMessage::PitchBend { value }) => {
+                        router.turn(input, f32::from(value) / 16383.0, time)
+                    }
+                    _ => Vec::new(),
                 });
             }
             (!events.is_empty()).then_some(events)
@@ -387,8 +424,7 @@ impl DesktopState {
             }
             let mut events = Vec::new();
             for binding in &performance.midi {
-                if let InputSource::ControlChange(number) = binding.source
-                    && binding.button
+                if let MidiRead::Pedal(number) = binding.reads
                     && held.control_changes.contains(&number)
                     && reads_port(binding.port.as_deref(), port)
                 {

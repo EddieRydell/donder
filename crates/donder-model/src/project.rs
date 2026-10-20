@@ -17,7 +17,7 @@ pub use editing::ProjectEdit;
 mod accepted;
 pub use accepted::{
     AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigEffect, AcceptedSequence,
-    RIG_SESSION, RigEffectOrigin,
+    RIG_SESSION, RigBinding, RigEffectOrigin,
 };
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;

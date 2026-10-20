@@ -1,22 +1,30 @@
 //! Arming a rig: its effects prepared once on the active setup, each trigger
-//! with its pool of dormant voices, and the router that turns button presses
-//! into the commands that start and stop them.
+//! with its pool of dormant voices and a control per voice for each value its
+//! presses set, and the router that turns presses into the commands that
+//! start and stop them.
 mod router;
 #[cfg(test)]
 mod tests;
 
-pub use router::{RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedVoices};
+pub use router::{
+    RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedNotes, RoutedSource, RoutedValue,
+    RoutedVoices,
+};
 
 use crate::PrepareOutputs;
 use crate::sequence::{PreparationCache, composition, prepare_routes, programs::Programs};
 use crate::stage::{Stage, Targets};
 use donder_model::{
-    ControlRef, DonderProject, MappingAction, MarkCollectionKey, RIG_SESSION, RigEffectOrigin,
-    RigId, RigMappingId, TriggerLength, VoicePolicy, When,
+    ButtonInput, ControlRef, DonderProject, InputControlKind, MappingAction, MarkCollectionKey,
+    PlayedSource, RIG_SESSION, RigBinding, RigEffectOrigin, RigId, RigMappingId, TriggerLength,
+    VoicePolicy, When,
 };
 use donder_runtime::{EffectHandle, PreparedRig, VoiceLength};
 use donder_runtime_types::{SampleDuration, Shared, sample_duration_seconds_f32};
 use indexmap::IndexMap;
+
+/// Automation bindings a control sets: an effect, and its binding.
+type Bindings<'a> = Vec<(EffectHandle<'a>, u16)>;
 
 /// A rig ready to perform: its playback data and the routing of its buttons.
 pub struct ArmedRig {
@@ -50,6 +58,8 @@ pub fn arm(
     let mut trigger_voices: IndexMap<RigMappingId, Vec<u16>> = IndexMap::new();
     let mut collections: IndexMap<&MarkCollectionKey, u16> = IndexMap::new();
     let mut controls: IndexMap<RigMappingId, u16> = IndexMap::new();
+    // Each trigger's controls for its played values, by value, then voice.
+    let mut played_controls: IndexMap<RigMappingId, Vec<Box<[u16]>>> = IndexMap::new();
     let prepared = PreparedRig::build(accepted.timing().clone(), |builder| {
         let fixtures = stage.fixtures(builder, &selected);
         let mut targets = Targets::default();
@@ -64,6 +74,8 @@ pub fn arm(
             .map(|marks| (&marks.key, Vec::new()))
             .collect();
         let mut bindings: IndexMap<RigMappingId, Vec<(EffectHandle<'_>, u16)>> = IndexMap::new();
+        // Each trigger's played bindings, by voice, then value.
+        let mut played: IndexMap<RigMappingId, Vec<Vec<Bindings<'_>>>> = IndexMap::new();
         for effect in accepted.effects() {
             let authored = effect.effect();
             let (length, count) = match effect.origin() {
@@ -120,7 +132,12 @@ pub fn arm(
                 }
             };
             let mut voices = Vec::new();
-            for _ in 0..count {
+            let value_count = match effect.origin() {
+                RigEffectOrigin::Trigger(_, trigger) => trigger.values.len(),
+                RigEffectOrigin::Voice(_) => 0,
+            };
+            let mut values = vec![vec![Vec::new(); value_count]; usize::from(count)];
+            for voice_values in &mut values {
                 let handle = builder.sample(&invocation, builder.whole_sequence(), target);
                 if let Some(length) = length {
                     voices.push(builder.voice(handle, length));
@@ -129,10 +146,15 @@ pub fn arm(
                     readers[key].push((handle, param));
                 }
                 for index in 0..lowered.len() {
-                    bindings
-                        .entry(effect.controls()[source(index)])
-                        .or_default()
-                        .push((handle, index as u16));
+                    match effect.controls()[source(index)] {
+                        RigBinding::Control(mapping) => bindings
+                            .entry(mapping)
+                            .or_default()
+                            .push((handle, index as u16)),
+                        RigBinding::Played(value) => {
+                            voice_values[value].push((handle, index as u16));
+                        }
+                    }
                 }
                 if !dropped {
                     layer_effects[&authored.layer_id].push(handle);
@@ -140,6 +162,7 @@ pub fn arm(
             }
             if let RigEffectOrigin::Trigger(mapping, _) = effect.origin() {
                 trigger_voices.insert(mapping.id, voices);
+                played.insert(mapping.id, values);
             }
         }
         for (key, readers) in readers {
@@ -150,6 +173,18 @@ pub fn arm(
                 let targets = bindings.shift_remove(&mapping.id).unwrap_or_default();
                 controls.insert(mapping.id, builder.control(targets));
             }
+        }
+        for (mapping, mut voices) in played {
+            let value_count = voices.first().map_or(0, Vec::len);
+            let controls = (0..value_count)
+                .map(|value| {
+                    voices
+                        .iter_mut()
+                        .map(|values| builder.control(std::mem::take(&mut values[value])))
+                        .collect()
+                })
+                .collect();
+            played_controls.insert(mapping, controls);
         }
         let layers = rig
             .layers
@@ -218,6 +253,20 @@ pub fn arm(
                 },
                 action: match &mapping.action {
                     MappingAction::Trigger(trigger) => RoutedAction::Trigger {
+                        values: trigger
+                            .values
+                            .iter()
+                            .zip(played_controls.get(&mapping.id)?)
+                            .map(|(value, controls)| RoutedValue {
+                                source: match value.from {
+                                    PlayedSource::Velocity => RoutedSource::Velocity,
+                                    PlayedSource::Pitch => RoutedSource::Pitch,
+                                    PlayedSource::PitchClass => RoutedSource::PitchClass,
+                                    PlayedSource::Fifths => RoutedSource::Fifths,
+                                },
+                                controls: controls.clone(),
+                            })
+                            .collect(),
                         voices: trigger_voices.get(&mapping.id)?.clone().into(),
                         length: match &trigger.length {
                             TriggerLength::Fixed(duration) => RoutedLength::Fixed(
@@ -242,9 +291,26 @@ pub fn arm(
             })
         })
         .collect::<Option<Box<[_]>>>()?;
+    let notes = buttons
+        .iter()
+        .map(|input| {
+            let control = project
+                .input_device(&input.device)?
+                .control(input.control)?;
+            Some(match control.kind {
+                InputControlKind::Button(ButtonInput::Note(note)) => RoutedNotes::Note(note),
+                InputControlKind::Keys(range) => RoutedNotes::Keys {
+                    low: range.low,
+                    high: range.high,
+                },
+                InputControlKind::Button(ButtonInput::Key(_) | ButtonInput::ControlChange(_))
+                | InputControlKind::Dial(_) => RoutedNotes::None,
+            })
+        })
+        .collect::<Option<Box<[_]>>>()?;
     Some(ArmedRig {
         prepared,
-        router: RigRouter::new(buttons.len(), switches, mappings),
+        router: RigRouter::new(notes, switches, mappings),
         buttons: buttons.into(),
     })
 }

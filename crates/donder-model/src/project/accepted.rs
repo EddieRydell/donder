@@ -8,11 +8,11 @@ mod inputs;
 mod parameters;
 mod patch;
 mod rig;
-use crate::rig::{Mapping, Rig, RigEffect, RigId, RigMappingId, Trigger, Voice};
+use crate::rig::{Mapping, Rig, RigEffect, RigId, Trigger, Voice};
 use crate::sequence::MarkCollectionKey;
 use donder_language::compiler::Invocation;
 pub(super) use inputs::ProjectInputs;
-pub use rig::RIG_SESSION;
+pub use rig::{RIG_SESSION, RigBinding};
 
 /// A sequence borrowed from the same accepted project as all its dependencies.
 #[derive(Clone, Copy)]
@@ -192,8 +192,8 @@ impl<'a> AcceptedRigEffect<'a> {
         &self.inputs.live
     }
 
-    /// The `Control` mapping each of the invocation's automation bindings answers.
-    pub fn controls(self) -> &'a [RigMappingId] {
+    /// What sets each of the invocation's automation bindings.
+    pub fn controls(self) -> &'a [RigBinding] {
         &self.inputs.controls
     }
 }

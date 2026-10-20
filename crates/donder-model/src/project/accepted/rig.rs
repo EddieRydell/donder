@@ -1,7 +1,8 @@
 //! Playback invocations of a rig's effects and operators, admitted with the
 //! project like a sequence's. A rig's live mark collections start empty and
-//! are rebound during playback; each `Control` mapping is an automation
-//! binding on its effect whose value playback sets.
+//! are rebound during playback; each `Control` mapping, and each value a
+//! trigger's presses set, is an automation binding on its effect whose value
+//! playback sets.
 use super::inputs::{invalid, resolve_values};
 use super::parameters::{EffectParamTiming, MarkSource};
 use super::*;
@@ -35,9 +36,18 @@ pub(super) struct RigEffectInputs {
     /// The live collection each live marks parameter reads, in the order the
     /// invocation lists them.
     pub(super) live: Box<[MarkCollectionKey]>,
-    /// The `Control` mapping each of the invocation's automation bindings
-    /// answers, in binding order.
-    pub(super) controls: Box<[RigMappingId]>,
+    /// What sets each of the invocation's automation bindings, in binding
+    /// order.
+    pub(super) controls: Box<[RigBinding]>,
+}
+
+/// What sets an automation binding of a rig effect.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RigBinding {
+    /// A `Control` mapping, for every voice of the effect.
+    Control(RigMappingId),
+    /// The trigger's `index`th played value, for the voice each press starts.
+    Played(usize),
 }
 
 pub(super) fn admit(
@@ -50,21 +60,40 @@ pub(super) fn admit(
 }
 
 fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectValidationError> {
+    let bindings = rig
+        .mappings
+        .iter()
+        .flat_map(|mapping| match &mapping.action {
+            MappingAction::Control { target, param } => {
+                vec![(*target, RigBinding::Control(mapping.id), param)]
+            }
+            MappingAction::Trigger(trigger) => trigger
+                .values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    (
+                        ControlTarget::Trigger(mapping.id),
+                        RigBinding::Played(index),
+                        &value.param,
+                    )
+                })
+                .collect(),
+            MappingAction::Mark(_) => Vec::new(),
+        });
     let mut controls: IndexMap<
         ControlTarget,
-        Vec<(RigMappingId, &donder_runtime_types::Identifier)>,
+        Vec<(RigBinding, &donder_runtime_types::Identifier)>,
     > = IndexMap::new();
-    for mapping in &rig.mappings {
-        if let MappingAction::Control { target, param } = &mapping.action {
-            let bound = controls.entry(*target).or_default();
-            if bound.iter().any(|(_, existing)| *existing == param) {
-                return Err(invalid(format!(
-                    "Two controls set parameter `{}` of the same voice",
-                    param.as_str()
-                )));
-            }
-            bound.push((mapping.id, param));
+    for (target, binding, param) in bindings {
+        let bound = controls.entry(target).or_default();
+        if bound.iter().any(|(_, existing)| *existing == param) {
+            return Err(invalid(format!(
+                "Two controls set parameter `{}` of the same voice",
+                param.as_str()
+            )));
         }
+        bound.push((binding, param));
     }
     let targets = rig
         .voices
@@ -124,7 +153,7 @@ fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectVal
 fn admit_effect(
     project: &DonderProject,
     effect: &RigEffect,
-    controls: &[(RigMappingId, &donder_runtime_types::Identifier)],
+    controls: &[(RigBinding, &donder_runtime_types::Identifier)],
 ) -> Result<RigEffectInputs, ProjectValidationError> {
     let EffectRef::Custom(id) = &effect.definition;
     let definition = &project.definitions().effects.definitions[id];
@@ -157,7 +186,8 @@ fn admit_effect(
             Ok(PreparedAutomation {
                 start: SampleTime::from_ticks(0),
                 duration: RIG_SESSION,
-                // Every control starts at the bottom of its range, released.
+                // Every control starts at the bottom of its range, released,
+                // and a played value is set before its voice sounds.
                 curve: Arc::new(Curve {
                     points: vec![CurvePoint {
                         position: 0.0,
@@ -177,7 +207,7 @@ fn admit_effect(
     Ok(RigEffectInputs {
         invocation,
         live: live.into(),
-        controls: controls.iter().map(|(mapping, _)| *mapping).collect(),
+        controls: controls.iter().map(|(binding, _)| *binding).collect(),
     })
 }
 
