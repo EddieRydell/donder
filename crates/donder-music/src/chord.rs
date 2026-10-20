@@ -100,11 +100,11 @@ const TEMPLATES: &[Template] = &[
     },
     Template {
         quality: ChordQuality::Suspended,
-        tones: &[(0, 1.0), (5, 1.0), (7, 0.8)],
+        tones: &[(0, 1.0), (5, 1.0), (7, 0.65)],
     },
     Template {
         quality: ChordQuality::Suspended,
-        tones: &[(0, 1.0), (2, 1.0), (7, 0.8)],
+        tones: &[(0, 1.0), (2, 1.0), (7, 0.65)],
     },
 ];
 

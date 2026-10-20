@@ -19,7 +19,7 @@ pub use chord::{Chord, ChordQuality};
 pub use key::{Key, Mode};
 
 use chord::recognise;
-use key::KeyFinder;
+use key::{KeyChange, KeyFinder};
 use rhythm::BeatTracker;
 
 /// A musical moment a listener notices, which plays as a button.
@@ -38,7 +38,7 @@ pub enum Heard {
     RunUp,
     /// A fast run down the keyboard. Momentary.
     RunDown,
-    /// Four or more notes struck hard together. Momentary.
+    /// Five or more notes struck hard together. Momentary.
     BigChord,
     /// Held while the chord is of this quality.
     Chord(ChordQuality),
@@ -73,7 +73,7 @@ pub enum Measure {
     Density,
     /// How high the sounding notes are, from the bottom of a piano to its top.
     Register,
-    /// The tempo, from 40 beats a minute at 0 to 200 at 1.
+    /// The tempo, from 60 beats a minute at 0 to 200 at 1.
     Tempo,
 }
 
@@ -123,8 +123,8 @@ const SETTLE: f64 = 0.04;
 const MELODY: usize = 72;
 const MELODY_WEIGHT: f32 = 0.4;
 /// A big chord: this many notes within `CHORD_SPREAD`, this hard on average.
-const BIG_CHORD_NOTES: usize = 4;
-const BIG_CHORD_VELOCITY: f32 = 0.7;
+const BIG_CHORD_NOTES: usize = 5;
+const BIG_CHORD_VELOCITY: f32 = 0.85;
 /// A run: notes this close in time, stepping at most this far, for at least
 /// this many notes spanning at least this many semitones.
 const RUN_GAP: f64 = 0.14;
@@ -308,26 +308,35 @@ impl Listener {
 
     fn notice_run(&mut self, note: u8, time: f64, noticed: &mut Vec<Noticed>) {
         let run = &mut self.run;
-        let continues = run.last.is_some_and(|(last, at)| {
-            let step = note.abs_diff(last);
-            let rising = note > last;
-            time - at <= RUN_GAP
-                && (1..=RUN_STEP).contains(&step)
-                && run.rising.is_none_or(|direction| direction == rising)
+        // The note before, when this one steps on from it quickly.
+        let stepped = run.last.filter(|(last, at)| {
+            time - at <= RUN_GAP && (1..=RUN_STEP).contains(&note.abs_diff(*last))
         });
-        if continues {
-            let (last, _) = run.last.unwrap_or((note, time));
-            run.rising = Some(note > last);
-            run.notes += 1;
-            run.low = run.low.min(note);
-            run.high = run.high.max(note);
-        } else {
-            *run = Run {
-                low: note,
-                high: note,
-                notes: 1,
-                ..Run::default()
-            };
+        match stepped {
+            Some((last, _)) if run.rising.is_none_or(|rising| rising == (note > last)) => {
+                run.rising = Some(note > last);
+                run.notes += 1;
+                run.low = run.low.min(note);
+                run.high = run.high.max(note);
+            }
+            // A run that turns round starts again from the note it turned at.
+            Some((last, _)) => {
+                *run = Run {
+                    rising: Some(note > last),
+                    low: last.min(note),
+                    high: last.max(note),
+                    notes: 2,
+                    ..Run::default()
+                };
+            }
+            None => {
+                *run = Run {
+                    low: note,
+                    high: note,
+                    notes: 1,
+                    ..Run::default()
+                };
+            }
         }
         run.last = Some((note, time));
         if !run.noticed && run.notes >= RUN_NOTES && run.high - run.low >= RUN_SPAN {
@@ -345,12 +354,22 @@ impl Listener {
     }
 
     fn notice_big_chord(&mut self, time: f64, noticed: &mut Vec<Noticed>) {
-        let struck = self
+        // Each note once, however often it was struck again.
+        let mut struck: Vec<(u8, f32)> = Vec::new();
+        for &(_, note, velocity) in self
             .onsets
             .iter()
             .rev()
             .take_while(|(at, _, _)| time - at <= CHORD_SPREAD)
-            .map(|(_, _, velocity)| *velocity)
+        {
+            match struck.iter_mut().find(|(other, _)| *other == note) {
+                Some((_, hardest)) => *hardest = hardest.max(velocity),
+                None => struck.push((note, velocity)),
+            }
+        }
+        let struck = struck
+            .into_iter()
+            .map(|(_, velocity)| velocity)
             .collect::<Vec<_>>();
         let hard = struck.iter().sum::<f32>() / struck.len().max(1) as f32;
         if struck.len() >= BIG_CHORD_NOTES
@@ -387,9 +406,14 @@ impl Listener {
 
     fn notice_harmony(&mut self, time: f64, noticed: &mut Vec<Noticed>) {
         let (weights, bass) = self.sounding_weights(time);
-        if let Some((from, to)) = self.keys.take_change() {
+        if let Some(KeyChange {
+            from,
+            to,
+            established,
+        }) = self.keys.take_change()
+        {
             // Finding the first key is not a change of key.
-            if from.is_some() {
+            if established {
                 self.moment(Heard::KeyChange, noticed);
             }
             for mode in [Mode::Major, Mode::Minor] {
@@ -418,7 +442,7 @@ impl Listener {
         }
         let previous = self.chord.replace(chord);
         self.moment(Heard::ChordChange, noticed);
-        if previous.is_some_and(|previous| chord.resolves(previous, self.keys.key())) {
+        if previous.is_some_and(|previous| chord.resolves(previous, self.keys.settled(time))) {
             self.moment(Heard::Resolution, noticed);
         }
         let was = previous.map(|previous| previous.quality);
@@ -500,7 +524,7 @@ impl Listener {
             }
             Measure::Tempo => {
                 let bpm = 60.0 / self.beats.period()?;
-                ((bpm - 40.0) / 160.0).clamp(0.0, 1.0) as f32
+                ((bpm - 60.0) / 140.0).clamp(0.0, 1.0) as f32
             }
         })
     }

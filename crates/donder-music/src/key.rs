@@ -36,26 +36,49 @@ const MINOR_PROFILE: [f64; 12] = [
 ];
 
 /// How long the profile takes to fade to about a third, in seconds.
-const MEMORY: f64 = 7.0;
-/// The profile weight, about six notes, before the listener names a key.
-const FIRST_KEY: f64 = 6.0;
+const MEMORY: f64 = 10.0;
+/// The profile weight, about sixteen notes, before the listener names a key.
+const FIRST_KEY: f64 = 18.0;
+/// How long a key must have held before a major chord falling home to its
+/// tonic counts as a resolution, in seconds.
+const SETTLED: f64 = 4.0;
+/// How long a key must have held for a new one to be a change of key, in
+/// seconds; earlier, the listener is still finding the first key.
+const ESTABLISHED: f64 = 8.0;
 /// How much better a new key must correlate, and for how long, to change.
-const CHANGE_MARGIN: f64 = 0.06;
-const CHANGE_HOLD: f64 = 1.0;
+const CHANGE_MARGIN: f64 = 0.1;
+const CHANGE_HOLD: f64 = 2.5;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct KeyFinder {
     profile: [f64; 12],
     at: f64,
     key: Option<Key>,
+    /// When the key was last named.
+    since: f64,
     /// A key that leads, and since when.
     candidate: Option<(Key, f64)>,
-    change: Option<(Option<Key>, Key)>,
+    change: Option<KeyChange>,
+}
+
+/// The key the listener names, from the key it named before.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct KeyChange {
+    pub(crate) from: Option<Key>,
+    pub(crate) to: Key,
+    /// The key before had held long enough for this to be a change of key;
+    /// otherwise the listener was still finding the first key.
+    pub(crate) established: bool,
 }
 
 impl KeyFinder {
     pub(crate) fn key(&self) -> Option<Key> {
         self.key
+    }
+
+    /// The key, once it has held long enough to hear a cadence in it.
+    pub(crate) fn settled(&self, time: f64) -> Option<Key> {
+        self.key.filter(|_| time - self.since >= SETTLED)
     }
 
     pub(crate) fn hear(&mut self, note: u8, velocity: f32, time: f64) {
@@ -73,7 +96,12 @@ impl KeyFinder {
                 && let Some((best, _)) = self.best()
             {
                 self.key = Some(best);
-                self.change = Some((None, best));
+                self.since = time;
+                self.change = Some(KeyChange {
+                    from: None,
+                    to: best,
+                    established: false,
+                });
             }
             return;
         };
@@ -87,17 +115,22 @@ impl KeyFinder {
         match self.candidate {
             Some((candidate, since)) if candidate == best => {
                 if time - since >= CHANGE_HOLD {
+                    self.change = Some(KeyChange {
+                        from: Some(current),
+                        to: best,
+                        established: time - self.since >= ESTABLISHED,
+                    });
                     self.key = Some(best);
+                    self.since = time;
                     self.candidate = None;
-                    self.change = Some((Some(current), best));
                 }
             }
             _ => self.candidate = Some((best, time)),
         }
     }
 
-    /// The key change since the last call, from the key before it.
-    pub(crate) fn take_change(&mut self) -> Option<(Option<Key>, Key)> {
+    /// The key change since the last call.
+    pub(crate) fn take_change(&mut self) -> Option<KeyChange> {
         self.change.take()
     }
 

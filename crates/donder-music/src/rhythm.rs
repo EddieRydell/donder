@@ -23,6 +23,10 @@ const ESTIMATE_INTERVAL: f64 = 0.25;
 const STOP_AFTER: f64 = 3.0;
 /// An onset within this share of a period of a beat sets the phase.
 const SNAP: f64 = 0.2;
+/// The width of an interval histogram bin, in seconds, and how many bins
+/// reach past four of the longest periods.
+const INTERVAL_BIN: f64 = 0.002;
+const INTERVAL_BINS: usize = ((4.0 * LONGEST + 0.3) / INTERVAL_BIN) as usize;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct BeatTracker {
@@ -101,25 +105,36 @@ impl BeatTracker {
         true
     }
 
-    /// The period that best explains the recent onsets.
+    /// The period that best explains the recent onsets. The intervals
+    /// between onsets are gathered once into a histogram, so each period
+    /// scores a few hundred bins rather than every pair of onsets.
     fn estimate(&self) -> Option<f64> {
-        let onsets = self.onsets.iter().copied().collect::<Vec<_>>();
+        let mut intervals = vec![0.0f64; INTERVAL_BINS];
+        for (index, &(earlier, weight)) in self.onsets.iter().enumerate() {
+            for &(later, other) in self.onsets.iter().skip(index + 1) {
+                let Some(bin) =
+                    intervals.get_mut(((later - earlier) / INTERVAL_BIN).round() as usize)
+                else {
+                    break;
+                };
+                *bin += f64::from(weight * other);
+            }
+        }
         let mut best: Option<(f64, f64)> = None;
-        let mut period = SHORTEST;
-        while period <= LONGEST {
+        // Whole steps, so adding steps up never skips the longest period.
+        let steps = ((LONGEST - SHORTEST) / STEP).round() as usize;
+        for step in 0..=steps {
+            let period = SHORTEST + step as f64 * STEP;
             let spread = 0.03 + 0.04 * period;
+            let longest = 4.0 * period + spread;
             let mut score = 0.0;
-            for (index, &(earlier, weight)) in onsets.iter().enumerate() {
-                for &(later, other) in &onsets[index + 1..] {
-                    let interval = later - earlier;
-                    if interval > 4.0 * period + spread {
-                        break;
-                    }
-                    let pair = f64::from(weight * other);
-                    for multiple in 1..=4 {
-                        let error = (interval - f64::from(multiple) * period) / spread;
-                        score += pair * (-0.5 * error * error).exp() / f64::from(multiple);
-                    }
+            for multiple in 1..=4 {
+                let centre = f64::from(multiple) * period;
+                let low = ((centre - 3.0 * spread) / INTERVAL_BIN).ceil().max(0.0) as usize;
+                let high = ((centre + 3.0 * spread).min(longest) / INTERVAL_BIN).floor() as usize;
+                for (bin, weight) in intervals.iter().enumerate().take(high + 1).skip(low) {
+                    let error = (bin as f64 * INTERVAL_BIN - centre) / spread;
+                    score += weight * (-0.5 * error * error).exp() / f64::from(multiple);
                 }
             }
             let lean = (period / PREFERRED).log2() / 0.8;
@@ -127,7 +142,6 @@ impl BeatTracker {
             if best.is_none_or(|(_, best)| score > best) {
                 best = Some((period, score));
             }
-            period += STEP;
         }
         best.filter(|(_, score)| *score > 0.0)
             .map(|(period, _)| period)

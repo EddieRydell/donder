@@ -1697,6 +1697,7 @@ dependencies = [
  "criterion",
  "donder-language",
  "donder-model",
+ "donder-music",
  "donder-project-io",
  "donder-runtime",
  "donder-runtime-types",

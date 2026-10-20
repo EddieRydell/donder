@@ -3,6 +3,7 @@
 //! and when a voice frees up. Devices that play the rig only ever receive the
 //! commands.
 
+use donder_music::PitchClass;
 use donder_runtime_types::{RigCommand, RigEvent, SampleDuration, SampleTime};
 
 /// How long a triggered voice plays.
@@ -361,7 +362,7 @@ fn played(source: RoutedSource, touch: &Touch, notes: RoutedNotes) -> f32 {
             _ => f32::from(note) / 127.0,
         },
         RoutedSource::PitchClass => f32::from(note % 12) / 12.0,
-        RoutedSource::Fifths => f32::from((u16::from(note) * 7 % 12) as u8) / 12.0,
+        RoutedSource::Fifths => PitchClass(note % 12).fifths(),
     }
 }
 

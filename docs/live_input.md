@@ -87,7 +87,7 @@ InputDevice ear {
 | `Resolution` | when a dominant seventh, or a major chord in the key, falls a fifth to its home chord: V to I |
 | `Beat` | on each beat at the player's tempo, between notes too, until a few seconds after they stop |
 | `RunUp`, `RunDown` | at a fast run of six or more notes spanning at least a fifth |
-| `BigChord` | when four or more notes are struck hard together |
+| `BigChord` | when five or more notes are struck hard together |
 | `Chord { quality }` | held while the chord is `Major`, `Minor`, `Dominant`, `Diminished`, `Augmented` or `Suspended` |
 | `Mode { mode }` | held while the key is `Major` or `Minor` |
 | `Idle { seconds }` | held once nothing has been played for that long, until someone plays |
@@ -103,13 +103,16 @@ The first seven are momentary: pressed and released at once, so they play
 | `Loudness` | how hard the music is played, falling away in silence |
 | `Density` | notes a second, from none to twelve |
 | `Register` | how high the sounding notes are, from the bottom of a piano to its top |
-| `Tempo` | the player's tempo, from 40 beats a minute to 200 |
+| `Tempo` | the player's tempo, from 60 beats a minute to 200 |
 
 A listener names chords from the notes sounding, counting the sustain pedal,
 how hard and how recently each note was struck, and the bass note; melody
 notes above C5 count less, and lifting notes never changes the chord. It finds
-the key from the notes of the last several seconds, and the tempo from the
-intervals between them. Its controls play rigs like any other device's.
+the key from the notes of the last several seconds, naming the first one
+after about sixteen notes and a new one once it has led for a few seconds;
+`KeyChange` waits until the old key has held for eight seconds, so finding
+the first key is not a change. It finds the tempo from the intervals between
+notes. Its controls play rigs like any other device's.
 
 A device's control names are unique, and no two controls read the same input.
 The setup lists the input devices you have, next to its controllers:
