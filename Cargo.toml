@@ -41,6 +41,7 @@ lsp-types = "0.97.0"
 kira = "0.12.4"
 libm = "0.2.16"
 mdns-sd = { version = "0.21.4", default-features = false }
+midir = "0.11.1"
 micromath = { version = "2.1.0", default-features = false }
 notify = "=8.2.0"
 openh264 = "0.9.8"

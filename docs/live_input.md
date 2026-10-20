@@ -13,9 +13,10 @@ A rig never plays on top of a sequence. Stop the sequence, then perform.
 
 ## Input devices
 
-An `InputDevice` is a piece of hardware you play from. Today that is the
-computer keyboard. Each of its controls is a `Button` with a name you choose and
-the key it reads:
+An `InputDevice` is a piece of hardware you play from: the computer keyboard,
+or a MIDI device such as a piano keyboard, a pad controller or a box of knobs.
+Each of its controls has a name you choose and the input it reads. A `Button`
+is pressed or released; a `Dial` is a position from 0 to 1.
 
 ```text
 InputDevice keyboard {
@@ -30,9 +31,32 @@ InputDevice keyboard {
 
 Keys use the physical key names browsers use (`KeyA`, `Digit1`, `Space`,
 `ShiftLeft`, `ArrowUp`, `Numpad0`), so a binding stays on the same key whatever
-your keyboard layout. A device's control names are unique, and no two controls
-read the same key.
+your keyboard layout.
 
+A MIDI device reads the MIDI ports whose name contains its `port`, ignoring
+case, or every port when `port` is `none`. Its buttons read notes, held from
+note on to note off, and control changes, held at 64 and above as a sustain
+pedal is. Its dials read control changes and the pitch bend wheel. Every
+channel plays.
+
+```text
+InputDevice piano {
+  description: "The stage piano and its pedals.",
+  driver: Midi { port: "Digital Piano" },
+  controls: [
+    Button { name: middle_c, description: none, input: Note { note: 60 } },
+    Button { name: sustain, description: none, input: ControlChange { number: 64 } },
+    Dial { name: hue, description: "The first knob.", input: ControlChange { number: 21 } },
+    Dial { name: bend, description: none, input: PitchBend },
+  ],
+}
+```
+
+Notes are MIDI note numbers, 0 to 127, with middle C at 60; control changes are
+0 to 119. Donder connects to a device's ports when you start performing, and to
+ports plugged in while you perform; the Perform bar shows the ports it reads.
+
+A device's control names are unique, and no two controls read the same input.
 The setup lists the input devices you have, next to its controllers:
 `input_devices: [devices.keyboard]`. A rig can only use devices the active setup
 lists. Device files are ordinary documents: share one, and anyone with the same
@@ -64,9 +88,12 @@ A mapping's action is one of:
   up to `count`, reusing the oldest, and `Mono` ignores the press.
 - **Mark** adds a mark to a live collection.
 - **Control** holds a parameter of a scene voice or of a trigger's voices at the
-  top of its range while the button is held, and at the bottom otherwise. The
-  range is the parameter's declared range, as with automation. Speeds and other
-  values the effect integrates change smoothly, without jumping.
+  top of its range while the button is held, and at the bottom otherwise. Played
+  from a dial, it follows the dial anywhere in that range. The range is the
+  parameter's declared range, as with automation. Speeds and other values the
+  effect integrates change smoothly, without jumping.
+
+Switches are played from buttons. A dial can only play a `Control` mapping.
 
 The starter project includes `rigs/jam.data.donder`, played from
 `input_devices/keyboard.data.donder`: A flashes the outputs (or bursts them while

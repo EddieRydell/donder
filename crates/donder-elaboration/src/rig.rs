@@ -11,7 +11,7 @@ use crate::PrepareOutputs;
 use crate::sequence::{PreparationCache, composition, prepare_routes, programs::Programs};
 use crate::stage::{Stage, Targets};
 use donder_model::{
-    ButtonRef, DonderProject, MappingAction, MarkCollectionKey, RIG_SESSION, RigEffectOrigin,
+    ControlRef, DonderProject, MappingAction, MarkCollectionKey, RIG_SESSION, RigEffectOrigin,
     RigId, RigMappingId, TriggerLength, VoicePolicy, When,
 };
 use donder_runtime::{EffectHandle, PreparedRig, VoiceLength};
@@ -22,8 +22,8 @@ use indexmap::IndexMap;
 pub struct ArmedRig {
     pub prepared: PreparedRig,
     pub router: RigRouter,
-    /// The router's buttons, by index.
-    pub buttons: Box<[ButtonRef]>,
+    /// The router's inputs, buttons and dials, by index.
+    pub buttons: Box<[ControlRef]>,
 }
 
 /// Prepare `rig` against the project's active setup. `None` means the rig or
@@ -191,8 +191,8 @@ pub fn arm(
         );
         root
     });
-    let mut buttons: Vec<ButtonRef> = Vec::new();
-    let mut button = |input: &ButtonRef| match buttons.iter().position(|known| known == input) {
+    let mut buttons: Vec<ControlRef> = Vec::new();
+    let mut button = |input: &ControlRef| match buttons.iter().position(|known| known == input) {
         Some(index) => index,
         None => {
             buttons.push(input.clone());

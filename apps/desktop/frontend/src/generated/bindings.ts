@@ -370,9 +370,17 @@ export type GradientGuiDocument = {
 	stops: SequenceGradientStop[],
 };
 
-export type GuiButtonInput = 
+/**
+ *  What a control reads. A keyboard reads keys; MIDI buttons read notes and
+ *  control changes, and MIDI dials read control changes and pitch bend.
+ */
+export type GuiControlInput = 
 /**  A keyboard key by its `KeyboardEvent.code` name. */
-{ type: "key"; code: string };
+{ type: "key"; code: string } | 
+/**  A MIDI note number, 0 to 127; middle C is 60. */
+{ type: "note"; note: number } | 
+/**  A MIDI control change number, 0 to 119; the sustain pedal is 64. */
+{ type: "controlChange"; number: number } | { type: "pitchBend" };
 
 export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "rig"; document: RigGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
@@ -442,10 +450,25 @@ export type GuiInputControl = {
 	/**  Unique within the device; rigs refer to it. */
 	name: string,
 	description: string | null,
-	input: GuiButtonInput,
+	kind: GuiInputControlKind,
+	input: GuiControlInput,
 };
 
-export type GuiInputDriver = "keyboard";
+export type GuiInputControlKind = 
+/**  Pressed or released. */
+"button" | 
+/**  A position from 0 to 1. */
+"dial";
+
+export type GuiInputDriver = { type: "keyboard" } | 
+/**  MIDI input ports whose name contains `port`, or every port. */
+{ type: "midi"; port: string | null };
+
+/**  The highest MIDI inputs a control can read. */
+export type GuiInputLimits = {
+	maxNote: number,
+	maxControlChange: number,
+};
 
 export type GuiLayoutFixture = {
 	id: number,
@@ -506,6 +529,7 @@ export type InputDeviceGuiDocument = {
 	 *  language's order.
 	 */
 	keyCodes: string[],
+	inputLimits: GuiInputLimits,
 };
 
 /**  Keys chosen for a command in place of its defaults; an empty list leaves it unbound. */
@@ -603,6 +627,13 @@ export type PerformButton = {
 	control: string,
 };
 
+export type PerformMidi = {
+	/**  The ports connected now. */
+	ports: string[],
+	/**  Why the last look for ports failed to list or connect one. */
+	error: string | null,
+};
+
 /**  A rig of the project, by its position in the project's rigs. */
 export type PerformRig = {
 	index: number,
@@ -619,6 +650,8 @@ export type PerformSession = {
 	held: PerformButton[],
 	/**  The `KeyboardEvent.code` of every key the rig plays from. */
 	keys: string[],
+	/**  The rig's MIDI connections, when it plays from MIDI. */
+	midi: PerformMidi | null,
 };
 
 /**  Perform mode: the rigs the project can perform and the performance in progress. */
@@ -807,7 +840,7 @@ export type RigActionChoice =
  */
 { type: "trigger"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
 
-export type RigButtonRef = {
+export type RigControlRef = {
 	device: GuiObjectRef,
 	control: number,
 };
@@ -867,22 +900,22 @@ export type RigGuiDocument = {
 
 export type RigGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
 /**  The name becomes a unique `snake_case` name. */
-{ type: "addLiveMarks"; name: string; color: string } | { type: "setLiveMarksColor"; key: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigButtonRef } | { type: "addMapping"; input: RigButtonRef; action: RigActionChoice } | 
+{ type: "addLiveMarks"; name: string; color: string } | { type: "setLiveMarksColor"; key: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigControlRef } | { type: "addMapping"; input: RigControlRef; action: RigActionChoice } | 
 /**  Renaming live marks renames every reference to them. */
 { type: "rename"; item: RigItem; name: string } | 
 /**  Empty text removes the description. */
 { type: "setDescription"; item: RigItem; description: string | null } | 
 /**  Deleting live marks leaves the marks parameters that named them without marks. */
-{ type: "delete"; item: RigItem } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigButtonRef } | { type: "setMappingInput"; id: number; input: RigButtonRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy };
+{ type: "delete"; item: RigItem } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy };
 
 /**  A button a switch or mapping reads, with the names the rig's text uses. */
 export type RigInput = {
-	button: RigButtonRef,
+	button: RigControlRef,
 	deviceName: string,
 	controlName: string,
 };
 
-export type RigInputButton = {
+export type RigInputControl = {
 	control: number,
 	name: string,
 };
@@ -890,7 +923,9 @@ export type RigInputButton = {
 export type RigInputDevice = {
 	device: GuiObjectRef,
 	name: string,
-	buttons: RigInputButton[],
+	buttons: RigInputControl[],
+	/**  Dials only drive `Control` mappings. */
+	dials: RigInputControl[],
 };
 
 /**  A named item of a rig. */
@@ -1464,6 +1499,7 @@ export type SetupGuiDocument = {
 	availableInputDevices: SetupInputDevice[],
 	/**  Every key a new input device's control can read, in the language's order. */
 	keyCodes: string[],
+	inputLimits: GuiInputLimits,
 };
 
 export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "attachInputDevice"; device: GuiObjectRef } | { type: "detachInputDevice"; device: GuiObjectRef };

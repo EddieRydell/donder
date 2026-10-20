@@ -1,32 +1,38 @@
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { THEME_COLORS } from "../../../theme";
-import type { RigEffect, RigEffectOwner, RigGuiDocument, RigInput, RigButtonRef, SequenceEffectScope } from "../../../types";
+import type { RigEffect, RigEffectOwner, RigGuiDocument, RigInput, RigInputDevice, RigControlRef, SequenceEffectScope } from "../../../types";
 import { EffectDefinitionPicker } from "../sequence/definitionMenu";
 import { TypedParamInput } from "../sequence/params/TypedParamInput";
 import { editRigEffect } from "./rigEditing";
 
-/** A button of the setup's input devices: the device, then its button. */
-export function RigInputPicker({ document, input, onChange }: {
+/** A button of the setup's input devices, or a dial when `dials` is set:
+ * the device, then its control. */
+export function RigInputPicker({ document, input, dials = false, onChange }: {
   document: RigGuiDocument;
   input: RigInput;
-  onChange: (button: RigButtonRef) => void;
+  /** Whether the input may be a dial, as a `Control` mapping's may. */
+  dials?: boolean;
+  onChange: (control: RigControlRef) => void;
 }) {
   const currentKey = guiObjectKey(input.button.device);
   const device = document.inputDevices.find((candidate) => guiObjectKey(candidate.device) === currentKey);
+  const choices = (candidate: RigInputDevice) => dials ? [...candidate.buttons, ...candidate.dials] : candidate.buttons;
+  const controls = device === undefined ? [] : choices(device);
   return <div className="inspector-inline-row">
     <label>Device<select value={currentKey} onChange={(event) => {
       const next = document.inputDevices.find((candidate) => guiObjectKey(candidate.device) === event.currentTarget.value);
-      const button = next?.buttons[0];
-      if (next !== undefined && button !== undefined) onChange({ device: next.device, control: button.control });
+      const control = next === undefined ? undefined : choices(next)[0];
+      if (next !== undefined && control !== undefined) onChange({ device: next.device, control: control.control });
     }}>
       {device === undefined && <option value={currentKey} disabled>{input.deviceName} (not in the setup)</option>}
-      {document.inputDevices.map((candidate) => <option key={guiObjectKey(candidate.device)} value={guiObjectKey(candidate.device)} disabled={candidate.buttons.length === 0}>{candidate.name}</option>)}
+      {document.inputDevices.map((candidate) => <option key={guiObjectKey(candidate.device)} value={guiObjectKey(candidate.device)} disabled={choices(candidate).length === 0}>{candidate.name}</option>)}
     </select></label>
-    <label>Button<select value={input.button.control} onChange={(event) => {
+    <label>{dials ? "Control" : "Button"}<select value={input.button.control} onChange={(event) => {
       if (device !== undefined) onChange({ device: device.device, control: Number(event.currentTarget.value) });
     }}>
-      {device?.buttons.some((button) => button.control === input.button.control) !== true && <option value={input.button.control} disabled>{input.controlName}</option>}
+      {!controls.some((control) => control.control === input.button.control) && <option value={input.button.control} disabled>{input.controlName}</option>}
       {device?.buttons.map((button) => <option key={button.control} value={button.control}>{button.name}</option>)}
+      {dials && device?.dials.map((dial) => <option key={dial.control} value={dial.control}>{dial.name} (dial)</option>)}
     </select></label>
   </div>;
 }

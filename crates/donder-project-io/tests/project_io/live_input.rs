@@ -132,8 +132,8 @@ fn invalid_input_devices_are_rejected_at_the_control() {
         (
             KEYBOARD,
             "driver: Keyboard",
-            "driver: Midi",
-            "expected one of `Keyboard`",
+            "driver: Gamepad",
+            "expected one of `Keyboard`, `Midi { ... }`",
         ),
     ]);
 }
@@ -145,13 +145,13 @@ fn invalid_rigs_are_rejected_at_the_reference() {
             JAM,
             "input: devices.keyboard.tap,",
             "input: devices.keyboard,",
-            "`devices.keyboard` is an input device; an input is one of its buttons",
+            "`devices.keyboard` is an input device; an input is one of its controls",
         ),
         (
             JAM,
             "input: devices.keyboard.tap,",
             "input: devices.keyboard.snare,",
-            "`devices.keyboard` has no button `snare`",
+            "`devices.keyboard` has no control `snare`",
         ),
         (
             JAM,

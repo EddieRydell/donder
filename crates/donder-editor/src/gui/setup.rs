@@ -109,6 +109,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
                 .map(|(id, device)| super::input_device::project_input_device(session, id, device))
                 .collect(),
             key_codes: super::input_device::key_codes(),
+            input_limits: super::input_device::input_limits(),
         },
     }
 }

@@ -2788,6 +2788,17 @@ html.donder-app-shell :is(
   font-weight: var(--donder-font-weight-semibold);
 }
 
+.perform-bar-midi {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--donder-text-muted);
+  text-overflow: ellipsis;
+}
+
+.perform-bar-midi.error {
+  color: var(--donder-danger-text);
+}
+
 .perform-bar-held {
   min-width: 0;
   overflow: hidden;
