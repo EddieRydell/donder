@@ -58,45 +58,7 @@ impl MidiMessage {
 }
 
 type OnMessage = Arc<dyn Fn(&str, MidiMessage) + Send + Sync>;
-type OnLost = Arc<dyn Fn(&str, Held) + Send + Sync>;
-
-/// What a port holds down: the notes on and the control changes at 64 and
-/// above, as a pedal is down.
-pub(crate) struct Held {
-    pub(crate) notes: Vec<u8>,
-    pub(crate) control_changes: Vec<u8>,
-}
-
-/// The state of every note and control change a port has sent.
-struct PortState {
-    notes: [bool; 128],
-    control_changes: [bool; 128],
-}
-
-impl PortState {
-    fn hear(&mut self, message: MidiMessage) {
-        match message {
-            MidiMessage::NoteOn { note, .. } => self.notes[usize::from(note)] = true,
-            MidiMessage::NoteOff { note } => self.notes[usize::from(note)] = false,
-            MidiMessage::ControlChange { number, value } => {
-                self.control_changes[usize::from(number)] = value >= 64;
-            }
-            MidiMessage::PitchBend { .. } => {}
-        }
-    }
-
-    fn held(&self) -> Held {
-        let down = |states: &[bool; 128]| {
-            (0..128u8)
-                .filter(|index| states[usize::from(*index)])
-                .collect()
-        };
-        Held {
-            notes: down(&self.notes),
-            control_changes: down(&self.control_changes),
-        }
-    }
-}
+type OnLost = Arc<dyn Fn(&str) + Send + Sync>;
 
 /// The MIDI ports a performance is connected to. Dropping it disconnects
 /// them all.
@@ -115,11 +77,11 @@ pub(crate) struct MidiStatus {
 impl MidiInputs {
     /// Connect to every port `wanted` accepts by name, now and as ports
     /// appear, and call `on_message` with the port's name for each message.
-    /// A port that goes away calls `on_lost` with what it held down.
+    /// A port that goes away calls `on_lost` with its name.
     pub(crate) fn start(
         wanted: impl Fn(&str) -> bool + Send + 'static,
         on_message: impl Fn(&str, MidiMessage) + Send + Sync + 'static,
-        on_lost: impl Fn(&str, Held) + Send + Sync + 'static,
+        on_lost: impl Fn(&str) + Send + Sync + 'static,
     ) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let status = Arc::new(Mutex::new(MidiStatus::default()));
@@ -147,7 +109,7 @@ impl Drop for MidiInputs {
 struct Connected {
     id: String,
     name: String,
-    connection: MidiInputConnection<PortState>,
+    connection: MidiInputConnection<()>,
 }
 
 fn watch(
@@ -184,8 +146,8 @@ fn watch(
             connected = kept;
             // Nothing a port held stays down once it is gone.
             for port in lost {
-                let (_, state) = port.connection.close();
-                on_lost(&port.name, state.held());
+                port.connection.close();
+                on_lost(&port.name);
             }
             for (id, name) in available {
                 if connected.iter().any(|port| port.id == id) {
@@ -213,7 +175,7 @@ fn connect(
     id: &str,
     name: &str,
     on_message: &OnMessage,
-) -> Result<MidiInputConnection<PortState>, String> {
+) -> Result<MidiInputConnection<()>, String> {
     let mut input = MidiInput::new("Donder").map_err(|error| error.to_string())?;
     input.ignore(Ignore::All);
     let port = input
@@ -225,16 +187,12 @@ fn connect(
         .connect(
             &port,
             "donder-perform",
-            move |_, bytes, state| {
+            move |_, bytes, _| {
                 if let Some(message) = MidiMessage::parse(bytes) {
-                    state.hear(message);
                     on_message(&port_name, message);
                 }
             },
-            PortState {
-                notes: [false; 128],
-                control_changes: [false; 128],
-            },
+            (),
         )
         .map_err(|error| error.to_string())
 }

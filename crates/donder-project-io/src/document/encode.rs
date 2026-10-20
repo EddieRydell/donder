@@ -535,8 +535,8 @@ impl Encoder<'_> {
         ))
     }
 
-    /// `device.control`: a button's device reference and the control's name.
-    fn button(&self, input: &ControlRef) -> Result<Reference, ExportProjectError> {
+    /// `device.control`: a control's device reference and the control's name.
+    fn control(&self, input: &ControlRef) -> Result<Reference, ExportProjectError> {
         let mut reference =
             self.object_reference(SourceObjectKind::InputDevice, &input.device.0)?;
         let control = self
@@ -611,7 +611,7 @@ impl Encoder<'_> {
                     Ok(types::Switch {
                         name: name(&switch.name),
                         description: switch.description.clone(),
-                        input: self.button(&switch.input)?,
+                        input: self.control(&switch.input)?,
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
@@ -622,7 +622,7 @@ impl Encoder<'_> {
                     Ok(types::Mapping {
                         name: name(&mapping.name),
                         description: mapping.description.clone(),
-                        input: self.button(&mapping.input)?,
+                        input: self.control(&mapping.input)?,
                         when: match &mapping.when {
                             None => None,
                             Some(When::On(switch)) => Some(types::When::On {

@@ -130,7 +130,7 @@ identities in document order.
 | Fixtures and groups | their layout |
 | Fixture shapes | their fixture definition |
 | Ports | their controller |
-| Buttons | their input device |
+| Controls | their input device |
 | Layers and graph nodes together; clips; mark collections | their sequence |
 | Layers and graph nodes together; live mark collections; switches; voices and mappings together | their rig |
 
@@ -147,7 +147,7 @@ converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 - `alias.name` reaches a top-level declaration of an imported document;
 - `layout.fixture` reaches a fixture or group of a layout, whatever groups list
   it, so changing group membership changes no reference;
-- `device.control` reaches a button or dial of an input device;
+- `device.control` reaches a button, dial or keys of an input device;
 - an owned object is reached through its owner and the owning fields:
   `show.setup.layout`, `show.setup.controllers.main`, `show.setup.layout.desk`,
   `show.setup.input_devices.pad.hit`.
@@ -694,7 +694,7 @@ Rig jam {
   off. `action` is one of:
   - `Trigger { layer, target, scope, effect, params, length, voices, values }`
     starts an effect voice. `length` is `Fixed { duration }` (positive), `Held` (plays
-    while the button is held) or `Latched` (a press starts it and the next press
+    while its button or key is held) or `Latched` (a press starts it and the next press
     stops it). `voices` is `Retrigger` (one voice, restarted by each press),
     `Stack { count }` (1 to 16 voices; each press takes the next, reusing the
     oldest) or `Mono` (one voice; presses while it plays are ignored).

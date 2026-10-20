@@ -10,10 +10,10 @@ type ActionKind = RigActionChoice["type"];
 
 /** The control a mapping plays from: a button, dial or keys, and whether it plays notes. */
 function inputControl(document: RigGuiDocument, input: RigInput): { kind: "button" | "dial" | "keys"; notes: boolean } | null {
-  const device = document.inputDevices.find((candidate) => guiObjectKey(candidate.device) === guiObjectKey(input.button.device));
+  const device = document.inputDevices.find((candidate) => guiObjectKey(candidate.device) === guiObjectKey(input.control.device));
   if (device === undefined) return null;
   for (const [kind, controls] of [["button", device.buttons], ["dial", device.dials], ["keys", device.keys]] as const) {
-    const control = controls.find((candidate) => candidate.control === input.button.control);
+    const control = controls.find((candidate) => candidate.control === input.control.control);
     if (control !== undefined) return { kind, notes: control.notes };
   }
   return null;

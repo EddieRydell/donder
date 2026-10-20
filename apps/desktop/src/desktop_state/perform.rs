@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use super::{DesktopState, lock_unpoisoned};
-use crate::midi::{Held, MidiInputs, MidiMessage};
+use crate::midi::{MidiInputs, MidiMessage};
 use crate::rendering::{RigOutput, SessionClock};
 use donder_elaboration::{PreparationCache, PrepareOutputs, RigRouter};
 use donder_model::{
@@ -65,6 +65,76 @@ fn reads_port(wanted: Option<&str>, port: &str) -> bool {
     wanted.is_none_or(|wanted| port.to_lowercase().contains(&wanted.to_lowercase()))
 }
 
+/// What a MIDI message does to the control a binding reads.
+enum MidiTouch {
+    /// A note or pedal goes down, with its velocity in `0..=1`.
+    Down {
+        number: u8,
+        velocity: f32,
+    },
+    Up {
+        number: u8,
+    },
+    /// A dial turns, to a value in `0..=1`.
+    Turn(f32),
+}
+
+impl MidiTouch {
+    fn of(reads: MidiRead, message: MidiMessage) -> Option<Self> {
+        let velocity = |velocity: u8| f32::from(velocity) / 127.0;
+        Some(match (reads, message) {
+            (
+                MidiRead::Note(read),
+                MidiMessage::NoteOn {
+                    note,
+                    velocity: struck,
+                },
+            ) if read == note => Self::Down {
+                number: note,
+                velocity: velocity(struck),
+            },
+            (
+                MidiRead::Keys(range),
+                MidiMessage::NoteOn {
+                    note,
+                    velocity: struck,
+                },
+            ) if range.contains(note) => Self::Down {
+                number: note,
+                velocity: velocity(struck),
+            },
+            (MidiRead::Note(read), MidiMessage::NoteOff { note }) if read == note => {
+                Self::Up { number: note }
+            }
+            (MidiRead::Keys(range), MidiMessage::NoteOff { note }) if range.contains(note) => {
+                Self::Up { number: note }
+            }
+            // A pedal is down at 64 and above.
+            (MidiRead::Pedal(read), MidiMessage::ControlChange { number, value })
+                if read == number =>
+            {
+                if value >= 64 {
+                    Self::Down {
+                        number,
+                        velocity: 1.0,
+                    }
+                } else {
+                    Self::Up { number }
+                }
+            }
+            (MidiRead::Dial(read), MidiMessage::ControlChange { number, value })
+                if read == number =>
+            {
+                Self::Turn(velocity(value))
+            }
+            (MidiRead::PitchBend, MidiMessage::PitchBend { value }) => {
+                Self::Turn(f32::from(value) / 16383.0)
+            }
+            _ => return None,
+        })
+    }
+}
+
 struct Performance {
     generation: u32,
     rig: PerformRig,
@@ -80,6 +150,13 @@ struct Performance {
     keys: HashMap<KeyCode, Vec<usize>>,
     /// The router inputs MIDI plays.
     midi: Vec<MidiBinding>,
+    /// The ports holding each MIDI press down, by router input and note or
+    /// pedal number: the router hears the press when the first port holds it
+    /// and its release when the last lets go.
+    midi_held: HashMap<(usize, u8), Vec<usize>>,
+    /// The names of the ports MIDI has come from, by the index `midi_held`
+    /// holds them by.
+    midi_ports: Vec<String>,
     /// The MIDI ports the performance is connected to, when it plays from
     /// MIDI.
     midi_inputs: Option<MidiInputs>,
@@ -211,8 +288,8 @@ impl DesktopState {
                 .ok_or("The active setup is missing.")?;
             let mut keys: HashMap<KeyCode, Vec<usize>> = HashMap::new();
             let mut midi = Vec::new();
-            let mut buttons = Vec::with_capacity(armed.buttons.len());
-            for (index, button) in armed.buttons.iter().enumerate() {
+            let mut buttons = Vec::with_capacity(armed.inputs.len());
+            for (index, button) in armed.inputs.iter().enumerate() {
                 let device = project
                     .input_device(&button.device)
                     .ok_or("An input device of the rig is missing.")?;
@@ -265,9 +342,9 @@ impl DesktopState {
                             DesktopState(state).perform_midi(generation, port, message);
                         }
                     },
-                    move |port, held| {
+                    move |port| {
                         if let Some(state) = lost_state.upgrade() {
-                            DesktopState(state).perform_midi_lost(generation, port, &held);
+                            DesktopState(state).perform_midi_lost(generation, port);
                         }
                     },
                 )
@@ -288,6 +365,8 @@ impl DesktopState {
                 buttons: buttons.into(),
                 keys,
                 midi,
+                midi_held: HashMap::new(),
+                midi_ports: Vec::new(),
                 midi_inputs,
                 switches: project
                     .rig(&rig_id)
@@ -360,84 +439,112 @@ impl DesktopState {
             if performance.generation != generation {
                 return None;
             }
+            let port = match performance
+                .midi_ports
+                .iter()
+                .position(|known| known == port)
+            {
+                Some(index) => index,
+                None => {
+                    performance.midi_ports.push(port.to_string());
+                    performance.midi_ports.len() - 1
+                }
+            };
+            let name = &performance.midi_ports[port];
             let mut events = Vec::new();
             for binding in &performance.midi {
-                if !reads_port(binding.port.as_deref(), port) {
+                if !reads_port(binding.port.as_deref(), name) {
                     continue;
                 }
+                let Some(touch) = MidiTouch::of(binding.reads, message) else {
+                    continue;
+                };
                 let router = &mut performance.router;
                 let input = binding.input;
-                events.extend(match (binding.reads, message) {
-                    (MidiRead::Note(read), MidiMessage::NoteOn { note, velocity })
-                        if read == note =>
-                    {
-                        router.strike(input, note, f32::from(velocity) / 127.0, time)
-                    }
-                    (MidiRead::Keys(range), MidiMessage::NoteOn { note, velocity })
-                        if range.contains(note) =>
-                    {
-                        router.strike(input, note, f32::from(velocity) / 127.0, time)
-                    }
-                    (MidiRead::Note(read), MidiMessage::NoteOff { note }) if read == note => {
-                        router.release_note(input, note, time)
-                    }
-                    (MidiRead::Keys(range), MidiMessage::NoteOff { note })
-                        if range.contains(note) =>
-                    {
-                        router.release_note(input, note, time)
-                    }
-                    // A pedal is down at 64 and above.
-                    (MidiRead::Pedal(read), MidiMessage::ControlChange { number, value })
-                        if read == number =>
-                    {
-                        if value >= 64 {
+                let pedal = matches!(binding.reads, MidiRead::Pedal(_));
+                match touch {
+                    MidiTouch::Down { number, velocity } => {
+                        let holders = performance.midi_held.entry((input, number)).or_default();
+                        if holders.contains(&port) {
+                            continue;
+                        }
+                        holders.push(port);
+                        // Another port already holds it down.
+                        if holders.len() > 1 {
+                            continue;
+                        }
+                        events.extend(if pedal {
                             router.press(input, time)
                         } else {
-                            router.release(input, time)
+                            router.strike(input, number, velocity, time)
+                        });
+                    }
+                    MidiTouch::Up { number } => {
+                        let Some(holders) = performance.midi_held.get_mut(&(input, number)) else {
+                            continue;
+                        };
+                        let Some(held) = holders.iter().position(|holder| *holder == port) else {
+                            continue;
+                        };
+                        holders.swap_remove(held);
+                        if !holders.is_empty() {
+                            continue;
                         }
+                        performance.midi_held.remove(&(input, number));
+                        events.extend(if pedal {
+                            router.release(input, time)
+                        } else {
+                            router.release_note(input, number, time)
+                        });
                     }
-                    (MidiRead::Dial(read), MidiMessage::ControlChange { number, value })
-                        if read == number =>
-                    {
-                        router.turn(input, f32::from(value) / 127.0, time)
-                    }
-                    (MidiRead::PitchBend, MidiMessage::PitchBend { value }) => {
-                        router.turn(input, f32::from(value) / 16383.0, time)
-                    }
-                    _ => Vec::new(),
-                });
+                    MidiTouch::Turn(value) => events.extend(router.turn(input, value, time)),
+                }
             }
             (!events.is_empty()).then_some(events)
         });
     }
 
     /// A port that went away while performance `generation` plays: the notes
-    /// it held are released and the pedals it held lifted, while dials keep
-    /// their place.
-    fn perform_midi_lost(&self, generation: u32, port: &str, held: &Held) {
-        for &note in &held.notes {
-            self.perform_midi(generation, port, MidiMessage::NoteOff { note });
-        }
+    /// and pedals only it held are released, while dials keep their place.
+    fn perform_midi_lost(&self, generation: u32, port: &str) {
         self.route(|performance, time| {
             if performance.generation != generation {
                 return None;
             }
+            let port = performance
+                .midi_ports
+                .iter()
+                .position(|known| known == port)?;
             let mut events = Vec::new();
-            for binding in &performance.midi {
-                if let MidiRead::Pedal(number) = binding.reads
-                    && held.control_changes.contains(&number)
-                    && reads_port(binding.port.as_deref(), port)
-                {
-                    events.extend(performance.router.release(binding.input, time));
+            let pedals = |input: usize, midi: &[MidiBinding]| {
+                midi.iter().any(|binding| {
+                    binding.input == input && matches!(binding.reads, MidiRead::Pedal(_))
+                })
+            };
+            let midi = &performance.midi;
+            let router = &mut performance.router;
+            performance.midi_held.retain(|&(input, number), holders| {
+                holders.retain(|holder| *holder != port);
+                if !holders.is_empty() {
+                    return true;
                 }
-            }
+                events.extend(if pedals(input, midi) {
+                    router.release(input, time)
+                } else {
+                    router.release_note(input, number, time)
+                });
+                false
+            });
             (!events.is_empty()).then_some(events)
         });
     }
 
     /// Release every held button, as when the performer's window loses focus.
     pub(crate) fn perform_release_all(&self) -> PerformSnapshot {
-        self.route(|performance, time| Some(performance.router.release_all(time)));
+        self.route(|performance, time| {
+            performance.midi_held.clear();
+            Some(performance.router.release_all(time))
+        });
         self.perform_snapshot()
     }
 

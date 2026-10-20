@@ -13,6 +13,11 @@ function noteName(note: number): string {
   return `${NOTE_NAMES[note % 12] ?? ""}${Math.floor(note / 12) - 1}`;
 }
 
+/** A number field's value within `0..=max`, or `null` while the field is empty. */
+function fieldNumber(value: string, max: number): number | null {
+  return value === "" ? null : Math.min(max, Math.max(0, Math.trunc(Number(value))));
+}
+
 /** The first `control_<n>` no other control of the device uses. */
 function freshControlName(controls: GuiInputControl[]): string {
   const used = new Set(controls.map((control) => control.name));
@@ -97,6 +102,8 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     setControls([...controls, { id, name: freshControlName(controls), description: null, kind, input }]);
   };
   const midi = driver.type === "midi";
+  // A keyboard has no dials or keys, so switching to it would drop them.
+  const midiOnly = controls.some((control) => control.kind !== "button");
   const nextKey = freeInput("key", used, keyCodes, limits);
   const nextNote = freeInput("note", used, keyCodes, limits, MIDDLE_C);
   const nextControlChange = freeInput("controlChange", used, keyCodes, limits, 1);
@@ -113,7 +120,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
         setDriver(next);
         setControls(convertControls(controls, next, keyCodes, limits));
       }}>
-        <option value="keyboard">Keyboard</option>
+        <option value="keyboard" disabled={midiOnly}>{midiOnly ? "Keyboard (remove the dials and keys first)" : "Keyboard"}</option>
         <option value="midi">MIDI</option>
       </select></label>
       {driver.type === "midi" && <label>Port<input value={driver.port ?? ""} placeholder="Every MIDI port" onChange={(event) => {
@@ -172,9 +179,15 @@ function MidiInputFields({ control, used, limits, onChange }: {
     </select></label>
     {input.type === "notes" && <>
       <label>Lowest<input type="number" min={0} max={limits.maxNote} required value={input.low} aria-invalid={taken(input)}
-        onChange={(event) => { onChange({ input: { ...input, low: Number(event.target.value) } }); }} /><span>{noteName(input.low)}</span></label>
+        onChange={(event) => {
+          const low = fieldNumber(event.target.value, limits.maxNote);
+          if (low !== null) onChange({ input: { ...input, low } });
+        }} /><span>{noteName(input.low)}</span></label>
       <label>Highest<input type="number" min={0} max={limits.maxNote} required value={input.high} aria-invalid={taken(input) || input.high < input.low}
-        onChange={(event) => { onChange({ input: { ...input, high: Number(event.target.value) } }); }} /><span>{noteName(input.high)}</span></label>
+        onChange={(event) => {
+          const high = fieldNumber(event.target.value, limits.maxNote);
+          if (high !== null) onChange({ input: { ...input, high } });
+        }} /><span>{noteName(input.high)}</span></label>
     </>}
     {control.kind !== "keys" && <label>Input<select value={input.type} onChange={(event) => {
       const type = event.target.value;
@@ -186,9 +199,15 @@ function MidiInputFields({ control, used, limits, onChange }: {
     </select></label>}
     {input.type === "note" && <label>Note<input type="number" min={0} max={limits.maxNote} required value={input.note}
       title={noteName(input.note)} aria-invalid={taken(input)}
-      onChange={(event) => { onChange({ input: { type: "note", note: Number(event.target.value) } }); }} /><span>{noteName(input.note)}</span></label>}
+      onChange={(event) => {
+        const note = fieldNumber(event.target.value, limits.maxNote);
+        if (note !== null) onChange({ input: { type: "note", note } });
+      }} /><span>{noteName(input.note)}</span></label>}
     {input.type === "controlChange" && <label>Number<input type="number" min={0} max={limits.maxControlChange} required value={input.number}
       aria-invalid={taken(input)}
-      onChange={(event) => { onChange({ input: { type: "controlChange", number: Number(event.target.value) } }); }} /></label>}
+      onChange={(event) => {
+        const number = fieldNumber(event.target.value, limits.maxControlChange);
+        if (number !== null) onChange({ input: { type: "controlChange", number } });
+      }} /></label>}
   </>;
 }

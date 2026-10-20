@@ -378,8 +378,8 @@ enum Wanted {
     Clip,
     Node,
     Marks,
-    /// `device.button`.
-    Button,
+    /// `device.control`.
+    Control,
     Switch,
     /// A rig's voice or mapping.
     Voice,
@@ -405,7 +405,7 @@ fn wanted(ty: &str, field: &str) -> Option<Wanted> {
         ("Clip", "layer") | ("LayerNode", "layer") | ("Voice", "layer") | ("Trigger", "layer") => {
             Wanted::Layer
         }
-        ("Switch", "input") | ("Mapping", "input") => Wanted::Button,
+        ("Switch", "input") | ("Mapping", "input") => Wanted::Control,
         ("On", "switch") | ("Off", "switch") => Wanted::Switch,
         ("Control", "voice") => Wanted::Voice,
         ("Mark", "marks") => Wanted::Marks,
@@ -495,10 +495,10 @@ impl Members {
         field: "items",
         types: &["Group", "Fixture"],
     };
-    /// An input device's buttons.
+    /// An input device's controls.
     const DEVICE: Self = Self {
         field: "controls",
-        types: &["Button"],
+        types: &["Button", "Dial", "Keys"],
     };
 }
 
@@ -714,7 +714,7 @@ pub fn completions(
                 .filter(|(_, kind)| kind == "Layout")
                 .map(|(name, _)| format!("{name}."))
                 .collect(),
-            Wanted::Button => visible(workspace, document)
+            Wanted::Control => visible(workspace, document)
                 .into_iter()
                 .filter(|(_, kind)| kind == "InputDevice")
                 .map(|(name, _)| format!("{name}."))
@@ -755,7 +755,7 @@ pub fn completions(
             .as_ref()
             .and_then(|(ty, field)| match wanted(ty, field) {
                 Some(Wanted::Fixture) => Some(Members::LAYOUT),
-                Some(Wanted::Button) => Some(Members::DEVICE),
+                Some(Wanted::Control) => Some(Members::DEVICE),
                 _ => None,
             });
         if let Some(members) = members

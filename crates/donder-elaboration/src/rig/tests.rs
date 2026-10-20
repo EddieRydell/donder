@@ -25,7 +25,7 @@ fn armed(project: &DonderProject) -> ArmedRig {
 /// The router's index of the starter keyboard's button named `name`.
 fn button(project: &DonderProject, armed: &ArmedRig, name: &str) -> usize {
     armed
-        .buttons
+        .inputs
         .iter()
         .position(|ControlRef { device, control }| {
             project
@@ -53,7 +53,7 @@ fn jam_arms_with_a_voice_pool_per_trigger() {
     assert_eq!(armed.prepared.collection_count(), 1);
     assert_eq!(armed.prepared.control_count(), 1);
     // kick, swell, boost, tap and the shift switch.
-    assert_eq!(armed.buttons.len(), 5);
+    assert_eq!(armed.inputs.len(), 5);
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn mono_ignores_presses_while_its_voice_plays_and_latch_toggles() {
         Box::new([]),
         Box::new([
             RoutedMapping {
-                button: 0,
+                input: 0,
                 when: None,
                 action: RoutedAction::Trigger {
                     voices: Box::new([0]),
@@ -147,7 +147,7 @@ fn mono_ignores_presses_while_its_voice_plays_and_latch_toggles() {
                 },
             },
             RoutedMapping {
-                button: 1,
+                input: 1,
                 when: None,
                 action: RoutedAction::Trigger {
                     voices: Box::new([1]),

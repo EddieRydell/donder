@@ -172,11 +172,11 @@ pub struct RigControlRef {
     pub control: u32,
 }
 
-/// A button a switch or mapping reads, with the names the rig's text uses.
+/// A control a switch or mapping reads, with the names the rig's text uses.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigInput {
-    pub button: RigControlRef,
+    pub control: RigControlRef,
     pub device_name: String,
     pub control_name: String,
 }

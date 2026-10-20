@@ -191,7 +191,7 @@ fn project_mapping(session: &ProjectSession, mapping: &Mapping) -> RigMapping {
 fn project_input(session: &ProjectSession, input: &ControlRef) -> RigInput {
     let device = session.project.input_device(&input.device);
     RigInput {
-        button: RigControlRef {
+        control: RigControlRef {
             device: super::patch::object_ref(&input.device.0, SourceObjectKind::InputDevice),
             control: input.control.0,
         },
@@ -290,7 +290,7 @@ pub(super) fn edit_rig(
             });
         }
         RigGuiEdit::AddSwitch { input } => {
-            let input = button_from_gui(session, owner, &input)?;
+            let input = control_from_gui(session, owner, &input)?;
             let name = fresh_name("switch", |candidate| {
                 draft
                     .switches
@@ -305,7 +305,7 @@ pub(super) fn edit_rig(
             });
         }
         RigGuiEdit::AddMapping { input, action } => {
-            let input = button_from_gui(session, owner, &input)?;
+            let input = control_from_gui(session, owner, &input)?;
             let action = action_from_gui(session, owner, &draft, action)?;
             let name = fresh_name("mapping", |candidate| {
                 behavior_name_taken(&draft, candidate)
@@ -385,10 +385,10 @@ pub(super) fn edit_rig(
             edit_effect(session, owner, &mut draft, effect, edit)?;
         }
         RigGuiEdit::SetSwitchInput { id, input } => {
-            switch_mut(&mut draft, id)?.input = button_from_gui(session, owner, &input)?;
+            switch_mut(&mut draft, id)?.input = control_from_gui(session, owner, &input)?;
         }
         RigGuiEdit::SetMappingInput { id, input } => {
-            let input = button_from_gui(session, owner, &input)?;
+            let input = control_from_gui(session, owner, &input)?;
             let plays_notes = session
                 .project
                 .input_device(&input.device)
@@ -602,13 +602,13 @@ fn target_from_gui(
     })
 }
 
-/// A button the rig's document may name, importing its device.
-fn button_from_gui(
+/// A control the rig's document may name, importing its device.
+fn control_from_gui(
     session: &mut ProjectSession,
     owner: &SourceIdentity,
-    button: &RigControlRef,
+    control: &RigControlRef,
 ) -> Result<ControlRef, GuiMutationError> {
-    let device = InputDeviceId(object_identity_from_gui(&button.device)?);
+    let device = InputDeviceId(object_identity_from_gui(&control.device)?);
     donder_project_io::ensure_document_can_reference_object(
         session,
         owner.document_id(),
@@ -617,7 +617,7 @@ fn button_from_gui(
     .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     Ok(ControlRef {
         device,
-        control: donder_model::InputControlId(button.control),
+        control: donder_model::InputControlId(control.control),
     })
 }
 

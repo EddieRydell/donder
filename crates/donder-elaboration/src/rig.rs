@@ -26,12 +26,12 @@ use indexmap::IndexMap;
 /// Automation bindings a control sets: an effect, and its binding.
 type Bindings<'a> = Vec<(EffectHandle<'a>, u16)>;
 
-/// A rig ready to perform: its playback data and the routing of its buttons.
+/// A rig ready to perform: its playback data and the routing of its controls.
 pub struct ArmedRig {
     pub prepared: PreparedRig,
     pub router: RigRouter,
-    /// The router's inputs, buttons and dials, by index.
-    pub buttons: Box<[ControlRef]>,
+    /// The controls the router reads, by input index.
+    pub inputs: Box<[ControlRef]>,
 }
 
 /// Prepare `rig` against the project's active setup. `None` means the rig or
@@ -226,18 +226,19 @@ pub fn arm(
         );
         root
     });
-    let mut buttons: Vec<ControlRef> = Vec::new();
-    let mut button = |input: &ControlRef| match buttons.iter().position(|known| known == input) {
+    let mut inputs: Vec<ControlRef> = Vec::new();
+    let mut input_index = |input: &ControlRef| match inputs.iter().position(|known| known == input)
+    {
         Some(index) => index,
         None => {
-            buttons.push(input.clone());
-            buttons.len() - 1
+            inputs.push(input.clone());
+            inputs.len() - 1
         }
     };
     let switches: Box<[usize]> = rig
         .switches
         .iter()
-        .map(|switch| button(&switch.input))
+        .map(|switch| input_index(&switch.input))
         .collect();
     let switch_index = |id| rig.switches.iter().position(|switch| switch.id == id);
     let mappings = rig
@@ -245,7 +246,7 @@ pub fn arm(
         .iter()
         .map(|mapping| {
             Some(RoutedMapping {
-                button: button(&mapping.input),
+                input: input_index(&mapping.input),
                 when: match mapping.when {
                     None => None,
                     Some(When::On(id)) => Some((switch_index(id)?, true)),
@@ -291,7 +292,7 @@ pub fn arm(
             })
         })
         .collect::<Option<Box<[_]>>>()?;
-    let notes = buttons
+    let notes = inputs
         .iter()
         .map(|input| {
             let control = project
@@ -311,6 +312,6 @@ pub fn arm(
     Some(ArmedRig {
         prepared,
         router: RigRouter::new(notes, switches, mappings),
-        buttons: buttons.into(),
+        inputs: inputs.into(),
     })
 }

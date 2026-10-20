@@ -76,7 +76,7 @@ pub enum RoutedAction {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RoutedMapping {
     /// The button or dial that drives it, by index in the router's inputs.
-    pub button: usize,
+    pub input: usize,
     /// A switch, by index, and the state the mapping needs.
     pub when: Option<(usize, bool)>,
     pub action: RoutedAction,
@@ -88,7 +88,7 @@ pub struct RigRouter {
     mappings: Box<[RoutedMapping]>,
     /// The notes each input plays, by index in the router's inputs.
     notes: Box<[RoutedNotes]>,
-    /// Each switch's button, by index in the router's buttons.
+    /// Each switch's button, by index in the router's inputs.
     switches: Box<[usize]>,
     switch_on: Box<[bool]>,
     state: Box<[MappingState]>,
@@ -123,6 +123,8 @@ struct MappingState {
     /// The keys whose press the release answers acted, or `None` for a
     /// button's.
     engaged: Vec<Option<u8>>,
+    /// The value a dial last set the mapping's control to.
+    turned: Option<f32>,
 }
 
 impl RigRouter {
@@ -202,7 +204,7 @@ impl RigRouter {
             }
         }
         for (index, mapping) in self.mappings.iter().enumerate() {
-            if mapping.button != press.input
+            if mapping.input != press.input
                 || !mapping
                     .when
                     .is_none_or(|(switch, on)| switch_on[switch] == on)
@@ -275,7 +277,7 @@ impl RigRouter {
         let mut commands = Vec::new();
         for (index, mapping) in self.mappings.iter().enumerate() {
             let state = &mut self.state[index];
-            if mapping.button != press.input {
+            if mapping.input != press.input {
                 continue;
             }
             let Some(engaged) = state.engaged.iter().position(|key| *key == press.key) else {
@@ -308,25 +310,28 @@ impl RigRouter {
 
     /// The commands a turn of the dial `input` to `value`, in `0..=1`, at
     /// `time` sends: it sets every control it drives while its condition
-    /// holds.
+    /// holds, unless the control already has that value.
     pub fn turn(&mut self, input: usize, value: f32, time: SampleTime) -> Vec<RigEvent> {
         let value = value.clamp(0.0, 1.0);
-        self.mappings
-            .iter()
-            .filter(|mapping| {
-                mapping.button == input
-                    && mapping
-                        .when
-                        .is_none_or(|(switch, on)| self.switch_on[switch] == on)
-            })
-            .filter_map(|mapping| match mapping.action {
-                RoutedAction::Control { control } => Some(RigEvent {
+        let mut events = Vec::new();
+        for (mapping, state) in self.mappings.iter().zip(&mut self.state) {
+            if mapping.input != input
+                || !mapping
+                    .when
+                    .is_none_or(|(switch, on)| self.switch_on[switch] == on)
+                || state.turned == Some(value)
+            {
+                continue;
+            }
+            if let RoutedAction::Control { control } = mapping.action {
+                state.turned = Some(value);
+                events.push(RigEvent {
                     time,
                     command: RigCommand::Control { control, value },
-                }),
-                RoutedAction::Trigger { .. } | RoutedAction::Mark { .. } => None,
-            })
-            .collect()
+                });
+            }
+        }
+        events
     }
 
     /// Release every held button and key, as when the performer's window
@@ -358,7 +363,9 @@ fn played(source: RoutedSource, touch: &Touch, notes: RoutedNotes) -> f32 {
             RoutedNotes::Keys { low, high } if high > low => {
                 f32::from(note.saturating_sub(low)) / f32::from(high - low)
             }
-            _ => f32::from(note) / 127.0,
+            // A range of one key is its own lowest key.
+            RoutedNotes::Keys { .. } => 0.0,
+            RoutedNotes::Note(_) | RoutedNotes::None => f32::from(note) / 127.0,
         },
         RoutedSource::PitchClass => f32::from(note % 12) / 12.0,
         RoutedSource::Fifths => f32::from((u16::from(note) * 7 % 12) as u8) / 12.0,
