@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
 use crate::fixture::{FixtureDefinitionError, FixtureDefinitionId};
-use crate::input_device::ControlRef;
+use crate::input_device::{ControlRef, InputControlKind};
 use crate::layout::LayoutError;
 use crate::operator::{effect_param_matches_type, validate_composition_graph};
 use crate::project::DonderProject;
@@ -842,14 +842,14 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), SequenceVa
             ));
         }
     }
-    let is_button = |input: &ControlRef| {
+    let kind = |input: &ControlRef| {
         project
             .input_device(&input.device)
             .and_then(|device| device.control(input.control))
-            .is_some_and(|control| control.kind.is_button())
+            .map(|control| control.kind)
     };
     for switch in &rig.switches {
-        if !is_button(&switch.input) {
+        if !kind(&switch.input).is_some_and(InputControlKind::is_button) {
             return Err(error(format!(
                 "switch `{}` is not played from a button",
                 switch.name.as_str()
@@ -859,10 +859,21 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), SequenceVa
     for mapping in &rig.mappings {
         let mapping_error =
             |message: &str| error(format!("mapping `{}` {message}", mapping.name.as_str()));
-        if !is_button(&mapping.input) && !matches!(mapping.action, MappingAction::Control { .. }) {
-            return Err(mapping_error(
-                "is played from a dial; a dial can only drive a `Control`",
-            ));
+        let Some(input) = kind(&mapping.input) else {
+            return Err(mapping_error("is played from a missing control"));
+        };
+        match &mapping.action {
+            MappingAction::Control { .. } if input.is_pressed() && !input.is_button() => {
+                return Err(mapping_error(
+                    "is played from keys; keys trigger effects and add marks",
+                ));
+            }
+            MappingAction::Trigger(_) | MappingAction::Mark(_) if !input.is_pressed() => {
+                return Err(mapping_error(
+                    "is played from a dial; a dial can only drive a `Control`",
+                ));
+            }
+            _ => {}
         }
         if let Some(When::On(switch) | When::Off(switch)) = mapping.when
             && !rig.switches.iter().any(|candidate| candidate.id == switch)
@@ -885,6 +896,43 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), SequenceVa
                     return Err(mapping_error(&format!(
                         "stacks {count} voices; a stack has 1 to {MAX_STACKED_VOICES}"
                     )));
+                }
+                let mut played = HashSet::new();
+                for value in &trigger.values {
+                    if !played.insert(&value.param) {
+                        return Err(mapping_error(&format!(
+                            "sets `{}` twice",
+                            value.param.as_str()
+                        )));
+                    }
+                    if value.from.needs_note() && input.notes().is_none() {
+                        return Err(mapping_error(&format!(
+                            "sets `{}` from a note, but its input plays no notes",
+                            value.param.as_str()
+                        )));
+                    }
+                    let declaration = project
+                        .definitions
+                        .effects
+                        .resolve(&trigger.effect.definition)
+                        .and_then(|definition| {
+                            definition
+                                .params
+                                .iter()
+                                .find(|declaration| declaration.name == value.param)
+                        })
+                        .ok_or_else(|| {
+                            mapping_error(&format!(
+                                "sets `{}`, which its effect does not have",
+                                value.param.as_str()
+                            ))
+                        })?;
+                    if declaration.automation_mapping().is_none() {
+                        return Err(mapping_error(&format!(
+                            "sets `{}`, which cannot be automated",
+                            value.param.as_str()
+                        )));
+                    }
                 }
             }
             MappingAction::Mark(key) => {

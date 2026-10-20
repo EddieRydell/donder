@@ -1,7 +1,7 @@
 //! Input devices: the hardware rigs play from.
 use donder_model::{
     ButtonInput, DialInput, InputControl, InputControlId, InputControlKind, InputDevice,
-    InputDeviceId, InputDriver, KeyCode, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
+    InputDeviceId, InputDriver, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
@@ -63,6 +63,13 @@ fn gui_control(control: &InputControl) -> GuiInputControl {
                 DialInput::PitchBend => GuiControlInput::PitchBend,
             },
         ),
+        InputControlKind::Keys(range) => (
+            GuiInputControlKind::Keys,
+            GuiControlInput::Notes {
+                low: range.low,
+                high: range.high,
+            },
+        ),
     };
     GuiInputControl {
         id: control.id.0,
@@ -96,6 +103,17 @@ fn domain_control_kind(
         }
         (GuiInputControlKind::Dial, GuiControlInput::PitchBend) => {
             InputControlKind::Dial(DialInput::PitchBend)
+        }
+        (GuiInputControlKind::Keys, GuiControlInput::Notes { low, high }) => {
+            InputControlKind::Keys(KeyRange {
+                low: *low,
+                high: *high,
+            })
+        }
+        (GuiInputControlKind::Keys, _) | (_, GuiControlInput::Notes { .. }) => {
+            return Err(GuiMutationError::Invalid(
+                "Keys read a range of notes, and only keys do.".into(),
+            ));
         }
         (GuiInputControlKind::Button, GuiControlInput::PitchBend) => {
             return Err(GuiMutationError::Invalid(

@@ -22,11 +22,12 @@ export function rigComposition(document: RigGuiDocument): CompositionEditing {
   };
 }
 
-/** The first button of the setup's first device that has one. */
-export function firstButton(devices: RigInputDevice[]): RigControlRef | null {
+/** The first button of the setup's first device that has one, or for a
+ * trigger also its first keys. */
+export function firstInput(devices: RigInputDevice[], use: "switch" | "trigger"): RigControlRef | null {
   for (const device of devices) {
-    const button = device.buttons[0];
-    if (button !== undefined) return { device: device.device, control: button.control };
+    const control = device.buttons[0] ?? (use === "trigger" ? device.keys[0] : undefined);
+    if (control !== undefined) return { device: device.device, control: control.control };
   }
   return null;
 }

@@ -317,8 +317,10 @@ InputDevice keyboard {
 - `driver` is `Keyboard`, the computer keyboard, or `Midi { port }`: the MIDI
   input ports whose name contains `port`, ignoring case, or every port when it
   is `none`.
-- A control is `Button { name, description, input }`, pressed or released, or
-  `Dial { name, description, input }`, a position from 0 to 1.
+- A control is `Button { name, description, input }`, pressed or released,
+  `Dial { name, description, input }`, a position from 0 to 1, or
+  `Keys { name, description, input }`, a range of MIDI notes each pressed on
+  its own, with `input` `Notes { low, high }`.
 - A keyboard button's `input` is `Key { code }`. `code` is a key by its browser
   `KeyboardEvent.code` name: `KeyA` to `KeyZ`, `Digit0` to `Digit9`, `F1` to
   `F12`, `Space`, `Enter`, `Tab`, `Escape`, `Backspace`, `ArrowUp`,
@@ -335,7 +337,7 @@ InputDevice keyboard {
   at 64 and above. A MIDI dial's `input` is `ControlChange { number }` or
   `PitchBend`.
 - Control names are unique within their device, and no two controls read the
-  same input.
+  same input; a note inside a `Keys` range is read by those keys.
 
 In the GUI, the setup adds and attaches input devices, and an input device
 opens in its own editor.
@@ -686,15 +688,20 @@ Rig jam {
 - `Switch`: `name`, `description`, `input`, a button. A switch is off when the
   session starts, and each press of `input` toggles it.
 - `Mapping`: `name`, `description`, `input`, `when`, `action`. An `input` is a
-  button or a dial, `device.control`; a dial plays only `Control`. `when` is `none`, `On { switch }` or
+  button, a dial or keys, `device.control`; a dial plays only `Control`, and
+  keys only `Trigger` and `Mark`. `when` is `none`, `On { switch }` or
   `Off { switch }`: the mapping acts only while that switch of the rig is on or
   off. `action` is one of:
-  - `Trigger { layer, target, scope, effect, params, length, voices }` starts an
-    effect voice. `length` is `Fixed { duration }` (positive), `Held` (plays
+  - `Trigger { layer, target, scope, effect, params, length, voices, values }`
+    starts an effect voice. `length` is `Fixed { duration }` (positive), `Held` (plays
     while the button is held) or `Latched` (a press starts it and the next press
     stops it). `voices` is `Retrigger` (one voice, restarted by each press),
     `Stack { count }` (1 to 16 voices; each press takes the next, reusing the
     oldest) or `Mono` (one voice; presses while it plays are ignored).
+    `values` are `PlayedValue { param, from }`: each press sets that parameter
+    of the voice it starts, `from` `Velocity`, `Pitch`, `PitchClass` or
+    `Fifths`, mapped onto the parameter's range as automation is. A parameter
+    is played at most once, and only notes and keys play the last three.
   - `Mark { marks }` adds a mark to that live mark collection.
   - `Control { voice, param }` holds a parameter at the top of its range while
     a button is held and at the bottom otherwise, or follows a dial's position;
@@ -788,8 +795,10 @@ preparation does not repeat them.
   follow the clip rules without timing, a `Fixed` length is positive, a stack
   has 1 to 16 voices, `when` names a switch of the rig, `Mark` a live mark
   collection, and `Control` an automatable parameter of a voice or trigger.
-  Inputs are controls of input devices in the project's setup; switches and
-  every action but `Control` are played from buttons.
+  Inputs are controls of input devices in the project's setup: switches play
+  from buttons, `Control` from buttons and dials, and `Trigger` and `Mark`
+  from buttons and keys. A trigger plays each parameter at most once, and
+  plays pitch values only from notes and keys.
 
 ## Saving
 

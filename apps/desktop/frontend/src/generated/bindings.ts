@@ -362,13 +362,16 @@ export type GradientGuiDocument = {
 
 /**
  *  What a control reads. A keyboard reads keys; MIDI buttons read notes and
- *  control changes, and MIDI dials read control changes and pitch bend.
+ *  control changes, MIDI dials read control changes and pitch bend, and MIDI
+ *  keys read a range of notes.
  */
 export type GuiControlInput = 
 /**  A keyboard key by its `KeyboardEvent.code` name. */
 { type: "key"; code: string } | 
 /**  A MIDI note number, 0 to 127; middle C is 60. */
 { type: "note"; note: number } | 
+/**  MIDI notes from `low` through `high`; a full piano is 21 to 108. */
+{ type: "notes"; low: number; high: number } | 
 /**  A MIDI control change number, 0 to 119; the sustain pedal is 64. */
 { type: "controlChange"; number: number } | { type: "pitchBend" };
 
@@ -448,7 +451,9 @@ export type GuiInputControlKind =
 /**  Pressed or released. */
 "button" | 
 /**  A position from 0 to 1. */
-"dial";
+"dial" | 
+/**  A range of MIDI notes, each its own press. */
+"keys";
 
 export type GuiInputDriver = { type: "keyboard" } | 
 /**  MIDI input ports whose name contains `port`, or every port. */
@@ -890,7 +895,7 @@ export type RigGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "
 /**  Empty text removes the description. */
 { type: "setDescription"; item: RigItem; description: string | null } | 
 /**  Deleting live marks leaves the marks parameters that named them without marks. */
-{ type: "delete"; item: RigItem } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy };
+{ type: "delete"; item: RigItem } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy } | { type: "setTriggerValues"; mappingId: number; values: RigPlayedValue[] };
 
 /**  A button a switch or mapping reads, with the names the rig's text uses. */
 export type RigInput = {
@@ -902,6 +907,8 @@ export type RigInput = {
 export type RigInputControl = {
 	control: number,
 	name: string,
+	/**  Whether it plays notes, as values played from a note need. */
+	notes: boolean,
 };
 
 export type RigInputDevice = {
@@ -910,6 +917,8 @@ export type RigInputDevice = {
 	buttons: RigInputControl[],
 	/**  Dials only drive `Control` mappings. */
 	dials: RigInputControl[],
+	/**  Keys only trigger effects and add marks. */
+	keys: RigInputControl[],
 };
 
 /**  A named item of a rig. */
@@ -932,7 +941,23 @@ export type RigMapping = {
 	action: RigMappingAction,
 };
 
-export type RigMappingAction = { type: "trigger"; effect: RigEffect; length: RigTriggerLength; voices: RigVoicePolicy } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
+export type RigMappingAction = { type: "trigger"; effect: RigEffect; length: RigTriggerLength; voices: RigVoicePolicy; values: RigPlayedValue[] } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
+
+export type RigPlayedSource = 
+/**  How hard the note was struck; a computer key or pedal plays at 1. */
+"velocity" | 
+/**  The note's place in its key range. */
+"pitch" | 
+/**  The note's name, C to B up the chromatic scale. */
+"pitchClass" | 
+/**  The note's name round the circle of fifths. */
+"fifths";
+
+/**  A parameter each press of a trigger sets on the voice it starts. */
+export type RigPlayedValue = {
+	param: string,
+	from: RigPlayedSource,
+};
 
 export type RigSwitch = {
 	id: number,

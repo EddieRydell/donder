@@ -15,7 +15,7 @@ use donder_model::{
     AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio,
 };
 use donder_model::{
-    ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver,
+    ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver, PlayedSource,
     SequenceCompositionGraph, SequenceLayer,
 };
 use donder_model::{
@@ -658,6 +658,23 @@ impl Encoder<'_> {
                                         }
                                         VoicePolicy::Mono => types::VoicePolicy::Mono,
                                     },
+                                    values: trigger
+                                        .values
+                                        .iter()
+                                        .map(|value| types::PlayedValue {
+                                            param: name(&value.param),
+                                            from: match value.from {
+                                                PlayedSource::Velocity => {
+                                                    types::PlayedSource::Velocity
+                                                }
+                                                PlayedSource::Pitch => types::PlayedSource::Pitch,
+                                                PlayedSource::PitchClass => {
+                                                    types::PlayedSource::PitchClass
+                                                }
+                                                PlayedSource::Fifths => types::PlayedSource::Fifths,
+                                            },
+                                        })
+                                        .collect(),
                                 }
                             }
                             MappingAction::Mark(key) => types::MappingAction::Mark {
@@ -902,6 +919,14 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
                                 types::DialInput::ControlChange { number }
                             }
                             DialInput::PitchBend => types::DialInput::PitchBend,
+                        },
+                    },
+                    InputControlKind::Keys(range) => types::InputControl::Keys {
+                        name,
+                        description,
+                        input: types::Notes {
+                            low: range.low,
+                            high: range.high,
                         },
                     },
                 }

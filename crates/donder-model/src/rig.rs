@@ -118,6 +118,38 @@ pub struct Trigger {
     pub effect: RigEffect,
     pub length: TriggerLength,
     pub voices: VoicePolicy,
+    /// Parameters each press sets on the voice it starts.
+    pub values: Vec<PlayedValue>,
+}
+
+/// A parameter a press sets on the voice it starts, from how it was played.
+/// The value's `0..1` maps onto the parameter's range as automation does.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PlayedValue {
+    pub param: Identifier,
+    pub from: PlayedSource,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum PlayedSource {
+    /// How hard a note was struck; a computer key or a pedal plays at 1.
+    Velocity,
+    /// The note's place in its control's key range, from its lowest key at 0
+    /// to its highest at 1; a single note button is at its place among all
+    /// 128 notes.
+    Pitch,
+    /// The note's name, from C at 0 up the chromatic scale to B at 11/12.
+    PitchClass,
+    /// The note's name round the circle of fifths: C at 0, G at 1/12, D at
+    /// 2/12, and on to F at 11/12.
+    Fifths,
+}
+
+impl PlayedSource {
+    /// Whether the value needs a note, which only MIDI notes and keys carry.
+    pub fn needs_note(self) -> bool {
+        !matches!(self, Self::Velocity)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

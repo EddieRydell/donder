@@ -16,7 +16,8 @@ A rig never plays on top of a sequence. Stop the sequence, then perform.
 An `InputDevice` is a piece of hardware you play from: the computer keyboard,
 or a MIDI device such as a piano keyboard, a pad controller or a box of knobs.
 Each of its controls has a name you choose and the input it reads. A `Button`
-is pressed or released; a `Dial` is a position from 0 to 1.
+is pressed or released; a `Dial` is a position from 0 to 1; `Keys` are a range
+of MIDI notes, a piano's keyboard, where every key is its own press.
 
 ```text
 InputDevice keyboard {
@@ -44,7 +45,7 @@ InputDevice piano {
   description: "The stage piano and its pedals.",
   driver: Midi { port: "Digital Piano" },
   controls: [
-    Button { name: middle_c, description: none, input: Note { note: 60 } },
+    Keys { name: keys, description: "All 88 keys.", input: Notes { low: 21, high: 108 } },
     Button { name: sustain, description: none, input: ControlChange { number: 64 } },
     Dial { name: hue, description: "The first knob.", input: ControlChange { number: 21 } },
     Dial { name: bend, description: none, input: PitchBend },
@@ -52,8 +53,9 @@ InputDevice piano {
 }
 ```
 
-Notes are MIDI note numbers, 0 to 127, with middle C at 60; control changes are
-0 to 119. Donder connects to a device's ports when you start performing, and to
+Notes are MIDI note numbers, 0 to 127, with middle C at 60 and a full piano
+from 21 to 108; control changes are 0 to 119. A struck note carries how hard it
+was struck, its velocity. Donder connects to a device's ports when you start performing, and to
 ports plugged in while you perform; the Perform bar shows the ports it reads.
 
 A device's control names are unique, and no two controls read the same input.
@@ -81,7 +83,8 @@ A rig has the same layers and operator graph as a sequence, plus what plays live
 A mapping's action is one of:
 
 - **Trigger** starts an effect: a layer, target, scope, effect and parameters,
-  like a clip. Its `length` is `Fixed { duration }` (plays that long from each
+  like a clip. Its `values` set parameters of each voice it starts from how it
+  was played (below). Its `length` is `Fixed { duration }` (plays that long from each
   press), `Held` (plays while you hold the button) or `Latched` (one press starts
   it, the next stops it). Its `voices` decide what another press does while it
   plays: `Retrigger` restarts it, `Stack { count }` starts another copy on top,
@@ -93,7 +96,34 @@ A mapping's action is one of:
   parameter's declared range, as with automation. Speeds and other values the
   effect integrates change smoothly, without jumping.
 
-Switches are played from buttons. A dial can only play a `Control` mapping.
+Switches are played from buttons. A dial can only play a `Control` mapping, and
+keys play `Trigger` and `Mark` mappings.
+
+### Played values
+
+A trigger's `values` set parameters of the voice each press starts, so every
+note sounds its own way:
+
+```text
+values: [
+  PlayedValue { param: level, from: Velocity },
+  PlayedValue { param: position, from: Fifths },
+],
+```
+
+- `Velocity`: how hard the note was struck; a computer key or a pedal plays
+  at 1.
+- `Pitch`: the note's place in its keys' range, from the lowest at 0 to the
+  highest at 1; a single note button is at its place among all 128 notes.
+- `PitchClass`: the note's name, C at 0 up the chromatic scale to B at 11/12,
+  whatever its octave.
+- `Fifths`: the note's name round the circle of fifths, C at 0, G at 1/12, D
+  at 2/12 and on to F at 11/12, so the notes of a chord sit close together.
+
+The value's `0..1` maps onto the parameter's declared range, as with
+automation, and the parameter is a float, int, bool, enum or curve. Played
+from keys, a `Stack` trigger is polyphonic: each key takes a voice, plays it
+with its own values, and with a `Held` length stops it when released.
 
 The starter project includes `rigs/jam.data.donder`, played from
 `input_devices/keyboard.data.donder`: A flashes the outputs (or bursts them while
