@@ -1,6 +1,6 @@
 # Donder
 
-Donder is a light-show sequencer where every effect is a program. This has a few advantages:
+Donder is a light show sequencer where every effect is a program. This has a few advantages:
 - Sequences are compiled programs that can be evaluated by the Donder runtime, which is fast and small enough to fit on a microcontroller. This means that a stock ESP32 can store and play back a minutes-long sequence at high framerates without the use of external memory or networking.
 - Because shows aren't pre-rendered like in xLights or Vixen, live input is almost trivial with Donder's runtime. When input is received, the runtime can immediately render effects on the fly.
 - Effect parameters can be tuned and automated in real time. Effects can have user-defined parameters like hue, brightness, fade speed, etc, which are all declared and used as variables in the Donder DSL.
