@@ -5,8 +5,15 @@ Donder is a light-show sequencer where every effect is a program. This has a few
 - Because shows aren't pre-rendered like in xLights or Vixen, live input is almost trivial with Donder's runtime. When input is received, the runtime can immediately render effects on the fly.
 - Effect parameters can be tuned and automated in real time. Effects can have user-defined parameters like hue, brightness, fade speed, etc, which are all declared and used as variables in the Donder DSL.
 - Sequences can be divided into layers, which can be composed using something called operators. Operators (which can also be custom written in the Donder DSL) are used to apply visual effects to different layers of a sequence. Operator examples include things like dim, blur, bloom, or afterglow.
+- Every part of a profile is modular. Sequences, fixtures, operators, effects, controller configs, etc. can all be shared between different users and integrated into different shows.
 
-<!-- TODO: GIF or short video of examples/stanford_room, then an editor screenshot. -->
+![The sequence editor with a house show open](docs/images/sequence_editor.png)
+
+![The Preview window playing the same show](docs/images/preview.png)
+
+![An effect written in the Donder language](docs/images/effect_code.png)
+
+![Built-in operators written in the Donder language](docs/images/operator_code.png)
 
 You don't need to write code to use Donder. It ships with a library of effects
 and operators, and everything has a graphical editor. When you want something
@@ -41,14 +48,13 @@ the library doesn't have, you can write it yourself (or ask an LLM to write it f
   sequences are plain documents in one language. They diff cleanly in git and
   import each other, so a fixture, gradient or effect can be shared across
   shows. `donder check` validates a project the way a compiler does. That also
-  means an LLM can set up fixtures, patch controllers or edit a sequence and get
+  makes it so an LLM can set up fixtures, patch controllers, or edit a sequence and get
   exact errors back. → [Project language](docs/project_language.md)
   <!-- TODO: link the registry website once it is public. -->
 - **GUI and code are the same project.** Switch between the graphical editor and
   the text view at any time. Every editor state is a document, every edit can be
   undone, and saving never rewrites a token you typed. A language server gives
-  any editor diagnostics, completion and navigation (`donder lsp`). This also makes
-  it easy for AI agents to modify shows or debug config options automatically.
+  any editor diagnostics, completion and navigation (`donder lsp`).
 - **Play it live.** A rig maps buttons to effects: a key starts a chase, taps a
   beat a running effect follows, or drives a parameter while held. Only the
   button presses travel; every device that plays the rig renders the frames
@@ -105,10 +111,13 @@ The user guides are also published at
 ## Status
 
 Donder is pre-release and moving fast. Project and archive formats change
-without migrations until there is a deliberate compatibility commitment.
+without migrations for now.
 
-Donder is very un user friendly currently. A lot of the UI is very vibe coded but I'm
-working on tuning it to be more intuitive and less janky.
+Donder is currently very un user friendly. A lot of the UI is very vibe coded but I'm
+working on tuning it to be more intuitive and less janky. If you have trouble with something
+when creating a sequence or editing a profile, you can always ask an LLM to figure it
+out for you. I've found this works especially well for setting up layouts and fixtures. You can
+also ask an agent to manually import a Vixen or xLights profile and they usually do a pretty good job.
 
 Standalone playback supports classic ESP32 boards with 4 MB flash, including the
 QuinLED Dig-Quad, with up to 1,600 pixels on four outputs per controller. Larger
