@@ -91,8 +91,16 @@ InputDevice ear {
 | `Chord { quality }` | held while the chord is `Major`, `Minor`, `Dominant`, `Diminished`, `Augmented` or `Suspended` |
 | `Mode { mode }` | held while the key is `Major` or `Minor` |
 | `Idle { seconds }` | held once nothing has been played for that long, until someone plays |
+| `Tune { notes }` | when the melody is played, in any key and any octave |
 
-The first seven are momentary: pressed and released at once, so they play
+A tune's `notes` are the MIDI notes of a melody's opening, 5 to 24 of them, in
+any key: the listener follows the top note of what is played above G3 and
+hears the tune when the last notes fit it in one key, forgiving about one wrong
+note in six. The chorus of Jingle Bells is
+`Tune { notes: [64, 64, 64, 64, 64, 64, 64, 67, 60, 62, 64] }`; the editor
+writes them as note names, `E4 E4 E4 E4 E4 E4 E4 G4 C4 D4 E4`.
+
+The first seven, and tunes, are momentary: pressed and released at once, so they play
 `Fixed` triggers, marks and switches.
 
 | Dial | From 0 to 1 |

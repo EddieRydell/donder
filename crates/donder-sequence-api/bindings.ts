@@ -372,7 +372,9 @@ export type GuiHeard = { type: "chordChange" } | { type: "keyChange" } | { type:
 /**  Held while the key is in this mode. */
 { type: "mode"; mode: GuiKeyMode } | 
 /**  Held once nothing has been played for this many seconds. */
-{ type: "idle"; seconds: number };
+{ type: "idle"; seconds: number } | 
+/**  A melody's MIDI notes, recognised in any key. */
+{ type: "tune"; notes: number[] };
 
 export type GuiInputControl = {
 	/**  Kept across edits; a new control has an id no other control uses. */
@@ -398,10 +400,15 @@ export type GuiInputDriver = { type: "keyboard" } |
 /**  A listener to the music played on those MIDI ports. */
 { type: "listen"; port: string | null };
 
-/**  The highest MIDI inputs a control can read. */
+/**
+ *  The highest MIDI inputs a control can read, and how many notes a tune
+ *  has.
+ */
 export type GuiInputLimits = {
 	maxNote: number,
 	maxControlChange: number,
+	minTuneNotes: number,
+	maxTuneNotes: number,
 };
 
 export type GuiKeyMode = "major" | "minor";

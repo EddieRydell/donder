@@ -130,9 +130,15 @@ impl InputControl {
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum ButtonInput {
-    Key { code: KeyCode },
-    Note { note: u8 },
-    ControlChange { number: u8 },
+    Key {
+        code: KeyCode,
+    },
+    Note {
+        note: u8,
+    },
+    ControlChange {
+        number: u8,
+    },
     ChordChange,
     KeyChange,
     Resolution,
@@ -140,9 +146,19 @@ pub enum ButtonInput {
     RunUp,
     RunDown,
     BigChord,
-    Chord { quality: ChordQuality },
-    Mode { mode: KeyMode },
-    Idle { seconds: u16 },
+    Chord {
+        quality: ChordQuality,
+    },
+    Mode {
+        mode: KeyMode,
+    },
+    Idle {
+        seconds: u16,
+    },
+    /// A melody's MIDI notes, recognised in any key.
+    Tune {
+        notes: Vec<u8>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Data)]

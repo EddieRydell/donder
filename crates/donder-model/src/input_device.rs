@@ -1,5 +1,7 @@
 use crate::identity::ObjectIdentity;
-pub use donder_music::{ChordQuality, Heard, Measure, Mode};
+pub use donder_music::{
+    ChordQuality, Heard, MAX_TUNE_NOTES, MIN_TUNE_NOTES, Measure, Melody, Mode,
+};
 use donder_runtime_types::Identifier;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

@@ -13,6 +13,25 @@ function noteName(note: number): string {
   return `${NOTE_NAMES[note % 12] ?? ""}${Math.floor(note / 12) - 1}`;
 }
 
+const NOTE_LETTERS: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+/** A note from its name, such as `C4`, `F#3` or `Bb5`, or `null`. */
+function parseNoteName(name: string, maxNote: number): number | null {
+  const match = /^([A-Ga-g])([#b]?)(-?\d)$/.exec(name);
+  if (match === null) return null;
+  const [, letter = "", accidental, octave = ""] = match;
+  const pitch = NOTE_LETTERS[letter.toUpperCase()];
+  if (pitch === undefined) return null;
+  const note = (Number(octave) + 1) * 12 + pitch + (accidental === "#" ? 1 : accidental === "b" ? -1 : 0);
+  return note >= 0 && note <= maxNote ? note : null;
+}
+
+/** The notes of a melody written as note names apart, or `null`. */
+function parseMelody(text: string, maxNote: number): number[] | null {
+  const notes = text.trim().split(/\s+/).map((name) => parseNoteName(name, maxNote));
+  return notes.every((note) => note !== null) ? notes : null;
+}
+
 /** The first `control_<n>` no other control of the device uses. */
 function freshControlName(controls: GuiInputControl[]): string {
   const used = new Set(controls.map((control) => control.name));
@@ -41,6 +60,7 @@ function heardKey(heard: GuiHeard): string {
     case "chord": return `chord ${heard.quality}`;
     case "mode": return `mode ${heard.mode}`;
     case "idle": return `idle ${heard.seconds}`;
+    case "tune": return `tune ${heard.notes.join(",")}`;
     case "chordChange":
     case "keyChange":
     case "resolution":
@@ -62,7 +82,9 @@ const MOMENTS: { label: string; heard: GuiHeard }[] = [
   { label: "Big chord", heard: { type: "bigChord" } },
   { label: "While the chord is", heard: { type: "chord", quality: "minor" } },
   { label: "While the key is", heard: { type: "mode", mode: "minor" } },
-  { label: "Idle for", heard: { type: "idle", seconds: 20 } }
+  { label: "Idle for", heard: { type: "idle", seconds: 20 } },
+  // The chorus of Jingle Bells, to start from.
+  { label: "Tune", heard: { type: "tune", notes: [64, 64, 64, 64, 64, 64, 64, 67, 60, 62, 64] } }
 ];
 const CHORD_QUALITIES: GuiChordQuality[] = ["major", "minor", "dominant", "diminished", "augmented", "suspended"];
 const KEY_MODES: GuiKeyMode[] = ["major", "minor"];
@@ -183,7 +205,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
       {controls.map((control, index) => <div className="controller-port-row" key={control.id}>
         <label>Name<input required pattern="[a-z_][a-z0-9_]*" value={control.name} onChange={(event) => { update(index, { name: event.target.value }); }} /></label>
         {listen
-          ? <ListenerInputFields control={control} used={used} onChange={(change) => { update(index, change); }} />
+          ? <ListenerInputFields control={control} used={used} limits={limits} onChange={(change) => { update(index, change); }} />
           : midi
           ? <MidiInputFields control={control} used={used} limits={limits} onChange={(change) => { update(index, change); }} />
           : control.input.type === "key" && <label>Key<select value={control.input.code} onChange={(event) => { update(index, { input: { type: "key", code: event.target.value } }); }}>
@@ -259,9 +281,10 @@ function MidiInputFields({ control, used, limits, onChange }: {
 
 /** A listener's control: a moment it hears, as a button, or a measure it
  * follows, as a dial. */
-function ListenerInputFields({ control, used, onChange }: {
+function ListenerInputFields({ control, used, limits, onChange }: {
   control: GuiInputControl;
   used: Set<string>;
+  limits: GuiInputLimits;
   onChange: (change: Partial<GuiInputControl>) => void;
 }) {
   const { input } = control;
@@ -297,7 +320,19 @@ function ListenerInputFields({ control, used, onChange }: {
     }}>
       {KEY_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
     </select></label>}
+    {heard.type === "tune" && <TuneField notes={heard.notes} invalid={taken(input)} limits={limits} onChange={(notes) => { set({ type: "tune", notes }); }} />}
     {heard.type === "idle" && <label>Seconds<input type="number" min={1} max={3600} required value={heard.seconds} aria-invalid={taken(input)}
       onChange={(event) => { set({ type: "idle", seconds: Number(event.target.value) }); }} /></label>}
   </>;
+}
+
+/** A tune's melody as note names, applied when it reads as one. */
+function TuneField({ notes, invalid, limits, onChange }: { notes: number[]; invalid: boolean; limits: GuiInputLimits; onChange: (notes: number[]) => void }) {
+  const written = notes.map(noteName).join(" ");
+  const [text, setText] = useState(written);
+  const parsed = parseMelody(text, limits.maxNote);
+  const fits = parsed !== null && parsed.length >= limits.minTuneNotes && parsed.length <= limits.maxTuneNotes;
+  return <label>Melody<input value={text} aria-invalid={invalid || !fits} title={`${limits.minTuneNotes} to ${limits.maxTuneNotes} notes, such as E4 E4 E4 G4 C4; any key plays it`}
+    onChange={(event) => { setText(event.target.value); }}
+    onBlur={() => { if (fits && parsed.join(" ") !== notes.join(" ")) onChange(parsed); }} /></label>;
 }

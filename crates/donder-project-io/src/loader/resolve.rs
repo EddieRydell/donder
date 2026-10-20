@@ -26,8 +26,8 @@ use donder_model::{
 };
 use donder_model::{
     ButtonInput, ChordQuality, ControlRef, DialInput, Heard, InputControl, InputControlId,
-    InputControlKind, InputDevice, InputDeviceId, InputDriver, KeyRange, Measure, Mode,
-    PlayedSource, PlayedValue,
+    InputControlKind, InputDevice, InputDeviceId, InputDriver, KeyRange, MAX_TUNE_NOTES,
+    MIN_TUNE_NOTES, Measure, Melody, Mode, PlayedSource, PlayedValue,
 };
 use donder_model::{
     ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, Rig, RigEffect, RigId,
@@ -781,6 +781,21 @@ impl DomainResolver<'_> {
                             }
                             types::ButtonInput::Idle { seconds } => {
                                 ButtonInput::Heard(Heard::Idle { seconds: *seconds })
+                            }
+                            types::ButtonInput::Tune { notes } => {
+                                ButtonInput::Heard(Heard::Tune(Melody::new(notes).ok_or_else(
+                                    || {
+                                        self.invalid(
+                                            document,
+                                            name.0.span,
+                                            format!(
+                                                "tune `{}` has {} notes; a tune has {MIN_TUNE_NOTES} to {MAX_TUNE_NOTES} notes from 0 to 127",
+                                                name.as_str(),
+                                                notes.len()
+                                            ),
+                                        )
+                                    },
+                                )?))
                             }
                         }),
                     ),

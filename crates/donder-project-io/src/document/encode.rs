@@ -972,6 +972,9 @@ fn heard_document(heard: Heard) -> types::ButtonInput {
             },
         },
         Heard::Idle { seconds } => types::ButtonInput::Idle { seconds },
+        Heard::Tune(melody) => types::ButtonInput::Tune {
+            notes: melody.notes().to_vec(),
+        },
     }
 }
 

@@ -53,8 +53,8 @@ pub use identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
 pub use input_device::{
     ButtonInput, ChordQuality, ControlRef, DialInput, Heard, InputControl, InputControlId,
     InputControlKind, InputDevice, InputDeviceId, InputDeviceSource, InputDeviceValidationError,
-    InputDriver, InputSource, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, Measure,
-    Mode,
+    InputDriver, InputSource, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
+    MAX_TUNE_NOTES, MIN_TUNE_NOTES, Measure, Melody, Mode,
 };
 pub use layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,

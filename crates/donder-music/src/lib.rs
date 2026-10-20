@@ -12,15 +12,18 @@
 mod chord;
 mod key;
 mod rhythm;
+mod tune;
 
 use std::collections::VecDeque;
 
 pub use chord::{Chord, ChordQuality};
 pub use key::{Key, Mode};
+pub use tune::{MAX_TUNE_NOTES, MIN_TUNE_NOTES, Melody};
 
 use chord::recognise;
 use key::{KeyChange, KeyFinder};
 use rhythm::BeatTracker;
+use tune::MelodyLine;
 
 /// A musical moment a listener notices, which plays as a button.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -46,6 +49,8 @@ pub enum Heard {
     Mode(Mode),
     /// Held once nothing has been played for this many seconds.
     Idle { seconds: u16 },
+    /// The tune was played: its melody's steps, in any key. Momentary.
+    Tune(Melody),
 }
 
 impl Heard {
@@ -178,6 +183,9 @@ pub struct Listener {
     loudness_at: f64,
     run: Run,
     big_chord_at: f64,
+    line: MelodyLine,
+    /// Each tune listened for, and when in the melody line it was last heard.
+    tunes: Vec<(Melody, Option<u64>)>,
     reported: Vec<Reported>,
 }
 
@@ -205,6 +213,14 @@ impl Listener {
             loudness_at: 0.0,
             run: Run::default(),
             big_chord_at: f64::NEG_INFINITY,
+            line: MelodyLine::default(),
+            tunes: heard
+                .iter()
+                .filter_map(|heard| match heard {
+                    Heard::Tune(melody) => Some((*melody, None)),
+                    _ => None,
+                })
+                .collect(),
             reported: vec![Reported::default(); measures.len()],
         }
     }
@@ -236,6 +252,7 @@ impl Listener {
                 self.keys.hear(note, velocity, time);
                 self.beats.hear(time, velocity);
                 self.notice_run(note, time, &mut noticed);
+                self.notice_tunes(note, time, &mut noticed);
                 self.notice_big_chord(time, &mut noticed);
             }
             Played::NoteOff { note } => {
@@ -349,6 +366,22 @@ impl Listener {
             if self.heard.contains(&heard) {
                 noticed.push(Noticed::Pressed(heard));
                 noticed.push(Noticed::Released(heard));
+            }
+        }
+    }
+
+    fn notice_tunes(&mut self, note: u8, time: f64, noticed: &mut Vec<Noticed>) {
+        if !self.line.hear(note, time) {
+            return;
+        }
+        let added = self.line.added();
+        for (melody, heard_at) in &mut self.tunes {
+            // A tune is heard once each time it is played through.
+            let again = heard_at.is_none_or(|at| added >= at + melody.notes().len() as u64 / 2);
+            if again && self.line.ends_with(melody) {
+                *heard_at = Some(added);
+                noticed.push(Noticed::Pressed(Heard::Tune(*melody)));
+                noticed.push(Noticed::Released(Heard::Tune(*melody)));
             }
         }
     }

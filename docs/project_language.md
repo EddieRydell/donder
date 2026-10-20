@@ -340,7 +340,9 @@ InputDevice keyboard {
 - A listener's buttons read `ChordChange`, `KeyChange`, `Resolution`, `Beat`,
   `RunUp`, `RunDown`, `BigChord`, `Chord { quality }` (`Major`, `Minor`,
   `Dominant`, `Diminished`, `Augmented` or `Suspended`), `Mode { mode }`
-  (`Major` or `Minor`) or `Idle { seconds }` (at least 1), and its dials
+  (`Major` or `Minor`), `Idle { seconds }` (at least 1) or
+  `Tune { notes }` (5 to 24 MIDI notes of a melody, heard in any key), and its
+  dials
   `KeyColor`, `ChordColor`, `Tension`, `Loudness`, `Density`, `Register` or
   `Tempo`; `docs/live_input.md` says what each hears.
 - Control names are unique within their device, and no two controls read the

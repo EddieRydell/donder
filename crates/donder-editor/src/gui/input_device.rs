@@ -2,7 +2,7 @@
 use donder_model::{
     ButtonInput, ChordQuality, DialInput, Heard, InputControl, InputControlId, InputControlKind,
     InputDevice, InputDeviceId, InputDriver, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE,
-    MAX_MIDI_NOTE, Measure, Mode,
+    MAX_MIDI_NOTE, MAX_TUNE_NOTES, MIN_TUNE_NOTES, Measure, Melody, Mode,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
@@ -13,11 +13,14 @@ use donder_sequence_api::{
     SetupInputDevice,
 };
 
-/// The highest MIDI inputs a control can read.
+/// The highest MIDI inputs a control can read, and how many notes a tune
+/// has.
 pub(super) fn input_limits() -> GuiInputLimits {
     GuiInputLimits {
         max_note: MAX_MIDI_NOTE,
         max_control_change: MAX_MIDI_CONTROL_CHANGE,
+        min_tune_notes: MIN_TUNE_NOTES as u32,
+        max_tune_notes: MAX_TUNE_NOTES as u32,
     }
 }
 
@@ -133,7 +136,7 @@ fn domain_control_kind(
             ));
         }
         (GuiInputControlKind::Button, GuiControlInput::Heard { heard }) => {
-            InputControlKind::Button(ButtonInput::Heard(domain_heard(*heard)))
+            InputControlKind::Button(ButtonInput::Heard(domain_heard(heard)?))
         }
         (GuiInputControlKind::Dial, GuiControlInput::Measured { measure }) => {
             InputControlKind::Dial(DialInput::Measured(match measure {
@@ -275,11 +278,14 @@ fn gui_heard(heard: Heard) -> GuiHeard {
             },
         },
         Heard::Idle { seconds } => GuiHeard::Idle { seconds },
+        Heard::Tune(melody) => GuiHeard::Tune {
+            notes: melody.notes().to_vec(),
+        },
     }
 }
 
-fn domain_heard(heard: GuiHeard) -> Heard {
-    match heard {
+fn domain_heard(heard: &GuiHeard) -> Result<Heard, GuiMutationError> {
+    Ok(match heard {
         GuiHeard::ChordChange => Heard::ChordChange,
         GuiHeard::KeyChange => Heard::KeyChange,
         GuiHeard::Resolution => Heard::Resolution,
@@ -299,6 +305,11 @@ fn domain_heard(heard: GuiHeard) -> Heard {
             GuiKeyMode::Major => Mode::Major,
             GuiKeyMode::Minor => Mode::Minor,
         }),
-        GuiHeard::Idle { seconds } => Heard::Idle { seconds },
-    }
+        GuiHeard::Idle { seconds } => Heard::Idle { seconds: *seconds },
+        GuiHeard::Tune { notes } => Heard::Tune(Melody::new(notes).ok_or_else(|| {
+            GuiMutationError::Invalid(format!(
+                "A tune has {MIN_TUNE_NOTES} to {MAX_TUNE_NOTES} notes."
+            ))
+        })?),
+    })
 }

@@ -17,12 +17,15 @@ pub struct InputDeviceGuiDocument {
     pub input_limits: GuiInputLimits,
 }
 
-/// The highest MIDI inputs a control can read.
+/// The highest MIDI inputs a control can read, and how many notes a tune
+/// has.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiInputLimits {
     pub max_note: u8,
     pub max_control_change: u8,
+    pub min_tune_notes: u32,
+    pub max_tune_notes: u32,
 }
 
 /// An input device as a setup lists it and its editor edits it.
@@ -117,7 +120,7 @@ pub enum GuiControlInput {
 }
 
 /// A musical moment a listener hears.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -142,6 +145,10 @@ pub enum GuiHeard {
     /// Held once nothing has been played for this many seconds.
     Idle {
         seconds: u16,
+    },
+    /// A melody's MIDI notes, recognised in any key.
+    Tune {
+        notes: Vec<u8>,
     },
 }
 
