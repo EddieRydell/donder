@@ -7,9 +7,9 @@ import {
   OPEN_QUICK_OPEN_EVENT,
   commandRegistry,
   runCommand,
-  shortcutLabel,
-  type CommandId
+  shortcutLabel
 } from "../commandRegistry";
+import type { CommandId } from "../types";
 import { runSnapshotCommand, useAppStore } from "../store";
 import { commands } from "../api";
 import { THEME_METRICS } from "../theme";

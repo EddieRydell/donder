@@ -3,8 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { SequenceClipMatch, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceEditorDocument, SequenceEffectParam, SequenceEffectParamKind, SequenceSelection } from "../../../editor/types";
-import { formatShortcut } from "../../../platform";
-import { EDITOR_SHORTCUTS } from "../../../shortcuts";
+import { shortcutLabel } from "../../../commandRegistry";
 import { THEME_METRICS } from "../../../theme";
 import { useSequenceEffectDetails } from "./sequenceEffectDetails";
 
@@ -50,7 +49,7 @@ export function ClipMatchMenuItems({ criteria, onCriteria, onSelectMatching, onO
   return <>
     <ContextMenu.Item className="menu-item" onSelect={onSelectMatching}>
       <span>Select Matching</span>
-      <span className="shortcut">{EDITOR_SHORTCUTS["sequence.selectMatching"].map(formatShortcut).join(" / ")}</span>
+      <span className="shortcut">{shortcutLabel("sequence.selectMatching")}</span>
     </ContextMenu.Item>
     <ContextMenu.Separator className="menu-separator" />
     {checkbox("effectType", FLAG_CRITERIA.effectType, null, criteria.effectType, { ...criteria, effectType: !criteria.effectType })}

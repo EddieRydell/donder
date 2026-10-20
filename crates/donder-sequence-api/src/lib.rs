@@ -81,11 +81,12 @@ pub use dto::view_state::{
     SpatialGuideAxis,
 };
 pub use dto::workspace::{
-    AppSettings, DocumentDefaultObjectKey, DocumentDescriptor, DocumentObjectDescriptor,
-    EditorBuffer, EditorTab, EditorViewMode, EffectRasterSettings, NewSequenceRequest,
-    NewSequenceResult, NewSequenceStorage, ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind,
-    ProjectSearchRequest, ProjectSearchResponse, SequenceClipMatch, SequenceClipTimeMatch,
-    SequenceFollowMode, SequenceInitialZoomMode, SidebarView, SpatialSnapSettings, SpatialUnit,
+    AppCommandId, AppSettings, CommandId, DocumentDefaultObjectKey, DocumentDescriptor,
+    DocumentObjectDescriptor, EditorBuffer, EditorCommandId, EditorTab, EditorViewMode,
+    EffectRasterSettings, KeyBinding, NewSequenceRequest, NewSequenceResult, NewSequenceStorage,
+    ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind, ProjectSearchRequest,
+    ProjectSearchResponse, SequenceClipMatch, SequenceClipTimeMatch, SequenceFollowMode,
+    SequenceInitialZoomMode, Shortcut, SidebarView, SpatialSnapSettings, SpatialUnit,
     TextDocumentSyntax, TextPosition, TextRange, Transform, WorkspaceEntry, WorkspaceEntryKind,
     WorkspaceEntryRole, WorkspaceExplorerState, WorkspaceLayoutState, WorkspaceOperation,
     WorkspacePathChangeImpact, WorkspacePathChangePlan, WorkspacePathChangeRequest,

@@ -1,12 +1,12 @@
-import type { CommandId } from "./commandRegistry";
+import type { AppCommandId } from "./types";
 
 /**
  * The app menus, rendered as the in-window menu bar on Windows and Linux and as the system menu
  * bar on macOS. Each renderer adds only its platform's own items, such as Settings and Quit.
  */
-export type AppMenuEntry = { type: "command"; id: CommandId } | { type: "separator" };
+export type AppMenuEntry = { type: "command"; id: AppCommandId } | { type: "separator" };
 
-const item = (id: CommandId): AppMenuEntry => ({ type: "command", id });
+const item = (id: AppCommandId): AppMenuEntry => ({ type: "command", id });
 const separator: AppMenuEntry = { type: "separator" };
 
 export const FILE_MENU: AppMenuEntry[] = [

@@ -1,9 +1,7 @@
+import type { Shortcut } from "./types";
 import { focusedCodeEditor } from "./ui/source/monaco";
 
 export const isMac = navigator.userAgent.includes("Mac");
-
-/** A key with the modifiers it needs. `primary` is Command on macOS and Control elsewhere; Shift is required, forbidden, or either. */
-export type Shortcut = { key: string; primary?: boolean; shift?: boolean | "either" };
 
 type ModifierState = { ctrlKey: boolean; metaKey: boolean };
 
@@ -27,13 +25,46 @@ export function editTarget(target: EventTarget | null): EditTarget {
   return "app";
 }
 
-export function matchesShortcut(event: KeyboardEvent, shortcut: Shortcut): boolean {
-  const key = shortcut.key.length === 1 ? event.key.toLowerCase() : event.key;
+/** A shortcut from a key and the modifiers it needs. */
+export function shortcut(key: string, modifiers: { primary?: boolean; shift?: boolean; alt?: boolean } = {}): Shortcut {
+  return { key, primary: modifiers.primary === true, shift: modifiers.shift === true, alt: modifiers.alt === true };
+}
+
+const PHYSICAL_LETTER = /^Key([A-Z])$/;
+const PHYSICAL_DIGIT = /^Digit(\d)$/;
+
+/**
+ * The key a shortcut names for a key press. Option on macOS and Shift on the digit row change the
+ * character typed, so those chords name the physical key instead.
+ */
+function shortcutKey(event: KeyboardEvent): string {
+  const letter = PHYSICAL_LETTER.exec(event.code)?.[1];
+  const digit = PHYSICAL_DIGIT.exec(event.code)?.[1];
+  if (event.altKey && letter !== undefined) return letter.toLowerCase();
+  if ((event.altKey || event.shiftKey) && digit !== undefined) return digit;
+  return event.key.length === 1 ? event.key.toLowerCase() : event.key;
+}
+
+/** Whether a key press is the shortcut; `shiftFree` matches with or without Shift for commands that take it as an argument. */
+export function matchesShortcut(event: KeyboardEvent, target: Shortcut, shiftFree = false): boolean {
   const otherModifier = isMac ? event.ctrlKey : event.metaKey;
-  return key === shortcut.key
-    && hasPrimaryModifier(event) === (shortcut.primary === true)
-    && !otherModifier && !event.altKey
-    && (shortcut.shift === "either" || event.shiftKey === (shortcut.shift === true));
+  return shortcutKey(event) === target.key
+    && hasPrimaryModifier(event) === target.primary
+    && !otherModifier
+    && event.altKey === target.alt
+    && (shiftFree || event.shiftKey === target.shift);
+}
+
+const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "AltGraph", "CapsLock", "Fn"]);
+
+/** The shortcut a key press makes, or null while only modifiers are down or the platform's other modifier is held. */
+export function shortcutFromEvent(event: KeyboardEvent): Shortcut | null {
+  if (MODIFIER_KEYS.has(event.key) || (isMac ? event.ctrlKey : event.metaKey)) return null;
+  return shortcut(shortcutKey(event), { primary: hasPrimaryModifier(event), shift: event.shiftKey, alt: event.altKey });
+}
+
+export function sameShortcut(left: Shortcut, right: Shortcut): boolean {
+  return left.key === right.key && left.primary === right.primary && left.shift === right.shift && left.alt === right.alt;
 }
 
 /** Control-click is a secondary click on macOS, so it must not act as a modified primary click. */
@@ -45,14 +76,13 @@ function shortcutKeyName(key: string): string {
   return key === " " ? "Space" : key.length === 1 ? key.toUpperCase() : key;
 }
 
-export function formatShortcut(shortcut: Shortcut): string {
-  const key = shortcutKeyName(shortcut.key);
-  const shift = shortcut.shift === true;
-  if (isMac) return `${shift ? "⇧" : ""}${shortcut.primary === true ? "⌘" : ""}${key}`;
-  return `${shortcut.primary === true ? "Ctrl+" : ""}${shift ? "Shift+" : ""}${key}`;
+export function formatShortcut(target: Shortcut): string {
+  const key = shortcutKeyName(target.key);
+  if (isMac) return `${target.alt ? "⌥" : ""}${target.shift ? "⇧" : ""}${target.primary ? "⌘" : ""}${key}`;
+  return `${target.primary ? "Ctrl+" : ""}${target.alt ? "Alt+" : ""}${target.shift ? "Shift+" : ""}${key}`;
 }
 
 /** Tauri menu accelerator for a shortcut. */
-export function shortcutAccelerator(shortcut: Shortcut): string {
-  return `${shortcut.primary === true ? "CmdOrCtrl+" : ""}${shortcut.shift === true ? "Shift+" : ""}${shortcutKeyName(shortcut.key)}`;
+export function shortcutAccelerator(target: Shortcut): string {
+  return `${target.primary ? "CmdOrCtrl+" : ""}${target.alt ? "Alt+" : ""}${target.shift ? "Shift+" : ""}${shortcutKeyName(target.key)}`;
 }

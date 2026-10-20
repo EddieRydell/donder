@@ -19,7 +19,7 @@ type SequenceWaveformProps = {
   scrollXSeconds: number;
 };
 
-type WaveSurferInstance = { path: string; wavesurfer: WaveSurfer };
+type WaveSurferInstance = { path: string; wavesurfer: WaveSurfer; durationSeconds: number };
 
 const DEFAULT_SPECTROGRAM_SETTINGS = {
   timeResolutionMs: 10,
@@ -68,7 +68,7 @@ export function SequenceWaveform({
       autoScroll: false,
       autoCenter: false
     });
-    const current = { path, wavesurfer };
+    const current = { path, wavesurfer, durationSeconds: 0 };
     activeInstance.current = current;
     const unsubscribe = wavesurfer.on("error", (error) => {
       console.error("Sequence audio visualization failed", error);
@@ -78,6 +78,7 @@ export function SequenceWaveform({
       const response = await fetch(convertFileSrc(path), { signal: controller.signal });
       if (!response.ok) throw new Error(`Audio request failed with status ${response.status}`);
       await wavesurfer.loadBlob(await response.blob());
+      current.durationSeconds = wavesurfer.getDuration();
       if (activeInstance.current === current) setInstance(current);
     })().catch((error: unknown) => {
       if (activeInstance.current === current) console.error("Sequence audio visualization failed", error);
@@ -143,11 +144,18 @@ export function SequenceWaveform({
 
   if (audio?.exists !== true) return null;
 
+  // The waveform covers only the visible part of the audio in timeline coordinates, so it ends
+  // where the audio ends and WaveSurfer's own scroll range always reaches the timeline's scroll.
+  const loadedDuration = instance !== null && instance.path === audio.resolvedPath ? instance.durationSeconds : null;
+  const visibleWidth = loadedDuration === null
+    ? width
+    : clamp((loadedDuration - scrollXSeconds) * pxPerSecond, 0, width);
+
   return (
     <div
       ref={container}
       className={`sequence-audio-visualization${spectrogramEnabled ? " is-spectrogram" : ""}`}
-      style={{ left, top, width, height }}
+      style={{ left, top, width: visibleWidth, height }}
       aria-hidden="true"
     />
   );
