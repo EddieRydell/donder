@@ -10,7 +10,7 @@ pub struct InputControlId(pub u32);
 
 /// Hardware a live performance plays from: its controls, each bound to one
 /// input of its driver.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct InputDevice {
     pub id: InputDeviceId,
     pub description: Option<String>,
@@ -25,19 +25,27 @@ pub enum InputDriver {
     Midi {
         port: Option<String>,
     },
+    /// OSC messages sent to this UDP port, on every network interface.
+    Osc {
+        port: u16,
+    },
 }
 
 impl InputDriver {
     /// Whether this driver reads `input`.
-    pub fn reads(&self, input: InputSource) -> bool {
+    pub fn reads(&self, input: &InputSource) -> bool {
         match self {
             Self::Keyboard => matches!(input, InputSource::Key(_)),
-            Self::Midi { .. } => !matches!(input, InputSource::Key(_)),
+            Self::Midi { .. } => matches!(
+                input,
+                InputSource::Note(_) | InputSource::ControlChange(_) | InputSource::PitchBend
+            ),
+            Self::Osc { .. } => matches!(input, InputSource::Address(_)),
         }
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct InputControl {
     pub id: InputControlId,
     /// Unique within the device; rigs refer to it.
@@ -46,7 +54,7 @@ pub struct InputControl {
     pub kind: InputControlKind,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum InputControlKind {
     /// Pressed or released.
     Button(ButtonInput),
@@ -74,71 +82,117 @@ pub const MAX_MIDI_NOTE: u8 = 127;
 /// The highest MIDI control change number; 120 and up are channel modes.
 pub const MAX_MIDI_CONTROL_CHANGE: u8 = 119;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+/// An OSC address a control reads, such as `/chord/change`: a `/` and then
+/// address characters, matched exactly.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct OscAddress(pub String);
+
+impl OscAddress {
+    /// Characters OSC reserves for address patterns and separators.
+    const RESERVED: &'static [char] = &['*', '?', '[', ']', '{', '}', '#', ','];
+
+    /// Whether it starts with `/` and has only printable ASCII characters
+    /// that are not spaces or OSC's pattern characters.
+    pub fn is_valid(&self) -> bool {
+        self.0.starts_with('/')
+            && self
+                .0
+                .chars()
+                .all(|c| c.is_ascii_graphic() && !Self::RESERVED.contains(&c))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ButtonInput {
     Key(KeyCode),
     /// A MIDI note, held from note on to note off.
     Note(u8),
     /// A MIDI control change, held at 64 and above, as a sustain pedal is.
     ControlChange(u8),
+    /// An OSC address: pressed by a first argument above 0, released by 0,
+    /// and pressed and released at once by a message with no arguments.
+    Address(OscAddress),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DialInput {
     /// A MIDI control change, from 0 to 119.
     ControlChange(u8),
     /// The MIDI pitch bend wheel, from fully down to fully up.
     PitchBend,
+    /// An OSC address whose first argument runs from `low` to `high`.
+    Address {
+        path: OscAddress,
+        low: f32,
+        high: f32,
+    },
 }
 
 /// What a control reads, whichever kind of control reads it. No two controls
 /// of a device read the same input.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum InputSource {
     Key(KeyCode),
     Note(u8),
     ControlChange(u8),
     PitchBend,
+    Address(OscAddress),
 }
 
 impl InputControlKind {
     /// Every input the control reads: one, or each key of its range.
-    pub fn sources(self) -> Vec<InputSource> {
+    pub fn sources(&self) -> Vec<InputSource> {
         match self {
-            Self::Button(ButtonInput::Key(code)) => vec![InputSource::Key(code)],
-            Self::Button(ButtonInput::Note(note)) => vec![InputSource::Note(note)],
+            Self::Button(ButtonInput::Key(code)) => vec![InputSource::Key(*code)],
+            Self::Button(ButtonInput::Note(note)) => vec![InputSource::Note(*note)],
             Self::Button(ButtonInput::ControlChange(number))
             | Self::Dial(DialInput::ControlChange(number)) => {
-                vec![InputSource::ControlChange(number)]
+                vec![InputSource::ControlChange(*number)]
             }
             Self::Dial(DialInput::PitchBend) => vec![InputSource::PitchBend],
+            Self::Button(ButtonInput::Address(path))
+            | Self::Dial(DialInput::Address { path, .. }) => {
+                vec![InputSource::Address(path.clone())]
+            }
             Self::Keys(range) => (range.low..=range.high).map(InputSource::Note).collect(),
         }
     }
 
     /// Whether it is a single button, which switches and `Control` mappings
     /// can play from.
-    pub fn is_button(self) -> bool {
+    pub fn is_button(&self) -> bool {
         matches!(self, Self::Button(_))
     }
 
     /// Whether it is pressed and released, as a button or the keys of a
     /// range are, so it can trigger effects and add marks.
-    pub fn is_pressed(self) -> bool {
+    pub fn is_pressed(&self) -> bool {
         matches!(self, Self::Button(_) | Self::Keys(_))
     }
 
     /// The notes a press can carry: a note button's, or its range.
-    pub fn notes(self) -> Option<KeyRange> {
+    pub fn notes(&self) -> Option<KeyRange> {
         match self {
             Self::Button(ButtonInput::Note(note)) => Some(KeyRange {
-                low: note,
-                high: note,
+                low: *note,
+                high: *note,
             }),
-            Self::Keys(range) => Some(range),
-            Self::Button(ButtonInput::Key(_) | ButtonInput::ControlChange(_)) | Self::Dial(_) => {
-                None
+            Self::Keys(range) => Some(*range),
+            Self::Button(
+                ButtonInput::Key(_) | ButtonInput::ControlChange(_) | ButtonInput::Address(_),
+            )
+            | Self::Dial(_) => None,
+        }
+    }
+
+    /// Whether a dial's range runs between two finite values, from lower to
+    /// higher; other controls have no range.
+    fn range_is_valid(&self) -> bool {
+        match self {
+            Self::Dial(DialInput::Address { low, high, .. }) => {
+                low.is_finite() && high.is_finite() && low < high
             }
+            Self::Button(_) | Self::Dial(_) | Self::Keys(_) => true,
         }
     }
 }
@@ -146,11 +200,12 @@ impl InputControlKind {
 impl InputSource {
     /// Whether the number it reads is one MIDI has, leaving out the control
     /// changes 120 and up, which are channel modes.
-    pub fn in_range(self) -> bool {
+    pub fn in_range(&self) -> bool {
         match self {
             Self::Key(_) | Self::PitchBend => true,
-            Self::Note(note) => note <= MAX_MIDI_NOTE,
-            Self::ControlChange(number) => number <= MAX_MIDI_CONTROL_CHANGE,
+            Self::Note(note) => *note <= MAX_MIDI_NOTE,
+            Self::ControlChange(number) => *number <= MAX_MIDI_CONTROL_CHANGE,
+            Self::Address(_) => true,
         }
     }
 }
@@ -162,6 +217,7 @@ impl std::fmt::Display for InputSource {
             Self::Note(note) => write!(f, "note {note}"),
             Self::ControlChange(number) => write!(f, "control change {number}"),
             Self::PitchBend => f.write_str("pitch bend"),
+            Self::Address(address) => write!(f, "OSC address `{}`", address.0),
         }
     }
 }
@@ -315,6 +371,12 @@ pub enum InputDeviceValidationError {
     /// A note or control change number MIDI does not have, or keys whose
     /// lowest note is above their highest.
     InputOutOfRange(Identifier),
+    /// An OSC address that is not `/` followed by address characters.
+    InvalidAddress(Identifier),
+    /// A dial whose range is not two finite values from lower to higher.
+    InvalidDialRange(Identifier),
+    /// An OSC device listening on port 0.
+    InvalidOscPort,
 }
 
 impl std::fmt::Display for InputDeviceValidationError {
@@ -341,6 +403,17 @@ impl std::fmt::Display for InputDeviceValidationError {
                 "control `{}` reads a note above {MAX_MIDI_NOTE}, a control change above {MAX_MIDI_CONTROL_CHANGE}, or keys from a higher note to a lower one",
                 name.as_str()
             ),
+            Self::InvalidAddress(name) => write!(
+                f,
+                "control `{}` reads an OSC address that is not `/` followed by printable characters other than spaces and `*?[]{{}}#,`",
+                name.as_str()
+            ),
+            Self::InvalidDialRange(name) => write!(
+                f,
+                "dial `{}` must run from a lower to a higher finite value",
+                name.as_str()
+            ),
+            Self::InvalidOscPort => f.write_str("an OSC device listens on a port from 1 to 65535"),
         }
     }
 }
@@ -350,6 +423,9 @@ impl InputDevice {
         let mut ids = std::collections::HashSet::new();
         let mut names = std::collections::HashSet::new();
         let mut inputs = std::collections::HashSet::new();
+        if self.driver == (InputDriver::Osc { port: 0 }) {
+            return Err(InputDeviceValidationError::InvalidOscPort);
+        }
         for control in &self.controls {
             if !ids.insert(control.id) {
                 return Err(InputDeviceValidationError::DuplicateControl(control.id));
@@ -362,8 +438,20 @@ impl InputDevice {
                 ));
             }
             let sources = control.kind.sources();
-            if sources.iter().any(|source| !self.driver.reads(*source)) {
+            if sources.iter().any(|source| !self.driver.reads(source)) {
                 return Err(InputDeviceValidationError::ForeignInput(
+                    control.name.clone(),
+                ));
+            }
+            if sources.iter().any(
+                |source| matches!(source, InputSource::Address(address) if !address.is_valid()),
+            ) {
+                return Err(InputDeviceValidationError::InvalidAddress(
+                    control.name.clone(),
+                ));
+            }
+            if !control.kind.range_is_valid() {
+                return Err(InputDeviceValidationError::InvalidDialRange(
                     control.name.clone(),
                 ));
             }

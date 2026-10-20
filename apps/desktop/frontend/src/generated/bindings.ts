@@ -373,7 +373,8 @@ export type GradientGuiDocument = {
 /**
  *  What a control reads. A keyboard reads keys; MIDI buttons read notes and
  *  control changes, MIDI dials read control changes and pitch bend, and MIDI
- *  keys read a range of notes.
+ *  keys read a range of notes. OSC buttons read an address, and OSC dials an
+ *  address and the range its value runs over.
  */
 export type GuiControlInput = 
 /**  A keyboard key by its `KeyboardEvent.code` name. */
@@ -383,7 +384,11 @@ export type GuiControlInput =
 /**  MIDI notes from `low` through `high`; a full piano is 21 to 108. */
 { type: "notes"; low: number; high: number } | 
 /**  A MIDI control change number, 0 to 119; the sustain pedal is 64. */
-{ type: "controlChange"; number: number } | { type: "pitchBend" };
+{ type: "controlChange"; number: number } | { type: "pitchBend" } | 
+/**  An OSC address, such as `/chord/change`. */
+{ type: "address"; path: string } | 
+/**  An OSC address whose first argument runs from `low` to `high`. */
+{ type: "addressRange"; path: string; low: number; high: number };
 
 export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "rig"; document: RigGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
@@ -467,7 +472,9 @@ export type GuiInputControlKind =
 
 export type GuiInputDriver = { type: "keyboard" } | 
 /**  MIDI input ports whose name contains `port`, or every port. */
-{ type: "midi"; port: string | null };
+{ type: "midi"; port: string | null } | 
+/**  OSC messages sent to `port` over UDP, on every network interface. */
+{ type: "osc"; port: number };
 
 /**  The highest MIDI inputs a control can read. */
 export type GuiInputLimits = {
@@ -639,6 +646,13 @@ export type PerformMidi = {
 	error: string | null,
 };
 
+export type PerformOsc = {
+	/**  The UDP ports listening now. */
+	ports: number[],
+	/**  Why a port that is not listening failed to bind. */
+	error: string | null,
+};
+
 /**  A rig of the project, by its position in the project's rigs. */
 export type PerformRig = {
 	index: number,
@@ -657,6 +671,8 @@ export type PerformSession = {
 	keys: string[],
 	/**  The rig's MIDI connections, when it plays from MIDI. */
 	midi: PerformMidi | null,
+	/**  The rig's OSC listeners, when it plays from OSC. */
+	osc: PerformOsc | null,
 };
 
 /**  Perform mode: the rigs the project can perform and the performance in progress. */

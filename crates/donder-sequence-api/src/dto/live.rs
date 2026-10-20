@@ -49,6 +49,10 @@ pub enum GuiInputDriver {
     Midi {
         port: Option<String>,
     },
+    /// OSC messages sent to `port` over UDP, on every network interface.
+    Osc {
+        port: u16,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -76,8 +80,9 @@ pub enum GuiInputControlKind {
 
 /// What a control reads. A keyboard reads keys; MIDI buttons read notes and
 /// control changes, MIDI dials read control changes and pitch bend, and MIDI
-/// keys read a range of notes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+/// keys read a range of notes. OSC buttons read an address, and OSC dials an
+/// address and the range its value runs over.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -102,6 +107,16 @@ pub enum GuiControlInput {
         number: u8,
     },
     PitchBend,
+    /// An OSC address, such as `/chord/change`.
+    Address {
+        path: String,
+    },
+    /// An OSC address whose first argument runs from `low` to `high`.
+    AddressRange {
+        path: String,
+        low: f32,
+        high: f32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

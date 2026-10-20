@@ -314,9 +314,11 @@ InputDevice keyboard {
 
 - `InputDevice`: `description`, `driver`, `controls`. The setup lists the input
   devices its rigs play from.
-- `driver` is `Keyboard`, the computer keyboard, or `Midi { port }`: the MIDI
+- `driver` is `Keyboard`, the computer keyboard; `Midi { port }`, the MIDI
   input ports whose name contains `port`, ignoring case, or every port when it
-  is `none`.
+  is `none`; or `Osc { port }`, OSC messages sent over UDP to `port`, from 1 to
+  65535, on every network interface. No two OSC devices of a setup share a
+  port.
 - A control is `Button { name, description, input }`, pressed or released,
   `Dial { name, description, input }`, a position from 0 to 1, or
   `Keys { name, description, input }`, a range of MIDI notes each pressed on
@@ -336,6 +338,12 @@ InputDevice keyboard {
   from note on to note off, or `ControlChange { number }`, from 0 to 119, held
   at 64 and above. A MIDI dial's `input` is `ControlChange { number }` or
   `PitchBend`.
+- An OSC button's `input` is `Address { path }`, pressed by a first argument
+  above 0, released by 0, and pressed and released at once by a message with no
+  arguments. An OSC dial's `input` is `Address { path, low, high }`, its first
+  argument running from `low` to `high`, two finite floats with `low < high`.
+  `path` is a `/` and then printable characters other than spaces and
+  `*?[]{}#,`, matched exactly. OSC devices have no `Keys`.
 - Control names are unique within their device, and no two controls read the
   same input; a note inside a `Keys` range is read by those keys.
 

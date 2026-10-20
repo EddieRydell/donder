@@ -33,6 +33,8 @@ pub struct PerformSession {
     pub keys: Vec<String>,
     /// The rig's MIDI connections, when it plays from MIDI.
     pub midi: Option<PerformMidi>,
+    /// The rig's OSC listeners, when it plays from OSC.
+    pub osc: Option<PerformOsc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -41,6 +43,15 @@ pub struct PerformMidi {
     /// The ports connected now.
     pub ports: Vec<String>,
     /// Why the last look for ports failed to list or connect one.
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformOsc {
+    /// The UDP ports listening now.
+    pub ports: Vec<u16>,
+    /// Why a port that is not listening failed to bind.
     pub error: Option<String>,
 }
 

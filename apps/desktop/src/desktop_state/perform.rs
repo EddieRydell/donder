@@ -7,17 +7,18 @@ use std::collections::HashMap;
 
 use super::{DesktopState, lock_unpoisoned};
 use crate::midi::{MidiInputs, MidiMessage};
+use crate::osc::{OscInputs, OscMessage};
 use crate::rendering::{RigOutput, SessionClock};
 use donder_elaboration::{PreparationCache, PrepareOutputs, RigRouter};
 use donder_model::{
-    ButtonInput, ControllerId, DialInput, DonderProject, InputControlKind, InputDriver, KeyCode,
-    KeyRange, RigId,
+    ButtonInput, ControllerId, DialInput, DonderProject, InputControlKind, InputDevice,
+    InputDriver, KeyCode, KeyRange, OscAddress, RigId,
 };
 use donder_runtime::PreparedRig;
 use donder_runtime_types::{RigEvent, SampleTime, sample_time_seconds_f32};
 use donder_sequence_api::{
-    AudioTransportState, LiveOutputState, PerformButton, PerformMidi, PerformRig, PerformSession,
-    PerformSnapshot, PerformSwitch,
+    AudioTransportState, LiveOutputState, PerformButton, PerformMidi, PerformOsc, PerformRig,
+    PerformSession, PerformSnapshot, PerformSwitch,
 };
 
 #[derive(Default)]
@@ -57,6 +58,46 @@ enum MidiRead {
     /// A control change read as a dial.
     Dial(u8),
     PitchBend,
+}
+
+/// An OSC address of a device the performance plays from.
+struct OscBinding {
+    /// The UDP port the device listens on.
+    port: u16,
+    address: OscAddress,
+    reads: OscRead,
+    /// The router input.
+    input: usize,
+}
+
+/// What an OSC control reads.
+#[derive(Clone, Copy)]
+enum OscRead {
+    Button,
+    /// A dial whose first argument runs from `low` to `high`.
+    Dial {
+        low: f32,
+        high: f32,
+    },
+}
+
+/// The binding of `device`'s control at router input `input`, which reads
+/// `address`.
+fn osc_binding(
+    device: &InputDevice,
+    address: &OscAddress,
+    reads: OscRead,
+    input: usize,
+) -> Result<OscBinding, String> {
+    let InputDriver::Osc { port } = device.driver else {
+        return Err("A control reads an OSC address its device does not listen for.".into());
+    };
+    Ok(OscBinding {
+        port,
+        address: address.clone(),
+        reads,
+        input,
+    })
 }
 
 /// Whether a device that reads `wanted` reads the port named `port`: one
@@ -160,6 +201,10 @@ struct Performance {
     /// The MIDI ports the performance is connected to, when it plays from
     /// MIDI.
     midi_inputs: Option<MidiInputs>,
+    /// The router inputs OSC plays.
+    osc: Vec<OscBinding>,
+    /// The UDP ports the performance listens on, when it plays from OSC.
+    osc_inputs: Option<OscInputs>,
     switches: Box<[String]>,
     controllers: Vec<ControllerId>,
     /// Every command so far, for an evaluator that joins mid-performance.
@@ -197,6 +242,13 @@ impl Performance {
             midi: self.midi_inputs.as_ref().map(|inputs| {
                 let status = inputs.status();
                 PerformMidi {
+                    ports: status.ports,
+                    error: status.error,
+                }
+            }),
+            osc: self.osc_inputs.as_ref().map(|inputs| {
+                let status = inputs.status();
+                PerformOsc {
                     ports: status.ports,
                     error: status.error,
                 }
@@ -288,6 +340,7 @@ impl DesktopState {
                 .ok_or("The active setup is missing.")?;
             let mut keys: HashMap<KeyCode, Vec<usize>> = HashMap::new();
             let mut midi = Vec::new();
+            let mut osc = Vec::new();
             let mut buttons = Vec::with_capacity(armed.inputs.len());
             for (index, button) in armed.inputs.iter().enumerate() {
                 let device = project
@@ -303,20 +356,36 @@ impl DesktopState {
                     control: control.name.as_str().to_string(),
                 });
                 // Every control of the setup with this key, note or pedal plays.
-                let reads = match control.kind {
+                let reads = match &control.kind {
                     InputControlKind::Button(ButtonInput::Key(code)) => {
-                        keys.entry(code).or_default().push(index);
+                        keys.entry(*code).or_default().push(index);
                         continue;
                     }
-                    InputControlKind::Button(ButtonInput::Note(note)) => MidiRead::Note(note),
+                    InputControlKind::Button(ButtonInput::Address(address)) => {
+                        osc.push(osc_binding(device, address, OscRead::Button, index)?);
+                        continue;
+                    }
+                    InputControlKind::Dial(DialInput::Address {
+                        path: address,
+                        low,
+                        high,
+                    }) => {
+                        let reads = OscRead::Dial {
+                            low: *low,
+                            high: *high,
+                        };
+                        osc.push(osc_binding(device, address, reads, index)?);
+                        continue;
+                    }
+                    InputControlKind::Button(ButtonInput::Note(note)) => MidiRead::Note(*note),
                     InputControlKind::Button(ButtonInput::ControlChange(number)) => {
-                        MidiRead::Pedal(number)
+                        MidiRead::Pedal(*number)
                     }
                     InputControlKind::Dial(DialInput::ControlChange(number)) => {
-                        MidiRead::Dial(number)
+                        MidiRead::Dial(*number)
                     }
                     InputControlKind::Dial(DialInput::PitchBend) => MidiRead::PitchBend,
-                    InputControlKind::Keys(range) => MidiRead::Keys(range),
+                    InputControlKind::Keys(range) => MidiRead::Keys(*range),
                 };
                 let InputDriver::Midi { port } = &device.driver else {
                     return Err("A keyboard control reads a MIDI input.".into());
@@ -349,6 +418,17 @@ impl DesktopState {
                     },
                 )
             });
+            let osc_inputs = (!osc.is_empty()).then(|| {
+                let mut ports = osc.iter().map(|binding| binding.port).collect::<Vec<_>>();
+                ports.sort_unstable();
+                ports.dedup();
+                let state = self.weak.clone();
+                OscInputs::start(ports, move |port, message| {
+                    if let Some(state) = state.upgrade() {
+                        DesktopState(state).perform_osc(generation, port, &message);
+                    }
+                })
+            });
             let sequence = armed.prepared.sequence();
             let performance = Performance {
                 generation,
@@ -368,6 +448,8 @@ impl DesktopState {
                 midi_held: HashMap::new(),
                 midi_ports: Vec::new(),
                 midi_inputs,
+                osc,
+                osc_inputs,
                 switches: project
                     .rig(&rig_id)
                     .ok_or("The rig is no longer in the project.")?
@@ -535,6 +617,41 @@ impl DesktopState {
                 });
                 false
             });
+            (!events.is_empty()).then_some(events)
+        });
+    }
+
+    /// An OSC message to `port` while performance `generation` plays. A button
+    /// presses at a value above 0 and releases at 0, and a message with no
+    /// value presses and releases it at once; a dial turns to the value's
+    /// place in its range.
+    fn perform_osc(&self, generation: u32, port: u16, message: &OscMessage) {
+        self.route(|performance, time| {
+            if performance.generation != generation {
+                return None;
+            }
+            let mut events = Vec::new();
+            for binding in &performance.osc {
+                if binding.port != port || binding.address.0 != message.address {
+                    continue;
+                }
+                let router = &mut performance.router;
+                let input = binding.input;
+                match (binding.reads, message.value) {
+                    (OscRead::Button, None) => {
+                        events.extend(router.press(input, time));
+                        events.extend(router.release(input, time));
+                    }
+                    (OscRead::Button, Some(value)) if value > 0.0 => {
+                        events.extend(router.press(input, time));
+                    }
+                    (OscRead::Button, Some(_)) => events.extend(router.release(input, time)),
+                    (OscRead::Dial { low, high }, Some(value)) => {
+                        events.extend(router.turn(input, (value - low) / (high - low), time));
+                    }
+                    (OscRead::Dial { .. }, None) => {}
+                }
+            }
             (!events.is_empty()).then_some(events)
         });
     }

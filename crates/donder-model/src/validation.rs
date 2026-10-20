@@ -295,14 +295,22 @@ fn validate_setup(
         }
     }
     let mut devices = HashSet::new();
+    let mut osc_ports = HashSet::new();
     for device in &setup.input_devices {
-        if project.input_device(device.id()).is_none() {
+        let Some(input_device) = project.input_device(device.id()) else {
             return Err(ProjectValidationError::MissingInputDevice);
-        }
+        };
         if !devices.insert(device.id()) {
             return Err(ProjectValidationError::InvalidRelationship(
                 "Input device appears more than once in the setup.".into(),
             ));
+        }
+        if let crate::InputDriver::Osc { port } = input_device.driver
+            && !osc_ports.insert(port)
+        {
+            return Err(ProjectValidationError::InvalidRelationship(format!(
+                "Two OSC input devices of the setup listen on port {port}."
+            )));
         }
     }
     for route in &patch.routes {
@@ -846,7 +854,7 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), SequenceVa
         project
             .input_device(&input.device)
             .and_then(|device| device.control(input.control))
-            .map(|control| control.kind)
+            .map(|control| &control.kind)
     };
     for switch in &rig.switches {
         if !kind(&switch.input).is_some_and(InputControlKind::is_button) {

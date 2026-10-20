@@ -23,10 +23,14 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
       {session.switches.map((item) => (
         <span key={item.name} className={`perform-bar-switch ${item.on ? "on" : ""}`}>{item.name}</span>
       ))}
-      {session.midi !== null && <span className={`perform-bar-midi ${session.midi.error === null ? "" : "error"}`} title={[...session.midi.ports, session.midi.error].filter((text) => text !== null).join("\n")}>
-        {[session.midi.ports.length === 0 ? "No MIDI device found" : `MIDI: ${session.midi.ports.join(", ")}`, session.midi.error]
-          .filter((text) => text !== null).join(" · ")}
-      </span>}
+      {session.midi !== null && <InputStatus
+        summary={session.midi.ports.length === 0 ? "No MIDI device found" : `MIDI: ${session.midi.ports.join(", ")}`}
+        details={session.midi.ports}
+        error={session.midi.error} />}
+      {session.osc !== null && <InputStatus
+        summary={session.osc.ports.length === 0 ? "OSC not listening" : `OSC on port ${session.osc.ports.join(", ")}`}
+        details={session.osc.ports.map((port) => `UDP port ${port}`)}
+        error={session.osc.error} />}
       <span className="perform-bar-held" title="Held buttons">
         {session.held.length === 0 ? "No buttons held" : session.held.map((button) => `${button.device}.${button.control}`).join(" ")}
       </span>
@@ -52,6 +56,13 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
       </button>
     </section>
   );
+}
+
+/** How an input driver is connected, and why it failed when it did. */
+function InputStatus({ summary, details, error }: { summary: string; details: string[]; error: string | null }) {
+  const shown = error === null ? [summary] : [summary, error];
+  const title = error === null ? details : [...details, error];
+  return <span className={`perform-bar-input ${error === null ? "" : "error"}`} title={title.join("\n")}>{shown.join(" · ")}</span>;
 }
 
 function formatElapsed(seconds: number): string {

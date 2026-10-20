@@ -20,6 +20,7 @@ mod desktop_state;
 mod device;
 mod language_server;
 mod midi;
+mod osc;
 mod output;
 mod persistence;
 mod preview;
