@@ -1,7 +1,7 @@
 //! Arming the starter's jam rig, and routing its keyboard buttons.
 use super::{ArmedRig, RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedVoices, arm};
 use crate::{PreparationCache, PrepareOutputs};
-use donder_model::{ButtonRef, DonderProject};
+use donder_model::{ControlRef, DonderProject};
 use donder_runtime_types::{Color, RigCommand, SampleDuration, SampleTime};
 
 fn starter() -> DonderProject {
@@ -25,7 +25,7 @@ fn button(project: &DonderProject, armed: &ArmedRig, name: &str) -> usize {
     armed
         .buttons
         .iter()
-        .position(|ButtonRef { device, control }| {
+        .position(|ControlRef { device, control }| {
             project
                 .input_device(device)
                 .and_then(|device| device.control(*control))

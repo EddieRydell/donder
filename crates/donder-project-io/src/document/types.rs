@@ -90,6 +90,7 @@ pub struct InputDevice {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum InputDriver {
     Keyboard,
+    Midi { port: Option<String> },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -99,11 +100,32 @@ pub enum InputControl {
         description: Option<String>,
         input: ButtonInput,
     },
+    Dial {
+        name: Name,
+        description: Option<String>,
+        input: DialInput,
+    },
+}
+
+impl InputControl {
+    pub fn name(&self) -> &Name {
+        match self {
+            Self::Button { name, .. } | Self::Dial { name, .. } => name,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum ButtonInput {
     Key { code: KeyCode },
+    Note { note: u8 },
+    ControlChange { number: u8 },
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum DialInput {
+    ControlChange { number: u8 },
+    PitchBend,
 }
 
 /// A key by its `KeyboardEvent.code` name; the names are the model's.

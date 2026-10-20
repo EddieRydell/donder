@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
 use crate::fixture::{FixtureDefinitionError, FixtureDefinitionId};
+use crate::input_device::ControlRef;
 use crate::layout::LayoutError;
 use crate::operator::{effect_param_matches_type, validate_composition_graph};
 use crate::project::DonderProject;
@@ -832,11 +833,8 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), SequenceVa
         let device = project
             .input_device(&input.device)
             .ok_or_else(|| error("an input device is missing".into()))?;
-        if !matches!(
-            device.control(input.control).map(|control| &control.kind),
-            Some(crate::input_device::InputControlKind::Button(_))
-        ) {
-            return Err(error("an input is not a button of its device".into()));
+        if device.control(input.control).is_none() {
+            return Err(error("an input is not a control of its device".into()));
         }
         if active && !setup_devices.contains(&input.device) {
             return Err(error(
@@ -844,9 +842,28 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), SequenceVa
             ));
         }
     }
+    let is_button = |input: &ControlRef| {
+        project
+            .input_device(&input.device)
+            .and_then(|device| device.control(input.control))
+            .is_some_and(|control| control.kind.is_button())
+    };
+    for switch in &rig.switches {
+        if !is_button(&switch.input) {
+            return Err(error(format!(
+                "switch `{}` is not played from a button",
+                switch.name.as_str()
+            )));
+        }
+    }
     for mapping in &rig.mappings {
         let mapping_error =
             |message: &str| error(format!("mapping `{}` {message}", mapping.name.as_str()));
+        if !is_button(&mapping.input) && !matches!(mapping.action, MappingAction::Control { .. }) {
+            return Err(mapping_error(
+                "is played from a dial; a dial can only drive a `Control`",
+            ));
+        }
         if let Some(When::On(switch) | When::Off(switch)) = mapping.when
             && !rig.switches.iter().any(|candidate| candidate.id == switch)
         {

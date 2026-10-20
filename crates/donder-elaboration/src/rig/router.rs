@@ -44,7 +44,7 @@ pub enum RoutedAction {
 /// A mapping that acts while its condition holds.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RoutedMapping {
-    /// The button that drives it, by index in the router's buttons.
+    /// The button or dial that drives it, by index in the router's inputs.
     pub button: usize,
     /// A switch, by index, and the state the mapping needs.
     pub when: Option<(usize, bool)>,
@@ -175,6 +175,29 @@ impl RigRouter {
         commands
             .into_iter()
             .map(|command| RigEvent { time, command })
+            .collect()
+    }
+
+    /// The commands a turn of the dial `input` to `value`, in `0..=1`, at
+    /// `time` sends: it sets every control it drives while its condition
+    /// holds.
+    pub fn turn(&mut self, input: usize, value: f32, time: SampleTime) -> Vec<RigEvent> {
+        let value = value.clamp(0.0, 1.0);
+        self.mappings
+            .iter()
+            .filter(|mapping| {
+                mapping.button == input
+                    && mapping
+                        .when
+                        .is_none_or(|(switch, on)| self.switch_on[switch] == on)
+            })
+            .filter_map(|mapping| match mapping.action {
+                RoutedAction::Control { control } => Some(RigEvent {
+                    time,
+                    command: RigCommand::Control { control, value },
+                }),
+                RoutedAction::Trigger { .. } | RoutedAction::Mark { .. } => None,
+            })
             .collect()
     }
 

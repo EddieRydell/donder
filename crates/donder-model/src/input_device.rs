@@ -18,9 +18,23 @@ pub struct InputDevice {
     pub controls: Vec<InputControl>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum InputDriver {
     Keyboard,
+    /// MIDI input ports: those whose name contains `port`, or every port.
+    Midi {
+        port: Option<String>,
+    },
+}
+
+impl InputDriver {
+    /// Whether this driver reads `input`.
+    pub fn reads(&self, input: InputSource) -> bool {
+        match self {
+            Self::Keyboard => matches!(input, InputSource::Key(_)),
+            Self::Midi { .. } => !matches!(input, InputSource::Key(_)),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -36,16 +50,83 @@ pub struct InputControl {
 pub enum InputControlKind {
     /// Pressed or released.
     Button(ButtonInput),
+    /// A position from 0 to 1.
+    Dial(DialInput),
 }
+
+/// The highest MIDI note number.
+pub const MAX_MIDI_NOTE: u8 = 127;
+/// The highest MIDI control change number; 120 and up are channel modes.
+pub const MAX_MIDI_CONTROL_CHANGE: u8 = 119;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ButtonInput {
     Key(KeyCode),
+    /// A MIDI note, held from note on to note off.
+    Note(u8),
+    /// A MIDI control change, held at 64 and above, as a sustain pedal is.
+    ControlChange(u8),
 }
 
-/// A button of an input device.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DialInput {
+    /// A MIDI control change, from 0 to 127.
+    ControlChange(u8),
+    /// The MIDI pitch bend wheel, from fully down to fully up.
+    PitchBend,
+}
+
+/// What a control reads, whichever kind of control reads it. No two controls
+/// of a device read the same input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum InputSource {
+    Key(KeyCode),
+    Note(u8),
+    ControlChange(u8),
+    PitchBend,
+}
+
+impl InputControlKind {
+    pub fn source(self) -> InputSource {
+        match self {
+            Self::Button(ButtonInput::Key(code)) => InputSource::Key(code),
+            Self::Button(ButtonInput::Note(note)) => InputSource::Note(note),
+            Self::Button(ButtonInput::ControlChange(number))
+            | Self::Dial(DialInput::ControlChange(number)) => InputSource::ControlChange(number),
+            Self::Dial(DialInput::PitchBend) => InputSource::PitchBend,
+        }
+    }
+
+    pub fn is_button(self) -> bool {
+        matches!(self, Self::Button(_))
+    }
+}
+
+impl InputSource {
+    /// Whether the number it reads is one MIDI has.
+    pub fn in_range(self) -> bool {
+        match self {
+            Self::Key(_) | Self::PitchBend => true,
+            Self::Note(note) => note <= MAX_MIDI_NOTE,
+            Self::ControlChange(number) => number <= MAX_MIDI_CONTROL_CHANGE,
+        }
+    }
+}
+
+impl std::fmt::Display for InputSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Key(code) => write!(f, "`{}`", code.name()),
+            Self::Note(note) => write!(f, "note {note}"),
+            Self::ControlChange(number) => write!(f, "control change {number}"),
+            Self::PitchBend => f.write_str("pitch bend"),
+        }
+    }
+}
+
+/// A control of an input device: a button, or a dial.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct ButtonRef {
+pub struct ControlRef {
     pub device: InputDeviceId,
     pub control: InputControlId,
 }
@@ -187,6 +268,10 @@ pub enum InputDeviceValidationError {
     InvalidControlName(Identifier),
     /// Two controls read the same input.
     DuplicateInput(Identifier),
+    /// A control reads an input its device's driver does not have.
+    ForeignInput(Identifier),
+    /// A note or control change number MIDI does not have.
+    InputOutOfRange(Identifier),
 }
 
 impl std::fmt::Display for InputDeviceValidationError {
@@ -201,6 +286,16 @@ impl std::fmt::Display for InputDeviceValidationError {
             Self::DuplicateInput(name) => write!(
                 f,
                 "control `{}` reads an input another control already reads",
+                name.as_str()
+            ),
+            Self::ForeignInput(name) => write!(
+                f,
+                "control `{}` reads an input its device's driver does not have",
+                name.as_str()
+            ),
+            Self::InputOutOfRange(name) => write!(
+                f,
+                "control `{}` reads a note above {MAX_MIDI_NOTE} or a control change above {MAX_MIDI_CONTROL_CHANGE}",
                 name.as_str()
             ),
         }
@@ -223,7 +318,18 @@ impl InputDevice {
                     control.name.clone(),
                 ));
             }
-            if !inputs.insert(control.kind) {
+            let source = control.kind.source();
+            if !self.driver.reads(source) {
+                return Err(InputDeviceValidationError::ForeignInput(
+                    control.name.clone(),
+                ));
+            }
+            if !source.in_range() {
+                return Err(InputDeviceValidationError::InputOutOfRange(
+                    control.name.clone(),
+                ));
+            }
+            if !inputs.insert(source) {
                 return Err(InputDeviceValidationError::DuplicateInput(
                     control.name.clone(),
                 ));

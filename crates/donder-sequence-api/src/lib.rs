@@ -22,11 +22,11 @@ pub use dto::diagnostics::{
     DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,
 };
 pub use dto::live::{
-    GuiButtonInput, GuiInputControl, GuiInputDriver, InputDeviceGuiDocument, ProjectGuiEdit,
-    RigActionChoice, RigButtonRef, RigControlTarget, RigEffect, RigEffectEdit, RigEffectOwner,
-    RigGuiDocument, RigGuiEdit, RigInput, RigInputButton, RigInputDevice, RigItem, RigLiveMarks,
-    RigMapping, RigMappingAction, RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen,
-    SetupInputDevice,
+    GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits,
+    InputDeviceGuiDocument, ProjectGuiEdit, RigActionChoice, RigControlRef, RigControlTarget,
+    RigEffect, RigEffectEdit, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput,
+    RigInputControl, RigInputDevice, RigItem, RigLiveMarks, RigMapping, RigMappingAction,
+    RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SetupInputDevice,
 };
 pub use dto::output::{
     ControllerOutputTest, DeviceCapabilities, DeviceFirmwareInfo, DeviceInstallProgress,
@@ -40,7 +40,9 @@ pub use dto::patch::{
     GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,
     PatchLayout,
 };
-pub use dto::perform::{PerformButton, PerformRig, PerformSession, PerformSnapshot, PerformSwitch};
+pub use dto::perform::{
+    PerformButton, PerformMidi, PerformRig, PerformSession, PerformSnapshot, PerformSwitch,
+};
 pub use dto::preview::{
     FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,
     GuiFixtureHandle, GuiFixtureShape, GuiFixtureSource, GuiGridAxis, GuiGridCorner,

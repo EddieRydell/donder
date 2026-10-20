@@ -25,8 +25,8 @@ use donder_model::{
     SequenceId, SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
 };
 use donder_model::{
-    ButtonInput, ButtonRef, InputControl, InputControlId, InputControlKind, InputDevice,
-    InputDeviceId, InputDriver,
+    ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
+    InputDevice, InputDeviceId, InputDriver,
 };
 use donder_model::{
     ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, Rig, RigEffect, RigId,
@@ -746,11 +746,37 @@ impl DomainResolver<'_> {
             .iter()
             .zip(1..)
             .map(|(control, index)| {
-                let types::InputControl::Button {
-                    name: control_name,
-                    description,
-                    input,
-                } = control;
+                let (control_name, description, kind) = match control {
+                    types::InputControl::Button {
+                        name,
+                        description,
+                        input,
+                    } => (
+                        name,
+                        description,
+                        InputControlKind::Button(match input {
+                            types::ButtonInput::Key { code } => ButtonInput::Key(code.0),
+                            types::ButtonInput::Note { note } => ButtonInput::Note(*note),
+                            types::ButtonInput::ControlChange { number } => {
+                                ButtonInput::ControlChange(*number)
+                            }
+                        }),
+                    ),
+                    types::InputControl::Dial {
+                        name,
+                        description,
+                        input,
+                    } => (
+                        name,
+                        description,
+                        InputControlKind::Dial(match input {
+                            types::DialInput::ControlChange { number } => {
+                                DialInput::ControlChange(*number)
+                            }
+                            types::DialInput::PitchBend => DialInput::PitchBend,
+                        }),
+                    ),
+                };
                 if names.insert(name(control_name), ()).is_some() {
                     return Err(self.invalid(
                         document,
@@ -758,18 +784,14 @@ impl DomainResolver<'_> {
                         format!("control `{}` is declared twice", control_name.as_str()),
                     ));
                 }
-                let kind = InputControlKind::Button(match input {
-                    types::ButtonInput::Key { code } => ButtonInput::Key(code.0),
-                });
-                if let Some(other) = inputs.insert(kind, name(control_name)) {
-                    let types::ButtonInput::Key { code } = input;
+                let source = kind.source();
+                if let Some(other) = inputs.insert(source, name(control_name)) {
                     return Err(self.invalid(
                         document,
                         control_name.0.span,
                         format!(
-                            "control `{}` reads `{}`, which control `{}` already reads",
+                            "control `{}` reads {source}, which control `{}` already reads",
                             control_name.as_str(),
-                            code.0.name(),
                             other.as_str()
                         ),
                     ));
@@ -785,8 +807,9 @@ impl DomainResolver<'_> {
         let device = InputDevice {
             id: id.clone(),
             description: device.description.clone(),
-            driver: match device.driver {
+            driver: match &device.driver {
                 types::InputDriver::Keyboard => InputDriver::Keyboard,
+                types::InputDriver::Midi { port } => InputDriver::Midi { port: port.clone() },
             },
             controls,
         };
@@ -796,14 +819,14 @@ impl DomainResolver<'_> {
         Ok(device)
     }
 
-    /// `device.control`: a button of an input device, which must be among
+    /// `device.control`: a control of an input device, which must be among
     /// `setup_devices` when they are given.
-    fn button(
+    fn control_ref(
         &self,
         document: &DocumentId,
         reference: &Reference,
         setup_devices: Option<&[InputDeviceId]>,
-    ) -> Result<ButtonRef, LoadProjectError> {
+    ) -> Result<ControlRef, LoadProjectError> {
         if self
             .loader
             .resolve_object_reference(document, reference, SourceObjectKind::InputDevice)
@@ -813,7 +836,7 @@ impl DomainResolver<'_> {
                 document,
                 reference.span,
                 format!(
-                    "`{0}` is an input device; an input is one of its buttons, `{0}.button`",
+                    "`{0}` is an input device; an input is one of its controls, `{0}.control`",
                     reference.text()
                 ),
             ));
@@ -838,7 +861,7 @@ impl DomainResolver<'_> {
                         .iter()
                         .zip(1..)
                         .find_map(|(candidate, index)| {
-                            let types::InputControl::Button { name, .. } = candidate;
+                            let name = candidate.name();
                             (name.0.value == control.value).then_some((index, name.0.span))
                         })
                 }
@@ -849,7 +872,7 @@ impl DomainResolver<'_> {
                     document,
                     control.span,
                     format!(
-                        "`{}` has no button `{}`",
+                        "`{}` has no control `{}`",
                         device_reference.text(),
                         control.value.as_str()
                     ),
@@ -875,7 +898,7 @@ impl DomainResolver<'_> {
                 ),
             ));
         }
-        Ok(ButtonRef {
+        Ok(ControlRef {
             device,
             control: InputControlId(index),
         })
@@ -1870,7 +1893,7 @@ impl DomainResolver<'_> {
                 id: RigSwitchId(index),
                 name: name(&switch.name),
                 description: switch.description.clone(),
-                input: self.button(document, &switch.input, setup_devices)?,
+                input: self.control_ref(document, &switch.input, setup_devices)?,
             });
         }
         // Mapping names come first, so a `Control` may name a later trigger.
@@ -2027,7 +2050,7 @@ impl DomainResolver<'_> {
                 id: RigMappingId(index),
                 name: name(&mapping.name),
                 description: mapping.description.clone(),
-                input: self.button(document, &mapping.input, setup_devices)?,
+                input: self.control_ref(document, &mapping.input, setup_devices)?,
                 when: match &mapping.when {
                     None => None,
                     Some(types::When::On { switch: on }) => Some(When::On(switch(on)?)),

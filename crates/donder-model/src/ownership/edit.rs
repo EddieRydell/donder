@@ -584,7 +584,7 @@ fn retarget_active_rig_inputs(
     from: &ObjectIdentity,
     to: &ObjectIdentity,
 ) -> Result<(), String> {
-    let moved = |input: &crate::input_device::ButtonRef| {
+    let moved = |input: &crate::input_device::ControlRef| {
         let mut device = input.device.0.clone();
         device.rebase(from, to);
         device != input.device.0

@@ -23,6 +23,10 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
       {session.switches.map((item) => (
         <span key={item.name} className={`perform-bar-switch ${item.on ? "on" : ""}`}>{item.name}</span>
       ))}
+      {session.midi !== null && <span className={`perform-bar-midi ${session.midi.error === null ? "" : "error"}`} title={[...session.midi.ports, session.midi.error].filter((text) => text !== null).join("\n")}>
+        {[session.midi.ports.length === 0 ? "No MIDI device found" : `MIDI: ${session.midi.ports.join(", ")}`, session.midi.error]
+          .filter((text) => text !== null).join(" · ")}
+      </span>}
       <span className="perform-bar-held" title="Held buttons">
         {session.held.length === 0 ? "No buttons held" : session.held.map((button) => `${button.device}.${button.control}`).join(" ")}
       </span>

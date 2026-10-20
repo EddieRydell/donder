@@ -1,6 +1,6 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
-import type { RigButtonRef, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInputDevice } from "../../../types";
+import type { RigControlRef, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInputDevice } from "../../../types";
 import type { CompositionEditing } from "../sequence/composition";
 
 /** Apply an edit to the open rig; a rejected edit's error is shown and rethrown. */
@@ -23,7 +23,7 @@ export function rigComposition(document: RigGuiDocument): CompositionEditing {
 }
 
 /** The first button of the setup's first device that has one. */
-export function firstButton(devices: RigInputDevice[]): RigButtonRef | null {
+export function firstButton(devices: RigInputDevice[]): RigControlRef | null {
   for (const device of devices) {
     const button = device.buttons[0];
     if (button !== undefined) return { device: device.device, control: button.control };
