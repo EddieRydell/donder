@@ -2,6 +2,7 @@
 use donder_model::{
     ButtonInput, DialInput, InputControl, InputControlId, InputControlKind, InputDevice,
     InputDeviceId, InputDriver, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
+    OscAddress,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
@@ -39,28 +40,41 @@ pub(super) fn project_input_device(
         driver: match &device.driver {
             InputDriver::Keyboard => GuiInputDriver::Keyboard,
             InputDriver::Midi { port } => GuiInputDriver::Midi { port: port.clone() },
+            InputDriver::Osc { port } => GuiInputDriver::Osc { port: *port },
         },
         controls: device.controls.iter().map(gui_control).collect(),
     }
 }
 
 fn gui_control(control: &InputControl) -> GuiInputControl {
-    let (kind, input) = match control.kind {
+    let (kind, input) = match &control.kind {
         InputControlKind::Button(input) => (
             GuiInputControlKind::Button,
             match input {
                 ButtonInput::Key(code) => GuiControlInput::Key {
                     code: code.name().to_string(),
                 },
-                ButtonInput::Note(note) => GuiControlInput::Note { note },
-                ButtonInput::ControlChange(number) => GuiControlInput::ControlChange { number },
+                ButtonInput::Note(note) => GuiControlInput::Note { note: *note },
+                ButtonInput::ControlChange(number) => {
+                    GuiControlInput::ControlChange { number: *number }
+                }
+                ButtonInput::Address(path) => GuiControlInput::Address {
+                    path: path.0.clone(),
+                },
             },
         ),
         InputControlKind::Dial(input) => (
             GuiInputControlKind::Dial,
             match input {
-                DialInput::ControlChange(number) => GuiControlInput::ControlChange { number },
+                DialInput::ControlChange(number) => {
+                    GuiControlInput::ControlChange { number: *number }
+                }
                 DialInput::PitchBend => GuiControlInput::PitchBend,
+                DialInput::Address { path, low, high } => GuiControlInput::AddressRange {
+                    path: path.0.clone(),
+                    low: *low,
+                    high: *high,
+                },
             },
         ),
         InputControlKind::Keys(range) => (
@@ -101,8 +115,18 @@ fn domain_control_kind(
         (GuiInputControlKind::Dial, GuiControlInput::ControlChange { number }) => {
             InputControlKind::Dial(DialInput::ControlChange(*number))
         }
+        (GuiInputControlKind::Button, GuiControlInput::Address { path }) => {
+            InputControlKind::Button(ButtonInput::Address(OscAddress(path.trim().to_string())))
+        }
         (GuiInputControlKind::Dial, GuiControlInput::PitchBend) => {
             InputControlKind::Dial(DialInput::PitchBend)
+        }
+        (GuiInputControlKind::Dial, GuiControlInput::AddressRange { path, low, high }) => {
+            InputControlKind::Dial(DialInput::Address {
+                path: OscAddress(path.trim().to_string()),
+                low: *low,
+                high: *high,
+            })
         }
         (GuiInputControlKind::Keys, GuiControlInput::Notes { low, high }) => {
             InputControlKind::Keys(KeyRange {
@@ -120,9 +144,19 @@ fn domain_control_kind(
                 "Pitch bend is a dial, not a button.".into(),
             ));
         }
-        (GuiInputControlKind::Dial, GuiControlInput::Key { .. } | GuiControlInput::Note { .. }) => {
+        (
+            GuiInputControlKind::Dial,
+            GuiControlInput::Key { .. }
+            | GuiControlInput::Note { .. }
+            | GuiControlInput::Address { .. },
+        ) => {
             return Err(GuiMutationError::Invalid(
-                "Keys and notes are buttons, not dials.".into(),
+                "Keys, notes and addresses without a range are buttons, not dials.".into(),
+            ));
+        }
+        (GuiInputControlKind::Button, GuiControlInput::AddressRange { .. }) => {
+            return Err(GuiMutationError::Invalid(
+                "An address with a range is a dial, not a button.".into(),
             ));
         }
     })
@@ -196,6 +230,7 @@ pub(super) fn domain_input_device(
                     .map(|port| port.trim().to_string())
                     .filter(|port| !port.is_empty()),
             },
+            GuiInputDriver::Osc { port } => InputDriver::Osc { port },
         },
         controls,
     };

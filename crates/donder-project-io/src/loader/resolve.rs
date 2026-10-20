@@ -26,7 +26,7 @@ use donder_model::{
 };
 use donder_model::{
     ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDriver, KeyRange, PlayedSource, PlayedValue,
+    InputDevice, InputDeviceId, InputDriver, KeyRange, OscAddress, PlayedSource, PlayedValue,
 };
 use donder_model::{
     ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, Rig, RigEffect, RigId,
@@ -760,6 +760,9 @@ impl DomainResolver<'_> {
                             types::ButtonInput::ControlChange { number } => {
                                 ButtonInput::ControlChange(*number)
                             }
+                            types::ButtonInput::Address { path } => {
+                                ButtonInput::Address(OscAddress(path.clone()))
+                            }
                         }),
                     ),
                     types::InputControl::Dial {
@@ -774,6 +777,11 @@ impl DomainResolver<'_> {
                                 DialInput::ControlChange(*number)
                             }
                             types::DialInput::PitchBend => DialInput::PitchBend,
+                            types::DialInput::Address { path, low, high } => DialInput::Address {
+                                path: OscAddress(path.clone()),
+                                low: *low,
+                                high: *high,
+                            },
                         }),
                     ),
                     types::InputControl::Keys {
@@ -797,7 +805,7 @@ impl DomainResolver<'_> {
                     ));
                 }
                 for source in kind.sources() {
-                    if let Some(other) = inputs.insert(source, name(control_name)) {
+                    if let Some(other) = inputs.insert(source.clone(), name(control_name)) {
                         return Err(self.invalid(
                             document,
                             control_name.0.span,
@@ -823,6 +831,7 @@ impl DomainResolver<'_> {
             driver: match &device.driver {
                 types::InputDriver::Keyboard => InputDriver::Keyboard,
                 types::InputDriver::Midi { port } => InputDriver::Midi { port: port.clone() },
+                types::InputDriver::Osc { port } => InputDriver::Osc { port: *port },
             },
             controls,
         };

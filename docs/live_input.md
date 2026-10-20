@@ -13,8 +13,9 @@ A rig never plays on top of a sequence. Stop the sequence, then perform.
 
 ## Input devices
 
-An `InputDevice` is a piece of hardware you play from: the computer keyboard,
-or a MIDI device such as a piano keyboard, a pad controller or a box of knobs.
+An `InputDevice` is something you play from: the computer keyboard, a MIDI
+device such as a piano keyboard, a pad controller or a box of knobs, or any
+program or app that sends OSC.
 Each of its controls has a name you choose and the input it reads. A `Button`
 is pressed or released; a `Dial` is a position from 0 to 1; `Keys` are a range
 of MIDI notes, a piano's keyboard, where every key is its own press.
@@ -57,6 +58,33 @@ Notes are MIDI note numbers, 0 to 127, with middle C at 60 and a full piano
 from 21 to 108; control changes are 0 to 119. A struck note carries how hard it
 was struck, its velocity. Donder connects to a device's ports when you start performing, and to
 ports plugged in while you perform; the Perform bar shows the ports it reads.
+
+An OSC device listens for [OSC](https://opensoundcontrol.stanford.edu/) messages
+sent over UDP to its `port`, on every network interface, so a phone app such as
+TouchOSC, a Max or Pure Data patch, or an analysis script on another computer
+can play the rig. Its controls read an `Address`, matched exactly. A button is
+pressed when a message's first argument is above 0 and released at 0, and a
+message with no arguments presses and releases it at once, which suits marks,
+switches and fixed-length triggers. A dial reads the first argument, running
+from `low` to `high`, so a script can send a tempo in beats per minute or a
+pitch in hertz as it is.
+
+```text
+InputDevice harmony {
+  description: "Chord analysis from the listener script.",
+  driver: Osc { port: 9000 },
+  controls: [
+    Button { name: chord_change, description: none, input: Address { path: "/chord/change" } },
+    Dial { name: tempo, description: none, input: Address { path: "/tempo", low: 60.0, high: 180.0 } },
+  ],
+}
+```
+
+An address is a `/` and then printable characters other than spaces and OSC's
+pattern characters `*?[]{}#,`. Bundles play their messages in order, stamped
+when they arrive. Any computer on the network can send to the port while you
+perform. Two OSC devices of a setup listen on different ports; the Perform bar
+shows the ports listening, or why one could not be opened.
 
 A device's control names are unique, and no two controls read the same input.
 The setup lists the input devices you have, next to its controllers:

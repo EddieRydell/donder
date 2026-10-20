@@ -41,6 +41,7 @@ serialport.workspace = true
 espflash.workspace = true
 mdns-sd.workspace = true
 midir.workspace = true
+rosc.workspace = true
 esp-idf-part.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true

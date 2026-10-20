@@ -298,13 +298,15 @@ pub fn arm(
             let control = project
                 .input_device(&input.device)?
                 .control(input.control)?;
-            Some(match control.kind {
-                InputControlKind::Button(ButtonInput::Note(note)) => RoutedNotes::Note(note),
+            Some(match &control.kind {
+                InputControlKind::Button(ButtonInput::Note(note)) => RoutedNotes::Note(*note),
                 InputControlKind::Keys(range) => RoutedNotes::Keys {
                     low: range.low,
                     high: range.high,
                 },
-                InputControlKind::Button(ButtonInput::Key(_) | ButtonInput::ControlChange(_))
+                InputControlKind::Button(
+                    ButtonInput::Key(_) | ButtonInput::ControlChange(_) | ButtonInput::Address(_),
+                )
                 | InputControlKind::Dial(_) => RoutedNotes::None,
             })
         })

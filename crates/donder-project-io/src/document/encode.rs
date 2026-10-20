@@ -890,6 +890,7 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
         driver: match &device.driver {
             InputDriver::Keyboard => types::InputDriver::Keyboard,
             InputDriver::Midi { port } => types::InputDriver::Midi { port: port.clone() },
+            InputDriver::Osc { port } => types::InputDriver::Osc { port: *port },
         },
         controls: device
             .controls
@@ -897,18 +898,21 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
             .map(|control| {
                 let name = name(&control.name);
                 let description = control.description.clone();
-                match control.kind {
+                match &control.kind {
                     InputControlKind::Button(input) => types::InputControl::Button {
                         name,
                         description,
                         input: match input {
                             ButtonInput::Key(code) => types::ButtonInput::Key {
-                                code: types::KeyCode(code),
+                                code: types::KeyCode(*code),
                             },
-                            ButtonInput::Note(note) => types::ButtonInput::Note { note },
+                            ButtonInput::Note(note) => types::ButtonInput::Note { note: *note },
                             ButtonInput::ControlChange(number) => {
-                                types::ButtonInput::ControlChange { number }
+                                types::ButtonInput::ControlChange { number: *number }
                             }
+                            ButtonInput::Address(path) => types::ButtonInput::Address {
+                                path: path.0.clone(),
+                            },
                         },
                     },
                     InputControlKind::Dial(input) => types::InputControl::Dial {
@@ -916,9 +920,14 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
                         description,
                         input: match input {
                             DialInput::ControlChange(number) => {
-                                types::DialInput::ControlChange { number }
+                                types::DialInput::ControlChange { number: *number }
                             }
                             DialInput::PitchBend => types::DialInput::PitchBend,
+                            DialInput::Address { path, low, high } => types::DialInput::Address {
+                                path: path.0.clone(),
+                                low: *low,
+                                high: *high,
+                            },
                         },
                     },
                     InputControlKind::Keys(range) => types::InputControl::Keys {

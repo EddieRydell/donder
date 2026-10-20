@@ -91,6 +91,7 @@ pub struct InputDevice {
 pub enum InputDriver {
     Keyboard,
     Midi { port: Option<String> },
+    Osc { port: u16 },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -132,12 +133,14 @@ pub enum ButtonInput {
     Key { code: KeyCode },
     Note { note: u8 },
     ControlChange { number: u8 },
+    Address { path: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum DialInput {
     ControlChange { number: u8 },
     PitchBend,
+    Address { path: String, low: f32, high: f32 },
 }
 
 /// A key by its `KeyboardEvent.code` name; the names are the model's.

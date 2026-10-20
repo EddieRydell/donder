@@ -204,11 +204,11 @@ fn project_input(session: &ProjectSession, input: &ControlRef) -> RigInput {
 }
 
 /// A device's controls of the kinds `accepts` accepts.
-fn controls(device: &InputDevice, accepts: fn(InputControlKind) -> bool) -> Vec<RigInputControl> {
+fn controls(device: &InputDevice, accepts: fn(&InputControlKind) -> bool) -> Vec<RigInputControl> {
     device
         .controls
         .iter()
-        .filter(|control| accepts(control.kind))
+        .filter(|control| accepts(&control.kind))
         .map(|control| RigInputControl {
             control: control.id.0,
             name: control.name.as_str().to_string(),
