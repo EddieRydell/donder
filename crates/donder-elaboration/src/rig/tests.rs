@@ -1,5 +1,7 @@
 //! Arming the starter's jam rig, and routing its keyboard buttons.
-use super::{ArmedRig, RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedVoices, arm};
+use super::{
+    ArmedRig, RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedNotes, RoutedVoices, arm,
+};
 use crate::{PreparationCache, PrepareOutputs};
 use donder_model::{ControlRef, DonderProject};
 use donder_runtime_types::{Color, RigCommand, SampleDuration, SampleTime};
@@ -131,7 +133,7 @@ fn held_and_control_buttons_answer_their_release() {
 #[test]
 fn mono_ignores_presses_while_its_voice_plays_and_latch_toggles() {
     let mut router = RigRouter::new(
-        2,
+        Box::new([RoutedNotes::None; 2]),
         Box::new([]),
         Box::new([
             RoutedMapping {
@@ -141,6 +143,7 @@ fn mono_ignores_presses_while_its_voice_plays_and_latch_toggles() {
                     voices: Box::new([0]),
                     length: RoutedLength::Fixed(SampleDuration::from_ticks(1_000_000)),
                     policy: RoutedVoices::Mono,
+                    values: Box::new([]),
                 },
             },
             RoutedMapping {
@@ -150,6 +153,7 @@ fn mono_ignores_presses_while_its_voice_plays_and_latch_toggles() {
                     voices: Box::new([1]),
                     length: RoutedLength::Latched,
                     policy: RoutedVoices::Retrigger,
+                    values: Box::new([]),
                 },
             },
         ]),

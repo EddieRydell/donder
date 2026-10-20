@@ -70,10 +70,13 @@ pub enum GuiInputControlKind {
     Button,
     /// A position from 0 to 1.
     Dial,
+    /// A range of MIDI notes, each its own press.
+    Keys,
 }
 
 /// What a control reads. A keyboard reads keys; MIDI buttons read notes and
-/// control changes, and MIDI dials read control changes and pitch bend.
+/// control changes, MIDI dials read control changes and pitch bend, and MIDI
+/// keys read a range of notes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -88,6 +91,11 @@ pub enum GuiControlInput {
     /// A MIDI note number, 0 to 127; middle C is 60.
     Note {
         note: u8,
+    },
+    /// MIDI notes from `low` through `high`; a full piano is 21 to 108.
+    Notes {
+        low: u8,
+        high: u8,
     },
     /// A MIDI control change number, 0 to 119; the sustain pedal is 64.
     ControlChange {
@@ -181,6 +189,8 @@ pub struct RigInputDevice {
     pub buttons: Vec<RigInputControl>,
     /// Dials only drive `Control` mappings.
     pub dials: Vec<RigInputControl>,
+    /// Keys only trigger effects and add marks.
+    pub keys: Vec<RigInputControl>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -188,6 +198,8 @@ pub struct RigInputDevice {
 pub struct RigInputControl {
     pub control: u32,
     pub name: String,
+    /// Whether it plays notes, as values played from a note need.
+    pub notes: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -233,6 +245,7 @@ pub enum RigMappingAction {
         effect: RigEffect,
         length: RigTriggerLength,
         voices: RigVoicePolicy,
+        values: Vec<RigPlayedValue>,
     },
     Mark {
         marks: String,
@@ -241,6 +254,27 @@ pub enum RigMappingAction {
         target: RigControlTarget,
         param: String,
     },
+}
+
+/// A parameter each press of a trigger sets on the voice it starts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RigPlayedValue {
+    pub param: String,
+    pub from: RigPlayedSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RigPlayedSource {
+    /// How hard the note was struck; a computer key or pedal plays at 1.
+    Velocity,
+    /// The note's place in its key range.
+    Pitch,
+    /// The note's name, C to B up the chromatic scale.
+    PitchClass,
+    /// The note's name round the circle of fifths.
+    Fifths,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -436,6 +470,10 @@ pub enum RigGuiEdit {
     SetTriggerVoices {
         mapping_id: u32,
         voices: RigVoicePolicy,
+    },
+    SetTriggerValues {
+        mapping_id: u32,
+        values: Vec<RigPlayedValue>,
     },
 }
 

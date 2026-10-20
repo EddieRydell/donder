@@ -26,7 +26,7 @@ use donder_model::{
 };
 use donder_model::{
     ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDriver,
+    InputDevice, InputDeviceId, InputDriver, KeyRange, PlayedSource, PlayedValue,
 };
 use donder_model::{
     ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, Rig, RigEffect, RigId,
@@ -776,6 +776,18 @@ impl DomainResolver<'_> {
                             types::DialInput::PitchBend => DialInput::PitchBend,
                         }),
                     ),
+                    types::InputControl::Keys {
+                        name,
+                        description,
+                        input,
+                    } => (
+                        name,
+                        description,
+                        InputControlKind::Keys(KeyRange {
+                            low: input.low,
+                            high: input.high,
+                        }),
+                    ),
                 };
                 if names.insert(name(control_name), ()).is_some() {
                     return Err(self.invalid(
@@ -784,17 +796,18 @@ impl DomainResolver<'_> {
                         format!("control `{}` is declared twice", control_name.as_str()),
                     ));
                 }
-                let source = kind.source();
-                if let Some(other) = inputs.insert(source, name(control_name)) {
-                    return Err(self.invalid(
-                        document,
-                        control_name.0.span,
-                        format!(
-                            "control `{}` reads {source}, which control `{}` already reads",
-                            control_name.as_str(),
-                            other.as_str()
-                        ),
-                    ));
+                for source in kind.sources() {
+                    if let Some(other) = inputs.insert(source, name(control_name)) {
+                        return Err(self.invalid(
+                            document,
+                            control_name.0.span,
+                            format!(
+                                "control `{}` reads {source}, which control `{}` already reads",
+                                control_name.as_str(),
+                                other.as_str()
+                            ),
+                        ));
+                    }
                 }
                 Ok(InputControl {
                     id: InputControlId(index),
@@ -817,6 +830,67 @@ impl DomainResolver<'_> {
             self.invalid(document, span, format!("invalid input device: {error}"))
         })?;
         Ok(device)
+    }
+
+    /// A trigger's played values: parameters of its effect that can be
+    /// automated, each set once.
+    fn played_values(
+        &self,
+        document: &DocumentId,
+        effect: &Reference,
+        values: &[types::PlayedValue],
+    ) -> Result<Vec<PlayedValue>, LoadProjectError> {
+        let definition = self.effect_definition(document, effect)?.0;
+        let declarations = self.effect_params(&EffectDefinitionId(definition.clone()));
+        let mut played = Vec::with_capacity(values.len());
+        for value in values {
+            let param = &value.param;
+            let declaration = declarations
+                .iter()
+                .find(|declaration| declaration.name == param.0.value)
+                .ok_or_else(|| {
+                    self.invalid(
+                        document,
+                        param.0.span,
+                        format!("no parameter `{}`", param.as_str()),
+                    )
+                })?;
+            self.loader.link(
+                document,
+                param.0.span,
+                script(&definition, ScriptMember::Param(param.as_str().to_string())),
+            );
+            if declaration.automation_mapping().is_none() {
+                return Err(self.invalid(
+                    document,
+                    param.0.span,
+                    format!(
+                        "`{}` cannot be played; a played value sets a float, int, bool, enum or curve parameter",
+                        param.as_str()
+                    ),
+                ));
+            }
+            if played
+                .iter()
+                .any(|existing: &PlayedValue| existing.param.as_str() == param.as_str())
+            {
+                return Err(self.invalid(
+                    document,
+                    param.0.span,
+                    format!("`{}` is played twice", param.as_str()),
+                ));
+            }
+            played.push(PlayedValue {
+                param: name(param),
+                from: match value.from {
+                    types::PlayedSource::Velocity => PlayedSource::Velocity,
+                    types::PlayedSource::Pitch => PlayedSource::Pitch,
+                    types::PlayedSource::PitchClass => PlayedSource::PitchClass,
+                    types::PlayedSource::Fifths => PlayedSource::Fifths,
+                },
+            });
+        }
+        Ok(played)
     }
 
     /// `device.control`: a control of an input device, which must be among
@@ -1947,10 +2021,12 @@ impl DomainResolver<'_> {
                     params,
                     length,
                     voices,
+                    values,
                 } => MappingAction::Trigger(Box::new(Trigger {
                     effect: self.rig_effect(
                         document, &layer_ids, &marks, layer, target, scope, effect, params,
                     )?,
+                    values: self.played_values(document, effect, values)?,
                     length: match length {
                         types::TriggerLength::Fixed { duration } => {
                             if duration.is_zero() {

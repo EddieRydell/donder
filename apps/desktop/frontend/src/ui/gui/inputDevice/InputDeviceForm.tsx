@@ -3,6 +3,9 @@ import type { GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDri
 import { DescriptionField } from "../DescriptionField";
 
 const MIDDLE_C = 60;
+/** A full piano's lowest and highest keys, A0 and C8. */
+const PIANO_LOW = 21;
+const PIANO_HIGH = 108;
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 /** A MIDI note's name, where note 60 is middle C, C4. */
@@ -19,14 +22,20 @@ function freshControlName(controls: GuiInputControl[]): string {
   }
 }
 
-/** What an input reads, so two controls never read the same one. */
-function inputKey(input: GuiControlInput): string {
+/** What an input reads, one entry per note of a range, so two controls never
+ * read the same input. */
+function inputKeys(input: GuiControlInput): string[] {
   switch (input.type) {
-    case "key": return `key ${input.code}`;
-    case "note": return `note ${input.note}`;
-    case "controlChange": return `cc ${input.number}`;
-    case "pitchBend": return "pitch bend";
+    case "key": return [`key ${input.code}`];
+    case "note": return [`note ${input.note}`];
+    case "notes": return Array.from({ length: Math.max(0, input.high - input.low + 1) }, (_, offset) => `note ${input.low + offset}`);
+    case "controlChange": return [`cc ${input.number}`];
+    case "pitchBend": return ["pitch bend"];
   }
+}
+
+function inputKey(input: GuiControlInput): string {
+  return inputKeys(input).join(" ");
 }
 
 /** The first input of `type` the device does not read yet, from `start`. */
@@ -45,17 +54,17 @@ function freeInput(type: "key" | "note" | "controlChange", used: Set<string>, ke
 }
 
 /** The controls carried over to another driver: each button reads a free
- * input of the new driver, and a keyboard has no dials. */
+ * input of the new driver, and a keyboard has no dials or keys. */
 function convertControls(controls: GuiInputControl[], driver: GuiInputDriver, keyCodes: string[], limits: GuiInputLimits): GuiInputControl[] {
   const used = new Set<string>();
   const converted: GuiInputControl[] = [];
   for (const control of controls) {
     const fits = driver.type === "keyboard" ? control.input.type === "key" : control.input.type !== "key";
     const input = fits ? control.input
-      : control.kind === "dial" ? null
+      : control.kind !== "button" ? null
         : freeInput(driver.type === "keyboard" ? "key" : "note", used, keyCodes, limits, MIDDLE_C);
     if (input === null) continue;
-    used.add(inputKey(input));
+    for (const key of inputKeys(input)) used.add(key);
     converted.push({ ...control, input });
   }
   return converted;
@@ -81,7 +90,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     next.splice(index + offset, 0, control);
     setControls(next);
   };
-  const used = new Set(controls.map((control) => inputKey(control.input)));
+  const used = new Set(controls.flatMap((control) => inputKeys(control.input)));
   const add = (kind: GuiInputControlKind, input: GuiControlInput | null) => {
     if (input === null) return;
     const id = Math.max(0, ...controls.map((control) => control.id)) + 1;
@@ -91,6 +100,8 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
   const nextKey = freeInput("key", used, keyCodes, limits);
   const nextNote = freeInput("note", used, keyCodes, limits, MIDDLE_C);
   const nextControlChange = freeInput("controlChange", used, keyCodes, limits, 1);
+  const piano: GuiControlInput = { type: "notes", low: PIANO_LOW, high: PIANO_HIGH };
+  const pianoFree = inputKeys(piano).every((key) => !used.has(key));
   return <form className="setup-authoring-form" onSubmit={(event) => {
     event.preventDefault();
     void onSave(driver, controls);
@@ -109,7 +120,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
         setDriver({ type: "midi", port: event.target.value === "" ? null : event.target.value });
       }} /></label>}
       {controls.length === 0 && <p className="object-overview-empty">
-        {midi ? "No controls. Add a button for each note or pedal a rig plays from, and a dial for each knob." : "No controls. Add a button for each key a rig plays from."}
+        {midi ? "No controls. Add keys for a keyboard's notes, a button for each pad or pedal a rig plays from, and a dial for each knob." : "No controls. Add a button for each key a rig plays from."}
       </p>}
       {controls.map((control, index) => <div className="controller-port-row" key={control.id}>
         <label>Name<input required pattern="[a-z_][a-z0-9_]*" value={control.name} onChange={(event) => { update(index, { name: event.target.value }); }} /></label>
@@ -127,6 +138,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
         ? <>
           <button type="button" disabled={nextNote === null} onClick={() => { add("button", nextNote); }}>Add button</button>
           <button type="button" disabled={nextControlChange === null} onClick={() => { add("dial", nextControlChange); }}>Add dial</button>
+          <button type="button" disabled={!pianoFree} onClick={() => { add("keys", piano); }}>Add keys</button>
         </>
         : <button type="button" disabled={nextKey === null} onClick={() => { add("button", nextKey); }}>Add button</button>}
       <button type="submit">{device === undefined ? "Add input device" : "Apply input device settings"}</button>
@@ -142,25 +154,36 @@ function MidiInputFields({ control, used, limits, onChange }: {
   onChange: (change: Partial<GuiInputControl>) => void;
 }) {
   const { input } = control;
-  const taken = (candidate: GuiControlInput) => inputKey(candidate) !== inputKey(input) && used.has(inputKey(candidate));
+  const own = new Set(inputKeys(input));
+  const taken = (candidate: GuiControlInput) => inputKeys(candidate).some((key) => !own.has(key) && used.has(key));
   return <>
     <label>Kind<select value={control.kind} onChange={(event) => {
-      const kind = event.target.value === "dial" ? "dial" : "button";
-      // A dial reads no notes and a button no pitch bend.
-      const fits = kind === "dial" ? input.type !== "note" : input.type !== "pitchBend";
-      onChange({ kind, input: fits ? input : { type: "controlChange", number: 1 } });
+      const kind = event.target.value === "dial" ? "dial" : event.target.value === "keys" ? "keys" : "button";
+      // Keys read a range of notes, a dial no notes, and a button no pitch bend.
+      if (kind === "keys") onChange({ kind, input: { type: "notes", low: PIANO_LOW, high: PIANO_HIGH } });
+      else {
+        const fits = kind === "dial" ? input.type === "controlChange" || input.type === "pitchBend" : input.type === "note" || input.type === "controlChange";
+        onChange({ kind, input: fits ? input : { type: "controlChange", number: 1 } });
+      }
     }}>
       <option value="button">Button</option>
       <option value="dial">Dial</option>
+      <option value="keys">Keys</option>
     </select></label>
-    <label>Input<select value={input.type} onChange={(event) => {
+    {input.type === "notes" && <>
+      <label>Lowest<input type="number" min={0} max={limits.maxNote} required value={input.low} aria-invalid={taken(input)}
+        onChange={(event) => { onChange({ input: { ...input, low: Number(event.target.value) } }); }} /><span>{noteName(input.low)}</span></label>
+      <label>Highest<input type="number" min={0} max={limits.maxNote} required value={input.high} aria-invalid={taken(input) || input.high < input.low}
+        onChange={(event) => { onChange({ input: { ...input, high: Number(event.target.value) } }); }} /><span>{noteName(input.high)}</span></label>
+    </>}
+    {control.kind !== "keys" && <label>Input<select value={input.type} onChange={(event) => {
       const type = event.target.value;
       onChange({ input: type === "note" ? { type: "note", note: MIDDLE_C } : type === "pitchBend" ? { type: "pitchBend" } : { type: "controlChange", number: 1 } });
     }}>
       {control.kind === "button" && <option value="note">Note</option>}
       <option value="controlChange">Control change</option>
       {control.kind === "dial" && <option value="pitchBend" disabled={taken({ type: "pitchBend" })}>Pitch bend</option>}
-    </select></label>
+    </select></label>}
     {input.type === "note" && <label>Note<input type="number" min={0} max={limits.maxNote} required value={input.note}
       title={noteName(input.note)} aria-invalid={taken(input)}
       onChange={(event) => { onChange({ input: { type: "note", note: Number(event.target.value) } }); }} /><span>{noteName(input.note)}</span></label>}

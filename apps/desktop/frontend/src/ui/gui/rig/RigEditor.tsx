@@ -14,7 +14,7 @@ import { defaultMarkColor, nextCollectionKey } from "../sequence/marks";
 import { LayerList } from "../sequence/sequenceLayers";
 import { RigEffectFields, RigInputPicker } from "./RigFields";
 import { RigMappingCard } from "./RigMappingCard";
-import { applyRigEdit, firstButton, rigComposition } from "./rigEditing";
+import { applyRigEdit, firstInput, rigComposition } from "./rigEditing";
 
 export function RigEditor({ document }: { document: RigGuiDocument }) {
   const composition = useMemo(() => rigComposition(document), [document]);
@@ -27,7 +27,8 @@ export function RigEditor({ document }: { document: RigGuiDocument }) {
     void runSnapshotCommand(commands.finishCompositionGraphEditing);
   }, [setGraphOpen]);
   useEffect(() => () => { setGraphOpen(false); }, [setGraphOpen]);
-  const button = firstButton(document.inputDevices);
+  const button = firstInput(document.inputDevices, "switch");
+  const played = firstInput(document.inputDevices, "trigger");
   const target = document.targets[0];
   const performIndex = document.performIndex;
   return <main className="setup-editor">
@@ -103,18 +104,18 @@ export function RigEditor({ document }: { document: RigGuiDocument }) {
               <button type="button" onClick={() => void applyRigEdit({ type: "delete", item: reference })}>Delete switch</button>
             </div>
             <DescriptionField description={item.description} onCommit={(description) => applyRigEdit({ type: "setDescription", item: reference, description })} />
-            <RigInputPicker document={document} input={item.input} onChange={(input) => void applyRigEdit({ type: "setSwitchInput", id: item.id, input })} />
+            <RigInputPicker document={document} input={item.input} use="switch" onChange={(input) => void applyRigEdit({ type: "setSwitchInput", id: item.id, input })} />
           </div>;
         })}
       </section>
 
       <section className="setup-section">
         <div className="object-overview-group-header"><h3>Mappings</h3>
-          <EffectDefinitionPicker definitions={document.effectDefinitions} label="Add mapping" disabled={button === null || target === undefined} onSelect={(definition) => {
-            if (button !== null && target !== undefined) void applyRigEdit({ type: "addMapping", input: button, action: { type: "trigger", initialColor: THEME_COLORS.white, effect: definition.effect, target: target.target } });
+          <EffectDefinitionPicker definitions={document.effectDefinitions} label="Add mapping" disabled={played === null || target === undefined} onSelect={(definition) => {
+            if (played !== null && target !== undefined) void applyRigEdit({ type: "addMapping", input: played, action: { type: "trigger", initialColor: THEME_COLORS.white, effect: definition.effect, target: target.target } });
           }} />
         </div>
-        {button === null && <p className="object-overview-empty">Add an input device with buttons to the project's setup to play this rig.</p>}
+        {played === null && <p className="object-overview-empty">Add an input device with buttons or keys to the project's setup to play this rig.</p>}
         {document.mappings.map((mapping) => <RigMappingCard key={mapping.id} document={document} mapping={mapping} />)}
       </section>
     </div>

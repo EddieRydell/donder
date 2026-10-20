@@ -1,10 +1,10 @@
 //! Rigs: effects played live from input devices.
 use donder_model::{
     CompositionGraphNodeKind, ControlRef, ControlTarget, EffectRef, EffectScope, FixtureInstanceId,
-    FixtureTarget as DomainFixtureTarget, InputDevice, InputDeviceId, LiveMarks,
-    MAX_STACKED_VOICES, Mapping, MappingAction, MarkCollectionKey, Rig, RigId, RigMappingId,
-    RigSwitchId, RigVoiceId, SequenceLayerId, SourceIdentity, Switch, Trigger, TriggerLength,
-    Voice, VoicePolicy, When,
+    FixtureTarget as DomainFixtureTarget, InputControlKind, InputDevice, InputDeviceId, LiveMarks,
+    MAX_STACKED_VOICES, Mapping, MappingAction, MarkCollectionKey, PlayedSource, PlayedValue, Rig,
+    RigId, RigMappingId, RigSwitchId, RigVoiceId, SequenceLayerId, SourceIdentity, Switch, Trigger,
+    TriggerLength, Voice, VoicePolicy, When,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
 
@@ -21,8 +21,9 @@ use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_sequence_api::{
     FixtureTarget, GuiDocument, RigActionChoice, RigControlRef, RigControlTarget, RigEffectEdit,
     RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl, RigInputDevice, RigItem,
-    RigLiveMarks, RigMapping, RigMappingAction, RigSwitch, RigTriggerLength, RigVoice,
-    RigVoicePolicy, RigWhen, SequenceEffectReference, SequenceEffectScope,
+    RigLiveMarks, RigMapping, RigMappingAction, RigPlayedSource, RigPlayedValue, RigSwitch,
+    RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SequenceEffectReference,
+    SequenceEffectScope,
 };
 
 pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
@@ -159,6 +160,19 @@ fn project_mapping(session: &ProjectSession, mapping: &Mapping) -> RigMapping {
                     },
                     VoicePolicy::Mono => RigVoicePolicy::Mono,
                 },
+                values: trigger
+                    .values
+                    .iter()
+                    .map(|value| RigPlayedValue {
+                        param: value.param.as_str().to_string(),
+                        from: match value.from {
+                            PlayedSource::Velocity => RigPlayedSource::Velocity,
+                            PlayedSource::Pitch => RigPlayedSource::Pitch,
+                            PlayedSource::PitchClass => RigPlayedSource::PitchClass,
+                            PlayedSource::Fifths => RigPlayedSource::Fifths,
+                        },
+                    })
+                    .collect(),
             },
             MappingAction::Mark(key) => RigMappingAction::Mark {
                 marks: key.name.as_str().to_string(),
@@ -189,15 +203,16 @@ fn project_input(session: &ProjectSession, input: &ControlRef) -> RigInput {
     }
 }
 
-/// A device's buttons, or its dials.
-fn controls(device: &InputDevice, buttons: bool) -> Vec<RigInputControl> {
+/// A device's controls of the kinds `accepts` accepts.
+fn controls(device: &InputDevice, accepts: fn(InputControlKind) -> bool) -> Vec<RigInputControl> {
     device
         .controls
         .iter()
-        .filter(|control| control.kind.is_button() == buttons)
+        .filter(|control| accepts(control.kind))
         .map(|control| RigInputControl {
             control: control.id.0,
             name: control.name.as_str().to_string(),
+            notes: control.kind.notes().is_some(),
         })
         .collect()
 }
@@ -216,8 +231,9 @@ fn input_devices(session: &ProjectSession) -> Vec<RigInputDevice> {
             Some(RigInputDevice {
                 device: super::patch::object_ref(&id.0, SourceObjectKind::InputDevice),
                 name: id.0.declared_name().to_string(),
-                buttons: controls(device, true),
-                dials: controls(device, false),
+                buttons: controls(device, InputControlKind::is_button),
+                dials: controls(device, |kind| !kind.is_pressed()),
+                keys: controls(device, |kind| kind.is_pressed() && !kind.is_button()),
             })
         })
         .collect()
@@ -372,7 +388,25 @@ pub(super) fn edit_rig(
             switch_mut(&mut draft, id)?.input = button_from_gui(session, owner, &input)?;
         }
         RigGuiEdit::SetMappingInput { id, input } => {
-            mapping_mut(&mut draft, id)?.input = button_from_gui(session, owner, &input)?;
+            let input = button_from_gui(session, owner, &input)?;
+            let plays_notes = session
+                .project
+                .input_device(&input.device)
+                .and_then(|device| {
+                    device
+                        .controls
+                        .iter()
+                        .find(|control| control.id == input.control)
+                })
+                .is_some_and(|control| control.kind.notes().is_some());
+            let mapping = mapping_mut(&mut draft, id)?;
+            mapping.input = input;
+            // A value played from a note goes with an input that plays none.
+            if let MappingAction::Trigger(trigger) = &mut mapping.action
+                && !plays_notes
+            {
+                trigger.values.retain(|value| !value.from.needs_note());
+            }
         }
         RigGuiEdit::SetMappingWhen { id, when } => {
             mapping_mut(&mut draft, id)?.when = when.map(|when| match when {
@@ -392,6 +426,22 @@ pub(super) fn edit_rig(
                 RigTriggerLength::Held => TriggerLength::Held,
                 RigTriggerLength::Latched => TriggerLength::Latched,
             };
+        }
+        RigGuiEdit::SetTriggerValues { mapping_id, values } => {
+            trigger_mut(&mut draft, mapping_id)?.values = values
+                .into_iter()
+                .map(|value| {
+                    Ok(PlayedValue {
+                        param: identifier(&value.param)?,
+                        from: match value.from {
+                            RigPlayedSource::Velocity => PlayedSource::Velocity,
+                            RigPlayedSource::Pitch => PlayedSource::Pitch,
+                            RigPlayedSource::PitchClass => PlayedSource::PitchClass,
+                            RigPlayedSource::Fifths => PlayedSource::Fifths,
+                        },
+                    })
+                })
+                .collect::<Result<_, GuiMutationError>>()?;
         }
         RigGuiEdit::SetTriggerVoices { mapping_id, voices } => {
             trigger_mut(&mut draft, mapping_id)?.voices = match voices {
@@ -437,6 +487,10 @@ fn edit_effect(
         } => {
             let definition = effect_definition_from_gui(session, owner, reference)?;
             let params = required_param_values(session, &definition, parse_color(&initial_color)?)?;
+            // Played values name the old effect's parameters.
+            if let RigEffectOwner::Trigger { mapping_id } = &effect {
+                trigger_mut(rig, *mapping_id)?.values.clear();
+            }
             let effect = effect_mut(rig, effect)?;
             effect.definition = definition;
             effect.param_overrides = params;
@@ -466,6 +520,7 @@ fn action_from_gui(
             effect: new_effect(session, owner, rig, &initial_color, effect, target)?,
             length: TriggerLength::Fixed(super::checked_gui_duration(1.0)?),
             voices: VoicePolicy::Retrigger,
+            values: Vec::new(),
         })),
         RigActionChoice::Mark { marks } => MappingAction::Mark(MarkCollectionKey {
             name: identifier(&marks)?,
