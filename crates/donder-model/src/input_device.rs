@@ -85,7 +85,7 @@ pub enum ButtonInput {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DialInput {
-    /// A MIDI control change, from 0 to 127.
+    /// A MIDI control change, from 0 to 119.
     ControlChange(u8),
     /// The MIDI pitch bend wheel, from fully down to fully up.
     PitchBend,
@@ -144,7 +144,8 @@ impl InputControlKind {
 }
 
 impl InputSource {
-    /// Whether the number it reads is one MIDI has.
+    /// Whether the number it reads is one MIDI has, leaving out the control
+    /// changes 120 and up, which are channel modes.
     pub fn in_range(self) -> bool {
         match self {
             Self::Key(_) | Self::PitchBend => true,
@@ -165,7 +166,7 @@ impl std::fmt::Display for InputSource {
     }
 }
 
-/// A control of an input device: a button, or a dial.
+/// A control of an input device: a button, a dial or a range of keys.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ControlRef {
     pub device: InputDeviceId,

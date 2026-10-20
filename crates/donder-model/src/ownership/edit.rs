@@ -103,7 +103,7 @@ impl Rebase for Setup {
     }
 }
 
-/// Rebase what a rig refers to: its targets' layouts and its buttons' devices.
+/// Rebase what a rig refers to: its targets' layouts and its controls' devices.
 fn rebase_rig(rig: &mut Rig, from: &ObjectIdentity, to: &ObjectIdentity) {
     for effect in rig.effects_mut() {
         effect.target.layout.0.rebase(from, to);
@@ -578,7 +578,7 @@ fn copy_rig(project: &mut DonderProject, index: usize) -> Result<(), String> {
     Ok(())
 }
 /// Follow input devices that moved within the active setup: active rigs that
-/// read one become independent before their buttons change.
+/// read one become independent before their controls change.
 fn retarget_active_rig_inputs(
     project: &mut DonderProject,
     from: &ObjectIdentity,

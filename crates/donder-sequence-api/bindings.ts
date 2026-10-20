@@ -848,9 +848,9 @@ export type RigGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "
 /**  Deleting live marks leaves the marks parameters that named them without marks. */
 { type: "delete"; item: RigItem } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy } | { type: "setTriggerValues"; mappingId: number; values: RigPlayedValue[] };
 
-/**  A button a switch or mapping reads, with the names the rig's text uses. */
+/**  A control a switch or mapping reads, with the names the rig's text uses. */
 export type RigInput = {
-	button: RigControlRef,
+	control: RigControlRef,
 	deviceName: string,
 	controlName: string,
 };

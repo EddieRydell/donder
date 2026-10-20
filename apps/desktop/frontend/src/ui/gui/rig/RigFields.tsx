@@ -17,7 +17,7 @@ export function RigInputPicker({ document, input, use, onChange }: {
   use: RigInputUse;
   onChange: (control: RigControlRef) => void;
 }) {
-  const currentKey = guiObjectKey(input.button.device);
+  const currentKey = guiObjectKey(input.control.device);
   const device = document.inputDevices.find((candidate) => guiObjectKey(candidate.device) === currentKey);
   const choices = (candidate: RigInputDevice) => [
     ...candidate.buttons,
@@ -34,10 +34,10 @@ export function RigInputPicker({ document, input, use, onChange }: {
       {device === undefined && <option value={currentKey} disabled>{input.deviceName} (not in the setup)</option>}
       {document.inputDevices.map((candidate) => <option key={guiObjectKey(candidate.device)} value={guiObjectKey(candidate.device)} disabled={choices(candidate).length === 0}>{candidate.name}</option>)}
     </select></label>
-    <label>{use === "switch" ? "Button" : "Control"}<select value={input.button.control} onChange={(event) => {
+    <label>{use === "switch" ? "Button" : "Control"}<select value={input.control.control} onChange={(event) => {
       if (device !== undefined) onChange({ device: device.device, control: Number(event.currentTarget.value) });
     }}>
-      {!controls.some((control) => control.control === input.button.control) && <option value={input.button.control} disabled>{input.controlName}</option>}
+      {!controls.some((control) => control.control === input.control.control) && <option value={input.control.control} disabled>{input.controlName}</option>}
       {device?.buttons.map((button) => <option key={button.control} value={button.control}>{button.name}</option>)}
       {use === "control" && device?.dials.map((dial) => <option key={dial.control} value={dial.control}>{dial.name} (dial)</option>)}
       {(use === "trigger" || use === "mark") && device?.keys.map((keys) => <option key={keys.control} value={keys.control}>{keys.name} (keys)</option>)}
