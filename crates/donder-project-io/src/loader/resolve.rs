@@ -25,8 +25,9 @@ use donder_model::{
     SequenceId, SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
 };
 use donder_model::{
-    ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDriver, KeyRange, PlayedSource, PlayedValue,
+    ButtonInput, ChordQuality, ControlRef, DialInput, Heard, InputControl, InputControlId,
+    InputControlKind, InputDevice, InputDeviceId, InputDriver, KeyRange, Measure, Mode,
+    PlayedSource, PlayedValue,
 };
 use donder_model::{
     ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, Rig, RigEffect, RigId,
@@ -760,6 +761,27 @@ impl DomainResolver<'_> {
                             types::ButtonInput::ControlChange { number } => {
                                 ButtonInput::ControlChange(*number)
                             }
+                            types::ButtonInput::ChordChange => {
+                                ButtonInput::Heard(Heard::ChordChange)
+                            }
+                            types::ButtonInput::KeyChange => ButtonInput::Heard(Heard::KeyChange),
+                            types::ButtonInput::Resolution => ButtonInput::Heard(Heard::Resolution),
+                            types::ButtonInput::Beat => ButtonInput::Heard(Heard::Beat),
+                            types::ButtonInput::RunUp => ButtonInput::Heard(Heard::RunUp),
+                            types::ButtonInput::RunDown => ButtonInput::Heard(Heard::RunDown),
+                            types::ButtonInput::BigChord => ButtonInput::Heard(Heard::BigChord),
+                            types::ButtonInput::Chord { quality } => {
+                                ButtonInput::Heard(Heard::Chord(chord_quality(*quality)))
+                            }
+                            types::ButtonInput::Mode { mode } => {
+                                ButtonInput::Heard(Heard::Mode(match mode {
+                                    types::KeyMode::Major => Mode::Major,
+                                    types::KeyMode::Minor => Mode::Minor,
+                                }))
+                            }
+                            types::ButtonInput::Idle { seconds } => {
+                                ButtonInput::Heard(Heard::Idle { seconds: *seconds })
+                            }
                         }),
                     ),
                     types::InputControl::Dial {
@@ -774,6 +796,15 @@ impl DomainResolver<'_> {
                                 DialInput::ControlChange(*number)
                             }
                             types::DialInput::PitchBend => DialInput::PitchBend,
+                            types::DialInput::KeyColor => DialInput::Measured(Measure::KeyColor),
+                            types::DialInput::ChordColor => {
+                                DialInput::Measured(Measure::ChordColor)
+                            }
+                            types::DialInput::Tension => DialInput::Measured(Measure::Tension),
+                            types::DialInput::Loudness => DialInput::Measured(Measure::Loudness),
+                            types::DialInput::Density => DialInput::Measured(Measure::Density),
+                            types::DialInput::Register => DialInput::Measured(Measure::Register),
+                            types::DialInput::Tempo => DialInput::Measured(Measure::Tempo),
                         }),
                     ),
                     types::InputControl::Keys {
@@ -823,6 +854,7 @@ impl DomainResolver<'_> {
             driver: match &device.driver {
                 types::InputDriver::Keyboard => InputDriver::Keyboard,
                 types::InputDriver::Midi { port } => InputDriver::Midi { port: port.clone() },
+                types::InputDriver::Listen { port } => InputDriver::Listen { port: port.clone() },
             },
             controls,
         };
@@ -2414,5 +2446,16 @@ fn describe(ty: &Type, marks: &[(Identifier, TextSpan)]) -> String {
         Type::Gradient => "a gradient: a reference or `[(position, #color), ...]`".into(),
         Type::Array(item) => format!("a list of {}", describe(item, marks)),
         Type::Void | Type::Signal => "no value".into(),
+    }
+}
+
+fn chord_quality(quality: types::ChordQuality) -> ChordQuality {
+    match quality {
+        types::ChordQuality::Major => ChordQuality::Major,
+        types::ChordQuality::Minor => ChordQuality::Minor,
+        types::ChordQuality::Dominant => ChordQuality::Dominant,
+        types::ChordQuality::Diminished => ChordQuality::Diminished,
+        types::ChordQuality::Augmented => ChordQuality::Augmented,
+        types::ChordQuality::Suspended => ChordQuality::Suspended,
     }
 }

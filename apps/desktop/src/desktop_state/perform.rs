@@ -10,9 +10,10 @@ use crate::midi::{Held, MidiInputs, MidiMessage};
 use crate::rendering::{RigOutput, SessionClock};
 use donder_elaboration::{PreparationCache, PrepareOutputs, RigRouter};
 use donder_model::{
-    ButtonInput, ControllerId, DialInput, DonderProject, InputControlKind, InputDriver, KeyCode,
-    KeyRange, RigId,
+    ButtonInput, ControllerId, DialInput, DonderProject, Heard, InputControlKind, InputDeviceId,
+    InputDriver, KeyCode, KeyRange, Measure, RigId,
 };
+use donder_music::{Listener, Noticed, Played};
 use donder_runtime::PreparedRig;
 use donder_runtime_types::{RigEvent, SampleTime, sample_time_seconds_f32};
 use donder_sequence_api::{
@@ -47,6 +48,21 @@ struct MidiBinding {
     input: usize,
 }
 
+/// A listener the performance plays from: the music on its ports, and the
+/// router inputs its moments and measures play.
+struct Listening {
+    /// Ports whose name contains this, ignoring case, or every port.
+    port: Option<String>,
+    device: InputDeviceId,
+    listener: Listener,
+    moments: Vec<(Heard, usize)>,
+    measures: Vec<(Measure, usize)>,
+}
+
+/// How often a listener notices the passing of time: beats, silence and
+/// fading measures.
+const LISTEN_TICK: std::time::Duration = std::time::Duration::from_millis(10);
+
 /// What a MIDI control reads.
 #[derive(Clone, Copy)]
 enum MidiRead {
@@ -57,6 +73,50 @@ enum MidiRead {
     /// A control change read as a dial.
     Dial(u8),
     PitchBend,
+}
+
+/// The MIDI control change of the sustain pedal.
+const SUSTAIN_PEDAL: u8 = 64;
+
+fn session_seconds(time: SampleTime) -> f64 {
+    f64::from(time.as_ticks()) / 1_000_000.0
+}
+
+/// Play what a listener noticed: its moments press and release their
+/// buttons, and its measures turn their dials.
+fn play_noticed(
+    listening: &Listening,
+    router: &mut RigRouter,
+    noticed: &[Noticed],
+    time: SampleTime,
+    events: &mut Vec<RigEvent>,
+) {
+    for noticed in noticed {
+        match *noticed {
+            Noticed::Pressed(heard) | Noticed::Released(heard) => {
+                for &(_, input) in listening
+                    .moments
+                    .iter()
+                    .filter(|(moment, _)| *moment == heard)
+                {
+                    events.extend(if matches!(noticed, Noticed::Pressed(_)) {
+                        router.press(input, time)
+                    } else {
+                        router.release(input, time)
+                    });
+                }
+            }
+            Noticed::Measured(measure, value) => {
+                for &(_, input) in listening
+                    .measures
+                    .iter()
+                    .filter(|(dial, _)| *dial == measure)
+                {
+                    events.extend(router.turn(input, value, time));
+                }
+            }
+        }
+    }
 }
 
 /// Whether a device that reads `wanted` reads the port named `port`: one
@@ -80,6 +140,8 @@ struct Performance {
     keys: HashMap<KeyCode, Vec<usize>>,
     /// The router inputs MIDI plays.
     midi: Vec<MidiBinding>,
+    /// Listeners to the music on MIDI ports.
+    listening: Vec<Listening>,
     /// The MIDI ports the performance is connected to, when it plays from
     /// MIDI.
     midi_inputs: Option<MidiInputs>,
@@ -211,6 +273,7 @@ impl DesktopState {
                 .ok_or("The active setup is missing.")?;
             let mut keys: HashMap<KeyCode, Vec<usize>> = HashMap::new();
             let mut midi = Vec::new();
+            let mut listening: Vec<Listening> = Vec::new();
             let mut buttons = Vec::with_capacity(armed.buttons.len());
             for (index, button) in armed.buttons.iter().enumerate() {
                 let device = project
@@ -225,6 +288,33 @@ impl DesktopState {
                     device: device.id.0.declared_name().to_string(),
                     control: control.name.as_str().to_string(),
                 });
+                if let InputDriver::Listen { port } = &device.driver {
+                    let index_of = match listening.iter().position(|item| item.device == device.id)
+                    {
+                        Some(found) => found,
+                        None => {
+                            listening.push(Listening {
+                                port: port.clone(),
+                                device: device.id.clone(),
+                                listener: Listener::new(&[], &[]),
+                                moments: Vec::new(),
+                                measures: Vec::new(),
+                            });
+                            listening.len() - 1
+                        }
+                    };
+                    let item = &mut listening[index_of];
+                    match control.kind {
+                        InputControlKind::Button(ButtonInput::Heard(heard)) => {
+                            item.moments.push((heard, index));
+                        }
+                        InputControlKind::Dial(DialInput::Measured(measure)) => {
+                            item.measures.push((measure, index));
+                        }
+                        _ => return Err("A listener control reads a MIDI or key input.".into()),
+                    }
+                    continue;
+                }
                 // Every control of the setup with this key, note or pedal plays.
                 let reads = match control.kind {
                     InputControlKind::Button(ButtonInput::Key(code)) => {
@@ -240,6 +330,10 @@ impl DesktopState {
                     }
                     InputControlKind::Dial(DialInput::PitchBend) => MidiRead::PitchBend,
                     InputControlKind::Keys(range) => MidiRead::Keys(range),
+                    InputControlKind::Button(ButtonInput::Heard(_))
+                    | InputControlKind::Dial(DialInput::Measured(_)) => {
+                        return Err("A MIDI or keyboard control reads a listener's input.".into());
+                    }
                 };
                 let InputDriver::Midi { port } = &device.driver else {
                     return Err("A keyboard control reads a MIDI input.".into());
@@ -250,11 +344,25 @@ impl DesktopState {
                     input: index,
                 });
             }
+            for item in &mut listening {
+                let heard = item
+                    .moments
+                    .iter()
+                    .map(|(heard, _)| *heard)
+                    .collect::<Vec<_>>();
+                let measures = item
+                    .measures
+                    .iter()
+                    .map(|(measure, _)| *measure)
+                    .collect::<Vec<_>>();
+                item.listener = Listener::new(&heard, &measures);
+            }
             let generation = perform.generation.wrapping_add(1);
-            let midi_inputs = (!midi.is_empty()).then(|| {
+            let midi_inputs = (!midi.is_empty() || !listening.is_empty()).then(|| {
                 let ports = midi
                     .iter()
                     .map(|binding| binding.port.clone())
+                    .chain(listening.iter().map(|item| item.port.clone()))
                     .collect::<Vec<_>>();
                 let state = self.weak.clone();
                 let lost_state = self.weak.clone();
@@ -288,6 +396,7 @@ impl DesktopState {
                 buttons: buttons.into(),
                 keys,
                 midi,
+                listening,
                 midi_inputs,
                 switches: project
                     .rig(&rig_id)
@@ -301,7 +410,22 @@ impl DesktopState {
             };
             perform.generation = performance.generation;
             perform.revision = perform.revision.wrapping_add(1);
+            let listens = !performance.listening.is_empty();
             perform.performance = Some(performance);
+            if listens {
+                let state = self.weak.clone();
+                std::thread::spawn(move || {
+                    loop {
+                        std::thread::sleep(LISTEN_TICK);
+                        let Some(state) = state.upgrade() else {
+                            break;
+                        };
+                        if !DesktopState(state).perform_listen_tick(generation) {
+                            break;
+                        }
+                    }
+                });
+            }
         }
         self.preview_wake.notify();
         if live && let Err(error) = self.set_live_output_active(true) {
@@ -361,6 +485,29 @@ impl DesktopState {
                 return None;
             }
             let mut events = Vec::new();
+            let played = match message {
+                MidiMessage::NoteOn { note, velocity } => Some(Played::NoteOn {
+                    note,
+                    velocity: f32::from(velocity) / 127.0,
+                }),
+                MidiMessage::NoteOff { note } => Some(Played::NoteOff { note }),
+                MidiMessage::ControlChange {
+                    number: SUSTAIN_PEDAL,
+                    value,
+                } => Some(Played::Sustain(value >= 64)),
+                MidiMessage::ControlChange { .. } | MidiMessage::PitchBend { .. } => None,
+            };
+            if let Some(played) = played {
+                let Performance {
+                    listening, router, ..
+                } = &mut *performance;
+                for item in listening.iter_mut() {
+                    if reads_port(item.port.as_deref(), port) {
+                        let noticed = item.listener.hear(played, session_seconds(time));
+                        play_noticed(item, router, &noticed, time, &mut events);
+                    }
+                }
+            }
             for binding in &performance.midi {
                 if !reads_port(binding.port.as_deref(), port) {
                     continue;
@@ -423,16 +570,54 @@ impl DesktopState {
                 return None;
             }
             let mut events = Vec::new();
-            for binding in &performance.midi {
+            let Performance {
+                midi,
+                listening,
+                router,
+                ..
+            } = performance;
+            for binding in midi.iter() {
                 if let MidiRead::Pedal(number) = binding.reads
                     && held.control_changes.contains(&number)
                     && reads_port(binding.port.as_deref(), port)
                 {
-                    events.extend(performance.router.release(binding.input, time));
+                    events.extend(router.release(binding.input, time));
+                }
+            }
+            if held.control_changes.contains(&SUSTAIN_PEDAL) {
+                for item in listening.iter_mut() {
+                    if reads_port(item.port.as_deref(), port) {
+                        let noticed = item
+                            .listener
+                            .hear(Played::Sustain(false), session_seconds(time));
+                        play_noticed(item, router, &noticed, time, &mut events);
+                    }
                 }
             }
             (!events.is_empty()).then_some(events)
         });
+    }
+
+    /// Let performance `generation`'s listeners notice the passing of time.
+    /// `false` once that performance has ended.
+    fn perform_listen_tick(&self, generation: u32) -> bool {
+        let mut playing = false;
+        self.route(|performance, time| {
+            if performance.generation != generation {
+                return None;
+            }
+            playing = true;
+            let mut events = Vec::new();
+            let Performance {
+                listening, router, ..
+            } = performance;
+            for item in listening.iter_mut() {
+                let noticed = item.listener.tick(session_seconds(time));
+                play_noticed(item, router, &noticed, time, &mut events);
+            }
+            (!events.is_empty()).then_some(events)
+        });
+        playing
     }
 
     /// Release every held button, as when the performer's window loses focus.

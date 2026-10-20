@@ -1,0 +1,11 @@
+[package]
+name = "donder-music"
+edition.workspace = true
+version.workspace = true
+description = "Listening to music as it is played: chords, key, tempo and dynamics"
+authors = ["Donder"]
+license = "MIT"
+
+[lints.rust]
+unreachable_pub = "warn"
+unnameable_types = "warn"

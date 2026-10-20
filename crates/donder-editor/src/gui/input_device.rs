@@ -1,14 +1,16 @@
 //! Input devices: the hardware rigs play from.
 use donder_model::{
-    ButtonInput, DialInput, InputControl, InputControlId, InputControlKind, InputDevice,
-    InputDeviceId, InputDriver, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
+    ButtonInput, ChordQuality, DialInput, Heard, InputControl, InputControlId, InputControlKind,
+    InputDevice, InputDeviceId, InputDriver, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE,
+    MAX_MIDI_NOTE, Measure, Mode,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_sequence_api::{
-    GuiControlInput, GuiDocument, GuiInputControl, GuiInputControlKind, GuiInputDriver,
-    GuiInputLimits, InputDeviceGuiDocument, SetupInputDevice,
+    GuiChordQuality, GuiControlInput, GuiDocument, GuiHeard, GuiInputControl, GuiInputControlKind,
+    GuiInputDriver, GuiInputLimits, GuiKeyMode, GuiMeasure, InputDeviceGuiDocument,
+    SetupInputDevice,
 };
 
 /// The highest MIDI inputs a control can read.
@@ -39,6 +41,7 @@ pub(super) fn project_input_device(
         driver: match &device.driver {
             InputDriver::Keyboard => GuiInputDriver::Keyboard,
             InputDriver::Midi { port } => GuiInputDriver::Midi { port: port.clone() },
+            InputDriver::Listen { port } => GuiInputDriver::Listen { port: port.clone() },
         },
         controls: device.controls.iter().map(gui_control).collect(),
     }
@@ -54,6 +57,9 @@ fn gui_control(control: &InputControl) -> GuiInputControl {
                 },
                 ButtonInput::Note(note) => GuiControlInput::Note { note },
                 ButtonInput::ControlChange(number) => GuiControlInput::ControlChange { number },
+                ButtonInput::Heard(heard) => GuiControlInput::Heard {
+                    heard: gui_heard(heard),
+                },
             },
         ),
         InputControlKind::Dial(input) => (
@@ -61,6 +67,17 @@ fn gui_control(control: &InputControl) -> GuiInputControl {
             match input {
                 DialInput::ControlChange(number) => GuiControlInput::ControlChange { number },
                 DialInput::PitchBend => GuiControlInput::PitchBend,
+                DialInput::Measured(measure) => GuiControlInput::Measured {
+                    measure: match measure {
+                        Measure::KeyColor => GuiMeasure::KeyColor,
+                        Measure::ChordColor => GuiMeasure::ChordColor,
+                        Measure::Tension => GuiMeasure::Tension,
+                        Measure::Loudness => GuiMeasure::Loudness,
+                        Measure::Density => GuiMeasure::Density,
+                        Measure::Register => GuiMeasure::Register,
+                        Measure::Tempo => GuiMeasure::Tempo,
+                    },
+                },
             },
         ),
         InputControlKind::Keys(range) => (
@@ -113,6 +130,30 @@ fn domain_control_kind(
         (GuiInputControlKind::Keys, _) | (_, GuiControlInput::Notes { .. }) => {
             return Err(GuiMutationError::Invalid(
                 "Keys read a range of notes, and only keys do.".into(),
+            ));
+        }
+        (GuiInputControlKind::Button, GuiControlInput::Heard { heard }) => {
+            InputControlKind::Button(ButtonInput::Heard(domain_heard(*heard)))
+        }
+        (GuiInputControlKind::Dial, GuiControlInput::Measured { measure }) => {
+            InputControlKind::Dial(DialInput::Measured(match measure {
+                GuiMeasure::KeyColor => Measure::KeyColor,
+                GuiMeasure::ChordColor => Measure::ChordColor,
+                GuiMeasure::Tension => Measure::Tension,
+                GuiMeasure::Loudness => Measure::Loudness,
+                GuiMeasure::Density => Measure::Density,
+                GuiMeasure::Register => Measure::Register,
+                GuiMeasure::Tempo => Measure::Tempo,
+            }))
+        }
+        (GuiInputControlKind::Button, GuiControlInput::Measured { .. }) => {
+            return Err(GuiMutationError::Invalid(
+                "A measure is a dial, not a button.".into(),
+            ));
+        }
+        (GuiInputControlKind::Dial, GuiControlInput::Heard { .. }) => {
+            return Err(GuiMutationError::Invalid(
+                "A moment is a button, not a dial.".into(),
             ));
         }
         (GuiInputControlKind::Button, GuiControlInput::PitchBend) => {
@@ -196,6 +237,9 @@ pub(super) fn domain_input_device(
                     .map(|port| port.trim().to_string())
                     .filter(|port| !port.is_empty()),
             },
+            GuiInputDriver::Listen { port } => InputDriver::Listen {
+                port: port.filter(|port| !port.trim().is_empty()),
+            },
         },
         controls,
     };
@@ -203,4 +247,58 @@ pub(super) fn domain_input_device(
         .validate()
         .map_err(|error| GuiMutationError::Invalid(format!("Invalid input device: {error}")))?;
     Ok(device)
+}
+
+fn gui_heard(heard: Heard) -> GuiHeard {
+    match heard {
+        Heard::ChordChange => GuiHeard::ChordChange,
+        Heard::KeyChange => GuiHeard::KeyChange,
+        Heard::Resolution => GuiHeard::Resolution,
+        Heard::Beat => GuiHeard::Beat,
+        Heard::RunUp => GuiHeard::RunUp,
+        Heard::RunDown => GuiHeard::RunDown,
+        Heard::BigChord => GuiHeard::BigChord,
+        Heard::Chord(quality) => GuiHeard::Chord {
+            quality: match quality {
+                ChordQuality::Major => GuiChordQuality::Major,
+                ChordQuality::Minor => GuiChordQuality::Minor,
+                ChordQuality::Dominant => GuiChordQuality::Dominant,
+                ChordQuality::Diminished => GuiChordQuality::Diminished,
+                ChordQuality::Augmented => GuiChordQuality::Augmented,
+                ChordQuality::Suspended => GuiChordQuality::Suspended,
+            },
+        },
+        Heard::Mode(mode) => GuiHeard::Mode {
+            mode: match mode {
+                Mode::Major => GuiKeyMode::Major,
+                Mode::Minor => GuiKeyMode::Minor,
+            },
+        },
+        Heard::Idle { seconds } => GuiHeard::Idle { seconds },
+    }
+}
+
+fn domain_heard(heard: GuiHeard) -> Heard {
+    match heard {
+        GuiHeard::ChordChange => Heard::ChordChange,
+        GuiHeard::KeyChange => Heard::KeyChange,
+        GuiHeard::Resolution => Heard::Resolution,
+        GuiHeard::Beat => Heard::Beat,
+        GuiHeard::RunUp => Heard::RunUp,
+        GuiHeard::RunDown => Heard::RunDown,
+        GuiHeard::BigChord => Heard::BigChord,
+        GuiHeard::Chord { quality } => Heard::Chord(match quality {
+            GuiChordQuality::Major => ChordQuality::Major,
+            GuiChordQuality::Minor => ChordQuality::Minor,
+            GuiChordQuality::Dominant => ChordQuality::Dominant,
+            GuiChordQuality::Diminished => ChordQuality::Diminished,
+            GuiChordQuality::Augmented => ChordQuality::Augmented,
+            GuiChordQuality::Suspended => ChordQuality::Suspended,
+        }),
+        GuiHeard::Mode { mode } => Heard::Mode(match mode {
+            GuiKeyMode::Major => Mode::Major,
+            GuiKeyMode::Minor => Mode::Minor,
+        }),
+        GuiHeard::Idle { seconds } => Heard::Idle { seconds },
+    }
 }

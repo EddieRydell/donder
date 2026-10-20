@@ -22,12 +22,12 @@ pub use dto::diagnostics::{
     DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,
 };
 pub use dto::live::{
-    GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits,
-    InputDeviceGuiDocument, ProjectGuiEdit, RigActionChoice, RigControlRef, RigControlTarget,
-    RigEffect, RigEffectEdit, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput,
-    RigInputControl, RigInputDevice, RigItem, RigLiveMarks, RigMapping, RigMappingAction,
-    RigPlayedSource, RigPlayedValue, RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy,
-    RigWhen, SetupInputDevice,
+    GuiChordQuality, GuiControlInput, GuiHeard, GuiInputControl, GuiInputControlKind,
+    GuiInputDriver, GuiInputLimits, GuiKeyMode, GuiMeasure, InputDeviceGuiDocument, ProjectGuiEdit,
+    RigActionChoice, RigControlRef, RigControlTarget, RigEffect, RigEffectEdit, RigEffectOwner,
+    RigGuiDocument, RigGuiEdit, RigInput, RigInputControl, RigInputDevice, RigItem, RigLiveMarks,
+    RigMapping, RigMappingAction, RigPlayedSource, RigPlayedValue, RigSwitch, RigTriggerLength,
+    RigVoice, RigVoicePolicy, RigWhen, SetupInputDevice,
 };
 pub use dto::output::{
     ControllerOutputTest, DeviceCapabilities, DeviceFirmwareInfo, DeviceInstallProgress,

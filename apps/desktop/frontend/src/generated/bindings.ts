@@ -360,6 +360,8 @@ export type GradientGuiDocument = {
 	stops: SequenceGradientStop[],
 };
 
+export type GuiChordQuality = "major" | "minor" | "dominant" | "diminished" | "augmented" | "suspended";
+
 /**
  *  What a control reads. A keyboard reads keys; MIDI buttons read notes and
  *  control changes, MIDI dials read control changes and pitch bend, and MIDI
@@ -373,7 +375,11 @@ export type GuiControlInput =
 /**  MIDI notes from `low` through `high`; a full piano is 21 to 108. */
 { type: "notes"; low: number; high: number } | 
 /**  A MIDI control change number, 0 to 119; the sustain pedal is 64. */
-{ type: "controlChange"; number: number } | { type: "pitchBend" };
+{ type: "controlChange"; number: number } | { type: "pitchBend" } | 
+/**  A musical moment a listener hears, as a button. */
+{ type: "heard"; heard: GuiHeard } | 
+/**  A running measure of the music a listener hears, as a dial. */
+{ type: "measured"; measure: GuiMeasure };
 
 export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "rig"; document: RigGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
@@ -437,6 +443,15 @@ export type GuiGridAxis = "rows" | "columns";
 
 export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight";
 
+/**  A musical moment a listener hears. */
+export type GuiHeard = { type: "chordChange" } | { type: "keyChange" } | { type: "resolution" } | { type: "beat" } | { type: "runUp" } | { type: "runDown" } | { type: "bigChord" } | 
+/**  Held while the chord is of this quality. */
+{ type: "chord"; quality: GuiChordQuality } | 
+/**  Held while the key is in this mode. */
+{ type: "mode"; mode: GuiKeyMode } | 
+/**  Held once nothing has been played for this many seconds. */
+{ type: "idle"; seconds: number };
+
 export type GuiInputControl = {
 	/**  Kept across edits; a new control has an id no other control uses. */
 	id: number,
@@ -457,13 +472,17 @@ export type GuiInputControlKind =
 
 export type GuiInputDriver = { type: "keyboard" } | 
 /**  MIDI input ports whose name contains `port`, or every port. */
-{ type: "midi"; port: string | null };
+{ type: "midi"; port: string | null } | 
+/**  A listener to the music played on those MIDI ports. */
+{ type: "listen"; port: string | null };
 
 /**  The highest MIDI inputs a control can read. */
 export type GuiInputLimits = {
 	maxNote: number,
 	maxControlChange: number,
 };
+
+export type GuiKeyMode = "major" | "minor";
 
 export type GuiLayoutFixture = {
 	id: number,
@@ -475,6 +494,9 @@ export type GuiLayoutFixture = {
 export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiFixtureSource; transform: Transform } | 
 /**  Members may belong to several groups. */
 { type: "group"; members: number[] };
+
+/**  A running measure of the music a listener hears, from 0 to 1. */
+export type GuiMeasure = "keyColor" | "chordColor" | "tension" | "loudness" | "density" | "register" | "tempo";
 
 export type GuiObjectRef = {
 	ownedPath: GuiOwnedStep[],

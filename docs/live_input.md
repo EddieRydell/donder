@@ -58,6 +58,59 @@ from 21 to 108; control changes are 0 to 119. A struck note carries how hard it
 was struck, its velocity. Donder connects to a device's ports when you start performing, and to
 ports plugged in while you perform; the Perform bar shows the ports it reads.
 
+### Listeners
+
+A listener hears the music played on MIDI ports and turns it into controls, so
+a rig can answer the music itself rather than single keys. Its buttons are
+moments in the music and its dials running measures of it:
+
+```text
+InputDevice ear {
+  description: "Listens to the piano.",
+  driver: Listen { port: "Digital Piano" },
+  controls: [
+    Button { name: chord_change, description: none, input: ChordChange },
+    Button { name: home, description: "V resolves to I.", input: Resolution },
+    Button { name: beat, description: none, input: Beat },
+    Button { name: minor, description: none, input: Chord { quality: Minor } },
+    Button { name: nobody, description: none, input: Idle { seconds: 30 } },
+    Dial { name: key_color, description: none, input: KeyColor },
+    Dial { name: tension, description: none, input: Tension },
+  ],
+}
+```
+
+| Button | Pressed |
+| --- | --- |
+| `ChordChange` | when the chord changes |
+| `KeyChange` | when the key changes, once the new key has led for a moment |
+| `Resolution` | when a dominant seventh, or a major chord in the key, falls a fifth to its home chord: V to I |
+| `Beat` | on each beat at the player's tempo, between notes too, until a few seconds after they stop |
+| `RunUp`, `RunDown` | at a fast run of six or more notes spanning at least a fifth |
+| `BigChord` | when four or more notes are struck hard together |
+| `Chord { quality }` | held while the chord is `Major`, `Minor`, `Dominant`, `Diminished`, `Augmented` or `Suspended` |
+| `Mode { mode }` | held while the key is `Major` or `Minor` |
+| `Idle { seconds }` | held once nothing has been played for that long, until someone plays |
+
+The first seven are momentary: pressed and released at once, so they play
+`Fixed` triggers, marks and switches.
+
+| Dial | From 0 to 1 |
+| --- | --- |
+| `KeyColor` | the key's tonic round the circle of fifths: C at 0, G at 1/12, D at 2/12 |
+| `ChordColor` | the chord's root round the circle of fifths |
+| `Tension` | low on the home chord, high on dominants, diminished chords and notes outside the key |
+| `Loudness` | how hard the music is played, falling away in silence |
+| `Density` | notes a second, from none to twelve |
+| `Register` | how high the sounding notes are, from the bottom of a piano to its top |
+| `Tempo` | the player's tempo, from 40 beats a minute to 200 |
+
+A listener names chords from the notes sounding, counting the sustain pedal,
+how hard and how recently each note was struck, and the bass note; melody
+notes above C5 count less, and lifting notes never changes the chord. It finds
+the key from the notes of the last several seconds, and the tempo from the
+intervals between them. Its controls play rigs like any other device's.
+
 A device's control names are unique, and no two controls read the same input.
 The setup lists the input devices you have, next to its controllers:
 `input_devices: [devices.keyboard]`. A rig can only use devices the active setup

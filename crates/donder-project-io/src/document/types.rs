@@ -91,6 +91,7 @@ pub struct InputDevice {
 pub enum InputDriver {
     Keyboard,
     Midi { port: Option<String> },
+    Listen { port: Option<String> },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -132,12 +133,45 @@ pub enum ButtonInput {
     Key { code: KeyCode },
     Note { note: u8 },
     ControlChange { number: u8 },
+    ChordChange,
+    KeyChange,
+    Resolution,
+    Beat,
+    RunUp,
+    RunDown,
+    BigChord,
+    Chord { quality: ChordQuality },
+    Mode { mode: KeyMode },
+    Idle { seconds: u16 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Data)]
+pub enum ChordQuality {
+    Major,
+    Minor,
+    Dominant,
+    Diminished,
+    Augmented,
+    Suspended,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Data)]
+pub enum KeyMode {
+    Major,
+    Minor,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum DialInput {
     ControlChange { number: u8 },
     PitchBend,
+    KeyColor,
+    ChordColor,
+    Tension,
+    Loudness,
+    Density,
+    Register,
+    Tempo,
 }
 
 /// A key by its `KeyboardEvent.code` name; the names are the model's.

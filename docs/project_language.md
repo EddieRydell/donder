@@ -316,7 +316,8 @@ InputDevice keyboard {
   devices its rigs play from.
 - `driver` is `Keyboard`, the computer keyboard, or `Midi { port }`: the MIDI
   input ports whose name contains `port`, ignoring case, or every port when it
-  is `none`.
+  is `none`, or `Listen { port }`, a listener to the music played on those
+  ports.
 - A control is `Button { name, description, input }`, pressed or released,
   `Dial { name, description, input }`, a position from 0 to 1, or
   `Keys { name, description, input }`, a range of MIDI notes each pressed on
@@ -336,6 +337,12 @@ InputDevice keyboard {
   from note on to note off, or `ControlChange { number }`, from 0 to 119, held
   at 64 and above. A MIDI dial's `input` is `ControlChange { number }` or
   `PitchBend`.
+- A listener's buttons read `ChordChange`, `KeyChange`, `Resolution`, `Beat`,
+  `RunUp`, `RunDown`, `BigChord`, `Chord { quality }` (`Major`, `Minor`,
+  `Dominant`, `Diminished`, `Augmented` or `Suspended`), `Mode { mode }`
+  (`Major` or `Minor`) or `Idle { seconds }` (at least 1), and its dials
+  `KeyColor`, `ChordColor`, `Tension`, `Loudness`, `Density`, `Register` or
+  `Tempo`; `docs/live_input.md` says what each hears.
 - Control names are unique within their device, and no two controls read the
   same input; a note inside a `Keys` range is read by those keys.
 

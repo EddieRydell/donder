@@ -15,8 +15,8 @@ use donder_model::{
     AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio,
 };
 use donder_model::{
-    ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver, PlayedSource,
-    SequenceCompositionGraph, SequenceLayer,
+    ButtonInput, ChordQuality, ControlRef, DialInput, Heard, InputControlKind, InputDevice,
+    InputDriver, Measure, Mode, PlayedSource, SequenceCompositionGraph, SequenceLayer,
 };
 use donder_model::{
     ControlTarget, MappingAction, Rig, RigEffect, TriggerLength, VoicePolicy, When,
@@ -890,6 +890,7 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
         driver: match &device.driver {
             InputDriver::Keyboard => types::InputDriver::Keyboard,
             InputDriver::Midi { port } => types::InputDriver::Midi { port: port.clone() },
+            InputDriver::Listen { port } => types::InputDriver::Listen { port: port.clone() },
         },
         controls: device
             .controls
@@ -909,6 +910,7 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
                             ButtonInput::ControlChange(number) => {
                                 types::ButtonInput::ControlChange { number }
                             }
+                            ButtonInput::Heard(heard) => heard_document(heard),
                         },
                     },
                     InputControlKind::Dial(input) => types::InputControl::Dial {
@@ -919,6 +921,15 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
                                 types::DialInput::ControlChange { number }
                             }
                             DialInput::PitchBend => types::DialInput::PitchBend,
+                            DialInput::Measured(measure) => match measure {
+                                Measure::KeyColor => types::DialInput::KeyColor,
+                                Measure::ChordColor => types::DialInput::ChordColor,
+                                Measure::Tension => types::DialInput::Tension,
+                                Measure::Loudness => types::DialInput::Loudness,
+                                Measure::Density => types::DialInput::Density,
+                                Measure::Register => types::DialInput::Register,
+                                Measure::Tempo => types::DialInput::Tempo,
+                            },
                         },
                     },
                     InputControlKind::Keys(range) => types::InputControl::Keys {
@@ -932,6 +943,35 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
                 }
             })
             .collect(),
+    }
+}
+
+fn heard_document(heard: Heard) -> types::ButtonInput {
+    match heard {
+        Heard::ChordChange => types::ButtonInput::ChordChange,
+        Heard::KeyChange => types::ButtonInput::KeyChange,
+        Heard::Resolution => types::ButtonInput::Resolution,
+        Heard::Beat => types::ButtonInput::Beat,
+        Heard::RunUp => types::ButtonInput::RunUp,
+        Heard::RunDown => types::ButtonInput::RunDown,
+        Heard::BigChord => types::ButtonInput::BigChord,
+        Heard::Chord(quality) => types::ButtonInput::Chord {
+            quality: match quality {
+                ChordQuality::Major => types::ChordQuality::Major,
+                ChordQuality::Minor => types::ChordQuality::Minor,
+                ChordQuality::Dominant => types::ChordQuality::Dominant,
+                ChordQuality::Diminished => types::ChordQuality::Diminished,
+                ChordQuality::Augmented => types::ChordQuality::Augmented,
+                ChordQuality::Suspended => types::ChordQuality::Suspended,
+            },
+        },
+        Heard::Mode(mode) => types::ButtonInput::Mode {
+            mode: match mode {
+                Mode::Major => types::KeyMode::Major,
+                Mode::Minor => types::KeyMode::Minor,
+            },
+        },
+        Heard::Idle { seconds } => types::ButtonInput::Idle { seconds },
     }
 }
 

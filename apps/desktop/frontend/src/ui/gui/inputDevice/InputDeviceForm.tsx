@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits, SetupInputDevice } from "../../../types";
+import type { GuiChordQuality, GuiControlInput, GuiHeard, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits, GuiKeyMode, GuiMeasure, SetupInputDevice } from "../../../types";
 import { DescriptionField } from "../DescriptionField";
 
 const MIDDLE_C = 60;
@@ -31,8 +31,50 @@ function inputKeys(input: GuiControlInput): string[] {
     case "notes": return Array.from({ length: Math.max(0, input.high - input.low + 1) }, (_, offset) => `note ${input.low + offset}`);
     case "controlChange": return [`cc ${input.number}`];
     case "pitchBend": return ["pitch bend"];
+    case "heard": return [`heard ${heardKey(input.heard)}`];
+    case "measured": return [`measure ${input.measure}`];
   }
 }
+
+function heardKey(heard: GuiHeard): string {
+  switch (heard.type) {
+    case "chord": return `chord ${heard.quality}`;
+    case "mode": return `mode ${heard.mode}`;
+    case "idle": return `idle ${heard.seconds}`;
+    case "chordChange":
+    case "keyChange":
+    case "resolution":
+    case "beat":
+    case "runUp":
+    case "runDown":
+    case "bigChord": return heard.type;
+  }
+}
+
+/** The moments a listener hears, each with a default to start from. */
+const MOMENTS: { label: string; heard: GuiHeard }[] = [
+  { label: "Chord change", heard: { type: "chordChange" } },
+  { label: "Key change", heard: { type: "keyChange" } },
+  { label: "Resolution (V to I)", heard: { type: "resolution" } },
+  { label: "Beat", heard: { type: "beat" } },
+  { label: "Run up", heard: { type: "runUp" } },
+  { label: "Run down", heard: { type: "runDown" } },
+  { label: "Big chord", heard: { type: "bigChord" } },
+  { label: "While the chord is", heard: { type: "chord", quality: "minor" } },
+  { label: "While the key is", heard: { type: "mode", mode: "minor" } },
+  { label: "Idle for", heard: { type: "idle", seconds: 20 } }
+];
+const CHORD_QUALITIES: GuiChordQuality[] = ["major", "minor", "dominant", "diminished", "augmented", "suspended"];
+const KEY_MODES: GuiKeyMode[] = ["major", "minor"];
+const MEASURES: { label: string; measure: GuiMeasure }[] = [
+  { label: "Key colour", measure: "keyColor" },
+  { label: "Chord colour", measure: "chordColor" },
+  { label: "Tension", measure: "tension" },
+  { label: "Loudness", measure: "loudness" },
+  { label: "Density", measure: "density" },
+  { label: "Register", measure: "register" },
+  { label: "Tempo", measure: "tempo" }
+];
 
 function inputKey(input: GuiControlInput): string {
   return inputKeys(input).join(" ");
@@ -53,15 +95,24 @@ function freeInput(type: "key" | "note" | "controlChange", used: Set<string>, ke
   return null;
 }
 
-/** The controls carried over to another driver: each button reads a free
- * input of the new driver, and a keyboard has no dials or keys. */
+/** Whether `driver` reads `input`. */
+function driverReads(driver: GuiInputDriver, input: GuiControlInput): boolean {
+  switch (driver.type) {
+    case "keyboard": return input.type === "key";
+    case "midi": return input.type !== "key" && input.type !== "heard" && input.type !== "measured";
+    case "listen": return input.type === "heard" || input.type === "measured";
+  }
+}
+
+/** The controls carried over to another driver: each keyboard or MIDI button
+ * reads a free input of the new driver; a keyboard has no dials or keys, and
+ * a listener keeps only its own moments and measures. */
 function convertControls(controls: GuiInputControl[], driver: GuiInputDriver, keyCodes: string[], limits: GuiInputLimits): GuiInputControl[] {
   const used = new Set<string>();
   const converted: GuiInputControl[] = [];
   for (const control of controls) {
-    const fits = driver.type === "keyboard" ? control.input.type === "key" : control.input.type !== "key";
-    const input = fits ? control.input
-      : control.kind !== "button" ? null
+    const input = driverReads(driver, control.input) ? control.input
+      : control.kind !== "button" || driver.type === "listen" ? null
         : freeInput(driver.type === "keyboard" ? "key" : "note", used, keyCodes, limits, MIDDLE_C);
     if (input === null) continue;
     for (const key of inputKeys(input)) used.add(key);
@@ -97,6 +148,9 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     setControls([...controls, { id, name: freshControlName(controls), description: null, kind, input }]);
   };
   const midi = driver.type === "midi";
+  const listen = driver.type === "listen";
+  const nextMoment = MOMENTS.find((moment) => !used.has(inputKey({ type: "heard", heard: moment.heard })))?.heard;
+  const nextMeasure = MEASURES.find((measure) => !used.has(inputKey({ type: "measured", measure: measure.measure })))?.measure;
   const nextKey = freeInput("key", used, keyCodes, limits);
   const nextNote = freeInput("note", used, keyCodes, limits, MIDDLE_C);
   const nextControlChange = freeInput("controlChange", used, keyCodes, limits, 1);
@@ -109,22 +163,28 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     <h4>{device === undefined ? "Add an input device" : "Input device settings"}</h4>
     <fieldset disabled={device?.readOnly === true}>
       <label>Driver<select value={driver.type} onChange={(event) => {
-        const next: GuiInputDriver = event.target.value === "midi" ? { type: "midi", port: null } : { type: "keyboard" };
+        const next: GuiInputDriver = event.target.value === "midi" ? { type: "midi", port: null }
+          : event.target.value === "listen" ? { type: "listen", port: null } : { type: "keyboard" };
         setDriver(next);
         setControls(convertControls(controls, next, keyCodes, limits));
       }}>
         <option value="keyboard">Keyboard</option>
         <option value="midi">MIDI</option>
+        <option value="listen">Listener</option>
       </select></label>
-      {driver.type === "midi" && <label>Port<input value={driver.port ?? ""} placeholder="Every MIDI port" onChange={(event) => {
-        setDriver({ type: "midi", port: event.target.value === "" ? null : event.target.value });
+      {driver.type !== "keyboard" && <label>Port<input value={driver.port ?? ""} placeholder="Every MIDI port" onChange={(event) => {
+        setDriver({ type: driver.type, port: event.target.value === "" ? null : event.target.value });
       }} /></label>}
       {controls.length === 0 && <p className="object-overview-empty">
-        {midi ? "No controls. Add keys for a keyboard's notes, a button for each pad or pedal a rig plays from, and a dial for each knob." : "No controls. Add a button for each key a rig plays from."}
+        {listen ? "No controls. Add a moment for each thing in the music a rig answers, and a measure for each it follows."
+          : midi ? "No controls. Add keys for a keyboard's notes, a button for each pad or pedal a rig plays from, and a dial for each knob."
+            : "No controls. Add a button for each key a rig plays from."}
       </p>}
       {controls.map((control, index) => <div className="controller-port-row" key={control.id}>
         <label>Name<input required pattern="[a-z_][a-z0-9_]*" value={control.name} onChange={(event) => { update(index, { name: event.target.value }); }} /></label>
-        {midi
+        {listen
+          ? <ListenerInputFields control={control} used={used} onChange={(change) => { update(index, change); }} />
+          : midi
           ? <MidiInputFields control={control} used={used} limits={limits} onChange={(change) => { update(index, change); }} />
           : control.input.type === "key" && <label>Key<select value={control.input.code} onChange={(event) => { update(index, { input: { type: "key", code: event.target.value } }); }}>
             {keyCodes.map((code) => <option key={code} value={code} disabled={control.input.type === "key" && code !== control.input.code && used.has(inputKey({ type: "key", code }))}>{code}</option>)}
@@ -134,7 +194,11 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
         <button type="button" disabled={index === controls.length - 1} onClick={() => { move(index, 1); }}>Move down</button>
         <button type="button" onClick={() => { setControls(controls.filter((_, i) => i !== index)); }}>Remove control</button>
       </div>)}
-      {midi
+      {listen && <>
+        <button type="button" disabled={nextMoment === undefined} onClick={() => { if (nextMoment !== undefined) add("button", { type: "heard", heard: nextMoment }); }}>Add moment</button>
+        <button type="button" disabled={nextMeasure === undefined} onClick={() => { if (nextMeasure !== undefined) add("dial", { type: "measured", measure: nextMeasure }); }}>Add measure</button>
+      </>}
+      {listen ? null : midi
         ? <>
           <button type="button" disabled={nextNote === null} onClick={() => { add("button", nextNote); }}>Add button</button>
           <button type="button" disabled={nextControlChange === null} onClick={() => { add("dial", nextControlChange); }}>Add dial</button>
@@ -190,5 +254,50 @@ function MidiInputFields({ control, used, limits, onChange }: {
     {input.type === "controlChange" && <label>Number<input type="number" min={0} max={limits.maxControlChange} required value={input.number}
       aria-invalid={taken(input)}
       onChange={(event) => { onChange({ input: { type: "controlChange", number: Number(event.target.value) } }); }} /></label>}
+  </>;
+}
+
+/** A listener's control: a moment it hears, as a button, or a measure it
+ * follows, as a dial. */
+function ListenerInputFields({ control, used, onChange }: {
+  control: GuiInputControl;
+  used: Set<string>;
+  onChange: (change: Partial<GuiInputControl>) => void;
+}) {
+  const { input } = control;
+  const own = inputKey(input);
+  const taken = (candidate: GuiControlInput) => inputKey(candidate) !== own && used.has(inputKey(candidate));
+  if (input.type === "measured") {
+    return <label>Measure<select value={input.measure} onChange={(event) => {
+      const measure = MEASURES.find((choice) => choice.measure === event.target.value)?.measure;
+      if (measure !== undefined) onChange({ kind: "dial", input: { type: "measured", measure } });
+    }}>
+      {MEASURES.map((choice) => <option key={choice.measure} value={choice.measure} disabled={taken({ type: "measured", measure: choice.measure })}>{choice.label}</option>)}
+    </select></label>;
+  }
+  if (input.type !== "heard") return null;
+  const { heard } = input;
+  const set = (next: GuiHeard) => { onChange({ kind: "button", input: { type: "heard", heard: next } }); };
+  return <>
+    <label>Moment<select value={heard.type} onChange={(event) => {
+      const choice = MOMENTS.find((moment) => moment.heard.type === event.target.value);
+      if (choice !== undefined) set(choice.heard);
+    }}>
+      {MOMENTS.map((moment) => <option key={moment.heard.type} value={moment.heard.type}>{moment.label}</option>)}
+    </select></label>
+    {heard.type === "chord" && <label>Quality<select value={heard.quality} aria-invalid={taken(input)} onChange={(event) => {
+      const quality = CHORD_QUALITIES.find((choice) => choice === event.target.value);
+      if (quality !== undefined) set({ type: "chord", quality });
+    }}>
+      {CHORD_QUALITIES.map((quality) => <option key={quality} value={quality}>{quality}</option>)}
+    </select></label>}
+    {heard.type === "mode" && <label>Mode<select value={heard.mode} aria-invalid={taken(input)} onChange={(event) => {
+      const mode = KEY_MODES.find((choice) => choice === event.target.value);
+      if (mode !== undefined) set({ type: "mode", mode });
+    }}>
+      {KEY_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+    </select></label>}
+    {heard.type === "idle" && <label>Seconds<input type="number" min={1} max={3600} required value={heard.seconds} aria-invalid={taken(input)}
+      onChange={(event) => { set({ type: "idle", seconds: Number(event.target.value) }); }} /></label>}
   </>;
 }

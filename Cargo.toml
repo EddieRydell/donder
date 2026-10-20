@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-music"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -25,6 +25,7 @@ donder-editor = { path = "crates/donder-editor" }
 donder-language = { path = "crates/donder-language" }
 donder-language-server = { path = "crates/donder-language-server" }
 donder-model = { path = "crates/donder-model" }
+donder-music = { path = "crates/donder-music" }
 donder-output = { path = "crates/donder-output" }
 donder-project-io = { path = "crates/donder-project-io" }
 donder-runtime = { path = "crates/donder-runtime" }

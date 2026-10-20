@@ -7,6 +7,7 @@ authors = ["Donder"]
 license = "MIT"
 
 [dependencies]
+donder-music.workspace = true
 camino.workspace = true
 donder-language.workspace = true
 donder-runtime-types = { workspace = true, features = ["atomic"] }

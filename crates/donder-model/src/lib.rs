@@ -51,9 +51,10 @@ pub use geometry::{
 };
 pub use identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
 pub use input_device::{
-    ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDeviceSource, InputDeviceValidationError, InputDriver,
-    InputSource, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
+    ButtonInput, ChordQuality, ControlRef, DialInput, Heard, InputControl, InputControlId,
+    InputControlKind, InputDevice, InputDeviceId, InputDeviceSource, InputDeviceValidationError,
+    InputDriver, InputSource, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, Measure,
+    Mode,
 };
 pub use layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,

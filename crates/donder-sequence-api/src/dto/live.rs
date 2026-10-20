@@ -49,6 +49,10 @@ pub enum GuiInputDriver {
     Midi {
         port: Option<String>,
     },
+    /// A listener to the music played on those MIDI ports.
+    Listen {
+        port: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -102,6 +106,74 @@ pub enum GuiControlInput {
         number: u8,
     },
     PitchBend,
+    /// A musical moment a listener hears, as a button.
+    Heard {
+        heard: GuiHeard,
+    },
+    /// A running measure of the music a listener hears, as a dial.
+    Measured {
+        measure: GuiMeasure,
+    },
+}
+
+/// A musical moment a listener hears.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiHeard {
+    ChordChange,
+    KeyChange,
+    Resolution,
+    Beat,
+    RunUp,
+    RunDown,
+    BigChord,
+    /// Held while the chord is of this quality.
+    Chord {
+        quality: GuiChordQuality,
+    },
+    /// Held while the key is in this mode.
+    Mode {
+        mode: GuiKeyMode,
+    },
+    /// Held once nothing has been played for this many seconds.
+    Idle {
+        seconds: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GuiChordQuality {
+    Major,
+    Minor,
+    Dominant,
+    Diminished,
+    Augmented,
+    Suspended,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GuiKeyMode {
+    Major,
+    Minor,
+}
+
+/// A running measure of the music a listener hears, from 0 to 1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GuiMeasure {
+    KeyColor,
+    ChordColor,
+    Tension,
+    Loudness,
+    Density,
+    Register,
+    Tempo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

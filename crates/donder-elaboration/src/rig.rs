@@ -303,7 +303,9 @@ pub fn arm(
                     low: range.low,
                     high: range.high,
                 },
-                InputControlKind::Button(ButtonInput::Key(_) | ButtonInput::ControlChange(_))
+                InputControlKind::Button(
+                    ButtonInput::Key(_) | ButtonInput::ControlChange(_) | ButtonInput::Heard(_),
+                )
                 | InputControlKind::Dial(_) => RoutedNotes::None,
             })
         })

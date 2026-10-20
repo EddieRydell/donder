@@ -1,4 +1,5 @@
 use crate::identity::ObjectIdentity;
+pub use donder_music::{ChordQuality, Heard, Measure, Mode};
 use donder_runtime_types::Identifier;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -25,6 +26,11 @@ pub enum InputDriver {
     Midi {
         port: Option<String>,
     },
+    /// A listener to the music played on those MIDI ports: its buttons are
+    /// musical moments and its dials running measures of the music.
+    Listen {
+        port: Option<String>,
+    },
 }
 
 impl InputDriver {
@@ -32,7 +38,13 @@ impl InputDriver {
     pub fn reads(&self, input: InputSource) -> bool {
         match self {
             Self::Keyboard => matches!(input, InputSource::Key(_)),
-            Self::Midi { .. } => !matches!(input, InputSource::Key(_)),
+            Self::Midi { .. } => matches!(
+                input,
+                InputSource::Note(_) | InputSource::ControlChange(_) | InputSource::PitchBend
+            ),
+            Self::Listen { .. } => {
+                matches!(input, InputSource::Heard(_) | InputSource::Measured(_))
+            }
         }
     }
 }
@@ -81,6 +93,8 @@ pub enum ButtonInput {
     Note(u8),
     /// A MIDI control change, held at 64 and above, as a sustain pedal is.
     ControlChange(u8),
+    /// A musical moment a listener hears.
+    Heard(Heard),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -89,6 +103,8 @@ pub enum DialInput {
     ControlChange(u8),
     /// The MIDI pitch bend wheel, from fully down to fully up.
     PitchBend,
+    /// A running measure of the music a listener hears.
+    Measured(Measure),
 }
 
 /// What a control reads, whichever kind of control reads it. No two controls
@@ -99,6 +115,8 @@ pub enum InputSource {
     Note(u8),
     ControlChange(u8),
     PitchBend,
+    Heard(Heard),
+    Measured(Measure),
 }
 
 impl InputControlKind {
@@ -112,6 +130,8 @@ impl InputControlKind {
                 vec![InputSource::ControlChange(number)]
             }
             Self::Dial(DialInput::PitchBend) => vec![InputSource::PitchBend],
+            Self::Button(ButtonInput::Heard(heard)) => vec![InputSource::Heard(heard)],
+            Self::Dial(DialInput::Measured(measure)) => vec![InputSource::Measured(measure)],
             Self::Keys(range) => (range.low..=range.high).map(InputSource::Note).collect(),
         }
     }
@@ -136,18 +156,21 @@ impl InputControlKind {
                 high: note,
             }),
             Self::Keys(range) => Some(range),
-            Self::Button(ButtonInput::Key(_) | ButtonInput::ControlChange(_)) | Self::Dial(_) => {
-                None
-            }
+            Self::Button(
+                ButtonInput::Key(_) | ButtonInput::ControlChange(_) | ButtonInput::Heard(_),
+            )
+            | Self::Dial(_) => None,
         }
     }
 }
 
 impl InputSource {
-    /// Whether the number it reads is one MIDI has.
+    /// Whether the number it reads is one MIDI has, and a listener waits
+    /// at least a second before it hears silence.
     pub fn in_range(self) -> bool {
         match self {
-            Self::Key(_) | Self::PitchBend => true,
+            Self::Key(_) | Self::PitchBend | Self::Measured(_) => true,
+            Self::Heard(heard) => !matches!(heard, Heard::Idle { seconds: 0 }),
             Self::Note(note) => note <= MAX_MIDI_NOTE,
             Self::ControlChange(number) => number <= MAX_MIDI_CONTROL_CHANGE,
         }
@@ -161,6 +184,8 @@ impl std::fmt::Display for InputSource {
             Self::Note(note) => write!(f, "note {note}"),
             Self::ControlChange(number) => write!(f, "control change {number}"),
             Self::PitchBend => f.write_str("pitch bend"),
+            Self::Heard(heard) => write!(f, "{heard:?}"),
+            Self::Measured(measure) => write!(f, "{measure:?}"),
         }
     }
 }

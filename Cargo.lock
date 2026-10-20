@@ -1634,6 +1634,7 @@ dependencies = [
  "donder-language",
  "donder-language-server",
  "donder-model",
+ "donder-music",
  "donder-output",
  "donder-project-io",
  "donder-runtime",
@@ -1734,11 +1735,16 @@ version = "0.1.0"
 dependencies = [
  "camino",
  "donder-language",
+ "donder-music",
  "donder-runtime-types",
  "glam",
  "indexmap 2.14.2",
  "uuid",
 ]
+
+[[package]]
+name = "donder-music"
+version = "0.1.0"
 
 [[package]]
 name = "donder-output"
