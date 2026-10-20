@@ -1,31 +1,32 @@
 # Donder
 
-Donder is a light-show sequencer where every effect is a program, fast and small enough
-that a whole show can be stored and played at high framerates from a stock ESP32.
+Donder is a light-show sequencer where every effect is a program. This has a few advantages:
+- Sequences are compiled programs that can be evaluated by the Donder runtime, which is fast and small enough to fit on a microcontroller. This means that a stock ESP32 can store and play back a minutes-long sequence at high framerates without the use of external memory or networking.
+- Because shows aren't pre-rendered like in xLights or Vixen, live input is almost trivial with Donder's runtime. When input is received, the runtime can immediately render effects on the fly.
+- Effect parameters can be tuned and automated in real time. Effects can have user-defined parameters like hue, brightness, fade speed, etc, which are all declared and used as variables in the Donder DSL.
+- Sequences can be divided into layers, which can be composed using something called operators. Operators (which can also be custom written in the Donder DSL) are used to apply visual effects to different layers of a sequence. Operator examples include things like dim, blur, bloom, or afterglow.
 
 <!-- TODO: GIF or short video of examples/stanford_room, then an editor screenshot. -->
 
-Most sequencers render a show into a big file of pre-computed frames before it
-can play. Donder compiles effects to compact bytecode for a virtual machine
-built for lighting, and evaluates every frame live. A ten-year-old laptop
-renders 50,000 pixels at 60 fps<!-- TODO: CPU, year, link to measurement -->,
-faster than xLights renders the same show and with a fraction of the
-memory<!-- TODO: measured ratio and artifact in docs/performance.md -->. That
-headroom lets the 5½-minute, 144 fps [Stanford room show](examples/stanford_room)
-run on a QuinLED Dig-Quad with no computer attached.
-
 You don't need to write code to use Donder. It ships with a library of effects
 and operators, and everything has a graphical editor. When you want something
-the library doesn't have, you can write it yourself.
+the library doesn't have, you can write it yourself (or ask an LLM to write it for you).
 
 ## What makes it different
 
-- **Effects are programs.** Every effect, including every bundled one, is a
-  short program you can open, change or copy. An effect computes one color per
+- **Effects and sequences are programs** Every effect, including every bundled one, is a
+  short program you can open, change or copy. Sequences are timelines containing effects
+  and operators that can be played back by the Donder runtime. An effect computes one color per
   pixel per frame from the pixel's position, time, beat marks, curves and
   gradients. → [Effect language](docs/effect_language.md),
-  [tutorial](docs/effect_tutorial.md)
-- **A layer graph, not a layer stack.** Layers feed a node graph of operators:
+  [tutorial](docs/effect_tutorial.md) This is similar to something like PixelBlaze,
+  but Donder's DSL is an array language (similar to APL or shader languages), so sequences
+  can be evaluated at near native performance compared to a traditional VM.
+  For example, **PixelBlaze claims performance of 30 fps for 800 LEDs on a single
+  ESP32, whereas Donder can run at around 100 fps with 300 pixels on
+  4 different outputs on the same hardware (this can vary depending on how many stacked effects
+  and operators you have in a sequence)**.
+- **A layer graph** Layers feed a node graph of operators:
   blends, dimming, hue shifts, blurs, blooms, trails, afterglows, mirrors.
   Operators are written the same way as effects, and they can sample their
   inputs at any pixel and their own previous frame. An afterglow is one line:
@@ -46,14 +47,15 @@ the library doesn't have, you can write it yourself.
 - **GUI and code are the same project.** Switch between the graphical editor and
   the text view at any time. Every editor state is a document, every edit can be
   undone, and saving never rewrites a token you typed. A language server gives
-  any editor diagnostics, completion and navigation (`donder lsp`).
+  any editor diagnostics, completion and navigation (`donder lsp`). This also makes
+  it easy for AI agents to modify shows or debug config options automatically.
 - **Play it live.** A rig maps buttons to effects: a key starts a chase, taps a
   beat a running effect follows, or drives a parameter while held. Only the
   button presses travel; every device that plays the rig renders the frames
   itself. → [Live input](docs/live_input.md)
-- **Plays on what you have.** Stream live over E1.31 or Art-Net, export an FSEQ
+- **Plays on multiple platforms.** Stream live over E1.31 or Art-Net, export an FSEQ
   file and schedule it in FPP next to your existing shows, or upload to an ESP32
-  that plays standalone. The preview, the live output and the controller run
+  with the Donder VM. The preview, the live output and the firmware run
   the same runtime, and their frames match checksum for checksum.
   → [ESP32 controllers](docs/esp32_loading.md)
 
@@ -104,6 +106,9 @@ The user guides are also published at
 
 Donder is pre-release and moving fast. Project and archive formats change
 without migrations until there is a deliberate compatibility commitment.
+
+Donder is very un user friendly currently. A lot of the UI is very vibe coded but I'm
+working on tuning it to be more intuitive and less janky.
 
 Standalone playback supports classic ESP32 boards with 4 MB flash, including the
 QuinLED Dig-Quad, with up to 1,600 pixels on four outputs per controller. Larger
