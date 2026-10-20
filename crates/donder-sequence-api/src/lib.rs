@@ -26,7 +26,8 @@ pub use dto::live::{
     InputDeviceGuiDocument, ProjectGuiEdit, RigActionChoice, RigControlRef, RigControlTarget,
     RigEffect, RigEffectEdit, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput,
     RigInputControl, RigInputDevice, RigItem, RigLiveMarks, RigMapping, RigMappingAction,
-    RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SetupInputDevice,
+    RigPlayedSource, RigPlayedValue, RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy,
+    RigWhen, SetupInputDevice,
 };
 pub use dto::output::{
     ControllerOutputTest, DeviceCapabilities, DeviceFirmwareInfo, DeviceInstallProgress,

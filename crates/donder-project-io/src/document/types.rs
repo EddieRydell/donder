@@ -105,12 +105,24 @@ pub enum InputControl {
         description: Option<String>,
         input: DialInput,
     },
+    Keys {
+        name: Name,
+        description: Option<String>,
+        input: Notes,
+    },
+}
+
+/// MIDI notes from `low` through `high`.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct Notes {
+    pub low: u8,
+    pub high: u8,
 }
 
 impl InputControl {
     pub fn name(&self) -> &Name {
         match self {
-            Self::Button { name, .. } | Self::Dial { name, .. } => name,
+            Self::Button { name, .. } | Self::Dial { name, .. } | Self::Keys { name, .. } => name,
         }
     }
 }
@@ -503,6 +515,7 @@ pub enum MappingAction {
         params: Params,
         length: TriggerLength,
         voices: VoicePolicy,
+        values: Vec<PlayedValue>,
     },
     Mark {
         marks: Name,
@@ -512,6 +525,21 @@ pub enum MappingAction {
         voice: Name,
         param: Name,
     },
+}
+
+/// A parameter each press sets on the voice it starts.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct PlayedValue {
+    pub param: Name,
+    pub from: PlayedSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum PlayedSource {
+    Velocity,
+    Pitch,
+    PitchClass,
+    Fifths,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

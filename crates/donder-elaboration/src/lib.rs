@@ -24,7 +24,10 @@ use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::{ControllerId, ControllerPortId};
 pub use donder_runtime::PreparedSequence;
-pub use rig::{ArmedRig, RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedVoices, arm};
+pub use rig::{
+    ArmedRig, RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedNotes, RoutedSource,
+    RoutedValue, RoutedVoices, arm,
+};
 pub use sequence::PreparationCache;
 
 /// Which physical outputs to retain. Explicit lists preserve first-occurrence

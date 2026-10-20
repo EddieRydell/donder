@@ -53,7 +53,7 @@ pub use identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
 pub use input_device::{
     ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
     InputDevice, InputDeviceId, InputDeviceSource, InputDeviceValidationError, InputDriver,
-    InputSource, KeyCode, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
+    InputSource, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
 };
 pub use layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
@@ -74,12 +74,12 @@ pub use patch::{Patch, PatchId, PatchSource, PixelRoute, PixelRouteId, PixelSpan
 pub use project::{
     AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigEffect, AcceptedSequence,
     DonderProject, ProjectData, ProjectDefinitionStores, ProjectEdit, ProjectId, ProjectRoot,
-    RIG_SESSION, RigEffectOrigin,
+    RIG_SESSION, RigBinding, RigEffectOrigin,
 };
 pub use rig::{
-    ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, Rig, RigEffect, RigId,
-    RigMappingId, RigSource, RigSwitchId, RigVoiceId, Switch, Trigger, TriggerLength, Voice,
-    VoicePolicy, When,
+    ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, PlayedSource,
+    PlayedValue, Rig, RigEffect, RigId, RigMappingId, RigSource, RigSwitchId, RigVoiceId, Switch,
+    Trigger, TriggerLength, Voice, VoicePolicy, When,
 };
 pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
