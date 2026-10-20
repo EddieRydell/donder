@@ -98,6 +98,9 @@ export const commands = {
 };
 
 /* Types */
+/**  Commands the workbench runs, whatever editor is open. */
+export type AppCommandId = "file.newProject" | "file.copyProject" | "file.newSequence" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.quickOpen" | "workbench.commandPalette" | "project.reload" | "perform.stop";
+
 export type AppSettings = {
 	reopenLastProject: boolean,
 	editorViewMode?: EditorViewMode,
@@ -117,6 +120,8 @@ export type AppSettings = {
 	sequenceMarksLaneOnly?: boolean,
 	effectRaster: EffectRasterSettings,
 	spatialSnap: SpatialSnapSettings,
+	/**  Commands whose keys differ from their defaults. */
+	keybindings?: KeyBinding[],
 };
 
 export type AppSnapshot = {
@@ -161,6 +166,8 @@ export type AudioTransportSnapshot = {
 export type AudioTransportState = "unloaded" | "playing" | "paused" | "stopped" | "ended" | "error";
 
 export type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
+
+export type CommandId = AppCommandId | EditorCommandId;
 
 /**  Edits to the layers and composition graph that sequences and rigs share. */
 export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | 
@@ -301,6 +308,9 @@ export type DonderDeviceStatus = {
 	firmwareCurrent: boolean,
 	connection: DonderDeviceConnection,
 };
+
+/**  Commands the focused editor surface implements. */
+export type EditorCommandId = "edit.cut" | "edit.copy" | "edit.paste" | "edit.selectAll" | "edit.duplicate" | "edit.delete" | "edit.confirm" | "edit.cancel" | "edit.moveLeft" | "edit.moveRight" | "edit.moveUp" | "edit.moveDown" | "view.reset" | "transport.togglePlayback" | "transport.stop" | "transport.toggleLooping" | "transport.cycleFollowMode" | "transport.tapMark" | "transport.rewind" | "sequence.toggleSliceTool" | "sequence.selectMatching";
 
 /**  An open document as the tab bar and editor see it, without its text. */
 export type EditorTab = {
@@ -496,6 +506,12 @@ export type InputDeviceGuiDocument = {
 	 *  language's order.
 	 */
 	keyCodes: string[],
+};
+
+/**  Keys chosen for a command in place of its defaults; an empty list leaves it unbound. */
+export type KeyBinding = {
+	command: CommandId,
+	shortcuts: Shortcut[],
 };
 
 export type LayoutGuiDocument = {
@@ -1460,6 +1476,15 @@ export type SetupInputDevice = {
 	readOnly: boolean,
 	driver: GuiInputDriver,
 	controls: GuiInputControl[],
+};
+
+/**  A key with the modifiers it needs. `primary` is Command on macOS and Control elsewhere. */
+export type Shortcut = {
+	/**  The key as the browser names it: a lowercase character or a named key such as `ArrowLeft`. */
+	key: string,
+	primary: boolean,
+	shift: boolean,
+	alt: boolean,
 };
 
 export type SidebarView = "explorer" | "search" | "problems";

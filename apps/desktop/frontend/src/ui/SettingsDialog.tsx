@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { commands } from "../api";
 import { runSnapshotCommand, useAppStore } from "../store";
 import type { AppSettings } from "../types";
+import { KeybindingsSettings } from "./KeybindingsSettings";
 
 const SETTINGS_EVENT = "donder:settings";
 
@@ -163,6 +164,8 @@ export function SettingsDialog() {
                 }
               />
             </section>
+
+            <KeybindingsSettings keybindings={draft.keybindings ?? []} onChange={(keybindings) => void update({ ...draft, keybindings })} />
             {error !== null && <div className="new-project-error">{error}</div>}
           </div>
           <div className="dialog-actions">

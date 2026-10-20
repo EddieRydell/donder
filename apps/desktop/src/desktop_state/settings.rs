@@ -1,4 +1,4 @@
-use donder_sequence_api::{AppSettings, WorkspaceLayoutState};
+use donder_sequence_api::{AppSettings, KeyBinding, WorkspaceLayoutState};
 
 pub(crate) fn sanitize_workspace_layout(state: WorkspaceLayoutState) -> WorkspaceLayoutState {
     WorkspaceLayoutState {
@@ -51,6 +51,22 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
             0.005
         };
     }
+    // One binding per command, the latest winning; a shortcut needs a key.
+    let mut keybindings: Vec<KeyBinding> = Vec::with_capacity(settings.keybindings.len());
+    for mut binding in settings.keybindings.into_iter().rev() {
+        if keybindings
+            .iter()
+            .any(|kept| kept.command == binding.command)
+        {
+            continue;
+        }
+        binding
+            .shortcuts
+            .retain(|shortcut| !shortcut.key.is_empty());
+        keybindings.push(binding);
+    }
+    keybindings.reverse();
+    settings.keybindings = keybindings;
     settings
 }
 

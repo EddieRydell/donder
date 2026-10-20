@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
-import { installKeyboardShortcuts } from "../commandRegistry";
+import { installKeyboardShortcuts, shortcutLabel } from "../commandRegistry";
 import { installNativeMenu } from "../nativeMenu";
 import { isMac } from "../platform";
 import { runSnapshotCommand, subscribeToSnapshots, useAppStore, useStaticAppSnapshot, type AppStaticSnapshot } from "../store";
@@ -16,7 +16,7 @@ import { WorkspaceResizeHandle } from "./WorkspaceResizeHandle";
 import { THEME_METRICS } from "../theme";
 import { CommandOverlays } from "../workspace/CommandOverlays";
 import { WorkspaceSidebar } from "../workspace/WorkspaceSidebar";
-import { openProjectDialog, runWorkspaceTransition, useTransitionStore } from "../workspaceTransitions";
+import { runWorkspaceTransition, useTransitionStore } from "../workspaceTransitions";
 import { UnsavedChangesDialog } from "./UnsavedChangesDialog";
 import { listen } from "@tauri-apps/api/event";
 import { scheduleViewStateSave } from "../viewStatePersistence";
@@ -70,6 +70,8 @@ export function App() {
     };
   }, []);
 
+  const openProjectKeys = shortcutLabel("file.openProject");
+
   if (!snapshot) {
     return <div className="app-loading">Donder</div>;
   }
@@ -96,7 +98,7 @@ export function App() {
       <CommandOverlays />
       {snapshot.projectRoot === null && (
         <div className="empty-project">
-          <button onClick={() => void openProjectDialog()}>Open Project...</button>
+          <p>No project is open. Open one with File → Open Project…{openProjectKeys === undefined ? "" : ` (${openProjectKeys})`}, or start one with File → New Project….</p>
         </div>
       )}
     </div>

@@ -2830,12 +2830,10 @@ html.donder-app-shell :is(
   pointer-events: none;
 }
 
-.empty-project button {
-  pointer-events: auto;
-  border: var(--donder-border-width) solid var(--donder-border-success);
-  border-radius: var(--donder-radius-xl);
-  background: var(--donder-accent-bg);
-  padding: var(--donder-space-7) var(--donder-space-10);
+.empty-project p {
+  margin: var(--donder-space-0);
+  color: var(--donder-text-muted);
+  font-size: var(--donder-font-size-md);
 }
 
 .menu-content,
@@ -3053,6 +3051,87 @@ html.donder-app-shell :is(
   height: var(--donder-icon-size-sm);
   margin: var(--donder-space-0);
   padding: 0;
+}
+
+.settings-keybindings {
+  grid-column: 1 / -1;
+}
+
+.settings-keybindings-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--donder-space-6);
+}
+
+.keybinding-list {
+  display: grid;
+}
+
+.keybinding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--donder-space-2) var(--donder-space-6);
+  border-top: var(--donder-border-width) solid var(--donder-border-soft);
+  padding: var(--donder-space-3) var(--donder-space-0);
+}
+
+.keybinding-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--donder-space-5);
+  min-width: 0;
+  color: var(--donder-text);
+}
+
+.keybinding-label small {
+  color: var(--donder-text-muted);
+}
+
+.keybinding-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--donder-space-3);
+}
+
+.keybinding-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--donder-space-2);
+  border: var(--donder-border-width) solid var(--donder-border);
+  border-radius: var(--donder-radius-md);
+  padding-left: var(--donder-space-4);
+}
+
+.keybinding-key kbd {
+  font-family: var(--donder-font-code);
+  font-size: var(--donder-font-size-sm);
+}
+
+:where(html.donder-app-shell) .keybinding-keys button {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--donder-space-2);
+}
+
+:where(html.donder-app-shell) .keybinding-key button {
+  border: none;
+  background: transparent;
+  color: var(--donder-text-muted);
+}
+
+.keybinding-recording {
+  color: var(--donder-accent);
+  font-size: var(--donder-font-size-sm);
+}
+
+.keybinding-shared {
+  grid-column: 1 / -1;
+  color: var(--donder-warning);
+  font-size: var(--donder-font-size-sm);
 }
 
 @media (max-width: 700px) {

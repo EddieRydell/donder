@@ -95,6 +95,9 @@ pub struct AppSettings {
     pub sequence_marks_lane_only: bool,
     pub effect_raster: EffectRasterSettings,
     pub spatial_snap: SpatialSnapSettings,
+    /// Commands whose keys differ from their defaults.
+    #[serde(default)]
+    pub keybindings: Vec<KeyBinding>,
 }
 
 fn default_editor_view_mode() -> EditorViewMode {
@@ -129,6 +132,7 @@ impl Default for AppSettings {
             sequence_marks_lane_only: false,
             effect_raster: EffectRasterSettings::default(),
             spatial_snap: SpatialSnapSettings::default(),
+            keybindings: Vec::new(),
         }
     }
 }
@@ -175,6 +179,130 @@ impl Default for EffectRasterSettings {
 pub enum EditorViewMode {
     Text,
     Gui,
+}
+
+/// A key with the modifiers it needs. `primary` is Command on macOS and Control elsewhere.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Shortcut {
+    /// The key as the browser names it: a lowercase character or a named key such as `ArrowLeft`.
+    pub key: String,
+    pub primary: bool,
+    pub shift: bool,
+    pub alt: bool,
+}
+
+/// Keys chosen for a command in place of its defaults; an empty list leaves it unbound.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyBinding {
+    pub command: CommandId,
+    pub shortcuts: Vec<Shortcut>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(untagged)]
+pub enum CommandId {
+    App(AppCommandId),
+    Editor(EditorCommandId),
+}
+
+/// Commands the workbench runs, whatever editor is open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum AppCommandId {
+    #[serde(rename = "file.newProject")]
+    FileNewProject,
+    #[serde(rename = "file.copyProject")]
+    FileCopyProject,
+    #[serde(rename = "file.newSequence")]
+    FileNewSequence,
+    #[serde(rename = "file.openProject")]
+    FileOpenProject,
+    #[serde(rename = "file.save")]
+    FileSave,
+    #[serde(rename = "file.reloadFromDisk")]
+    FileReloadFromDisk,
+    #[serde(rename = "file.closeEditor")]
+    FileCloseEditor,
+    #[serde(rename = "file.closeWindow")]
+    FileCloseWindow,
+    #[serde(rename = "file.settings")]
+    FileSettings,
+    #[serde(rename = "edit.undo")]
+    EditUndo,
+    #[serde(rename = "edit.redo")]
+    EditRedo,
+    #[serde(rename = "view.toggleGuiMode")]
+    ViewToggleGuiMode,
+    #[serde(rename = "view.toggleSpectrogram")]
+    ViewToggleSpectrogram,
+    #[serde(rename = "view.toggleMarksLaneOnly")]
+    ViewToggleMarksLaneOnly,
+    #[serde(rename = "view.openLayerGraph")]
+    ViewOpenLayerGraph,
+    #[serde(rename = "view.toggleProjectTree")]
+    ViewToggleProjectTree,
+    #[serde(rename = "view.focusExplorer")]
+    ViewFocusExplorer,
+    #[serde(rename = "view.focusSearch")]
+    ViewFocusSearch,
+    #[serde(rename = "view.focusProblems")]
+    ViewFocusProblems,
+    #[serde(rename = "workbench.quickOpen")]
+    WorkbenchQuickOpen,
+    #[serde(rename = "workbench.commandPalette")]
+    WorkbenchCommandPalette,
+    #[serde(rename = "project.reload")]
+    ProjectReload,
+    #[serde(rename = "perform.stop")]
+    PerformStop,
+}
+
+/// Commands the focused editor surface implements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum EditorCommandId {
+    #[serde(rename = "edit.cut")]
+    EditCut,
+    #[serde(rename = "edit.copy")]
+    EditCopy,
+    #[serde(rename = "edit.paste")]
+    EditPaste,
+    #[serde(rename = "edit.selectAll")]
+    EditSelectAll,
+    #[serde(rename = "edit.duplicate")]
+    EditDuplicate,
+    #[serde(rename = "edit.delete")]
+    EditDelete,
+    #[serde(rename = "edit.confirm")]
+    EditConfirm,
+    #[serde(rename = "edit.cancel")]
+    EditCancel,
+    #[serde(rename = "edit.moveLeft")]
+    EditMoveLeft,
+    #[serde(rename = "edit.moveRight")]
+    EditMoveRight,
+    #[serde(rename = "edit.moveUp")]
+    EditMoveUp,
+    #[serde(rename = "edit.moveDown")]
+    EditMoveDown,
+    #[serde(rename = "view.reset")]
+    ViewReset,
+    #[serde(rename = "transport.togglePlayback")]
+    TransportTogglePlayback,
+    #[serde(rename = "transport.stop")]
+    TransportStop,
+    #[serde(rename = "transport.toggleLooping")]
+    TransportToggleLooping,
+    #[serde(rename = "transport.cycleFollowMode")]
+    TransportCycleFollowMode,
+    #[serde(rename = "transport.tapMark")]
+    TransportTapMark,
+    #[serde(rename = "transport.rewind")]
+    TransportRewind,
+    #[serde(rename = "sequence.toggleSliceTool")]
+    SequenceToggleSliceTool,
+    #[serde(rename = "sequence.selectMatching")]
+    SequenceSelectMatching,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
