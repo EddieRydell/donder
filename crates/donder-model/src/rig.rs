@@ -2,7 +2,7 @@
 //! times. Its layers and composition graph are a sequence's.
 use crate::effect::{EffectParamValue, EffectRef, EffectScope};
 use crate::identity::ObjectIdentity;
-use crate::input_device::ButtonRef;
+use crate::input_device::ControlRef;
 use crate::layout::FixtureTarget;
 use crate::sequence::{
     MarkCollectionKey, SequenceCompositionGraph, SequenceLayer, SequenceLayerId,
@@ -74,20 +74,20 @@ pub struct Switch {
     pub id: RigSwitchId,
     pub name: Identifier,
     pub description: Option<String>,
-    pub input: ButtonRef,
+    pub input: ControlRef,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct RigMappingId(pub u32);
 
-/// What a button does while its condition holds.
+/// What a button or dial does while its condition holds.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mapping {
     pub id: RigMappingId,
     /// Unique among the rig's voices and mappings.
     pub name: Identifier,
     pub description: Option<String>,
-    pub input: ButtonRef,
+    pub input: ControlRef,
     /// `None` acts always.
     pub when: Option<When>,
     pub action: MappingAction,
@@ -105,8 +105,8 @@ pub enum MappingAction {
     Trigger(Box<Trigger>),
     /// Add a mark to a live collection.
     Mark(MarkCollectionKey),
-    /// Hold the parameter at the top of its range while the button is held,
-    /// and at the bottom otherwise.
+    /// Hold the parameter at the top of its range while a button is held,
+    /// and at the bottom otherwise; a dial sets it anywhere in its range.
     Control {
         target: ControlTarget,
         param: Identifier,
@@ -194,15 +194,15 @@ impl Rig {
         )
     }
 
-    /// Every button the rig reads: its switches', then its mappings'.
-    pub fn inputs(&self) -> impl Iterator<Item = &ButtonRef> {
+    /// Every control the rig reads: its switches', then its mappings'.
+    pub fn inputs(&self) -> impl Iterator<Item = &ControlRef> {
         self.switches
             .iter()
             .map(|switch| &switch.input)
             .chain(self.mappings.iter().map(|mapping| &mapping.input))
     }
 
-    pub(crate) fn inputs_mut(&mut self) -> impl Iterator<Item = &mut ButtonRef> {
+    pub(crate) fn inputs_mut(&mut self) -> impl Iterator<Item = &mut ControlRef> {
         self.switches
             .iter_mut()
             .map(|switch| &mut switch.input)

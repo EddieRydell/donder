@@ -3,16 +3,16 @@ use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
 use donder_sequence_api::{
     CompositionGuiEdit, DocumentViewId, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage,
-    FixtureTarget, GuiButtonInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiEditResult,
-    GuiFixtureElement, GuiFixtureShape, GuiFixtureSource, GuiInputControl, GuiInputDriver,
-    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep, GuiOwnershipEdit,
-    GuiOwnershipSlot, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument, LayoutGuiEdit,
-    NewSequenceRequest, NewSequenceStorage, ObjectKind, Point3Meters, ProjectGuiDocument,
-    ProjectGuiEdit, ReusableStorage, RigActionChoice, RigButtonRef, RigGuiDocument, RigGuiEdit,
-    RigItem, RigVoicePolicy, RigWhen, Rotation3Degrees, Scale3, SequenceEffectParamValue,
-    SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge, SequenceGraphNodeKind,
-    SequenceGraphOperator, SequenceGuiEdit, SetupControllerConfig, SetupControllerPort,
-    SetupGuiDocument, SetupGuiEdit, Transform,
+    FixtureTarget, GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiEditResult,
+    GuiFixtureElement, GuiFixtureShape, GuiFixtureSource, GuiInputControl, GuiInputControlKind,
+    GuiInputDriver, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep,
+    GuiOwnershipEdit, GuiOwnershipSlot, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument,
+    LayoutGuiEdit, NewSequenceRequest, NewSequenceStorage, ObjectKind, Point3Meters,
+    ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, RigActionChoice, RigControlRef,
+    RigGuiDocument, RigGuiEdit, RigItem, RigVoicePolicy, RigWhen, Rotation3Degrees, Scale3,
+    SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge,
+    SequenceGraphNodeKind, SequenceGraphOperator, SequenceGuiEdit, SetupControllerConfig,
+    SetupControllerPort, SetupGuiDocument, SetupGuiEdit, Transform,
 };
 
 pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditResult {
@@ -1278,7 +1278,8 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                     id: 1,
                     name: "kick".into(),
                     description: None,
-                    input: GuiButtonInput::Key {
+                    kind: GuiInputControlKind::Button,
+                    input: GuiControlInput::Key {
                         code: "KeyA".into(),
                     },
                 }],
@@ -2365,7 +2366,8 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
                 id: 1,
                 name: "pad".into(),
                 description: Some("The big pad.".into()),
-                input: GuiButtonInput::Key {
+                kind: GuiInputControlKind::Button,
+                input: GuiControlInput::Key {
                     code: "KeyP".into(),
                 },
             }],
@@ -2428,7 +2430,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
         .unwrap()
         .effect
         .clone();
-    let input = RigButtonRef {
+    let input = RigControlRef {
         device: pad.device.clone(),
         control: pad.buttons[0].control,
     };

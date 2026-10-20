@@ -14,6 +14,15 @@ pub struct InputDeviceGuiDocument {
     /// Every key a control can read, by its `KeyboardEvent.code` name, in the
     /// language's order.
     pub key_codes: Vec<String>,
+    pub input_limits: GuiInputLimits,
+}
+
+/// The highest MIDI inputs a control can read.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiInputLimits {
+    pub max_note: u8,
+    pub max_control_change: u8,
 }
 
 /// An input device as a setup lists it and its editor edits it.
@@ -28,10 +37,18 @@ pub struct SetupInputDevice {
     pub controls: Vec<GuiInputControl>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum GuiInputDriver {
     Keyboard,
+    /// MIDI input ports whose name contains `port`, or every port.
+    Midi {
+        port: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -42,18 +59,41 @@ pub struct GuiInputControl {
     /// Unique within the device; rigs refer to it.
     pub name: String,
     pub description: Option<String>,
-    pub input: GuiButtonInput,
+    pub kind: GuiInputControlKind,
+    pub input: GuiControlInput,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GuiInputControlKind {
+    /// Pressed or released.
+    Button,
+    /// A position from 0 to 1.
+    Dial,
+}
+
+/// What a control reads. A keyboard reads keys; MIDI buttons read notes and
+/// control changes, and MIDI dials read control changes and pitch bend.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum GuiButtonInput {
+pub enum GuiControlInput {
     /// A keyboard key by its `KeyboardEvent.code` name.
-    Key { code: String },
+    Key {
+        code: String,
+    },
+    /// A MIDI note number, 0 to 127; middle C is 60.
+    Note {
+        note: u8,
+    },
+    /// A MIDI control change number, 0 to 119; the sustain pedal is 64.
+    ControlChange {
+        number: u8,
+    },
+    PitchBend,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -119,7 +159,7 @@ pub struct RigVoice {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigButtonRef {
+pub struct RigControlRef {
     pub device: GuiObjectRef,
     pub control: u32,
 }
@@ -128,7 +168,7 @@ pub struct RigButtonRef {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigInput {
-    pub button: RigButtonRef,
+    pub button: RigControlRef,
     pub device_name: String,
     pub control_name: String,
 }
@@ -138,12 +178,14 @@ pub struct RigInput {
 pub struct RigInputDevice {
     pub device: GuiObjectRef,
     pub name: String,
-    pub buttons: Vec<RigInputButton>,
+    pub buttons: Vec<RigInputControl>,
+    /// Dials only drive `Control` mappings.
+    pub dials: Vec<RigInputControl>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigInputButton {
+pub struct RigInputControl {
     pub control: u32,
     pub name: String,
 }
@@ -347,10 +389,10 @@ pub enum RigGuiEdit {
         target: FixtureTarget,
     },
     AddSwitch {
-        input: RigButtonRef,
+        input: RigControlRef,
     },
     AddMapping {
-        input: RigButtonRef,
+        input: RigControlRef,
         action: RigActionChoice,
     },
     /// Renaming live marks renames every reference to them.
@@ -373,11 +415,11 @@ pub enum RigGuiEdit {
     },
     SetSwitchInput {
         id: u32,
-        input: RigButtonRef,
+        input: RigControlRef,
     },
     SetMappingInput {
         id: u32,
-        input: RigButtonRef,
+        input: RigControlRef,
     },
     SetMappingWhen {
         id: u32,
