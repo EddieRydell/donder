@@ -127,6 +127,9 @@ const SETTLE: f64 = 0.04;
 /// chord.
 const MELODY: usize = 72;
 const MELODY_WEIGHT: f32 = 0.4;
+/// How far a melody steps down, in semitones, before the key above it is let
+/// go, and still be melody: a major third.
+const LEGATO_STEP: u8 = 4;
 /// A big chord: this many notes within `CHORD_SPREAD`, this hard on average.
 const BIG_CHORD_NOTES: usize = 5;
 const BIG_CHORD_VELOCITY: f32 = 0.85;
@@ -371,13 +374,25 @@ impl Listener {
     }
 
     fn notice_tunes(&mut self, note: u8, time: f64, noticed: &mut Vec<Noticed>) {
-        if !self.line.hear(note, time) {
+        // Notes struck under a melody note that is still held are
+        // accompaniment, but for a step down from the melody's last note: a
+        // legato melody moving down before the key above is let go.
+        let legato = self
+            .line
+            .last()
+            .is_some_and(|last| note < last && last - note <= LEGATO_STEP);
+        let under_melody = !legato
+            && self.sounding[usize::from(note) + 1..]
+                .iter()
+                .flatten()
+                .any(|sounding| sounding.held && time - sounding.onset > CHORD_SPREAD);
+        if under_melody || !self.line.hear(note, time) {
             return;
         }
         let added = self.line.added();
         for (melody, heard_at) in &mut self.tunes {
             // A tune is heard once each time it is played through.
-            let again = heard_at.is_none_or(|at| added >= at + melody.notes().len() as u64 / 2);
+            let again = heard_at.is_none_or(|at| added >= at + melody.notes().len() as u64);
             if again && self.line.ends_with(melody) {
                 *heard_at = Some(added);
                 noticed.push(Noticed::Pressed(Heard::Tune(*melody)));

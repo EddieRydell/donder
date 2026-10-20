@@ -102,6 +102,35 @@ function inputKey(input: GuiControlInput): string {
   return inputKeys(input).join(" ");
 }
 
+const DUPLICATE = "Another control of the device reads this input.";
+
+/** Keeps the form from applying while a field is wrong, with `message` as the reason. */
+function validity(message: string | null) {
+  return (field: HTMLInputElement | HTMLSelectElement | null) => { field?.setCustomValidity(message ?? ""); };
+}
+
+/** How many controls read each input of the device. */
+type InputUses = Map<string, number>;
+
+/** Whether a control other than one reading `own` reads any input of `candidate`. */
+function takenBy(uses: InputUses, own: GuiControlInput, candidate: GuiControlInput): boolean {
+  const owned = new Set(inputKeys(own));
+  return inputKeys(candidate).some((key) => (uses.get(key) ?? 0) > (owned.has(key) ? 1 : 0));
+}
+
+/** The inputs read by controls other than one reading `own`. */
+function usedByOthers(uses: InputUses, own: GuiControlInput): Set<string> {
+  const owned = new Set(inputKeys(own));
+  return new Set([...uses].filter(([key, count]) => count > (owned.has(key) ? 1 : 0)).map(([key]) => key));
+}
+
+/** A moment's choices: each quality of a chord, each mode of a key, or the moment itself. */
+function momentVariants(heard: GuiHeard): GuiHeard[] {
+  if (heard.type === "chord") return CHORD_QUALITIES.map((quality) => ({ type: "chord", quality }));
+  if (heard.type === "mode") return KEY_MODES.map((mode) => ({ type: "mode", mode }));
+  return [heard];
+}
+
 /** The first input of `type` the device does not read yet, from `start`. */
 function freeInput(type: "key" | "note" | "controlChange", used: Set<string>, keyCodes: string[], limits: GuiInputLimits, start = 0): GuiControlInput | null {
   if (type === "key") {
@@ -134,7 +163,7 @@ function convertControls(controls: GuiInputControl[], driver: GuiInputDriver, ke
   const converted: GuiInputControl[] = [];
   for (const control of controls) {
     const input = driverReads(driver, control.input) ? control.input
-      : control.kind !== "button" || driver.type === "listen" ? null
+      : control.kind !== "button" || driver.type === "listen" || control.input.type === "heard" || control.input.type === "measured" ? null
         : freeInput(driver.type === "keyboard" ? "key" : "note", used, keyCodes, limits, MIDDLE_C);
     if (input === null) continue;
     for (const key of inputKeys(input)) used.add(key);
@@ -163,7 +192,9 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     next.splice(index + offset, 0, control);
     setControls(next);
   };
-  const used = new Set(controls.flatMap((control) => inputKeys(control.input)));
+  const uses: InputUses = new Map();
+  for (const key of controls.flatMap((control) => inputKeys(control.input))) uses.set(key, (uses.get(key) ?? 0) + 1);
+  const used = new Set(uses.keys());
   const add = (kind: GuiInputControlKind, input: GuiControlInput | null) => {
     if (input === null) return;
     const id = Math.max(0, ...controls.map((control) => control.id)) + 1;
@@ -205,10 +236,11 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
       {controls.map((control, index) => <div className="controller-port-row" key={control.id}>
         <label>Name<input required pattern="[a-z_][a-z0-9_]*" value={control.name} onChange={(event) => { update(index, { name: event.target.value }); }} /></label>
         {listen
-          ? <ListenerInputFields control={control} used={used} limits={limits} onChange={(change) => { update(index, change); }} />
+          ? <ListenerInputFields control={control} uses={uses} limits={limits} onChange={(change) => { update(index, change); }} />
           : midi
-          ? <MidiInputFields control={control} used={used} limits={limits} onChange={(change) => { update(index, change); }} />
-          : control.input.type === "key" && <label>Key<select value={control.input.code} onChange={(event) => { update(index, { input: { type: "key", code: event.target.value } }); }}>
+          ? <MidiInputFields control={control} uses={uses} limits={limits} onChange={(change) => { update(index, change); }} />
+          : control.input.type === "key" && <label>Key<select value={control.input.code} ref={validity(takenBy(uses, control.input, control.input) ? DUPLICATE : null)}
+            onChange={(event) => { update(index, { input: { type: "key", code: event.target.value } }); }}>
             {keyCodes.map((code) => <option key={code} value={code} disabled={control.input.type === "key" && code !== control.input.code && used.has(inputKey({ type: "key", code }))}>{code}</option>)}
           </select></label>}
         <DescriptionField description={control.description} onCommit={(description) => { update(index, { description }); return Promise.resolve(); }} />
@@ -233,15 +265,18 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
 }
 
 /** A MIDI control's kind and the note, control change or pitch bend it reads. */
-function MidiInputFields({ control, used, limits, onChange }: {
+function MidiInputFields({ control, uses, limits, onChange }: {
   control: GuiInputControl;
-  used: Set<string>;
+  uses: InputUses;
   limits: GuiInputLimits;
   onChange: (change: Partial<GuiInputControl>) => void;
 }) {
   const { input } = control;
-  const own = new Set(inputKeys(input));
-  const taken = (candidate: GuiControlInput) => inputKeys(candidate).some((key) => !own.has(key) && used.has(key));
+  const taken = (candidate: GuiControlInput) => takenBy(uses, input, candidate);
+  /** The first note or control change from `start` no other control reads. */
+  const free = (type: "note" | "controlChange", start: number): GuiControlInput =>
+    freeInput(type, usedByOthers(uses, input), [], limits, start) ?? (type === "note" ? { type, note: start } : { type, number: start });
+  const note = (value: string) => Math.min(Math.max(Math.round(Number(value)), 0), limits.maxNote);
   return <>
     <label>Kind<select value={control.kind} onChange={(event) => {
       const kind = event.target.value === "dial" ? "dial" : event.target.value === "keys" ? "keys" : "button";
@@ -249,7 +284,7 @@ function MidiInputFields({ control, used, limits, onChange }: {
       if (kind === "keys") onChange({ kind, input: { type: "notes", low: PIANO_LOW, high: PIANO_HIGH } });
       else {
         const fits = kind === "dial" ? input.type === "controlChange" || input.type === "pitchBend" : input.type === "note" || input.type === "controlChange";
-        onChange({ kind, input: fits ? input : { type: "controlChange", number: 1 } });
+        onChange({ kind, input: fits ? input : free("controlChange", 1) });
       }
     }}>
       <option value="button">Button</option>
@@ -258,40 +293,42 @@ function MidiInputFields({ control, used, limits, onChange }: {
     </select></label>
     {input.type === "notes" && <>
       <label>Lowest<input type="number" min={0} max={limits.maxNote} required value={input.low} aria-invalid={taken(input)}
-        onChange={(event) => { onChange({ input: { ...input, low: Number(event.target.value) } }); }} /><span>{noteName(input.low)}</span></label>
+        ref={validity(taken(input) ? DUPLICATE : null)}
+        onChange={(event) => { onChange({ input: { ...input, low: note(event.target.value) } }); }} /><span>{noteName(input.low)}</span></label>
       <label>Highest<input type="number" min={0} max={limits.maxNote} required value={input.high} aria-invalid={taken(input) || input.high < input.low}
-        onChange={(event) => { onChange({ input: { ...input, high: Number(event.target.value) } }); }} /><span>{noteName(input.high)}</span></label>
+        ref={validity(input.high < input.low ? "The highest key is below the lowest." : null)}
+        onChange={(event) => { onChange({ input: { ...input, high: note(event.target.value) } }); }} /><span>{noteName(input.high)}</span></label>
     </>}
     {control.kind !== "keys" && <label>Input<select value={input.type} onChange={(event) => {
       const type = event.target.value;
-      onChange({ input: type === "note" ? { type: "note", note: MIDDLE_C } : type === "pitchBend" ? { type: "pitchBend" } : { type: "controlChange", number: 1 } });
+      onChange({ input: type === "note" ? free("note", MIDDLE_C) : type === "pitchBend" ? { type: "pitchBend" } : free("controlChange", 1) });
     }}>
       {control.kind === "button" && <option value="note">Note</option>}
       <option value="controlChange">Control change</option>
       {control.kind === "dial" && <option value="pitchBend" disabled={taken({ type: "pitchBend" })}>Pitch bend</option>}
     </select></label>}
     {input.type === "note" && <label>Note<input type="number" min={0} max={limits.maxNote} required value={input.note}
-      title={noteName(input.note)} aria-invalid={taken(input)}
+      title={noteName(input.note)} aria-invalid={taken(input)} ref={validity(taken(input) ? DUPLICATE : null)}
       onChange={(event) => { onChange({ input: { type: "note", note: Number(event.target.value) } }); }} /><span>{noteName(input.note)}</span></label>}
     {input.type === "controlChange" && <label>Number<input type="number" min={0} max={limits.maxControlChange} required value={input.number}
-      aria-invalid={taken(input)}
+      aria-invalid={taken(input)} ref={validity(taken(input) ? DUPLICATE : null)}
       onChange={(event) => { onChange({ input: { type: "controlChange", number: Number(event.target.value) } }); }} /></label>}
   </>;
 }
 
 /** A listener's control: a moment it hears, as a button, or a measure it
  * follows, as a dial. */
-function ListenerInputFields({ control, used, limits, onChange }: {
+function ListenerInputFields({ control, uses, limits, onChange }: {
   control: GuiInputControl;
-  used: Set<string>;
+  uses: InputUses;
   limits: GuiInputLimits;
   onChange: (change: Partial<GuiInputControl>) => void;
 }) {
   const { input } = control;
-  const own = inputKey(input);
-  const taken = (candidate: GuiControlInput) => inputKey(candidate) !== own && used.has(inputKey(candidate));
+  const taken = (candidate: GuiControlInput) => takenBy(uses, input, candidate);
+  const heardTaken = (heard: GuiHeard) => taken({ type: "heard", heard });
   if (input.type === "measured") {
-    return <label>Measure<select value={input.measure} onChange={(event) => {
+    return <label>Measure<select value={input.measure} ref={validity(taken(input) ? DUPLICATE : null)} onChange={(event) => {
       const measure = MEASURES.find((choice) => choice.measure === event.target.value)?.measure;
       if (measure !== undefined) onChange({ kind: "dial", input: { type: "measured", measure } });
     }}>
@@ -302,37 +339,46 @@ function ListenerInputFields({ control, used, limits, onChange }: {
   const { heard } = input;
   const set = (next: GuiHeard) => { onChange({ kind: "button", input: { type: "heard", heard: next } }); };
   return <>
-    <label>Moment<select value={heard.type} onChange={(event) => {
+    <label>Moment<select value={heard.type} ref={validity(taken(input) ? DUPLICATE : null)} onChange={(event) => {
       const choice = MOMENTS.find((moment) => moment.heard.type === event.target.value);
-      if (choice !== undefined) set(choice.heard);
+      const variant = choice === undefined ? undefined : momentVariants(choice.heard).find((candidate) => !heardTaken(candidate));
+      if (variant !== undefined) set(variant);
     }}>
-      {MOMENTS.map((moment) => <option key={moment.heard.type} value={moment.heard.type}>{moment.label}</option>)}
+      {MOMENTS.map((moment) => <option key={moment.heard.type} value={moment.heard.type}
+        disabled={moment.heard.type !== heard.type && momentVariants(moment.heard).every(heardTaken)}>{moment.label}</option>)}
     </select></label>
     {heard.type === "chord" && <label>Quality<select value={heard.quality} aria-invalid={taken(input)} onChange={(event) => {
       const quality = CHORD_QUALITIES.find((choice) => choice === event.target.value);
       if (quality !== undefined) set({ type: "chord", quality });
     }}>
-      {CHORD_QUALITIES.map((quality) => <option key={quality} value={quality}>{quality}</option>)}
+      {CHORD_QUALITIES.map((quality) => <option key={quality} value={quality} disabled={quality !== heard.quality && heardTaken({ type: "chord", quality })}>{quality}</option>)}
     </select></label>}
     {heard.type === "mode" && <label>Mode<select value={heard.mode} aria-invalid={taken(input)} onChange={(event) => {
       const mode = KEY_MODES.find((choice) => choice === event.target.value);
       if (mode !== undefined) set({ type: "mode", mode });
     }}>
-      {KEY_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+      {KEY_MODES.map((mode) => <option key={mode} value={mode} disabled={mode !== heard.mode && heardTaken({ type: "mode", mode })}>{mode}</option>)}
     </select></label>}
     {heard.type === "tune" && <TuneField notes={heard.notes} invalid={taken(input)} limits={limits} onChange={(notes) => { set({ type: "tune", notes }); }} />}
     {heard.type === "idle" && <label>Seconds<input type="number" min={1} max={3600} required value={heard.seconds} aria-invalid={taken(input)}
+      ref={validity(taken(input) ? DUPLICATE : null)}
       onChange={(event) => { set({ type: "idle", seconds: Number(event.target.value) }); }} /></label>}
   </>;
 }
 
-/** A tune's melody as note names, applied when it reads as one. */
+/** A tune's melody as note names, applied as soon as it reads as one; the form cannot be applied
+ * while it does not. */
 function TuneField({ notes, invalid, limits, onChange }: { notes: number[]; invalid: boolean; limits: GuiInputLimits; onChange: (notes: number[]) => void }) {
   const written = notes.map(noteName).join(" ");
   const [text, setText] = useState(written);
   const parsed = parseMelody(text, limits.maxNote);
   const fits = parsed !== null && parsed.length >= limits.minTuneNotes && parsed.length <= limits.maxTuneNotes;
-  return <label>Melody<input value={text} aria-invalid={invalid || !fits} title={`${limits.minTuneNotes} to ${limits.maxTuneNotes} notes, such as E4 E4 E4 G4 C4; any key plays it`}
-    onChange={(event) => { setText(event.target.value); }}
-    onBlur={() => { if (fits && parsed.join(" ") !== notes.join(" ")) onChange(parsed); }} /></label>;
+  const hint = `${limits.minTuneNotes} to ${limits.maxTuneNotes} notes, such as E4 E4 E4 G4 C4; any key plays it`;
+  return <label>Melody<input value={text} aria-invalid={invalid || !fits} title={hint}
+    ref={validity(invalid ? DUPLICATE : fits ? null : `Write ${hint}.`)}
+    onChange={(event) => {
+      setText(event.target.value);
+      const next = parseMelody(event.target.value, limits.maxNote);
+      if (next !== null && next.length >= limits.minTuneNotes && next.length <= limits.maxTuneNotes && next.join(" ") !== notes.join(" ")) onChange(next);
+    }} /></label>;
 }

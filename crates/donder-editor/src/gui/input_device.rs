@@ -308,7 +308,7 @@ fn domain_heard(heard: &GuiHeard) -> Result<Heard, GuiMutationError> {
         GuiHeard::Idle { seconds } => Heard::Idle { seconds: *seconds },
         GuiHeard::Tune { notes } => Heard::Tune(Melody::new(notes).ok_or_else(|| {
             GuiMutationError::Invalid(format!(
-                "A tune has {MIN_TUNE_NOTES} to {MAX_TUNE_NOTES} notes."
+                "A tune has {MIN_TUNE_NOTES} to {MAX_TUNE_NOTES} notes, each from 0 to 127."
             ))
         })?),
     })

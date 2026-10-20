@@ -94,7 +94,8 @@ InputDevice ear {
 | `Tune { notes }` | when the melody is played, in any key and any octave |
 
 A tune's `notes` are the MIDI notes of a melody's opening, 5 to 24 of them, in
-any key: the listener follows the top note of what is played above G3 and
+any key: the listener follows the top note of what is played above G3,
+leaving out notes struck under a melody note still held, and
 hears the tune when the last notes fit it in one key, forgiving about one wrong
 note in six. The chorus of Jingle Bells is
 `Tune { notes: [64, 64, 64, 64, 64, 64, 64, 67, 60, 62, 64] }`; the editor

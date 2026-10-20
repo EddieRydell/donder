@@ -40,8 +40,12 @@ impl Melody {
 /// Notes struck this close together are one chord, whose top note carries
 /// the melody.
 const CHORD_SPREAD: f64 = 0.05;
-/// Notes below this are accompaniment, not melody: G3.
-const LOWEST_MELODY: u8 = 55;
+/// A note this far or further below the melody's last note, while the melody
+/// goes on, is accompaniment: more than an octave.
+const BELOW_MELODY: u8 = 13;
+/// After this long without a melody note, in seconds, the melody starts
+/// again, in any register.
+const MELODY_GAP: f64 = 4.0;
 
 /// The melody line: the top note of each strike above the accompaniment.
 #[derive(Clone, Debug, Default)]
@@ -54,8 +58,12 @@ pub(crate) struct MelodyLine {
 impl MelodyLine {
     /// Hear a note; `true` when it adds to or changes the line.
     pub(crate) fn hear(&mut self, note: u8, time: f64) -> bool {
-        if note < LOWEST_MELODY {
-            return false;
+        if let Some(&(at, last)) = self.notes.back() {
+            if time - at > MELODY_GAP {
+                self.notes.clear();
+            } else if time - at > CHORD_SPREAD && note + BELOW_MELODY <= last {
+                return false;
+            }
         }
         match self.notes.back_mut() {
             Some((at, top)) if time - *at <= CHORD_SPREAD => {
@@ -77,6 +85,11 @@ impl MelodyLine {
 
     pub(crate) fn added(&self) -> u64 {
         self.added
+    }
+
+    /// The melody's last note.
+    pub(crate) fn last(&self) -> Option<u8> {
+        self.notes.back().map(|(_, note)| *note)
     }
 
     /// Whether the line ends with `melody` in some key: its notes moved by

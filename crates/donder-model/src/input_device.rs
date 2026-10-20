@@ -186,8 +186,14 @@ impl std::fmt::Display for InputSource {
             Self::Note(note) => write!(f, "note {note}"),
             Self::ControlChange(number) => write!(f, "control change {number}"),
             Self::PitchBend => f.write_str("pitch bend"),
-            Self::Heard(heard) => write!(f, "{heard:?}"),
-            Self::Measured(measure) => write!(f, "{measure:?}"),
+            // As the language writes them.
+            Self::Heard(Heard::Chord(quality)) => write!(f, "`Chord {{ quality: {quality:?} }}`"),
+            Self::Heard(Heard::Mode(mode)) => write!(f, "`Mode {{ mode: {mode:?} }}`"),
+            Self::Heard(Heard::Tune(melody)) => {
+                write!(f, "`Tune {{ notes: {:?} }}`", melody.notes())
+            }
+            Self::Heard(heard) => write!(f, "`{heard:?}`"),
+            Self::Measured(measure) => write!(f, "`{measure:?}`"),
         }
     }
 }
@@ -338,8 +344,8 @@ pub enum InputDeviceValidationError {
     DuplicateInput(Identifier),
     /// A control reads an input its device's driver does not have.
     ForeignInput(Identifier),
-    /// A note or control change number MIDI does not have, or keys whose
-    /// lowest note is above their highest.
+    /// A note or control change number MIDI does not have, keys whose
+    /// lowest note is above their highest, or an idle of no time.
     InputOutOfRange(Identifier),
 }
 
@@ -364,7 +370,7 @@ impl std::fmt::Display for InputDeviceValidationError {
             ),
             Self::InputOutOfRange(name) => write!(
                 f,
-                "control `{}` reads a note above {MAX_MIDI_NOTE}, a control change above {MAX_MIDI_CONTROL_CHANGE}, or keys from a higher note to a lower one",
+                "control `{}` reads a note above {MAX_MIDI_NOTE}, a control change above {MAX_MIDI_CONTROL_CHANGE}, keys from a higher note to a lower one, or an `Idle` of 0 seconds",
                 name.as_str()
             ),
         }
