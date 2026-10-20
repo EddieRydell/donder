@@ -18,6 +18,8 @@ export type AppSettings = {
 	sequenceMarksLaneOnly?: boolean,
 	effectRaster: EffectRasterSettings,
 	spatialSnap: SpatialSnapSettings,
+	/**  The SoundFont MIDI songs are heard on while performing. */
+	songSoundFont?: string | null,
 };
 
 export type AppSnapshot = {
@@ -592,6 +594,8 @@ export type PerformSession = {
 	keys: string[],
 	/**  The rig's MIDI connections, when it plays from MIDI. */
 	midi: PerformMidi | null,
+	/**  The MIDI song playing the rig, until it ends or is stopped. */
+	song: PerformSong | null,
 };
 
 /**  Perform mode: the rigs the project can perform and the performance in progress. */
@@ -600,6 +604,14 @@ export type PerformSnapshot = {
 	revision: number,
 	rigs: PerformRig[],
 	session: PerformSession | null,
+};
+
+/**  A MIDI file played into the performance as a pianist would play it. */
+export type PerformSong = {
+	/**  The file's name, which is also the port the rig hears it on. */
+	name: string,
+	positionSeconds: number,
+	lengthSeconds: number,
 };
 
 export type PerformSwitch = {

@@ -42,7 +42,8 @@ pub use dto::patch::{
     PatchLayout,
 };
 pub use dto::perform::{
-    PerformButton, PerformMidi, PerformRig, PerformSession, PerformSnapshot, PerformSwitch,
+    PerformButton, PerformMidi, PerformRig, PerformSession, PerformSnapshot, PerformSong,
+    PerformSwitch,
 };
 pub use dto::preview::{
     FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,

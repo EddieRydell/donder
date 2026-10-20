@@ -84,7 +84,7 @@ InputDevice ear {
 | --- | --- |
 | `ChordChange` | when the chord changes |
 | `KeyChange` | when the key changes, once the new key has led for a moment |
-| `Resolution` | when a dominant seventh, or a major chord in the key, falls a fifth to its home chord: V to I |
+| `Resolution` | when a dominant seventh falls a fifth to any major or minor chord, or a major chord falls a fifth to the key's home chord: V to I |
 | `Beat` | on each beat at the player's tempo, between notes too, until a few seconds after they stop |
 | `RunUp`, `RunDown` | at a fast run of six or more notes spanning at least a fifth |
 | `BigChord` | when five or more notes are struck hard together |
@@ -94,14 +94,17 @@ InputDevice ear {
 | `Tune { notes }` | when the melody is played, in any key and any octave |
 
 A tune's `notes` are the MIDI notes of a melody's opening, 5 to 24 of them, in
-any key: the listener follows the top note of what is played above G3,
-leaving out notes struck under a melody note still held, and
+any key and any octave: the listener follows the top note of what is
+played, leaving out notes more than an octave below the melody and notes
+struck under a melody note still held (but for a step of up to a major third
+down, as a legato melody moves), starts the melody again after four seconds
+without one, and
 hears the tune when the last notes fit it in one key, forgiving about one wrong
 note in six. The chorus of Jingle Bells is
 `Tune { notes: [64, 64, 64, 64, 64, 64, 64, 67, 60, 62, 64] }`; the editor
 writes them as note names, `E4 E4 E4 E4 E4 E4 E4 G4 C4 D4 E4`.
 
-The first seven, and tunes, are momentary: pressed and released at once, so they play
+All but `Chord`, `Mode` and `Idle` are momentary: pressed and released at once, so they play
 `Fixed` triggers, marks and switches.
 
 | Dial | From 0 to 1 |
@@ -179,7 +182,8 @@ values: [
 - `Velocity`: how hard the note was struck; a computer key or a pedal plays
   at 1.
 - `Pitch`: the note's place in its keys' range, from the lowest at 0 to the
-  highest at 1; a single note button is at its place among all 128 notes.
+  highest at 1; a single note button, or keys of one note, is at its place
+  among all 128 notes.
 - `PitchClass`: the note's name, C at 0 up the chromatic scale to B at 11/12,
   whatever its octave.
 - `Fifths`: the note's name round the circle of fifths, C at 0, G at 1/12, D
@@ -213,3 +217,17 @@ While you perform, the rig's keys go to the rig before any editor shortcut, both
 in the main window and in the Preview window. Keys typed into a text field stay
 in the field. Releasing focus releases every held button. A session lasts up to
 about 71 minutes, the playback clock's range.
+
+### MIDI songs
+
+**Play MIDI song…** on the Perform bar plays a MIDI file into the rig as if a
+pianist played it on a port named after the file, so every MIDI device and
+listener that reads every port (`port: none`) hears it alongside any real
+keyboard. Every channel but the drums (channel 10) folds onto the one piano;
+notes, the sustain pedal (control change 64) and the soft pedal (67) play, and
+a key struck again while another part holds it down is struck once. The bar
+shows the song's time and a button that stops it; a song that ends or is
+stopped lifts every key and pedal it held, and playing another replaces it.
+
+Songs are heard on a SoundFont (`.sf2`), played as its first piano. The first
+song asks for one, and **Settings > Perform** changes it.

@@ -60,6 +60,51 @@ pub(crate) fn perform_release_all(
     snapshot
 }
 
+/// Ask for a MIDI song to perform; `None` when the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn choose_midi_song() -> Option<String> {
+    rfd::FileDialog::new()
+        .set_title("Play a MIDI song")
+        .add_filter("MIDI song", &["mid", "midi"])
+        .pick_file()
+        .and_then(|path| path.to_str().map(ToString::to_string))
+}
+
+/// Ask for the SoundFont MIDI songs are heard on; `None` when the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn choose_song_sound_font() -> Option<String> {
+    rfd::FileDialog::new()
+        .set_title("Choose a SoundFont")
+        .add_filter("SoundFont", &["sf2"])
+        .pick_file()
+        .and_then(|path| path.to_str().map(ToString::to_string))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn perform_play_song(
+    path: String,
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<PerformSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.perform_play_song(&path))
+        .await
+        .map_err(|error| format!("Perform worker failed: {error}"))??;
+    let _ = app.emit("perform_changed", snapshot.clone());
+    Ok(snapshot)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn perform_stop_song(app: AppHandle, state: State<'_, DesktopState>) -> PerformSnapshot {
+    let snapshot = state.perform_stop_song();
+    let _ = app.emit("perform_changed", snapshot.clone());
+    snapshot
+}
+
 /// Tell the window what changed after the Preview played a key.
 pub(crate) fn publish_perform_snapshot(app: &AppHandle) {
     let _ = app.emit(

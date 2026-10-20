@@ -120,6 +120,10 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         stop_performing,
         perform_key,
         perform_release_all,
+        choose_midi_song,
+        choose_song_sound_font,
+        perform_play_song,
+        perform_stop_song,
     ])
 }
 

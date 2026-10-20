@@ -113,8 +113,9 @@ Not yet supported:
 - Code-signed installers
 - Importing xLights models and layouts
 - Non-pixel DMX fixtures such as moving heads
-- MIDI, OSC and audio input, and live input on a standalone ESP32. Rigs play
-  from the computer keyboard today; see [live input](docs/live_input.md).
+- OSC and audio input, and live input on a standalone ESP32. Rigs play from
+  the computer keyboard and MIDI on the desktop; see
+  [live input](docs/live_input.md).
 
 ## License
 

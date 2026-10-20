@@ -90,11 +90,17 @@ export const commands = {
 	setLiveOutputActive: (active: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_live_output_active", { active })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	getPerformSnapshot: () => __TAURI_INVOKE<PerformSnapshot>("get_perform_snapshot").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
-	startPerforming: (projectRevision: number, rig: number) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("start_performing", { projectRevision, rig })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:v.data.session}) } : v) as typeof v)),
-	stopPerforming: () => __TAURI_INVOKE<PerformSnapshot>("stop_performing").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
-	performKey: (code: string, pressed: boolean) => __TAURI_INVOKE<PerformSnapshot>("perform_key", { code, pressed }).then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
-	performReleaseAll: () => __TAURI_INVOKE<PerformSnapshot>("perform_release_all").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
+	getPerformSnapshot: () => __TAURI_INVOKE<PerformSnapshot>("get_perform_snapshot").then((v) => (({...v,session:v.session==null?v.session:({...v.session,song:v.session.song==null?v.session.song:v.session.song})}) as typeof v)),
+	startPerforming: (projectRevision: number, rig: number) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("start_performing", { projectRevision, rig })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:({...v.data.session,song:v.data.session.song==null?v.data.session.song:v.data.session.song})}) } : v) as typeof v)),
+	stopPerforming: () => __TAURI_INVOKE<PerformSnapshot>("stop_performing").then((v) => (({...v,session:v.session==null?v.session:({...v.session,song:v.session.song==null?v.session.song:v.session.song})}) as typeof v)),
+	performKey: (code: string, pressed: boolean) => __TAURI_INVOKE<PerformSnapshot>("perform_key", { code, pressed }).then((v) => (({...v,session:v.session==null?v.session:({...v.session,song:v.session.song==null?v.session.song:v.session.song})}) as typeof v)),
+	performReleaseAll: () => __TAURI_INVOKE<PerformSnapshot>("perform_release_all").then((v) => (({...v,session:v.session==null?v.session:({...v.session,song:v.session.song==null?v.session.song:v.session.song})}) as typeof v)),
+	/**  Ask for a MIDI song to perform; `None` when the user cancels. */
+	chooseMidiSong: () => __TAURI_INVOKE<string | null>("choose_midi_song"),
+	/**  Ask for the SoundFont MIDI songs are heard on; `None` when the user cancels. */
+	chooseSongSoundFont: () => __TAURI_INVOKE<string | null>("choose_song_sound_font"),
+	performPlaySong: (path: string) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("perform_play_song", { path })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:({...v.data.session,song:v.data.session.song==null?v.data.session.song:v.data.session.song})}) } : v) as typeof v)),
+	performStopSong: () => __TAURI_INVOKE<PerformSnapshot>("perform_stop_song").then((v) => (({...v,session:v.session==null?v.session:({...v.session,song:v.session.song==null?v.session.song:v.session.song})}) as typeof v)),
 };
 
 /* Types */
@@ -117,6 +123,8 @@ export type AppSettings = {
 	sequenceMarksLaneOnly?: boolean,
 	effectRaster: EffectRasterSettings,
 	spatialSnap: SpatialSnapSettings,
+	/**  The SoundFont MIDI songs are heard on while performing. */
+	songSoundFont?: string | null,
 };
 
 export type AppSnapshot = {
@@ -670,6 +678,8 @@ export type PerformSession = {
 	keys: string[],
 	/**  The rig's MIDI connections, when it plays from MIDI. */
 	midi: PerformMidi | null,
+	/**  The MIDI song playing the rig, until it ends or is stopped. */
+	song: PerformSong | null,
 };
 
 /**  Perform mode: the rigs the project can perform and the performance in progress. */
@@ -678,6 +688,14 @@ export type PerformSnapshot = {
 	revision: number,
 	rigs: PerformRig[],
 	session: PerformSession | null,
+};
+
+/**  A MIDI file played into the performance as a pianist would play it. */
+export type PerformSong = {
+	/**  The file's name, which is also the port the rig hears it on. */
+	name: string,
+	positionSeconds: number,
+	lengthSeconds: number,
 };
 
 export type PerformSwitch = {

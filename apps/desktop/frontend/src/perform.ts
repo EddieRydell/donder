@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { listen } from "@tauri-apps/api/event";
 import { commands } from "./api";
 import { editTarget } from "./platform";
-import { useAppStore } from "./store";
+import { runSnapshotCommand, useAppStore } from "./store";
 import type { PerformSnapshot } from "./types";
 
 type PerformStore = {
@@ -34,6 +34,31 @@ export function startPerforming(rig: number) {
 
 export function stopPerforming() {
   void runPerformCommand(commands.stopPerforming);
+}
+
+/**
+ * Asks for a MIDI file and plays it into the performance; the first time, asks for the SoundFont
+ * songs are heard on and keeps it in the settings.
+ */
+export async function playSong() {
+  const settings = useAppStore.getState().snapshot?.settings;
+  if (settings === undefined) return;
+  if ((settings.songSoundFont ?? null) === null) {
+    const songSoundFont = await commands.chooseSongSoundFont();
+    if (songSoundFont === null) return;
+    try {
+      await runSnapshotCommand(() => commands.updateAppSettings({ ...settings, songSoundFont }));
+    } catch (error) {
+      useAppStore.getState().setError(String(error));
+      return;
+    }
+  }
+  const path = await commands.chooseMidiSong();
+  if (path !== null) void runPerformCommand(() => commands.performPlaySong(path));
+}
+
+export function stopSong() {
+  void runPerformCommand(commands.performStopSong);
 }
 
 export function isPerforming(): boolean {

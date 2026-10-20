@@ -95,6 +95,9 @@ pub struct AppSettings {
     pub sequence_marks_lane_only: bool,
     pub effect_raster: EffectRasterSettings,
     pub spatial_snap: SpatialSnapSettings,
+    /// The SoundFont MIDI songs are heard on while performing.
+    #[serde(default)]
+    pub song_sound_font: Option<String>,
 }
 
 fn default_editor_view_mode() -> EditorViewMode {
@@ -129,6 +132,7 @@ impl Default for AppSettings {
             sequence_marks_lane_only: false,
             effect_raster: EffectRasterSettings::default(),
             spatial_snap: SpatialSnapSettings::default(),
+            song_sound_font: None,
         }
     }
 }

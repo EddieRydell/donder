@@ -29,6 +29,7 @@ export const commands = {
     unwrapResult(await generatedCommands.resolveGuiSource(moduleId, path, objectKey)),
   startPerforming: async (projectRevision: number, rig: number) =>
     unwrapResult(await generatedCommands.startPerforming(projectRevision, rig)),
+  performPlaySong: async (path: string) => unwrapResult(await generatedCommands.performPlaySong(path)),
   setLiveOutputActive: async (active: boolean) =>
     unwrapResult(await generatedCommands.setLiveOutputActive(active)),
   matchSequenceClips: async (request: GuiDocumentRequest, query: import("./types").SequenceClipMatchRequest) =>

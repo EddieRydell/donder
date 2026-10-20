@@ -2799,6 +2799,26 @@ html.donder-app-shell :is(
   color: var(--donder-danger-text);
 }
 
+.perform-bar > .perform-bar-song {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--donder-space-3);
+  min-width: 0;
+  height: 100%;
+  padding-right: var(--donder-space-0);
+  font-family: var(--donder-font-code);
+}
+
+.perform-bar-song-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.perform-bar-song button {
+  flex: none;
+}
+
 .perform-bar-held {
   min-width: 0;
   overflow: hidden;
@@ -3072,13 +3092,19 @@ html.donder-app-shell :is(
   }
 }
 
-.new-project-location-row {
+.new-project-location-row,
+.settings-path-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--donder-space-6);
 }
 
-.new-project-location-row button {
+.settings-path-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.new-project-location-row button,
+.settings-path-row button {
   display: inline-flex;
   align-items: center;
   gap: var(--donder-space-4);

@@ -80,7 +80,7 @@ pub struct Switch {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct RigMappingId(pub u32);
 
-/// What a button or dial does while its condition holds.
+/// What a button, dial or keys do while its condition holds.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mapping {
     pub id: RigMappingId,

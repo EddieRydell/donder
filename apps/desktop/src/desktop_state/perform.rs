@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use super::{DesktopState, lock_unpoisoned};
 use crate::midi::{Held, MidiInputs, MidiMessage};
+use crate::midi_song::{MidiSong, SongPlayer, load_sound_font};
 use crate::rendering::{RigOutput, SessionClock};
 use donder_elaboration::{PreparationCache, PrepareOutputs, RigRouter};
 use donder_model::{
@@ -18,7 +19,7 @@ use donder_runtime::PreparedRig;
 use donder_runtime_types::{RigEvent, SampleTime, sample_time_seconds_f32};
 use donder_sequence_api::{
     AudioTransportState, LiveOutputState, PerformButton, PerformMidi, PerformRig, PerformSession,
-    PerformSnapshot, PerformSwitch,
+    PerformSnapshot, PerformSong, PerformSwitch,
 };
 
 #[derive(Default)]
@@ -145,6 +146,8 @@ struct Performance {
     /// The MIDI ports the performance is connected to, when it plays from
     /// MIDI.
     midi_inputs: Option<MidiInputs>,
+    /// The MIDI song playing into the performance.
+    song: Option<SongPlayer>,
     switches: Box<[String]>,
     controllers: Vec<ControllerId>,
     /// Every command so far, for an evaluator that joins mid-performance.
@@ -186,6 +189,15 @@ impl Performance {
                     error: status.error,
                 }
             }),
+            song: self
+                .song
+                .as_ref()
+                .filter(|song| !song.finished())
+                .map(|song| PerformSong {
+                    name: song.name.clone(),
+                    position_seconds: song.position_seconds(),
+                    length_seconds: song.length_seconds,
+                }),
         }
     }
 
@@ -398,6 +410,7 @@ impl DesktopState {
                 midi,
                 listening,
                 midi_inputs,
+                song: None,
                 switches: project
                     .rig(&rig_id)
                     .ok_or("The rig is no longer in the project.")?
@@ -451,6 +464,84 @@ impl DesktopState {
             self.preview_wake.notify();
         }
         self.perform_snapshot()
+    }
+
+    /// Play the MIDI file at `path` into the performance, as if a pianist
+    /// played it on a port named after the file, in place of any song
+    /// playing, heard on the settings' SoundFont.
+    pub(crate) fn perform_play_song(&self, path: &str) -> Result<PerformSnapshot, String> {
+        let song = MidiSong::load(path)?;
+        let sound_font = load_sound_font(
+            self.snapshot()
+                .settings
+                .song_sound_font
+                .as_deref()
+                .ok_or("Choose a SoundFont under Settings > Perform to hear songs on.")?,
+        )?;
+        let generation = {
+            let perform = lock_unpoisoned(&self.perform);
+            let performance = perform
+                .performance
+                .as_ref()
+                .ok_or("Perform a rig to play a song into it.")?;
+            let hears = performance
+                .midi
+                .iter()
+                .map(|binding| binding.port.as_deref())
+                .chain(
+                    performance
+                        .listening
+                        .iter()
+                        .map(|item| item.port.as_deref()),
+                )
+                .any(|port| port.is_none());
+            if !hears {
+                return Err(format!(
+                    "No MIDI device of rig {} reads every port, so it cannot hear a song. Set a device's port to none.",
+                    performance.rig.name
+                ));
+            }
+            performance.generation
+        };
+        // The song before lifts what it held before this one plays.
+        if let Some(previous) = self.take_song() {
+            previous.stop();
+        }
+        let name = song.name.clone();
+        let state = self.weak.clone();
+        let player = SongPlayer::start(song, &sound_font, move |message| {
+            if let Some(state) = state.upgrade() {
+                DesktopState(state).perform_midi(generation, &name, message);
+            }
+        })?;
+        {
+            let mut perform = lock_unpoisoned(&self.perform);
+            let performance = perform
+                .performance
+                .as_mut()
+                .filter(|performance| performance.generation == generation)
+                .ok_or("The performance ended before the song could start.")?;
+            performance.song = Some(player);
+            perform.revision = perform.revision.wrapping_add(1);
+        }
+        Ok(self.perform_snapshot())
+    }
+
+    /// Stop the song playing into the performance; the keys and pedals it
+    /// held are lifted.
+    pub(crate) fn perform_stop_song(&self) -> PerformSnapshot {
+        if let Some(song) = self.take_song() {
+            song.stop();
+        }
+        self.perform_snapshot()
+    }
+
+    /// The song playing into the performance, taken out of it.
+    fn take_song(&self) -> Option<SongPlayer> {
+        let mut perform = lock_unpoisoned(&self.perform);
+        let song = perform.performance.as_mut()?.song.take()?;
+        perform.revision = perform.revision.wrapping_add(1);
+        Some(song)
     }
 
     /// A key, by its `KeyboardEvent.code`, pressed or released. Keys the rig

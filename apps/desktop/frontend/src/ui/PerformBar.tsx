@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Monitor, RadioTower, Square } from "lucide-react";
+import { Monitor, Music, RadioTower, Square } from "lucide-react";
 import { commands } from "../api";
-import { installPerformKeys, refreshPerform, stopPerforming, usePerformStore } from "../perform";
+import { installPerformKeys, playSong, refreshPerform, stopPerforming, stopSong, usePerformStore } from "../perform";
 import { runSnapshotCommand, useAppStore } from "../store";
 import { THEME_METRICS } from "../theme";
 
@@ -27,6 +27,20 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
         {[session.midi.ports.length === 0 ? "No MIDI device found" : `MIDI: ${session.midi.ports.join(", ")}`, session.midi.error]
           .filter((text) => text !== null).join(" · ")}
       </span>}
+      {session.song === null ? (
+        <button type="button" title="Play a MIDI file into the rig, as if a pianist played it" onClick={() => void playSong()}>
+          <Music size={THEME_METRICS.iconSizeCompact} /> Play MIDI song…
+        </button>
+      ) : (
+        <span className="perform-bar-song" title="MIDI song">
+          <Music size={THEME_METRICS.iconSizeCompact} />
+          <span className="perform-bar-song-name" title={session.song.name}>{session.song.name}</span>
+          {formatSongTime(session.song.positionSeconds)} / {formatSongTime(session.song.lengthSeconds)}
+          <button type="button" title="Stop the song" onClick={stopSong}>
+            <Square size={THEME_METRICS.iconSizeCompact} />
+          </button>
+        </span>
+      )}
       <span className="perform-bar-held" title="Held buttons">
         {session.held.length === 0 ? "No buttons held" : session.held.map((button) => `${button.device}.${button.control}`).join(" ")}
       </span>
@@ -52,6 +66,11 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
       </button>
     </section>
   );
+}
+
+function formatSongTime(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${Math.floor(seconds - minutes * 60).toString().padStart(2, "0")}`;
 }
 
 function formatElapsed(seconds: number): string {

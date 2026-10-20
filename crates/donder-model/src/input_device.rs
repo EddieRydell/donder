@@ -101,7 +101,8 @@ pub enum ButtonInput {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DialInput {
-    /// A MIDI control change, from 0 to 127.
+    /// A MIDI control change, numbered 0 to 119; its value, from 0 to 127,
+    /// turns the dial.
     ControlChange(u8),
     /// The MIDI pitch bend wheel, from fully down to fully up.
     PitchBend,
@@ -198,7 +199,7 @@ impl std::fmt::Display for InputSource {
     }
 }
 
-/// A control of an input device: a button, or a dial.
+/// A control of an input device: a button, a dial or keys.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ControlRef {
     pub device: InputDeviceId,

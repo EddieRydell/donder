@@ -89,7 +89,7 @@ fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectVal
         let bound = controls.entry(target).or_default();
         if bound.iter().any(|(_, existing)| *existing == param) {
             return Err(invalid(format!(
-                "Two controls set parameter `{}` of the same voice",
+                "Two controls or played values set parameter `{}` of the same voice",
                 param.as_str()
             )));
         }

@@ -33,6 +33,18 @@ pub struct PerformSession {
     pub keys: Vec<String>,
     /// The rig's MIDI connections, when it plays from MIDI.
     pub midi: Option<PerformMidi>,
+    /// The MIDI song playing the rig, until it ends or is stopped.
+    pub song: Option<PerformSong>,
+}
+
+/// A MIDI file played into the performance as a pianist would play it.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformSong {
+    /// The file's name, which is also the port the rig hears it on.
+    pub name: String,
+    pub position_seconds: f64,
+    pub length_seconds: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

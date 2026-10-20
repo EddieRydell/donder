@@ -1,7 +1,9 @@
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { useEffect, useState } from "react";
+import { FolderOpen } from "lucide-react";
 import { commands } from "../api";
 import { runSnapshotCommand, useAppStore } from "../store";
+import { THEME_METRICS } from "../theme";
 import type { AppSettings } from "../types";
 
 const SETTINGS_EVENT = "donder:settings";
@@ -63,6 +65,32 @@ export function SettingsDialog() {
                 checked={draft.autosaveProjectEdits}
                 onChange={(autosaveProjectEdits) => void update({ ...draft, autosaveProjectEdits })}
               />
+            </section>
+
+            <section>
+              <h3>Perform</h3>
+              <label>
+                <span>SoundFont for MIDI songs</span>
+                <div className="settings-path-row">
+                  <input readOnly value={draft.songSoundFont ?? ""} placeholder="Chosen when you first play a song" />
+                  <button
+                    type="button"
+                    onClick={() => void commands.chooseSongSoundFont().then((songSoundFont) => {
+                      if (songSoundFont !== null) void update({ ...draft, songSoundFont });
+                    }, (caught: unknown) => { setError(String(caught)); })}
+                  >
+                    <FolderOpen size={THEME_METRICS.iconSizeSmall} />
+                    Browse...
+                  </button>
+                  <button
+                    type="button"
+                    disabled={(draft.songSoundFont ?? null) === null}
+                    onClick={() => void update({ ...draft, songSoundFont: null })}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </label>
             </section>
 
             <section>
