@@ -1,7 +1,7 @@
 # Donder
 
-Donder is a light-show sequencer where every effect is a program, fast enough
-that a whole show plays live on an ESP32.
+Donder is a light-show sequencer where every effect is a program, fast and small enough
+that a whole show can be stored and played at high framerates from a stock ESP32.
 
 <!-- TODO: GIF or short video of examples/stanford_room, then an editor screenshot. -->
 
