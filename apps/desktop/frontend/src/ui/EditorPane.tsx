@@ -12,13 +12,13 @@ import { effectiveEditorViewMode } from "../editorViewMode";
 import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { GuiEditor } from "./gui/GuiEditor";
-import { ReadOnlySourceNotice } from "./ReadOnlySourceNotice";
 import { TextEditor } from "./TextEditor";
 import { reconcileSequenceSelection } from "./gui/sequence/sequenceSelection";
 import { SequenceTransportControls } from "./gui/sequence/SequenceTransportControls";
 import { THEME_METRICS } from "../theme";
 import { scheduleViewStateSave } from "../viewStatePersistence";
 import { sameGuiDocument } from "../snapshotState";
+import { guiRequestKind } from "../workspace/guiIdentity";
 import { resolveDocumentSyncFailure } from "../store";
 import { NAVIGATE_TO_TEXT_EVENT, navigateToText, type TextNavigation } from "../workspace/navigation";
 import { displayedProjectHealth } from "../workspace/helpers";
@@ -73,9 +73,8 @@ function EditorPaneContent({
   const viewMode = effectiveEditorViewMode(snapshot);
   const activeExternalState = activeBuffer?.externalState ?? "current";
   const activeConflicted = activeExternalState !== "current";
-  const activeReadOnly = activeBuffer?.readOnly ?? false;
   const nextGuiPath = activeGuiRequest?.path ?? null;
-  const nextGuiView = activeGuiRequest?.view ?? null;
+    const nextGuiView = guiRequestKind(activeGuiRequest, snapshot.activeDocumentDescriptor);
   const nextGuiObjectKey = activeGuiRequest?.objectKey ?? null;
   const activeSequenceDocument =
     viewMode === "gui" && parentDocument?.type === "sequence" ? parentDocument.document : null;
@@ -279,7 +278,6 @@ function EditorPaneContent({
         </Dialog.Root></>
       ) : (
         <div className={`resource-editor-frame ${activeConflicted ? "conflicted" : ""}`}>
-          {activeReadOnly && activeBuffer !== null && <ReadOnlySourceNotice name={activeBuffer.name} />}
           {activePath !== null && snapshot.projectRoot !== null && (
             <TextEditor
               root={snapshot.projectRoot}
@@ -288,7 +286,7 @@ function EditorPaneContent({
               revision={activeBuffer?.documentRevision ?? 0}
               openPaths={snapshot.tabs.map((tab) => tab.path)}
               syntax={activeSyntax}
-              readOnly={activeConflicted || activeReadOnly}
+              readOnly={activeConflicted}
               restore={restoreState?.editorStates[activePath]}
               navigation={pendingTextNavigation}
               onViewState={scheduleEditorViewStateSave}
@@ -301,6 +299,6 @@ function EditorPaneContent({
 }
 
 function scheduleEditorViewStateSave(path: string, state: PersistedEditorViewState) {
-  scheduleViewStateSave(JSON.stringify(["editor", path]), () => commands.saveEditorViewState({ path, state }),
+  scheduleViewStateSave(JSON.stringify(["editor", path]), () => commands.saveViewState({ type: "editor", state: { path, state } }),
     (error) => { useAppStore.getState().setError(String(error)); });
 }

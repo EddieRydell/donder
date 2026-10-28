@@ -1,5 +1,5 @@
 use super::*;
-use donder_sequence_api::PerformSnapshot;
+use donder_editor::dto::PerformSnapshot;
 
 #[tauri::command]
 #[specta::specta]

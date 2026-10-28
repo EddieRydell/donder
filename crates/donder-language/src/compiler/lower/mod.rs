@@ -12,19 +12,20 @@ use super::ir::{
     Binary, Domain, Evaluator, Graph, Node, Op, Param, Rebuild, Substitute, TooManyLoops,
 };
 use donder_runtime_types::PreparedAutomation;
-use donder_runtime_types::bytecode::BytecodeProgram;
+use donder_runtime_types::Program;
 use donder_runtime_types::bytecode::STRIP;
 use donder_runtime_types::{Type, Value};
 use std::collections::{HashMap, HashSet};
 
-/// A lowered program and the parameter values it reads.
+/// A lowered program and the parameter values and automation it reads,
+/// not yet bound: preparation shares equal programs before binding them.
 #[derive(Clone, Debug)]
-pub(crate) struct Lowered {
-    pub(crate) bytecode: BytecodeProgram,
-    pub(crate) values: Vec<Value>,
-    pub(crate) automation: Vec<PreparedAutomation>,
+pub struct Lowered {
+    pub program: Program,
+    pub values: Vec<Value>,
+    pub automation: Box<[PreparedAutomation]>,
     /// The program's indices of the instance's live marks parameters.
-    pub(crate) live: Vec<u16>,
+    pub live: Box<[u16]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,10 +64,13 @@ impl Instance {
         let plan = schedule::schedule(&prepared.graph, prepared.root);
         let bytecode = emit::emit(&prepared.graph, prepared.root, &plan)?;
         Ok(Lowered {
-            bytecode,
+            program: Program {
+                bytecode,
+                inputs: self.inputs() as usize,
+            },
             values: prepared.values,
-            automation: prepared.automation,
-            live: prepared.live,
+            automation: prepared.automation.into(),
+            live: prepared.live.into(),
         })
     }
 }

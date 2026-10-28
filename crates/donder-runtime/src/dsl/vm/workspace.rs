@@ -3,11 +3,11 @@
 //! Carving runs once, so it stays out of instruction RAM.
 use super::strip::{Handle, Levels, Pixels, Range, STRIP, Store};
 use crate::arena::{Carve, Size};
+use crate::image::{self, SectionPixel};
 use crate::show::ProgramView;
 use core::cell::{Cell, RefCell};
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::Banks;
-use donder_runtime_types::image::{self, SectionPixel};
 
 /// The fixture index of a position beyond the target, which no pixel's
 /// neighbor has.

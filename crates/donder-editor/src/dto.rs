@@ -1,60 +1,60 @@
-#![deny(unsafe_code)]
-#![cfg_attr(
-    not(test),
-    deny(
-        clippy::expect_used,
-        clippy::panic,
-        clippy::todo,
-        clippy::unimplemented,
-        clippy::unwrap_used
-    )
-)]
-
+//! The serialized editor contract shared with the frontend, one module per
+//! workflow. Tauri-Specta exports its TypeScript representation in bindings.ts.
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-mod dto;
-pub use dto::app::{AppSnapshot, ProjectHealth};
-pub use dto::audio::{
+mod app;
+mod audio;
+mod diagnostics;
+mod live;
+mod output;
+mod patch;
+mod perform;
+mod preview;
+mod sequence;
+mod setup;
+mod synchronization;
+mod view_state;
+mod workspace;
+pub use app::{AppSnapshot, ProjectHealth};
+pub use audio::{
     AudioTransportSnapshot, AudioTransportState, PlaybackFrameTiming, PlaybackRange, PlaybackSpeed,
 };
-pub use dto::diagnostics::{
-    DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,
-};
-pub use dto::live::{
+pub use diagnostics::{Rotation3Degrees, Scale3};
+pub use donder_project_io::{IoDiagnostic, TextPosition, TextRange};
+pub use live::{
     GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits,
     InputDeviceGuiDocument, ProjectGuiEdit, RigActionChoice, RigControlRef, RigControlTarget,
     RigEffect, RigEffectEdit, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput,
-    RigInputControl, RigInputDevice, RigItem, RigLiveMarks, RigMapping, RigMappingAction,
-    RigPlayedSource, RigPlayedValue, RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy,
-    RigWhen, SetupInputDevice,
+    RigInputControl, RigInputDevice, RigLiveMarks, RigMapping, RigMappingAction, RigPlayedSource,
+    RigPlayedValue, RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen,
+    SetupInputDevice,
 };
-pub use dto::output::{
+pub use output::{
     ControllerOutputTest, DeviceCapabilities, DeviceFirmwareInfo, DeviceInstallProgress,
-    DeviceOutputCapabilities, DevicePlaybackMode, DevicePlaybackStatus, DeviceSequenceStorage,
-    DeviceSerialPort, DeviceTransportStatus, DonderDeviceClaim, DonderDeviceConnection,
-    DonderDeviceNetwork, DonderDeviceNetworkRequest, DonderDeviceStatus,
-    LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
-    Point3Meters, SequenceExportOptions, SequenceExportPort, VideoExportProgress,
+    DeviceOutputCapabilities, DevicePlaybackMode, DevicePlaybackStatus, DeviceSerialPort,
+    DeviceTransportStatus, DonderDeviceClaim, DonderDeviceConnection, DonderDeviceNetwork,
+    DonderDeviceNetworkRequest, DonderDeviceStatus, LiveOutputControllerSnapshot,
+    LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState, Point3Meters,
+    SequenceExportOptions, SequenceExportPort, VideoExportProgress,
 };
-pub use dto::patch::{
+pub use patch::{
     GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,
     PatchLayout,
 };
-pub use dto::perform::{
+pub use perform::{
     PerformButton, PerformMidi, PerformOsc, PerformRig, PerformSession, PerformSnapshot,
     PerformSwitch,
 };
-pub use dto::preview::{
+pub use preview::{
     FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,
     GuiFixtureHandle, GuiFixtureShape, GuiFixtureSource, GuiGridAxis, GuiGridCorner,
     GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance,
     SpatialRenderPixel, SpatialRenderPlan,
 };
-pub use dto::sequence::{
-    SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceAutomationDetachmentReason, SequenceClipMatchRequest, SequenceClipParamMatch,
-    SequenceClipRaster, SequenceClipRasterError, SequenceClipRasterRequest,
+pub use sequence::{
+    SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip, SequenceClipMatchRequest,
+    SequenceClipParamMatch, SequenceClipRaster, SequenceClipRasterError, SequenceClipRasterRequest,
     SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceCompositionGraph,
     SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffect,
     SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectDetails,
@@ -62,39 +62,36 @@ pub use dto::sequence::{
     SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperatorDefinition,
     SequenceGraphPortDefinition, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
     SequenceLayer, SequenceMarkCollection, SequenceParamAutomation, SequenceParamRange,
-    SequenceSelectionEditResult, SequenceTimelineClipKind,
 };
-pub use dto::setup::{
-    BufferExternalState, ControllerGuiDocument, CurveGuiDocument, DiagnosticSeverity,
-    DocumentViewId, GradientGuiDocument, GuiDocument, GuiDocumentChange, GuiDocumentRequest,
-    GuiEditCommand, GuiEditResult, GuiEditUpdate, GuiObjectRef, GuiOwnedStep, GuiOwnershipEdit,
-    GuiOwnershipSlot, ProjectGuiDocument, ReusableStorage, SetupController, SetupControllerConfig,
-    SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
+pub use setup::{
+    BufferExternalState, ControllerGuiDocument, CurveGuiDocument, GradientGuiDocument, GuiDocument,
+    GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, GuiItem, GuiObjectRef,
+    GuiOwnershipEdit, OwnedObjectSlot, OwnershipMember, ProjectGuiDocument, ReusableStorage,
+    SetupController, SetupControllerConfig, SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
 };
-pub use dto::synchronization::{
+pub use synchronization::{
     DocumentSaveState, DocumentSaveStatus, DocumentText, DocumentTextEdit, DocumentTextEdits,
     DocumentUpdate, ExternalConflictDecision, GuiDocumentResult, TransitionDecision,
     TransitionRequest, TransitionResult, WorkspaceTransition,
 };
-pub use dto::view_state::{
+pub use view_state::{
     PersistedEditorViewState, PersistedEditorViewStateUpdate, PersistedGraphNodeSize,
     PersistedGraphViewState, PersistedGraphViewStateUpdate, PersistedGraphViewport,
     PersistedPreviewWindowState, PersistedSequenceViewportState,
     PersistedSequenceViewportStateUpdate, PersistedSpatialViewState,
     PersistedSpatialViewStateUpdate, PersistedWindowState, ProjectRestoreState, SpatialGuide,
-    SpatialGuideAxis,
+    SpatialGuideAxis, ViewStateUpdate,
 };
-pub use dto::workspace::{
-    AppCommandId, AppSettings, CommandId, DocumentDefaultObjectKey, DocumentDescriptor,
-    DocumentObjectDescriptor, EditorBuffer, EditorCommandId, EditorTab, EditorViewMode,
-    EffectRasterSettings, KeyBinding, NewSequenceRequest, NewSequenceResult, NewSequenceStorage,
-    ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind, ProjectSearchRequest,
-    ProjectSearchResponse, SequenceClipMatch, SequenceClipTimeMatch, SequenceFollowMode,
-    SequenceInitialZoomMode, Shortcut, SidebarView, SpatialSnapSettings, SpatialUnit,
-    TextDocumentSyntax, TextPosition, TextRange, Transform, WorkspaceEntry, WorkspaceEntryKind,
-    WorkspaceEntryRole, WorkspaceExplorerState, WorkspaceLayoutState, WorkspaceOperation,
-    WorkspacePathChangeImpact, WorkspacePathChangePlan, WorkspacePathChangeRequest,
-    workspace_role_for_source_object,
+pub use workspace::{
+    AppCommandId, AppSettings, CommandId, DocumentDescriptor, DocumentObjectDescriptor,
+    EditorBuffer, EditorCommandId, EditorTab, EditorViewMode, EffectRasterSettings, KeyBinding,
+    NewSequenceRequest, NewSequenceResult, NewSequenceStorage, ObjectKind, ProjectSearchMatch,
+    ProjectSearchMatchKind, ProjectSearchRequest, ProjectSearchResponse, SequenceClipMatch,
+    SequenceClipTimeMatch, SequenceFollowMode, SequenceInitialZoomMode, Shortcut, SidebarView,
+    SpatialSnapSettings, SpatialUnit, TextDocumentSyntax, Transform, WorkspaceEntry,
+    WorkspaceEntryKind, WorkspaceEntryPlainRole, WorkspaceEntryRole, WorkspaceExplorerState,
+    WorkspaceLayoutState, WorkspaceOperation, WorkspacePathChangeImpact, WorkspacePathChangePlan,
+    WorkspacePathChangeRequest,
 };
 
 // Shared serialized edit contract for desktop and browser clients.
@@ -109,18 +106,6 @@ pub use dto::workspace::{
 pub enum SequenceAutomationTarget {
     EffectParam { effect_id: u32, param: String },
     CompositionNodeParam { node_id: String, param: String },
-}
-
-/// A sequence item that carries a description.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceDescribedItem {
-    MarkCollection { key: String },
-    Clip { id: u32 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -147,36 +132,10 @@ pub enum SequenceGuiEdit {
         scope: SequenceEffectScope,
         start_seconds: f64,
     },
-    RenameClip {
-        id: u32,
-        name: String,
-    },
-    /// Set an item's description; empty text removes it.
-    SetItemDescription {
-        item: SequenceDescribedItem,
-        description: Option<String>,
-    },
-    SetEffectLayer {
-        id: u32,
-        layer_id: u32,
-    },
-    MoveEffect {
-        id: u32,
-        start_seconds: f64,
-        target: Option<FixtureTarget>,
-    },
-    ResizeEffect {
-        id: u32,
-        start_seconds: f64,
-        duration_seconds: f64,
-    },
     ChangeEffectDefinition {
         initial_color: String,
         id: u32,
         effect: SequenceEffectReference,
-    },
-    DeleteEffect {
-        id: u32,
     },
     /// Cut each clip at `time_seconds` into two back-to-back clips. The right
     /// half shares the left half's automation, so automation continues across
@@ -189,15 +148,6 @@ pub enum SequenceGuiEdit {
         id: u32,
         target: FixtureTarget,
     },
-    SetEffectScope {
-        id: u32,
-        scope: SequenceEffectScope,
-    },
-    UpdateEffectParam {
-        id: u32,
-        name: String,
-        value: SequenceEffectParamValue,
-    },
     AddAutomationClip {
         start_seconds: f64,
         duration_seconds: f64,
@@ -206,11 +156,6 @@ pub enum SequenceGuiEdit {
     CreateAndBindAutomationClip {
         target: SequenceAutomationTarget,
     },
-    MoveAutomationClip {
-        id: u32,
-        start_seconds: f64,
-        row_target: FixtureTarget,
-    },
     SplitAutomationClip {
         id: u32,
         time_seconds: f64,
@@ -218,9 +163,6 @@ pub enum SequenceGuiEdit {
     UpdateAutomationCurve {
         id: u32,
         curve: Vec<SequenceCurvePoint>,
-    },
-    DeleteAutomationClip {
-        id: u32,
     },
     BindAutomationParam {
         clip_id: u32,
@@ -239,44 +181,64 @@ pub enum SequenceGuiEdit {
         clip_id: u32,
         detached_index: u32,
     },
-    /// Each name becomes a unique `snake_case` name.
+    /// Each name becomes a unique `snake_case` name; the edit reports the
+    /// names made, in order.
     CreateMarkCollections {
         collections: Vec<NewMarkCollection>,
-    },
-    RenameMarkCollection {
-        key: String,
-        name: String,
-    },
-    DeleteMarkCollection {
-        key: String,
-    },
-    SetMarkCollectionColor {
-        key: String,
-        color: String,
     },
     AddMarks {
         collection_key: String,
         times_seconds: Vec<f64>,
-    },
-    MoveMark {
-        collection_key: String,
-        index: u32,
-        time_seconds: f64,
     },
     ReassignMarkCollection {
         collection_key: String,
         index: u32,
         target_collection_key: String,
     },
-    DeleteMark {
-        collection_key: String,
-        index: u32,
-    },
     /// Label a mark, or clear its label with `None` or a blank label.
     SetMarkLabel {
         collection_key: String,
         index: u32,
         label: Option<String>,
+    },
+    /// Remove the selection after copying it to the clipboard.
+    CutSelection {
+        selection: SequenceSelection,
+    },
+    DeleteSelection {
+        selection: SequenceSelection,
+    },
+    /// Paste the clipboard; the pasted items become the selection.
+    Paste {
+        anchor: SequencePasteAnchor,
+    },
+    MoveClips {
+        clips: Vec<SequenceClipRef>,
+        time_delta_seconds: f64,
+        /// The lane the move started on. Each clip moves from the lane of its
+        /// target nearest this one.
+        anchor_lane: u32,
+        lane_delta: i32,
+    },
+    ResizeClips {
+        clips: Vec<SequenceClipRef>,
+        edge: SequenceResizeEdge,
+        automation: SequenceAutomationResize,
+        time_delta_seconds: f64,
+    },
+    /// Set a property of effect clips.
+    EditEffects {
+        clips: Vec<SequenceClipRef>,
+        edit: SequenceEffectCommonEdit,
+    },
+    /// Retime the clips together; the selection stays the same.
+    ArrangeClips {
+        clips: Vec<SequenceClipRef>,
+        arrangement: SequenceClipArrangement,
+    },
+    MoveMarks {
+        marks: Vec<SequenceMarkRef>,
+        time_delta_seconds: f64,
     },
 }
 
@@ -298,26 +260,9 @@ pub enum CompositionGuiEdit {
         x: f32,
         y: f32,
     },
-    RenameLayer {
-        id: u32,
-        name: String,
-    },
-    RenameGraphNode {
-        node_id: String,
-        name: String,
-    },
-    SetLayerColor {
-        id: u32,
-        color: String,
-    },
     SetLayerEnabled {
         id: u32,
         enabled: bool,
-    },
-    /// Empty text removes the description.
-    SetLayerDescription {
-        id: u32,
-        description: Option<String>,
     },
     AddGraphOperatorNode {
         initial_color: String,
@@ -381,13 +326,8 @@ pub struct SequencePasteAnchor {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceSelection {
-    Clips {
-        effect_ids: Vec<u32>,
-        automation_ids: Vec<u32>,
-    },
-    Marks {
-        marks: Vec<SequenceMarkRef>,
-    },
+    Clips { clips: Vec<SequenceClipRef> },
+    Marks { marks: Vec<SequenceMarkRef> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -412,57 +352,6 @@ pub enum SequenceEffectCommonEdit {
     Param {
         name: String,
         value: SequenceEffectParamValue,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceSelectionEdit {
-    Copy {
-        selection: SequenceSelection,
-    },
-    Cut {
-        selection: SequenceSelection,
-    },
-    Delete {
-        selection: SequenceSelection,
-    },
-    Paste {
-        anchor: SequencePasteAnchor,
-    },
-    MoveClips {
-        effect_ids: Vec<u32>,
-        automation_ids: Vec<u32>,
-        time_delta_seconds: f64,
-        /// The lane the move started on. Each clip moves from the lane of its
-        /// target nearest this one.
-        anchor_lane: u32,
-        lane_delta: i32,
-    },
-    ResizeClips {
-        effect_ids: Vec<u32>,
-        automation_ids: Vec<u32>,
-        edge: SequenceResizeEdge,
-        automation: SequenceAutomationResize,
-        time_delta_seconds: f64,
-    },
-    EditEffects {
-        effect_ids: Vec<u32>,
-        edit: SequenceEffectCommonEdit,
-    },
-    /// Retime the selected clips together; the selection stays the same.
-    ArrangeClips {
-        effect_ids: Vec<u32>,
-        automation_ids: Vec<u32>,
-        arrangement: SequenceClipArrangement,
-    },
-    MoveMarks {
-        marks: Vec<SequenceMarkRef>,
-        time_delta_seconds: f64,
     },
 }
 
@@ -602,7 +491,6 @@ pub struct SequenceGradientValue {
 pub enum SequenceLibrarySource {
     Inline,
     Library {
-        module_id: String,
         path: String,
         object_key: String,
         display_name: String,
@@ -610,17 +498,10 @@ pub enum SequenceLibrarySource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceGraphOperator {
-    Custom {
-        module_id: String,
-        path: String,
-        object_key: String,
-    },
+#[serde(rename_all = "camelCase")]
+pub struct SequenceGraphOperator {
+    pub path: String,
+    pub object_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -684,17 +565,10 @@ pub enum SequenceAutomationResize {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceEffectReference {
-    Custom {
-        module_id: String,
-        path: String,
-        effect_name: String,
-    },
+#[serde(rename_all = "camelCase")]
+pub struct SequenceEffectReference {
+    pub path: String,
+    pub effect_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]

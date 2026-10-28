@@ -3,7 +3,7 @@ use crate::common;
 use camino::Utf8PathBuf;
 use donder_language::data::{DataField, DataValue, Spanned};
 use donder_project_io::{
-    PROJECT_ROOT_FILE, SourceDocumentFormat, check_project_with_overrides, project_source_texts,
+    PROJECT_ROOT_FILE, SourceDocumentFormat, check_project, project_source_texts,
     source_document_format,
 };
 use std::collections::BTreeSet;
@@ -21,7 +21,7 @@ fn operator_names_require_project_definitions_and_explicit_imports() {
         path.clone(),
         source.replace("operator: operators.Afterglow", "operator: max"),
     );
-    let report = check_project_with_overrides(&root, &overrides);
+    let report = check_project(&root, &overrides, &mut Default::default());
     assert!(report.session.is_none(), "unimported operator max resolved");
     assert!(!report.diagnostics.is_empty());
     assert_eq!(original, project_source_texts(&root).unwrap());
@@ -90,7 +90,7 @@ fn every_starter_record_type_rejects_extra_fields_at_the_source_location() {
             let character = (at - text[..at].rfind('\n').map_or(0, |index| index + 1)) as u32;
             let mut overrides = original.clone();
             overrides.insert(path.clone(), text);
-            let report = check_project_with_overrides(&root, &overrides);
+            let report = check_project(&root, &overrides, &mut Default::default());
             assert!(report.session.is_none(), "accepted {path}: {ty}");
             let diagnostic = report
                 .diagnostics
@@ -200,7 +200,7 @@ fn assert_rejected(edits: &[(&str, &str, &str)]) {
         assert!(original[&path].contains(before), "{before}");
         let mut overrides = original.clone();
         overrides.insert(path.clone(), original[&path].replace(before, after));
-        let report = check_project_with_overrides(&root, &overrides);
+        let report = check_project(&root, &overrides, &mut Default::default());
         assert!(report.session.is_none(), "{after}");
         assert!(
             report
@@ -226,7 +226,7 @@ fn misspelled_params_cannot_load_as_defaults() {
     let path = Utf8PathBuf::from(PROJECT_ROOT_FILE);
     let text = overrides[&path].replace("params: { level: 0.5 }", "params: {}");
     overrides.insert(path, text);
-    let report = check_project_with_overrides(&root, &overrides);
+    let report = check_project(&root, &overrides, &mut Default::default());
     assert!(report.session.is_some(), "{:?}", report.diagnostics);
 }
 
@@ -275,9 +275,13 @@ fn layout_groups_share_members_and_reject_unknown_repeated_cyclic_or_orphaned_it
     let mut overrides = project_source_texts(&root).unwrap();
     let text = overrides[&path].replace("  root: [pixel],\n  items: [\n", shared);
     overrides.insert(path, text);
-    let report = check_project_with_overrides(&root, &overrides);
+    let report = check_project(&root, &overrides, &mut Default::default());
     let session = report.session.expect("shared members load");
-    let layout = session.project.layouts().next().unwrap();
+    let layout = session
+        .project
+        .objects::<donder_model::Layout>()
+        .next()
+        .unwrap();
     let id = |name: &str| {
         layout
             .iter_fixtures()

@@ -26,13 +26,12 @@ pub use playback_rate::{FrameTiming, PlaybackRate};
 pub use show::{FORMAT_VERSION, LoadError, Show, header_bytes, image_len};
 pub use workspace::{LIVE_MARK_CAPACITY, Layout};
 
-pub use donder_runtime_types::image::{Fixture, Output};
+pub use crate::image::{Fixture, Output};
 
 #[cfg(feature = "host")]
 pub use host::{
-    ClipSampler, EffectHandle, FixtureHandle, LookupHandle, OutputHandle, PreparedRig,
-    PreparedSequence, RigPlayback, SequenceBuilder, SequenceClip, SequencePlayback, SequenceRoot,
-    SignalHandle, TargetHandle, VoiceLength, WindowHandle,
+    ClipSampler, EffectHandle, OutputHandle, PreparedShow, SequenceClip, ShowBuilder, ShowPlayback,
+    SignalHandle, TargetHandle,
 };
 
 use donder_runtime_types::sampling;
@@ -42,6 +41,10 @@ mod dsl;
 mod evaluation;
 #[cfg(feature = "host")]
 mod host;
+// The image format is written by the host builder; a player alone reads only
+// part of it.
+#[cfg_attr(not(feature = "host"), allow(dead_code))]
+mod image;
 mod patch;
 mod playback;
 mod playback_rate;

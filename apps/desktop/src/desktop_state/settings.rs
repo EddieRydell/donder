@@ -1,4 +1,4 @@
-use donder_sequence_api::{AppSettings, KeyBinding, WorkspaceLayoutState};
+use donder_editor::dto::{AppSettings, KeyBinding, WorkspaceLayoutState};
 
 pub(crate) fn sanitize_workspace_layout(state: WorkspaceLayoutState) -> WorkspaceLayoutState {
     WorkspaceLayoutState {

@@ -5,21 +5,25 @@
 
 use std::collections::HashMap;
 
+mod router;
+
 use super::{DesktopState, lock_unpoisoned};
 use crate::midi::{MidiInputs, MidiMessage};
 use crate::osc::{OscInputs, OscMessage};
 use crate::rendering::{RigOutput, SessionClock};
-use donder_elaboration::{PreparationCache, PrepareOutputs, RigRouter};
-use donder_model::{
-    ButtonInput, ControllerId, DialInput, DonderProject, InputControlKind, InputDevice,
-    InputDriver, KeyCode, KeyRange, OscAddress, RigId,
-};
-use donder_runtime::PreparedRig;
-use donder_runtime_types::{RigEvent, SampleTime, sample_time_seconds_f32};
-use donder_sequence_api::{
+use donder_editor::dto::{
     AudioTransportState, LiveOutputState, PerformButton, PerformMidi, PerformOsc, PerformRig,
     PerformSession, PerformSnapshot, PerformSwitch,
 };
+use donder_elaboration::{PreparationCache, PrepareOutputs};
+use donder_model::{
+    ButtonInput, ControllerId, DialInput, InputControlKind, InputDevice, InputDriver, KeyCode,
+    KeyRange, OscAddress, RigId,
+};
+use donder_project_io::ProjectSession;
+use donder_runtime::PreparedShow;
+use donder_runtime_types::{RigEvent, SampleTime, sample_time_seconds_f32};
+use router::RigRouter;
 
 #[derive(Default)]
 pub(crate) struct PerformService {
@@ -180,7 +184,7 @@ struct Performance {
     generation: u32,
     rig: PerformRig,
     clock: SessionClock,
-    prepared: PreparedRig,
+    prepared: PreparedShow,
     /// The prepared rig, encoded once for the Preview.
     archive: Vec<u8>,
     fixtures: Vec<(u32, usize)>,
@@ -270,7 +274,7 @@ impl DesktopState {
     pub(crate) fn perform_snapshot(&self) -> PerformSnapshot {
         let rigs = self
             .project_session()
-            .map(|session| project_rigs(&session.project))
+            .map(|session| project_rigs(&session))
             .unwrap_or_default();
         let perform = lock_unpoisoned(&self.perform);
         PerformSnapshot {
@@ -303,13 +307,9 @@ impl DesktopState {
             .rigs
             .get(rig as usize)
             .ok_or("The rig is no longer in the project.")?;
-        let rig_id = source.id().clone();
-        let described = PerformRig {
-            index: rig,
-            name: rig_id.0.declared_name().to_string(),
-            path: rig_id.0.document().to_string(),
-        };
-        check_armable(project, &rig_id, &described.name)?;
+        let rig_id = *source.id();
+        let described = perform_rig(&session, rig, rig_id)?;
+        check_armable(&session, &rig_id, &described.name)?;
         // Output that is on plays the new performance in place of what it played.
         let live = matches!(
             lock_unpoisoned(&self.live_output).snapshot().state,
@@ -335,16 +335,24 @@ impl DesktopState {
                     described.name
                 )
             })?;
+            let router = RigRouter::new(
+                project,
+                project
+                    .get::<donder_model::Rig>(rig_id)
+                    .ok_or("The rig is no longer in the project.")?,
+                &armed,
+            )
+            .ok_or("An input control of the rig is missing.")?;
             let setup = project
-                .setup(project.root().setup.id())
+                .get::<donder_model::Setup>(*project.root().setup.id())
                 .ok_or("The active setup is missing.")?;
             let mut keys: HashMap<KeyCode, Vec<usize>> = HashMap::new();
             let mut midi = Vec::new();
             let mut osc = Vec::new();
-            let mut buttons = Vec::with_capacity(armed.inputs.len());
-            for (index, button) in armed.inputs.iter().enumerate() {
+            let mut buttons = Vec::with_capacity(router.inputs().len());
+            for (index, button) in router.inputs().iter().enumerate() {
                 let device = project
-                    .input_device(&button.device)
+                    .get::<donder_model::InputDevice>(button.device)
                     .ok_or("An input device of the rig is missing.")?;
                 let control = device
                     .controls
@@ -352,7 +360,7 @@ impl DesktopState {
                     .find(|control| control.id == button.control)
                     .ok_or("A button of the rig is missing.")?;
                 buttons.push(PerformButton {
-                    device: device.id.0.declared_name().to_string(),
+                    device: declared_name(&session, device.id)?,
                     control: control.name.as_str().to_string(),
                 });
                 // Every control of the setup with this key, note or pedal plays.
@@ -429,19 +437,19 @@ impl DesktopState {
                     }
                 })
             });
-            let sequence = armed.prepared.sequence();
+            let prepared = armed.prepared;
             let performance = Performance {
                 generation,
                 rig: described,
-                clock: SessionClock::start(sequence.duration()),
-                archive: armed.prepared.encode(),
-                fixtures: sequence
+                clock: SessionClock::start(prepared.duration()),
+                archive: prepared.encode(),
+                fixtures: prepared
                     .fixtures()
                     .iter()
                     .map(|fixture| (fixture.id, fixture.pixel_count as usize))
                     .collect(),
-                prepared: armed.prepared,
-                router: armed.router,
+                prepared,
+                router,
                 buttons: buttons.into(),
                 keys,
                 midi,
@@ -451,7 +459,7 @@ impl DesktopState {
                 osc,
                 osc_inputs,
                 switches: project
-                    .rig(&rig_id)
+                    .get::<donder_model::Rig>(rig_id)
                     .ok_or("The rig is no longer in the project.")?
                     .switches
                     .iter()
@@ -748,27 +756,51 @@ impl DesktopState {
     }
 }
 
-fn project_rigs(project: &DonderProject) -> Vec<PerformRig> {
-    project
+fn project_rigs(session: &ProjectSession) -> Vec<PerformRig> {
+    session
+        .project
         .root()
         .rigs
         .iter()
-        .enumerate()
-        .map(|(index, source)| PerformRig {
-            index: index as u32,
-            name: source.id().0.declared_name().to_string(),
-            path: source.id().0.document().to_string(),
+        .zip(0..)
+        .map(|(source, index)| {
+            perform_rig(session, index, *source.id())
+                .unwrap_or_else(|_| unreachable!("every rig of a session has an address"))
         })
         .collect()
 }
 
+/// The project's `index`th rig as Perform names it.
+fn perform_rig(session: &ProjectSession, index: u32, rig: RigId) -> Result<PerformRig, String> {
+    let address = session
+        .address_of(rig.into())
+        .ok_or("The rig is missing from the source inventory.")?;
+    Ok(PerformRig {
+        index,
+        name: address.declared_name().to_string(),
+        path: address.document().to_string(),
+    })
+}
+
+/// The name an object is declared or owned under.
+fn declared_name(
+    session: &ProjectSession,
+    id: impl Into<donder_model::ObjectId>,
+) -> Result<String, String> {
+    session
+        .address_of(id.into())
+        .map(|address| address.declared_name().to_string())
+        .ok_or_else(|| "An object is missing from the source inventory.".to_string())
+}
+
 /// Explain why `rig` cannot play on the active setup, before preparing it.
-fn check_armable(project: &DonderProject, rig: &RigId, name: &str) -> Result<(), String> {
+fn check_armable(session: &ProjectSession, rig: &RigId, name: &str) -> Result<(), String> {
+    let project = &session.project;
     let rig = project
-        .rig(rig)
+        .get::<donder_model::Rig>(*rig)
         .ok_or("The rig is no longer in the project.")?;
     let setup = project
-        .setup(project.root().setup.id())
+        .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or("The active setup is missing.")?;
     let layout = setup.layout.id();
     if rig.effects().any(|effect| &effect.target.layout != layout) {
@@ -784,7 +816,7 @@ fn check_armable(project: &DonderProject, rig: &RigId, name: &str) -> Result<(),
     }) {
         return Err(format!(
             "Rig {name} plays from input device {}, which the active setup does not list.",
-            input.device.0.declared_name()
+            declared_name(session, input.device)?
         ));
     }
     Ok(())

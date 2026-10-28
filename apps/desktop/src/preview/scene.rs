@@ -110,7 +110,7 @@ pub(crate) struct PreviewStyle {
 
 impl PreviewStyle {
     pub(crate) fn from_appearance(
-        appearance: donder_sequence_api::PreviewAppearance,
+        appearance: donder_editor::dto::PreviewAppearance,
     ) -> Result<Self, String> {
         Self {
             background_rgb: appearance.background_rgb,

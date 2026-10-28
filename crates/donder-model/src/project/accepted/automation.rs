@@ -1,6 +1,6 @@
 //! Resolve authored automation to declaration slots during project admission.
 use crate::sequence::{AutomationTarget, Sequence};
-use crate::validation::ProjectValidationError;
+use crate::validation::{AdmissionProblem, ValidationProblem};
 use donder_language::compiler::ParamDecl;
 use donder_runtime_types::{AutomatedQuantity, PreparedAutomation};
 use donder_runtime_types::{SampleDuration, SampleTime};
@@ -12,7 +12,7 @@ pub(super) fn admit(
     sequence: &Sequence,
     params: &[ParamDecl],
     target: impl Fn(&AutomationTarget) -> bool,
-) -> Result<Box<[PreparedAutomation]>, ProjectValidationError> {
+) -> Result<Box<[PreparedAutomation]>, ValidationProblem> {
     let mut targets = Vec::new();
     for binding in sequence
         .automation_clips
@@ -39,14 +39,15 @@ pub(super) fn admit(
                         params[index].automation_mapping()?,
                     ))
                 })
-                .ok_or_else(|| {
-                    ProjectValidationError::InvalidRelationship(
-                        "Unknown automation parameter".into(),
-                    )
-                })?;
-            let envelope = sequence.automation_envelope(target).ok_or_else(|| {
-                ProjectValidationError::InvalidRelationship("Automation target has no clip".into())
-            })?;
+                .ok_or(ValidationProblem::Admission(
+                    AdmissionProblem::UnknownAutomationParam,
+                ))?;
+            let envelope =
+                sequence
+                    .automation_envelope(target)
+                    .ok_or(ValidationProblem::Admission(
+                        AdmissionProblem::AutomationWithoutClip,
+                    ))?;
             let mut curve = envelope.curve;
             curve
                 .points

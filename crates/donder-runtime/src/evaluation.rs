@@ -12,12 +12,12 @@ use crate::dsl::{
     Bound, Invocation, OUTSIDE, Override, Pixels, RunContext, STRIP, ScanQuery, Scratch,
     SourceWeights, Strip, StripSignals, StripWorkspace, invocation_params,
 };
+use crate::image::{self, NONE};
 use crate::resources::{LiveView, ParamsView};
 use crate::sections::SectionsView;
 use crate::show::Show;
 use crate::targets::{PreparedPixel, TargetCursor, TargetView};
 use crate::workspace::{CachedEffectSample, RigState, Timing, Workspace};
-use donder_runtime_types::image::{self, NONE};
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 /// One effect at one time, sampled over any selection of pixel coordinates.

@@ -232,7 +232,6 @@ import rigs from <rigs/jam.data.donder>;
 
 Project starter {
   format: 1,
-  id: "00000000-0000-4000-8000-000000000001",
   description: none,
   setup: setups.main,
   sequences: [sequences.empty, sequences.layer_test],
@@ -243,15 +242,14 @@ Project starter {
 | Field | Type |
 | --- | --- |
 | `format` | integer, the current format marker |
-| `id` | string, the project's non-nil UUID |
 | `description` | `Option<string>` |
 | `setup` | a `Setup` reference or `Setup { ... }` |
 | `sequences` | `[Sequence reference or Sequence name { ... }]` |
 | `rigs` | `[Rig reference or Rig name { ... }]` |
 
 The root document `project.data.donder` holds exactly one `Project`, which no
-other document may declare. Its `format` and `id` establish document and object
-identity before imports resolve. The root document cannot be moved, renamed or
+other document may declare. Its `format` marks the current
+project format. The root document cannot be moved, renamed or
 deleted, and there is no other manifest, lockfile or asset inventory.
 
 New projects start as a single `project.data.donder` with an owned setup, an
@@ -534,7 +532,7 @@ Sequence layer_test {
 - `AutomationClip`: `row` (the fixture or group whose automation row holds it),
   `start`, `duration`, `curve`, `bindings` and `detached`. A binding is
   `ClipParam { clip, param }` or `NodeParam { node, param }`; a detached binding
-  is `Detached { binding, reason }` with `reason` `DefinitionChanged`. Deleting
+  is `Detached { binding }`. Deleting
   a bound clip or node removes its bindings; a clip may be bound to nothing.
 
 Layers produce signals, operators combine and transform them, and the single
@@ -554,7 +552,7 @@ into one envelope. Before the first clip the parameter holds that clip's first
 value, and in a gap it holds the value the previous clip ended on, so splitting
 a clip leaves playback unchanged. When the GUI deletes a bound clip or operator, or
 replaces its definition so a parameter no longer fits, the binding moves to
-`detached` with that reason, so it can be reattached rather than silently lost.
+`detached`, so it can be reattached rather than silently lost.
 
 In the editor:
 

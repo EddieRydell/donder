@@ -116,8 +116,8 @@ impl OutputTransports {
         for id in active {
             let definition = controllers
                 .get(id)
-                .ok_or_else(|| OutputError::MissingController(id.clone()))?;
-            senders.insert(id.clone(), ControllerSender::open(id.clone(), definition)?);
+                .ok_or(OutputError::MissingController(*id))?;
+            senders.insert(*id, ControllerSender::open(*id, definition)?);
         }
         Ok(Self { senders })
     }

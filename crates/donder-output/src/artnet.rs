@@ -56,13 +56,13 @@ impl ArtNetSender {
                 self.ports
                     .get(&frame.port)
                     .copied()
-                    .ok_or_else(|| OutputError::MissingPort {
-                        controller: self.id.clone(),
+                    .ok_or(OutputError::MissingPort {
+                        controller: self.id,
                         port: frame.port,
                     })?;
             if frame.slots.len() != expected {
                 return Err(OutputError::InvalidFrameLength {
-                    controller: self.id.clone(),
+                    controller: self.id,
                     expected,
                     actual: frame.slots.len(),
                 });
@@ -95,7 +95,7 @@ impl ArtNetSender {
             .ports
             .iter()
             .map(|(port, (_, slots))| ControllerPortFrame {
-                controller: self.id.clone(),
+                controller: self.id,
                 port: *port,
                 slots: vec![0; *slots],
             })
@@ -106,13 +106,13 @@ impl ArtNetSender {
 
 fn socket_error(id: &ControllerId, error: impl std::fmt::Display) -> OutputError {
     OutputError::Socket {
-        controller: id.clone(),
+        controller: *id,
         message: error.to_string(),
     }
 }
 fn codec_error(id: &ControllerId, error: impl std::fmt::Debug) -> OutputError {
     OutputError::Codec {
-        controller: id.clone(),
+        controller: *id,
         message: format!("{error:?}"),
     }
 }
@@ -124,8 +124,6 @@ mod tests {
 
     use artnet_protocol::ArtCommand;
     use donder_model::{ArtNetMode, ControllerPort, ControllerPortAddress};
-    use donder_model::{DocumentId, SourceIdentity};
-    use uuid::Uuid;
 
     use super::*;
 
@@ -136,13 +134,7 @@ mod tests {
             .set_read_timeout(Some(Duration::from_secs(1)))
             .unwrap();
         let destination = receiver.local_addr().unwrap();
-        let id = ControllerId(
-            SourceIdentity::from_document(
-                DocumentId::new(Uuid::new_v4(), "controller.donder".into()),
-                "artnet".to_string(),
-            )
-            .into(),
-        );
+        let id = ControllerId(0);
         let config = ArtNetConfig {
             bind_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             destination,
@@ -154,7 +146,7 @@ mod tests {
             address: ControllerPortAddress::ArtNetPort(0x1234),
             slot_count: 3,
         };
-        let mut sender = ArtNetSender::open(id.clone(), &config, &[port]).unwrap();
+        let mut sender = ArtNetSender::open(id, &config, &[port]).unwrap();
         let frame = ControllerPortFrame {
             controller: id,
             port: ControllerPortId(1),

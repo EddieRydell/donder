@@ -1,7 +1,5 @@
 //! Array literals and array parameters: indexing, measuring and conversions.
-use super::evaluation::{
-    SampleEvaluation, bind, compile_effect, effect, one_pixel, runtime_effect,
-};
+use super::evaluation::{SampleEvaluation, bind, compile, effect, one_pixel, runtime_effect};
 use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
@@ -21,13 +19,13 @@ fn red(red: u8) -> Color {
 
 #[test]
 fn selecting_array_items_keeps_integer_to_float_conversion() {
-    let array = compile_effect(
+    let array = compile(
         "effect Array { param index: int in 0..1 = 0; sample {
             let values = [progress, pixel.index + 1];
             rgb(values[1], values[index], [pixel.index + 1, 2][0] * 1.0)
         } }",
     );
-    let scalar = compile_effect(
+    let scalar = compile(
         "effect Scalar { param index: int in 0..1 = 0; sample {
             let selected = if index == 1 { pixel.index + 1.0 } else { progress };
             rgb(pixel.index + 1, selected, pixel.index + 1)
@@ -36,9 +34,9 @@ fn selecting_array_items_keeps_integer_to_float_conversion() {
     let mut workspace = StripWorkspace::default();
     for index in [0, 1] {
         let params = [("index", Value::Int(index))];
-        let expected = playback::lower_sample(&bind(&scalar, &params));
+        let expected = playback::lower(&bind(&scalar, &params));
         for actual in [
-            playback::lower_sample(&bind(&array, &params)),
+            playback::lower(&bind(&array, &params)),
             runtime_effect(&array, &[], &params),
         ] {
             for progress in [0.0, 0.25, 0.75, 1.0] {
@@ -55,7 +53,7 @@ fn selecting_array_items_keeps_integer_to_float_conversion() {
 #[test]
 fn curve_items_sample_at_integer_and_float_positions() {
     use donder_runtime_types::{Curve, CurvePoint};
-    let effect = compile_effect(
+    let effect = compile(
         "effect Indexed {
             param shapes: array<curve> in 0.0..1.0;
             param integer: int in -2147483648..2147483647 = 0;
@@ -188,7 +186,7 @@ fn indices_clamp_and_empty_arrays_produce_defaults() {
             "{index}"
         );
     }
-    let empty = compile_effect(
+    let empty = compile(
         "effect Empty {
             param values: array<float>;
             param colors: array<color>;
@@ -199,7 +197,7 @@ fn indices_clamp_and_empty_arrays_produce_defaults() {
             }
         }",
     );
-    let invocation = playback::lower_sample(&bind(
+    let invocation = playback::lower(&bind(
         &empty,
         &[
             ("values", Value::Array(vec![].into())),
@@ -230,13 +228,13 @@ fn dynamic_selection_preserves_typed_values() {
             "rgb([0.25, progress, 0.75][pixel.index] + offsets[pixel.index] - 0.5, 0.0, 0.0)",
         ),
     ] {
-        let effect = compile_effect(&format!("effect Select {{ {params} sample {{ {body} }} }}"));
+        let effect = compile(&format!("effect Select {{ {params} sample {{ {body} }} }}"));
         let values: Vec<(&str, Value)> = if params.is_empty() {
             vec![]
         } else {
             vec![("offsets", Value::Array(vec![Value::Float(0.5); 3].into()))]
         };
-        let effect = playback::lower_sample(&bind(&effect, &values));
+        let effect = playback::lower(&bind(&effect, &values));
         let mut workspace = StripWorkspace::default();
         for progress in [0.0, 0.5, 1.0, 0.0] {
             for (pixel, expected) in [64, (progress * 255.0_f32).round() as u8, 191]

@@ -427,6 +427,12 @@ firmware of its date.
   been 21 iterations of row code per pixel, over half of interpreter time).
   Stanford `main` on the Dig-Quad: 4.67 ms mean (4.61 at format 70), matching
   checksums; `.rwtext` 74.4 KB. Criterion against format 70: within ±5%.
+- **October 27, 2026 (format 72):** one program type and one prepared show for
+  sequences and rigs; the builder writes equal programs and gamma tables once,
+  and the unread parameter-descriptor section is gone. Host Criterion, pinned:
+  `prepare_large_show_warm` 20.4 ms to 15.7 ms and `prepare_large_show_cold`
+  4% faster; playback benchmarks within noise (rerun: dense controller output
+  +2%, large show +1.2%), checksums unchanged. Device not remeasured.
 
 ## Measuring
 

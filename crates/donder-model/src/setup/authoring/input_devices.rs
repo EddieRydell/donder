@@ -1,26 +1,30 @@
+use crate::identity::ObjectKind;
 use crate::input_device::InputDeviceId;
-use crate::ownership::ValueSource;
+use crate::ownership::MemberSource;
 use crate::project::DonderProject;
+use crate::project::EditRejection;
 use crate::setup::SetupId;
 
 pub fn attach_input_device(
     project: &mut DonderProject,
     setup_id: &SetupId,
     device: InputDeviceId,
-) -> Result<(), String> {
+) -> Result<(), crate::EditError> {
     project.checked_edit(|project| {
         if !project.input_devices.contains_key(&device) {
-            return Err("Input device was not found.".into());
+            return Err(EditRejection::Missing(ObjectKind::InputDevice));
         }
-        let setup = project.setup_mut(setup_id).ok_or("Setup was not found.")?;
+        let setup = project
+            .find_mut::<crate::Setup>(*setup_id)
+            .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
         if setup
             .input_devices
             .iter()
             .any(|source| source.id() == &device)
         {
-            return Err("This input device is already in the setup.".into());
+            return Err(EditRejection::AlreadyInSetup(ObjectKind::InputDevice));
         }
-        setup.input_devices.push(ValueSource::Reference(device));
+        setup.input_devices.push(MemberSource::Reference(device));
         Ok(())
     })
 }
@@ -31,13 +35,15 @@ pub fn detach_input_device(
     project: &mut DonderProject,
     setup_id: &SetupId,
     device: &InputDeviceId,
-) -> Result<(), String> {
+) -> Result<(), crate::EditError> {
     project.checked_edit(|project| {
-        let setup = project.setup_mut(setup_id).ok_or("Setup was not found.")?;
+        let setup = project
+            .find_mut::<crate::Setup>(*setup_id)
+            .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
         let count = setup.input_devices.len();
         setup.input_devices.retain(|source| source.id() != device);
         if setup.input_devices.len() == count {
-            return Err("Choose an input device in this setup.".into());
+            return Err(EditRejection::NotInSetup(ObjectKind::InputDevice));
         }
         Ok(())
     })

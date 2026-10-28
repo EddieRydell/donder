@@ -13,7 +13,8 @@ donder-language.workspace = true
 donder-model.workspace = true
 donder-runtime-types.workspace = true
 indexmap.workspace = true
-uuid.workspace = true
+serde.workspace = true
+specta = { workspace = true, features = ["camino"] }
 tempfile.workspace = true
 
 [dev-dependencies]

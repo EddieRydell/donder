@@ -1,5 +1,5 @@
 use super::evaluation::{
-    OperatorEvaluation, SampleEvaluation, SignalSampler, bind, compile_effect, one_pixel,
+    OperatorEvaluation, SampleEvaluation, SignalSampler, bind, compile, one_pixel,
 };
 use super::playback;
 use super::std;
@@ -12,7 +12,7 @@ const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::Spat
 
 use super::evaluation::RuntimeError;
 use super::evaluation::StripWorkspace;
-use donder_language::compiler::{compile_effects, compile_operators};
+use donder_language::compiler::compile_script;
 use donder_runtime_types::Color;
 use donder_runtime_types::Value;
 use donder_runtime_types::bytecode::SignalPixel;
@@ -37,18 +37,18 @@ fn hsv_intrinsics_require_exactly_one_color() {
     for name in ["hue", "saturation", "intensity"] {
         for args in ["", "0.5", "true", "#ffffff, #000000"] {
             let source = format!("effect Invalid {{ sample {{ rgb({name}({args}), 0.0, 0.0) }} }}");
-            assert!(compile_effects(&source).is_err(), "{source}");
+            assert!(compile_script(&source).is_err(), "{source}");
         }
     }
 }
 
 #[test]
 fn hsv_components_of_colors_execute_and_fold_alike() {
-    let fixed = compile_effect(
+    let fixed = compile(
         "effect Components { param c: color = #000000; sample { rgb(hue(c), saturation(c), intensity(c)) } }",
     );
     // A color selected per pixel is left to the VM.
-    let selected = compile_effect(
+    let selected = compile(
         "effect Components { param cs: array<color>; sample {
             let c = cs[pixel.index];
             rgb(hue(c), saturation(c), intensity(c))
@@ -67,8 +67,8 @@ fn hsv_components_of_colors_execute_and_fold_alike() {
         ([0, 0, 0], [0, 0, 0]),
     ] {
         let value = Value::Color(color(input));
-        let fixed = playback::lower_sample(&bind(&fixed, &[("c", value.clone())]));
-        let selected = playback::lower_sample(&bind(
+        let fixed = playback::lower(&bind(&fixed, &[("c", value.clone())]));
+        let selected = playback::lower(&bind(
             &selected,
             &[("cs", Value::Array(vec![value].into()))],
         ));
@@ -86,7 +86,7 @@ fn hsv_components_of_colors_execute_and_fold_alike() {
 
 #[test]
 fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
-    let operator = compile_operators(include_str!(
+    let operator = compile_script(include_str!(
         "../../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
@@ -107,10 +107,9 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
         ([17, 93, 201], 0.0, [17, 93, 201]),
         ([17, 93, 201], 1.0, [17, 93, 201]),
     ] {
-        let invocation =
-            playback::lower_operator(&bind(&operator, &[("shift", Value::Float(shift))]));
+        let invocation = playback::lower(&bind(&operator, &[("shift", Value::Float(shift))]));
         let actual = invocation
-            .evaluate(
+            .evaluate_signals(
                 &one_pixel(0.0),
                 &SPATIAL,
                 &mut ConstantSignal(color(input)),

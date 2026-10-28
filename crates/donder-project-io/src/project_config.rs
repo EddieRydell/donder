@@ -1,47 +1,38 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use std::{fs, io, io::Write};
-use uuid::Uuid;
 
 pub const PROJECT_ROOT_FILE: &str = "project.data.donder";
 pub const PROJECT_FORMAT_VERSION: u8 = 1;
 
-/// Workspace identity: the root `Project` declaration's `format` and `id`.
+/// The root `Project` declaration's `format`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectMetadata {
     pub format_version: u8,
-    pub project_id: Uuid,
 }
 
 impl Default for ProjectMetadata {
     fn default() -> Self {
         Self {
             format_version: PROJECT_FORMAT_VERSION,
-            project_id: Uuid::new_v4(),
         }
     }
 }
 
 impl ProjectMetadata {
-    pub fn read(root: &Utf8Path) -> Result<Self, crate::LoadProjectError> {
-        let path = root.join(PROJECT_ROOT_FILE);
-        let text = fs::read_to_string(&path).map_err(|source| crate::LoadProjectError::Io {
-            path: PROJECT_ROOT_FILE.into(),
-            source,
-        })?;
+    pub fn read(root: &Utf8Path) -> Result<Self, Vec<crate::IoDiagnostic>> {
+        let text = fs::read_to_string(root.join(PROJECT_ROOT_FILE))
+            .map_err(|source| crate::diagnostics::read_error(PROJECT_ROOT_FILE, &source))?;
         Self::parse(&text)
     }
 
-    pub fn parse(text: &str) -> Result<Self, crate::LoadProjectError> {
+    pub fn parse(text: &str) -> Result<Self, Vec<crate::IoDiagnostic>> {
         let path = Utf8Path::new(PROJECT_ROOT_FILE);
         let (document, diagnostics) = crate::document::read(text);
         if !diagnostics.is_empty() {
-            return Err(crate::LoadProjectError::InvalidData {
-                path: path.into(),
-                diagnostics: diagnostics
-                    .into_iter()
-                    .map(|diagnostic| crate::diagnostics::data_diagnostic(path, text, diagnostic))
-                    .collect(),
-            });
+            return Err(diagnostics
+                .into_iter()
+                .map(|diagnostic| crate::diagnostics::data_diagnostic(path, text, diagnostic))
+                .collect());
         }
         let (span, project) = document
             .declarations
@@ -50,22 +41,23 @@ impl ProjectMetadata {
                 crate::document::Declaration::Project(project) => Some((*span, project)),
                 _ => None,
             })
-            .ok_or_else(|| crate::LoadProjectError::InvalidDocument {
-                path: path.into(),
-                range: None,
-                message: format!("{PROJECT_ROOT_FILE} must declare a `Project`"),
+            .ok_or_else(|| {
+                crate::diagnostics::invalid_document(
+                    path,
+                    None,
+                    format!("{PROJECT_ROOT_FILE} must declare a `Project`"),
+                )
             })?;
-        let invalid = |message: String| crate::LoadProjectError::InvalidDocument {
-            path: path.into(),
-            range: Some(crate::diagnostics::byte_range(text, span.start, span.end)),
-            message,
-        };
         let metadata = Self {
             format_version: project.format,
-            project_id: Uuid::parse_str(&project.id)
-                .map_err(|error| invalid(format!("Invalid project id: {error}")))?,
         };
-        metadata.validate().map_err(invalid)?;
+        metadata.validate().map_err(|message| {
+            crate::diagnostics::invalid_document(
+                path,
+                Some(crate::diagnostics::byte_range(text, span.start, span.end)),
+                message,
+            )
+        })?;
         Ok(metadata)
     }
 
@@ -75,9 +67,6 @@ impl ProjectMetadata {
                 "Unsupported project format {}; expected {}",
                 self.format_version, PROJECT_FORMAT_VERSION
             ));
-        }
-        if self.project_id.is_nil() {
-            return Err("Project ID must not be nil".into());
         }
         Ok(())
     }

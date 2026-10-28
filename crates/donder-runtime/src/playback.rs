@@ -3,7 +3,7 @@
 //!
 //! Commands change only the workspace: a voice's start and duration, its
 //! layer's start order, live marks, and the controls' parameter values.
-use donder_runtime_types::image::{self, NONE};
+use crate::image::{self, NONE};
 use donder_runtime_types::{Color, MICROS_PER_SECOND, RigCommand, RigEvent, SampleTime, mul_div};
 
 use crate::dsl::set_value;

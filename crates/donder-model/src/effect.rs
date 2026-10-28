@@ -1,7 +1,7 @@
-use crate::identity::SourceIdentity;
+pub(crate) use crate::identity::{CurveId, EffectDefinitionId, GradientId};
 use crate::layout::FixtureTarget;
 use crate::sequence::{MarkCollectionKey, SequenceLayerId};
-use donder_language::compiler::{CompiledEffect, ParamDecl, ParamRange};
+use donder_language::compiler::{CompiledDefinition, ParamDecl, ParamRange};
 use donder_language::{DonderDuration, DonderTime};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::Type;
@@ -19,20 +19,12 @@ pub struct EffectInst {
     pub duration: DonderDuration,
     pub target: FixtureTarget,
     pub scope: EffectScope,
-    pub definition: EffectRef,
+    pub definition: EffectDefinitionId,
     pub param_overrides: IndexMap<Identifier, EffectParamValue>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct EffectInstId(pub u32);
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct EffectDefinitionId(pub SourceIdentity);
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum EffectRef {
-    Custom(EffectDefinitionId),
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EffectScope {
@@ -106,7 +98,7 @@ impl EffectParamValue {
             )?])),
             Type::Enum(options) => options.first().cloned().map(Self::Enum),
             Type::Marks => Some(Self::Marks(None)),
-            Type::Void | Type::Signal => None,
+            Type::Void => None,
         }
     }
 }
@@ -116,71 +108,30 @@ pub type GradientSource = crate::ownership::ValueSource<Gradient, GradientId>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectDefinition {
-    pub(crate) id: EffectRef,
-    pub source_name: String,
-    pub display_name: String,
-    pub(crate) params: Vec<ParamDecl>,
-    pub(crate) implementation: EffectImplementation,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum EffectImplementation {
-    Dsl(CompiledEffect),
+    pub(crate) id: EffectDefinitionId,
+    pub(crate) compiled: CompiledDefinition,
 }
 
 impl EffectDefinition {
-    pub fn id(&self) -> &EffectRef {
+    pub fn new(id: EffectDefinitionId, compiled: CompiledDefinition) -> Self {
+        Self { id, compiled }
+    }
+    pub fn id(&self) -> &EffectDefinitionId {
         &self.id
     }
-    pub fn params(&self) -> &[ParamDecl] {
-        &self.params
+    pub fn name(&self) -> &str {
+        self.compiled.name().as_str()
     }
-    pub fn implementation(&self) -> &EffectImplementation {
-        &self.implementation
+    pub fn params(&self) -> &[ParamDecl] {
+        self.compiled.params()
+    }
+    pub fn compiled(&self) -> &CompiledDefinition {
+        &self.compiled
     }
     pub fn description(&self) -> Option<&str> {
-        match &self.implementation {
-            EffectImplementation::Dsl(compiled) => compiled.description(),
-        }
-    }
-    pub fn custom(id: EffectDefinitionId, compiled: CompiledEffect) -> Self {
-        Self {
-            id: EffectRef::Custom(id),
-            source_name: compiled.name().as_str().to_string(),
-            display_name: compiled.name().as_str().to_string(),
-            params: compiled.params().to_vec(),
-            implementation: EffectImplementation::Dsl(compiled),
-        }
+        self.compiled.description()
     }
 }
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct EffectDefinitionStore {
-    pub definitions: IndexMap<EffectDefinitionId, EffectDefinition>,
-}
-
-impl EffectDefinitionStore {
-    pub fn get(&self, key: &EffectDefinitionId) -> Option<&EffectDefinition> {
-        self.definitions.get(key)
-    }
-
-    pub fn insert(
-        &mut self,
-        key: EffectDefinitionId,
-        definition: EffectDefinition,
-    ) -> Option<EffectDefinition> {
-        self.definitions.insert(key, definition)
-    }
-
-    pub fn resolve(&self, reference: &EffectRef) -> Option<&EffectDefinition> {
-        match reference {
-            EffectRef::Custom(id) => self.get(id),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct CurveId(pub SourceIdentity);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CurveDefinition {
@@ -188,45 +139,8 @@ pub struct CurveDefinition {
     pub curve: Curve,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct GradientId(pub SourceIdentity);
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct GradientDefinition {
     pub description: Option<String>,
     pub gradient: Gradient,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct CurveDefinitionStore {
-    pub definitions: IndexMap<CurveId, CurveDefinition>,
-}
-
-impl CurveDefinitionStore {
-    pub fn get(&self, key: &CurveId) -> Option<&CurveDefinition> {
-        self.definitions.get(key)
-    }
-
-    pub fn insert(&mut self, key: CurveId, curve: CurveDefinition) -> Option<CurveDefinition> {
-        self.definitions.insert(key, curve)
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct GradientDefinitionStore {
-    pub definitions: IndexMap<GradientId, GradientDefinition>,
-}
-
-impl GradientDefinitionStore {
-    pub fn get(&self, key: &GradientId) -> Option<&GradientDefinition> {
-        self.definitions.get(key)
-    }
-
-    pub fn insert(
-        &mut self,
-        key: GradientId,
-        gradient: GradientDefinition,
-    ) -> Option<GradientDefinition> {
-        self.definitions.insert(key, gradient)
-    }
 }

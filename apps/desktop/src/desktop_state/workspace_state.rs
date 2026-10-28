@@ -1,9 +1,10 @@
 use super::LoadedProject;
 use camino::Utf8PathBuf;
-use donder_sequence_api::{
+use donder_editor::dto::{
     AppSettings, AppSnapshot, AudioTransportSnapshot, DocumentDescriptor, DocumentSaveState,
-    DocumentSaveStatus, DonderDeviceStatus, EditorBuffer, EditorTab, LiveOutputSnapshot,
-    ProjectDiagnostic, ProjectHealth, WorkspaceEntry, WorkspaceExplorerState, WorkspaceLayoutState,
+    DocumentSaveStatus, DonderDeviceStatus, EditorBuffer, EditorTab, IoDiagnostic,
+    LiveOutputSnapshot, ProjectHealth, WorkspaceEntry, WorkspaceExplorerState,
+    WorkspaceLayoutState,
 };
 use std::collections::BTreeMap;
 
@@ -19,7 +20,7 @@ pub(super) struct WorkspaceView {
     pub project_entries: Vec<WorkspaceEntry>,
     pub active_file: Option<String>,
     pub active_document_descriptor: Option<DocumentDescriptor>,
-    pub diagnostics: Vec<ProjectDiagnostic>,
+    pub diagnostics: Vec<IoDiagnostic>,
     pub status: String,
     pub render_error: Option<String>,
     pub preview_error: Option<String>,
@@ -34,6 +35,36 @@ pub(super) struct WorkingDocument {
     pub observed: Option<Vec<u8>>,
 }
 
+/// The rendered sequence and the setup it renders on, by address: a text
+/// reload assigns new ids, so each session resolves them again.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct RenderTarget {
+    pub setup: donder_project_io::ObjectAddress,
+    pub sequence: donder_project_io::ObjectAddress,
+}
+
+impl RenderTarget {
+    pub fn new(
+        session: &donder_project_io::ProjectSession,
+        setup: donder_model::SetupId,
+        sequence: donder_model::SequenceId,
+    ) -> Option<Self> {
+        Some(Self {
+            setup: session.address_of(setup.into())?,
+            sequence: session.address_of(sequence.into())?,
+        })
+    }
+
+    pub fn resolve(
+        &self,
+        session: &donder_project_io::ProjectSession,
+    ) -> Option<(donder_model::SetupId, donder_model::SequenceId)> {
+        let setup = session.resolve_address(&self.setup)?.try_into().ok()?;
+        let sequence = session.resolve_address(&self.sequence)?.try_into().ok()?;
+        Some((setup, sequence))
+    }
+}
+
 pub(super) struct WorkspaceState {
     pub view: WorkspaceView,
     pub project: LoadedProject,
@@ -41,7 +72,7 @@ pub(super) struct WorkspaceState {
     pub tabs: Vec<Utf8PathBuf>,
     pub typed_revision: Option<u32>,
     pub close_authorization: Option<(u32, u32)>,
-    pub render_target: Option<(donder_model::SetupId, donder_model::SequenceId)>,
+    pub render_target: Option<RenderTarget>,
     /// Persistence key of the sequence the transport has loaded.
     pub transport_view_key: Option<String>,
 }

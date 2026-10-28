@@ -6,21 +6,11 @@ use super::encode::{
 use super::text_cache::DocumentTextCache;
 use super::{Declaration, write};
 use crate::ExportProjectError;
-use crate::source::{
-    ImportSource, ProjectSession, SourceDocument, SourceObjectId, SourceObjectKind,
-};
+use crate::address::{DeclaredObject, DocumentId};
+use crate::source::{ProjectSession, SourceDocument};
 use donder_language::data::NO_SPAN;
 use donder_language::data::{DataImport, Spanned};
-use donder_model::ControllerId;
-use donder_model::FixtureDefinitionId;
-use donder_model::InputDeviceId;
-use donder_model::LayoutId;
-use donder_model::PatchId;
-use donder_model::RigId;
-use donder_model::SequenceId;
-use donder_model::SetupId;
-use donder_model::{CurveId, GradientId};
-use donder_model::{DocumentId, SourceIdentity};
+use donder_model::ObjectId;
 use donder_runtime_types::Identifier;
 
 pub(crate) fn data_document_text(
@@ -30,8 +20,10 @@ pub(crate) fn data_document_text(
     cache: &mut DocumentTextCache,
 ) -> Result<String, ExportProjectError> {
     cache.begin(&session.project);
+    let addresses = session.addresses();
     let encoder = Encoder {
         session,
+        addresses: &addresses,
         document: document_id,
     };
     let imports = document
@@ -45,7 +37,7 @@ pub(crate) fn data_document_text(
                     message: "invalid import alias".to_string(),
                 }
             })?;
-            let ImportSource::LocalDocuments { documents } = import.source();
+            let documents = import.documents();
             Ok(DataImport {
                 alias: Spanned::new(alias, NO_SPAN),
                 paths: documents
@@ -59,9 +51,10 @@ pub(crate) fn data_document_text(
         .objects()
         .iter()
         .map(|object| {
-            let name = Identifier::new(object.id().to_string())
-                .map_err(|_| missing(document_id, object))?;
-            Ok((name, declaration(&encoder, document_id, object)?))
+            Ok((
+                object.name().clone(),
+                declaration(&encoder, document_id, object)?,
+            ))
         })
         .collect::<Result<Vec<_>, ExportProjectError>>()?;
     // A sequence's clips are printed one by one and reused while unchanged.
@@ -69,14 +62,15 @@ pub(crate) fn data_document_text(
         .objects()
         .iter()
         .enumerate()
-        .filter(|(_, object)| *object.kind() == SourceObjectKind::Sequence)
-        .map(|(index, object)| {
-            let identity =
-                SourceIdentity::from_document(document_id.clone(), object.id().to_string());
+        .filter_map(|(index, object)| match object.id() {
+            ObjectId::Sequence(id) => Some((index, object, id)),
+            _ => None,
+        })
+        .map(|(index, object, id)| {
             let sequence = session
                 .project
-                .reusable_sequences()
-                .get(&SequenceId(identity.into()))
+                .reusable::<donder_model::Sequence>()
+                .get(&id)
                 .ok_or_else(|| missing(document_id, object))?;
             Ok((index, cache.clips(&encoder, &imports, sequence)?))
         })
@@ -99,104 +93,95 @@ pub(crate) fn data_document_text(
     Ok(write(imports, &declarations, &splices))
 }
 
-fn missing(document: &DocumentId, object: &SourceObjectId) -> ExportProjectError {
+fn missing(document: &DocumentId, object: &DeclaredObject) -> ExportProjectError {
     crate::serialization::missing_typed_object(document, object)
 }
 
 fn declaration(
     encoder: &Encoder<'_>,
     document: &DocumentId,
-    object: &SourceObjectId,
+    object: &DeclaredObject,
 ) -> Result<Declaration, ExportProjectError> {
     let project = &encoder.session.project;
-    let identity = SourceIdentity::from_document(document.clone(), object.id().to_string());
     let missing = || missing(document, object);
-    Ok(match object.kind() {
-        SourceObjectKind::Project => Declaration::Project(encoder.project()?),
-        SourceObjectKind::Setup => Declaration::Setup(
+    Ok(match object.id() {
+        ObjectId::Project(_) => Declaration::Project(encoder.project()?),
+        ObjectId::Setup(id) => Declaration::Setup(
             encoder.setup(
                 project
-                    .reusable_setups()
-                    .get(&SetupId(identity.into()))
+                    .reusable::<donder_model::Setup>()
+                    .get(&id)
                     .ok_or_else(missing)?,
             )?,
         ),
-        SourceObjectKind::Controller => Declaration::Controller(controller_document(
+        ObjectId::Controller(id) => Declaration::Controller(controller_document(
             project
-                .reusable_controllers()
-                .get(&ControllerId(identity.into()))
+                .reusable::<donder_model::Controller>()
+                .get(&id)
                 .ok_or_else(missing)?,
         )),
-        SourceObjectKind::InputDevice => Declaration::InputDevice(input_device_document(
+        ObjectId::InputDevice(id) => Declaration::InputDevice(input_device_document(
             project
-                .reusable_input_devices()
-                .get(&InputDeviceId(identity.into()))
+                .reusable::<donder_model::InputDevice>()
+                .get(&id)
                 .ok_or_else(missing)?,
         )),
-        SourceObjectKind::Layout => Declaration::Layout(
+        ObjectId::Layout(id) => Declaration::Layout(
             encoder.layout(
                 project
-                    .reusable_layouts()
-                    .get(&LayoutId(identity.into()))
+                    .reusable::<donder_model::Layout>()
+                    .get(&id)
                     .ok_or_else(missing)?,
             )?,
         ),
-        SourceObjectKind::Patch => Declaration::Patch(
+        ObjectId::Patch(id) => Declaration::Patch(
             encoder.patch(
                 project
-                    .reusable_patches()
-                    .get(&PatchId(identity.into()))
+                    .reusable::<donder_model::Patch>()
+                    .get(&id)
                     .ok_or_else(missing)?,
             )?,
         ),
-        SourceObjectKind::FixtureDefinition => {
+        ObjectId::FixtureDefinition(id) => {
             Declaration::FixtureDefinition(fixture_definition_document(
                 project
-                    .definitions()
-                    .fixtures
-                    .definitions
-                    .get(&FixtureDefinitionId(identity))
+                    .reusable::<donder_model::FixtureDefinition>()
+                    .get(&id)
                     .ok_or_else(missing)?,
             ))
         }
-        SourceObjectKind::Sequence => Declaration::Sequence(
+        ObjectId::Sequence(id) => Declaration::Sequence(
             encoder.sequence(
                 project
-                    .reusable_sequences()
-                    .get(&SequenceId(identity.into()))
+                    .reusable::<donder_model::Sequence>()
+                    .get(&id)
                     .ok_or_else(missing)?,
             )?,
         ),
-        SourceObjectKind::Rig => Declaration::Rig(
+        ObjectId::Rig(id) => Declaration::Rig(
             encoder.rig(
                 project
-                    .reusable_rigs()
-                    .get(&RigId(identity.into()))
+                    .reusable::<donder_model::Rig>()
+                    .get(&id)
                     .ok_or_else(missing)?,
             )?,
         ),
-        SourceObjectKind::Curve => Declaration::Curve(curve_document(
+        ObjectId::Curve(id) => Declaration::Curve(curve_document(
             project
-                .definitions()
-                .curves
-                .definitions
-                .get(&CurveId(identity))
+                .reusable::<donder_model::CurveDefinition>()
+                .get(&id)
                 .ok_or_else(missing)?,
         )),
-        SourceObjectKind::Gradient => Declaration::Gradient(gradient_document(
+        ObjectId::Gradient(id) => Declaration::Gradient(gradient_document(
             project
-                .definitions()
-                .gradients
-                .definitions
-                .get(&GradientId(identity))
+                .reusable::<donder_model::GradientDefinition>()
+                .get(&id)
                 .ok_or_else(missing)?,
         )),
-        SourceObjectKind::EffectDefinition
-        | SourceObjectKind::OperatorDefinition
-        | SourceObjectKind::EffectInstance => {
+        ObjectId::EffectDefinition(_) | ObjectId::OperatorDefinition(_) => {
             return Err(ExportProjectError::InvalidReference {
                 path: document.path().to_path_buf(),
-                reference: object.id().to_string(),
+                reference: object.name().as_str().to_string(),
                 message: "scripts are not data declarations".to_string(),
             });
         }

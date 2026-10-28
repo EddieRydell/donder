@@ -1,7 +1,7 @@
 use super::{DesktopState, lock_unpoisoned};
+use donder_editor::dto::{AppSnapshot, ControllerOutputTest, GuiDocumentRequest};
 use donder_model::ControllerId;
 use donder_output::ControllerPortFrame;
-use donder_sequence_api::{AppSnapshot, ControllerOutputTest, DocumentViewId, GuiDocumentRequest};
 
 impl DesktopState {
     pub(crate) fn start_output_test(
@@ -15,17 +15,15 @@ impl DesktopState {
                 "The project changed. Reopen the output test with the current setup.".into(),
             );
         }
-        if request.view != DocumentViewId::Controller {
-            return Err("Open a controller to test its outputs.".into());
-        }
         let session = self
             .project_session()
             .ok_or("Open a valid project to test outputs.")?;
         let resolved = donder_editor::resolve_request(&session, request)?;
-        let id = ControllerId(resolved.object_identity());
+        let id = ControllerId::try_from(resolved.object)
+            .map_err(|_| "Open a controller to test its outputs.")?;
         let mut controller = session
             .project
-            .controller(&id)
+            .get::<donder_model::Controller>(id)
             .ok_or("Controller is missing.")?
             .clone();
         let port = controller
@@ -42,16 +40,16 @@ impl DesktopState {
         slots[usize::from(test.start_slot)..end].fill(test.value);
         controller.ports = vec![port.clone()];
         let frame = ControllerPortFrame {
-            controller: id.clone(),
+            controller: id,
             port: port.id,
             slots,
         };
         let output = {
             let mut service = lock_unpoisoned(&self.live_output);
-            if service.snapshot().state == donder_sequence_api::LiveOutputState::Stopping {
+            if service.snapshot().state == donder_editor::dto::LiveOutputState::Stopping {
                 return Err("Wait for output to finish stopping before starting a test.".into());
             }
-            service.test(id.clone(), controller, frame)
+            service.test(id, controller, frame)
         };
         Ok(self.update_snapshot(|snapshot| snapshot.live_output = output))
     }
@@ -62,7 +60,7 @@ mod tests {
     use super::*;
     use crate::project::{new_test_project_files, write_new_project_files};
     use camino::Utf8PathBuf;
-    use donder_sequence_api::{
+    use donder_editor::dto::{
         GuiDocument, GuiEditCommand, LiveOutputState, SetupControllerConfig, SetupControllerPort,
         SetupGuiEdit,
     };
@@ -80,21 +78,18 @@ mod tests {
         write_new_project_files(&root, &new_test_project_files("Output test").unwrap()).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
-        let setup = state
+        let setup = *state.project_session().unwrap().project.root().setup.id();
+        let setup_address = state
             .project_session()
             .unwrap()
-            .project
-            .root()
-            .setup
-            .id()
-            .clone();
-        state.open_file_path(setup.0.document().as_str());
+            .address_of(setup.into())
+            .unwrap();
+        state.open_file_path(setup_address.document().as_str());
         let setup_request = || GuiDocumentRequest {
-            owned_path: setup.0.owned_path().iter().map(Into::into).collect(),
+            owned_path: setup_address.owned_path().iter().map(Into::into).collect(),
             project_revision: state.snapshot().project_revision,
-            path: setup.0.document().to_string(),
-            view: DocumentViewId::Setup,
-            object_key: Some(setup.0.root_source().object().into()),
+            path: setup_address.document().to_string(),
+            object_key: setup_address.root_source().object().into(),
         };
         let added = state.apply_gui_edit(
             setup_request(),
@@ -127,21 +122,28 @@ mod tests {
             "{:?}",
             added.document
         );
-        let controller = state
+        let controller = *state
             .project_session()
             .unwrap()
             .project
-            .setup(&setup)
+            .get::<donder_model::Setup>(setup)
             .unwrap()
             .controllers[0]
-            .id()
-            .clone();
+            .id();
+        let controller_address = state
+            .project_session()
+            .unwrap()
+            .address_of(controller.into())
+            .unwrap();
         let request = || GuiDocumentRequest {
-            owned_path: controller.0.owned_path().iter().map(Into::into).collect(),
+            owned_path: controller_address
+                .owned_path()
+                .iter()
+                .map(Into::into)
+                .collect(),
             project_revision: state.snapshot().project_revision,
-            path: controller.0.document().to_string(),
-            view: DocumentViewId::Controller,
-            object_key: Some(controller.0.root_source().object().into()),
+            path: controller_address.document().to_string(),
+            object_key: controller_address.root_source().object().into(),
         };
         let original = state.project_session().unwrap();
         let test = ControllerOutputTest {

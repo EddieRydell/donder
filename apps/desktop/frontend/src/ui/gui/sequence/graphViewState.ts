@@ -25,7 +25,7 @@ export function useGraphViewState(reference: GuiObjectRef) {
     });
     setView(state);
     scheduleViewStateSave(JSON.stringify(["graph", key]), async () => {
-      const snapshot = await commands.saveGraphViewState({ path, objectKey, ownedPath, state });
+      const snapshot = await commands.saveViewState({ type: "graph", state: { path, objectKey, ownedPath, state } });
       useAppStore.getState().setSnapshot(snapshot, "command");
     }, reportSequenceEditError);
   }, [commands, reportSequenceEditError, useAppStore, initial, key, objectKey, path, ownedPath]);

@@ -1,102 +1,136 @@
-//! Small prepared shows over one fixture.
-use donder_language::compiler::Invocation;
-use donder_language::compiler::ProgramConstants;
+//! Compiling, invoking and lowering definitions, and small prepared shows
+//! over one fixture.
 use donder_language::compiler::{
-    CompiledEffect, CompiledOperator, compile_effects, compile_operators,
+    CompiledDefinition, Instance, Invocation, ProgramConstants, compile_script,
 };
-use donder_runtime::PreparedSequence;
-use donder_runtime::SequenceBuilder;
-use donder_runtime::SequenceRoot;
-use donder_runtime::TargetHandle;
-use donder_runtime_types::Color;
-use donder_runtime_types::FixtureGeometry;
-use donder_runtime_types::OperatorInvocation;
-use donder_runtime_types::OutputEncoding;
-use donder_runtime_types::RgbOrder;
-use donder_runtime_types::SampleInvocation;
-use donder_runtime_types::SampleTime;
-use donder_runtime_types::SequenceTiming;
-use donder_runtime_types::TargetScope;
+use donder_runtime::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
+use donder_runtime_types::{
+    BindingError, BoundProgram, Color, FixtureGeometry, OutputEncoding, RgbOrder, SampleTime,
+    SequenceTiming, TargetGeometry, TargetScope, Value,
+};
 use std::num::NonZeroU32;
 
 pub const IDENTITY_SOURCE: &str = "operator Identity { input source; sample { source } }";
 
 pub fn timing(duration: u32) -> SequenceTiming {
-    SequenceTiming::admit(
+    SequenceTiming::new(
         NonZeroU32::new(120).unwrap(),
         NonZeroU32::new((u64::from(duration) * 120).div_ceil(1_000_000) as u32).unwrap(),
         NonZeroU32::new(duration).unwrap(),
-        Box::new([]),
     )
-    .unwrap()
 }
 
+/// A fixture of `count` pixels in a row, its first registered.
+pub fn row(count: usize) -> FixtureGeometry {
+    FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap()
+}
+
+/// The target of every pixel of the first registered fixture, `geometry`.
+pub fn whole<'id>(
+    builder: &mut ShowBuilder<'id>,
+    geometry: &FixtureGeometry,
+    scope: TargetScope,
+) -> TargetHandle<'id> {
+    builder.target(&TargetGeometry::new([(0, geometry)], scope))
+}
+
+/// A `count`-pixel fixture with a GRB port, built by `build`.
 pub fn build(
     count: usize,
     timing: SequenceTiming,
-    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
-) -> PreparedSequence {
-    PreparedSequence::build(timing, |builder| {
-        let fixture = builder.fixture(
-            0,
-            FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap(),
-        );
-        let target = builder.target([fixture], TargetScope::WholeTarget);
+    build: impl for<'id> FnOnce(&mut ShowBuilder<'id>, TargetHandle<'id>) -> Option<SignalHandle<'id>>,
+) -> PreparedShow {
+    PreparedShow::build(timing, |builder| {
+        let geometry = row(count);
+        builder.fixture(0, geometry.clone());
+        let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
         builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
         build(builder, target)
     })
 }
 
-/// The only declaration of an effect source.
-pub fn compile_effect(source: &str) -> CompiledEffect {
-    let mut effects = compile_effects(source).unwrap();
-    assert_eq!(effects.len(), 1);
-    effects.remove(0)
+/// The only declaration of `source`.
+pub fn compile(source: &str) -> CompiledDefinition {
+    let mut definitions = compile_script(source).unwrap();
+    assert_eq!(definitions.len(), 1);
+    definitions.remove(0)
 }
 
-/// The only declaration of an operator source.
-pub fn compile_operator(source: &str) -> CompiledOperator {
-    let mut operators = compile_operators(source).unwrap();
-    assert_eq!(operators.len(), 1);
-    operators.remove(0)
+/// The declaration of `source` named `name`.
+pub fn definition(source: &str, name: &str) -> CompiledDefinition {
+    compile_script(source)
+        .unwrap()
+        .into_iter()
+        .find(|definition| definition.name().as_str() == name)
+        .unwrap()
 }
 
-/// Lower an effect's invocation with nothing known about its placement, so
-/// the clip duration and pixel count remain context reads.
-pub fn lower_sample(invocation: &Invocation) -> SampleInvocation {
-    invocation.instance(ProgramConstants::default()).sample()
+/// `definition` with `values` by name and its declared defaults for the rest.
+pub fn invoke(definition: &CompiledDefinition, values: &[(&str, Value)]) -> Invocation {
+    try_invoke(definition, values).unwrap()
 }
 
-pub fn lower_operator(invocation: &Invocation) -> OperatorInvocation {
-    invocation.instance(ProgramConstants::default()).operator()
+/// [`invoke`], or why the values are rejected.
+pub fn try_invoke(
+    definition: &CompiledDefinition,
+    values: &[(&str, Value)],
+) -> Result<Invocation, BindingError> {
+    assert!(
+        values.iter().all(|(name, _)| definition
+            .params()
+            .iter()
+            .any(|param| param.name.as_str() == *name)),
+        "values name parameters: {values:?}"
+    );
+    let values = definition
+        .params()
+        .iter()
+        .map(|param| {
+            values
+                .iter()
+                .find(|(name, _)| *name == param.name.as_str())
+                .map_or_else(
+                    || param.default.clone().unwrap(),
+                    |(_, value)| value.clone(),
+                )
+        })
+        .collect();
+    definition.invoke(values, Box::new([]))
 }
 
-/// The effect with its declared defaults.
-pub fn sample(effect: &CompiledEffect) -> SampleInvocation {
-    lower_sample(&effect.bind(std::iter::empty()).unwrap())
+/// `instance` lowered and bound.
+pub fn bind(instance: &Instance) -> BoundProgram {
+    let lowered = instance.lower();
+    BoundProgram::bind(lowered.program, lowered.values, lowered.automation).unwrap()
 }
 
-/// The operator with its declared defaults.
-pub fn operator(operator: &CompiledOperator) -> OperatorInvocation {
-    lower_operator(&operator.bind(std::iter::empty()).unwrap())
+/// `invocation` lowered with nothing known about its placement, so the
+/// clip duration and pixel count remain context reads.
+pub fn lower(invocation: &Invocation) -> BoundProgram {
+    bind(&invocation.instance(ProgramConstants::default()))
 }
 
-pub fn show(count: usize, invocation: &SampleInvocation, layers: usize) -> PreparedSequence {
-    chain(count, invocation, layers, &[])
+/// `definition` with its declared defaults, lowered with nothing known about
+/// its placement.
+pub fn program(definition: &CompiledDefinition) -> BoundProgram {
+    lower(&invoke(definition, &[]))
 }
 
-pub fn chain(
+/// `layers` layers of `effect` over the whole eight-second sequence, mixed
+/// and passed through `operators`.
+pub fn show(
     count: usize,
-    invocation: &SampleInvocation,
+    effect: &BoundProgram,
     layers: usize,
-    operators: &[OperatorInvocation],
-) -> PreparedSequence {
+    operators: &[BoundProgram],
+) -> PreparedShow {
+    let duration = timing(8_000_000).duration();
     build(count, timing(8_000_000), |builder, target| {
-        let window = builder.whole_sequence();
         let layers: Vec<_> = (0..layers)
             .map(|_| {
-                let effect = builder.sample(invocation, window, target);
+                let effect =
+                    builder.clip(None, effect, SampleTime::from_ticks(0), duration, target);
                 builder.layer(true, [effect])
             })
             .collect();
@@ -104,7 +138,7 @@ pub fn chain(
         for operator in operators {
             signal = builder.operator(operator, |_| signal);
         }
-        builder.output(Some(signal))
+        Some(signal)
     })
 }
 

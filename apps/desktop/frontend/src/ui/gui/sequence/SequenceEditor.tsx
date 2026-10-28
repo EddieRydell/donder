@@ -1,7 +1,7 @@
 import { useSequenceEditorHost } from "../../../editor/host";
 import { useCallback, useMemo } from "react";
 
-import type { SequenceEditorDocument } from "../../../editor/types";
+import type { SequenceGuiDocument } from "../../../editor/types";
 
 import type { AutomationClipChooser, GuiFocus, SequenceSelection } from "../shared";
 
@@ -24,7 +24,7 @@ export function SequenceEditor({
   visibleMarkCollectionKeys,
   setVisibleMarkCollectionKeys
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   selected: GuiFocus;
   setSelected: (id: GuiFocus) => void;
   compositionGraphOpen: boolean;

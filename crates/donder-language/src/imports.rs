@@ -3,17 +3,12 @@ use camino::Utf8PathBuf;
 use crate::names::NameKind;
 use donder_runtime_types::Identifier;
 
-/// The semantic source of an import. Locations and parser-specific spans are
-/// deliberately kept outside this declaration.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ImportSource {
-    LocalDocuments { documents: Vec<Utf8PathBuf> },
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportDeclaration {
     pub alias: ImportAlias,
-    pub source: ImportSource,
+    /// The project-relative documents the alias names. Locations and
+    /// parser-specific spans are kept outside this declaration.
+    pub documents: Vec<Utf8PathBuf>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

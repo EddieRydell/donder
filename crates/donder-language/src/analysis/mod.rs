@@ -9,7 +9,7 @@ mod script;
 pub use data::{DataToken, DataTokenKind, data_token_stream, data_tokens};
 pub use script::{
     ScriptAnalysis, ScriptReference, ScriptTarget, analyze_script, script_completions,
-    script_signature, type_text,
+    script_signature,
 };
 
 use crate::NameKind;

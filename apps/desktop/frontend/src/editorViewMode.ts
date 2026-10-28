@@ -10,5 +10,5 @@ export function effectiveEditorViewMode(snapshot: EditorViewSnapshot | null): Ed
 }
 
 function descriptorHasGuiView(descriptor: AppSnapshot["activeDocumentDescriptor"]): boolean {
-  return descriptor?.availableViews.some((view) => view !== "text") ?? false;
+  return (descriptor?.guiObjects.length ?? 0) > 0;
 }

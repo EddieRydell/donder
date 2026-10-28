@@ -8,11 +8,8 @@ mod editing;
 use std::collections::HashSet;
 
 use crate::fixture::{FixtureDefinitionId, FixtureGeometryError, FixtureSource, FixtureTransform};
-use crate::identity::ObjectIdentity;
+pub(crate) use crate::identity::LayoutId;
 use indexmap::IndexMap;
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct LayoutId(pub ObjectIdentity);
 
 /// Stable across renames, reordering and membership changes; unique in a layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
@@ -59,8 +56,8 @@ pub struct FixtureTarget {
 pub enum LayoutError {
     TooManyPixels(FixtureInstanceId),
     DuplicateId(FixtureInstanceId),
-    InvalidName(FixtureInstanceId),
-    DuplicateName(donder_runtime_types::Identifier),
+    InvalidName(FixtureInstanceId, donder_runtime_types::Identifier),
+    DuplicateName(FixtureInstanceId, donder_runtime_types::Identifier),
     MissingDefinition(FixtureDefinitionId),
     InvalidFixture {
         fixture: FixtureInstanceId,
@@ -70,11 +67,11 @@ pub enum LayoutError {
     MissingFixture(FixtureInstanceId),
     WrongLayout(LayoutId),
     /// A member is listed twice in one group or in the root.
-    DuplicateMember(FixtureInstanceId),
+    DuplicateMember(FixtureInstanceId, donder_runtime_types::Identifier),
     /// A group contains itself through its members.
-    Cycle(FixtureInstanceId),
+    Cycle(FixtureInstanceId, donder_runtime_types::Identifier),
     /// An item is not reachable from the root.
-    Unreachable(FixtureInstanceId),
+    Unreachable(FixtureInstanceId, donder_runtime_types::Identifier),
 }
 
 impl LayoutFixture {
@@ -171,7 +168,7 @@ impl Layout {
         counts: &IndexMap<FixtureDefinitionId, u32>,
     ) -> Result<u32, LayoutError> {
         if target.layout != self.id {
-            return Err(LayoutError::WrongLayout(target.layout.clone()));
+            return Err(LayoutError::WrongLayout(target.layout));
         }
         if self.fixture(target.fixture).is_none() {
             return Err(LayoutError::MissingFixture(target.fixture));
@@ -195,7 +192,7 @@ impl Layout {
                     FixtureSource::Reference(id) => counts
                         .get(id)
                         .copied()
-                        .ok_or_else(|| LayoutError::MissingDefinition(id.clone()))?,
+                        .ok_or(LayoutError::MissingDefinition(*id))?,
                 };
                 total
                     .checked_add(count)
@@ -214,10 +211,10 @@ impl Layout {
                 return Err(LayoutError::DuplicateId(fixture.id));
             }
             if !donder_language::NameKind::Object.accepts(fixture.name.as_str()) {
-                return Err(LayoutError::InvalidName(fixture.id));
+                return Err(LayoutError::InvalidName(fixture.id, fixture.name.clone()));
             }
             if !names.insert(fixture.name.clone()) {
-                return Err(LayoutError::DuplicateName(fixture.name.clone()));
+                return Err(LayoutError::DuplicateName(fixture.id, fixture.name.clone()));
             }
             if let LayoutFixtureKind::Fixture {
                 definition,
@@ -234,7 +231,7 @@ impl Layout {
                             })?;
                     }
                     FixtureSource::Reference(id) if !definitions.contains_key(id) => {
-                        return Err(LayoutError::MissingDefinition(id.clone()));
+                        return Err(LayoutError::MissingDefinition(*id));
                     }
                     FixtureSource::Reference(_) => {}
                 }
@@ -259,7 +256,10 @@ impl Layout {
                     return Err(LayoutError::MissingFixture(member));
                 }
                 if !listed.insert(member) {
-                    return Err(LayoutError::DuplicateMember(member));
+                    return Err(LayoutError::DuplicateMember(
+                        member,
+                        index[&member].name.clone(),
+                    ));
                 }
             }
         }
@@ -276,7 +276,9 @@ impl Layout {
         ) -> Result<(), LayoutError> {
             match state.get(&id) {
                 Some(Visit::Done) => return Ok(()),
-                Some(Visit::Active) => return Err(LayoutError::Cycle(id)),
+                Some(Visit::Active) => {
+                    return Err(LayoutError::Cycle(id, index[&id].name.clone()));
+                }
                 None => {}
             }
             state.insert(id, Visit::Active);
@@ -296,7 +298,7 @@ impl Layout {
             if !state.contains_key(&fixture.id) {
                 // Unreachable items may still form a cycle; report that first.
                 visit(&index, fixture.id, &mut IndexMap::new())?;
-                return Err(LayoutError::Unreachable(fixture.id));
+                return Err(LayoutError::Unreachable(fixture.id, fixture.name.clone()));
             }
         }
         Ok(())
@@ -311,9 +313,3 @@ impl crate::ownership::Identified for Layout {
 }
 
 pub type LayoutSource = crate::ownership::ValueSource<Box<Layout>, LayoutId>;
-
-impl AsRef<ObjectIdentity> for LayoutId {
-    fn as_ref(&self) -> &ObjectIdentity {
-        &self.0
-    }
-}

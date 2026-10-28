@@ -1,28 +1,35 @@
 use crate::controller::{Controller, ControllerId};
-use crate::effect::{CurveDefinitionStore, EffectDefinitionStore, GradientDefinitionStore};
-use crate::fixture::FixtureDefinitions;
-use crate::identity::SourceIdentity;
+use crate::effect::{
+    CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
+};
+use crate::fixture::{FixtureDefinition, FixtureDefinitionId};
+pub(crate) use crate::identity::ProjectId;
+use crate::identity::{ObjectId, ObjectKind};
 use crate::input_device::{InputDevice, InputDeviceId};
 use crate::layout::{Layout, LayoutId};
-use crate::operator::OperatorDefinitionStore;
+use crate::operator::{OperatorDefinition, OperatorDefinitionId};
 use crate::patch::{Patch, PatchId};
 use crate::rig::{Rig, RigId};
-use crate::sequence::Sequence;
+use crate::sequence::{Sequence, SequenceId};
 use crate::setup::{Setup, SetupId};
 use indexmap::IndexMap;
 use std::sync::Arc;
 
 mod editing;
-pub use editing::ProjectEdit;
+pub use editing::{Object, ProjectEdit};
+mod objects;
+pub use objects::{ProjectObject, Reusable};
 mod accepted;
+pub(crate) mod references;
 pub use accepted::{
     AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigEffect, AcceptedSequence,
     RIG_SESSION, RigBinding, RigEffectOrigin,
 };
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;
-/// accepted projects never expose a mutable assembly view.
-#[derive(Clone, Debug, PartialEq)]
+/// accepted projects never expose a mutable assembly view. Each store holds
+/// the reusable objects of one kind by id; owned objects live in their owner.
+#[derive(Clone, Debug)]
 pub struct ProjectData {
     pub root: ProjectRoot,
     pub setups: IndexMap<SetupId, Setup>,
@@ -30,9 +37,15 @@ pub struct ProjectData {
     pub patches: IndexMap<PatchId, Patch>,
     pub controllers: IndexMap<ControllerId, Controller>,
     pub input_devices: IndexMap<InputDeviceId, InputDevice>,
-    pub sequences: IndexMap<crate::sequence::SequenceId, Sequence>,
+    pub sequences: IndexMap<SequenceId, Sequence>,
     pub rigs: IndexMap<RigId, Rig>,
-    pub definitions: ProjectDefinitionStores,
+    pub fixtures: IndexMap<FixtureDefinitionId, FixtureDefinition>,
+    pub curves: IndexMap<CurveId, CurveDefinition>,
+    pub gradients: IndexMap<GradientId, GradientDefinition>,
+    pub effects: IndexMap<EffectDefinitionId, EffectDefinition>,
+    pub operators: IndexMap<OperatorDefinitionId, OperatorDefinition>,
+    /// The next unassigned object id; every id in the data is below it.
+    pub next_id: u32,
 }
 
 /// Internal copy-on-write storage keeps checked edits local to changed stores.
@@ -72,9 +85,14 @@ pub struct DonderProject {
     pub(crate) patches: Shared<IndexMap<PatchId, Patch>>,
     pub(crate) controllers: Shared<IndexMap<ControllerId, Controller>>,
     pub(crate) input_devices: Shared<IndexMap<InputDeviceId, InputDevice>>,
-    pub(crate) sequences: Shared<IndexMap<crate::sequence::SequenceId, Sequence>>,
+    pub(crate) sequences: Shared<IndexMap<SequenceId, Sequence>>,
     pub(crate) rigs: Shared<IndexMap<RigId, Rig>>,
-    pub(crate) definitions: Shared<ProjectDefinitionStores>,
+    pub(crate) fixtures: Shared<IndexMap<FixtureDefinitionId, FixtureDefinition>>,
+    pub(crate) curves: Shared<IndexMap<CurveId, CurveDefinition>>,
+    pub(crate) gradients: Shared<IndexMap<GradientId, GradientDefinition>>,
+    pub(crate) effects: Shared<IndexMap<EffectDefinitionId, EffectDefinition>>,
+    pub(crate) operators: Shared<IndexMap<OperatorDefinitionId, OperatorDefinition>>,
+    next_id: u32,
     accepted_inputs: Arc<accepted::ProjectInputs>,
 }
 
@@ -88,12 +106,13 @@ impl PartialEq for DonderProject {
             && self.input_devices == other.input_devices
             && self.sequences == other.sequences
             && self.rigs == other.rigs
-            && self.definitions == other.definitions
+            && self.fixtures == other.fixtures
+            && self.curves == other.curves
+            && self.gradients == other.gradients
+            && self.effects == other.effects
+            && self.operators == other.operators
     }
 }
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct ProjectId(pub SourceIdentity);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectRoot {
@@ -104,13 +123,94 @@ pub struct ProjectRoot {
     pub rigs: Vec<crate::rig::RigSource>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ProjectDefinitionStores {
-    pub effects: EffectDefinitionStore,
-    pub fixtures: FixtureDefinitions,
-    pub curves: CurveDefinitionStore,
-    pub gradients: GradientDefinitionStore,
-    pub operators: OperatorDefinitionStore,
+/// Why an edit of a project failed: the edit itself was refused, or the edited
+/// project breaks a project rule.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EditError {
+    Rejected(EditRejection),
+    Invalid(crate::validation::ProjectValidationError),
+}
+
+impl std::fmt::Display for EditError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rejected(rejection) => rejection.fmt(f),
+            Self::Invalid(error) => error.fmt(f),
+        }
+    }
+}
+
+/// An edit the model refuses before checking the edited project.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EditRejection {
+    ProjectIdentity,
+    ProjectRemoval,
+    NotReusable,
+    Missing(ObjectKind),
+    MissingItem,
+    MissingOutput,
+    MemberNotInOwner,
+    NoMembers,
+    Unnamed,
+    AlreadyReusable,
+    AlreadyIndependent(ObjectKind),
+    NonPositiveTiming,
+    ChooseReusable(ObjectKind),
+    ChooseMatchingKind,
+    AlreadyInSetup(ObjectKind),
+    NotInSetup(ObjectKind),
+    ControllerHasOutputs(usize),
+    SharedPatch,
+    NotAGroup,
+    NotInSourceGroup,
+    NotInGroup,
+    InsertionTargetOutside,
+    AlreadyInGroup,
+    GroupInsideItself,
+    NoFreeIds,
+}
+
+impl std::fmt::Display for EditRejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ProjectIdentity => f.write_str("A project keeps its identity."),
+            Self::ProjectRemoval => f.write_str("A project cannot be removed."),
+            Self::NotReusable => f.write_str("Only a reusable object can be removed."),
+            Self::Missing(kind) => write!(f, "The {kind} was not found."),
+            Self::MissingItem => f.write_str("The fixture or group was not found."),
+            Self::MissingOutput => f.write_str("The output assignment was not found."),
+            Self::MemberNotInOwner => f.write_str("The member was not found in its owner."),
+            Self::NoMembers => f.write_str("This object owns no members."),
+            Self::Unnamed => f.write_str("The reusable value has no name."),
+            Self::AlreadyReusable => f.write_str("This value is already reusable."),
+            Self::AlreadyIndependent(kind) => write!(f, "This {kind} is already independent."),
+            Self::NonPositiveTiming => {
+                f.write_str("Sequence duration and frame rate must be positive.")
+            }
+            Self::ChooseReusable(kind) => write!(f, "Choose a reusable {kind}."),
+            Self::ChooseMatchingKind => f.write_str("Choose a reusable source of the matching kind."),
+            Self::AlreadyInSetup(kind) => write!(f, "This {kind} is already in the setup."),
+            Self::NotInSetup(kind) => write!(f, "Choose a {kind} in this setup."),
+            Self::ControllerHasOutputs(count) => write!(
+                f,
+                "This controller has {count} output assignments. Remove them first or choose Remove controller and outputs."
+            ),
+            Self::SharedPatch => f.write_str(
+                "Another setup uses this patch. Make the patch independent first so output changes stay in this setup.",
+            ),
+            Self::NotAGroup => f.write_str("Items can only be placed in groups."),
+            Self::NotInSourceGroup => f.write_str("The item is not in the source group."),
+            Self::NotInGroup => f.write_str("The item is not in that group."),
+            Self::InsertionTargetOutside => {
+                f.write_str("The insertion target is not in the destination group.")
+            }
+            Self::AlreadyInGroup => f.write_str("The item is already in that group."),
+            Self::GroupInsideItself => {
+                f.write_str("A group cannot contain itself or one of its groups.")
+            }
+            Self::NoFreeIds => f.write_str("No fixture instance IDs remain."),
+        }
+    }
 }
 
 impl DonderProject {
@@ -124,7 +224,12 @@ impl DonderProject {
             input_devices: data.input_devices.into(),
             sequences: data.sequences.into(),
             rigs: data.rigs.into(),
-            definitions: data.definitions.into(),
+            fixtures: data.fixtures.into(),
+            curves: data.curves.into(),
+            gradients: data.gradients.into(),
+            effects: data.effects.into(),
+            operators: data.operators.into(),
+            next_id: data.next_id,
             accepted_inputs: Arc::default(),
         };
         crate::validation::validate_project(&project)?;
@@ -132,32 +237,35 @@ impl DonderProject {
         Ok(project)
     }
 
+    /// A fresh project-wide object id. Copies and new objects take theirs here.
+    pub fn new_id(&mut self) -> u32 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
     pub fn root(&self) -> &ProjectRoot {
         &self.root
     }
-    pub fn definitions(&self) -> &ProjectDefinitionStores {
-        &self.definitions
+
+    /// The object of kind `T` with `id`, reusable or owned in place.
+    pub fn get<T: ProjectObject>(&self, id: T::Id) -> Option<&T> {
+        T::find(self, id)
     }
-    pub fn reusable_setups(&self) -> &IndexMap<SetupId, Setup> {
-        &self.setups
+
+    /// Every object of kind `T` once: the reusable ones, then those owned in
+    /// place.
+    pub fn objects<T: ProjectObject>(&self) -> impl Iterator<Item = &T> {
+        T::all(self)
     }
-    pub fn reusable_layouts(&self) -> &IndexMap<LayoutId, Layout> {
-        &self.layouts
+
+    /// The reusable objects of kind `T`, by id.
+    pub fn reusable<T: Reusable>(&self) -> &IndexMap<T::Id, T> {
+        T::store(self)
     }
-    pub fn reusable_patches(&self) -> &IndexMap<PatchId, Patch> {
-        &self.patches
-    }
-    pub fn reusable_controllers(&self) -> &IndexMap<ControllerId, Controller> {
-        &self.controllers
-    }
-    pub fn reusable_input_devices(&self) -> &IndexMap<InputDeviceId, InputDevice> {
-        &self.input_devices
-    }
-    pub fn reusable_sequences(&self) -> &IndexMap<crate::sequence::SequenceId, Sequence> {
-        &self.sequences
-    }
-    pub fn reusable_rigs(&self) -> &IndexMap<RigId, Rig> {
-        &self.rigs
+
+    pub(crate) fn find_mut<T: objects::Stored>(&mut self, id: T::Id) -> Option<&mut T> {
+        T::find_mut(self, id)
     }
 
     /// Whether `other` shares every store with this project except sequences:
@@ -170,269 +278,51 @@ impl DonderProject {
             && self.controllers.same_allocation(&other.controllers)
             && self.input_devices.same_allocation(&other.input_devices)
             && self.rigs.same_allocation(&other.rigs)
-            && self.definitions.same_allocation(&other.definitions)
+            && self.definitions_same_allocation(other)
+            && self.fixtures.same_allocation(&other.fixtures)
+    }
+
+    /// Whether the definitions clips are admitted against, the effects,
+    /// operators, curves and gradients, are unchanged from `other`.
+    pub(crate) fn definitions_same_allocation(&self, other: &Self) -> bool {
+        self.effects.same_allocation(&other.effects)
+            && self.operators.same_allocation(&other.operators)
+            && self.curves.same_allocation(&other.curves)
+            && self.gradients.same_allocation(&other.gradients)
     }
 
     /// A private transaction boundary for domain operations. Only changed stores
     /// detach from the original; rejection drops the candidate without mutation.
     pub(crate) fn checked_edit<T>(
         &mut self,
-        edit: impl FnOnce(&mut Self) -> Result<T, String>,
-    ) -> Result<T, String> {
+        edit: impl FnOnce(&mut Self) -> Result<T, EditRejection>,
+    ) -> Result<T, EditError> {
         let mut candidate = self.clone();
-        let result = edit(&mut candidate)?;
-        crate::validation::validate_project_edit(&candidate, self)
-            .map_err(|error| error.to_string())?;
+        let result = edit(&mut candidate).map_err(EditError::Rejected)?;
+        crate::validation::validate_project_edit(&candidate, self).map_err(EditError::Invalid)?;
         candidate.accepted_inputs = Arc::new(
-            accepted::ProjectInputs::admit(&candidate, Some(self))
-                .map_err(|error| error.to_string())?,
+            accepted::ProjectInputs::admit(&candidate, Some(self)).map_err(EditError::Invalid)?,
         );
         *self = candidate;
         Ok(result)
     }
 
-    /// Iterate each authored object once, including values nested beneath owners.
-    pub fn setups(&self) -> impl Iterator<Item = &Setup> {
-        self.setups
-            .values()
-            .chain(self.root.setup.inline().map(Box::as_ref))
-    }
-
-    pub(crate) fn setups_mut(&mut self) -> impl Iterator<Item = &mut Setup> {
-        self.setups
-            .values_mut()
-            .chain(self.root.setup.inline_mut().map(Box::as_mut))
-    }
-
-    pub fn layouts(&self) -> impl Iterator<Item = &Layout> {
-        self.layouts.values().chain(
-            self.setups()
-                .filter_map(|setup| setup.layout.inline().map(Box::as_ref)),
-        )
-    }
-
-    pub(crate) fn layouts_mut(&mut self) -> impl Iterator<Item = &mut Layout> {
-        let Self {
-            root,
-            setups,
-            layouts,
-            ..
-        } = self;
-        layouts.values_mut().chain(
-            setups
-                .values_mut()
-                .chain(root.setup.inline_mut().map(Box::as_mut))
-                .filter_map(|setup| setup.layout.inline_mut().map(Box::as_mut)),
-        )
-    }
-
-    pub fn patches(&self) -> impl Iterator<Item = &Patch> {
-        self.patches.values().chain(
-            self.setups()
-                .filter_map(|setup| setup.patch.inline().map(Box::as_ref)),
-        )
-    }
-
-    pub(crate) fn patches_mut(&mut self) -> impl Iterator<Item = &mut Patch> {
-        let Self {
-            root,
-            setups,
-            patches,
-            ..
-        } = self;
-        patches.values_mut().chain(
-            setups
-                .values_mut()
-                .chain(root.setup.inline_mut().map(Box::as_mut))
-                .filter_map(|setup| setup.patch.inline_mut().map(Box::as_mut)),
-        )
-    }
-
-    pub fn controllers(&self) -> impl Iterator<Item = &Controller> {
-        self.controllers.values().chain(
-            self.setups()
-                .flat_map(|setup| setup.controllers.iter())
-                .filter_map(|source| source.inline().map(Box::as_ref)),
-        )
-    }
-
-    pub(crate) fn controllers_mut(&mut self) -> impl Iterator<Item = &mut Controller> {
-        let Self {
-            root,
-            setups,
-            controllers,
-            ..
-        } = self;
-        controllers.values_mut().chain(
-            setups
-                .values_mut()
-                .chain(root.setup.inline_mut().map(Box::as_mut))
-                .flat_map(|setup| setup.controllers.iter_mut())
-                .filter_map(|source| source.inline_mut().map(Box::as_mut)),
-        )
-    }
-
-    pub fn input_devices(&self) -> impl Iterator<Item = &InputDevice> {
-        self.input_devices.values().chain(
-            self.setups()
-                .flat_map(|setup| setup.input_devices.iter())
-                .filter_map(|source| source.inline().map(Box::as_ref)),
-        )
-    }
-
-    pub(crate) fn input_devices_mut(&mut self) -> impl Iterator<Item = &mut InputDevice> {
-        let Self {
-            root,
-            setups,
-            input_devices,
-            ..
-        } = self;
-        input_devices.values_mut().chain(
-            setups
-                .values_mut()
-                .chain(root.setup.inline_mut().map(Box::as_mut))
-                .flat_map(|setup| setup.input_devices.iter_mut())
-                .filter_map(|source| source.inline_mut().map(Box::as_mut)),
-        )
-    }
-
-    pub fn rigs(&self) -> impl Iterator<Item = &Rig> {
-        self.rigs.values().chain(
-            self.root
-                .rigs
-                .iter()
-                .filter_map(|source| source.inline().map(Box::as_ref)),
-        )
-    }
-
-    pub(crate) fn rigs_mut(&mut self) -> impl Iterator<Item = &mut Rig> {
-        self.rigs.values_mut().chain(
-            self.root
-                .rigs
-                .iter_mut()
-                .filter_map(|source| source.inline_mut().map(Box::as_mut)),
-        )
-    }
-
-    pub fn sequences(&self) -> impl Iterator<Item = &Sequence> {
-        self.sequences.values().chain(
-            self.root
-                .sequences
-                .iter()
-                .filter_map(|source| source.inline().map(Box::as_ref)),
-        )
-    }
-
-    pub(crate) fn sequences_mut(&mut self) -> impl Iterator<Item = &mut Sequence> {
-        self.sequences.values_mut().chain(
-            self.root
-                .sequences
-                .iter_mut()
-                .filter_map(|source| source.inline_mut().map(Box::as_mut)),
-        )
-    }
-
-    pub fn setup(&self, id: &SetupId) -> Option<&Setup> {
-        self.setups().find(|value| &value.id == id)
-    }
-    pub(crate) fn setup_mut(&mut self, id: &SetupId) -> Option<&mut Setup> {
-        if self.setups.contains_key(id) {
-            return self.setups.get_mut(id);
+    /// The object `id` names, whatever its kind.
+    pub fn contains(&self, id: ObjectId) -> bool {
+        match id {
+            ObjectId::Project(id) => self.get::<ProjectRoot>(id).is_some(),
+            ObjectId::Setup(id) => self.get::<Setup>(id).is_some(),
+            ObjectId::Layout(id) => self.get::<Layout>(id).is_some(),
+            ObjectId::Patch(id) => self.get::<Patch>(id).is_some(),
+            ObjectId::Controller(id) => self.get::<Controller>(id).is_some(),
+            ObjectId::InputDevice(id) => self.get::<InputDevice>(id).is_some(),
+            ObjectId::Sequence(id) => self.get::<Sequence>(id).is_some(),
+            ObjectId::Rig(id) => self.get::<Rig>(id).is_some(),
+            ObjectId::FixtureDefinition(id) => self.get::<FixtureDefinition>(id).is_some(),
+            ObjectId::Curve(id) => self.get::<CurveDefinition>(id).is_some(),
+            ObjectId::Gradient(id) => self.get::<GradientDefinition>(id).is_some(),
+            ObjectId::EffectDefinition(id) => self.get::<EffectDefinition>(id).is_some(),
+            ObjectId::OperatorDefinition(id) => self.get::<OperatorDefinition>(id).is_some(),
         }
-        if self.root.setup.id() != id {
-            return None;
-        }
-        self.root.setup.inline_mut().map(Box::as_mut)
-    }
-    pub fn layout(&self, id: &LayoutId) -> Option<&Layout> {
-        self.layouts().find(|value| &value.id == id)
-    }
-    pub(crate) fn layout_mut(&mut self, id: &LayoutId) -> Option<&mut Layout> {
-        if self.layouts.contains_key(id) {
-            return self.layouts.get_mut(id);
-        }
-        let owner = self
-            .setups()
-            .find(|setup| setup.layout.id() == id)?
-            .id
-            .clone();
-        self.setup_mut(&owner)?.layout.inline_mut().map(Box::as_mut)
-    }
-    pub fn patch(&self, id: &PatchId) -> Option<&Patch> {
-        self.patches().find(|value| &value.id == id)
-    }
-    pub(crate) fn patch_mut(&mut self, id: &PatchId) -> Option<&mut Patch> {
-        if self.patches.contains_key(id) {
-            return self.patches.get_mut(id);
-        }
-        let owner = self
-            .setups()
-            .find(|setup| setup.patch.id() == id)?
-            .id
-            .clone();
-        self.setup_mut(&owner)?.patch.inline_mut().map(Box::as_mut)
-    }
-    pub fn controller(&self, id: &ControllerId) -> Option<&Controller> {
-        self.controllers().find(|value| &value.id == id)
-    }
-    pub(crate) fn controller_mut(&mut self, id: &ControllerId) -> Option<&mut Controller> {
-        if self.controllers.contains_key(id) {
-            return self.controllers.get_mut(id);
-        }
-        let (owner, index) = self.setups().find_map(|setup| {
-            setup
-                .controllers
-                .iter()
-                .position(|source| source.id() == id)
-                .map(|index| (setup.id.clone(), index))
-        })?;
-        self.setup_mut(&owner)?.controllers[index]
-            .inline_mut()
-            .map(Box::as_mut)
-    }
-    pub fn input_device(&self, id: &InputDeviceId) -> Option<&InputDevice> {
-        self.input_devices().find(|value| &value.id == id)
-    }
-    pub(crate) fn input_device_mut(&mut self, id: &InputDeviceId) -> Option<&mut InputDevice> {
-        if self.input_devices.contains_key(id) {
-            return self.input_devices.get_mut(id);
-        }
-        let (owner, index) = self.setups().find_map(|setup| {
-            setup
-                .input_devices
-                .iter()
-                .position(|source| source.id() == id)
-                .map(|index| (setup.id.clone(), index))
-        })?;
-        self.setup_mut(&owner)?.input_devices[index]
-            .inline_mut()
-            .map(Box::as_mut)
-    }
-    pub fn rig(&self, id: &RigId) -> Option<&Rig> {
-        self.rigs().find(|value| &value.id == id)
-    }
-    pub(crate) fn rig_mut(&mut self, id: &RigId) -> Option<&mut Rig> {
-        if self.rigs.contains_key(id) {
-            return self.rigs.get_mut(id);
-        }
-        let index = self.root.rigs.iter().position(|source| source.id() == id)?;
-        self.root.rigs[index].inline_mut().map(Box::as_mut)
-    }
-    pub fn sequence(&self, id: &crate::sequence::SequenceId) -> Option<&Sequence> {
-        self.sequences().find(|value| &value.id == id)
-    }
-    pub(crate) fn sequence_mut(
-        &mut self,
-        id: &crate::sequence::SequenceId,
-    ) -> Option<&mut Sequence> {
-        if self.sequences.contains_key(id) {
-            return self.sequences.get_mut(id);
-        }
-        let index = self
-            .root
-            .sequences
-            .iter()
-            .position(|source| source.id() == id)?;
-        self.root.sequences[index].inline_mut().map(Box::as_mut)
     }
 }

@@ -1,6 +1,6 @@
 import type {
   AppSnapshot,
-  ProjectDiagnostic,
+  IoDiagnostic,
   TextRange,
   WorkspaceEntry
 } from "../types";
@@ -18,7 +18,7 @@ const naturalCollator = new Intl.Collator(undefined, {
 
 export function buildSemanticTree(
   entries: WorkspaceEntry[],
-  diagnostics: ProjectDiagnostic[],
+  diagnostics: IoDiagnostic[],
   projectRoot: string | null
 ): WorkspaceTreeNode[] {
   const nodes = new Map<string, WorkspaceTreeNode>();

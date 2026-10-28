@@ -1,7 +1,7 @@
 use crate::common;
 
 use camino::Utf8PathBuf;
-use donder_project_io::{export_editable_project, load_project};
+use donder_project_io::{check_project, export_editable_project};
 use std::fs;
 
 #[test]
@@ -18,25 +18,22 @@ fn copy_preserves_local_imports_and_audio_and_is_independently_editable() {
             .replace("audio: none", "audio: <audio/test.wav>"),
     )
     .unwrap();
-    let original = load_project(&root).unwrap();
+    let original = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap();
     let destination = directory.join("copy");
     let report = export_editable_project(&original, &destination).unwrap();
     assert_eq!(
         report.copied_assets,
         vec![Utf8PathBuf::from("audio/test.wav")]
     );
-    let copied = load_project(&destination).unwrap();
+    let copied = check_project(&destination, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap();
     assert_eq!(copied.project, original.project);
     assert_eq!(
         fs::read(destination.join("audio/test.wav")).unwrap(),
         b"test audio"
-    );
-    assert!(
-        copied
-            .source
-            .documents
-            .keys()
-            .all(|id| copied.source.is_project_owned(id))
     );
     fs::write(destination.join("audio/test.wav"), b"edited audio").unwrap();
     assert_eq!(

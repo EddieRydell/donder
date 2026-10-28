@@ -1,250 +1,156 @@
+use super::objects::Stored;
 use super::*;
-use crate::effect::{
-    CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
-};
-use crate::fixture::{FixtureDefinition, FixtureDefinitionId};
-use crate::input_device::{InputDevice, InputDeviceId};
-use crate::operator::{OperatorDefinition, OperatorDefinitionId};
-use crate::rig::{Rig, RigId};
-use crate::sequence::SequenceId;
+
+/// Any project object, as an edit writes it. Definitions that may also be
+/// written in place carry no id of their own, so theirs is given beside them.
+#[derive(Clone, Debug)]
+pub enum Object {
+    Project(ProjectRoot),
+    Setup(Setup),
+    Layout(Layout),
+    Patch(Patch),
+    Controller(Controller),
+    InputDevice(InputDevice),
+    Sequence(Sequence),
+    Rig(Rig),
+    FixtureDefinition(FixtureDefinitionId, FixtureDefinition),
+    Curve(CurveId, CurveDefinition),
+    Gradient(GradientId, GradientDefinition),
+    EffectDefinition(EffectDefinition),
+    OperatorDefinition(OperatorDefinition),
+}
+
+impl Object {
+    pub fn id(&self) -> ObjectId {
+        match self {
+            Self::Project(value) => value.id.into(),
+            Self::Setup(value) => value.id.into(),
+            Self::Layout(value) => value.id.into(),
+            Self::Patch(value) => value.id.into(),
+            Self::Controller(value) => value.id.into(),
+            Self::InputDevice(value) => value.id.into(),
+            Self::Sequence(value) => value.id.into(),
+            Self::Rig(value) => value.id.into(),
+            Self::FixtureDefinition(id, _) => (*id).into(),
+            Self::Curve(id, _) => (*id).into(),
+            Self::Gradient(id, _) => (*id).into(),
+            Self::EffectDefinition(value) => (*value.id()).into(),
+            Self::OperatorDefinition(value) => (*value.id()).into(),
+        }
+    }
+}
+
+macro_rules! object_from {
+    ($($kind:ident),*) => {$(
+        impl From<$kind> for Object {
+            fn from(value: $kind) -> Self {
+                Self::$kind(value)
+            }
+        }
+    )*};
+}
+object_from!(Setup, Layout, Patch, Controller, InputDevice, Sequence, Rig);
+
+impl From<ProjectRoot> for Object {
+    fn from(value: ProjectRoot) -> Self {
+        Self::Project(value)
+    }
+}
+impl From<EffectDefinition> for Object {
+    fn from(value: EffectDefinition) -> Self {
+        Self::EffectDefinition(value)
+    }
+}
+impl From<OperatorDefinition> for Object {
+    fn from(value: OperatorDefinition) -> Self {
+        Self::OperatorDefinition(value)
+    }
+}
 
 /// Detached authored changes. Every batch is checked as one operation, allowing
 /// related values to change together without exposing a mutable project draft.
 #[derive(Clone, Debug)]
 pub enum ProjectEdit {
-    ReplaceRoot(ProjectRoot),
-    ReplaceSetup {
-        id: SetupId,
-        value: Setup,
-    },
-    ReplaceLayout {
-        id: LayoutId,
-        value: Layout,
-    },
-    ReplacePatch {
-        id: PatchId,
-        value: Patch,
-    },
-    ReplaceController {
-        id: ControllerId,
-        value: Controller,
-    },
-    ReplaceInputDevice {
-        id: InputDeviceId,
-        value: InputDevice,
-    },
-    ReplaceSequence {
-        id: SequenceId,
-        value: Sequence,
-    },
-    ReplaceRig {
-        id: RigId,
-        value: Rig,
-    },
-    InsertSetup(Setup),
-    InsertLayout(Layout),
-    InsertPatch(Patch),
-    InsertController(Controller),
-    InsertInputDevice(InputDevice),
-    InsertSequence(Sequence),
-    InsertRig(Rig),
-    SetFixtureDefinition {
-        id: FixtureDefinitionId,
-        value: FixtureDefinition,
-    },
-    SetEffectDefinition {
-        id: EffectDefinitionId,
-        value: EffectDefinition,
-    },
-    SetOperatorDefinition {
-        id: OperatorDefinitionId,
-        value: OperatorDefinition,
-    },
-    SetCurveDefinition {
-        id: CurveId,
-        value: CurveDefinition,
-    },
-    SetGradientDefinition {
-        id: GradientId,
-        value: GradientDefinition,
-    },
-    RemoveSetup(SetupId),
-    RemoveLayout(LayoutId),
-    RemovePatch(PatchId),
-    RemoveController(ControllerId),
-    RemoveInputDevice(InputDeviceId),
-    RemoveSequence(SequenceId),
-    RemoveRig(RigId),
-    RemoveFixtureDefinition(FixtureDefinitionId),
-    RemoveEffectDefinition(EffectDefinitionId),
-    RemoveOperatorDefinition(OperatorDefinitionId),
-    RemoveCurveDefinition(CurveId),
-    RemoveGradientDefinition(GradientId),
+    /// Write an object under its id: in place of the object with that id,
+    /// reusable or owned, or as a new reusable object.
+    Put(Object),
+    /// Remove a reusable object. An owned object goes with its owner's edit.
+    Remove(ObjectId),
 }
 
-fn replace<T: crate::ownership::Identified>(
-    slot: Option<&mut T>,
-    id: &T::Id,
-    value: T,
-) -> Result<(), String>
-where
-    T::Id: PartialEq,
-{
-    if value.id() != id {
-        return Err("Replacement must preserve the object's identity.".into());
+fn put<T: Stored>(project: &mut DonderProject, id: T::Id, value: T) {
+    match T::find_mut(project, id) {
+        Some(slot) => *slot = value,
+        None => {
+            T::store_mut(project).insert(id, value);
+        }
     }
-    *slot.ok_or("Object was not found.")? = value;
-    Ok(())
 }
 
-fn insert<I: Eq + std::hash::Hash + Clone, T: crate::ownership::Identified<Id = I>>(
-    map: &mut IndexMap<I, T>,
-    value: T,
-) -> Result<(), String> {
-    if map.contains_key(value.id()) {
-        return Err("An object already exists at this identity.".into());
-    }
-    map.insert(value.id().clone(), value);
-    Ok(())
-}
-
-fn remove<I: Eq + std::hash::Hash, T>(map: &mut IndexMap<I, T>, id: &I) -> Result<(), String> {
-    map.shift_remove(id).ok_or("Object was not found.")?;
-    Ok(())
+fn remove<T: Stored>(project: &mut DonderProject, id: T::Id) -> Result<(), EditRejection> {
+    T::store_mut(project)
+        .shift_remove(&id)
+        .map(drop)
+        .ok_or(EditRejection::NotReusable)
 }
 
 impl DonderProject {
     pub fn apply_edits(
         &mut self,
         edits: impl IntoIterator<Item = ProjectEdit>,
-    ) -> Result<(), String> {
+    ) -> Result<(), crate::EditError> {
         self.checked_edit(|project| {
             for edit in edits {
                 match edit {
-                    ProjectEdit::ReplaceRoot(value) => project.root = value.into(),
-                    ProjectEdit::ReplaceSetup { id, value } => {
-                        replace(project.setup_mut(&id), &id, value)?
-                    }
-                    ProjectEdit::ReplaceLayout { id, value } => {
-                        replace(project.layout_mut(&id), &id, value)?
-                    }
-                    ProjectEdit::ReplacePatch { id, value } => {
-                        replace(project.patch_mut(&id), &id, value)?
-                    }
-                    ProjectEdit::ReplaceController { id, value } => {
-                        replace(project.controller_mut(&id), &id, value)?
-                    }
-                    ProjectEdit::ReplaceInputDevice { id, value } => {
-                        replace(project.input_device_mut(&id), &id, value)?
-                    }
-                    ProjectEdit::ReplaceSequence { id, value } => {
-                        replace(project.sequence_mut(&id), &id, value)?
-                    }
-                    ProjectEdit::ReplaceRig { id, value } => {
-                        replace(project.rig_mut(&id), &id, value)?
-                    }
-                    ProjectEdit::InsertSetup(value) => insert(&mut project.setups, value)?,
-                    ProjectEdit::InsertLayout(value) => insert(&mut project.layouts, value)?,
-                    ProjectEdit::InsertPatch(value) => insert(&mut project.patches, value)?,
-                    ProjectEdit::InsertController(value) => {
-                        insert(&mut project.controllers, value)?
-                    }
-                    ProjectEdit::InsertInputDevice(value) => {
-                        insert(&mut project.input_devices, value)?
-                    }
-                    ProjectEdit::InsertSequence(value) => insert(&mut project.sequences, value)?,
-                    ProjectEdit::InsertRig(value) => insert(&mut project.rigs, value)?,
-                    ProjectEdit::SetFixtureDefinition { id, value } => {
-                        project.definitions.fixtures.definitions.insert(id, value);
-                    }
-                    ProjectEdit::SetEffectDefinition { id, value } => {
-                        project.definitions.effects.definitions.insert(id, value);
-                    }
-                    ProjectEdit::SetOperatorDefinition { id, value } => {
-                        project.definitions.operators.definitions.insert(id, value);
-                    }
-                    ProjectEdit::SetCurveDefinition { id, value } => {
-                        project.definitions.curves.definitions.insert(id, value);
-                    }
-                    ProjectEdit::SetGradientDefinition { id, value } => {
-                        project.definitions.gradients.definitions.insert(id, value);
-                    }
-                    ProjectEdit::RemoveSetup(id) => remove(&mut project.setups, &id)?,
-                    ProjectEdit::RemoveLayout(id) => remove(&mut project.layouts, &id)?,
-                    ProjectEdit::RemovePatch(id) => remove(&mut project.patches, &id)?,
-                    ProjectEdit::RemoveController(id) => remove(&mut project.controllers, &id)?,
-                    ProjectEdit::RemoveInputDevice(id) => remove(&mut project.input_devices, &id)?,
-                    ProjectEdit::RemoveSequence(id) => remove(&mut project.sequences, &id)?,
-                    ProjectEdit::RemoveRig(id) => remove(&mut project.rigs, &id)?,
-                    ProjectEdit::RemoveFixtureDefinition(id) => {
-                        remove(&mut project.definitions.fixtures.definitions, &id)?
-                    }
-                    ProjectEdit::RemoveEffectDefinition(id) => {
-                        remove(&mut project.definitions.effects.definitions, &id)?
-                    }
-                    ProjectEdit::RemoveOperatorDefinition(id) => {
-                        remove(&mut project.definitions.operators.definitions, &id)?
-                    }
-                    ProjectEdit::RemoveCurveDefinition(id) => {
-                        remove(&mut project.definitions.curves.definitions, &id)?
-                    }
-                    ProjectEdit::RemoveGradientDefinition(id) => {
-                        remove(&mut project.definitions.gradients.definitions, &id)?
-                    }
+                    ProjectEdit::Put(object) => match object {
+                        Object::Project(value) => {
+                            if value.id != project.root.id {
+                                return Err(EditRejection::ProjectIdentity);
+                            }
+                            project.root = value.into();
+                        }
+                        Object::Setup(value) => put(project, value.id, value),
+                        Object::Layout(value) => put(project, value.id, value),
+                        Object::Patch(value) => put(project, value.id, value),
+                        Object::Controller(value) => put(project, value.id, value),
+                        Object::InputDevice(value) => put(project, value.id, value),
+                        Object::Sequence(value) => put(project, value.id, value),
+                        Object::Rig(value) => put(project, value.id, value),
+                        Object::FixtureDefinition(id, value) => put(project, id, value),
+                        Object::Curve(id, value) => put(project, id, value),
+                        Object::Gradient(id, value) => put(project, id, value),
+                        Object::EffectDefinition(value) => put(project, *value.id(), value),
+                        Object::OperatorDefinition(value) => put(project, *value.id(), value),
+                    },
+                    ProjectEdit::Remove(id) => match id {
+                        ObjectId::Project(_) => {
+                            return Err(EditRejection::ProjectRemoval);
+                        }
+                        ObjectId::Setup(id) => remove::<Setup>(project, id)?,
+                        ObjectId::Layout(id) => remove::<Layout>(project, id)?,
+                        ObjectId::Patch(id) => remove::<Patch>(project, id)?,
+                        ObjectId::Controller(id) => remove::<Controller>(project, id)?,
+                        ObjectId::InputDevice(id) => remove::<InputDevice>(project, id)?,
+                        ObjectId::Sequence(id) => remove::<Sequence>(project, id)?,
+                        ObjectId::Rig(id) => remove::<Rig>(project, id)?,
+                        ObjectId::FixtureDefinition(id) => {
+                            remove::<FixtureDefinition>(project, id)?
+                        }
+                        ObjectId::Curve(id) => remove::<CurveDefinition>(project, id)?,
+                        ObjectId::Gradient(id) => remove::<GradientDefinition>(project, id)?,
+                        ObjectId::EffectDefinition(id) => remove::<EffectDefinition>(project, id)?,
+                        ObjectId::OperatorDefinition(id) => {
+                            remove::<OperatorDefinition>(project, id)?
+                        }
+                    },
                 }
             }
             Ok(())
         })
     }
 
-    pub fn replace_setup(&mut self, id: &SetupId, value: Setup) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplaceSetup {
-            id: id.clone(),
-            value,
-        }])
-    }
-    pub fn replace_layout(&mut self, id: &LayoutId, value: Layout) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplaceLayout {
-            id: id.clone(),
-            value,
-        }])
-    }
-    pub fn replace_patch(&mut self, id: &PatchId, value: Patch) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplacePatch {
-            id: id.clone(),
-            value,
-        }])
-    }
-    pub fn replace_controller(
-        &mut self,
-        id: &ControllerId,
-        value: Controller,
-    ) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplaceController {
-            id: id.clone(),
-            value,
-        }])
-    }
-    pub fn replace_input_device(
-        &mut self,
-        id: &InputDeviceId,
-        value: InputDevice,
-    ) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplaceInputDevice {
-            id: id.clone(),
-            value,
-        }])
-    }
-    pub fn replace_rig(&mut self, id: &RigId, value: Rig) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplaceRig {
-            id: id.clone(),
-            value,
-        }])
-    }
-    pub fn replace_sequence(&mut self, id: &SequenceId, value: Sequence) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplaceSequence {
-            id: id.clone(),
-            value,
-        }])
+    /// Write one object; see [`ProjectEdit::Put`].
+    pub fn put(&mut self, object: impl Into<Object>) -> Result<(), crate::EditError> {
+        self.apply_edits([ProjectEdit::Put(object.into())])
     }
 }

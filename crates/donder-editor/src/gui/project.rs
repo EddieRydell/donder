@@ -1,8 +1,8 @@
-use super::patch::object_ref;
-use donder_project_io::{ProjectSession, SourceObjectKind};
+use super::model::object_ref;
+use donder_project_io::ProjectSession;
 
 use super::{ResolvedGuiObject, blocked};
-use donder_sequence_api::{GuiDocument, ProjectGuiDocument, ProjectGuiEdit};
+use crate::dto::{GuiDocument, ProjectGuiDocument, ProjectGuiEdit};
 
 /// A new rig's frame rate: Perform's target rate.
 const NEW_RIG_FRAME_RATE: u32 = 100;
@@ -12,7 +12,7 @@ pub(super) fn edit_project(
     resolved: &ResolvedGuiObject,
     edit: ProjectGuiEdit,
 ) -> Result<(), super::GuiMutationError> {
-    if session.project.root().id.0 != resolved.identity {
+    if resolved.object != session.project.root().id.into() {
         return Err(super::GuiMutationError::Invalid(
             "The requested project is not the active project.".into(),
         ));
@@ -21,14 +21,14 @@ pub(super) fn edit_project(
         ProjectGuiEdit::AddRig { initial_color } => {
             let color = super::model::parse_color(&initial_color)?;
             donder_model::add_rig(&mut session.project, NEW_RIG_FRAME_RATE, color)
-                .map_err(super::GuiMutationError::Invalid)?;
+                .map_err(super::GuiMutationError::from)?;
         }
     }
     Ok(())
 }
 
 pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
-    if session.project.root().id.0 != resolved.identity {
+    if resolved.object != session.project.root().id.into() {
         return blocked("The requested project is missing.", Vec::new());
     }
 
@@ -37,32 +37,28 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
             description: session.project.root().description.clone(),
             available_sources: super::ownership::available_sources(
                 session,
-                resolved.identity.document_id(),
                 &[
-                    SourceObjectKind::Setup,
-                    SourceObjectKind::Sequence,
-                    SourceObjectKind::Rig,
+                    donder_model::ObjectKind::Setup,
+                    donder_model::ObjectKind::Sequence,
+                    donder_model::ObjectKind::Rig,
                 ],
             ),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
-            setup: object_ref(
-                &session.project.root().setup.id().0,
-                SourceObjectKind::Setup,
-            ),
+            setup: object_ref(session, *session.project.root().setup.id()),
             sequences: session
                 .project
                 .root()
                 .sequences
                 .iter()
-                .map(|sequence| object_ref(&sequence.id().0, SourceObjectKind::Sequence))
+                .map(|sequence| object_ref(session, *sequence.id()))
                 .collect(),
             rigs: session
                 .project
                 .root()
                 .rigs
                 .iter()
-                .map(|rig| object_ref(&rig.id().0, SourceObjectKind::Rig))
+                .map(|rig| object_ref(session, *rig.id()))
                 .collect(),
         },
     }
@@ -71,35 +67,29 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
 pub fn create_sequence(
     session: &mut ProjectSession,
     owner: &super::ResolvedGuiObject,
-    request: donder_sequence_api::NewSequenceRequest,
-) -> Result<donder_sequence_api::GuiObjectRef, super::GuiMutationError> {
+    request: crate::dto::NewSequenceRequest,
+) -> Result<crate::dto::GuiObjectRef, super::GuiMutationError> {
     use super::GuiMutationError;
-    use donder_sequence_api::{
-        GuiOwnershipEdit, GuiOwnershipSlot, NewSequenceStorage, ReusableStorage,
-    };
-    super::ensure_owned_gui_document(session, owner)?;
+    use crate::dto::{GuiOwnershipEdit, NewSequenceStorage, ReusableStorage};
     let duration = super::checked_gui_duration(request.duration_seconds)?;
     let color = super::model::parse_color(&request.initial_color)?;
-    let index = session.project.root().sequences.len();
-    donder_model::add_sequence(&mut session.project, duration, request.frame_rate, color)
-        .map_err(GuiMutationError::Invalid)?;
+    let id = donder_model::add_sequence(&mut session.project, duration, request.frame_rate, color)
+        .map_err(GuiMutationError::from)?;
     let reusable = match request.storage {
         NewSequenceStorage::Inline => None,
         NewSequenceStorage::SameFile { name } => Some((name, ReusableStorage::SameFile)),
         NewSequenceStorage::NewFile { name } => Some((name, ReusableStorage::NewFile)),
     };
     if let Some((name, storage)) = reusable {
-        super::ownership::edit(
+        super::ownership::edit_site(
             session,
             owner,
-            GuiOwnershipSlot::Sequence {
-                index: index as u32,
+            donder_model::OwnershipSite::Member {
+                owner: session.project.root().id.into(),
+                member: id.into(),
             },
             GuiOwnershipEdit::MakeReusable { name, storage },
         )?;
     }
-    Ok(super::patch::object_ref(
-        &session.project.root().sequences[index].id().0,
-        donder_project_io::SourceObjectKind::Sequence,
-    ))
+    Ok(object_ref(session, id))
 }

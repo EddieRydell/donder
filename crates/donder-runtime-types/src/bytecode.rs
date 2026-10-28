@@ -29,19 +29,7 @@ const INDEX: u16 = INPUT - 1;
 /// An operand of the bank its instruction implies: a scalar, a per-pixel row,
 /// or one of the strip's pixel inputs. The compiler numbers slots freely
 /// before allocation; an instruction word holds an allocated slot in a byte.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    PartialEq,
-    bytemuck::Pod,
-    bytemuck::Zeroable,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(transparent)]
 pub struct Slot(u16);
 
@@ -137,9 +125,7 @@ impl Slot {
 }
 
 /// A slot bank.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Bank {
     Float,
     /// Ints, and enum options as indices into the program's names.
@@ -188,18 +174,7 @@ impl Bank {
 }
 
 /// Slot counts of each storage bank.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    Eq,
-    Hash,
-    PartialEq,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct Banks {
     pub floats: u16,
     pub ints: u16,
@@ -248,9 +223,7 @@ impl Banks {
 }
 
 /// Values the strip's context supplies once.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ContextRead {
     /// Floats of the query.
     Seconds,
@@ -292,9 +265,7 @@ impl ContextRead {
     }
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum FloatUnary {
     Negate,
     Sin,
@@ -312,9 +283,7 @@ pub enum FloatUnary {
     Rand,
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum FloatBinary {
     Add,
     Subtract,
@@ -331,17 +300,13 @@ pub enum FloatBinary {
     Power,
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum IntUnary {
     Negate,
     Abs,
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum IntBinary {
     Add,
     Subtract,
@@ -356,18 +321,7 @@ pub enum IntBinary {
 /// Which operands of a float instruction are colors, read channel by
 /// channel; the others are floats every channel reads. Its destination is a
 /// color when any operand is.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    Eq,
-    Hash,
-    PartialEq,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct Colors(u8);
 
 impl Colors {
@@ -418,9 +372,7 @@ impl Colors {
 }
 
 /// A comparison. Bools compare only for equality.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CompareOp {
     Less,
     LessEqual,
@@ -431,18 +383,14 @@ pub enum CompareOp {
 }
 
 /// A float of a whole color.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ColorComponent {
     Hue,
     Saturation,
     Intensity,
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CurveOp {
     /// The curve at a float position.
     Sample,
@@ -454,9 +402,7 @@ pub enum CurveOp {
     LastCrossing,
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum MarkOp {
     /// Float: the mark at an int index.
     At,
@@ -467,9 +413,7 @@ pub enum MarkOp {
 }
 
 /// A resource kind.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Resource {
     Curve,
     Gradient,
@@ -489,9 +433,7 @@ impl Resource {
     }
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Reducer {
     Max,
     Min,
@@ -507,9 +449,7 @@ pub enum Reducer {
 /// shifted query reads the current pixel's local index plus an offset, so a
 /// strip-wide offset reads one shifted run of pixels; its edges say what it
 /// reads past the fixture's ends.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SignalPixel<T> {
     Current,
     Local(T),
@@ -517,18 +457,14 @@ pub enum SignalPixel<T> {
 }
 
 /// Which way a scan carries its value along each fixture's pixels.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Direction {
     Forward,
     Backward,
 }
 
 /// What a shifted read reads past its fixture's ends.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Edges {
     /// Black, so a neighborhood reduction skips the missing neighbors.
     Skip,
@@ -816,7 +752,7 @@ pub enum Instruction {
 /// an operator's own last output, or an effect's layer's.
 pub const STATE_INPUT: u16 = u16::MAX;
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BytecodeProgram {
     /// The types of the parameters an invocation binds, in slot order.
     pub params: Box<[Type]>,
@@ -855,31 +791,9 @@ pub enum ParameterKind {
 }
 
 impl ParameterKind {
-    const ALL: [Self; 10] = [
-        Self::Void,
-        Self::Int,
-        Self::Float,
-        Self::Bool,
-        Self::Color,
-        Self::Marks,
-        Self::Curve,
-        Self::Gradient,
-        Self::Enum,
-        Self::Array,
-    ];
-
-    /// Its index among the kinds, as an image stores it.
-    pub fn to_wire(self) -> u32 {
-        self as u32
-    }
-
-    pub fn from_wire(value: u32) -> Option<Self> {
-        Self::ALL.get(value as usize).copied()
-    }
-
     pub fn for_type(ty: &Type) -> Self {
         match ty {
-            Type::Void | Type::Signal => Self::Void,
+            Type::Void => Self::Void,
             Type::Int => Self::Int,
             Type::Float => Self::Float,
             Type::Bool => Self::Bool,

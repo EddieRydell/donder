@@ -6,18 +6,13 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_specta::{Builder, collect_commands};
 
 use crate::desktop_state::DesktopState;
-use crate::persistence::{
-    PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate, PersistedPreviewWindowState,
-    PersistedSequenceViewportStateUpdate, PersistedSpatialViewStateUpdate, ProjectRestoreState,
-};
-use donder_sequence_api::{
-    AppSettings, AppSnapshot, AudioTransportState, DocumentViewId, EditorViewMode,
-    GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, NewSequenceRequest,
-    PlaybackRange, PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse,
-    SequenceAutomationTarget, SequenceClipRasterRequest, SequenceClipRasterResponse,
-    SequenceClipRasterResultBatch, SequenceGuiEdit, SequenceSelectionEdit,
-    SequenceSelectionEditResult, WorkspaceExplorerState, WorkspaceLayoutState,
-    WorkspacePathChangePlan, WorkspacePathChangeRequest,
+use crate::persistence::{PersistedPreviewWindowState, ProjectRestoreState};
+use donder_editor::dto::{
+    AppSettings, AppSnapshot, AudioTransportState, EditorViewMode, GuiDocumentChange,
+    GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, NewSequenceRequest, PlaybackRange,
+    PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse, SequenceClipRasterRequest,
+    SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceGuiEdit, SequenceSelection,
+    ViewStateUpdate, WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
 
 mod app;
@@ -44,8 +39,6 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
     builder.commands(collect_commands![
         get_snapshot,
         update_app_settings,
-        save_workspace_layout_state,
-        save_workspace_explorer_state,
         search_project,
         plan_workspace_path_change,
         apply_workspace_path_change,
@@ -67,10 +60,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         reconcile_external_files,
         resolve_external_conflict,
         set_editor_view_mode,
-        save_editor_view_state,
-        save_sequence_viewport_state,
-        save_graph_view_state,
-        save_spatial_view_state,
+        save_view_state,
         undo_active_edit,
         redo_active_edit,
         get_gui_document,
@@ -92,9 +82,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         take_sequence_clip_raster_results,
         apply_gui_edit,
         finish_composition_graph_editing,
-        rebind_detached_automation,
-        discard_detached_automation,
-        apply_sequence_selection_edit,
+        copy_sequence_selection,
         choose_sequence_audio,
         create_file,
         create_directory,

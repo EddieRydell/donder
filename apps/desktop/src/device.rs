@@ -3,7 +3,7 @@ pub(crate) mod firmware;
 pub(crate) mod playback;
 pub(crate) mod provisioning;
 
-use donder_sequence_api::{
+use donder_editor::dto::{
     DeviceCapabilities, DeviceOutputCapabilities, DevicePlaybackMode, DeviceTransportStatus,
     DonderDeviceNetworkRequest,
 };
@@ -366,7 +366,7 @@ mod tests {
                     let mut body = vec![0; length];
                     reader.read_exact(&mut body).unwrap();
                     let response = if path == "/capabilities" {
-                        r#"{"sequenceFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"maxFrameRate":158,"clockUdpPort":80},"sequenceStorage":"persistent"}"#
+                        r#"{"sequenceFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"maxFrameRate":158,"clockUdpPort":80}}"#
                     } else {
                         assert_eq!(&body[..4], &6u32.to_le_bytes());
                         "LOADED sequence"

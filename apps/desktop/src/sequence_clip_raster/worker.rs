@@ -1,9 +1,9 @@
 use super::render::{RasterRenderFailure, RenderedRaster, render_effect_raster};
+use donder_editor::dto::EffectRasterSettings;
 use donder_elaboration::{PreparationCache, PrepareOutputs, prepare_cached};
 use donder_model::{EffectInst, SequenceId};
 use donder_project_io::ProjectSession;
-use donder_runtime::PreparedSequence;
-use donder_sequence_api::EffectRasterSettings;
+use donder_runtime::PreparedShow;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread;
@@ -83,7 +83,7 @@ fn run(
 ) {
     // Unchanged clips keep their lowering across project snapshots.
     let mut preparation = PreparationCache::default();
-    let mut prepared: Option<(Arc<ProjectSession>, SequenceId, Option<PreparedSequence>)> = None;
+    let mut prepared: Option<(Arc<ProjectSession>, SequenceId, Option<PreparedShow>)> = None;
     while let Ok(mut job) = jobs.recv() {
         while let Ok(newer) = jobs.try_recv() {
             job = newer;
@@ -101,7 +101,7 @@ fn run(
                 PrepareOutputs::All,
                 &mut preparation,
             );
-            prepared = Some((Arc::clone(&job.project), job.sequence_id.clone(), sequence));
+            prepared = Some((Arc::clone(&job.project), job.sequence_id, sequence));
         }
         let Some((_, _, Some(sequence))) = &prepared else {
             continue;

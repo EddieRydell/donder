@@ -304,21 +304,6 @@ impl Stop for GradientStop {
     }
 }
 
-impl Stop for crate::image::GradientStop {
-    #[inline(always)]
-    fn position(&self) -> f32 {
-        self.position
-    }
-    #[inline(always)]
-    fn color(&self) -> Color {
-        self.color
-    }
-    #[inline(always)]
-    fn inverse(&self, _: &Self) -> f32 {
-        self.inverse
-    }
-}
-
 /// A gradient's color at `position`. Equal-position stops form a step: the
 /// last stop wins at the exact position. A gradient has at least one stop.
 pub fn sample_gradient_stops<S: Stop>(stops: &[S], position: f32) -> Color {

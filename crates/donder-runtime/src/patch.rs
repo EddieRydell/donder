@@ -1,8 +1,8 @@
 //! Packing a frame's colors into its outputs' bytes: each channel becomes
 //! the nearest byte, through the route's lookup table when it has one. Light
 //! below 0 or NaN is off and light above 1 is full, as the cast saturates.
+use crate::image::{self, NONE};
 use donder_runtime_types::Color;
-use donder_runtime_types::image::{self, NONE};
 use donder_runtime_types::sampling::min_float;
 
 use crate::show::Show;

@@ -3,10 +3,10 @@ pub(crate) mod tests {
     use std::fs;
 
     use camino::{Utf8Path, Utf8PathBuf};
-    use donder_project_io::load_project;
+    use donder_project_io::check_project;
 
-    use donder_sequence_api::{
-        DocumentViewId, GuiDocument, GuiDocumentRequest, WorkspacePathChangeRequest,
+    use donder_editor::dto::{
+        GuiDocument, GuiDocumentRequest, ObjectKind, WorkspacePathChangeRequest,
     };
 
     fn starter() -> donder_project_io::ProjectSession {
@@ -14,14 +14,22 @@ pub(crate) mod tests {
             .parent()
             .and_then(Utf8Path::parent)
             .unwrap();
-        load_project(&workspace.join("examples/starter")).unwrap()
+        check_project(
+            &workspace.join("examples/starter"),
+            &Default::default(),
+            &mut Default::default(),
+        )
+        .into_session()
+        .unwrap()
     }
 
     /// Saving `session` and reopening `root` gives back the same documents.
     /// Loading assigns fresh session identities, so the printed text, which
     /// holds every authored value, is what must match.
     pub(crate) fn assert_reloads(root: &Utf8Path, session: &donder_project_io::ProjectSession) {
-        let loaded = load_project(root).unwrap();
+        let loaded = check_project(root, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap();
         let documents = |session: &donder_project_io::ProjectSession| {
             session
                 .source
@@ -74,8 +82,7 @@ pub(crate) mod tests {
             owned_path: Vec::new(),
             project_revision: 0,
             path: "setups/main.data.donder".to_string(),
-            view: DocumentViewId::Setup,
-            object_key: Some("main".to_string()),
+            object_key: "main".to_string(),
         };
         let GuiDocument::Setup { document } =
             donder_editor::project_gui_document(Some(&session), &request)
@@ -86,13 +93,10 @@ pub(crate) mod tests {
         assert_eq!(document.patch_ref.object_key, "outputs");
         assert!(!document.controllers.is_empty());
 
-        for (reference, view) in [
-            (&document.layout_ref, DocumentViewId::Layout),
-            (&document.patch_ref, DocumentViewId::Patch),
-            (
-                &document.controllers[0].source_ref,
-                DocumentViewId::Controller,
-            ),
+        for reference in [
+            &document.layout_ref,
+            &document.patch_ref,
+            &document.controllers[0].source_ref,
         ] {
             let projection = donder_editor::project_gui_document(
                 Some(&session),
@@ -100,15 +104,14 @@ pub(crate) mod tests {
                     owned_path: Vec::new(),
                     project_revision: 0,
                     path: reference.path.clone(),
-                    view: view.clone(),
-                    object_key: Some(reference.object_key.clone()),
+                    object_key: reference.object_key.clone(),
                 },
             );
             assert!(matches!(
-                (view, projection),
-                (DocumentViewId::Layout, GuiDocument::Layout { .. })
-                    | (DocumentViewId::Patch, GuiDocument::Patch { .. })
-                    | (DocumentViewId::Controller, GuiDocument::Controller { .. })
+                (&reference.kind, projection),
+                (ObjectKind::Layout, GuiDocument::Layout { .. })
+                    | (ObjectKind::Patch, GuiDocument::Patch { .. })
+                    | (ObjectKind::Controller, GuiDocument::Controller { .. })
             ));
         }
     }
@@ -139,7 +142,7 @@ pub(crate) mod tests {
         let snapshot = state.open_file_path("sequences/layer_test.data.donder");
         let buffer = snapshot.active_buffer.unwrap();
         state
-            .update_document(donder_sequence_api::DocumentUpdate {
+            .update_document(donder_editor::dto::DocumentUpdate {
                 project_epoch: snapshot.project_epoch,
                 path: buffer.path,
                 expected_document_revision: buffer.document_revision,

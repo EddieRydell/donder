@@ -15,14 +15,14 @@ export function GraphNodeControls({ node, composition }: { node: SequenceGraphNo
     return <div className="graph-node-layer-controls">
       <LayerProperties layer={layer} composition={composition} />
       <DescriptionField description={layer.description} disabled={!editable} onCommit={(description) =>
-        composition.apply({ type: "setLayerDescription", id: layer.id, description })} />
+        composition.applyItem({ type: "setDescription", item: { type: "layer", id: layer.id }, description })} />
       <p>{composition.layerUses(layer.id)} effects{layer.isDefault ? " · Default layer" : ""}</p>
     </div>;
   }
   if (node.kind.type !== "operator") return null;
   return <fieldset className="graph-node-parameters" disabled={!editable} aria-label="Project operator parameters">
     <NameField name={node.kind.name} label="Name" commit={(name) =>
-      composition.apply({ type: "renameGraphNode", nodeId: node.id, name })} />
+      composition.applyItem({ type: "rename", item: { type: "graphNode", nodeId: node.id }, name })} />
     {node.kind.params.map((param, index) => <div key={param.name} className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}>
       <TypedParamInput param={param} commitParam={(name, value) =>
         composition.apply({ type: "updateGraphOperatorParam", nodeId: node.id, name, value }).then(() => undefined)

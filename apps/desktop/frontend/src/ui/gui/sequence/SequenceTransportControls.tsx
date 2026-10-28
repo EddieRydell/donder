@@ -6,7 +6,7 @@ import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 
-import type { AppSnapshot, AudioTransportState, SequenceEditorDocument, SequenceFollowMode } from "../../../editor/types";
+import type { AppSnapshot, AudioTransportState, SequenceGuiDocument, SequenceFollowMode } from "../../../editor/types";
 
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
@@ -19,7 +19,7 @@ export function SequenceTransportControls({
   document,
   previewOpen
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   previewOpen: boolean;
 }) {
   const host = useSequenceEditorHost();
@@ -175,7 +175,7 @@ function toggleSequenceSnap(host: SequenceEditorHost) {
   void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceSnap: !settings.sequenceSnap }));
 }
 
-async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceEditorDocument, confirm: Confirm) {
+async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceGuiDocument, confirm: Confirm) {
   const { commands, runGuiEditCommand } = host;
 
   const result = await runGuiEditCommand(commands.chooseSequenceAudio);
@@ -194,10 +194,10 @@ async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: S
   });
   if (!resize) return;
   await runGuiEditCommand((request) =>
-    commands.applySequenceGuiEdit(request, {
+    commands.applyGuiEdit(request, { type: "sequence", edit: {
       type: "setDuration",
       durationSeconds
-    })
+    } })
   );
 }
 
@@ -282,7 +282,7 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"], p
 }
 
 /** The transport's keyboard commands, which act while the sequence's audio is loaded. */
-export function sequenceTransportCommands(host: SequenceEditorHost, document: SequenceEditorDocument) {
+export function sequenceTransportCommands(host: SequenceEditorHost, document: SequenceGuiDocument) {
   const { commands, runSnapshotCommand } = host;
   const transport = () => host.store.getState().snapshot?.audioTransport;
   const enabled = () => {
@@ -310,7 +310,7 @@ export function sequenceTransportCommands(host: SequenceEditorHost, document: Se
 }
 
 function isSequenceTransportUnsupported(
-  document: SequenceEditorDocument,
+  document: SequenceGuiDocument,
   transport: AppSnapshot["audioTransport"]
 ) {
   return document.durationSeconds <= 0 || transport.state === "unloaded" || transport.state === "error";
@@ -328,7 +328,7 @@ function transportExtrapolationSeconds(anchoredAt: number) {
   return anchoredAt > 0 ? (performance.now() - anchoredAt) / 1000 : 0;
 }
 
-function stepSequenceFrame(host: SequenceEditorHost, document: SequenceEditorDocument, positionSeconds: number, transportDurationSeconds: number, direction: -1 | 1) {
+function stepSequenceFrame(host: SequenceEditorHost, document: SequenceGuiDocument, positionSeconds: number, transportDurationSeconds: number, direction: -1 | 1) {
   const { commands, runSnapshotCommand } = host;
 
   const frameSeconds = 1 / Math.max(1, document.frameRate);

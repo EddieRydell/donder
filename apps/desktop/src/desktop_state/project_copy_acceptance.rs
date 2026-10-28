@@ -1,7 +1,7 @@
 use super::DesktopState;
 use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
-use donder_sequence_api::{
+use donder_editor::dto::{
     EditorViewMode, GuiDocument, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit,
     TransitionDecision, TransitionRequest, TransitionResult, WorkspaceTransition,
 };
@@ -27,8 +27,14 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
         settings.autosave_project_edits = false;
         state.update_app_settings(settings);
         let original = state.project_session().unwrap();
-        let setup = original.project.root().setup.id().clone();
-        state.open_file_path(setup.0.document().as_str());
+        let setup = *original.project.root().setup.id();
+        state.open_file_path(
+            original
+                .address_of(setup.into())
+                .unwrap()
+                .document()
+                .as_str(),
+        );
         let result = super::authoring_acceptance::edit_layout(
             &state,
             LayoutGuiEdit::SetFixtures {
@@ -102,15 +108,25 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
         };
         assert_eq!(&state.project_session().unwrap().project, expected);
         assert_eq!(
-            &donder_project_io::load_project(&original_root)
-                .unwrap()
-                .project,
+            &donder_project_io::check_project(
+                &original_root,
+                &Default::default(),
+                &mut Default::default()
+            )
+            .into_session()
+            .unwrap()
+            .project,
             expected
         );
         assert_eq!(
-            &donder_project_io::load_project(&parent.join("copy"))
-                .unwrap()
-                .project,
+            &donder_project_io::check_project(
+                &parent.join("copy"),
+                &Default::default(),
+                &mut Default::default()
+            )
+            .into_session()
+            .unwrap()
+            .project,
             expected
         );
     }

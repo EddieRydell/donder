@@ -19,7 +19,7 @@ export function useSequenceEditable() {
 
   return useAppStore((state) => state.guiRequest !== null
     && state.guiRequest.projectRevision === state.guiDocumentRevision
-    && !state.guiEditPending && state.snapshot?.activeBuffer?.readOnly !== true);
+    && !state.guiEditPending);
 }
 
 export function defaultLayerColor(index: number) {
@@ -27,13 +27,6 @@ export function defaultLayerColor(index: number) {
   const color = colors[index % colors.length];
   if (color === undefined) throw new Error("Invalid layer palette index.");
   return color;
-}
-
-export function nextLayerName(layers: SequenceLayer[]) {
-  const names = new Set(layers.map((layer) => layer.name));
-  let number = 1;
-  while (names.has(`Layer ${number}`)) number += 1;
-  return `Layer ${number}`;
 }
 
 export function deletableGraphNodes(document: CompositionDocument, nodeIds: string[]) {
@@ -55,7 +48,7 @@ export function LayerProperties({ layer, composition, onDelete }: { layer: Seque
       void composition.apply({ type: "setLayerEnabled", id: layer.id, enabled: event.currentTarget.checked }).catch(reportSequenceEditError);
     }} />
     <ColorPicker value={layer.color} label={`${layer.name} color`} commit={(color) =>
-      composition.apply({ type: "setLayerColor", id: layer.id, color }).then(() => undefined).catch(reportSequenceEditError)
+      composition.applyItem({ type: "setColor", item: { type: "layer", id: layer.id }, color }).then(() => undefined).catch(reportSequenceEditError)
     } />
     <input key={`${layer.id}:${layer.name}`} defaultValue={layer.name} aria-label="Layer name" required
       onKeyDown={(event) => {
@@ -70,7 +63,7 @@ export function LayerProperties({ layer, composition, onDelete }: { layer: Seque
         const name = input.value.trim();
         if (name === "") { input.value = layer.name; return; }
         if (name === layer.name) return;
-        void composition.apply({ type: "renameLayer", id: layer.id, name })
+        void composition.applyItem({ type: "rename", item: { type: "layer", id: layer.id }, name })
           .catch((error: unknown) => { input.value = layer.name; reportSequenceEditError(error); });
       }} />
     {!layer.isDefault && onDelete !== undefined && <button type="button" onClick={onDelete}>Delete</button>}
@@ -175,7 +168,7 @@ export function LayerList({ composition }: { composition: CompositionEditing }) 
   return <>
     <button type="button" className="neutral-button" disabled={!editable} onClick={() => {
       void composition.apply({
-        type: "createLayer", name: nextLayerName(document.layers), color: defaultLayerColor(document.layers.length)
+        type: "createLayer", name: "Layer", color: defaultLayerColor(document.layers.length)
       }).catch(reportSequenceEditError);
     }}>Add layer</button>
     <div className="sequence-layer-list">

@@ -9,7 +9,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::persistence::{PersistedPreviewWindowState, PersistenceService};
-use donder_sequence_api::{
+use donder_editor::dto::{
     AudioTransportSnapshot, AudioTransportState, PlaybackSpeed, PreviewAppearance,
 };
 
@@ -22,7 +22,6 @@ mod scene;
 mod video;
 
 pub(crate) use geometry::PreviewGeometry;
-pub(crate) use protocol::PreviewArchive;
 use protocol::{PreviewCommand, PreviewEvent, PreviewStartup, read_event, write_command};
 pub(crate) use video::export_video;
 
@@ -40,7 +39,7 @@ pub(crate) struct PreviewContentIdentity {
 
 pub(crate) struct PreviewContent {
     pub(crate) instances: Vec<[f32; 4]>,
-    pub(crate) archive: Option<PreviewArchive>,
+    pub(crate) archive: Option<Vec<u8>>,
     /// The performance a rig archive plays, whose commands follow it.
     pub(crate) performance: Option<u32>,
 }

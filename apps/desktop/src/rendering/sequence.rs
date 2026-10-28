@@ -5,11 +5,11 @@ use donder_model::SequenceId;
 use donder_model::SetupId;
 use donder_model::{ControllerId, ControllerPortId};
 use donder_output::ControllerPortFrame;
-use donder_runtime::{PlaybackRate, SequenceFrame, SequencePlayback};
+use donder_runtime::{PlaybackRate, SequenceFrame, ShowPlayback};
 use donder_runtime_types::{Color, SampleTime, SampleTimeError};
 use std::time::Duration;
 
-use donder_sequence_api::{AudioTransportSnapshot, AudioTransportState};
+use donder_editor::dto::{AudioTransportSnapshot, AudioTransportState};
 
 pub(crate) struct SequenceRenderService {
     session: Option<PreparedRenderSession>,
@@ -22,7 +22,7 @@ pub(crate) struct SequenceRenderService {
 pub(crate) struct PreparedRenderSession {
     setup_id: SetupId,
     sequence_id: SequenceId,
-    playback: SequencePlayback,
+    playback: ShowPlayback,
     controllers: Vec<ControllerId>,
     cached: Option<AudioClockRenderedFrame>,
 }
@@ -118,14 +118,10 @@ impl SequenceRenderService {
         &mut self,
         project: &DonderProject,
     ) -> Result<(), RenderSessionPrepareError> {
-        let Some(sequence_id) = self
-            .session
-            .as_ref()
-            .map(|session| session.sequence_id.clone())
-        else {
+        let Some(sequence_id) = self.session.as_ref().map(|session| session.sequence_id) else {
             return Ok(());
         };
-        if project.sequence(&sequence_id).is_none() {
+        if project.get::<donder_model::Sequence>(sequence_id).is_none() {
             self.unload();
             return Ok(());
         }
@@ -142,7 +138,7 @@ impl SequenceRenderService {
             .ok_or(SequenceRenderError::NoSequenceRenderSession)?;
         require_audio_clock(audio)?;
         let rate = playback_rate(audio)?;
-        let frame_rate = session.playback.sequence().frame_rate();
+        let frame_rate = session.playback.prepared().frame_rate();
         let sample_time = sample_time_from_seconds_f64(audio.position_seconds)
             .map_err(SequenceRenderError::InvalidClock)?;
         let frame_index = playback_frame_index(rate, sample_time, frame_rate);
@@ -186,7 +182,7 @@ impl SequenceRenderService {
             .as_ref()
             .ok_or(SequenceRenderError::NoSequenceRenderSession)?;
         require_audio_clock(audio)?;
-        let sequence = session.playback.sequence();
+        let sequence = session.playback.prepared();
         Ok(AudioClockRenderIdentity {
             session_generation: self.session_generation,
             audio_generation: audio.generation,
@@ -206,7 +202,7 @@ impl SequenceRenderService {
     pub(crate) fn active_target(&self) -> Option<(SetupId, SequenceId)> {
         self.session
             .as_ref()
-            .map(|session| (session.setup_id.clone(), session.sequence_id.clone()))
+            .map(|session| (session.setup_id, session.sequence_id))
     }
 
     pub(crate) fn session_generation(&self) -> u64 {
@@ -217,7 +213,7 @@ impl SequenceRenderService {
         self.session
             .as_ref()
             .map(|session| {
-                let sequence = session.playback.sequence();
+                let sequence = session.playback.prepared();
                 Ok(EncodedPreviewSequence {
                     bytes: sequence.encode(),
                     fixtures: sequence
@@ -256,12 +252,12 @@ pub(crate) fn prepare_render_session_cached(
     let sequence = prepare_cached(project, sequence_id, PrepareOutputs::All, cache)
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
     let setup = project
-        .setup(project.root().setup.id())
+        .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
     let controllers = setup_controllers(setup);
     Ok(PreparedRenderSession {
-        setup_id: setup.id.clone(),
-        sequence_id: sequence_id.clone(),
+        setup_id: setup.id,
+        sequence_id: *sequence_id,
         playback: sequence.into_playback(),
         controllers,
         cached: None,
@@ -277,7 +273,7 @@ pub(crate) fn controller_frames(
     frame
         .outputs()
         .map(|output| ControllerPortFrame {
-            controller: controllers[output.output.controller_index as usize].clone(),
+            controller: controllers[output.output.controller_index as usize],
             port: ControllerPortId(output.output.port),
             slots: output.bytes.to_vec(),
         })
@@ -289,7 +285,7 @@ pub(crate) fn setup_controllers(setup: &donder_model::Setup) -> Vec<ControllerId
     setup
         .controllers
         .iter()
-        .map(|source| source.id().clone())
+        .map(|source| *source.id())
         .collect()
 }
 

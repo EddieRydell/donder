@@ -8,15 +8,14 @@ use crate::dsl::bytecode::SignalPixel;
 use crate::dsl::{Bound, NoSignals, RunContext, STRIP, Strip, StripSignals, StripSlots};
 use crate::dsl::{ScanQuery, SourceWeights};
 use crate::resources::ParamsView;
-use crate::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
-use donder_language::compiler::{
-    CompiledEffect, CompiledOperator, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
-};
+use crate::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
+use donder_language::compiler::{CompiledDefinition, Instance, ParamDecl, ParamRange};
+use donder_runtime_types::{BoundProgram, Type, Value};
 use donder_runtime_types::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
 use donder_runtime_types::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SpatialContext, TargetScope,
+    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SequenceTiming, SpatialContext,
+    TargetGeometry, TargetScope,
 };
-use donder_runtime_types::{Identifier, OperatorInvocation, SampleInvocation, Type, Value};
 use std::prelude::rust_2024::*;
 
 /// A test signal source's failure, reported as the operator's result.
@@ -159,37 +158,36 @@ impl core::ops::Deref for PixelContext {
 
 /// One invocation's program in a show of its own: what a test strip runs.
 pub(super) struct Single {
-    sequence: PreparedSequence,
+    sequence: PreparedShow,
     program: u32,
     params: u32,
 }
 
 impl Single {
-    pub(super) fn sample(invocation: &SampleInvocation) -> Self {
-        let sequence = single(|builder, target| {
-            let window = builder.whole_sequence();
-            builder.sample(invocation, window, target);
-            builder.output(None)
+    /// An effect's program as a clip, or an operator's as a node.
+    pub(super) fn new(program: &BoundProgram) -> Self {
+        let sequence = PreparedShow::build(playback::timing(1_000_000), |builder| {
+            let geometry = playback::row(1);
+            builder.fixture(0, geometry.clone());
+            let target = whole(builder, &geometry, TargetScope::WholeTarget);
+            if program.program().inputs == 0 {
+                let duration = builder_duration();
+                builder.clip(None, program, SampleTime::from_ticks(0), duration, target);
+                None
+            } else {
+                let layer = builder.layer(true, []);
+                Some(builder.operator(program, |_| layer))
+            }
         });
-        let effect = sequence.show().s.effects[0];
+        let show = sequence.show();
+        let (program, params) = match show.s.effects.first() {
+            Some(effect) => (effect.program, effect.params),
+            None => (show.s.nodes[1].program, show.s.nodes[1].params),
+        };
         Self {
             sequence,
-            program: effect.program,
-            params: effect.params,
-        }
-    }
-
-    pub(super) fn operator(invocation: &OperatorInvocation) -> Self {
-        let sequence = single(|builder, _| {
-            let layer = builder.layer(true, []);
-            let operator = builder.operator(invocation, |_| layer);
-            builder.output(Some(operator))
-        });
-        let node = sequence.show().s.nodes[1];
-        Self {
-            sequence,
-            program: node.program,
-            params: node.params,
+            program,
+            params,
         }
     }
 
@@ -247,15 +245,9 @@ impl Single {
     }
 }
 
-/// A show of one pixel holding `build`'s program.
-fn single(
-    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
-) -> PreparedSequence {
-    PreparedSequence::build(playback::timing(1_000_000), |builder| {
-        let fixture = builder.fixture(0, FixtureGeometry::admit(vec![[0.0, 0.0]].into()).unwrap());
-        let target = builder.target([fixture], TargetScope::WholeTarget);
-        build(builder, target)
-    })
+/// The one-second show of a [`Single`].
+fn builder_duration() -> SampleDuration {
+    playback::timing(1_000_000).duration()
 }
 
 pub(super) trait SampleEvaluation {
@@ -267,19 +259,19 @@ pub(super) trait SampleEvaluation {
     ) -> Color;
 }
 
-impl SampleEvaluation for SampleInvocation {
+impl SampleEvaluation for BoundProgram {
     fn evaluate(
         &self,
         context: &PixelContext,
         spatial: &SpatialContext,
         workspace: &mut StripWorkspace,
     ) -> Color {
-        Single::sample(self).one(context, spatial, &mut NoSignals, workspace)
+        Single::new(self).one(context, spatial, &mut NoSignals, workspace)
     }
 }
 
 pub(super) trait OperatorEvaluation {
-    fn evaluate(
+    fn evaluate_signals(
         &self,
         context: &PixelContext,
         spatial: &SpatialContext,
@@ -288,8 +280,8 @@ pub(super) trait OperatorEvaluation {
     ) -> Result<Color, RuntimeError>;
 }
 
-impl OperatorEvaluation for OperatorInvocation {
-    fn evaluate(
+impl OperatorEvaluation for BoundProgram {
+    fn evaluate_signals(
         &self,
         context: &PixelContext,
         spatial: &SpatialContext,
@@ -302,7 +294,7 @@ impl OperatorEvaluation for OperatorInvocation {
             index: context.index,
             count: context.run.pixel_count,
         };
-        let color = Single::operator(self).one(context, spatial, &mut signals, workspace);
+        let color = Single::new(self).one(context, spatial, &mut signals, workspace);
         match signals.error {
             Some(error) => Err(error),
             None => Ok(color),
@@ -326,7 +318,7 @@ pub(super) fn context(count: usize, pixel: usize, frame: usize) -> PixelContext 
     }
 }
 
-pub(super) use donder_test_support::playback::{compile_effect, compile_operator};
+pub(super) use donder_test_support::playback::{compile, invoke as bind, try_invoke as try_bind};
 
 /// A one-pixel context of a one-second sequence at `progress`, at time zero.
 pub(super) fn one_pixel(progress: f32) -> PixelContext {
@@ -360,37 +352,49 @@ pub(super) fn marks(ticks: &[u32]) -> Value {
     Value::Marks(Marks::new(ticks.iter().copied().map(SampleDuration::from_ticks)).into())
 }
 
+// The test-support crate builds shows of its own copy of this crate, so
+// tests inside it build theirs here.
+
+/// The target of every pixel of the first registered fixture, `geometry`.
+pub(super) fn whole<'id>(
+    builder: &mut ShowBuilder<'id>,
+    geometry: &FixtureGeometry,
+    scope: TargetScope,
+) -> TargetHandle<'id> {
+    builder.target(&TargetGeometry::new([(0, geometry)], scope))
+}
+
 /// A `count`-pixel fixture with a GRB port, built by `build`.
 pub(super) fn build(
     count: usize,
-    duration: u32,
-    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
-) -> PreparedSequence {
-    PreparedSequence::build(playback::timing(duration), |builder| {
-        let fixture = builder.fixture(
-            0,
-            FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap(),
-        );
-        let target = builder.target([fixture], TargetScope::WholeTarget);
+    timing: SequenceTiming,
+    build: impl for<'id> FnOnce(&mut ShowBuilder<'id>, TargetHandle<'id>) -> Option<SignalHandle<'id>>,
+) -> PreparedShow {
+    PreparedShow::build(timing, |builder| {
+        let geometry = playback::row(count);
+        builder.fixture(0, geometry.clone());
+        let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
         builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
         build(builder, target)
     })
 }
 
-/// `layers` layers of `invocation` over the whole eight-second sequence,
-/// mixed and passed through `operators`.
-pub(super) fn chain(
+/// `layers` layers of `effect` over the whole eight-second sequence, mixed
+/// and passed through `operators`.
+pub(super) fn show(
     count: usize,
-    invocation: &SampleInvocation,
+    effect: &BoundProgram,
     layers: usize,
-    operators: &[OperatorInvocation],
-) -> PreparedSequence {
-    build(count, 8_000_000, |builder, target| {
-        let window = builder.whole_sequence();
+    operators: &[BoundProgram],
+) -> PreparedShow {
+    let timing = playback::timing(8_000_000);
+    let duration = timing.duration();
+    build(count, timing, |builder, target| {
         let layers: Vec<_> = (0..layers)
             .map(|_| {
-                let effect = builder.sample(invocation, window, target);
+                let effect =
+                    builder.clip(None, effect, SampleTime::from_ticks(0), duration, target);
                 builder.layer(true, [effect])
             })
             .collect();
@@ -398,92 +402,35 @@ pub(super) fn chain(
         for operator in operators {
             signal = builder.operator(operator, |_| signal);
         }
-        builder.output(Some(signal))
+        Some(signal)
     })
 }
 
 /// The only effect of `source` with its defaults, lowered with nothing known
 /// about its placement.
-pub(super) fn effect(source: &str) -> SampleInvocation {
-    playback::sample(&compile_effect(source))
+pub(super) fn effect(source: &str) -> BoundProgram {
+    playback::program(&compile(source))
 }
 
 /// The only operator of `source` with its defaults, lowered with nothing
 /// known about its placement.
-pub(super) fn operator(source: &str) -> OperatorInvocation {
-    playback::operator(&compile_operator(source))
-}
-
-/// Effect and operator definitions alike.
-pub(super) trait Definition {
-    fn declarations(&self) -> &[ParamDecl];
-    fn invoke_with(
-        &self,
-        values: Vec<Value>,
-        automation: Box<[PreparedAutomation]>,
-    ) -> Result<Invocation, donder_runtime_types::BindingError>;
-}
-
-impl Definition for CompiledEffect {
-    fn declarations(&self) -> &[ParamDecl] {
-        self.params()
-    }
-    fn invoke_with(
-        &self,
-        values: Vec<Value>,
-        automation: Box<[PreparedAutomation]>,
-    ) -> Result<Invocation, donder_runtime_types::BindingError> {
-        self.invoke(values, automation)
-    }
-}
-
-impl Definition for CompiledOperator {
-    fn declarations(&self) -> &[ParamDecl] {
-        self.params()
-    }
-    fn invoke_with(
-        &self,
-        values: Vec<Value>,
-        automation: Box<[PreparedAutomation]>,
-    ) -> Result<Invocation, donder_runtime_types::BindingError> {
-        self.invoke(values, automation)
-    }
-}
-
-/// `definition` with `values` by name and declared defaults for the rest.
-pub(super) fn bind(definition: &impl Definition, values: &[(&str, Value)]) -> Invocation {
-    try_bind(definition, values).unwrap()
-}
-
-pub(super) fn try_bind(
-    definition: &impl Definition,
-    values: &[(&str, Value)],
-) -> Result<Invocation, donder_runtime_types::BindingError> {
-    let named: Vec<_> = values
-        .iter()
-        .map(|(name, value)| (Identifier::new((*name).into()).unwrap(), value.clone()))
-        .collect();
-    let values = donder_language::compiler::bind_params(
-        definition.declarations(),
-        named.iter().map(|(name, value)| (name, value)),
-    )?;
-    definition.invoke_with(values.iter_values().collect(), Box::new([]))
+pub(super) fn operator(source: &str) -> BoundProgram {
+    playback::program(&compile(source))
 }
 
 /// `definition` with the parameters named in `runtime` left to playback and
 /// every other parameter fixed (`fixed` by name, defaults for the rest).
 /// Preparation computes nothing that reads a runtime parameter; the VM does.
-/// Also returns the runtime values in slot order, for [`lower_runtime_effect`]
-/// and [`lower_runtime_operator`].
+/// Also returns the runtime values in slot order, for [`lower_runtime`].
 pub(super) fn runtime_instance(
-    definition: &impl Definition,
+    definition: &CompiledDefinition,
     fixed: &[(&str, Value)],
     runtime: &[(&str, Value)],
 ) -> (Instance, Vec<Value>) {
     let mut values = Vec::new();
     let mut automation = Vec::new();
     let mut slots = Vec::new();
-    for (index, param) in definition.declarations().iter().enumerate() {
+    for (index, param) in definition.params().iter().enumerate() {
         let name = param.name.as_str();
         if let Some((_, value)) = runtime.iter().find(|(runtime, _)| *runtime == name) {
             automation.push(PreparedAutomation {
@@ -504,7 +451,7 @@ pub(super) fn runtime_instance(
     }
     let declared = |name: &&str| {
         definition
-            .declarations()
+            .params()
             .iter()
             .any(|param| param.name.as_str() == *name)
     };
@@ -512,8 +459,8 @@ pub(super) fn runtime_instance(
         runtime.iter().chain(fixed).all(|(name, _)| declared(name)),
         "values name parameters"
     );
-    let invocation = definition.invoke_with(values, automation.into()).unwrap();
-    (invocation.instance(ProgramConstants::default()), slots)
+    let invocation = definition.invoke(values, automation.into()).unwrap();
+    (invocation.instance(Default::default()), slots)
 }
 
 /// A value of `param` inside its declared range.
@@ -540,7 +487,7 @@ fn rebind(
         .filter(|binding| binding.quantity == donder_runtime_types::AutomatedQuantity::Value)
         .count();
     assert_eq!(parameters, slots.len());
-    let mut values: Vec<Value> = values.iter_values().collect();
+    let mut values = values.values().to_vec();
     for (slot, value) in slots.into_iter().enumerate() {
         assert_eq!(usize::from(automation[slot].param_index), slot);
         values[slot] = value;
@@ -551,41 +498,32 @@ fn rebind(
 /// A lowered runtime instance whose runtime slots hold `slots`, which may lie
 /// outside their declared ranges. The result has no automation, so playback
 /// keeps those values too.
-pub(super) fn lower_runtime_effect(instance: &Instance, slots: Vec<Value>) -> SampleInvocation {
-    let lowered = instance.sample();
-    SampleInvocation::bind(
+pub(super) fn lower_runtime(instance: &Instance, slots: Vec<Value>) -> BoundProgram {
+    let lowered = playback::bind(instance);
+    BoundProgram::bind(
         lowered.program().clone(),
         rebind(lowered.params(), lowered.automation(), slots),
-    )
-    .unwrap()
-}
-
-/// The operator counterpart of [`lower_runtime_effect`].
-pub(super) fn lower_runtime_operator(instance: &Instance, slots: Vec<Value>) -> OperatorInvocation {
-    let lowered = instance.operator();
-    OperatorInvocation::bind(
-        lowered.program().clone(),
-        rebind(lowered.params(), lowered.automation(), slots),
+        Box::new([]),
     )
     .unwrap()
 }
 
 /// `effect` evaluated by the VM wherever it reads a `runtime` parameter.
 pub(super) fn runtime_effect(
-    effect: &CompiledEffect,
+    effect: &CompiledDefinition,
     fixed: &[(&str, Value)],
     runtime: &[(&str, Value)],
-) -> SampleInvocation {
+) -> BoundProgram {
     let (instance, slots) = runtime_instance(effect, fixed, runtime);
-    lower_runtime_effect(&instance, slots)
+    lower_runtime(&instance, slots)
 }
 
 /// `operator` evaluated by the VM wherever it reads a `runtime` parameter.
 pub(super) fn runtime_operator(
-    operator: &CompiledOperator,
+    operator: &CompiledDefinition,
     fixed: &[(&str, Value)],
     runtime: &[(&str, Value)],
-) -> OperatorInvocation {
+) -> BoundProgram {
     let (instance, slots) = runtime_instance(operator, fixed, runtime);
-    lower_runtime_operator(&instance, slots)
+    lower_runtime(&instance, slots)
 }

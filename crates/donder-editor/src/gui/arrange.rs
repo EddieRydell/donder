@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::dto::{SequenceClipArrangement, SequenceClipRef};
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::{FixtureTarget, Sequence, SequenceId};
 use donder_project_io::ProjectSession;
-use donder_sequence_api::{SequenceClipArrangement, SequenceClipRef};
 
 use super::GuiMutationError;
 use super::model::{automation_clip_mut, effect_mut};
@@ -97,7 +97,7 @@ pub(super) fn arrange_clip_selection(
 ) -> Result<(), GuiMutationError> {
     let sequence = session
         .project
-        .sequence(sequence_id)
+        .get::<donder_model::Sequence>(*sequence_id)
         .ok_or_else(|| invalid("Sequence was not found."))?;
     let all = sequence_clips(session, sequence)?;
     let selected: Vec<&Clip> = effect_ids
@@ -150,10 +150,7 @@ pub(super) fn arrange_clip_selection(
             }
         }
     }
-    session
-        .project
-        .replace_sequence(sequence_id, draft)
-        .map_err(GuiMutationError::Invalid)?;
+    session.project.put(draft).map_err(GuiMutationError::from)?;
     Ok(())
 }
 

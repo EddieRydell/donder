@@ -2,10 +2,10 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AudioWaveform } from "lucide-react";
 import { useState } from "react";
 import { useSequenceEditorHost } from "../../../editor/host";
-import type { NewMarkCollection, SequenceEditorDocument, SequenceMarkCollection } from "../../../editor/types";
+import type { NewMarkCollection, SequenceGuiDocument } from "../../../editor/types";
 import { sameGuiDocument } from "../../../snapshotState";
 import { THEME_METRICS } from "../../../theme";
-import { defaultMarkColor, nextCollectionKey } from "./marks";
+import { defaultMarkColor } from "./marks";
 
 /**
  * Detects beats and bars in the sequence's audio and adds them as new mark collections in one
@@ -17,7 +17,7 @@ export function BeatDetectionDialog({
   visibleMarkCollectionKeys,
   setVisibleMarkCollectionKeys
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   setActiveMarkCollectionKey: (key: string | null) => void;
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
@@ -53,16 +53,11 @@ export function BeatDetectionDialog({
       const wanted: [string, number[]][] = [];
       if (beats) wanted.push([beatsName, detection.beatsSeconds]);
       if (bars) wanted.push([barsName, detection.downbeatsSeconds]);
-      const existing: Pick<SequenceMarkCollection, "key">[] = [...document.markCollections];
-      const collections: NewMarkCollection[] = wanted.map(([name, marksSeconds]) => {
-        const key = nextCollectionKey(name, existing);
-        existing.push({ key });
-        return { name: key, color: defaultMarkColor(existing.length - 1), marksSeconds };
-      });
-      await runGuiEditCommand((current) =>
-        commands.applySequenceGuiEdit(current, { type: "createMarkCollections", collections })
+      const collections: NewMarkCollection[] = wanted.map(([name, marksSeconds], index) =>
+        ({ name, color: defaultMarkColor(document.markCollections.length + index), marksSeconds }));
+      const { created: keys } = await runGuiEditCommand((current) =>
+        commands.applyGuiEdit(current, { type: "sequence", edit: { type: "createMarkCollections", collections } })
       );
-      const keys = collections.map((collection) => collection.name);
       setActiveMarkCollectionKey(keys[0] ?? null);
       setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...keys]));
       setOpen(false);

@@ -1,4 +1,4 @@
-use donder_sequence_api::DeviceSerialPort;
+use donder_editor::dto::DeviceSerialPort;
 use std::{
     io::{ErrorKind, Read, Write},
     time::{Duration, Instant},

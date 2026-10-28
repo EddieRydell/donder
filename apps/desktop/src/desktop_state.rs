@@ -12,11 +12,11 @@ use std::sync::{
 use crate::persistence::PersistenceService;
 use crate::state_tasks::{GuiHistory, LatestScheduler, RenderRefreshPayload, WorkingCopyPayload};
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::ProjectSession;
-use donder_sequence_api::{
+use donder_editor::dto::{
     AppSettings, AppSnapshot, AudioTransportSnapshot, AudioTransportState, ProjectHealth,
     WorkspaceExplorerState, WorkspaceLayoutState,
 };
+use donder_project_io::ProjectSession;
 use workspace_state::WorkspaceState;
 
 #[derive(Clone)]
@@ -213,7 +213,7 @@ impl DesktopState {
         lock_unpoisoned(&self.audio).snapshot()
     }
 
-    pub fn live_output_snapshot(&self) -> donder_sequence_api::LiveOutputSnapshot {
+    pub fn live_output_snapshot(&self) -> donder_editor::dto::LiveOutputSnapshot {
         self.resume_live_output_if_ready();
         lock_unpoisoned(&self.live_output).snapshot()
     }
@@ -306,7 +306,7 @@ impl DesktopState {
         snapshot
     }
 
-    pub fn save_workspace_layout_state(&self, state: WorkspaceLayoutState) -> AppSnapshot {
+    fn save_workspace_layout_state(&self, state: WorkspaceLayoutState) -> AppSnapshot {
         let state = sanitize_workspace_layout(state);
         match self.persistence.record_workspace_layout(state.clone()) {
             Ok(()) => self.update_snapshot(|snapshot| {
@@ -341,27 +341,30 @@ impl DesktopState {
             let project = self.project_session().ok_or("No project is loaded.")?;
             let active = project
                 .project
-                .setup(project.project.root().setup.id())
+                .get::<donder_model::Setup>(*project.project.root().setup.id())
                 .map(|setup| {
                     // Donder controllers play uploaded shows instead of streamed frames.
                     setup
                         .controllers
                         .iter()
-                        .map(|source| source.id().clone())
+                        .map(|source| *source.id())
                         .filter(|id| {
-                            project.project.controller(id).is_some_and(|controller| {
-                                !matches!(
-                                    controller.protocol,
-                                    donder_model::ControllerProtocol::Donder(_)
-                                )
-                            })
+                            project
+                                .project
+                                .get::<donder_model::Controller>(*id)
+                                .is_some_and(|controller| {
+                                    !matches!(
+                                        controller.protocol,
+                                        donder_model::ControllerProtocol::Donder(_)
+                                    )
+                                })
                         })
                         .collect::<Vec<_>>()
                 });
             let controllers = project
                 .project
-                .controllers()
-                .map(|controller| (controller.id.clone(), controller.clone()))
+                .objects::<donder_model::Controller>()
+                .map(|controller| (controller.id, controller.clone()))
                 .collect();
             // A performance in progress plays in place of the sequence.
             self.perform_live_output(|performance| {
@@ -377,7 +380,7 @@ impl DesktopState {
                     );
                 };
                 let mut service = lock_unpoisoned(&self.live_output);
-                if service.snapshot().state == donder_sequence_api::LiveOutputState::Stopping {
+                if service.snapshot().state == donder_editor::dto::LiveOutputState::Stopping {
                     return Err(
                         "Wait for output to finish stopping before starting it again.".into(),
                     );
@@ -433,13 +436,12 @@ impl DesktopState {
 
 mod audio;
 mod beat_detection;
-mod diagnostics;
-pub(super) use diagnostics::project_diagnostics;
 mod editor_projection;
 pub(super) use editor_projection::{descriptor_for_path, generated_source_texts};
 mod device_playback;
 mod filesystem;
 mod gui_editing;
+pub(crate) use gui_editing::gui_update;
 mod output_test;
 mod perform;
 mod project_lifecycle;

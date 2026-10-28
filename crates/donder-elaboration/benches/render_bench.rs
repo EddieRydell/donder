@@ -2,8 +2,8 @@ use camino::Utf8PathBuf;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use donder_elaboration::{PreparationCache, PrepareOutputs, prepare, prepare_cached};
 use donder_model::{DonderProject, ProjectEdit};
-use donder_project_io::load_project;
-use donder_runtime::PreparedSequence;
+use donder_project_io::check_project;
+use donder_runtime::PreparedShow;
 use donder_runtime::SequenceFrame;
 use donder_runtime_types::{Color, sample_time_from_frame};
 use donder_test_support::fixtures as effect_fixtures;
@@ -65,7 +65,13 @@ struct RenderScenario {
 
 fn bench_render(c: &mut Criterion) {
     pin_benchmark_thread();
-    let session = load_project(&project_path()).expect("benchmark project should load");
+    let session = check_project(
+        &project_path(),
+        &Default::default(),
+        &mut Default::default(),
+    )
+    .into_session()
+    .expect("benchmark project should load");
     let sequence_id = session
         .project
         .root()
@@ -73,8 +79,12 @@ fn bench_render(c: &mut Criterion) {
         .iter()
         .map(|source| source.id())
         .find(|id| {
-            id.0.document().as_str() == BENCHMARK_SEQUENCE_DOCUMENT
-                && id.0.root_source().object() == BENCHMARK_SEQUENCE_OBJECT
+            session
+                .declaration((**id).into())
+                .is_some_and(|(document, name)| {
+                    document.path().as_str() == BENCHMARK_SEQUENCE_DOCUMENT
+                        && name.as_str() == BENCHMARK_SEQUENCE_OBJECT
+                })
         })
         .expect("benchmark project should include the layer_test sequence");
     let output = prepare(&session.project, sequence_id, PrepareOutputs::All)
@@ -169,7 +179,8 @@ fn bench_large_show(c: &mut Criterion) {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("examples/rydell_house");
-    let session = load_project(&root)
+    let session = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
         .expect("rydell_house should load; it needs its uncommitted audio/dingdong.mp3");
     let sequence_id = session
         .project
@@ -177,7 +188,12 @@ fn bench_large_show(c: &mut Criterion) {
         .sequences
         .iter()
         .map(|source| source.id())
-        .find(|id| id.0.root_source().object() == "ding_dong")
+        .find(|id| {
+            session
+                .source
+                .declared_name((**id).into())
+                .is_some_and(|name| name.as_str() == "ding_dong")
+        })
         .expect("rydell_house should include the ding_dong sequence");
 
     c.bench_function("prepare_large_show_cold", |b| {
@@ -233,24 +249,35 @@ fn bench_large_show(c: &mut Criterion) {
 
 fn bench_mark_playback(c: &mut Criterion) {
     use donder_language::{DonderDuration, DonderTime};
-    use donder_model::{CurveSource, EffectParamValue, EffectRef};
+    use donder_model::{CurveSource, EffectParamValue};
     use donder_model::{MarkCollection, MarkCollectionKey};
     use donder_runtime_types::Identifier;
     use donder_runtime_types::SampleTime;
     use donder_runtime_types::{Curve, CurvePoint};
     pin_benchmark_thread();
-    let source_project = render_only_project(&load_project(&project_path()).unwrap().project);
+    let session = check_project(
+        &project_path(),
+        &Default::default(),
+        &mut Default::default(),
+    )
+    .into_session()
+    .unwrap();
+    let source_project = render_only_project(&session.project);
     for (name, pulse) in [("pulse", true), ("chase", false)] {
         let mut project = source_project.clone();
-        let id = project
+        let id = *project
             .root()
             .sequences
             .iter()
             .map(|source| source.id())
-            .find(|id| id.0.root_source().object() == "layer_test")
-            .unwrap()
-            .clone();
-        let mut source = project.sequence(&id).unwrap().clone();
+            .find(|id| {
+                session
+                    .source
+                    .declared_name((**id).into())
+                    .is_some_and(|name| name.as_str() == "layer_test")
+            })
+            .unwrap();
+        let mut source = project.get::<donder_model::Sequence>(id).unwrap().clone();
         let mut effect = (*source.effects[0]).clone();
         let gradient = effect.param_overrides.get("gradient").unwrap().clone();
         let mark_key = MarkCollectionKey {
@@ -265,16 +292,13 @@ fn bench_mark_playback(c: &mut Criterion) {
                 .collect(),
         }];
         let effect_name = if pulse { "MarkPulse" } else { "MarkChase" };
-        let definition_id = project
-            .definitions()
-            .effects
-            .definitions
+        let definition_id = *project
+            .reusable::<donder_model::EffectDefinition>()
             .iter()
-            .find(|(_, definition)| definition.source_name == effect_name)
+            .find(|(_, definition)| definition.name() == effect_name)
             .expect("standard mark effect must be imported")
-            .0
-            .clone();
-        effect.definition = EffectRef::Custom(definition_id);
+            .0;
+        effect.definition = definition_id;
         effect.start = DonderTime(Duration::ZERO);
         effect.duration = DonderDuration(Duration::from_secs(8));
         effect.layer_id = source.layers[0].id.clone();
@@ -325,7 +349,7 @@ fn bench_mark_playback(c: &mut Criterion) {
         );
         source.effects = vec![std::sync::Arc::new(effect)];
         source.automation_clips.clear();
-        project.replace_sequence(&id, source).unwrap();
+        project.put(source).unwrap();
         let prepared = prepare(&project, &id, PrepareOutputs::All).unwrap();
         assert!(prepared.outputs().is_empty());
         let (_, duration) = prepared
@@ -446,10 +470,10 @@ fn bench_operators(c: &mut Criterion) {
         for count in workload::COUNTS {
             let mut expected = None;
             for (mode, source, reuse) in modes {
-                let operator = donder_language::compiler::compile_operators(source)
+                let operator = donder_language::compiler::compile_script(source)
                     .unwrap()
                     .remove(0);
-                let mut show = workload::show(count, &invocation);
+                let mut show = workload::layered_show(count, &invocation, 1);
                 workload::apply_operator(&mut show, &operator, reuse);
                 let mut workspace = show.clone().prepare().into_playback();
                 let mut output = [vec![0; count * 3]];
@@ -479,7 +503,7 @@ fn bench_operators(c: &mut Criterion) {
         }
     }
 
-    let standard = donder_language::compiler::compile_operators(include_str!(
+    let standard = donder_language::compiler::compile_script(include_str!(
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
@@ -497,7 +521,7 @@ fn bench_operators(c: &mut Criterion) {
             ("standard_afterglow_nested_invert", true),
         ] {
             let mut show = workload::chase_pulse_show(count, 4);
-            workload::apply_compiled_operator(&mut show, afterglow);
+            workload::apply_operator(&mut show, afterglow, true);
             if nested {
                 // Layer -> Afterglow -> Invert -> Afterglow: two stateful nodes.
                 workload::insert_invert(&mut show, invert);
@@ -530,7 +554,7 @@ fn bench_uniform_resources(c: &mut Criterion) {
     let invocation = effect_fixtures::uniform_resources();
     let mut expected = None;
     for (name, reuse) in [("full", false), ("reuse", true)] {
-        let mut show = workload::show(200, &invocation);
+        let mut show = workload::layered_show(200, &invocation, 1);
         if !reuse {
             workload::edit_effect(&mut show, workload::unstaged);
         }
@@ -567,13 +591,13 @@ fn bench_uniform_upstream(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().next().unwrap();
     let invocation = effect_fixtures::prepared_effect(name, source, params);
-    let operator = donder_language::compiler::compile_operators(playback::IDENTITY_SOURCE)
+    let operator = donder_language::compiler::compile_script(playback::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
     for count in [200, 1600] {
         let mut expected = None;
         for reuse in [false, true] {
-            let mut show = workload::show(count, &invocation);
+            let mut show = workload::layered_show(count, &invocation, 1);
             workload::set_uniform_upstream(&mut show, reuse);
             workload::apply_operator(&mut show, &operator, true);
             let mut workspace = show.clone().prepare().into_playback();
@@ -667,7 +691,7 @@ fn pin_benchmark_thread() {
 #[cfg(not(any(windows, target_os = "macos")))]
 fn pin_benchmark_thread() {}
 
-fn assert_scenarios(sequence: &PreparedSequence) {
+fn assert_scenarios(sequence: &PreparedShow) {
     let mut playback = sequence.clone().into_playback();
     for scenario in SCENARIOS {
         let time = sample_time_from_frame(scenario.frame, sequence.frame_rate()).unwrap();
@@ -683,20 +707,20 @@ fn assert_scenarios(sequence: &PreparedSequence) {
 // All logical fixtures remain selected while normal playback has no bytes to pack.
 fn render_only_project(source: &DonderProject) -> DonderProject {
     let mut project = source.clone();
-    let mut setup = project.setup(project.root().setup.id()).unwrap().clone();
-    let mut patch = project.patch(setup.patch.id()).unwrap().clone();
+    let mut setup = project
+        .get::<donder_model::Setup>(*project.root().setup.id())
+        .unwrap()
+        .clone();
+    let mut patch = project
+        .get::<donder_model::Patch>(*setup.patch.id())
+        .unwrap()
+        .clone();
     patch.routes.clear();
     setup.controllers.clear();
     project
         .apply_edits([
-            ProjectEdit::ReplacePatch {
-                id: patch.id.clone(),
-                value: patch,
-            },
-            ProjectEdit::ReplaceSetup {
-                id: setup.id.clone(),
-                value: setup,
-            },
+            ProjectEdit::Put(patch.into()),
+            ProjectEdit::Put(setup.into()),
         ])
         .expect("render-only fixture should retain a valid typed project");
     project

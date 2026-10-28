@@ -1,9 +1,9 @@
 //! Targets as an image stores them: runs of contiguous cells, or one record
 //! per pixel for irregular selections, with each pixel's original logical
 //! place. A pixel's fraction is computed from its place, as authoring does.
+use crate::image::{self, PixelRun};
 use core::cell::Cell;
 use donder_runtime_types::SpatialContext;
-use donder_runtime_types::image::{self, PixelRun};
 
 use crate::sections::SectionsView;
 use crate::show::Show;

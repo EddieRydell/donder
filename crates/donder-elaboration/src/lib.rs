@@ -1,4 +1,4 @@
-//! Turn one selected sequence from a loaded project into portable playback data.
+//! Turn one selected sequence or rig from a loaded project into portable playback data.
 //!
 //! The active setup belongs to the project. Selection is the only optional part:
 //! the preparation implementation is private, and playback belongs to runtime.
@@ -23,11 +23,8 @@ mod stage;
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::{ControllerId, ControllerPortId};
-pub use donder_runtime::PreparedSequence;
-pub use rig::{
-    ArmedRig, RigRouter, RoutedAction, RoutedLength, RoutedMapping, RoutedNotes, RoutedSource,
-    RoutedValue, RoutedVoices, arm,
-};
+pub use donder_runtime::PreparedShow;
+pub use rig::{ArmedRig, arm};
 pub use sequence::PreparationCache;
 
 /// Which physical outputs to retain. Explicit lists preserve first-occurrence
@@ -49,7 +46,7 @@ pub fn prepare(
     project: &DonderProject,
     sequence: &SequenceId,
     outputs: PrepareOutputs<'_>,
-) -> Option<PreparedSequence> {
+) -> Option<PreparedShow> {
     prepare_cached(project, sequence, outputs, &mut PreparationCache::default())
 }
 
@@ -61,7 +58,7 @@ pub fn prepare_cached(
     sequence: &SequenceId,
     outputs: PrepareOutputs<'_>,
     cache: &mut PreparationCache,
-) -> Option<PreparedSequence> {
+) -> Option<PreparedShow> {
     let selected = selection::resolve(project, sequence, outputs)?;
     Some(sequence::prepare(
         selected,

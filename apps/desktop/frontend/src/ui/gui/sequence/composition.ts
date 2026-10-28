@@ -1,9 +1,9 @@
 import type { SequenceEditorHost } from "../../../editor/host";
-import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceEditorDocument, SequenceMarkCollection } from "../../../editor/types";
-import type { AutomationClipChooser } from "../shared";
+import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection } from "../../../editor/types";
+import type { AutomationClipChooser, GuiItemEdit } from "../shared";
 
 /** What the layer and graph editors show of a sequence or rig. */
-export type CompositionDocument = Pick<SequenceEditorDocument, "sourceRef" | "layers" | "compositionGraph" | "curveLibrary" | "gradientLibrary"> & {
+export type CompositionDocument = Pick<SequenceGuiDocument, "sourceRef" | "layers" | "compositionGraph" | "curveLibrary" | "gradientLibrary"> & {
   markCollections: Pick<SequenceMarkCollection, "key">[];
 };
 
@@ -13,6 +13,8 @@ export type CompositionEditing = {
   /** How many effects play on the layer. */
   layerUses: (layerId: number) => number;
   apply: (edit: CompositionGuiEdit, origin?: GuiDocumentRequest | null) => Promise<unknown>;
+  /** Rename, describe, color or delete a layer or graph node. */
+  applyItem: (edit: GuiItemEdit) => Promise<unknown>;
   /** Sequences automate operator parameters; rigs have no timeline to automate on. */
   automation: {
     automationClips: SequenceAutomationClip[];
@@ -23,13 +25,14 @@ export type CompositionEditing = {
 
 export function sequenceComposition(
   host: SequenceEditorHost,
-  document: SequenceEditorDocument,
+  document: SequenceGuiDocument,
   automation: CompositionEditing["automation"]
 ): CompositionEditing {
   return {
     document,
     layerUses: (layerId) => document.effects.filter((effect) => effect.layerId === layerId).length,
-    apply: (edit, origin) => host.runGuiEditCommand((request) => host.commands.applySequenceGuiEdit(request, { type: "composition", edit }), origin),
+    apply: (edit, origin) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit } }), origin),
+    applyItem: (edit) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, edit)),
     automation
   };
 }

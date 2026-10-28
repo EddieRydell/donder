@@ -8,10 +8,10 @@ use donder_project_io::{ProjectCheckReport, ProjectSession, SourceOverrides, Sou
 use super::workspace_state::WorkingDocument;
 use super::{DesktopState, LoadedProject, absolute_root_path, lock_unpoisoned};
 use crate::state_tasks::WorkingCopyPayload;
-use donder_sequence_api::{
-    AppSnapshot, BufferExternalState, DocumentInclusion, DocumentSaveState, DocumentText,
-    DocumentTextEdit, DocumentTextEdits, DocumentUpdate, EditorBuffer, EditorViewMode,
-    ExternalConflictDecision, ProjectHealth, SidebarView,
+use donder_editor::dto::{
+    AppSnapshot, BufferExternalState, DocumentSaveState, DocumentText, DocumentTextEdit,
+    DocumentTextEdits, DocumentUpdate, EditorBuffer, EditorViewMode, ExternalConflictDecision,
+    ProjectHealth, SidebarView,
 };
 
 /// A rewrite of one document's text.
@@ -21,9 +21,9 @@ type DocumentChange = Box<dyn FnOnce(&str) -> Result<String, String>>;
 /// text's end.
 #[cfg(test)]
 pub(crate) fn whole_text(text: impl Into<String>) -> Vec<Vec<DocumentTextEdit>> {
-    let position = |line| donder_sequence_api::TextPosition { line, character: 0 };
+    let position = |line| donder_editor::dto::TextPosition { line, character: 0 };
     vec![vec![DocumentTextEdit {
-        range: donder_sequence_api::TextRange {
+        range: donder_editor::dto::TextRange {
             start: position(0),
             end: position(u32::MAX),
         },
@@ -33,7 +33,7 @@ pub(crate) fn whole_text(text: impl Into<String>) -> Vec<Vec<DocumentTextEdit>> 
 
 /// Edits as the language server applies them.
 fn language_server_edits(edits: &[DocumentTextEdit]) -> Vec<lsp_types::TextEdit> {
-    let position = |position: &donder_sequence_api::TextPosition| {
+    let position = |position: &donder_editor::dto::TextPosition| {
         lsp_types::Position::new(position.line, position.character)
     };
     edits
@@ -55,7 +55,6 @@ impl WorkingDocument {
                 syntax: donder_project_io::source_document_format(path).into(),
                 text,
                 dirty: false,
-                read_only: false,
                 document_revision: 0,
                 saved_revision: 0,
                 save_state: DocumentSaveState::Saved,
@@ -110,9 +109,6 @@ impl DesktopState {
             if document.buffer.document_revision != update.expected_document_revision {
                 return Err("The document changed before the edits were received".into());
             }
-            if document.buffer.read_only {
-                return Err("This source is not editable in the current project.".into());
-            }
             let text = update
                 .changes
                 .iter()
@@ -165,26 +161,8 @@ impl DesktopState {
     pub fn include_document(
         &self,
         project_epoch: u32,
-        inclusion: DocumentInclusion,
+        inclusion: donder_project_io::Inclusion,
     ) -> Result<AppSnapshot, String> {
-        let identifier = |name: String| {
-            donder_runtime_types::Identifier::new(name.clone())
-                .map_err(|_| format!("`{name}` is not a name."))
-        };
-        let inclusion = donder_project_io::Inclusion {
-            document: inclusion.document.into(),
-            alias: identifier(inclusion.alias)?,
-            sequences: inclusion
-                .sequences
-                .into_iter()
-                .map(identifier)
-                .collect::<Result<_, _>>()?,
-            rigs: inclusion
-                .rigs
-                .into_iter()
-                .map(identifier)
-                .collect::<Result<_, _>>()?,
-        };
         let change: DocumentChange =
             Box::new(move |text| donder_project_io::include_document(text, &inclusion));
         self.change_documents(
@@ -222,11 +200,6 @@ impl DesktopState {
                     .documents
                     .get_mut(&relative)
                     .ok_or("Document is not open")?;
-                if document.buffer.read_only {
-                    return Err(format!(
-                        "{relative} is not editable in the current project."
-                    ));
-                }
                 let text = change(&document.buffer.text)?;
                 document.edit(text);
             }
@@ -317,7 +290,6 @@ impl DesktopState {
                     workspace
                         .documents
                         .iter()
-                        .filter(|(_, doc)| !doc.buffer.read_only)
                         .map(|(path, doc)| (path.clone(), doc.buffer.text.clone()))
                         .collect(),
                 ),
@@ -371,9 +343,6 @@ impl DesktopState {
             for (path, document) in &mut workspace.documents {
                 if !document.buffer.dirty {
                     continue;
-                }
-                if document.buffer.read_only {
-                    return Err(format!("Source {path} is not editable in this project"));
                 }
                 let actual = match read_disk(&root.join(path)) {
                     Ok(actual) => actual,
@@ -690,10 +659,9 @@ pub(super) fn read_disk(path: &Utf8Path) -> Result<Option<Vec<u8>>, String> {
 mod tests {
     use super::*;
     use crate::desktop_foundation_tests::tests::starter_copy;
-    use donder_sequence_api::{
-        DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand, NewSequenceRequest,
-        SequenceGuiEdit, TransitionDecision, TransitionRequest, TransitionResult,
-        WorkspaceTransition,
+    use donder_editor::dto::{
+        GuiDocument, GuiDocumentRequest, GuiEditCommand, NewSequenceRequest, SequenceGuiEdit,
+        TransitionDecision, TransitionRequest, TransitionResult, WorkspaceTransition,
     };
     const SEQUENCE: &str = "sequences/layer_test.data.donder";
 
@@ -731,8 +699,7 @@ mod tests {
             owned_path: Vec::new(),
             project_revision: state.snapshot().project_revision,
             path: SEQUENCE.into(),
-            view: DocumentViewId::Sequence,
-            object_key: Some("layer_test".into()),
+            object_key: "layer_test".into(),
         }
     }
 
@@ -851,14 +818,14 @@ mod tests {
         let path = "sequences/new_sequence.data.donder";
         state
             .create_sequence(NewSequenceRequest {
-                storage: donder_sequence_api::NewSequenceStorage::NewFile {
+                storage: donder_editor::dto::NewSequenceStorage::NewFile {
                     name: "New Sequence".into(),
                 },
                 initial_color: state
                     .project_session()
                     .unwrap()
                     .project
-                    .reusable_sequences()
+                    .reusable::<donder_model::Sequence>()
                     .values()
                     .next()
                     .unwrap()
@@ -903,7 +870,11 @@ mod tests {
         );
         assert!(!root.join(path).exists());
         state.save_all().unwrap();
-        assert!(donder_project_io::check_project(&root).session.is_some());
+        assert!(
+            donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
+                .session
+                .is_some()
+        );
     }
 
     #[test]
@@ -1088,7 +1059,7 @@ mod tests {
         let request = crate::state_tasks::RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
-            setup_id: project.project.root().setup.id().clone(),
+            setup_id: *project.project.root().setup.id(),
             sequence_id,
             project,
         };

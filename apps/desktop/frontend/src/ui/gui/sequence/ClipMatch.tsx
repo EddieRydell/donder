@@ -2,12 +2,13 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { SequenceClipMatch, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceEditorDocument, SequenceEffectParam, SequenceEffectParamKind, SequenceSelection } from "../../../editor/types";
+import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceGuiDocument, SequenceEffectParam, SequenceEffectParamKind, SequenceSelection } from "../../../editor/types";
 import { shortcutLabel } from "../../../commandRegistry";
 import { THEME_METRICS } from "../../../theme";
 import { useSequenceEffectDetails } from "./sequenceEffectDetails";
+import { clipIdsOfKind } from "./sequenceSelection";
 
-export type ClipMatchSeed = { effectIds: number[]; automationIds: number[] };
+export type ClipMatchSeed = Pick<SequenceClipMatchRequest, "clips">;
 export type MatchClips = (seed: ClipMatchSeed, criteria: SequenceClipMatch, params: SequenceClipParamMatch[]) => Promise<SequenceSelection>;
 
 type TimeKey = "start" | "end" | "duration";
@@ -79,7 +80,7 @@ function seedParams(details: Iterable<{ params: SequenceEffectParam[] }>): Seque
  * matching clips. Parameter picks belong to this dialog; the other criteria are saved on Select.
  */
 export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match, onSelect, onClose }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   seed: ClipMatchSeed;
   criteria: SequenceClipMatch;
   match: MatchClips;
@@ -92,7 +93,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
   const [result, setResult] = useState<{ criteria: SequenceClipMatch; params: Map<string, number>; count: number } | null>(null);
   const count = result !== null && result.criteria === criteria && result.params === params ? result.count : null;
   const [error, setError] = useState<string | null>(null);
-  const details = useSequenceEffectDetails(document, seed.effectIds);
+  const details = useSequenceEffectDetails(document, clipIdsOfKind(seed.clips, "effect"));
   const available = details === null ? [] : seedParams(details.values());
 
   useEffect(() => {
@@ -100,7 +101,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
     match(seed, criteria, paramMatches(params))
       .then((selection) => {
         if (cancelled) return;
-        setResult({ criteria, params, count: selection.type === "clips" ? selection.effectIds.length + selection.automationIds.length : 0 });
+        setResult({ criteria, params, count: selection.type === "clips" ? selection.clips.length : 0 });
         setError(null);
       })
       .catch((matchError: unknown) => { if (!cancelled) setError(String(matchError)); });

@@ -14,12 +14,12 @@ import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
+import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
 
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 
-import { activeMarkCollection, defaultMarkColor, drawSequenceMarks, committedMarkDrafts, nextCollectionKey } from "./marks";
+import { activeMarkCollection, defaultMarkColor, drawSequenceMarks, committedMarkDrafts } from "./marks";
 import { TAP_MARK_EVENT } from "../../uiEvents";
 
 import { graphOperatorDefinition } from "./graphOperator";
@@ -70,7 +70,7 @@ import { CascadeDialog, ClipArrangeMenus } from "./ClipArrange";
 import { ClipMatchDialog, ClipMatchMenuItems, type ClipMatchSeed, type MatchClips } from "./ClipMatch";
 import { sameGuiDocument } from "../../../snapshotState";
 
-import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
+import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, setMarkDraft, singleSelectionFocus, clipIdsOfKind, clipRefs, hasClip, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
 const SEQUENCE_FOLLOW = {
   edge: THEME_METRICS.sequenceFollowEdge,
@@ -215,7 +215,7 @@ export function SequenceCanvas({
   visibleMarkCollectionKeys,
   setVisibleMarkCollectionKeys
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   selected: GuiFocus;
   setSelected: (id: GuiFocus) => void;
   sequenceSelection: SequenceSelection;
@@ -620,7 +620,7 @@ export function SequenceCanvas({
       clip.rect.y <= toY && clip.rect.y + clip.rect.height >= fromY
       && clip.effect.startSeconds < slice.seconds && slice.seconds < clip.effect.startSeconds + clip.effect.durationSeconds);
   }, [slice, visibleClips]);
-  const selectedEffectIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? sequenceSelection.effectIds : []), [sequenceSelection]);
+  const selectedEffectIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? clipIdsOfKind(sequenceSelection.clips, "effect") : []), [sequenceSelection]);
   const activeAutomationTargetEffectIds = useMemo(() => {
     const clipIds = new Set<number>();
     if (selected?.type === "automationClip") clipIds.add(selected.id);
@@ -809,7 +809,7 @@ export function SequenceCanvas({
     }
     const markXs = markTimes.map((time) => left + (time - scrollXSeconds) * viewport.pxPerSecond);
     for (const clip of visibleAutomationClips) {
-      const selectedClip = sequenceSelection?.type === "clips" && sequenceSelection.automationIds.includes(clip.clip.id);
+      const selectedClip = sequenceSelection?.type === "clips" && hasClip(sequenceSelection.clips, "automation", clip.clip.id);
       const hoverResize = automationHover?.clipId === clip.clip.id ? automationHover.resize : null;
       const choosingCandidate = automationClipChooser !== null;
       const activePointIndex = drag.current?.kind === "automationPoint" && drag.current.clipId === clip.clip.id ? drag.current.index : null;
@@ -922,14 +922,14 @@ export function SequenceCanvas({
     const collections = guiDocument.document.markCollections;
     let key = collectionKey ?? activeMarkCollection(collections, activeMarkCollectionKey)?.key ?? null;
     if (key === null) {
-      const newCollectionKey = nextCollectionKey("Marks", collections);
-      await runGuiEditCommand((request) =>
-        commands.applySequenceGuiEdit(request, {
+      const { created } = await runGuiEditCommand((request) =>
+        commands.applyGuiEdit(request, { type: "sequence", edit: {
           type: "createMarkCollections",
-          collections: [{ name: newCollectionKey, color: defaultMarkColor(collections.length), marksSeconds: [] }]
-        })
+          collections: [{ name: "Marks", color: defaultMarkColor(collections.length), marksSeconds: [] }]
+        } })
       );
-      key = newCollectionKey;
+      key = created[0] ?? null;
+      if (key === null) throw new Error("Creating a mark collection reported no collection.");
       setActiveMarkCollectionKey(key);
     }
     if (!visibleMarkCollectionKeys.has(key)) setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, key]));
@@ -940,24 +940,24 @@ export function SequenceCanvas({
     if (target === undefined) return;
     const scope: SequenceEffectScope = "wholeTarget";
     await runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "addEffect",
         initialColor: THEME_COLORS.white,
         effect: definition.effect,
         target,
         scope,
         startSeconds: menu.startSeconds
-      })
+      } })
     );
   };
   const addMark = async (collectionKey: string | null, timeSeconds: number) => {
     const key = await markCollectionForEdit(collectionKey);
     await runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "addMarks",
         collectionKey: key,
         timesSeconds: [timeSeconds]
-      })
+      } })
     );
   };
   // Taps run in order, so fast tapping creates a missing collection once.
@@ -977,50 +977,45 @@ export function SequenceCanvas({
   }, []);
   const addAutomationClipFromContextMenu = async (menu: LaneContextMenu) => {
     await runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "addAutomationClip",
         startSeconds: menu.startSeconds,
         durationSeconds: Math.min(2, Math.max(0.000000001, document.durationSeconds - menu.startSeconds)),
         rowTarget: targetAtLane(document, menu.laneIndex)
-      })
+      } })
     );
   };
   const chooseAutomationClip = (clipId: number) => {
     if (automationClipChooser === null) return;
     const chooser = automationClipChooser;
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "bindAutomationParam",
         clipId,
         target: chooser.target
-      })
+      } })
     ).then(() => {
       setAutomationClipChooser(null);
     });
   };
-  const deleteSelectedEffect = async (effectId: number) => {
-    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "deleteEffect", id: effectId }));
+  const deleteItems = async (selection: NonNullable<SequenceSelection>) => {
+    const result = await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection } }));
     setSelected(null);
-    updateSequenceSelection(null);
-  };
-  const deleteAutomationClip = async (clipId: number) => {
-    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "deleteAutomationClip", id: clipId }));
-    setSelected(null);
-    updateSequenceSelection(null);
+    updateSequenceSelection(result.selection);
   };
 
   const splitEffects = async (effectIds: number[], timeSeconds: number) => {
-    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "splitEffects", ids: effectIds, timeSeconds }));
+    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitEffects", ids: effectIds, timeSeconds } }));
   };
 
   const splitAutomationClip = async (clipId: number, timeSeconds: number) => {
-    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "splitAutomationClip", id: clipId, timeSeconds }));
+    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitAutomationClip", id: clipId, timeSeconds } }));
   };
 
   const commitAutomationCurve = (clipId: number, curve: AutomationCurvePoint[], origin: GuiDocumentRequest | null) => {
     setAutomationCurveDraft({ id: clipId, curve, guide: { time: null, value: null } });
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, { type: "updateAutomationCurve", id: clipId, curve }), origin
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "updateAutomationCurve", id: clipId, curve } }), origin
     ).finally(() => {
       setAutomationCurveDraft(null);
     });
@@ -1038,8 +1033,8 @@ export function SequenceCanvas({
     const edges = current.resize === "left" ? [clip.startSeconds] : current.resize === "right" ? [end] : [clip.startSeconds, end];
     const rowTarget = targetAtLane(document, current.resize === "none" ? destinationLane : current.laneIndex);
     const peers = current.kind === "automation"
-      ? document.automationClips.filter((peer) => !selection.automationIds.includes(peer.id) && targetsEqual(peer.rowTarget, rowTarget))
-      : document.effects.filter((peer) => !selection.effectIds.includes(peer.id) && targetsEqual(peer.target, rowTarget));
+      ? document.automationClips.filter((peer) => !hasClip(selection.clips, "automation", peer.id) && targetsEqual(peer.rowTarget, rowTarget))
+      : document.effects.filter((peer) => !hasClip(selection.clips, "effect", peer.id) && targetsEqual(peer.target, rowTarget));
     return roundToNanosecond(snapDeltaToTimes(edges, delta, [...markTimes, ...clipEdgeSnapTimes(peers)], viewport.pxPerSecond));
   };
 
@@ -1063,19 +1058,8 @@ export function SequenceCanvas({
     }
     setAutomationCurveDraft({ id: clip.id, curve: moveAutomationCurvePoint(clip.curve, index, point), guide });
   };
-  const deleteContextMark = async (menu: Extract<SequenceContextMenu, { kind: "mark" }>) => {
-    await runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "deleteMark",
-        collectionKey: menu.collectionKey,
-        index: menu.index
-      })
-    );
-    setSelected(null);
-    updateSequenceSelection(null);
-  };
   const retargetContextEffect = async (effectId: number, target: FixtureTarget) => {
-    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "retargetEffect", id: effectId, target }));
+    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "retargetEffect", id: effectId, target } }));
   };
   const laneContextMenu = sequenceContextMenu?.kind === "blank" || sequenceContextMenu?.kind === "effect" || sequenceContextMenu?.kind === "automation" ? sequenceContextMenu : null;
   const markCollectionsForMenu = () => {
@@ -1101,7 +1085,9 @@ export function SequenceCanvas({
   /** "Select Matching" seeds from the selected clips. */
   const selectedClipSeed = (): ClipMatchSeed | null => {
     const selection = sequenceSelectionRef.current;
-    return selection?.type === "clips" && selectionCount(selection) > 0 ? { effectIds: selection.effectIds, automationIds: selection.automationIds } : null;
+    return selection?.type === "clips" && selectionCount(selection) > 0
+      ? { clips: selection.clips }
+      : null;
   };
   const selectMatching = (seed: ClipMatchSeed, criteria: SequenceClipMatch, params: SequenceClipParamMatch[]) => {
     const request = useAppStore.getState().guiRequest;
@@ -1114,9 +1100,9 @@ export function SequenceCanvas({
   };
   const [cascadeOpen, setCascadeOpen] = useState(false);
   const arrangeClips = (arrangement: SequenceClipArrangement) => {
-    const seed = selectedClipSeed();
-    if (seed === null) return;
-    void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type: "arrangeClips", ...seed, arrangement })).then((result) => {
+    const selection = sequenceSelectionRef.current;
+    if (selection?.type !== "clips" || selectionCount(selection) === 0) return;
+    void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "arrangeClips", clips: selection.clips, arrangement } })).then((result) => {
       updateSequenceSelection(result.selection);
       return result;
     });
@@ -1128,7 +1114,9 @@ export function SequenceCanvas({
   };
   const transferSelection = (type: "copy" | "cut") => {
     if (activeSelection === null) return;
-    void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type, selection: activeSelection })).then((result) => {
+    void runGuiEditCommand((request) => type === "copy"
+      ? commands.copySequenceSelection(request, activeSelection)
+      : commands.applyGuiEdit(request, { type: "sequence", edit: { type: "cutSelection", selection: activeSelection } })).then((result) => {
       updateSequenceSelection(result.selection);
       setSelected(singleSelectionFocus(result.selection));
       return result;
@@ -1141,43 +1129,19 @@ export function SequenceCanvas({
     const lane = selectedLaneIndex ?? (fallbackTarget === undefined ? -1 : nearestLane(document, fallbackTarget, 0));
     const markTime = selectedMark === null ? undefined : document.markCollections.find((collection) => collection.key === selectedMark.collectionKey)?.marksSeconds[selectedMark.index];
     const timeSeconds = selectedTimeSeconds ?? focused?.startSeconds ?? automation?.startSeconds ?? markTime ?? 0;
-    void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, {
+    void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
       type: "paste",
       anchor: { lane: lane < 0 ? null : lane, timeSeconds }
-    })).then((result) => {
+    } })).then((result) => {
       updateSequenceSelection(result.selection);
       setSelected(singleSelectionFocus(result.selection));
       return result;
     });
   };
   const deleteSelection = () => {
-    if (activeSelection !== null && selectionCount(activeSelection) > 1) {
-      void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type: "delete", selection: activeSelection })).then((result) => {
-        updateSequenceSelection(result.selection);
-        setSelected(null);
-        return result;
-      });
-      return;
-    }
-    const focusedEffectId = selectedEffectId(selected);
-    if (focusedEffectId !== null) {
-      void deleteSelectedEffect(focusedEffectId);
-      return;
-    }
-    if (selected?.type === "automationClip") {
-      void deleteAutomationClip(selected.id);
-      return;
-    }
-    if (selectedMark === null) return;
-    void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "deleteMark",
-        collectionKey: selectedMark.collectionKey,
-        index: selectedMark.index
-      })
-    ).then(() => {
-      setSelected(null);
-    });
+    // A single item deletes the focused one, which a one-item selection may not hold.
+    const selection = activeSelection !== null && selectionCount(activeSelection) > 1 ? activeSelection : selectionFromSingle(selected);
+    if (selection !== null) void deleteItems(selection);
   };
   const nudgeMark = (mark: NonNullable<typeof selectedMark>, direction: -1 | 1, shift: boolean) => {
     const collection = document.markCollections.find((candidate) => candidate.key === mark.collectionKey);
@@ -1190,14 +1154,13 @@ export function SequenceCanvas({
     setMarkDraft(nextDrafts, mark, { collectionKey: mark.collectionKey, index: mark.index, timeSeconds: nextTimeSeconds, committedIndex: nextIndex });
     setMarkDrafts(nextDrafts);
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "moveMark",
-        collectionKey: mark.collectionKey,
-        index: mark.index,
-        timeSeconds: nextTimeSeconds
-      })
-    ).then(() => {
-      setSelected({ type: "mark", collectionKey: mark.collectionKey, index: nextIndex });
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
+        type: "moveMarks",
+        marks: [mark],
+        timeDeltaSeconds: nextTimeSeconds - timeSeconds
+      } })
+    ).then((result) => {
+      setSelected(singleSelectionFocus(result.selection));
       setMarkDrafts(new Map());
     });
   };
@@ -1222,7 +1185,7 @@ export function SequenceCanvas({
     "edit.delete": { enabled: editable, run: deleteSelection },
     "edit.selectAll": {
       run: () => {
-        const all: SequenceSelection = { type: "clips", effectIds: document.effects.map((effect) => effect.id), automationIds: document.automationClips.map((clip) => clip.id) };
+        const all: NonNullable<SequenceSelection> = { type: "clips", clips: [...clipRefs("effect", document.effects.map((effect) => effect.id)), ...clipRefs("automation", document.automationClips.map((clip) => clip.id))] };
         updateSequenceSelection(selectionCount(all) > 0 ? all : null);
         setSelected(singleSelectionFocus(all));
       }
@@ -1287,7 +1250,7 @@ export function SequenceCanvas({
         if (automationHit !== null) {
           setSelected({ type: "automationClip", id: automationHit.clip.id });
           const active = sequenceSelectionRef.current;
-          updateSequenceSelection(active?.type === "clips" && active.automationIds.includes(automationHit.clip.id) ? active : { type: "clips", effectIds: [], automationIds: [automationHit.clip.id] });
+          updateSequenceSelection(active?.type === "clips" && hasClip(active.clips, "automation", automationHit.clip.id) ? active : { type: "clips", clips: [{ type: "automation", id: automationHit.clip.id }] });
           setSequenceContextMenu({
             kind: "automation",
             laneIndex: automationHit.laneIndex,
@@ -1300,7 +1263,7 @@ export function SequenceCanvas({
         if (hit !== null) {
           setSelected({ type: "effect", id: hit.effect.id });
           const active = sequenceSelectionRef.current;
-          updateSequenceSelection(active?.type === "clips" && active.effectIds.includes(hit.effect.id) ? active : { type: "clips", automationIds: [], effectIds: [hit.effect.id] });
+          updateSequenceSelection(active?.type === "clips" && hasClip(active.clips, "effect", hit.effect.id) ? active : { type: "clips", clips: [{ type: "effect", id: hit.effect.id }] });
           setSequenceContextMenu({ kind: "effect", laneIndex: hit.laneIndex, startSeconds, effectId: hit.effect.id });
           return;
         }
@@ -1453,11 +1416,12 @@ export function SequenceCanvas({
             });
             return;
           }
-          const effectIds = row?.kind === "effects" ? document.effects.filter((effect) => targetsEqual(effect.target, lane.target)).map((effect) => effect.id) : [];
-          const automationIds = row?.kind === "automation" ? document.automationClips.filter((clip) => targetsEqual(clip.rowTarget, lane.target)).map((clip) => clip.id) : [];
+          const rowSelection: NonNullable<SequenceSelection> = { type: "clips", clips: row?.kind === "effects"
+            ? clipRefs("effect", document.effects.filter((effect) => targetsEqual(effect.target, lane.target)).map((effect) => effect.id))
+            : row?.kind === "automation" ? clipRefs("automation", document.automationClips.filter((clip) => targetsEqual(clip.rowTarget, lane.target)).map((clip) => clip.id)) : [] };
           setSelectedLaneIndex(laneIndex);
-          updateSequenceSelection(effectIds.length + automationIds.length > 0 ? { type: "clips", effectIds, automationIds } : null);
-          setSelected(singleSelectionFocus({ type: "clips", effectIds, automationIds }));
+          updateSequenceSelection(selectionCount(rowSelection) > 0 ? rowSelection : null);
+          setSelected(singleSelectionFocus(rowSelection));
           return;
         }
         if (tool === "slice" && x >= left && y >= top) {
@@ -1475,7 +1439,7 @@ export function SequenceCanvas({
           const lineHit = editsCurve && pointHit === null && belowHeader && automationHit.resize === "none" ? hitAutomationCurveLine(automationHit, x, y) : null;
           if (pointHit !== null || lineHit !== null) {
             setSelected({ type: "automationClip", id: automationHit.clip.id });
-            updateSequenceSelection({ type: "clips", effectIds: [], automationIds: [automationHit.clip.id] });
+            updateSequenceSelection({ type: "clips", clips: [{ type: "automation", id: automationHit.clip.id }] });
             if (lineHit !== null) {
               setAutomationCurveDraft({ id: automationHit.clip.id, curve: insertAutomationCurvePoint(automationHit.clip.curve, lineHit.index, lineHit.point), guide: { time: null, value: null } });
             }
@@ -1490,7 +1454,7 @@ export function SequenceCanvas({
           }
           setSelected({ type: "automationClip", id: automationHit.clip.id });
           const active = sequenceSelectionRef.current;
-          const nextSelection = active?.type === "clips" && active.automationIds.includes(automationHit.clip.id) && !event.shiftKey && !event.ctrlKey && !event.metaKey ? active : nextAutomationSelection(active, automationHit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey);
+          const nextSelection = active?.type === "clips" && hasClip(active.clips, "automation", automationHit.clip.id) && !event.shiftKey && !event.ctrlKey && !event.metaKey ? active : nextAutomationSelection(active, automationHit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey);
           updateSequenceSelection(nextSelection);
           setSelectedLaneIndex(automationHit.laneIndex);
           setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? automationHit.clip.startSeconds);
@@ -1509,12 +1473,12 @@ export function SequenceCanvas({
         const hit = x >= left ? hitSequence(visibleClips, x, y) : null;
         if (hit !== null) {
           const activeSelection = sequenceSelectionRef.current;
-          const wasAlreadySelected = activeSelection?.type === "clips" && activeSelection.effectIds.includes(hit.effect.id);
+          const wasAlreadySelected = activeSelection?.type === "clips" && hasClip(activeSelection.clips, "effect", hit.effect.id);
           const nextSelection = wasAlreadySelected && !event.shiftKey && !event.ctrlKey && !event.metaKey
             ? activeSelection
             : nextEffectSelection(activeSelection?.type === "clips" ? activeSelection : null, hit.effect.id, event.shiftKey, event.ctrlKey || event.metaKey);
           updateSequenceSelection(nextSelection);
-          setSelected(nextSelection.type === "clips" ? singleEffectSelectionFocus(nextSelection.effectIds) ?? { type: "effect", id: hit.effect.id } : { type: "effect", id: hit.effect.id });
+          setSelected(singleSelectionFocus(nextSelection) ?? { type: "effect", id: hit.effect.id });
           setSelectedLaneIndex(hit.laneIndex);
           setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? hit.effect.startSeconds);
           drag.current = {
@@ -1705,7 +1669,7 @@ export function SequenceCanvas({
           current.active = true;
           setDragCursor("grabbing");
           const selection = sequenceSelectionRef.current;
-          if (current.resize === "none" && selection?.type === "clips" && selection.automationIds.length > 0) {
+          if (current.resize === "none" && selection?.type === "clips" && selection.clips.some((clip) => clip.type === "automation")) {
             const sourceKind = current.kind === "automation" ? "automation" : "effects";
             const before = rows.find((row) => row.laneIndex === current.laneIndex && row.kind === sourceKind);
             const expanded = layoutRows(viewport.rowHeights, true);
@@ -1777,41 +1741,24 @@ export function SequenceCanvas({
           }
           const deltaSeconds = roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond);
           const activeSelection = sequenceSelectionRef.current;
-          if (activeSelection?.type === "marks" && activeSelection.marks.some((mark) => mark.collectionKey === current.collectionKey && mark.index === current.index)) {
-            const constrainedDelta = constrainMarkDelta(document, activeSelection.marks, deltaSeconds);
-            if (constrainedDelta === 0) {
-              setMarkDrafts(new Map());
-              return;
-            }
-            void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, {
-              type: "moveMarks",
-              marks: activeSelection.marks,
-              timeDeltaSeconds: constrainedDelta
-            }), gestureRequest.current).then((result) => {
-              updateSequenceSelection(result.selection);
-              setSelected(null);
-              setMarkDrafts(new Map());
-              return result;
-            });
-            return;
-          }
-          const timeSeconds = clamp(current.originalTimeSeconds + deltaSeconds, 0, document.durationSeconds);
-          if (timeSeconds === current.originalTimeSeconds) {
+          // A selected mark moves the whole mark selection; another mark moves alone.
+          const marks = activeSelection?.type === "marks" && activeSelection.marks.some((mark) => mark.collectionKey === current.collectionKey && mark.index === current.index)
+            ? activeSelection.marks
+            : [{ collectionKey: current.collectionKey, index: current.index }];
+          const constrainedDelta = constrainMarkDelta(document, marks, deltaSeconds);
+          if (constrainedDelta === 0) {
             setMarkDrafts(new Map());
             return;
           }
-          const collection = document.markCollections.find((candidate) => candidate.key === current.collectionKey);
-          const nextIndex = collection === undefined ? current.index : markIndexAfterMove(collection, current.index, timeSeconds);
-          void runGuiEditCommand((request) =>
-            commands.applySequenceGuiEdit(request, {
-              type: "moveMark",
-              collectionKey: current.collectionKey,
-              index: current.index,
-              timeSeconds
-            }), gestureRequest.current
-          ).then(() => {
-            setSelected({ type: "mark", collectionKey: current.collectionKey, index: nextIndex });
+          void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
+            type: "moveMarks",
+            marks,
+            timeDeltaSeconds: constrainedDelta
+          } }), gestureRequest.current).then((result) => {
+            updateSequenceSelection(result.selection);
+            setSelected(singleSelectionFocus(result.selection));
             setMarkDrafts(new Map());
+            return result;
           });
           return;
         }
@@ -1832,7 +1779,7 @@ export function SequenceCanvas({
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
         const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event, selection, destinationLane), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         if (!gesture.changed) { clearDrafts(); return; }
-        void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, gesture.edit), gestureRequest.current).then((result) => {
+        void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: gesture.edit }), gestureRequest.current).then((result) => {
           updateSequenceSelection(result.selection);
           setSelected(singleSelectionFocus(result.selection));
           const laneDelta = gesture.edit.type === "moveClips" ? gesture.edit.laneDelta : 0;
@@ -1882,7 +1829,7 @@ export function SequenceCanvas({
                         menu={ContextMenu}
                         tree={effectTree}
                         label={(definition) => definition.name}
-                        itemKey={(definition) => `${definition.effect.moduleId}:${definition.effect.path}:${definition.effect.effectName}`}
+                        itemKey={(definition) => `${definition.effect.path}:${definition.effect.effectName}`}
                         onSelect={(definition) => void addEffectFromContextMenu(definition, laneContextMenu)}
                         empty="No effects"
                       />
@@ -1981,7 +1928,7 @@ export function SequenceCanvas({
                   <ContextMenu.Item className="menu-item" onSelect={() => void splitEffects([sequenceContextMenu.effectId], sequenceContextMenu.startSeconds)}>
                     <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Effect Here
                   </ContextMenu.Item>
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteSelectedEffect(sequenceContextMenu.effectId)}>
+                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "effect", id: sequenceContextMenu.effectId }] })}>
                     <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Effect
                   </ContextMenu.Item>
                 </>
@@ -1992,7 +1939,7 @@ export function SequenceCanvas({
                   <ContextMenu.Item className="menu-item" onSelect={() => void splitAutomationClip(sequenceContextMenu.clipId, sequenceContextMenu.startSeconds)}>
                     <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Automation Clip Here
                   </ContextMenu.Item>
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteAutomationClip(sequenceContextMenu.clipId)}>
+                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "automation", id: sequenceContextMenu.clipId }] })}>
                     <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Automation Clip
                   </ContextMenu.Item>
                 </>
@@ -2000,7 +1947,7 @@ export function SequenceCanvas({
               {sequenceContextMenu.kind === "mark" && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteContextMark(sequenceContextMenu)}>
+                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "marks", marks: [{ collectionKey: sequenceContextMenu.collectionKey, index: sequenceContextMenu.index }] })}>
                     <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Mark
                   </ContextMenu.Item>
                 </>
@@ -2092,7 +2039,7 @@ function SequenceTransportOverlay({
   canvasSize,
   playheadClockRef
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   viewport: SequenceViewport;
   setViewport: Dispatch<SetStateAction<SequenceViewport>>;
   left: number;
@@ -2141,7 +2088,7 @@ function SequenceTransportMarkers({
   canvasSize,
   playheadClockRef
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   transport: AudioTransportViewSnapshot;
   viewport: SequenceViewport;
   setViewport: Dispatch<SetStateAction<SequenceViewport>>;
@@ -2236,7 +2183,7 @@ function SequenceTransportMarkers({
   );
 }
 
-function automationClipLabel(document: SequenceEditorDocument, clip: SequenceAutomationClip) {
+function automationClipLabel(document: SequenceGuiDocument, clip: SequenceAutomationClip) {
   const primary = clip.bindings[0];
   const detached = clip.detachedBindings[0];
   if (primary === undefined && detached === undefined) return "Unassigned automation";
@@ -2249,7 +2196,7 @@ function automationClipLabel(document: SequenceEditorDocument, clip: SequenceAut
   return additionalBindingCount > 0 ? `${label} +${additionalBindingCount}` : label;
 }
 
-function automationTargetLabel(document: SequenceEditorDocument, target: SequenceAutomationTarget) {
+function automationTargetLabel(document: SequenceGuiDocument, target: SequenceAutomationTarget) {
   if (target.type === "effectParam") {
     const effect = document.effects.find((candidate) => candidate.id === target.effectId);
     if (effect === undefined) throw new Error(`Automation target effect ${target.effectId} is missing`);
@@ -2270,7 +2217,7 @@ function scheduleSequenceViewportStateSave(host: SequenceEditorHost, reference: 
   if (store.restoreState !== null) {
     store.setRestoreState({ ...store.restoreState, sequenceViewports: { ...store.restoreState.sequenceViewports, [objectViewKey(reference)]: state } });
   }
-  scheduleViewStateSave(JSON.stringify(["sequence", objectViewKey(reference)]), () => commands.saveSequenceViewportState({ path, objectKey, ownedPath, state }),
+  scheduleViewStateSave(JSON.stringify(["sequence", objectViewKey(reference)]), () => commands.saveViewState({ type: "sequenceViewport", state: { path, objectKey, ownedPath, state } }),
     (error) => { useAppStore.getState().setError(String(error)); });
 }
 
@@ -2303,14 +2250,14 @@ function drawDisclosure(ctx: CanvasRenderingContext2D, x: number, centerY: numbe
   ctx.fill();
 }
 
-function completeRowHeights(heights: SequenceRowHeightMap, document: SequenceEditorDocument, settings: AppSettings | null): SequenceRowHeightMap {
+function completeRowHeights(heights: SequenceRowHeightMap, document: SequenceGuiDocument, settings: AppSettings | null): SequenceRowHeightMap {
   const missing = document.lanes.filter((lane) => heights[lane.target.fixture] === undefined);
   if (missing.length === 0) return heights;
   const defaultHeight = initialSequenceLaneHeight(settings);
   return { ...heights, ...Object.fromEntries(missing.map((lane) => [lane.target.fixture, { effects: defaultHeight, automation: automationLaneRowHeight(defaultHeight) }])) };
 }
 
-function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | undefined, document: SequenceEditorDocument, settings: AppSettings | null): SequenceViewport {
+function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | undefined, document: SequenceGuiDocument, settings: AppSettings | null): SequenceViewport {
   return {
     pxPerSecond: state === undefined ? settings?.sequenceInitialPxPerSecond ?? SEQUENCE_CANVAS.initialPxPerSecond : clamp(state.pxPerSecond, SEQUENCE_CANVAS.minPxPerSecond, SEQUENCE_CANVAS.maxZoomPxPerSecond),
     leftGutterWidth: clamp(state?.leftGutterWidthPx ?? SEQUENCE_CANVAS.initialLeftGutterPx, SEQUENCE_CANVAS.minLeftGutterPx, SEQUENCE_CANVAS.maxLeftGutterPx),

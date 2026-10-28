@@ -86,13 +86,13 @@ fn prepare_param_value(
         }
         EffectParamValue::Curve(source) => Value::Curve(Arc::new(match source {
             CurveSource::Inline(curve) => curve.clone(),
-            CurveSource::Reference(id) => {
-                project.definitions().curves.definitions[id].curve.clone()
-            }
+            CurveSource::Reference(id) => project.reusable::<crate::CurveDefinition>()[id]
+                .curve
+                .clone(),
         })),
         EffectParamValue::Gradient(source) => Value::Gradient(Arc::new(match source {
             GradientSource::Inline(gradient) => gradient.clone(),
-            GradientSource::Reference(id) => project.definitions().gradients.definitions[id]
+            GradientSource::Reference(id) => project.reusable::<crate::GradientDefinition>()[id]
                 .gradient
                 .clone(),
         })),

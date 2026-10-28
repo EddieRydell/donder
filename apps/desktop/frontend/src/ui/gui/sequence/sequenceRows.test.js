@@ -63,7 +63,7 @@ test("mixed selections preserve both row kinds and move or resize with one const
   const document = { durationSeconds: 30, lanes, effects: [effect], automationClips: [automation], markCollections: [] };
   let selected = selection.nextEffectSelection(null, effect.id, false, false);
   selected = selection.nextAutomationSelection(selected, automation.id, true, false);
-  assert.deepEqual(selected, { type: "clips", effectIds: [1], automationIds: [9] });
+  assert.deepEqual(selected, { type: "clips", clips: [{ type: "effect", id: 1 }, { type: "automation", id: 9 }] });
   assert.deepEqual(selection.nextEffectSelection(selected, 1, true, false), selected);
   const move = selection.clipSelectionGesture(document, selected, "none", 3, 0, 9);
   assert.equal(move.edit.laneDelta, 1);
@@ -77,9 +77,9 @@ test("mixed selections preserve both row kinds and move or resize with one const
   assert.equal(resize.automation[0].durationSeconds, 5);
   assert.equal(resize.automation[0].rowTarget.fixture, 20);
   const surviving = selection.reconcileSequenceSelection({ ...document, effects: [] }, selected);
-  assert.deepEqual(surviving, { type: "clips", effectIds: [], automationIds: [9] });
+  assert.deepEqual(surviving, { type: "clips", clips: [{ type: "automation", id: 9 }] });
   assert.equal(selection.reconcileSequenceSelection({ ...document, effects: [], automationClips: [] }, selected), null);
-  assert.deepEqual(selection.selectionFromSingle({ type: "automationClip", id: 9 }), { type: "clips", effectIds: [], automationIds: [9] });
+  assert.deepEqual(selection.selectionFromSingle({ type: "automationClip", id: 9 }), { type: "clips", clips: [{ type: "automation", id: 9 }] });
 });
 
 test("a target shared by two groups draws its clips on both lanes and moves from the nearest copy", () => {
@@ -99,8 +99,8 @@ test("a target shared by two groups draws its clips on both lanes and moves from
   const drawn = selection.buildSequenceClipLayout(document, [], viewport, 0, 0, { width: THEME_METRICS.sequenceMaxLaneHeight, height: THEME_METRICS.sequenceMaxLaneHeight }, rows);
   assert.deepEqual(drawn.map((clip) => clip.laneIndex).sort(), [1, 4]);
   const both = selection.selectionFromMarqueeEffects(drawn, [], { startX: 0, startY: 0, x: 10000, y: 10000 });
-  assert.deepEqual(both.effectIds, [1]);
-  const selected = { type: "clips", effectIds: [1], automationIds: [] };
+  assert.deepEqual(both.clips, [{ type: "effect", id: 1 }]);
+  const selected = { type: "clips", clips: [{ type: "effect", id: 1 }] };
   // Moving up from the second copy reaches group 2, not group 1.
   const up = selection.clipSelectionGesture(document, selected, "none", 0, 4, -1);
   assert.equal(up.effects[0].laneIndex, 3);

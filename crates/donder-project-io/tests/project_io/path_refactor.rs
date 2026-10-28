@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::common::starter_copy;
 use camino::Utf8Path;
-use donder_project_io::{apply_path_change, load_project, plan_path_change};
+use donder_project_io::{apply_path_change, check_project, plan_path_change};
 
 fn move_path(
     session: &donder_project_io::ProjectSession,
@@ -19,7 +19,9 @@ fn move_path(
 fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
     let (_temporary, root) = starter_copy();
     fs::create_dir(root.join("moved")).expect("directory");
-    let mut session = load_project(&root).expect("load");
+    let mut session = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .expect("load");
     for (source, destination) in [
         ("setups/main.data.donder", "moved/main.data.donder"),
         (
@@ -31,7 +33,9 @@ fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
     ] {
         session = move_path(&session, source, destination);
     }
-    let reloaded = load_project(&root).expect("reload");
+    let reloaded = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .expect("reload");
     assert_eq!(reloaded.project, session.project);
     assert_eq!(reloaded.source.entrypoint, session.source.entrypoint);
 }
@@ -50,7 +54,9 @@ fn moves_directories_with_documents_and_referenced_audio() {
             .replace("audio: none", "audio: <audio/test.wav>"),
     )
     .unwrap();
-    let session = load_project(&root).expect("load");
+    let session = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .expect("load");
     let session = move_path(&session, "effects", "library/effects");
     let session = move_path(&session, "audio", "library/audio");
     assert_eq!(
@@ -64,14 +70,18 @@ fn moves_directories_with_documents_and_referenced_audio() {
             .keys()
             .any(|document| document.path() == Utf8Path::new("library/effects/scan-sweep.donder"))
     );
-    let reloaded = load_project(&root).expect("reload");
+    let reloaded = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .expect("reload");
     assert_eq!(reloaded.project, session.project);
 }
 
 #[test]
 fn rejects_collisions_root_escapes_and_descendant_moves() {
     let (_temporary, root) = starter_copy();
-    let session = load_project(&root).expect("load");
+    let session = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .expect("load");
     assert!(
         plan_path_change(
             &session,

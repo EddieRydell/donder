@@ -1,44 +1,32 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use donder_language::{DonderDuration, DonderTime};
-use donder_model::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
-use donder_model::{
-    DonderProject, ProjectData, ProjectDefinitionStores, ProjectEdit, ProjectId, ProjectRoot,
-};
+use donder_model::{DonderProject, ProjectData, ProjectEdit, ProjectId, ProjectRoot};
 use donder_model::{Layout, LayoutId};
+use donder_model::{ObjectId, SequenceId};
 use donder_model::{OwnershipSite, ValueSource, add_sequence, make_reusable, use_existing};
 use donder_model::{Patch, PatchId};
 use donder_model::{Setup, SetupId};
 use donder_runtime_types::Color;
 use indexmap::IndexMap;
 
-fn identity(document: &str, object: &str) -> SourceIdentity {
-    SourceIdentity::from_document(
-        DocumentId::new(uuid::Uuid::nil(), document.into()),
-        object.into(),
-    )
-}
-
 fn data() -> ProjectData {
-    let source = identity("project.data.donder", "project");
-    let setup = ObjectIdentity::from(source.clone()).owned(OwnedObjectSlot::Setup);
     ProjectData {
         root: ProjectRoot {
             description: None,
-            id: ProjectId(source),
+            id: ProjectId(0),
             setup: ValueSource::Inline(Box::new(Setup {
                 description: None,
-                id: SetupId(setup.clone()),
+                id: SetupId(1),
                 layout: ValueSource::Inline(Box::new(Layout {
                     description: None,
-                    id: LayoutId(setup.owned(OwnedObjectSlot::Layout)),
+                    id: LayoutId(2),
                     fixtures: vec![],
                     root: vec![],
                 })),
                 patch: ValueSource::Inline(Box::new(Patch {
                     description: None,
-                    id: PatchId(setup.owned(OwnedObjectSlot::Patch)),
+                    id: PatchId(3),
                     routes: vec![],
                 })),
                 controllers: vec![],
@@ -54,7 +42,12 @@ fn data() -> ProjectData {
         input_devices: IndexMap::new(),
         sequences: IndexMap::new(),
         rigs: IndexMap::new(),
-        definitions: ProjectDefinitionStores::default(),
+        fixtures: IndexMap::new(),
+        curves: IndexMap::new(),
+        gradients: IndexMap::new(),
+        effects: IndexMap::new(),
+        operators: IndexMap::new(),
+        next_id: 4,
     }
 }
 
@@ -71,7 +64,6 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     };
     use donder_model::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind};
 
-    let fixture_id = FixtureDefinitionId(identity("fixture.donder", "fixture"));
     let mut fixture = FixtureDefinition {
         description: None,
         elements: vec![FixtureElement {
@@ -84,23 +76,22 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
         }],
     };
     let mut data = data();
-    data.definitions
-        .fixtures
-        .definitions
-        .insert(fixture_id.clone(), fixture.clone());
+    let fixture_id = FixtureDefinitionId(data.next_id);
+    data.next_id += 1;
+    data.fixtures.insert(fixture_id, fixture.clone());
     let ValueSource::Inline(setup) = &mut data.root.setup else {
         panic!("test setup is inline")
     };
     let ValueSource::Inline(layout) = &mut setup.layout else {
         panic!("test layout is inline")
     };
-    let layout_id = layout.id.clone();
+    let layout_id = layout.id;
     layout.fixtures.push(LayoutFixture {
         description: None,
         id: FixtureInstanceId(1),
         name: donder_language::object_name("fixture"),
         kind: LayoutFixtureKind::Fixture {
-            definition: ValueSource::Reference(fixture_id.clone()),
+            definition: ValueSource::Reference(fixture_id),
             transform: FixtureTransform::default(),
         },
     });
@@ -115,9 +106,12 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     .unwrap();
     let before = project.clone();
     let original = before.playback_geometry(&layout_id).unwrap();
-    let mut sequence = project.sequence(&sequence_id).unwrap().clone();
+    let mut sequence = project
+        .get::<donder_model::Sequence>(sequence_id)
+        .unwrap()
+        .clone();
     sequence.duration = DonderDuration(Duration::from_secs(4));
-    project.replace_sequence(&sequence_id, sequence).unwrap();
+    project.put(sequence).unwrap();
     assert!(std::ptr::eq(
         original,
         project.playback_geometry(&layout_id).unwrap()
@@ -128,10 +122,10 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
         count: 2,
     };
     project
-        .apply_edits([ProjectEdit::SetFixtureDefinition {
-            id: fixture_id.clone(),
-            value: fixture.clone(),
-        }])
+        .apply_edits([ProjectEdit::Put(donder_model::Object::FixtureDefinition(
+            fixture_id,
+            fixture.clone(),
+        ))])
         .unwrap();
     assert!(!std::ptr::eq(
         original,
@@ -139,9 +133,12 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     ));
     let accepted = project.clone();
     let current = accepted.playback_geometry(&layout_id).unwrap();
-    let mut layout = project.layout(&layout_id).unwrap().clone();
+    let mut layout = project
+        .get::<donder_model::Layout>(layout_id)
+        .unwrap()
+        .clone();
     layout.fixtures[0].name = donder_language::object_name("renamed fixture");
-    project.replace_layout(&layout_id, layout).unwrap();
+    project.put(layout).unwrap();
     assert!(!std::ptr::eq(
         current,
         project.playback_geometry(&layout_id).unwrap()
@@ -155,10 +152,9 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     };
     assert!(
         project
-            .apply_edits([ProjectEdit::SetFixtureDefinition {
-                id: fixture_id,
-                value: fixture,
-            }])
+            .apply_edits([ProjectEdit::Put(donder_model::Object::FixtureDefinition(
+                fixture_id, fixture
+            ))])
             .is_err()
     );
     assert!(std::ptr::eq(
@@ -170,11 +166,14 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
 #[test]
 fn admission_rejects_missing_references_and_accepts_owned_setup() {
     let mut invalid = data();
-    invalid.root.setup =
-        ValueSource::Reference(SetupId(identity("setup.donder", "missing").into()));
+    invalid.root.setup = ValueSource::Reference(SetupId(99));
     assert!(DonderProject::try_new(invalid).is_err());
     let project = DonderProject::try_new(data()).unwrap();
-    assert!(project.setup(project.root().setup.id()).is_some());
+    assert!(
+        project
+            .get::<donder_model::Setup>(*project.root().setup.id())
+            .is_some()
+    );
 }
 
 #[test]
@@ -187,15 +186,15 @@ fn rejected_sequence_edits_preserve_the_accepted_project() {
         color(),
     )
     .unwrap();
-    let mut sequence = project.sequence(&id).unwrap().clone();
+    let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
     sequence.mark_collections[0]
         .marks
         .push(donder_model::Mark::at(DonderTime(Duration::from_secs(2))));
-    project.replace_sequence(&id, sequence).unwrap();
+    project.put(sequence).unwrap();
     let before = project.clone();
-    let mut shortened = project.sequence(&id).unwrap().clone();
+    let mut shortened = project.get::<donder_model::Sequence>(id).unwrap().clone();
     shortened.duration = DonderDuration(Duration::from_secs(1));
-    assert!(project.replace_sequence(&id, shortened).is_err());
+    assert!(project.put(shortened).is_err());
     assert_eq!(project, before);
     assert!(
         add_sequence(
@@ -215,35 +214,33 @@ fn related_replacements_commit_together_and_do_not_change_prior_snapshots() {
     let before = project.clone();
     let named_layout = Layout {
         description: None,
-        id: LayoutId(identity("layout.donder", "layout").into()),
+        id: LayoutId(project.new_id()),
         fixtures: vec![],
         root: vec![],
     };
-    let mut setup = project.setup(project.root().setup.id()).unwrap().clone();
-    setup.layout = ValueSource::Reference(named_layout.id.clone());
-    assert!(
-        project
-            .replace_setup(&setup.id.clone(), setup.clone())
-            .is_err()
-    );
+    let mut setup = project
+        .get::<donder_model::Setup>(*project.root().setup.id())
+        .unwrap()
+        .clone();
+    setup.layout = ValueSource::Reference(named_layout.id);
+    assert!(project.put(setup.clone()).is_err());
     assert_eq!(project, before);
     project
         .apply_edits([
-            ProjectEdit::InsertLayout(named_layout.clone()),
-            ProjectEdit::ReplaceSetup {
-                id: setup.id.clone(),
-                value: setup,
-            },
+            ProjectEdit::Put(named_layout.clone().into()),
+            ProjectEdit::Put(setup.into()),
         ])
         .unwrap();
     assert_eq!(
-        project.reusable_layouts().get(&named_layout.id),
+        project
+            .reusable::<donder_model::Layout>()
+            .get(&named_layout.id),
         Some(&named_layout)
     );
-    assert!(before.reusable_layouts().is_empty());
+    assert!(before.reusable::<donder_model::Layout>().is_empty());
     assert!(
         before
-            .setup(before.root().setup.id())
+            .get::<donder_model::Setup>(*before.root().setup.id())
             .unwrap()
             .layout
             .inline()
@@ -257,40 +254,56 @@ fn a_failed_later_batch_request_rolls_back_earlier_changes() {
     let before = project.clone();
     let layout = Layout {
         description: None,
-        id: LayoutId(identity("layout.donder", "layout").into()),
+        id: LayoutId(project.new_id()),
         fixtures: vec![],
         root: vec![],
     };
     assert!(
         project
             .apply_edits([
-                ProjectEdit::InsertLayout(layout.clone()),
-                ProjectEdit::InsertLayout(layout),
+                ProjectEdit::Put(layout.into()),
+                ProjectEdit::Remove(LayoutId(u32::MAX).into()),
             ])
             .is_err()
     );
     assert_eq!(project, before);
 }
 
+/// The project's sequence slot at `index`.
+fn sequence_site(project: &DonderProject, index: usize) -> OwnershipSite {
+    OwnershipSite::Member {
+        owner: project.root().id.into(),
+        member: (*project.root().sequences[index].id()).into(),
+    }
+}
+
 #[test]
 fn rejected_ownership_change_does_not_partially_promote_or_replace() {
     let mut project = DonderProject::try_new(data()).unwrap();
-    let setup = project.root().setup.id().clone();
-    let source = identity("layout.donder", "layout");
-    make_reusable(
-        &mut project,
-        &OwnershipSite::SetupLayout(setup.clone()),
-        source.clone(),
-    )
-    .unwrap();
+    let setup = *project.root().setup.id();
+    let layout = OwnershipSite::Member {
+        owner: setup.into(),
+        member: (*project
+            .get::<donder_model::Setup>(setup)
+            .unwrap()
+            .layout
+            .id())
+        .into(),
+    };
+    make_reusable(&mut project, &layout).unwrap();
     let before = project.clone();
-    assert!(make_reusable(&mut project, &OwnershipSite::SetupLayout(setup), source).is_err());
+    assert!(make_reusable(&mut project, &layout).is_err());
     assert_eq!(project, before);
+    let site = OwnershipSite::Member {
+        owner: project.root().id.into(),
+        member: SequenceId(98).into(),
+    };
     assert!(
         use_existing(
             &mut project,
-            &OwnershipSite::ProjectSequence(0),
-            identity("sequence.donder", "missing")
+            &site,
+            ObjectId::Sequence(SequenceId(99)),
+            &|_| None
         )
         .is_err()
     );
@@ -314,36 +327,19 @@ fn membership_validation_failure_rolls_back_a_completed_replacement() {
         color(),
     )
     .unwrap();
-    let reusable = identity("sequence.donder", "sequence");
-    make_reusable(
-        &mut project,
-        &OwnershipSite::ProjectSequence(0),
-        reusable.clone(),
-    )
-    .unwrap();
+    let site = sequence_site(&project, 0);
+    let reusable = make_reusable(&mut project, &site).unwrap();
+    let second = sequence_site(&project, 1);
     let before = project.clone();
-    let error =
-        use_existing(&mut project, &OwnershipSite::ProjectSequence(1), reusable).unwrap_err();
-    assert!(error.contains("Sequence appears more than once"));
-    assert_eq!(project, before);
-}
-
-#[test]
-fn remap_collisions_are_rejected_before_losing_document_objects() {
-    let mut project = DonderProject::try_new(data()).unwrap();
-    let setup = project.root().setup.id().clone();
-    let source = identity("layout.donder", "layout");
-    make_reusable(
-        &mut project,
-        &OwnershipSite::SetupLayout(setup),
-        source.clone(),
-    )
-    .unwrap();
-    let before = project.clone();
-    let remaps = BTreeMap::from([(
-        source.document_id().clone(),
-        project.root().id.0.document_id().clone(),
-    )]);
-    assert!(donder_model::remap_document_paths(&mut project, &remaps).is_err());
+    let error = use_existing(&mut project, &second, reusable, &|_| None).unwrap_err();
+    assert!(matches!(
+        error,
+        donder_model::EditError::Invalid(donder_model::ProjectValidationError {
+            problem: donder_model::ValidationProblem::Ownership(
+                donder_model::OwnershipProblem::DuplicateSequence
+            ),
+            ..
+        })
+    ));
     assert_eq!(project, before);
 }

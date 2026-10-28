@@ -1,17 +1,16 @@
 //! Invariant-preserving show construction. Checked authored inputs enter before
 //! `build`; graph references and storage addresses are issued only by its
 //! owner, which writes the image's sections.
-use alloc::{collections::BTreeSet, vec, vec::Vec};
+use crate::image::{self, NONE, Range, SectionsWriter};
+use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
 use donder_runtime_types::bytecode::{
     Banks, BytecodeProgram, ParamStorage, ParameterKind, param_bank,
 };
-use donder_runtime_types::image::{self, NONE, Range, SectionsWriter};
 use donder_runtime_types::{
-    AutomatedQuantity, AutomationMapping, Curve, FixtureGeometry, Gradient, Identifier, Marks,
-    OperatorInvocation, OperatorProgram, OutputEncoding, PixelEncoding, PreparedAutomation,
-    SampleDuration, SampleInvocation, SampleProgram, SampleTime, SequenceTiming, Shared,
-    SpatialContext, TargetGeometry, TargetScope, Type, Value,
+    AutomatedQuantity, AutomationMapping, BoundProgram, Curve, FixtureGeometry, Gradient,
+    Identifier, Marks, OutputEncoding, PixelEncoding, PreparedAutomation, Program, SampleDuration,
+    SampleTime, SequenceTiming, Shared, SpatialContext, TargetGeometry, TargetScope, Type, Value,
 };
 
 use crate::targets::PreparedPixel;
@@ -28,32 +27,7 @@ macro_rules! handle {
         }
     )+};
 }
-handle!(
-    FixtureHandle,
-    TargetHandle,
-    EffectHandle,
-    SignalHandle,
-    OutputHandle,
-    LookupHandle
-);
-
-/// The signal a built show displays, or black.
-pub struct SequenceRoot<'id>(Option<SignalHandle<'id>>);
-
-#[derive(Clone, Copy)]
-pub struct WindowHandle<'id> {
-    start: SampleTime,
-    duration: SampleDuration,
-    brand: PhantomData<fn(&'id ()) -> &'id ()>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum VoiceLength {
-    /// Plays for this long from each start.
-    Fixed(SampleDuration),
-    /// Plays until stopped.
-    Open,
-}
+handle!(TargetHandle, EffectHandle, SignalHandle, OutputHandle);
 
 struct Target {
     pixels: Vec<PreparedPixel>,
@@ -93,7 +67,7 @@ struct Interner {
     arrays: Vec<(Range, u32)>,
 }
 
-pub struct SequenceBuilder<'id> {
+pub struct ShowBuilder<'id> {
     timing: SequenceTiming,
     w: SectionsWriter,
     interner: Interner,
@@ -102,8 +76,7 @@ pub struct SequenceBuilder<'id> {
     storage: Vec<usize>,
     pixel_count: usize,
     targets: Vec<Target>,
-    sample_programs: Vec<(Shared<SampleProgram>, u32)>,
-    operator_programs: Vec<(Shared<OperatorProgram>, u32)>,
+    programs: Vec<(Shared<Program>, u32)>,
     clips: Vec<image::Clip>,
     layers: Vec<Layer>,
     nodes: Vec<Node>,
@@ -150,7 +123,7 @@ fn enum_index(enums: &[Identifier], name: &Identifier) -> u32 {
         .map_or(-1, |index| index as i32) as u32
 }
 
-impl SequenceBuilder<'_> {
+impl ShowBuilder<'_> {
     /// A color's index in the colors section, shared by equal colors.
     fn color(&mut self, color: donder_runtime_types::Color) -> u32 {
         match self.w.colors.iter().position(|known| *known == color) {
@@ -332,20 +305,22 @@ impl SequenceBuilder<'_> {
         image::ResourceRef { kind, index }
     }
 
-    /// Write `program`, an effect's or, with its input count, an operator's.
-    fn program(&mut self, program: &BytecodeProgram, inputs: Option<usize>) -> u32 {
+    /// `shared`'s index, written once for equal programs.
+    fn program(&mut self, shared: &Shared<Program>) -> u32 {
+        if let Some((_, index)) = self
+            .programs
+            .iter()
+            .find(|(existing, _)| Shared::ptr_eq(existing, shared))
+            .or_else(|| {
+                self.programs
+                    .iter()
+                    .find(|(existing, _)| **existing == **shared)
+            })
+        {
+            return *index;
+        }
+        let program = &shared.bytecode;
         let code = push(&mut self.w.code, program.code.iter().copied());
-        let params = push(
-            &mut self.w.params,
-            program
-                .params
-                .iter()
-                .enumerate()
-                .map(|(index, ty)| image::Param {
-                    kind: ParameterKind::for_type(ty).to_wire(),
-                    bank: u32::from(param_bank(&program.params, index)),
-                }),
-        );
         let resources: Vec<u32> = program
             .resources
             .iter()
@@ -354,7 +329,6 @@ impl SequenceBuilder<'_> {
         let resources = push(&mut self.w.program_resources, resources);
         let stencil = program.has_stencil();
         let flags = [
-            (inputs.is_some(), image::PROGRAM_OPERATOR),
             (program.uses_spatial_context(), image::PROGRAM_USES_SPATIAL),
             (program.uses_sections(), image::PROGRAM_USES_SECTIONS),
             (program.reads_target(), image::PROGRAM_READS_TARGET),
@@ -376,13 +350,14 @@ impl SequenceBuilder<'_> {
             depth: u32::from(program.depth),
             scalars: counts(program.scalars),
             rows: counts(program.rows),
-            params,
             resources,
             scans: u32::from(program.scans),
-            inputs: inputs.unwrap_or(0) as u32,
+            inputs: shared.inputs as u32,
             flags,
         });
-        (self.w.programs.len() - 1) as u32
+        let index = (self.w.programs.len() - 1) as u32;
+        self.programs.push((Shared::clone(shared), index));
+        index
     }
 
     /// Write an invocation's checked values for `program`.
@@ -514,7 +489,7 @@ impl SequenceBuilder<'_> {
     }
 }
 
-impl<'id> SequenceBuilder<'id> {
+impl<'id> ShowBuilder<'id> {
     pub(crate) fn new(timing: SequenceTiming) -> Self {
         Self {
             timing,
@@ -525,8 +500,7 @@ impl<'id> SequenceBuilder<'id> {
             storage: Vec::new(),
             pixel_count: 0,
             targets: Vec::new(),
-            sample_programs: Vec::new(),
-            operator_programs: Vec::new(),
+            programs: Vec::new(),
             clips: Vec::new(),
             layers: Vec::new(),
             nodes: Vec::new(),
@@ -537,25 +511,9 @@ impl<'id> SequenceBuilder<'id> {
         }
     }
 
-    pub fn windows(&self) -> impl ExactSizeIterator<Item = WindowHandle<'id>> + '_ {
-        self.timing.windows().iter().map(|window| WindowHandle {
-            start: window.start,
-            duration: SampleDuration::from_ticks(window.duration.get()),
-            brand: PhantomData,
-        })
-    }
-
-    pub fn whole_sequence(&self) -> WindowHandle<'id> {
-        WindowHandle {
-            start: SampleTime::from_ticks(0),
-            duration: self.timing.duration(),
-            brand: PhantomData,
-        }
-    }
-
-    /// Register original geometry and its already selected storage cells together.
-    pub fn fixture(&mut self, source_id: u32, geometry: FixtureGeometry) -> FixtureHandle<'id> {
-        let index = self.geometry.len();
+    /// Register a fixture's original geometry and the storage cells the show
+    /// keeps. Targets name fixtures by the order they are registered in.
+    pub fn fixture(&mut self, source_id: u32, geometry: FixtureGeometry) {
         let pixel_count = geometry.cells().len();
         self.storage.push(self.fixtures.len());
         if geometry.retains_fixture() {
@@ -568,43 +526,40 @@ impl<'id> SequenceBuilder<'id> {
             self.pixel_count += pixel_count;
         }
         self.geometry.push(geometry);
-        FixtureHandle::new(index)
     }
 
-    /// Geometry and storage are derived from the same owner-issued handles.
-    /// The language helper supplies original sampling coordinates and sections.
-    pub fn target(
-        &mut self,
-        fixtures: impl IntoIterator<Item = FixtureHandle<'id>>,
-        scope: TargetScope,
-    ) -> TargetHandle<'id> {
-        let domain = TargetGeometry::new(
-            fixtures
-                .into_iter()
-                .map(|fixture| (fixture.index, &self.geometry[fixture.index])),
-            scope,
-        );
+    /// The pixels of `domain` the show keeps. `domain` describes registered
+    /// fixtures' original geometry, by registration order; its logical
+    /// indices, counts, spatial scope and selection order survive.
+    pub fn target(&mut self, domain: &TargetGeometry) -> TargetHandle<'id> {
         let mut pixels = Vec::with_capacity(domain.pixels().len());
         let mut spatial = Vec::with_capacity(domain.pixels().len());
         let mut source_pixels = Vec::with_capacity(domain.pixels().len());
         for pixel in domain.pixels() {
-            // The domain emits only registered retained cells. Empty fixtures
-            // contribute original coordinates/sections but never storage addresses.
+            let fixture = pixel.fixture();
+            // Cells the show does not keep contribute original coordinates
+            // and sections but never storage addresses.
+            let Ok(cell) = self.geometry[fixture]
+                .cells()
+                .binary_search(&pixel.source_cell())
+            else {
+                continue;
+            };
             pixels.push(PreparedPixel {
-                fixture_index: self.storage[pixel.fixture()],
-                fixture_pixel_index: pixel.cell(),
+                fixture_index: self.storage[fixture],
+                fixture_pixel_index: cell as u32,
                 pixel_index: pixel.index(),
                 pixel_count: pixel.count(),
             });
             spatial.push(pixel.spatial());
-            source_pixels.push((pixel.fixture(), pixel.source_cell()));
+            source_pixels.push((fixture, pixel.source_cell()));
         }
         self.store_target(Target {
             pixels,
             spatial,
             source_pixels,
             selection: domain.selection().into(),
-            scope,
+            scope: domain.scope(),
         })
     }
 
@@ -622,81 +577,53 @@ impl<'id> SequenceBuilder<'id> {
         TargetHandle::new(self.targets.len() - 1)
     }
 
-    pub fn target_pixel_count(&self, target: TargetHandle<'id>) -> usize {
-        self.targets[target.index].pixels.len()
-    }
-
-    /// Intersect a range with the target's physical pixel order. Out-of-domain
-    /// endpoints and reversed ranges select no extra pixels. Logical indices,
-    /// counts, fractions, spatial scope and selection order survive.
-    pub fn target_slice(
+    /// An effect: `program` on `target` for `duration` from `start`, within
+    /// the show. A sequence's clips carry their authored `id`; a rig's
+    /// effects have none.
+    pub fn clip(
         &mut self,
-        target: TargetHandle<'id>,
-        range: core::ops::Range<usize>,
-    ) -> TargetHandle<'id> {
-        let original = &self.targets[target.index];
-        let pixels = keep(&original.pixels, &range);
-        let spatial = keep(&original.spatial, &range);
-        let source_pixels = keep(&original.source_pixels, &range);
-        let selected: BTreeSet<_> = source_pixels.iter().copied().collect();
-        let selection = original
-            .selection
-            .iter()
-            .filter(|source| selected.contains(source))
-            .copied()
-            .collect();
-        let scope = original.scope;
-        self.store_target(Target {
-            pixels,
-            spatial,
-            source_pixels,
-            selection,
-            scope,
-        })
-    }
-
-    pub fn sample(
-        &mut self,
-        invocation: &SampleInvocation,
-        window: WindowHandle<'id>,
+        id: Option<u32>,
+        program: &BoundProgram,
+        start: SampleTime,
+        duration: SampleDuration,
         target: TargetHandle<'id>,
     ) -> EffectHandle<'id> {
-        let bytecode = invocation.program().bytecode();
-        let program = match self
-            .sample_programs
-            .iter()
-            .find(|(program, _)| Shared::ptr_eq(program, invocation.program()))
-        {
-            Some((_, index)) => *index,
-            None => {
-                let index = self.program(bytecode, None);
-                self.sample_programs
-                    .push((Shared::clone(invocation.program()), index));
-                index
-            }
-        };
-        let params = self.param_set(bytecode, invocation.params());
-        let automation = self.automation(bytecode, invocation.automation());
+        assert!(
+            start
+                .as_ticks()
+                .checked_add(duration.as_ticks())
+                .is_some_and(|end| end <= self.timing.duration().as_ticks()),
+            "an effect plays within its show"
+        );
+        let bytecode = &program.program().bytecode;
+        let index = self.program(program.program());
+        let params = self.param_set(bytecode, program.params());
+        let automation = self.automation(bytecode, program.automation());
         self.w.effects.push(image::Effect {
-            start: window.start.as_ticks(),
-            duration: window.duration.as_ticks(),
+            start: start.as_ticks(),
+            duration: duration.as_ticks(),
             target: target.index as u32,
-            program,
+            program: index,
             params,
             automation,
         });
-        EffectHandle::new(self.w.effects.len() - 1)
+        let effect = self.w.effects.len() - 1;
+        if let Some(id) = id {
+            self.clips.push(image::Clip {
+                id,
+                effect: effect as u32,
+            });
+        }
+        EffectHandle::new(effect)
     }
 
-    /// Make `effect` a rig voice that commands start and stop; returns its
-    /// index in the rig's voices.
-    pub fn voice(&mut self, effect: EffectHandle<'id>, length: VoiceLength) -> u16 {
+    /// Make `effect` a rig voice that commands start, and that stops on a
+    /// command or `duration` after each start; returns its index in the
+    /// rig's voices.
+    pub fn voice(&mut self, effect: EffectHandle<'id>, duration: Option<SampleDuration>) -> u16 {
         self.w.voices.push(image::Voice {
             effect: effect.index as u32,
-            duration: match length {
-                VoiceLength::Fixed(duration) => duration.as_ticks(),
-                VoiceLength::Open => NONE,
-            },
+            duration: duration.map_or(NONE, SampleDuration::as_ticks),
         });
         (self.w.voices.len() - 1) as u16
     }
@@ -710,12 +637,15 @@ impl<'id> SequenceBuilder<'id> {
         let readers = readers
             .into_iter()
             .map(|(effect, param)| {
-                let record = &self.w.effects[effect.index];
-                let program = &self.w.programs[record.program as usize];
-                let param = &program.params.get(&self.w.params)[usize::from(param)];
+                let index = self.w.effects[effect.index].program;
+                let (program, _) = self
+                    .programs
+                    .iter()
+                    .find(|(_, written)| *written == index)
+                    .unwrap_or_else(|| unreachable!("effects play written programs"));
                 image::Reader {
                     effect: effect.index as u32,
-                    bank: param.bank,
+                    bank: u32::from(param_bank(&program.bytecode.params, usize::from(param))),
                 }
             })
             .collect();
@@ -737,45 +667,24 @@ impl<'id> SequenceBuilder<'id> {
         (self.controls.len() - 1) as u16
     }
 
-    /// Register authored clip identity independently from storage order.
-    pub fn clip(&mut self, id: u32, effect: EffectHandle<'id>) {
-        self.clips.push(image::Clip {
-            id,
-            effect: effect.index as u32,
-        });
-    }
-
     /// Request each declared input exactly once. References can only point to
     /// signals already created by this builder, so cycles cannot be expressed.
     pub fn operator(
         &mut self,
-        invocation: &OperatorInvocation,
+        program: &BoundProgram,
         mut input: impl FnMut(usize) -> SignalHandle<'id>,
     ) -> SignalHandle<'id> {
-        let bytecode = invocation.program().bytecode();
-        let program = match self
-            .operator_programs
-            .iter()
-            .find(|(program, _)| Shared::ptr_eq(program, invocation.program()))
-        {
-            Some((_, index)) => *index,
-            None => {
-                let inputs = invocation.program().input_count();
-                let index = self.program(bytecode, Some(inputs));
-                self.operator_programs
-                    .push((Shared::clone(invocation.program()), index));
-                index
-            }
-        };
-        let params = self.param_set(bytecode, invocation.params());
-        let automation = self.automation(bytecode, invocation.automation());
-        let inputs = (0..invocation.program().input_count())
+        let bytecode = &program.program().bytecode;
+        let index = self.program(program.program());
+        let params = self.param_set(bytecode, program.params());
+        let automation = self.automation(bytecode, program.automation());
+        let inputs = (0..program.program().inputs)
             .map(|index| input(index).index as u32)
             .collect();
         self.nodes.push(Node {
             kind: image::NODE_OPERATOR,
             layer: 0,
-            program,
+            program: index,
             params,
             inputs,
             automation,
@@ -822,11 +731,6 @@ impl<'id> SequenceBuilder<'id> {
         SignalHandle::new(self.nodes.len() - 1)
     }
 
-    /// The signal the show displays; none is black.
-    pub fn output(&mut self, signal: Option<SignalHandle<'id>>) -> SequenceRoot<'id> {
-        SequenceRoot(signal)
-    }
-
     pub fn port(&mut self, controller_index: u32, port: u32) -> OutputHandle<'id> {
         self.outputs.push(Output {
             controller_index,
@@ -836,24 +740,32 @@ impl<'id> SequenceBuilder<'id> {
         OutputHandle::new(self.outputs.len() - 1)
     }
 
-    pub fn lookup(&mut self, table: [u8; 256]) -> LookupHandle<'id> {
-        self.w.lookups.push(image::Lookup { table });
-        LookupHandle::new(self.w.lookups.len() - 1)
-    }
-
     pub fn padding(&mut self, output: OutputHandle<'id>, bytes: usize) {
         self.outputs[output.index].bytes += bytes;
     }
 
-    /// Append the target's physical pixel order. Output width and all byte spans
-    /// follow from storage actually reserved here, never caller-supplied offsets.
+    /// Append the target's physical pixel order, each channel byte through
+    /// `lookup` if there is one. Returns the pixels it routes. Output width and all byte spans follow from
+    /// storage actually reserved here, never caller-supplied offsets.
     pub fn route(
         &mut self,
         output: OutputHandle<'id>,
         target: TargetHandle<'id>,
         encoding: OutputEncoding,
-        lookup: Option<LookupHandle<'id>>,
-    ) {
+        lookup: Option<[u8; 256]>,
+    ) -> usize {
+        if self.targets[target.index].pixels.is_empty() {
+            return 0;
+        }
+        let lookup = lookup.map_or(NONE, |table| {
+            match self.w.lookups.iter().position(|known| known.table == table) {
+                Some(index) => index as u32,
+                None => {
+                    self.w.lookups.push(image::Lookup { table });
+                    (self.w.lookups.len() - 1) as u32
+                }
+            }
+        });
         let (rgbw, order) = match encoding.encoding() {
             PixelEncoding::Rgb { order } => (false, [order[0], order[1], order[2], 0]),
             PixelEncoding::Rgbw { order } => (true, order),
@@ -886,21 +798,20 @@ impl<'id> SequenceBuilder<'id> {
                     image::ENCODING_RGB
                 },
                 order,
-                lookup: lookup.map_or(NONE, |lookup| lookup.index as u32),
+                lookup,
             });
             start_slot += (end - start) * channels;
         }
+        pixels.len()
     }
 
     /// The image: every record written, then the plan, layers, nodes and
     /// targets that the registered handles describe.
-    pub(crate) fn finish(mut self, root: SequenceRoot<'id>) -> alloc::boxed::Box<[u32]> {
-        let full = self.target(
-            (0..self.geometry.len())
-                .map(FixtureHandle::new)
-                .collect::<Vec<_>>(),
+    pub(crate) fn finish(mut self, root: Option<SignalHandle<'id>>) -> alloc::boxed::Box<[u32]> {
+        let full = self.target(&TargetGeometry::new(
+            self.geometry.iter().enumerate(),
             TargetScope::PerFixture,
-        );
+        ));
         let mut needs_spatial = vec![false; self.targets.len()];
         let mut needs_sections = vec![false; self.targets.len()];
         for effect in &self.w.effects {
@@ -908,8 +819,11 @@ impl<'id> SequenceBuilder<'id> {
             needs_spatial[effect.target as usize] |= flags & image::PROGRAM_USES_SPATIAL != 0;
             needs_sections[effect.target as usize] |= flags & image::PROGRAM_USES_SECTIONS != 0;
         }
-        for (_, program) in &self.operator_programs {
-            let flags = self.w.programs[*program as usize].flags;
+        for node in &self.nodes {
+            if node.kind != image::NODE_OPERATOR {
+                continue;
+            }
+            let flags = self.w.programs[node.program as usize].flags;
             needs_spatial[full.index] |= flags & image::PROGRAM_USES_SPATIAL != 0;
             needs_sections[full.index] |= flags & image::PROGRAM_USES_SECTIONS != 0;
         }
@@ -981,9 +895,7 @@ impl<'id> SequenceBuilder<'id> {
         }
         // A mix holds every input until it runs; chained, each input joins
         // the running maximum once it is ready, so a mix holds two frames.
-        let root = root
-            .0
-            .map(|signal| chain_mixes(&mut self.nodes, signal.index));
+        let root = root.map(|signal| chain_mixes(&mut self.nodes, signal.index));
         // Only the nodes the output reads are written, inputs first as they
         // were built. Each writes a frame buffer free from its start until its
         // last reader runs; one that reads its previous frame keeps a state.
@@ -1275,16 +1187,6 @@ fn write_sections(
             push(&mut w.section_pixels, places),
         )
     }
-}
-
-/// The items at the indices of `range`.
-fn keep<T: Copy>(items: &[T], range: &core::ops::Range<usize>) -> Vec<T> {
-    items
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| range.contains(index))
-        .map(|(_, item)| *item)
-        .collect()
 }
 
 /// Replace each mix of `nodes` by a chain of two-input mixes, each placed

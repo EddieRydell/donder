@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 
+use crate::address::DocumentId;
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_model::DocumentId;
 use tempfile::Builder;
 
 use crate::serialization::document_text;
@@ -30,22 +30,6 @@ pub struct PathChangePlan {
     pub structural: bool,
     pub impact: PathChangeImpact,
     document_remaps: BTreeMap<DocumentId, DocumentId>,
-}
-
-impl PathChangePlan {
-    pub fn remap_object_identity(
-        &self,
-        identity: &donder_model::ObjectIdentity,
-    ) -> donder_model::ObjectIdentity {
-        donder_model::remap_object_identity(identity, &self.document_remaps)
-    }
-
-    pub fn remap_identity(
-        &self,
-        identity: &donder_model::SourceIdentity,
-    ) -> donder_model::SourceIdentity {
-        donder_model::remap_identity(identity, &self.document_remaps)
-    }
 }
 
 pub fn plan_path_change(
@@ -85,12 +69,8 @@ pub fn plan_path_change(
         .documents
         .keys()
         .filter_map(|document| {
-            replace_prefix(document.path(), &source, &destination).map(|path| {
-                (
-                    document.clone(),
-                    DocumentId::new(document.module_id(), path),
-                )
-            })
+            replace_prefix(document.path(), &source, &destination)
+                .map(|path| (document.clone(), DocumentId::new(path)))
         })
         .collect::<BTreeMap<_, _>>();
     let assets = session
@@ -212,7 +192,6 @@ pub fn apply_path_change(
 }
 
 fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Result<(), String> {
-    donder_model::remap_document_paths(&mut candidate.project, &plan.document_remaps)?;
     crate::source_copy::remap_documents(&mut candidate.source, &plan.document_remaps)?;
 
     let root = candidate.source.project_root().to_owned();

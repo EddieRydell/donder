@@ -1,5 +1,5 @@
 use super::evaluation::StripWorkspace;
-use super::evaluation::{PixelContext, SampleEvaluation, compile_effect, curve, marks};
+use super::evaluation::{PixelContext, SampleEvaluation, compile, curve, marks};
 use super::playback;
 use super::std;
 use crate::dsl::RunContext;
@@ -37,15 +37,11 @@ fn sample(params: &[Param], body: &str) -> Color {
         .iter()
         .map(|(name, ty, _)| format!("param {name}: {ty};"))
         .collect();
-    let fixed = compile_effect(&format!(
+    let fixed = compile(&format!(
         "effect Query {{ {declarations} sample {{ {body} }} }}"
     ));
     let evaluate = |invocation: &donder_language::compiler::Invocation| {
-        playback::lower_sample(invocation).evaluate(
-            &context,
-            &spatial,
-            &mut StripWorkspace::default(),
-        )
+        playback::lower(invocation).evaluate(&context, &spatial, &mut StripWorkspace::default())
     };
     let values: Vec<Value> = params.iter().map(|(_, _, value)| value.clone()).collect();
     // Positional values, checked against their declared ranges.
@@ -69,7 +65,7 @@ fn sample(params: &[Param], body: &str) -> Color {
         .iter()
         .map(|(name, _, _)| format!("let {name} = {name}_items[pixel.index];"))
         .collect();
-    let selected = compile_effect(&format!(
+    let selected = compile(&format!(
         "effect Query {{ {selected_declarations} sample {{ {selections} {body} }} }}"
     ));
     let items = values

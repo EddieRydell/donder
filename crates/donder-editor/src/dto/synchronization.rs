@@ -1,4 +1,4 @@
-use crate::*;
+use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 

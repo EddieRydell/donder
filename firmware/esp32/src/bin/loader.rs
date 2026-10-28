@@ -683,7 +683,6 @@ struct Capabilities {
     max_graph_nodes: usize,
     max_workspace_bytes: usize,
     output: OutputCapabilities,
-    sequence_storage: SequenceStorage,
 }
 
 #[derive(serde::Serialize)]
@@ -703,12 +702,6 @@ enum OutputCapabilities {
     },
     #[cfg(not(feature = "i2s-output"))]
     EvaluationOnly,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-enum SequenceStorage {
-    Persistent,
 }
 
 struct DeviceCapabilities;
@@ -748,7 +741,6 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
             },
             #[cfg(not(feature = "i2s-output"))]
             output: OutputCapabilities::EvaluationOnly,
-            sequence_storage: SequenceStorage::Persistent,
         };
         Json(capabilities)
             .into_response()

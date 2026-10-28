@@ -1,5 +1,4 @@
-use crate::*;
-use donder_project_io::SourceObjectKind;
+use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -323,41 +322,23 @@ pub enum ObjectKind {
     Operator,
 }
 
-impl From<&SourceObjectKind> for ObjectKind {
-    fn from(kind: &SourceObjectKind) -> Self {
+impl From<donder_model::ObjectKind> for ObjectKind {
+    fn from(kind: donder_model::ObjectKind) -> Self {
+        use donder_model::ObjectKind as Kind;
         match kind {
-            SourceObjectKind::Project => Self::Project,
-            SourceObjectKind::Setup => Self::Setup,
-            SourceObjectKind::Controller => Self::Controller,
-            SourceObjectKind::InputDevice => Self::InputDevice,
-            SourceObjectKind::Layout => Self::Layout,
-            SourceObjectKind::Patch => Self::Patch,
-            SourceObjectKind::FixtureDefinition => Self::Fixture,
-            SourceObjectKind::Curve => Self::Curve,
-            SourceObjectKind::Gradient => Self::Gradient,
-            SourceObjectKind::Sequence => Self::Sequence,
-            SourceObjectKind::Rig => Self::Rig,
-            SourceObjectKind::EffectDefinition | SourceObjectKind::EffectInstance => Self::Effect,
-            SourceObjectKind::OperatorDefinition => Self::Operator,
-        }
-    }
-}
-
-impl ObjectKind {
-    pub fn document_view(&self) -> Option<DocumentViewId> {
-        match self {
-            Self::Project => Some(DocumentViewId::Project),
-            Self::Setup => Some(DocumentViewId::Setup),
-            Self::Layout => Some(DocumentViewId::Layout),
-            Self::Fixture => Some(DocumentViewId::Fixture),
-            Self::Patch => Some(DocumentViewId::Patch),
-            Self::Controller => Some(DocumentViewId::Controller),
-            Self::InputDevice => Some(DocumentViewId::InputDevice),
-            Self::Rig => Some(DocumentViewId::Rig),
-            Self::Sequence => Some(DocumentViewId::Sequence),
-            Self::Curve => Some(DocumentViewId::Curve),
-            Self::Gradient => Some(DocumentViewId::Gradient),
-            Self::Effect | Self::Operator => None,
+            Kind::Project => Self::Project,
+            Kind::Setup => Self::Setup,
+            Kind::Controller => Self::Controller,
+            Kind::InputDevice => Self::InputDevice,
+            Kind::Layout => Self::Layout,
+            Kind::Patch => Self::Patch,
+            Kind::FixtureDefinition => Self::Fixture,
+            Kind::Curve => Self::Curve,
+            Kind::Gradient => Self::Gradient,
+            Kind::Sequence => Self::Sequence,
+            Kind::Rig => Self::Rig,
+            Kind::EffectDefinition => Self::Effect,
+            Kind::OperatorDefinition => Self::Operator,
         }
     }
 }
@@ -369,46 +350,22 @@ pub enum WorkspaceEntryKind {
     File,
 }
 
+/// What an explorer entry is: an object's document, by the kind of its first
+/// object, or a plain entry.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
 pub enum WorkspaceEntryRole {
-    Directory,
-    Project,
-    Entrypoint,
-    Setup,
-    Controller,
-    InputDevice,
-    Layout,
-    Fixture,
-    Patch,
-    Curve,
-    Gradient,
-    Effect,
-    Operator,
-    Sequence,
-    Rig,
-    Asset,
-    File,
+    Object(ObjectKind),
+    Entry(WorkspaceEntryPlainRole),
 }
 
-pub fn workspace_role_for_source_object(kind: &SourceObjectKind) -> WorkspaceEntryRole {
-    match kind {
-        SourceObjectKind::Project => WorkspaceEntryRole::Project,
-        SourceObjectKind::Setup => WorkspaceEntryRole::Setup,
-        SourceObjectKind::Controller => WorkspaceEntryRole::Controller,
-        SourceObjectKind::InputDevice => WorkspaceEntryRole::InputDevice,
-        SourceObjectKind::Layout => WorkspaceEntryRole::Layout,
-        SourceObjectKind::FixtureDefinition => WorkspaceEntryRole::Fixture,
-        SourceObjectKind::Patch => WorkspaceEntryRole::Patch,
-        SourceObjectKind::Curve => WorkspaceEntryRole::Curve,
-        SourceObjectKind::Gradient => WorkspaceEntryRole::Gradient,
-        SourceObjectKind::Sequence => WorkspaceEntryRole::Sequence,
-        SourceObjectKind::Rig => WorkspaceEntryRole::Rig,
-        SourceObjectKind::EffectDefinition | SourceObjectKind::EffectInstance => {
-            WorkspaceEntryRole::Effect
-        }
-        SourceObjectKind::OperatorDefinition => WorkspaceEntryRole::Operator,
-    }
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceEntryPlainRole {
+    Directory,
+    Entrypoint,
+    Asset,
+    File,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Type)]
@@ -485,18 +442,11 @@ pub struct WorkspacePathChangePlan {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct DocumentDefaultObjectKey {
-    pub view: DocumentViewId,
-    pub object_key: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct DocumentDescriptor {
     pub path: String,
     pub objects: Vec<DocumentObjectDescriptor>,
-    pub available_views: Vec<DocumentViewId>,
-    pub default_object_keys: Vec<DocumentDefaultObjectKey>,
+    /// The objects a GUI editor opens, in the order the editor offers them.
+    pub gui_objects: Vec<DocumentObjectDescriptor>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -514,7 +464,6 @@ pub struct EditorTab {
     pub name: String,
     pub syntax: TextDocumentSyntax,
     pub dirty: bool,
-    pub read_only: bool,
     pub document_revision: u32,
     pub saved_revision: u32,
     pub save_state: DocumentSaveState,
@@ -528,7 +477,6 @@ impl From<&EditorBuffer> for EditorTab {
             name: buffer.name.clone(),
             syntax: buffer.syntax,
             dirty: buffer.dirty,
-            read_only: buffer.read_only,
             document_revision: buffer.document_revision,
             saved_revision: buffer.saved_revision,
             save_state: buffer.save_state.clone(),
@@ -546,7 +494,6 @@ pub struct EditorBuffer {
     pub syntax: TextDocumentSyntax,
     pub text: String,
     pub dirty: bool,
-    pub read_only: bool,
     pub document_revision: u32,
     pub saved_revision: u32,
     pub save_state: DocumentSaveState,
@@ -571,20 +518,6 @@ impl From<donder_project_io::SourceDocumentFormat> for TextDocumentSyntax {
             donder_project_io::SourceDocumentFormat::Other => Self::Plain,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct TextPosition {
-    pub line: u32,
-    pub character: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct TextRange {
-    pub start: TextPosition,
-    pub end: TextPosition,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

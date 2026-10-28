@@ -1,39 +1,34 @@
 //! Typed playback workloads: layers of effect fixtures and operator chains on
 //! one fixture, prepared by the runtime builder.
+use crate::playback::{bind, invoke, row, whole};
 use core::num::NonZeroU32;
-use donder_language::compiler::{CompiledOperator, Invocation, ProgramConstants};
-use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, SignalHandle};
+use donder_language::compiler::{CompiledDefinition, Invocation, ProgramConstants};
+use donder_runtime::PreparedShow;
 use donder_runtime_types::bytecode::{Bank, BytecodeProgram, Instruction, Slot};
 use donder_runtime_types::{
-    BoundParams, InstructionWord, OperatorInvocation, OperatorProgram, SampleInvocation,
-    SampleProgram, Shared,
+    BoundProgram, InstructionWord, OutputEncoding, Program, RgbOrder, SampleDuration, SampleTime,
+    SequenceTiming, TargetScope,
 };
-use donder_runtime_types::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SequenceTiming, SequenceWindow,
-    TargetScope,
-};
-use donder_runtime_types::{SampleDuration, SampleTime};
 
+/// An effect of a workload: its program and when it plays.
 #[derive(Clone)]
-pub struct SampleFixture {
-    pub program: SampleProgram,
-    pub params: BoundParams,
+pub struct Clip {
+    pub program: BoundProgram,
     pub start: SampleTime,
     pub duration: SampleDuration,
-    pub automation: Vec<PreparedAutomation>,
 }
 
 /// Typed benchmark inputs. The runtime builder owns all graph and storage addresses.
 #[derive(Clone)]
 pub struct Workload {
-    count: usize,
-    layers: Vec<Vec<SampleFixture>>,
-    operators: Vec<OperatorInvocation>,
-    lookup: Option<[u8; 256]>,
+    pub count: usize,
+    pub layers: Vec<Vec<Clip>>,
+    pub operators: Vec<BoundProgram>,
+    pub lookup: Option<[u8; 256]>,
 }
 
 impl Workload {
-    pub fn samples(count: usize, layers: Vec<Vec<SampleFixture>>) -> Self {
+    pub fn new(count: usize, layers: Vec<Vec<Clip>>) -> Self {
         Self {
             count,
             layers,
@@ -42,70 +37,31 @@ impl Workload {
         }
     }
 
-    pub fn prepare(self) -> PreparedSequence {
-        self.prepare_with(|builder, _layers, signal| builder.output(Some(signal)))
-    }
-
-    /// Extend the fixture using its layers and composed signal after its operator chain.
-    /// Fixture geometry, timing and the GRB output route remain builder-owned.
-    pub fn prepare_with(
-        self,
-        build: impl for<'id> FnOnce(
-            &mut SequenceBuilder<'id>,
-            &[SignalHandle<'id>],
-            SignalHandle<'id>,
-        ) -> SequenceRoot<'id>,
-    ) -> PreparedSequence {
-        let windows = self
-            .layers
-            .iter()
-            .flatten()
-            .map(|effect| SequenceWindow {
-                start: effect.start,
-                duration: NonZeroU32::new(effect.duration.as_ticks()).unwrap(),
-            })
-            .collect();
-        let timing = SequenceTiming::admit(
+    /// The layers on one fixture of an eight-second sequence, then the
+    /// operator chain, routed GRB to one port.
+    pub fn prepare(self) -> PreparedShow {
+        let timing = SequenceTiming::new(
             NonZeroU32::new(120).unwrap(),
             NonZeroU32::new(960).unwrap(),
             NonZeroU32::new(8_000_000).unwrap(),
-            windows,
-        )
-        .unwrap();
-        PreparedSequence::build(timing, |builder| {
-            let fixture = builder.fixture(
-                0,
-                FixtureGeometry::admit((0..self.count).map(|pixel| [pixel as f32, 0.0]).collect())
-                    .unwrap(),
-            );
-            let target = builder.target([fixture], TargetScope::PerFixture);
-            let windows: Vec<_> = builder.windows().collect();
-            let mut windows = windows.into_iter();
-            let mut programs: Vec<Shared<SampleProgram>> = Vec::new();
-            let mut layers = Vec::new();
-            for layer in &self.layers {
-                let effects: Vec<_> = layer
-                    .iter()
-                    .map(|effect| {
-                        let program =
-                            match programs.iter().find(|program| ***program == effect.program) {
-                                Some(program) => Shared::clone(program),
-                                None => {
-                                    let program = Shared::new(effect.program.clone());
-                                    programs.push(Shared::clone(&program));
-                                    program
-                                }
-                            };
-                        let invocation =
-                            SampleInvocation::bind(program, effect.params.iter_values().collect())
-                                .unwrap()
-                                .with_automation(effect.automation.clone().into())
-                                .unwrap();
-                        builder.sample(&invocation, windows.next().unwrap(), target)
-                    })
-                    .collect();
-                layers.push(builder.layer(true, effects));
-            }
+        );
+        PreparedShow::build(timing, |builder| {
+            let geometry = row(self.count);
+            builder.fixture(0, geometry.clone());
+            let target = whole(builder, &geometry, TargetScope::PerFixture);
+            let layers: Vec<_> = self
+                .layers
+                .iter()
+                .map(|layer| {
+                    let effects: Vec<_> = layer
+                        .iter()
+                        .map(|clip| {
+                            builder.clip(None, &clip.program, clip.start, clip.duration, target)
+                        })
+                        .collect();
+                    builder.layer(true, effects)
+                })
+                .collect();
             // Operator fixtures measure Layer 0 -> operator chain, including
             // the four-layer Chase/Pulse source used by the Afterglow cases.
             // Preserve that input selection; layer-only cases mix every layer.
@@ -121,9 +77,13 @@ impl Workload {
                 });
             }
             let output = builder.port(0, 0);
-            let lookup = self.lookup.map(|table| builder.lookup(table));
-            builder.route(output, target, OutputEncoding::Rgb(RgbOrder::Grb), lookup);
-            build(builder, &layers, signal)
+            builder.route(
+                output,
+                target,
+                OutputEncoding::Rgb(RgbOrder::Grb),
+                self.lookup,
+            );
+            Some(signal)
         })
     }
 }
@@ -134,21 +94,11 @@ pub const FRAMES: usize = 32;
 // Profiling fixture: varied, overlapping chases and pulses compiled from the
 // same editable effect document included in new projects.
 pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
-    use donder_language::compiler::{bind_params, compile_effects};
+    use donder_runtime_types::Value;
     use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
-    use donder_runtime_types::{Identifier, Value};
-    let definitions = compile_effects(include_str!(
-        "../../../examples/starter/effects/standard.donder"
-    ))
-    .unwrap();
-    let chase = definitions
-        .iter()
-        .find(|definition| definition.name().as_str() == "Chase")
-        .unwrap();
-    let pulse = definitions
-        .iter()
-        .find(|definition| definition.name().as_str() == "Pulse")
-        .unwrap();
+    let source = include_str!("../../../examples/starter/effects/standard.donder");
+    let chase = crate::playback::definition(source, "Chase");
+    let pulse = crate::playback::definition(source, "Pulse");
     let mut effects = Vec::new();
     let shape: Value = Value::Curve(
         Curve {
@@ -204,7 +154,9 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
                 ("gradient", gradient),
                 (
                     "gradient_mode",
-                    Value::Enum(Identifier::new("AcrossItems".into()).unwrap()),
+                    Value::Enum(
+                        donder_runtime_types::Identifier::new("AcrossItems".into()).unwrap(),
+                    ),
                 ),
                 ("pulse_overlap", Value::Float(12.0 + index as f32)),
                 ("section_width_pixels", Value::Int(3 + index as i32 % 4)),
@@ -217,22 +169,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
         } else {
             vec![("gradient", gradient), ("pulse_shape", shape.clone())]
         };
-        let overrides = values
-            .into_iter()
-            .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value))
-            .collect::<Vec<_>>();
-        let params = bind_params(
-            if chasing {
-                chase.params()
-            } else {
-                pulse.params()
-            },
-            overrides.iter().map(|(name, value)| (name, value)),
-        )
-        .unwrap();
-        let invocation = if chasing { chase } else { pulse }
-            .invoke(params.iter_values().collect(), Box::new([]))
-            .unwrap();
+        let invocation = invoke(if chasing { &chase } else { &pulse }, &values);
         effects.push(sample_fixture(
             &invocation,
             count,
@@ -240,71 +177,54 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
             SampleDuration::from_ticks(4_000_000 + index as u32 * 97_000),
         ));
     }
-    Workload::samples(
+    Workload::new(
         count,
         effects.into_iter().map(|effect| vec![effect]).collect(),
     )
 }
 
 /// Run the single operator again after `invert`, sharing its admitted definition.
-pub fn insert_invert(show: &mut Workload, invert: &CompiledOperator) {
+pub fn insert_invert(show: &mut Workload, invert: &CompiledDefinition) {
     assert_eq!(show.operators.len(), 1);
     let operator = show.operators[0].clone();
-    show.operators
-        .extend([operator_invocation(invert), operator]);
+    show.operators.extend([operator_program(invert), operator]);
 }
 
 /// An operator with its defaults, lowered for the eight-second fixture sequence.
-pub fn operator_invocation(operator: &CompiledOperator) -> OperatorInvocation {
-    operator
-        .bind(core::iter::empty())
-        .unwrap()
-        .instance(ProgramConstants {
-            pixel_count: None,
-            duration_seconds: Some(8.0),
-        })
-        .operator()
-}
-
-pub fn apply_compiled_operator(show: &mut Workload, operator: &CompiledOperator) {
-    show.operators = vec![operator_invocation(operator)];
+pub fn operator_program(operator: &CompiledDefinition) -> BoundProgram {
+    bind(&invoke(operator, &[]).instance(ProgramConstants {
+        pixel_count: None,
+        duration_seconds: Some(8.0),
+    }))
 }
 
 /// Use `operator`; without `reuse`, its initialization runs for every strip.
-pub fn apply_operator(show: &mut Workload, operator: &CompiledOperator, reuse: bool) {
-    let invocation = operator_invocation(operator);
+pub fn apply_operator(show: &mut Workload, operator: &CompiledDefinition, reuse: bool) {
+    let program = operator_program(operator);
     show.operators = vec![if reuse {
-        invocation
+        program
     } else {
-        edit_operator(&invocation, unstaged)
+        edit(&program, unstaged)
     }];
 }
 
-/// `invocation` with its lowered bytecode edited and readmitted, keeping its
+/// `program` with its lowered bytecode edited and readmitted, keeping its
 /// parameter values and automation.
-pub fn edit_operator(
-    invocation: &OperatorInvocation,
-    edit: impl FnOnce(&mut BytecodeProgram),
-) -> OperatorInvocation {
-    let program = (**invocation.program()).clone();
-    let inputs = program.input_count();
-    let mut bytecode = program.into_bytecode();
-    edit(&mut bytecode);
-    OperatorInvocation::bind(
-        OperatorProgram::new(bytecode, inputs),
-        invocation.params().iter_values().collect(),
+pub fn edit(program: &BoundProgram, edit: impl FnOnce(&mut BytecodeProgram)) -> BoundProgram {
+    let mut edited = Program::clone(program.program());
+    edit(&mut edited.bytecode);
+    BoundProgram::bind(
+        edited,
+        program.params().values().to_vec(),
+        program.automation().into(),
     )
-    .unwrap()
-    .with_automation(invocation.automation().into())
     .unwrap()
 }
 
 /// Edit the first effect's lowered bytecode.
-pub fn edit_effect(show: &mut Workload, edit: impl FnOnce(&mut BytecodeProgram)) {
-    let effect = &mut show.layers[0][0];
-    let mut program = effect.program.clone().into_bytecode();
-    edit(&mut program);
-    effect.program = SampleProgram::new(program);
+pub fn edit_effect(show: &mut Workload, change: impl FnOnce(&mut BytecodeProgram)) {
+    let clip = &mut show.layers[0][0];
+    clip.program = edit(&clip.program, change);
 }
 
 /// Without `reuse`, make the first effect's uniform result a row, which
@@ -354,29 +274,20 @@ pub fn checksum(bytes: &[u8]) -> u32 {
     })
 }
 
-pub fn show(count: usize, invocation: &Invocation) -> Workload {
-    layered_show(count, invocation, 1)
-}
-
 /// An effect lowered as preparation would lower it on a `count`-pixel fixture.
 pub fn sample_fixture(
     invocation: &Invocation,
     count: usize,
     start: SampleTime,
     duration: SampleDuration,
-) -> SampleFixture {
-    let lowered = invocation
-        .instance(ProgramConstants {
+) -> Clip {
+    Clip {
+        program: bind(&invocation.instance(ProgramConstants {
             pixel_count: Some(count as i32),
             duration_seconds: Some(donder_runtime_types::sample_duration_seconds_f32(duration)),
-        })
-        .sample();
-    SampleFixture {
-        program: (**lowered.program()).clone(),
-        params: lowered.params().clone(),
+        })),
         start,
         duration,
-        automation: lowered.automation().to_vec(),
     }
 }
 
@@ -389,5 +300,5 @@ pub fn layered_show(count: usize, invocation: &Invocation, layers: usize) -> Wor
         SampleTime::from_ticks(0),
         SampleDuration::from_ticks(8_000_000),
     );
-    Workload::samples(count, vec![vec![effect]; layers])
+    Workload::new(count, vec![vec![effect]; layers])
 }

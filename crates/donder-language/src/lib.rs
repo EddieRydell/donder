@@ -15,7 +15,7 @@ pub mod compiler;
 pub mod data;
 mod imports;
 mod names;
-pub use imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
+pub use imports::{ImportAlias, ImportDeclaration, SourceReference};
 pub use names::{NameError, NameKind, name_from_text, object_name, unique_name};
 mod quantities;
 pub use quantities::{

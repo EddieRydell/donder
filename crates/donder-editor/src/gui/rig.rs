@@ -1,16 +1,16 @@
 //! Rigs: effects played live from input devices.
 use donder_model::{
-    CompositionGraphNodeKind, ControlRef, ControlTarget, EffectRef, EffectScope, FixtureInstanceId,
-    FixtureTarget as DomainFixtureTarget, InputControlKind, InputDevice, InputDeviceId, LiveMarks,
-    MAX_STACKED_VOICES, Mapping, MappingAction, MarkCollectionKey, PlayedSource, PlayedValue, Rig,
-    RigId, RigMappingId, RigSwitchId, RigVoiceId, SequenceLayerId, SourceIdentity, Switch, Trigger,
-    TriggerLength, Voice, VoicePolicy, When,
+    CompositionGraphNodeKind, ControlRef, ControlTarget, EffectDefinitionId, EffectScope,
+    FixtureInstanceId, FixtureTarget as DomainFixtureTarget, InputControlKind, InputDevice,
+    InputDeviceId, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, MarkCollectionKey,
+    PlayedSource, PlayedValue, Rig, RigId, RigMappingId, RigSwitchId, RigVoiceId, SequenceLayerId,
+    Switch, Trigger, TriggerLength, Voice, VoicePolicy, When,
 };
-use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 
 use super::model::{
     effect_param_value_from_gui, effect_ref_from_gui, effect_scope, fresh_name, identifier,
-    object_identity_from_gui, parse_color, required_param_values, typed_name,
+    object_address, object_id_from_gui, object_ref, parse_color, required_param_values, typed_name,
 };
 use super::projection::{
     active_layout, composition_graph, curve_library, effect_definitions, effect_ref_to_gui,
@@ -18,17 +18,17 @@ use super::projection::{
     layout_lanes,
 };
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
-use donder_sequence_api::{
+use crate::dto::{
     FixtureTarget, GuiDocument, RigActionChoice, RigControlRef, RigControlTarget, RigEffectEdit,
-    RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl, RigInputDevice, RigItem,
+    RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl, RigInputDevice,
     RigLiveMarks, RigMapping, RigMappingAction, RigPlayedSource, RigPlayedValue, RigSwitch,
     RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SequenceEffectReference,
     SequenceEffectScope,
 };
 
 pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
-    let id = RigId(resolved.object_identity());
-    let Some(rig) = session.project.rig(&id) else {
+    let id = resolved.id::<RigId>();
+    let Some(rig) = session.project.get::<donder_model::Rig>(id) else {
         return blocked("Rig was not found.", Vec::new());
     };
     let mut targets = active_layout(session).map(layout_lanes).unwrap_or_default();
@@ -40,7 +40,7 @@ pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
-            name: id.0.declared_name().to_string(),
+            name: object_address(session, id).declared_name().to_string(),
             perform_index: session
                 .project
                 .root()
@@ -92,8 +92,8 @@ pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject
                 .collect(),
             targets,
             effect_definitions: effect_definitions(session),
-            curve_library: curve_library(session, resolved.identity.document_id()),
-            gradient_library: gradient_library(session, resolved.identity.document_id()),
+            curve_library: curve_library(session),
+            gradient_library: gradient_library(session),
             input_devices: input_devices(session),
             max_stacked_voices: u32::from(MAX_STACKED_VOICES),
         },
@@ -103,8 +103,8 @@ pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject
 fn project_effect(
     session: &ProjectSession,
     effect: &donder_model::RigEffect,
-) -> donder_sequence_api::RigEffect {
-    donder_sequence_api::RigEffect {
+) -> crate::dto::RigEffect {
+    crate::dto::RigEffect {
         layer_id: effect.layer_id.0,
         target: effect_target(&effect.target),
         target_label: effect_target_label(session, &effect.target),
@@ -112,13 +112,11 @@ fn project_effect(
             EffectScope::PerFixture => SequenceEffectScope::PerFixture,
             EffectScope::WholeTarget => SequenceEffectScope::WholeTarget,
         },
-        effect: effect_ref_to_gui(&effect.definition),
+        effect: effect_ref_to_gui(session, &effect.definition),
         effect_name: session
             .project
-            .definitions()
-            .effects
-            .resolve(&effect.definition)
-            .map(|definition| definition.display_name.clone())
+            .get::<donder_model::EffectDefinition>(effect.definition)
+            .map(|definition| definition.name().to_string())
             .unwrap_or_else(|| "Missing effect".to_string()),
         params: invocation_params(
             session,
@@ -189,13 +187,17 @@ fn project_mapping(session: &ProjectSession, mapping: &Mapping) -> RigMapping {
 }
 
 fn project_input(session: &ProjectSession, input: &ControlRef) -> RigInput {
-    let device = session.project.input_device(&input.device);
+    let device = session
+        .project
+        .get::<donder_model::InputDevice>(input.device);
     RigInput {
         control: RigControlRef {
-            device: super::patch::object_ref(&input.device.0, SourceObjectKind::InputDevice),
+            device: object_ref(session, input.device),
             control: input.control.0,
         },
-        device_name: input.device.0.declared_name().to_string(),
+        device_name: object_address(session, input.device)
+            .declared_name()
+            .to_string(),
         control_name: device
             .and_then(|device| device.control(input.control))
             .map(|control| control.name.as_str().to_string())
@@ -219,7 +221,10 @@ fn controls(device: &InputDevice, accepts: fn(&InputControlKind) -> bool) -> Vec
 
 /// The active setup's input devices and their buttons and dials.
 fn input_devices(session: &ProjectSession) -> Vec<RigInputDevice> {
-    let Some(setup) = session.project.setup(session.project.root().setup.id()) else {
+    let Some(setup) = session
+        .project
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
+    else {
         return Vec::new();
     };
     setup
@@ -227,10 +232,10 @@ fn input_devices(session: &ProjectSession) -> Vec<RigInputDevice> {
         .iter()
         .filter_map(|source| {
             let id = source.id();
-            let device = session.project.input_device(id)?;
+            let device = session.project.get::<donder_model::InputDevice>(*id)?;
             Some(RigInputDevice {
-                device: super::patch::object_ref(&id.0, SourceObjectKind::InputDevice),
-                name: id.0.declared_name().to_string(),
+                device: object_ref(session, *id),
+                name: object_address(session, *id).declared_name().to_string(),
                 buttons: controls(device, InputControlKind::is_button),
                 dials: controls(device, |kind| !kind.is_pressed()),
                 keys: controls(device, |kind| kind.is_pressed() && !kind.is_button()),
@@ -243,18 +248,19 @@ pub(super) fn edit_rig(
     session: &mut ProjectSession,
     resolved: &ResolvedGuiObject,
     edit: RigGuiEdit,
-) -> Result<(), GuiMutationError> {
-    let id = RigId(resolved.object_identity());
+) -> Result<Vec<String>, GuiMutationError> {
+    let id = resolved.id::<RigId>();
+    let mut created = Vec::new();
     let mut draft = session
         .project
-        .rig(&id)
+        .get::<donder_model::Rig>(id)
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Rig was not found.".into()))?;
-    let owner = &resolved.identity;
+    let owner = resolved.document_id();
     match edit {
         RigGuiEdit::SetFrameRate { frame_rate } => draft.frame_rate = frame_rate,
         RigGuiEdit::Composition { edit } => {
-            super::graph::edit_composition(session, owner, &mut draft, edit)?;
+            created = super::graph::edit_composition(session, owner, &mut draft, edit)?;
         }
         RigGuiEdit::AddLiveMarks { name, color } => {
             typed_name(&name)?;
@@ -264,14 +270,12 @@ pub(super) fn edit_rig(
                     .iter()
                     .any(|marks| marks.key.name.as_str() == candidate)
             });
+            created.push(name.as_str().to_string());
             draft.live_marks.push(LiveMarks {
                 key: MarkCollectionKey { name },
                 description: None,
                 display_color: parse_color(&color)?,
             });
-        }
-        RigGuiEdit::SetLiveMarksColor { key, color } => {
-            live_marks_mut(&mut draft, &key)?.display_color = parse_color(&color)?;
         }
         RigGuiEdit::AddVoice {
             initial_color,
@@ -279,7 +283,12 @@ pub(super) fn edit_rig(
             target,
         } => {
             let effect = new_effect(session, owner, &draft, &initial_color, effect, target)?;
-            let name = fresh_name(effect_object(&effect.definition), |candidate| {
+            let effect_name = session
+                .project
+                .get::<donder_model::EffectDefinition>(effect.definition)
+                .map(|definition| definition.name().to_string())
+                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
+            let name = fresh_name(&effect_name, |candidate| {
                 behavior_name_taken(&draft, candidate)
             });
             draft.voices.push(Voice {
@@ -319,65 +328,6 @@ pub(super) fn edit_rig(
                 action,
             });
         }
-        RigGuiEdit::Rename { item, name } => {
-            let name = typed_name(&name)?;
-            match item {
-                RigItem::LiveMarks { key } => {
-                    let from = live_marks_mut(&mut draft, &key)?.key.clone();
-                    let to = MarkCollectionKey { name };
-                    live_marks_mut(&mut draft, &key)?.key = to.clone();
-                    mark_references_mut(&mut draft, |reference| {
-                        if reference.as_ref() == Some(&from) {
-                            *reference = Some(to.clone());
-                        }
-                    });
-                    for mapping in &mut draft.mappings {
-                        if let MappingAction::Mark(key) = &mut mapping.action
-                            && *key == from
-                        {
-                            *key = to.clone();
-                        }
-                    }
-                }
-                RigItem::Voice { id } => voice_mut(&mut draft, id)?.name = name,
-                RigItem::Switch { id } => switch_mut(&mut draft, id)?.name = name,
-                RigItem::Mapping { id } => mapping_mut(&mut draft, id)?.name = name,
-            }
-        }
-        RigGuiEdit::SetDescription { item, description } => {
-            let description = super::description::normalized(description);
-            match item {
-                RigItem::LiveMarks { key } => {
-                    live_marks_mut(&mut draft, &key)?.description = description;
-                }
-                RigItem::Voice { id } => voice_mut(&mut draft, id)?.description = description,
-                RigItem::Switch { id } => switch_mut(&mut draft, id)?.description = description,
-                RigItem::Mapping { id } => mapping_mut(&mut draft, id)?.description = description,
-            }
-        }
-        RigGuiEdit::Delete { item } => match item {
-            RigItem::LiveMarks { key } => {
-                let removed = live_marks_mut(&mut draft, &key)?.key.clone();
-                mark_references_mut(&mut draft, |reference| {
-                    if reference.as_ref() == Some(&removed) {
-                        *reference = None;
-                    }
-                });
-                draft.live_marks.retain(|marks| marks.key != removed);
-            }
-            RigItem::Voice { id } => {
-                voice_mut(&mut draft, id)?;
-                draft.voices.retain(|voice| voice.id.0 != id);
-            }
-            RigItem::Switch { id } => {
-                switch_mut(&mut draft, id)?;
-                draft.switches.retain(|switch| switch.id.0 != id);
-            }
-            RigItem::Mapping { id } => {
-                mapping_mut(&mut draft, id)?;
-                draft.mappings.retain(|mapping| mapping.id.0 != id);
-            }
-        },
         RigGuiEdit::EditEffect {
             owner: effect,
             edit,
@@ -391,7 +341,7 @@ pub(super) fn edit_rig(
             let input = control_from_gui(session, owner, &input)?;
             let plays_notes = session
                 .project
-                .input_device(&input.device)
+                .get::<donder_model::InputDevice>(input.device)
                 .and_then(|device| {
                     device
                         .controls
@@ -457,15 +407,13 @@ pub(super) fn edit_rig(
             };
         }
     }
-    session
-        .project
-        .replace_rig(&id, draft)
-        .map_err(GuiMutationError::Invalid)
+    session.project.put(draft).map_err(GuiMutationError::from)?;
+    Ok(created)
 }
 
 fn edit_effect(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     rig: &mut Rig,
     effect: RigEffectOwner,
     edit: RigEffectEdit,
@@ -507,7 +455,7 @@ fn edit_effect(
 
 fn action_from_gui(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     rig: &Rig,
     action: RigActionChoice,
 ) -> Result<MappingAction, GuiMutationError> {
@@ -540,7 +488,7 @@ fn action_from_gui(
 /// A new effect on the rig's default layer, over the whole target.
 fn new_effect(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     rig: &Rig,
     initial_color: &str,
     effect: SequenceEffectReference,
@@ -564,38 +512,28 @@ fn new_effect(
 /// An effect the rig's document may name, importing its definition.
 fn effect_definition_from_gui(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     reference: SequenceEffectReference,
-) -> Result<EffectRef, GuiMutationError> {
+) -> Result<EffectDefinitionId, GuiMutationError> {
     let definition = effect_ref_from_gui(session, reference)?;
-    let EffectRef::Custom(id) = &definition;
-    ensure_document_can_reference_source(
-        session,
-        owner.document_id(),
-        SourceObjectKind::EffectDefinition,
-        &id.0,
-    )
-    .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+    ensure_document_can_reference_object(session, owner, definition.into())
+        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     Ok(definition)
 }
 
 /// A fixture or group of the active layout, which the rig's document then imports.
 fn target_from_gui(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     target: FixtureTarget,
 ) -> Result<DomainFixtureTarget, GuiMutationError> {
     let layout = session
         .project
-        .setup(session.project.root().setup.id())
-        .map(|setup| setup.layout.id().clone())
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
+        .map(|setup| *setup.layout.id())
         .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".into()))?;
-    donder_project_io::ensure_document_can_reference_object(
-        session,
-        owner.document_id(),
-        &layout.0,
-    )
-    .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+    donder_project_io::ensure_document_can_reference_object(session, owner, layout.into())
+        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     Ok(DomainFixtureTarget {
         layout,
         fixture: FixtureInstanceId(target.fixture),
@@ -605,25 +543,16 @@ fn target_from_gui(
 /// A control the rig's document may name, importing its device.
 fn control_from_gui(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     control: &RigControlRef,
 ) -> Result<ControlRef, GuiMutationError> {
-    let device = InputDeviceId(object_identity_from_gui(&control.device)?);
-    donder_project_io::ensure_document_can_reference_object(
-        session,
-        owner.document_id(),
-        &device.0,
-    )
-    .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+    let device: InputDeviceId = object_id_from_gui(session, &control.device)?;
+    donder_project_io::ensure_document_can_reference_object(session, owner, device.into())
+        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     Ok(ControlRef {
         device,
         control: donder_model::InputControlId(control.control),
     })
-}
-
-fn effect_object(definition: &EffectRef) -> &str {
-    let EffectRef::Custom(id) = definition;
-    id.0.object()
 }
 
 /// Voices and mappings share one namespace.
@@ -640,7 +569,10 @@ fn next_id(ids: impl Iterator<Item = u32>) -> u32 {
 }
 
 /// Visit every marks parameter value in the rig's effects and operator nodes.
-fn mark_references_mut(rig: &mut Rig, mut visit: impl FnMut(&mut Option<MarkCollectionKey>)) {
+pub(super) fn rig_mark_references_mut(
+    rig: &mut Rig,
+    mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
+) {
     let operators = rig
         .composition_graph
         .nodes
@@ -670,28 +602,31 @@ fn effect_mut(
     }
 }
 
-fn live_marks_mut<'a>(rig: &'a mut Rig, key: &str) -> Result<&'a mut LiveMarks, GuiMutationError> {
+pub(super) fn live_marks_mut<'a>(
+    rig: &'a mut Rig,
+    key: &str,
+) -> Result<&'a mut LiveMarks, GuiMutationError> {
     rig.live_marks
         .iter_mut()
         .find(|marks| marks.key.name.as_str() == key)
         .ok_or_else(|| GuiMutationError::Invalid("Live mark collection was not found.".into()))
 }
 
-fn voice_mut(rig: &mut Rig, id: u32) -> Result<&mut Voice, GuiMutationError> {
+pub(super) fn voice_mut(rig: &mut Rig, id: u32) -> Result<&mut Voice, GuiMutationError> {
     rig.voices
         .iter_mut()
         .find(|voice| voice.id.0 == id)
         .ok_or_else(|| GuiMutationError::Invalid("Voice was not found.".into()))
 }
 
-fn switch_mut(rig: &mut Rig, id: u32) -> Result<&mut Switch, GuiMutationError> {
+pub(super) fn switch_mut(rig: &mut Rig, id: u32) -> Result<&mut Switch, GuiMutationError> {
     rig.switches
         .iter_mut()
         .find(|switch| switch.id.0 == id)
         .ok_or_else(|| GuiMutationError::Invalid("Switch was not found.".into()))
 }
 
-fn mapping_mut(rig: &mut Rig, id: u32) -> Result<&mut Mapping, GuiMutationError> {
+pub(super) fn mapping_mut(rig: &mut Rig, id: u32) -> Result<&mut Mapping, GuiMutationError> {
     rig.mappings
         .iter_mut()
         .find(|mapping| mapping.id.0 == id)

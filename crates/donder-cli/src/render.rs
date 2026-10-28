@@ -5,7 +5,8 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 use donder_language::data::canonical_duration;
-use donder_model::{DonderProject, FixtureInstanceId, Layout, SequenceId};
+use donder_model::{FixtureInstanceId, Layout, SequenceId};
+use donder_project_io::ProjectSession;
 use donder_runtime_types::{Color, sample_time_from_frame};
 
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
@@ -37,19 +38,26 @@ impl Times {
 }
 
 pub(crate) fn render(
-    project: &DonderProject,
+    session: &ProjectSession,
     id: &SequenceId,
     times: Times,
     targets: &[String],
 ) -> Result<String, String> {
     let times = times.expand()?;
+    let project = &session.project;
+    let name = |id: donder_model::ObjectId| {
+        session
+            .address_of(id)
+            .map(|address| address.declared_name().to_string())
+            .ok_or("An object is missing from the source inventory.")
+    };
     let setup = project
-        .setup(project.root().setup.id())
+        .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or("Project setup is missing.")?;
     let layout = project
-        .layout(setup.layout.id())
+        .get::<donder_model::Layout>(*setup.layout.id())
         .ok_or("Setup layout is missing.")?;
-    let selected = selected_fixtures(layout, targets)?;
+    let selected = selected_fixtures(layout, &name(layout.id.into())?, targets)?;
     let prepared =
         donder_elaboration::prepare(project, id, donder_elaboration::PrepareOutputs::All)
             .ok_or("The sequence cannot be played on the active setup.")?;
@@ -71,7 +79,7 @@ pub(crate) fn render(
         })
         .collect::<Result<Vec<_>, String>>()?;
     let width = labels.iter().flatten().map(String::len).max().unwrap_or(0);
-    let sequence = id.0.root_source().object();
+    let sequence = name((*id).into())?;
     let mut playback = prepared.into_playback();
     let mut text = String::new();
     for time in times {
@@ -93,7 +101,11 @@ pub(crate) fn render(
 }
 
 /// The placed fixtures the named fixtures and groups denote; `None` selects all.
-fn selected_fixtures(layout: &Layout, targets: &[String]) -> Result<Option<HashSet<u32>>, String> {
+fn selected_fixtures(
+    layout: &Layout,
+    layout_name: &str,
+    targets: &[String],
+) -> Result<Option<HashSet<u32>>, String> {
     if targets.is_empty() {
         return Ok(None);
     }
@@ -103,10 +115,7 @@ fn selected_fixtures(layout: &Layout, targets: &[String]) -> Result<Option<HashS
             .iter_fixtures()
             .find(|fixture| fixture.name.as_str() == target)
             .ok_or_else(|| {
-                format!(
-                    "The layout `{}` has no fixture or group named `{target}`.",
-                    layout.id.0.root_source().object()
-                )
+                format!("The layout `{layout_name}` has no fixture or group named `{target}`.")
             })?;
         selected.extend(layout.members(fixture.id).into_iter().map(|id| id.0));
     }

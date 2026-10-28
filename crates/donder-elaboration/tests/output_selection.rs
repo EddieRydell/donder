@@ -7,32 +7,57 @@ use donder_model::PixelSpan;
 use donder_model::SequenceId;
 use donder_model::{ControllerId, ControllerPortId};
 use donder_model::{DonderProject, ProjectEdit};
-use donder_project_io::load_project;
-use donder_runtime::PreparedSequence;
+use donder_project_io::check_project;
+use donder_runtime::PreparedShow;
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::sample_time_from_frame;
 
 fn starter() -> DonderProject {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    load_project(&root).unwrap().project
+    check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap()
+        .project
+}
+
+/// The starter and its `layer_test` sequence.
+fn starter_with_layer_test() -> (DonderProject, SequenceId) {
+    let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let session = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap();
+    let id = session
+        .project
+        .root()
+        .sequences
+        .iter()
+        .map(|source| *source.id())
+        .find(|id| {
+            session
+                .source
+                .declared_name((*id).into())
+                .is_some_and(|name| name.as_str() == "layer_test")
+        })
+        .unwrap();
+    (session.project, id)
 }
 
 fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerPortId)> {
-    project.reusable_setups()[project.root().setup.id()]
+    project.reusable::<donder_model::Setup>()[project.root().setup.id()]
         .controllers
         .iter()
         .flat_map(|source| {
             let id = source.id();
-            project.reusable_controllers()[id]
+            project.reusable::<donder_model::Controller>()[id]
                 .ports
                 .iter()
-                .map(|port| (id.clone(), port.id))
+                .map(|port| (*id, port.id))
         })
         .collect()
 }
 
 struct Reference {
-    sequence: PreparedSequence,
+    sequence: PreparedShow,
     times: Vec<SampleTime>,
     frames: Vec<Vec<Vec<u8>>>,
 }
@@ -74,16 +99,16 @@ fn compare(
     id: &SequenceId,
     reference: &Reference,
     selected: &[(ControllerId, ControllerPortId)],
-) -> PreparedSequence {
+) -> PreparedShow {
     let full = &reference.sequence;
     let fragment = prepare(project, id, PrepareOutputs::Ports(selected)).unwrap();
     let mut workspace = fragment.clone().into_playback();
-    let setup = project.setup(project.root().setup.id()).unwrap();
+    let setup = project
+        .get::<donder_model::Setup>(*project.root().setup.id())
+        .unwrap();
     let identity = |output: &donder_runtime::Output| {
         (
-            setup.controllers[output.controller_index as usize]
-                .id()
-                .clone(),
+            *setup.controllers[output.controller_index as usize].id(),
             ControllerPortId(output.port),
         )
     };
@@ -110,8 +135,7 @@ fn compare(
             assert_eq!(
                 output.bytes,
                 expected[index].as_slice(),
-                "{} at {time:?}, port {:?}",
-                id.0.root_source().object(),
+                "{id:?} at {time:?}, port {:?}",
                 selected.1
             );
         }
@@ -138,12 +162,14 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
 
 #[test]
 fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
-    let mut project = starter();
-    let patch_id = project.reusable_setups()[project.root().setup.id()]
+    let (mut project, layer_test) = starter_with_layer_test();
+    let patch_id = *project.reusable::<donder_model::Setup>()[project.root().setup.id()]
         .patch
-        .id()
+        .id();
+    let mut patch = project
+        .get::<donder_model::Patch>(patch_id)
+        .unwrap()
         .clone();
-    let mut patch = project.patch(&patch_id).unwrap().clone();
     // Two ports wire disjoint spans of one fixture, preserving authored effect coordinates.
     for (index, start) in [(0, 0), (1, 76)] {
         let route = &mut patch.routes[index];
@@ -151,23 +177,18 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         route.pixels = Some(PixelSpan { start, count: 37 });
         route.start_slot = 7;
     }
-    project.replace_patch(&patch_id, patch).unwrap();
+    project.put(patch).unwrap();
     let ports = ports(&project);
     for id in project.root().sequences.iter().map(|source| source.id()) {
         let reference = prepare_reference(&project, id);
-        let fragment = compare(
-            &project,
-            id,
-            &reference,
-            &[ports[1].clone(), ports[0].clone()],
-        );
+        let fragment = compare(&project, id, &reference, &[ports[1], ports[0]]);
         assert_eq!(fragment.fixtures().len(), 1);
         assert_eq!(fragment.pixel_count(), 74);
         compare(&project, id, &reference, &ports[1..2]);
     }
     // Whole-target effects use different context from per-fixture effects.
     let edits = project
-        .reusable_sequences()
+        .reusable::<donder_model::Sequence>()
         .values()
         .cloned()
         .map(|mut sequence| {
@@ -181,34 +202,19 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
                     })
                     .to_vec();
             }
-            ProjectEdit::ReplaceSequence {
-                id: sequence.id.clone(),
-                value: sequence,
-            }
+            ProjectEdit::Put(sequence.into())
         })
         .collect::<Vec<_>>();
     project.apply_edits(edits).unwrap();
     for id in project.root().sequences.iter().map(|source| source.id()) {
         let reference = prepare_reference(&project, id);
-        compare(
-            &project,
-            id,
-            &reference,
-            &[ports[1].clone(), ports[0].clone()],
-        );
+        compare(&project, id, &reference, &[ports[1], ports[0]]);
     }
     // Spatial reads must not see the compacted 37-pixel output domain: local
     // reads need the whole original fixture.
     for (query, expected_pixels) in [("source.at(target.count - 1 - pixel.index)", 113)] {
-        let id = project
-            .root()
-            .sequences
-            .iter()
-            .map(|source| source.id())
-            .find(|id| id.0.root_source().object() == "layer_test")
-            .unwrap()
-            .clone();
-        let compiled = donder_language::compiler::compile_operators(&format!(
+        let id = layer_test;
+        let compiled = donder_language::compiler::compile_script(&format!(
             "operator Mirror {{ input source; sample {{ {query} }} }}"
         ))
         .unwrap()
@@ -219,7 +225,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         assert_eq!(fragment.pixel_count(), expected_pixels, "{query}");
         // Exercise the serialized representation as well as live preparation.
         let encoded = fragment.encode();
-        let decoded = donder_runtime::PreparedSequence::decode(&encoded).unwrap();
+        let decoded = donder_runtime::PreparedShow::decode(&encoded).unwrap();
         let mut original_workspace = fragment.clone().into_playback();
         let mut decoded_workspace = decoded.into_playback();
         let mut original = vec![vec![0; fragment.outputs()[0].width as usize]];
@@ -243,37 +249,30 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
 
 #[test]
 fn shared_pixels_and_multiple_controllers_keep_output_order() {
-    use donder_model::SourceIdentity;
     let mut project = starter();
     let selected = ports(&project);
-    let original_id = selected[0].0.clone();
-    let other_id = ControllerId(
-        SourceIdentity::from_document(
-            original_id.0.document_id().clone(),
-            "other_controller".into(),
-        )
-        .into(),
-    );
-    let mut other = project.reusable_controllers()[&original_id].clone();
-    other.id = other_id.clone();
-    let mut setup = project.setup(project.root().setup.id()).unwrap().clone();
+    let original_id = selected[0].0;
+    let other_id = ControllerId(project.new_id());
+    let mut other = project.reusable::<donder_model::Controller>()[&original_id].clone();
+    other.id = other_id;
+    let mut setup = project
+        .get::<donder_model::Setup>(*project.root().setup.id())
+        .unwrap()
+        .clone();
     setup
         .controllers
-        .push(donder_model::ValueSource::Reference(other_id.clone()));
-    let mut patch = project.patch(setup.patch.id()).unwrap().clone();
-    patch.routes[1].controller = other_id.clone();
+        .push(donder_model::MemberSource::Reference(other_id));
+    let mut patch = project
+        .get::<donder_model::Patch>(*setup.patch.id())
+        .unwrap()
+        .clone();
+    patch.routes[1].controller = other_id;
     patch.routes[1].target = patch.routes[0].target.clone();
     project
         .apply_edits([
-            ProjectEdit::InsertController(other),
-            ProjectEdit::ReplaceSetup {
-                id: setup.id.clone(),
-                value: setup,
-            },
-            ProjectEdit::ReplacePatch {
-                id: patch.id.clone(),
-                value: patch,
-            },
+            ProjectEdit::Put(other.into()),
+            ProjectEdit::Put(setup.into()),
+            ProjectEdit::Put(patch.into()),
         ])
         .unwrap();
     for id in project.root().sequences.iter().map(|source| source.id()) {
@@ -282,7 +281,7 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
             &project,
             id,
             &reference,
-            &[(other_id.clone(), selected[1].1), selected[0].clone()],
+            &[(other_id, selected[1].1), selected[0]],
         );
         assert_eq!(fragment.fixtures().len(), 1);
         assert_eq!(fragment.pixel_count(), 113);
@@ -298,30 +297,20 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
         GraphNodePosition, GraphPortId,
     };
-    let mut project = starter();
-    let invert = project
-        .definitions()
-        .operators
-        .definitions
+    let (mut project, layer_test) = starter_with_layer_test();
+    let invert = *project
+        .reusable::<donder_model::OperatorDefinition>()
         .values()
-        .find(|definition| definition.declaration_name == "Invert")
+        .find(|definition| definition.name() == "Invert")
         .unwrap()
-        .id()
-        .clone();
+        .id();
     let ports = ports(&project);
-    let id = project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
-        .find(|id| id.0.root_source().object() == "layer_test")
-        .unwrap()
-        .clone();
-    let mut sequence = project.sequence(&id).unwrap().clone();
+    let id = layer_test;
+    let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
     sequence.automation_clips.clear();
     // Effects target the second port; the first must still receive inverted black.
     let second = project
-        .layout(&sequence.effects[0].target.layout)
+        .get::<donder_model::Layout>(sequence.effects[0].target.layout)
         .unwrap()
         .iter_fixtures()
         .find(|fixture| fixture.name.as_str() == "output_02")
@@ -374,7 +363,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
             params: Default::default(),
         }),
     });
-    project.replace_sequence(&id, sequence).unwrap();
+    project.put(sequence).unwrap();
     let reference = prepare_reference(&project, &id);
     let fragment = compare(&project, &id, &reference, &ports[0..1]);
     assert!(fragment.effect_count() == 0);

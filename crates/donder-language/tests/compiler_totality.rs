@@ -1,6 +1,4 @@
-use donder_language::compiler::{
-    Invocation, ParamDecl, ProgramConstants, compile_effects, compile_operators,
-};
+use donder_language::compiler::{Invocation, ParamDecl, ProgramConstants, compile_script};
 use donder_runtime_types::PreparedAutomation;
 use donder_runtime_types::Shared;
 use donder_runtime_types::{BindingError, Type, Value};
@@ -64,18 +62,12 @@ const MARKS_TEMPLATE: &str = "effect Probe {
   }
 }";
 
-#[derive(Clone, Copy)]
-enum Kind {
-    Effect,
-    Operator,
-}
-
 #[test]
 fn templates_compile_and_lower() {
-    for (template, kind) in templates() {
+    for template in templates() {
         // Empty, populated and automated values, each with and without
         // instance constants.
-        assert_eq!(compile_and_lower(template, kind), Some(6), "{template}");
+        assert_eq!(compile_and_lower(template), Some(6), "{template}");
     }
 }
 
@@ -110,7 +102,7 @@ fn malformed_source_never_panics_during_compilation_or_lowering() {
         (state >> 33) as usize % bound
     };
     let mut lowered = 0;
-    for (template, kind) in templates() {
+    for template in templates() {
         for case in 0..800 {
             let mut source = template.to_owned();
             for _ in 0..(case % 5 + 1) {
@@ -139,7 +131,7 @@ fn malformed_source_never_panics_during_compilation_or_lowering() {
                     }
                 }
             }
-            match std::panic::catch_unwind(|| compile_and_lower(&source, kind)) {
+            match std::panic::catch_unwind(|| compile_and_lower(&source)) {
                 Ok(Some(instances)) if instances > 0 => lowered += 1,
                 Ok(_) => {}
                 Err(_) => panic!("compiler panicked for mutation {case}: {source}"),
@@ -158,51 +150,30 @@ fn is_whole_word(source: &str, start: usize, word: &str) -> bool {
     !source[..start].ends_with(part) && !source[start + word.len()..].starts_with(part)
 }
 
-fn templates() -> [(&'static str, Kind); 3] {
-    [
-        (EFFECT_TEMPLATE, Kind::Effect),
-        (OPERATOR_TEMPLATE, Kind::Operator),
-        (MARKS_TEMPLATE, Kind::Effect),
-    ]
+fn templates() -> [&'static str; 3] {
+    [EFFECT_TEMPLATE, OPERATOR_TEMPLATE, MARKS_TEMPLATE]
 }
 
 /// Compile `source` and lower every instance of the definitions it declares,
 /// as preparation would, including (for operators) after black-input folding
 /// and fusion. Returns the number of instances lowered, or `None` when the
 /// source does not compile.
-fn compile_and_lower(source: &str, kind: Kind) -> Option<usize> {
+fn compile_and_lower(source: &str) -> Option<usize> {
     let mut lowered = 0;
-    match kind {
-        Kind::Effect => {
-            for effect in compile_effects(source).ok()? {
-                let invoke = |values, automation| effect.invoke(values, automation);
-                for invocation in invocations(effect.params(), invoke) {
-                    for constants in constants() {
-                        let instance = invocation.instance(constants);
-                        let _ = instance.sample();
-                        let _ = instance.explain();
-                        lowered += 1;
+    for definition in compile_script(source).ok()? {
+        let invoke = |values, automation| definition.invoke(values, automation);
+        for invocation in invocations(definition.params(), invoke) {
+            for constants in constants() {
+                let instance = invocation.instance(constants);
+                let _ = instance.lower();
+                let _ = instance.explain();
+                for input in 0..instance.inputs() {
+                    let _ = instance.with_black_input(input).lower();
+                    if let Some(fused) = instance.fuse_input(input, &instance) {
+                        let _ = fused.lower();
                     }
                 }
-            }
-        }
-        Kind::Operator => {
-            for operator in compile_operators(source).ok()? {
-                let invoke = |values, automation| operator.invoke(values, automation);
-                for invocation in invocations(operator.params(), invoke) {
-                    for constants in constants() {
-                        let instance = invocation.instance(constants);
-                        let _ = instance.operator();
-                        let _ = instance.explain();
-                        for input in 0..instance.inputs() {
-                            let _ = instance.with_black_input(input).operator();
-                            if let Some(fused) = instance.fuse_input(input, &instance) {
-                                let _ = fused.operator();
-                            }
-                        }
-                        lowered += 1;
-                    }
-                }
+                lowered += 1;
             }
         }
     }
@@ -345,7 +316,7 @@ fn deeply_nested_source_reports_a_diagnostic() {
                 nested_reductions,
                 long_chain,
             ] {
-                let Err(diagnostics) = compile_effects(&source) else {
+                let Err(diagnostics) = compile_script(&source) else {
                     panic!("nesting must be rejected: {}", &source[..64]);
                 };
                 assert!(

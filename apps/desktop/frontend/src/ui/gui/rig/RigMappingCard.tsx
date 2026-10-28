@@ -4,7 +4,7 @@ import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { DescriptionField } from "../DescriptionField";
 import { NameField } from "../sequence/NameField";
 import { RigEffectFields, RigInputPicker } from "./RigFields";
-import { applyRigEdit } from "./rigEditing";
+import { applyRigEdit, applyRigItemEdit } from "./rigEditing";
 
 type ActionKind = RigActionChoice["type"];
 
@@ -71,10 +71,10 @@ export function RigMappingCard({ document, mapping }: { document: RigGuiDocument
   const offered = (kind: ActionKind) => actionFits(kind, control) && defaultAction(document, mapping, kind) !== null;
   return <div className="setup-section rig-item">
     <div className="inspector-inline-row">
-      <NameField name={mapping.name} label="Name" commit={(name) => applyRigEdit({ type: "rename", item, name })} />
-      <button type="button" onClick={() => void applyRigEdit({ type: "delete", item })}>Delete mapping</button>
+      <NameField name={mapping.name} label="Name" commit={(name) => applyRigItemEdit({ type: "rename", item, name })} />
+      <button type="button" onClick={() => void applyRigItemEdit({ type: "delete", item })}>Delete mapping</button>
     </div>
-    <DescriptionField description={mapping.description} onCommit={(description) => applyRigEdit({ type: "setDescription", item, description })} />
+    <DescriptionField description={mapping.description} onCommit={(description) => applyRigItemEdit({ type: "setDescription", item, description })} />
     <RigInputPicker document={document} input={mapping.input} use={mapping.action.type} onChange={(input) => void applyRigEdit({ type: "setMappingInput", id: mapping.id, input })} />
     <div className="inspector-inline-row">
       <label>When<select value={when} onChange={(event) => {

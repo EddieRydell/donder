@@ -1,14 +1,14 @@
 //! Language semantics, executed by the VM and, where the values are fixed for
 //! an instance, by preparation.
 use super::evaluation::{
-    OperatorEvaluation, PixelContext, SampleEvaluation, SignalSampler, bind, compile_effect,
-    effect, operator, runtime_effect, try_bind,
+    OperatorEvaluation, PixelContext, SampleEvaluation, SignalSampler, bind, compile, effect,
+    operator, runtime_effect, try_bind,
 };
 use super::evaluation::{RuntimeError, StripWorkspace};
 use super::playback;
 use super::std;
 use crate::dsl::RunContext;
-use donder_language::compiler::{compile_effects, compile_operators};
+use donder_language::compiler::compile_script;
 use donder_runtime_types::bytecode::SignalPixel;
 use donder_runtime_types::{Color, Value};
 use donder_runtime_types::{Marks, SampleDuration};
@@ -57,24 +57,20 @@ fn messages(diagnostics: &[donder_language::compiler::Diagnostic]) -> String {
         .join("\n")
 }
 
-fn effect_error(source: &str) -> String {
-    messages(&compile_effects(source).unwrap_err())
-}
-
-fn operator_error(source: &str) -> String {
-    messages(&compile_operators(source).unwrap_err())
+fn compile_error(source: &str) -> String {
+    messages(&compile_script(source).unwrap_err())
 }
 
 /// `predicate` holds for `values` when preparation computes it, and when the
 /// VM does because every parameter is left to playback.
 fn assert_holds(params: &str, predicate: &str, values: &[(&str, Value)]) {
-    let effect = compile_effect(&format!(
+    let effect = compile(&format!(
         "effect Probe {{ {params} sample {{ if {predicate} {{ #ffffff }} else {{ #000000 }} }} }}"
     ));
     let mut workspace = StripWorkspace::default();
     if let Ok(fixed) = try_bind(&effect, values) {
         assert_eq!(
-            playback::lower_sample(&fixed).evaluate(&at(0.25), &SPATIAL, &mut workspace),
+            playback::lower(&fixed).evaluate(&at(0.25), &SPATIAL, &mut workspace),
             WHITE,
             "prepared: {predicate} with {values:?}"
         );
@@ -83,18 +79,6 @@ fn assert_holds(params: &str, predicate: &str, values: &[(&str, Value)]) {
         runtime_effect(&effect, &[], values).evaluate(&at(0.25), &SPATIAL, &mut workspace),
         WHITE,
         "runtime: {predicate} with {values:?}"
-    );
-}
-
-#[test]
-fn declaration_kinds_are_source_specific() {
-    assert!(
-        effect_error("operator Gain { input source; sample { source } }")
-            .contains("operator declarations belong in operator sources")
-    );
-    assert!(
-        operator_error("effect Solid { sample { #ffffff } }")
-            .contains("effect declarations belong in effect sources")
     );
 }
 
@@ -121,7 +105,7 @@ fn let_refinements_and_choices_do_not_leak_between_evaluations() {
 
 #[test]
 fn length_bounded_reductions_iterate_marks_and_reject_long_collections() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Iterate {
             param beats: marks;
             sample { rgb(sum for mark in 0..len(beats) { max(mark_at(beats, mark) - time, 0.0) } / 10.0, 0.0, 0.0) }
@@ -131,7 +115,7 @@ fn length_bounded_reductions_iterate_marks_and_reject_long_collections() {
         Value::Marks(Marks::new(ticks.iter().copied().map(SampleDuration::from_ticks)).into())
     };
     let sample = |beats| {
-        playback::lower_sample(&bind(&effect, &[("beats", beats)])).evaluate(
+        playback::lower(&bind(&effect, &[("beats", beats)])).evaluate(
             &at(0.0),
             &SPATIAL,
             &mut StripWorkspace::default(),
@@ -153,7 +137,7 @@ fn length_bounded_reductions_iterate_marks_and_reject_long_collections() {
         "{}",
         error.message
     );
-    let doubled = compile_effect(
+    let doubled = compile(
         "effect Doubled {
             param values: array<float>;
             sample { rgb(sum for i in 0..len(values) * 2 { values[int(i / 2)] }, 0.0, 0.0) }
@@ -192,7 +176,7 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
         "int(pow(2.0, count))",
     ] {
         assert!(
-            compile_effects(&format!(
+            compile_script(&format!(
                 "effect Bounded {{ param count: int in -3..4 = 3; sample {{ rgb({source}, 0.0, 0.0) }} }}"
             ))
             .is_ok(),
@@ -206,7 +190,7 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
         ("sum for i in 0..count * 10000 { i }", "reduction"),
         ("sum for i in 0..int(time) { i }", "reduction"),
     ] {
-        let message = effect_error(&format!(
+        let message = compile_error(&format!(
             "effect Unbounded {{ param count: int in -3..4 = 3; sample {{ rgb({source}, 0.0, 0.0) }} }}"
         ));
         assert!(
@@ -218,7 +202,7 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
     }
 
     // Ranges that end before they start are empty.
-    let effect = compile_effect(
+    let effect = compile(
         "effect Count { param count: int in -3..4 = 3; sample {
             rgb(sum for i in 0..count { i } / 10.0, sum for i in count..2 { 1 } / 10.0, 0.0)
         } }",
@@ -226,7 +210,7 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
     for (count, red, green) in [(-3, 0, 5), (0, 0, 2), (3, 3, 0), (4, 6, 0)] {
         let expected = crate::sampling::rgb(red as f32 / 10.0, green as f32 / 10.0, 0.0);
         let runtime = runtime_effect(&effect, &[], &[("count", Value::Int(count))]);
-        let fixed = playback::lower_sample(&bind(&effect, &[("count", Value::Int(count))]));
+        let fixed = playback::lower(&bind(&effect, &[("count", Value::Int(count))]));
         for invocation in [runtime, fixed] {
             assert_eq!(
                 invocation.evaluate(&at(0.0), &SPATIAL, &mut StripWorkspace::default()),
@@ -239,14 +223,14 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
 
 #[test]
 fn nested_reductions_restart_their_inner_iterations() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Nested { param count: int in 0..3 = 2; sample {
             let total = sum for outer in 0..2 { sum for inner in 0..count { 1 } };
             let triangle = sum for outer in 0..3 { sum for inner in 0..outer + count { inner } };
             if total == 2 * count && triangle == 10 { #ffffff } else { #000000 }
         } }",
     );
-    let fixed = playback::lower_sample(&bind(&effect, &[]));
+    let fixed = playback::lower(&bind(&effect, &[]));
     let runtime = runtime_effect(&effect, &[], &[("count", Value::Int(2))]);
     let mut workspace = StripWorkspace::default();
     for invocation in [&fixed, &runtime, &fixed] {
@@ -285,7 +269,7 @@ fn array_literals_are_indexed_and_measured_through_lets() {
         ),
         ("let items = [1.0]; items", "expected a color"),
     ] {
-        let error = effect_error(&format!("effect Bad {{ sample {{ {body} }} }}"));
+        let error = compile_error(&format!("effect Bad {{ sample {{ {body} }} }}"));
         assert!(error.contains(message), "{body}: {error}");
     }
 }
@@ -320,14 +304,14 @@ fn guards_skip_to_black_or_produce_their_else_value() {
             "pixel {index}"
         );
     }
-    let error = effect_error(
+    let error = compile_error(
         "effect Bad { sample { let x = { guard progress > 0.5; 1.0 }; rgb(x, 0.0, 0.0) } }",
     );
     assert!(
         error.contains("a guard without `else` can only skip a sample block or a reduction body"),
         "{error}"
     );
-    let error = effect_error("effect Bad { sample { if progress > 0.5 { #ffffff } } }");
+    let error = compile_error("effect Bad { sample { if progress > 0.5 { #ffffff } } }");
     assert!(error.contains("needs an `else`"), "{error}");
 }
 
@@ -393,7 +377,7 @@ fn reductions_start_from_their_identity_and_skip_guarded_iterations() {
         ("any for i in 0..3 { i }", "expected a bool, found an int"),
         ("each for i in 0..3 { i }", "`each` is not a reducer"),
     ] {
-        let error = effect_error(&format!(
+        let error = compile_error(&format!(
             "effect Bad {{ sample {{ let x = {body}; #000000 }} }}"
         ));
         assert!(error.contains(message), "{body}: {error}");
@@ -402,7 +386,7 @@ fn reductions_start_from_their_identity_and_skip_guarded_iterations() {
 
 #[test]
 fn only_first_and_last_take_an_else_so_a_guard_keeps_its_own() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Guarded { param n: int in 0..8 = 4; sample {
             guard all for i in 0..n { i < 3 } else #ff0000;
             guard any for i in 0..n { i == 1 } else #0000ff;
@@ -412,7 +396,7 @@ fn only_first_and_last_take_an_else_so_a_guard_keeps_its_own() {
     for (n, expected) in [(4, "#ff0000"), (3, "#00ff00"), (1, "#0000ff")] {
         let values = [("n", Value::Int(n))];
         for invocation in [
-            playback::lower_sample(&bind(&effect, &values)),
+            playback::lower(&bind(&effect, &values)),
             runtime_effect(&effect, &[], &values),
         ] {
             assert_eq!(
@@ -458,7 +442,7 @@ fn powers_take_int_and_float_exponents() {
 
 #[test]
 fn operator_requires_a_signal_input() {
-    let error = operator_error("operator Empty { sample { #000000 } }");
+    let error = compile_error("operator Empty { sample { #000000 } }");
     assert!(
         error.contains("an operator declares at least one `input`"),
         "{error}"
@@ -515,7 +499,7 @@ fn enums_compare_by_option_name_across_declarations() {
             );
         }
     }
-    let error = effect_error(
+    let error = compile_error(
         "effect Bad { param mode: enum { A, B } = A; sample { if mode == C { #ffffff } else { #000000 } } }",
     );
     assert!(
@@ -526,7 +510,7 @@ fn enums_compare_by_option_name_across_declarations() {
 
 #[test]
 fn choices_hold_one_enum_type() {
-    let error = effect_error(
+    let error = compile_error(
         "effect Bad {
            param wide: enum { Alpha, Beta, Gamma } = Alpha;
            param subset: enum { Gamma, Beta } = Gamma;
@@ -551,31 +535,31 @@ fn enum_value(name: &str) -> Value {
 
 #[test]
 fn enum_params_require_distinct_options() {
-    assert!(compile_effects("effect Bad { param mode: enum {}; sample { #000000 } }").is_err());
-    let error = effect_error("effect Bad { param mode: enum { A, A } = A; sample { #000000 } }");
+    assert!(compile_script("effect Bad { param mode: enum {}; sample { #000000 } }").is_err());
+    let error = compile_error("effect Bad { param mode: enum { A, A } = A; sample { #000000 } }");
     assert!(error.contains("option `A` is listed twice"), "{error}");
 }
 
 #[test]
 fn signals_are_only_operator_inputs() {
     assert!(
-        effect_error("effect Bad { input source; sample { #000000 } }")
+        compile_error("effect Bad { input source; sample { #000000 } }")
             .contains("effects have no signal inputs")
     );
     assert!(
-        operator_error("operator Bad { input source; param stored: Signal; sample { source } }")
+        compile_error("operator Bad { input source; param stored: Signal; sample { source } }")
             .contains("unknown type `Signal`")
     );
     assert!(
-        operator_error("operator Bad { input source; sample { let t = time; t.at(0) } }")
+        compile_error("operator Bad { input source; sample { let t = time; t.at(0) } }")
             .contains("only operator inputs and `previous` have methods")
     );
     assert!(
-        operator_error("operator Bad { input source; sample { source.later(time) } }")
+        compile_error("operator Bad { input source; sample { source.later(time) } }")
             .contains("signals have no method `later`")
     );
     assert!(
-        operator_error("operator Bad { input source; input source; sample { source } }")
+        compile_error("operator Bad { input source; input source; sample { source } }")
             .contains("`source` is declared twice")
     );
 }
@@ -589,7 +573,7 @@ fn signal_sampling_and_color_operations_execute() {
         } }",
     );
     let color = operator
-        .evaluate(
+        .evaluate_signals(
             &at(0.25),
             &SPATIAL,
             &mut ConstantSignal(Color::from_bytes([10, 20, 30])),
@@ -638,21 +622,15 @@ fn literal_and_type_errors_report_diagnostics() {
         ),
         ("#ff00", "a color literal has six hexadecimal digits"),
     ] {
-        let error = effect_error(&format!("effect Bad {{ sample {{ {body} }} }}"));
+        let error = compile_error(&format!("effect Bad {{ sample {{ {body} }} }}"));
         assert!(error.contains(message), "{body}: {error}");
     }
 }
 
 #[test]
-fn required_parameters_have_no_default_and_ranges_reject_values() {
-    let effect = compile_effect(
+fn ranges_reject_values() {
+    let effect = compile(
         "effect Required { param amount: float in 0.0..1.0; sample { rgb(amount, 1 % 0, 0.0) } }",
-    );
-    let missing = try_bind(&effect, &[]).unwrap_err();
-    assert!(
-        missing
-            .message
-            .contains("missing required parameter `amount`")
     );
     let outside = try_bind(&effect, &[("amount", Value::Float(1.5))]).unwrap_err();
     assert!(
@@ -661,7 +639,7 @@ fn required_parameters_have_no_default_and_ranges_reject_values() {
             .contains("parameter `amount` is outside its declared range")
     );
     assert!(try_bind(&effect, &[("amount", Value::Float(f32::NAN))]).is_err());
-    let bound = playback::lower_sample(&bind(&effect, &[("amount", Value::Float(1.0))]));
+    let bound = playback::lower(&bind(&effect, &[("amount", Value::Float(1.0))]));
     assert_eq!(
         bound.evaluate(&at(0.0), &SPATIAL, &mut StripWorkspace::default()),
         crate::sampling::rgb(1.0, 0.0, 0.0)
@@ -690,7 +668,7 @@ fn required_parameters_have_no_default_and_ranges_reject_values() {
             "an array's items cannot be arrays",
         ),
     ] {
-        let error = effect_error(&format!(
+        let error = compile_error(&format!(
             "effect Bad {{ {declaration} sample {{ #000000 }} }}"
         ));
         assert!(error.contains(message), "{declaration}: {error}");
@@ -807,7 +785,7 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
     let context = pixel(3, 10);
     let mut samples = Samples::default();
     let result = operator
-        .evaluate(
+        .evaluate_signals(
             &context,
             &SPATIAL,
             &mut samples,
@@ -832,7 +810,7 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
         "source.at(#ffffff)",
     ] {
         assert!(
-            compile_operators(&format!(
+            compile_script(&format!(
                 "operator Invalid {{ input source; sample {{ {query} }} }}"
             ))
             .is_err(),
@@ -878,7 +856,7 @@ fn equal_signal_queries_share_one_sample() {
         context.run.progress = 1.0;
         let mut samples = Samples::default();
         operator
-            .evaluate(
+            .evaluate_signals(
                 &context,
                 &SPATIAL,
                 &mut samples,

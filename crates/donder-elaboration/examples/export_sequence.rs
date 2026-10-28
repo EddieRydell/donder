@@ -8,32 +8,41 @@ fn main() {
         args.len() == 2,
         "usage: export_sequence PROJECT OUTPUT.donderseq"
     );
-    let project = donder_project_io::load_project(&Utf8PathBuf::from(&args[0]))
-        .unwrap()
-        .project;
+    let session = donder_project_io::check_project(
+        &Utf8PathBuf::from(&args[0]),
+        &Default::default(),
+        &mut Default::default(),
+    )
+    .into_session()
+    .unwrap();
+    let project = &session.project;
     let id = project
         .root()
         .sequences
         .iter()
         .map(|source| source.id())
         .find(|id| {
-            id.0.source()
-                .is_some_and(|source| source.object() == "layer_test")
+            session
+                .source
+                .declared_name((**id).into())
+                .is_some_and(|name| name.as_str() == "layer_test")
         })
         .unwrap_or(project.root().sequences[0].id());
-    let setup = project.setup(project.root().setup.id()).unwrap();
+    let setup = project
+        .get::<donder_model::Setup>(*project.root().setup.id())
+        .unwrap();
     let controller = setup.controllers[0].id();
     let ports = project
-        .controller(controller)
+        .get::<donder_model::Controller>(*controller)
         .unwrap()
         .ports
         .iter()
         .take(4)
-        .map(|port| (controller.clone(), port.id))
+        .map(|port| (*controller, port.id))
         .collect::<Vec<_>>();
-    let prepared = prepare(&project, id, PrepareOutputs::Ports(&ports)).unwrap();
+    let prepared = prepare(project, id, PrepareOutputs::Ports(&ports)).unwrap();
     let bytes = prepared.encode();
-    let decoded = donder_runtime::PreparedSequence::decode(&bytes).unwrap();
+    let decoded = donder_runtime::PreparedShow::decode(&bytes).unwrap();
     let mut checksums = String::new();
     let mut times = [0, 7150, 7151, 8398, 8450, 8494, 9504, 15000]
         .map(|frame| sample_time_from_frame(frame, prepared.frame_rate()).unwrap())
@@ -58,10 +67,13 @@ fn main() {
     std::fs::write(format!("{}.checksums", args[1]), checksums).unwrap();
     println!(
         "sequence={} ports={} pixels={} effects={} payload_bytes={}",
-        id.0.root_source().object(),
+        session
+            .source
+            .declared_name((*id).into())
+            .map_or_else(|| "owned".to_string(), |name| name.as_str().to_string()),
         ports.len(),
-        source_playback.sequence().pixel_count(),
-        source_playback.sequence().effect_count(),
+        source_playback.prepared().pixel_count(),
+        source_playback.prepared().effect_count(),
         bytes.len()
     );
 }

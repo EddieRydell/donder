@@ -135,7 +135,7 @@ pub(crate) async fn audio_set_looping(
 pub(crate) async fn detect_sequence_beats(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
-) -> Result<donder_sequence_api::SequenceBeatDetection, String> {
+) -> Result<donder_editor::dto::SequenceBeatDetection, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || state.detect_sequence_beats(&request))
         .await

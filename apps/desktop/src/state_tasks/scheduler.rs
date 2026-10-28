@@ -117,7 +117,7 @@ pub(crate) fn analyze_working_copy(
     request
         .typed
         .is_none()
-        .then(|| donder_project_io::check_project_cached(&request.root, &request.sources, cache))
+        .then(|| donder_project_io::check_project(&request.root, &request.sources, cache))
 }
 
 pub(crate) struct RenderRefreshPayload {

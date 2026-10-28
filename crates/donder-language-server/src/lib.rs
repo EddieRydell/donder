@@ -280,9 +280,10 @@ impl Server {
                                 DiagnosticSeverity::WARNING
                             }
                         }),
-                        code: Some(lsp_types::NumberOrString::String(
-                            diagnostic.code.as_str().to_string(),
-                        )),
+                        // The code's one spelling is its serialized form.
+                        code: serde_json::to_value(diagnostic.code)
+                            .and_then(serde_json::from_value)
+                            .ok(),
                         source: Some("donder".into()),
                         message: diagnostic.message,
                         data: fix_data(diagnostic.fix),

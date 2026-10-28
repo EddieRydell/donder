@@ -5,10 +5,10 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_model::DocumentId;
+use donder_project_io::DocumentId;
 use donder_project_io::{
     IoDiagnostic, PROJECT_ROOT_FILE, ProjectCheckCache, ProjectCheckReport, ProjectIndex,
-    ProjectMetadata, SourceOverrides, check_project_cached,
+    SourceOverrides, check_project,
 };
 use indexmap::IndexMap;
 
@@ -60,7 +60,6 @@ pub struct ProjectCheck {
     pub root: Utf8PathBuf,
     pub diagnostics: Vec<IoDiagnostic>,
     pub index: ProjectIndex,
-    pub project_id: Option<uuid::Uuid>,
     pub texts: Arc<SourceOverrides>,
 }
 
@@ -72,17 +71,10 @@ impl ProjectCheck {
         diagnostics: Vec<IoDiagnostic>,
         index: ProjectIndex,
     ) -> Self {
-        let root_text = texts
-            .get(Utf8Path::new(PROJECT_ROOT_FILE))
-            .cloned()
-            .or_else(|| std::fs::read_to_string(root.join(PROJECT_ROOT_FILE)).ok());
         Self {
             root: root.to_path_buf(),
             diagnostics,
             index,
-            project_id: root_text
-                .and_then(|text| ProjectMetadata::parse(&text).ok())
-                .map(|metadata| metadata.project_id),
             texts,
         }
     }
@@ -150,10 +142,8 @@ impl Workspace {
     }
 
     pub fn document_id(&self, uri: &str) -> Option<DocumentId> {
-        Some(DocumentId::new(
-            self.check.as_ref()?.project_id?,
-            self.relative(uri)?,
-        ))
+        self.check.as_ref()?;
+        Some(DocumentId::new(self.relative(uri)?))
     }
 
     /// A document: the client's when open, otherwise the host's or the disk's.
@@ -225,7 +215,7 @@ impl Workspace {
                 };
                 let ProjectCheckReport {
                     diagnostics, index, ..
-                } = check_project_cached(&root, &texts, cache);
+                } = check_project(&root, &texts, cache);
                 self.check = Some(Arc::new(ProjectCheck::new(
                     &root,
                     Arc::new(texts),

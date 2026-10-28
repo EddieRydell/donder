@@ -1,12 +1,12 @@
 //! A show image borrowed for playback: the records preparation wrote, read in
 //! place. The image is trusted: only its producer writes it, so playback
 //! checks nothing but its format version.
+use crate::image::{self, NONE, Sections};
 use donder_runtime_types::bytecode::Banks;
-use donder_runtime_types::image::{self, NONE, Sections};
 use donder_runtime_types::{InstructionWord, SampleDuration, SampleTime};
 
 /// Current image format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 71;
+pub const FORMAT_VERSION: u32 = 72;
 
 /// Why an image is not played.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,7 +22,7 @@ pub fn image_len(header: &[u8]) -> usize {
     image::image_len(header)
 }
 
-pub use donder_runtime_types::image::header_bytes;
+pub use crate::image::header_bytes;
 
 /// A show image.
 #[derive(Clone, Copy, Debug)]

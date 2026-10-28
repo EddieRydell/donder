@@ -1,4 +1,4 @@
-use crate::*;
+use crate::dto::*;
 use donder_runtime::{FrameTiming, PlaybackRate};
 use serde::{Deserialize, Serialize};
 use specta::Type;

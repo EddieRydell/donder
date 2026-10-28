@@ -18,7 +18,7 @@ import { graphOperatorDefinition, graphOperatorKey } from "./graphOperator";
 import { useGraphViewState } from "./graphViewState";
 import { GraphFlowEdge } from "./GraphFlowEdge";
 import { GraphNodeControls } from "./GraphNodeControls";
-import { defaultLayerColor, deletableGraphNodes, nextLayerName, useSequenceEditErrorReporter, useSequenceEditable } from "./sequenceLayers";
+import { defaultLayerColor, deletableGraphNodes, useSequenceEditErrorReporter, useSequenceEditable } from "./sequenceLayers";
 
 export type SelectedGraphItem = { type: "node"; id: string } | { type: "edge"; id: string } | null;
 type GraphNodeData = {
@@ -165,7 +165,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
   };
   const add = (operator: SequenceGraphOperator | null, position: { x: number; y: number }) => {
     void composition.apply(operator === null ? {
-      type: "createLayerAt", name: nextLayerName(document.layers), color: defaultLayerColor(document.layers.length), ...position
+      type: "createLayerAt", name: "Layer", color: defaultLayerColor(document.layers.length), ...position
     } : { type: "addGraphOperatorNode", operator, initialColor: THEME_COLORS.white, ...position }).catch(reportSequenceEditError);
   };
   const removable = (items: Selection) => items.edges.length > 0 || deletableGraphNodes(document, items.nodes).length > 0;

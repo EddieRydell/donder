@@ -1,4 +1,4 @@
-use crate::*;
+use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -19,7 +19,7 @@ pub struct AppSnapshot {
     pub active_file: Option<String>,
     pub active_buffer: Option<EditorTab>,
     pub active_document_descriptor: Option<DocumentDescriptor>,
-    pub diagnostics: Vec<ProjectDiagnostic>,
+    pub diagnostics: Vec<IoDiagnostic>,
     pub status: String,
     pub render_error: Option<String>,
     pub preview_error: Option<String>,

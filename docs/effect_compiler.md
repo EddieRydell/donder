@@ -34,11 +34,26 @@ value. A skipped branch has no value at all, so a reduction filter reads the
 guarded value without a redundant choice, and a `sample` block chooses black.
 Array literals exist only while they are indexed or measured.
 
-Builtins resolve through one table, `builtins.rs`, which also generates the
-[builtin reference](effect_builtins.md). Builtins that keep ints as ints, such
-as `min` and `clamp`, choose int operations when every argument is an int; a few
-(`round`, `fract`, `sign`, `step`) are built from other operations rather than
-having instructions of their own.
+Every builtin name lives once in `builtins.rs`: functions, context values,
+the signal method `at`, reducers and type names. The same tables drive name
+resolution, type checking, editor analysis and the generated [builtin
+reference](effect_builtins.md). A builtin function lists its signatures with
+real argument and result types, each naming the IR operation it lowers to.
+The checker resolves a call generically: each argument narrows the signatures
+it fits, a signature every argument fits exactly wins, and otherwise one they
+fit with ints widened to floats; an argument is widened as soon as every
+signature left widens it. So `min` and `clamp` choose int operations when every
+argument is an int. Builtins without an instruction of their own (`round`,
+`fract`, `sign`, `step`, `is_nan`, `smoothstep`, `section_position`, ...) name
+a small expansion function that builds them from other operations. A context
+value's row names the IR context it reads (or `previous`, or a constant such as
+`PI`), and gives the context's type.
+
+The check can also record every name it declares and resolves. Editor analysis
+(`analysis/script.rs`) runs that one check over a partial parse, so hover,
+navigation, rename, outline and semantic tokens come from the checker's own
+name resolution; a declaration with errors is still checked for its names.
+Its diagnostics are compiling's: syntax, then checking, then lowering.
 
 User functions have no IR or bytecode of their own. A call is checked by binding
 the function's arguments, checked in the caller, as the body's only names and
@@ -102,7 +117,10 @@ preparation are all rebuilds.
 
 ## Instances
 
-An `Invocation` binds a definition to validated values and automation. An
+`compile_script` checks a script's declarations into `CompiledDefinition`s, in
+declaration order; an effect is an operator with no signal inputs, and its
+`kind` says which it was declared as. An `Invocation` binds a definition to
+validated values and automation. An
 `Instance` places it in a sequence: automated parameters become `TIME` leaves,
 fixed ones `PARAM` leaves, and the clip duration and a uniform pixel count
 become extra `PARAM` slots. A choice whose condition is fixed for the instance,
@@ -110,18 +128,20 @@ but whose result still varies at playback, is decided and only its taken arm is
 kept. A choice fixed as a whole is left for preparation to evaluate, so it does
 not multiply programs. Fixed reduction bounds become constants.
 
-A rig's invocations (`Definition::invoke_live`) also name *live* marks
+A rig's invocations (`CompiledDefinition::invoke_live`) also name *live* marks
 parameters: collections that playback rebinds as marks arrive. They are `TIME`
 leaves like automated parameters, so nothing reads their contents or length at
 preparation; a reduction bounded by a live collection's length is rejected when
-the invocation is made. `Instance::sample_live` reports each live parameter's
-slot in the lowered program, and an instance with live parameters never fuses.
+the invocation is made. `Instance::lower` returns the program (a
+`Program`: bytecode and its signal input count), its parameter values and
+automation, and each live parameter's slot in it, unbound, and an instance with
+live parameters never fuses.
 A rig's controls are ordinary automation bindings whose value playback sets.
 
 ## Global signal graph
 
 Preparation (`donder-elaboration/src/sequence/composition.rs`) builds one graph
-per sequence selection from layers, operator instances and the output. Layers
+per sequence or rig selection from layers, operator instances and the output. Layers
 stay runtime nodes: the active clip set changes with time.
 
 1. **Black signals.** A disabled or empty layer is black. Sampling a black input
@@ -133,7 +153,8 @@ stay runtime nodes: the active clip set changes with time.
    and a source or consumer that reads `previous` keep the boundary, since a
    node's previous frame is its own. A fused program beyond the row or nesting
    limits keeps the boundary too.
-3. Every remaining instance is lowered and equal programs are interned.
+3. Every remaining instance is lowered, equal programs are interned, and only
+   then is each program bound to its values (`BoundProgram`).
 
 ## Preparation
 

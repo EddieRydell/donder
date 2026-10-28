@@ -1,8 +1,8 @@
 //! Host playback: shows that own their image, built or decoded, and
 //! playbacks that own their buffer. Each call re-borrows the image and
 //! buffer as the core [`Show`] and workspace.
+use crate::image;
 use alloc::{boxed::Box, vec, vec::Vec};
-use donder_runtime_types::image;
 use donder_runtime_types::{RigEvent, SampleDuration, SampleTime, SequenceTiming, Shared};
 
 use crate::playback::{OutputFrame, Playback, SequenceFrame};
@@ -12,16 +12,14 @@ use crate::workspace::Layout;
 mod builder;
 mod clip;
 
-pub use builder::{
-    EffectHandle, FixtureHandle, LookupHandle, OutputHandle, SequenceBuilder, SequenceRoot,
-    SignalHandle, TargetHandle, VoiceLength, WindowHandle,
-};
+pub use builder::{EffectHandle, OutputHandle, ShowBuilder, SignalHandle, TargetHandle};
 pub use clip::{ClipSampler, SequenceClip};
 
-/// A show image in memory; authoring, elaboration, networking and
-/// pin timing are external.
+/// A show image in memory: a sequence's, or a rig's, whose voices start and
+/// stop on commands rather than at authored times. Authoring, elaboration,
+/// networking and pin timing are external.
 #[derive(Clone)]
-pub struct PreparedSequence {
+pub struct PreparedShow {
     image: Shared<[u32]>,
     layout: Layout,
 }
@@ -33,14 +31,14 @@ fn aligned(bytes: &[u8]) -> Box<[u32]> {
     words
 }
 
-impl PreparedSequence {
+impl PreparedShow {
     /// Lower accepted inputs through owner-branded handles. All graph addresses,
     /// execution slots, and output spans are derived by the builder.
     pub fn build(
         timing: SequenceTiming,
-        build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>) -> SequenceRoot<'id>,
+        build: impl for<'id> FnOnce(&mut ShowBuilder<'id>) -> Option<SignalHandle<'id>>,
     ) -> Self {
-        let mut builder = SequenceBuilder::new(timing);
+        let mut builder = ShowBuilder::new(timing);
         let root = build(&mut builder);
         let image: Shared<[u32]> = builder.finish(root).into();
         let bytes: &[u8] = bytemuck::cast_slice(&image);
@@ -128,35 +126,35 @@ impl PreparedSequence {
         Some(SequenceClip::new(show, show.s.clips[index].effect as usize))
     }
 
-    pub fn into_playback(self) -> SequencePlayback {
+    pub fn into_playback(self) -> ShowPlayback {
         let mut buffer = vec![0u32; self.layout.words()].into_boxed_slice();
         if Playback::new(self.show(), &self.layout, &mut buffer).is_none() {
             unreachable!("the buffer holds the layout's words")
         }
-        SequencePlayback {
-            sequence: self,
+        ShowPlayback {
+            prepared: self,
             buffer,
         }
     }
 }
 
 /// Owns a show and its playback buffer.
-pub struct SequencePlayback {
-    sequence: PreparedSequence,
+pub struct ShowPlayback {
+    prepared: PreparedShow,
     buffer: Box<[u32]>,
 }
 
-impl SequencePlayback {
+impl ShowPlayback {
     fn playback(&mut self) -> Playback<'_, '_> {
-        let show = Show::trusted(bytemuck::cast_slice(&self.sequence.image));
-        let Some(playback) = Playback::resume(show, &self.sequence.layout, &mut self.buffer) else {
+        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.image));
+        let Some(playback) = Playback::resume(show, &self.prepared.layout, &mut self.buffer) else {
             unreachable!("the buffer holds the layout's words")
         };
         playback
     }
 
-    pub fn sequence(&self) -> &PreparedSequence {
-        &self.sequence
+    pub fn prepared(&self) -> &PreparedShow {
+        &self.prepared
     }
 
     pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
@@ -177,93 +175,5 @@ impl SequencePlayback {
     /// Effects active at `time` as commands have placed them.
     pub fn active_effect_count(&mut self, time: SampleTime) -> usize {
         self.playback().active_effect_count(time)
-    }
-}
-
-/// A show whose voices start and stop on commands rather than at authored
-/// times, with live mark collections and controls.
-#[derive(Clone)]
-pub struct PreparedRig {
-    sequence: PreparedSequence,
-}
-
-impl PreparedRig {
-    /// Lower a rig's graph like a sequence's, with the voices, live mark
-    /// collections and controls the builder registers.
-    pub fn build(
-        timing: SequenceTiming,
-        build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>) -> SequenceRoot<'id>,
-    ) -> Self {
-        Self {
-            sequence: PreparedSequence::build(timing, build),
-        }
-    }
-
-    pub fn decode(bytes: &[u8]) -> Result<Self, LoadError> {
-        Ok(Self {
-            sequence: PreparedSequence::decode(bytes)?,
-        })
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        self.sequence.encode()
-    }
-
-    pub fn sequence(&self) -> &PreparedSequence {
-        &self.sequence
-    }
-
-    pub fn voice_count(&self) -> usize {
-        self.sequence.show().voice_count()
-    }
-
-    pub fn collection_count(&self) -> usize {
-        self.sequence.show().collection_count()
-    }
-
-    pub fn control_count(&self) -> usize {
-        self.sequence.show().control_count()
-    }
-
-    /// Whether `command` addresses a voice, collection or control of this rig.
-    pub fn accepts(&self, command: donder_runtime_types::RigCommand) -> bool {
-        self.sequence.show().accepts(command)
-    }
-
-    pub fn into_playback(self) -> RigPlayback {
-        RigPlayback {
-            playback: self.sequence.into_playback(),
-        }
-    }
-}
-
-/// Owns a rig's show and evaluates it as commands arrive.
-pub struct RigPlayback {
-    playback: SequencePlayback,
-}
-
-impl RigPlayback {
-    pub fn duration(&self) -> SampleDuration {
-        self.playback.sequence.duration()
-    }
-
-    pub fn frame_rate(&self) -> u32 {
-        self.playback.sequence.frame_rate()
-    }
-
-    pub fn sequence(&self) -> &PreparedSequence {
-        self.playback.sequence()
-    }
-
-    pub fn apply(&mut self, event: RigEvent) {
-        self.playback.apply(event);
-    }
-
-    pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
-        self.playback.evaluate(time)
-    }
-
-    pub fn active_effect_count(&mut self, time: SampleTime) -> usize {
-        self.playback.active_effect_count(time)
     }
 }

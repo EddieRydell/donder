@@ -16,5 +16,5 @@ export function graphOperatorDefinition(
 }
 
 export function graphOperatorKey(operator: SequenceGraphOperator) {
-  return `custom:${operator.moduleId}:${operator.path}:${operator.objectKey}`;
+  return `${operator.path}:${operator.objectKey}`;
 }

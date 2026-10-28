@@ -1,15 +1,21 @@
 //! Name resolution and type checking. A declaration is lowered straight into
 //! its definition IR; diagnostics point at the syntax that produced a node.
+//! A check can also record every name it declares and resolves, which is all
+//! editor analysis knows of a script's names.
 use super::Diagnostic;
-use super::builtins::{BuiltinFunction, builtin};
+use super::builtins::{
+    self, AT, Fit, Lowering, NAMED_TYPES, Read, builtin, context_field, context_value, describe,
+    is_context_scope, type_text,
+};
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange};
 use super::ir::interval::{Bounds, interval};
 use super::ir::{
-    Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, STATE, Ternary, Unary,
-    check_stencil, reads, source_only,
+    Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, STATE, Unary, check_stencil, reads,
+    source_only,
 };
 use super::syntax::ast::*;
-use super::syntax::lexer::TextSpan;
+use super::syntax::lexer::{Keyword, TextSpan};
+use crate::analysis::{ScriptReference, ScriptTarget, Symbol, SymbolKind};
 use crate::names::{NameError, NameKind, name_from_text, pascal_from_snake};
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::{Edges, MAX_ITERATIONS, STRIP, SignalPixel};
@@ -34,26 +40,112 @@ pub(crate) struct Definition {
     pub(crate) fingerprint: u64,
 }
 
-pub(crate) fn check(module: Module) -> Result<Vec<Definition>, Vec<Diagnostic>> {
-    check_recording(module, &mut Vec::new())
+/// Every name a check declared, and each name it resolved.
+#[derive(Debug, Default)]
+pub(crate) struct Names {
+    pub(crate) symbols: Vec<Symbol>,
+    pub(crate) references: Vec<ScriptReference>,
 }
 
-/// Check `module`, recording the type of every `let` binding by its name's
-/// span, for the language server.
+impl Names {
+    fn define(&mut self, symbol: Symbol) -> usize {
+        self.symbols.push(symbol);
+        self.symbols.len() - 1
+    }
+}
+
+/// A name that declares a symbol: what it is and where it is declared.
+struct Declared<'a> {
+    name: &'a super::syntax::ast::Name,
+    kind: SymbolKind,
+    extent: TextSpan,
+    detail: String,
+    description: Option<String>,
+    ty: Option<Type>,
+    parent: Option<usize>,
+}
+
+impl Declared<'_> {
+    fn symbol(self) -> Symbol {
+        Symbol {
+            name: self.name.name.as_str().to_string(),
+            kind: self.kind,
+            span: self.name.span,
+            extent: self.extent,
+            detail: self.detail,
+            description: self.description,
+            ty: self.ty,
+            parent: self.parent,
+        }
+    }
+}
+
+pub(crate) fn check(module: Module, source: &str) -> Result<Vec<Definition>, Vec<Diagnostic>> {
+    check_recording(module, source, false).0
+}
+
+/// Check `module`, the parse of `source`. When `recording`, also record its
+/// names, even of declarations that fail.
 pub(crate) fn check_recording(
     module: Module,
-    bindings: &mut Vec<(TextSpan, Type)>,
-) -> Result<Vec<Definition>, Vec<Diagnostic>> {
+    source: &str,
+    recording: bool,
+) -> (Result<Vec<Definition>, Vec<Diagnostic>>, Names) {
+    let text = |span: TextSpan| &source[span.start.min(source.len())..span.end.min(source.len())];
+    let mut names = Names::default();
+    let function_symbols = module
+        .functions
+        .iter()
+        .map(|function| {
+            recording.then(|| {
+                let args = function
+                    .args
+                    .iter()
+                    .map(|(name, ty)| format!("{}: {}", name.name.as_str(), text(ty.span)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                names.define(
+                    Declared {
+                        name: &function.name,
+                        kind: SymbolKind::Function,
+                        extent: function.span,
+                        detail: format!(
+                            "{} {}({args}) -> {}",
+                            Keyword::Fn.text(),
+                            function.name.name.as_str(),
+                            text(function.result.span)
+                        ),
+                        description: function.description.clone(),
+                        ty: None,
+                        parent: None,
+                    }
+                    .symbol(),
+                )
+            })
+        })
+        .collect::<Rc<[_]>>();
     let functions: Rc<[Function]> = module.functions.into();
-    let mut diagnostics = check_functions(&functions, bindings);
+    let mut diagnostics =
+        check_functions(&functions, &function_symbols, source, recording, &mut names);
     let mut definitions = Vec::new();
-    if diagnostics.is_empty() {
-        for declaration in module.declarations {
-            match Checker::declaration(declaration, functions.clone(), bindings) {
-                Ok(definition) => definitions.push(definition),
-                Err(errors) => diagnostics.extend(errors),
-            }
+    let mut declaration_diagnostics = Vec::new();
+    for declaration in module.declarations {
+        let checked = Checker::declaration(
+            declaration,
+            functions.clone(),
+            function_symbols.clone(),
+            source,
+            recording,
+            &mut names,
+        );
+        match checked {
+            Ok(definition) => definitions.push(definition),
+            Err(errors) => declaration_diagnostics.extend(errors),
         }
+    }
+    // Errors in functions make their callers' errors moot.
+    if diagnostics.is_empty() {
+        diagnostics = declaration_diagnostics;
     }
     // A function's error repeats at every call that inlines it.
     let mut unique = Vec::new();
@@ -62,11 +154,12 @@ pub(crate) fn check_recording(
             unique.push(diagnostic);
         }
     }
-    if unique.is_empty() {
+    let checked = if unique.is_empty() {
         Ok(definitions)
     } else {
         Err(unique)
-    }
+    };
+    (checked, names)
 }
 
 /// Check every function's declaration and, once on its own, its body, so a
@@ -74,8 +167,12 @@ pub(crate) fn check_recording(
 /// arguments are proven where the function is inlined.
 fn check_functions(
     functions: &Rc<[Function]>,
-    bindings: &mut Vec<(TextSpan, Type)>,
+    function_symbols: &Rc<[Option<usize>]>,
+    source: &str,
+    recording: bool,
+    names: &mut Names,
 ) -> Vec<Diagnostic> {
+    let text = |span: TextSpan| &source[span.start.min(source.len())..span.end.min(source.len())];
     let mut diagnostics = Vec::new();
     for (index, function) in functions.iter().enumerate() {
         let name = function.name.name.as_str();
@@ -90,6 +187,7 @@ fn check_functions(
             ));
         }
         let mut types = Vec::new();
+        let mut arg_symbols = Vec::new();
         for (position, (arg, ty)) in function.args.iter().enumerate() {
             diagnostics.extend(name_diagnostic(NameKind::Value, arg));
             if function.args[..position]
@@ -101,7 +199,22 @@ fn check_functions(
                     format!("`{}` is declared twice", arg.name.as_str()),
                 ));
             }
-            match resolve_type(ty) {
+            let resolved = resolve_type(ty);
+            arg_symbols.push(recording.then(|| {
+                names.define(
+                    Declared {
+                        name: arg,
+                        kind: SymbolKind::Argument,
+                        extent: arg.span,
+                        detail: format!("{}: {}", arg.name.as_str(), text(ty.span)),
+                        description: None,
+                        ty: resolved.as_ref().ok().cloned(),
+                        parent: function_symbols[index],
+                    }
+                    .symbol(),
+                )
+            }));
+            match resolved {
                 Ok(ty) => types.push(ty),
                 Err(diagnostic) => diagnostics.push(diagnostic),
             }
@@ -131,11 +244,17 @@ fn check_functions(
             functions: functions.clone(),
             frames: vec![index],
             standalone: true,
-            bindings: Vec::new(),
+            recording,
+            names: std::mem::take(names),
+            parent: function_symbols[index],
+            function_symbols: function_symbols.clone(),
+            options: Vec::new(),
         };
         for (position, (arg, _)) in function.args.iter().enumerate() {
             let node = checker.graph.add(Op::Param(position as u32));
-            checker.scopes.push((arg.name.clone(), node));
+            checker
+                .scopes
+                .push((arg.name.clone(), node, arg_symbols[position]));
         }
         if let Some(value) = checker
             .tail_block(&function.body, Mode::Value)
@@ -143,7 +262,7 @@ fn check_functions(
         {
             checker.require(value, &result, function.body.result.span);
         }
-        bindings.append(&mut checker.bindings);
+        *names = std::mem::take(&mut checker.names);
         diagnostics.extend(checker.diagnostics);
     }
     diagnostics
@@ -185,22 +304,35 @@ enum Operand {
     Option(Identifier, TextSpan),
 }
 
-struct Checker {
-    graph: Graph,
-    params: Vec<ParamDecl>,
-    inputs: Vec<Identifier>,
-    scopes: Vec<(Identifier, Node)>,
+/// A declared value of a declaration: its declaration and symbol.
+struct Member<T> {
+    value: T,
+    symbol: Option<usize>,
+}
+
+pub(crate) struct Checker {
+    pub(crate) graph: Graph,
+    params: Vec<Member<ParamDecl>>,
+    inputs: Vec<Member<Identifier>>,
+    /// Names in scope, innermost last, with their symbols.
+    scopes: Vec<(Identifier, Node, Option<usize>)>,
     length_bounds: Vec<Node>,
     diagnostics: Vec<Diagnostic>,
     functions: Rc<[Function]>,
+    function_symbols: Rc<[Option<usize>]>,
     /// Functions being inlined, innermost last. Their bodies see only their
     /// arguments and context values.
     frames: Vec<usize>,
     /// Checking a function body on its own, with arguments of unknown value.
     standalone: bool,
-    /// The type of each `let` written in the checked body, by name span;
-    /// inlined function bodies are recorded once, when checked on their own.
-    bindings: Vec<(TextSpan, Type)>,
+    recording: bool,
+    /// The names recorded so far; inlined function bodies are recorded once,
+    /// when checked on their own.
+    names: Names,
+    /// The symbol whose body is checked.
+    parent: Option<usize>,
+    /// The enum options of the declaration's parameters, with their symbols.
+    options: Vec<(Identifier, usize)>,
 }
 
 type Checked<T> = Option<T>;
@@ -209,19 +341,127 @@ impl Checker {
     fn declaration(
         declaration: Declaration,
         functions: Rc<[Function]>,
-        bindings: &mut Vec<(TextSpan, Type)>,
+        function_symbols: Rc<[Option<usize>]>,
+        source: &str,
+        recording: bool,
+        names: &mut Names,
     ) -> Result<Definition, Vec<Diagnostic>> {
+        let text =
+            |span: TextSpan| &source[span.start.min(source.len())..span.end.min(source.len())];
         let mut diagnostics = Vec::new();
         let mut params = Vec::new();
-        let mut names: Vec<&Identifier> = Vec::new();
+        let mut options = Vec::new();
+        let (kind, keyword) = match declaration.kind {
+            DeclarationKind::Effect => (SymbolKind::Effect, Keyword::Effect),
+            DeclarationKind::Operator => (SymbolKind::Operator, Keyword::Operator),
+        };
+        let symbol = recording.then(|| {
+            names.define(
+                Declared {
+                    name: &declaration.name,
+                    kind,
+                    extent: declaration.span,
+                    detail: format!("{} {}", keyword.text(), declaration.name.name.as_str()),
+                    description: declaration.description.clone(),
+                    ty: None,
+                    parent: None,
+                }
+                .symbol(),
+            )
+        });
+        let inputs = declaration
+            .inputs
+            .iter()
+            .map(|input| Member {
+                value: input.name.clone(),
+                symbol: recording.then(|| {
+                    names.define(
+                        Declared {
+                            name: input,
+                            kind: SymbolKind::Input,
+                            extent: input.span,
+                            detail: format!("input {}", input.name.as_str()),
+                            description: None,
+                            ty: None,
+                            parent: symbol,
+                        }
+                        .symbol(),
+                    )
+                }),
+            })
+            .collect::<Vec<_>>();
+        let mut names_seen: Vec<&Identifier> = Vec::new();
         diagnostics.extend(name_diagnostic(NameKind::Definition, &declaration.name));
         for input in &declaration.inputs {
             diagnostics.extend(name_diagnostic(NameKind::Member, input));
         }
         for param in &declaration.params {
             diagnostics.extend(name_diagnostic(NameKind::Member, &param.name));
+            let param_symbol = recording.then(|| {
+                let end = param
+                    .default
+                    .as_ref()
+                    .map(|literal| literal.span)
+                    .or(param.range.as_ref().map(|(_, max)| max.span))
+                    .unwrap_or(param.ty.span);
+                names.define(
+                    Declared {
+                        name: &param.name,
+                        kind: SymbolKind::Param,
+                        extent: param.name.span.to(end),
+                        detail: format!(
+                            "param {}",
+                            text(TextSpan {
+                                start: param.name.span.start,
+                                end: end.end,
+                            })
+                        ),
+                        description: param.description.clone(),
+                        ty: resolve_type(&param.ty).ok(),
+                        parent: symbol,
+                    }
+                    .symbol(),
+                )
+            });
+            if let (TypeKind::Enum(choices), true) = (&param.ty.kind, recording) {
+                let first = options.len();
+                for option in choices {
+                    let option_symbol = names.define(
+                        Declared {
+                            name: option,
+                            kind: SymbolKind::EnumOption,
+                            extent: option.span,
+                            detail: format!(
+                                "{} (an option of `{}`)",
+                                option.name.as_str(),
+                                param.name.name.as_str()
+                            ),
+                            description: None,
+                            ty: None,
+                            parent: param_symbol,
+                        }
+                        .symbol(),
+                    );
+                    options.push((option.name.clone(), option_symbol));
+                }
+                if let Some(Literal {
+                    kind: LiteralKind::Name(name),
+                    span,
+                }) = &param.default
+                    && let Some((_, option)) =
+                        options[first..].iter().find(|(option, _)| option == name)
+                {
+                    names.references.push(ScriptReference {
+                        span: *span,
+                        target: ScriptTarget::Symbol(*option),
+                    });
+                }
+            }
             match check_param(param) {
-                Ok(param) => params.push(param),
+                Ok(value) => params.push(Member {
+                    value,
+                    symbol: param_symbol,
+                }),
                 Err(diagnostic) => diagnostics.push(diagnostic),
             }
         }
@@ -230,13 +470,13 @@ impl Checker {
             .iter()
             .chain(declaration.params.iter().map(|param| &param.name))
         {
-            if names.contains(&&name.name) {
+            if names_seen.contains(&&name.name) {
                 diagnostics.push(Diagnostic::new(
                     name.span,
                     format!("`{}` is declared twice", name.name.as_str()),
                 ));
             }
-            names.push(&name.name);
+            names_seen.push(&name.name);
         }
         match declaration.kind {
             DeclarationKind::Effect if !declaration.inputs.is_empty() => {
@@ -260,14 +500,16 @@ impl Checker {
             ));
             return Err(diagnostics);
         };
-        if !diagnostics.is_empty() {
+        // A declaration with errors is still checked for the names it uses.
+        let failed = !diagnostics.is_empty();
+        if failed && !recording {
             return Err(diagnostics);
         }
         let graph = Graph::new(
             params
                 .iter()
                 .map(|param| Param {
-                    ty: param.ty.clone(),
+                    ty: param.value.ty.clone(),
                     domain: super::ir::Domain::PARAM,
                 })
                 .collect(),
@@ -276,19 +518,20 @@ impl Checker {
         let mut checker = Self {
             graph,
             params,
-            inputs: declaration
-                .inputs
-                .iter()
-                .map(|input| input.name.clone())
-                .collect(),
+            inputs,
             scopes: Vec::new(),
             length_bounds: Vec::new(),
             diagnostics,
             functions,
+            function_symbols,
             frames: Vec::new(),
             standalone: false,
-            bindings: Vec::new(),
+            recording,
+            names: std::mem::take(names),
+            parent: symbol,
+            options,
         };
+        let declared = checker.diagnostics.len();
         let root = checker.tail_block(sample, Mode::Tail).and_then(|outcome| {
             let value = outcome.value?;
             checker.require(value, &Type::Color, sample.result.span)?;
@@ -296,7 +539,10 @@ impl Checker {
             let black = checker.graph.color(Color::BLACK);
             Some(checker.graph.select(outcome.valid, value, black))
         });
-        bindings.append(&mut checker.bindings);
+        *names = std::mem::take(&mut checker.names);
+        if failed {
+            checker.diagnostics.truncate(declared);
+        }
         match root {
             Some(root) if checker.diagnostics.is_empty() => Ok(Definition {
                 kind: declaration.kind,
@@ -304,7 +550,11 @@ impl Checker {
                 span: declaration.name.span,
                 fingerprint: checker.graph.fingerprint(root),
                 name: declaration.name.name,
-                params: checker.params,
+                params: checker
+                    .params
+                    .into_iter()
+                    .map(|param| param.value)
+                    .collect(),
                 inputs: declaration
                     .inputs
                     .into_iter()
@@ -320,6 +570,53 @@ impl Checker {
 
     fn error(&mut self, span: TextSpan, message: impl Into<String>) {
         self.diagnostics.push(Diagnostic::new(span, message));
+    }
+
+    /// Whether names are recorded here: in the checked body itself, not in a
+    /// function body inlined into it.
+    fn records(&self) -> bool {
+        self.recording && self.frames.len() == usize::from(self.standalone)
+    }
+
+    fn refer(&mut self, span: TextSpan, target: ScriptTarget) {
+        if self.records() {
+            self.names.references.push(ScriptReference { span, target });
+        }
+    }
+
+    fn refer_symbol(&mut self, span: TextSpan, symbol: Option<usize>) {
+        if let Some(symbol) = symbol {
+            self.refer(span, ScriptTarget::Symbol(symbol));
+        }
+    }
+
+    /// A value the checked body declares, named at `name`, of type `ty`.
+    fn define(&mut self, name: &Name, kind: SymbolKind, ty: &Type) -> Option<usize> {
+        let detail = match kind {
+            SymbolKind::Let => format!("let {}: {}", name.name.as_str(), type_text(ty)),
+            _ => format!("{}: {}", name.name.as_str(), type_text(ty)),
+        };
+        self.records().then(|| {
+            self.names.define(
+                Declared {
+                    name,
+                    kind,
+                    extent: name.span,
+                    detail,
+                    description: None,
+                    ty: Some(ty.clone()),
+                    parent: self.parent,
+                }
+                .symbol(),
+            )
+        })
+    }
+
+    /// A value bound by name in the scope of the block being checked.
+    fn bind(&mut self, name: &Name, kind: SymbolKind, node: Node) {
+        let ty = self.ty(node).clone();
+        let symbol = self.define(name, kind, &ty);
+        self.scopes.push((name.name.clone(), node, symbol));
     }
 
     fn ty(&self, node: Node) -> &Type {
@@ -391,13 +688,7 @@ impl Checker {
                         None => self.value(value),
                     };
                     match node {
-                        Some(node) => {
-                            if self.frames.len() == usize::from(self.standalone) {
-                                let ty = self.ty(node).clone();
-                                self.bindings.push((name.span, ty));
-                            }
-                            self.scopes.push((name.name.clone(), node));
-                        }
+                        Some(node) => self.bind(name, SymbolKind::Let, node),
                         None => failed = true,
                     }
                 }
@@ -586,90 +877,123 @@ impl Checker {
     }
 
     fn name(&mut self, name: &Identifier, span: TextSpan) -> Checked<Operand> {
-        if let Some((_, node)) = self.scopes.iter().rev().find(|(bound, _)| bound == name) {
-            return Some(Operand::Node(*node));
+        if let Some(&(_, node, symbol)) = self.scopes.iter().rev().find(|(bound, ..)| bound == name)
+        {
+            self.refer_symbol(span, symbol);
+            return Some(Operand::Node(node));
         }
         let in_function = !self.frames.is_empty();
-        if let Some(index) = self.params.iter().position(|param| &param.name == name)
+        if let Some(index) = self
+            .params
+            .iter()
+            .position(|param| &param.value.name == name)
             && !in_function
         {
+            self.refer_symbol(span, self.params[index].symbol);
             return Some(Operand::Node(self.graph.add(Op::Param(index as u32))));
         }
-        if let Some(input) = self.inputs.iter().position(|input| input == name)
+        if let Some(input) = self.inputs.iter().position(|input| &input.value == name)
             && !in_function
         {
+            self.refer_symbol(span, self.inputs[input].symbol);
             // A signal used as a color samples the current pixel.
             return Some(Operand::Node(self.graph.add(Op::Sample {
                 input: input as u32,
                 pixel: SignalPixel::Current,
             })));
         }
-        let node = match name.as_str() {
-            "time" => self.graph.add(Op::Context(Context::Time)),
-            "duration" => self.graph.add(Op::Context(Context::Duration)),
-            "frame_rate" => self.graph.add(Op::Context(Context::FrameRate)),
-            "frames_elapsed" => self.graph.add(Op::Context(Context::FramesElapsed)),
-            "previous" => self.graph.add(Op::Sample {
+        if let Some(value) = context_value(name.as_str()) {
+            self.refer(span, ScriptTarget::Context(value));
+            return Some(Operand::Node(self.read(value.read)));
+        }
+        if is_context_scope(name.as_str()) {
+            let example = builtins::CONTEXT
+                .iter()
+                .find(|value| {
+                    value
+                        .field()
+                        .is_some_and(|(scope, _)| scope == name.as_str())
+                })
+                .map_or("", |value| value.name);
+            self.error(
+                span,
+                format!("use a field of `{}`, like `{example}`", name.as_str()),
+            );
+            return None;
+        }
+        Some(Operand::Option(name.clone(), span))
+    }
+
+    /// The node a context value reads.
+    fn read(&mut self, read: Read) -> Node {
+        match read {
+            Read::Context(context) => self.graph.add(Op::Context(context)),
+            Read::Previous => self.graph.add(Op::Sample {
                 input: STATE,
                 pixel: SignalPixel::Current,
             }),
-            "progress" => self.graph.add(Op::Context(Context::Progress)),
-            "PI" => self.graph.float(core::f32::consts::PI),
-            "TAU" => self.graph.float(core::f32::consts::TAU),
-            "pixel" | "target" => {
-                self.error(
-                    span,
-                    format!("use a field of `{}`, like `pixel.index`", name.as_str()),
-                );
-                return None;
-            }
-            _ => return Some(Operand::Option(name.clone(), span)),
-        };
-        Some(Operand::Node(node))
+            Read::Constant(value) => self.graph.float(value),
+        }
     }
 
     fn field(&mut self, target: &Expr, field: &Name) -> Checked<Node> {
+        let scopes = || {
+            let mut scopes = Vec::new();
+            for (scope, _) in builtins::CONTEXT.iter().filter_map(|value| value.field()) {
+                if !scopes.contains(&scope) {
+                    scopes.push(scope);
+                }
+            }
+            let scopes = scopes
+                .iter()
+                .map(|scope| format!("`{scope}`"))
+                .collect::<Vec<_>>();
+            format!("only {} have fields", scopes.join(" and "))
+        };
         let ExprKind::Name(scope) = &target.kind else {
-            self.error(field.span, "only `pixel` and `target` have fields");
+            self.error(field.span, scopes());
             return None;
         };
-        let context = match (scope.as_str(), field.name.as_str()) {
-            ("pixel", "index") => Context::PixelIndex,
-            ("pixel", "fraction") => Context::PixelFraction,
-            ("pixel", "x") => Context::PixelX,
-            ("pixel", "y") => Context::PixelY,
-            ("target", "count") => Context::TargetCount,
-            ("target", "min_x") => Context::TargetMinX,
-            ("target", "min_y") => Context::TargetMinY,
-            ("target", "max_x") => Context::TargetMaxX,
-            ("target", "max_y") => Context::TargetMaxY,
-            ("pixel" | "target", _) => {
-                let message = format!(
+        let Some(value) = context_field(scope.as_str(), field.name.as_str()) else {
+            let message = if is_context_scope(scope.as_str()) {
+                format!(
                     "`{}` has no field `{}`",
                     scope.as_str(),
                     field.name.as_str()
-                );
-                self.error(field.span, message);
-                return None;
-            }
-            _ => {
-                self.error(field.span, "only `pixel` and `target` have fields");
-                return None;
-            }
+                )
+            } else {
+                scopes()
+            };
+            self.error(field.span, message);
+            return None;
         };
-        Some(self.graph.add(Op::Context(context)))
+        self.refer(target.span, ScriptTarget::Context(value));
+        self.refer(field.span, ScriptTarget::Context(value));
+        Some(self.read(value.read))
     }
 
     /// The signal `name` reads: an operator input, or `previous`, the node's
     /// own previous frame. Not inside a function, where inputs are out of
     /// scope.
-    fn signal(&self, name: &Identifier) -> Option<u32> {
-        if !self.frames.is_empty() || self.scopes.iter().any(|(known, _)| known == name) {
+    fn signal(&mut self, name: &Name) -> Option<u32> {
+        if !self.frames.is_empty() || self.scopes.iter().any(|(known, ..)| known == &name.name) {
             return None;
         }
-        match self.inputs.iter().position(|input| input == name) {
-            Some(index) => Some(index as u32),
-            None => (name.as_str() == "previous").then_some(STATE),
+        match self
+            .inputs
+            .iter()
+            .position(|input| input.value == name.name)
+        {
+            Some(index) => {
+                self.refer_symbol(name.span, self.inputs[index].symbol);
+                Some(index as u32)
+            }
+            None => {
+                let value = context_value(name.name.as_str())
+                    .filter(|value| value.read == Read::Previous)?;
+                self.refer(name.span, ScriptTarget::Context(value));
+                Some(STATE)
+            }
         }
     }
 
@@ -681,7 +1005,10 @@ impl Checker {
         span: TextSpan,
     ) -> Checked<Node> {
         let input = match &target.kind {
-            ExprKind::Name(name) => self.signal(name),
+            ExprKind::Name(name) => self.signal(&Name {
+                name: name.clone(),
+                span: target.span,
+            }),
             _ => None,
         };
         let Some(input) = input else {
@@ -691,23 +1018,25 @@ impl Checker {
             );
             return None;
         };
-        match method.name.as_str() {
-            "at" if args.len() == 1 => {}
-            "at" => {
-                self.error(
-                    span,
-                    "`at` takes a local pixel index; signals are read at this frame",
-                );
-                return None;
-            }
-            _ => {
-                let message = format!(
-                    "signals have no method `{}`; use `at`",
-                    method.name.as_str()
-                );
-                self.error(method.span, message);
-                return None;
-            }
+        if method.name.as_str() != AT.name {
+            let message = format!(
+                "signals have no method `{}`; use `{}`",
+                method.name.as_str(),
+                AT.name
+            );
+            self.error(method.span, message);
+            return None;
+        }
+        self.refer(method.span, ScriptTarget::Method(&AT));
+        if args.len() != 1 {
+            self.error(
+                span,
+                format!(
+                    "`{}` takes a local pixel index; signals are read at this frame",
+                    AT.name
+                ),
+            );
+            return None;
         }
         let pixel = SignalPixel::Local(self.int(&args[0])?);
         Some(self.graph.add(Op::Sample { input, pixel }))
@@ -941,10 +1270,18 @@ impl Checker {
     /// An enum option named in a comparison with a value of that enum.
     fn option(&mut self, node: Node, name: Identifier, span: TextSpan) -> Checked<Node> {
         match self.ty(node).clone() {
-            Type::Enum(options) if options.contains(&name) => Some(
-                self.graph
-                    .typed_constant(Value::Enum(name), Type::Enum(options)),
-            ),
+            Type::Enum(options) if options.contains(&name) => {
+                let symbol = self
+                    .options
+                    .iter()
+                    .find(|(option, _)| option == &name)
+                    .map(|(_, symbol)| *symbol);
+                self.refer_symbol(span, symbol);
+                Some(
+                    self.graph
+                        .typed_constant(Value::Enum(name), Type::Enum(options)),
+                )
+            }
             Type::Enum(_) => {
                 self.error(
                     span,
@@ -971,6 +1308,14 @@ impl Checker {
             around,
         } = reduction;
         let (reducer, otherwise, around) = (*reducer, otherwise.as_ref(), around.as_ref());
+        let reducer_name = builtins::reducer(reducer).name;
+        self.refer(
+            TextSpan {
+                start: span.start,
+                end: span.start + reducer_name.len(),
+            },
+            ScriptTarget::Reducer(builtins::reducer(reducer)),
+        );
         let start = self.bound_value(start);
         let end = self.bound_value(end);
         let (start, end) = (start?, end?);
@@ -1003,9 +1348,9 @@ impl Checker {
         if let (Some(sample), Some(name)) = (neighbor, around.and_then(|a| a.neighbor.as_ref())) {
             self.diagnostics
                 .extend(name_diagnostic(NameKind::Value, name));
-            self.scopes.push((name.name.clone(), sample));
+            self.bind(name, SymbolKind::Let, sample);
         }
-        self.scopes.push((index.name.clone(), index_node));
+        self.bind(index, SymbolKind::Index, index_node);
         let result_span = body.result.span;
         let outcome = self.tail_block(body, Mode::Tail);
         self.scopes.truncate(depth);
@@ -1028,7 +1373,6 @@ impl Checker {
         let outcome = Outcome { valid, ..outcome };
         let filter = (self.graph.constant_value(outcome.valid) != Some(&Value::Bool(true)))
             .then_some(outcome.valid);
-        let reducer_name = format!("{reducer:?}").to_lowercase();
         let (reducer, body, filter, default) = match reducer {
             ReducerKind::Max | ReducerKind::Min | ReducerKind::Sum => {
                 let colors = reducer != ReducerKind::Min && ty == Type::Color;
@@ -1107,7 +1451,7 @@ impl Checker {
         if self.standalone {
             return Some(());
         }
-        let ranges = param_ranges(&self.params);
+        let ranges = param_ranges(self.params.iter().map(|param| &param.value));
         let lengths = vec![None; self.params.len()];
         let bounds = Bounds {
             ranges: &ranges,
@@ -1146,7 +1490,7 @@ impl Checker {
             previous,
             body,
         } = scan;
-        let Some(index) = self.signal(&input.name) else {
+        let Some(index) = self.signal(input) else {
             let message = format!(
                 "`scan` reads an operator input or `previous`; `{}` is neither",
                 input.name.as_str()
@@ -1163,7 +1507,7 @@ impl Checker {
         for (name, node) in [(light, sample), (previous, before)] {
             self.diagnostics
                 .extend(name_diagnostic(NameKind::Value, name));
-            self.scopes.push((name.name.clone(), node));
+            self.bind(name, SymbolKind::Let, node);
         }
         let value = self.tail_block(body, Mode::Value);
         self.scopes.truncate(depth);
@@ -1222,7 +1566,7 @@ impl Checker {
     /// The input `around` names, read `offset` pixels along the fixture.
     fn neighbor(&mut self, around: &Around, offset: Node) -> Checked<Node> {
         let name = &around.input;
-        let Some(input) = self.signal(&name.name) else {
+        let Some(input) = self.signal(name) else {
             let message = format!(
                 "`around` reads an operator input or `previous`; `{}` is neither",
                 name.name.as_str()
@@ -1266,7 +1610,7 @@ impl Checker {
         if self.standalone {
             return Some(());
         }
-        let ranges = param_ranges(&self.params);
+        let ranges = param_ranges(self.params.iter().map(|param| &param.value));
         let lengths = vec![None; self.params.len()];
         let range = interval(
             &self.graph,
@@ -1299,7 +1643,10 @@ impl Checker {
                 .iter()
                 .position(|function| function.name.name == name.name)
             {
-                Some(index) => self.inline(index, args, span),
+                Some(index) => {
+                    self.refer_symbol(name.span, self.function_symbols[index]);
+                    self.inline(index, args, span)
+                }
                 None => {
                     let message = format!("unknown function `{}`", name.name.as_str());
                     self.error(name.span, message);
@@ -1307,6 +1654,7 @@ impl Checker {
                 }
             };
         };
+        self.refer(name.span, ScriptTarget::Builtin(builtin));
         let (function, arity) = (builtin.name, builtin.arity());
         if args.len() != arity {
             let message = format!(
@@ -1317,298 +1665,111 @@ impl Checker {
             self.error(span, message);
             return None;
         }
-        let graph_unary = |checker: &mut Self, op| {
-            let value = checker.float(&args[0])?;
-            Some(checker.graph.unary(op, value))
-        };
-        use BuiltinFunction as F;
-        Some(match builtin.function {
-            F::Sin => graph_unary(self, Unary::Sin)?,
-            F::Cos => graph_unary(self, Unary::Cos)?,
-            F::Tan => graph_unary(self, Unary::Tan)?,
-            F::Exp => graph_unary(self, Unary::Exp)?,
-            F::Log => graph_unary(self, Unary::Log)?,
-            F::Floor => graph_unary(self, Unary::Floor)?,
-            F::Ceil => graph_unary(self, Unary::Ceil)?,
-            F::Sqrt => graph_unary(self, Unary::Sqrt)?,
-            F::Rand => graph_unary(self, Unary::Rand)?,
-            F::Int => graph_unary(self, Unary::FloatToInt)?,
-            F::Round => {
-                // Halves round away from zero; adding 0.5 would round
-                // 0.49999997 up.
-                let value = self.float(&args[0])?;
-                let whole = self.graph.unary(Unary::Trunc, value);
-                let fraction = self.graph.binary(Binary::Subtract, value, whole);
-                let fraction = self.graph.unary(Unary::Abs, fraction);
-                let half = self.graph.float(0.5);
-                let away = self.graph.binary(Binary::GreaterEqual, fraction, half);
-                let sign = self.float_sign(value);
-                let next = self.graph.binary(Binary::Add, whole, sign);
-                self.graph.select(away, next, whole)
-            }
-            F::Fract => {
-                let value = self.float(&args[0])?;
-                let floor = self.graph.unary(Unary::Floor, value);
-                self.graph.binary(Binary::Subtract, value, floor)
-            }
-            F::Step => {
-                let edge = self.float(&args[0])?;
-                let value = self.float(&args[1])?;
-                let above = self.graph.binary(Binary::GreaterEqual, value, edge);
-                let below = self.graph.binary(Binary::Less, value, edge);
-                let (one, zero, nan) = (
-                    self.graph.float(1.0),
-                    self.graph.float(0.0),
-                    self.graph.float(f32::NAN),
+        if let [signature] = builtin.signatures
+            && let Lowering::Integral = signature.lowering
+        {
+            return self.integral(&args[0]);
+        }
+        // Each argument narrows the signatures it fits. Once every signature
+        // left converts an argument alike, it is converted; an int fitting
+        // several signatures waits for the arguments after it.
+        let mut candidates = builtin.signatures.iter().collect::<Vec<_>>();
+        let mut nodes = Vec::with_capacity(args.len());
+        let mut converted = 0;
+        for (position, arg) in args.iter().enumerate() {
+            let node = self.value(arg)?;
+            let ty = self.ty(node).clone();
+            let fitting = candidates
+                .iter()
+                .copied()
+                .filter(|signature| signature.args[position].1.fit(&ty).is_some())
+                .collect::<Vec<_>>();
+            if fitting.is_empty() {
+                let mut expected = Vec::new();
+                for signature in &candidates {
+                    let described = signature.args[position].1.describe();
+                    if !expected.contains(&described) {
+                        expected.push(described);
+                    }
+                }
+                let expected = match expected.split_last() {
+                    Some((last, [])) => last.clone(),
+                    Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
+                    None => unreachable!("a builtin has a signature"),
+                };
+                self.error(
+                    arg.span,
+                    format!("expected {expected}, found {}", describe(&ty)),
                 );
-                let low = self.graph.select(below, zero, nan);
-                self.graph.select(above, one, low)
+                return None;
             }
-            F::IsNan => {
-                let value = self.float(&args[0])?;
-                self.graph.binary(Binary::NotEqual, value, value)
-            }
-            F::Hue | F::Saturation | F::Intensity | F::Red | F::Green | F::Blue | F::Invert => {
-                let color = self.typed(&args[0], &Type::Color)?;
-                let op = match builtin.function {
-                    F::Hue => Unary::Hue,
-                    F::Saturation => Unary::Saturation,
-                    F::Intensity => Unary::Intensity,
-                    F::Red => Unary::Red,
-                    F::Green => Unary::Green,
-                    F::Blue => Unary::Blue,
-                    _ => Unary::Invert,
+            candidates = fitting;
+            nodes.push(node);
+            while converted < nodes.len() {
+                let fit = |signature: &&super::builtins::Signature, graph: &Graph| {
+                    signature.args[converted].1.fit(graph.ty(nodes[converted]))
                 };
-                self.graph.unary(op, color)
-            }
-            F::Abs | F::Sign => {
-                let value = self.value(&args[0])?;
-                match (self.ty(value).clone(), builtin.function) {
-                    (Type::Int, F::Abs) => self.graph.unary(Unary::IntAbs, value),
-                    (Type::Int, _) => {
-                        let zero = self.graph.int(0);
-                        let positive = self.graph.binary(Binary::IntGreater, value, zero);
-                        let negative = self.graph.binary(Binary::IntLess, value, zero);
-                        let (one, minus_one) = (self.graph.int(1), self.graph.int(-1));
-                        let low = self.graph.select(negative, minus_one, zero);
-                        self.graph.select(positive, one, low)
-                    }
-                    (_, F::Abs) => {
-                        let value = self.require(value, &Type::Float, args[0].span)?;
-                        self.graph.unary(Unary::Abs, value)
-                    }
-                    _ => {
-                        let value = self.require(value, &Type::Float, args[0].span)?;
-                        self.float_sign(value)
-                    }
-                }
-            }
-            F::Min | F::Max => {
-                let a = self.value(&args[0])?;
-                let b = self.value(&args[1])?;
-                let max = builtin.function == F::Max;
-                match (self.ty(a).clone(), self.ty(b).clone()) {
-                    (Type::Color, _) if max => {
-                        let b = self.require(b, &Type::Color, args[1].span)?;
-                        self.graph.binary(Binary::ColorMax, a, b)
-                    }
-                    (Type::Int, Type::Int) => {
-                        let op = if max { Binary::IntMax } else { Binary::IntMin };
-                        self.graph.binary(op, a, b)
-                    }
-                    _ => {
-                        let a = self.require(a, &Type::Float, args[0].span)?;
-                        let b = self.require(b, &Type::Float, args[1].span)?;
-                        let op = if max { Binary::Max } else { Binary::Min };
-                        self.graph.binary(op, a, b)
-                    }
-                }
-            }
-            F::Clamp => {
-                let values = [
-                    self.value(&args[0]),
-                    self.value(&args[1]),
-                    self.value(&args[2]),
-                ];
-                let [value, low, high] = [values[0]?, values[1]?, values[2]?];
-                if [value, low, high]
+                let first = fit(&candidates[0], &self.graph);
+                if candidates
                     .iter()
-                    .all(|&node| *self.ty(node) == Type::Int)
+                    .any(|candidate| fit(candidate, &self.graph) != first)
                 {
-                    let raised = self.graph.binary(Binary::IntMax, value, low);
-                    self.graph.binary(Binary::IntMin, raised, high)
-                } else {
-                    let value = self.require(value, &Type::Float, args[0].span)?;
-                    let low = self.require(low, &Type::Float, args[1].span)?;
-                    let high = self.require(high, &Type::Float, args[2].span)?;
-                    self.graph.ternary(Ternary::Clamp, value, low, high)
+                    break;
                 }
-            }
-            F::ValueOr | F::Atan2 => {
-                let a = self.float(&args[0])?;
-                let b = self.float(&args[1])?;
-                let op = if builtin.function == F::ValueOr {
-                    Binary::ValueOr
-                } else {
-                    Binary::Atan2
-                };
-                self.graph.binary(op, a, b)
-            }
-            F::Pow => {
-                let base = self.float(&args[0])?;
-                let exponent = self.value(&args[1])?;
-                // Repeated multiplication is exact; it needs a small,
-                // non-negative count.
-                if *self.ty(exponent) == Type::Int && self.counts(exponent) {
-                    self.graph.binary(Binary::Power, base, exponent)
-                } else {
-                    let exponent = self.require(exponent, &Type::Float, args[1].span)?;
-                    self.graph.binary(Binary::PowerFloat, base, exponent)
+                if first == Some(Fit::Widened) {
+                    nodes[converted] = self.graph.unary(Unary::IntToFloat, nodes[converted]);
                 }
+                converted += 1;
             }
-            F::Rgb | F::Hsv => {
-                let a = self.float(&args[0])?;
-                let b = self.float(&args[1])?;
-                let c = self.float(&args[2])?;
-                let op = if builtin.function == F::Rgb {
-                    Ternary::Rgb
-                } else {
-                    Ternary::Hsv
-                };
-                self.graph.ternary(op, a, b, c)
+        }
+        // A signature every argument fits exactly, else one they fit widened.
+        let exact = |signature: &&super::builtins::Signature, graph: &Graph| {
+            nodes.iter().enumerate().all(|(position, node)| {
+                signature.args[position].1.fit(graph.ty(*node)) == Some(Fit::Exact)
+            })
+        };
+        let signature = candidates
+            .iter()
+            .copied()
+            .find(|signature| exact(signature, &self.graph))
+            .unwrap_or(candidates[0]);
+        for (position, node) in nodes.iter_mut().enumerate().skip(converted) {
+            if signature.args[position].1.fit(self.graph.ty(*node)) == Some(Fit::Widened) {
+                *node = self.graph.unary(Unary::IntToFloat, *node);
             }
-            F::Smoothstep => {
-                let low = self.float(&args[0])?;
-                let high = self.float(&args[1])?;
-                let value = self.float(&args[2])?;
-                let width = self.graph.binary(Binary::Subtract, high, low);
-                let offset = self.graph.binary(Binary::Subtract, value, low);
-                let position = self.graph.binary(Binary::Divide, offset, width);
-                self.graph.unary(Unary::Smoothstep, position)
-            }
-            F::Mix => {
-                let a = self.value(&args[0])?;
-                if *self.ty(a) == Type::Color {
-                    let b = self.typed(&args[1], &Type::Color)?;
-                    let amount = self.float(&args[2])?;
-                    self.graph.ternary(Ternary::MixColor, a, b, amount)
-                } else {
-                    let a = self.require(a, &Type::Float, args[0].span)?;
-                    let b = self.float(&args[1])?;
-                    let amount = self.float(&args[2])?;
-                    self.graph.ternary(Ternary::Mix, a, b, amount)
-                }
-            }
-            F::CurveClamped => {
-                let curve = self.typed(&args[0], &Type::Curve)?;
-                let position = self.float(&args[1])?;
-                let min = self.float(&args[2])?;
-                let max = self.float(&args[3])?;
-                let value = self.graph.binary(Binary::CurveSample, curve, position);
-                self.graph.ternary(Ternary::Clamp, value, min, max)
-            }
-            F::Integral => {
-                let parameter = match &args[0].kind {
-                    ExprKind::Name(name)
-                        if self.frames.is_empty()
-                            && !self.scopes.iter().any(|(bound, _)| bound == name) =>
-                    {
-                        self.params
-                            .iter()
-                            .position(|param| &param.name == name && param.ty == Type::Float)
-                    }
-                    _ => None,
-                };
-                let Some(index) = parameter else {
-                    self.error(
-                        args[0].span,
-                        "`integral` needs the name of a float parameter",
-                    );
-                    return None;
-                };
-                self.graph.add(Op::ParamIntegral(index as u32))
-            }
-            F::CurveIntegral => {
-                let curve = self.typed(&args[0], &Type::Curve)?;
-                let position = self.float(&args[1])?;
-                self.graph.binary(Binary::CurveIntegral, curve, position)
-            }
-            F::GradientColorScaled => {
-                let gradient = self.typed(&args[0], &Type::Gradient)?;
-                let position = self.float(&args[1])?;
-                let scale = self.float(&args[2])?;
-                let (zero, one) = (self.graph.float(0.0), self.graph.float(1.0));
-                let scale = self.graph.ternary(Ternary::Clamp, scale, zero, one);
-                let color = self
-                    .graph
-                    .binary(Binary::GradientSample, gradient, position);
-                self.graph.binary(Binary::ColorScale, color, scale)
-            }
-            F::CurveFirstCrossing => {
-                let curve = self.typed(&args[0], &Type::Curve)?;
-                let value = self.float(&args[1])?;
-                self.graph.binary(Binary::CurveFirstCrossing, curve, value)
-            }
-            F::CurveLastCrossing => {
-                let curve = self.typed(&args[0], &Type::Curve)?;
-                let value = self.float(&args[1])?;
-                let before = self.float(&args[2])?;
-                self.graph
-                    .ternary(Ternary::CurveLastCrossing, curve, value, before)
-            }
-            F::MarkCount => {
-                let marks = self.typed(&args[0], &Type::Marks)?;
-                self.graph.unary(Unary::MarkCount, marks)
-            }
-            F::MarkAt => {
-                let marks = self.typed(&args[0], &Type::Marks)?;
-                let index = self.int(&args[1])?;
-                self.graph.binary(Binary::MarkAt, marks, index)
-            }
-            F::MarkLast | F::MarkLastIndex => {
-                let marks = self.typed(&args[0], &Type::Marks)?;
-                let time = self.float(&args[1])?;
-                let op = if builtin.function == F::MarkLast {
-                    Binary::MarkLast
-                } else {
-                    Binary::MarkLastIndex
-                };
-                self.graph.binary(op, marks, time)
-            }
-            F::Len => {
-                let value = self.value(&args[0])?;
-                match self.ty(value) {
-                    Type::Array(_) => self.graph.unary(Unary::Len, value),
-                    Type::Marks => self.graph.unary(Unary::MarkCount, value),
-                    ty => {
-                        let message =
-                            format!("`len` needs an array or marks, found {}", describe(ty));
-                        self.error(args[0].span, message);
-                        return None;
-                    }
-                }
-            }
-            F::SectionCount | F::SectionIndex => {
-                let width = self.int(&args[0])?;
-                let op = if builtin.function == F::SectionCount {
-                    Unary::SectionCount
-                } else {
-                    Unary::SectionIndex
-                };
-                self.graph.unary(op, width)
-            }
-            F::SectionPosition => {
-                let width = self.float(&args[0])?;
-                let one = self.graph.float(1.0);
-                let width = self.graph.binary(Binary::Max, width, one);
-                let inverse = self.graph.binary(Binary::Divide, one, width);
-                self.graph.binary(Binary::SectionPosition, width, inverse)
-            }
+        }
+        Some(match signature.lowering {
+            Lowering::Unary(op) => self.graph.unary(op, nodes[0]),
+            Lowering::Binary(op) => self.graph.binary(op, nodes[0], nodes[1]),
+            Lowering::Ternary(op) => self.graph.ternary(op, nodes[0], nodes[1], nodes[2]),
+            Lowering::Expand(expand) => expand(self, &nodes),
+            Lowering::Integral => unreachable!("`integral` takes a parameter name"),
         })
     }
 
+    /// `integral(parameter)`: the argument names a float parameter.
+    fn integral(&mut self, arg: &Expr) -> Checked<Node> {
+        let parameter = match &arg.kind {
+            ExprKind::Name(name)
+                if self.frames.is_empty()
+                    && !self.scopes.iter().any(|(bound, ..)| bound == name) =>
+            {
+                self.params
+                    .iter()
+                    .position(|param| &param.value.name == name && param.value.ty == Type::Float)
+            }
+            _ => None,
+        };
+        let Some(index) = parameter else {
+            self.error(arg.span, "`integral` needs the name of a float parameter");
+            return None;
+        };
+        self.refer_symbol(arg.span, self.params[index].symbol);
+        Some(self.graph.add(Op::ParamIntegral(index as u32)))
+    }
+
     /// -1, 0 or 1 by sign; zeros and NaN pass through.
-    fn float_sign(&mut self, value: Node) -> Node {
+    pub(crate) fn float_sign(&mut self, value: Node) -> Node {
         let zero = self.graph.float(0.0);
         let positive = self.graph.binary(Binary::Greater, value, zero);
         let negative = self.graph.binary(Binary::Less, value, zero);
@@ -1618,11 +1779,11 @@ impl Checker {
     }
 
     /// Whether an int is provably a small non-negative count.
-    fn counts(&self, node: Node) -> bool {
+    pub(crate) fn counts(&self, node: Node) -> bool {
         if self.standalone {
             return false;
         }
-        let ranges = param_ranges(&self.params);
+        let ranges = param_ranges(self.params.iter().map(|param| &param.value));
         let lengths = vec![None; self.params.len()];
         let range = interval(
             &self.graph,
@@ -1665,7 +1826,7 @@ impl Checker {
         }
         let bound = bound
             .into_iter()
-            .map(|(name, node)| Some((name, node?)))
+            .map(|(name, node)| Some((name, node?, None)))
             .collect::<Option<Vec<_>>>()?;
         let result = resolve_type(&function.result).ok()?;
         let caller = core::mem::replace(&mut self.scopes, bound);
@@ -1679,9 +1840,8 @@ impl Checker {
     }
 }
 
-fn param_ranges(params: &[ParamDecl]) -> Vec<Option<(f64, f64)>> {
+fn param_ranges<'a>(params: impl Iterator<Item = &'a ParamDecl>) -> Vec<Option<(f64, f64)>> {
     params
-        .iter()
         .map(|param| match (&param.ty, param.range) {
             (Type::Int, Some(ParamRange::Int { min, max })) => {
                 Some((f64::from(min), f64::from(max)))
@@ -1823,16 +1983,16 @@ fn number(kind: &LiteralKind) -> Option<f32> {
 
 pub(crate) fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
     Ok(match &ty.kind {
-        TypeKind::Named(name) => match name.as_str() {
-            "int" => Type::Int,
-            "float" => Type::Float,
-            "bool" => Type::Bool,
-            "color" => Type::Color,
-            "curve" => Type::Curve,
-            "gradient" => Type::Gradient,
-            "marks" => Type::Marks,
-            other => {
-                return Err(Diagnostic::new(ty.span, format!("unknown type `{other}`")));
+        TypeKind::Named(name) => match NAMED_TYPES
+            .iter()
+            .find(|(candidate, _)| *candidate == name.as_str())
+        {
+            Some((_, ty)) => ty.clone(),
+            None => {
+                return Err(Diagnostic::new(
+                    ty.span,
+                    format!("unknown type `{}`", name.as_str()),
+                ));
             }
         },
         TypeKind::Enum(options) => {
@@ -1861,34 +2021,6 @@ pub(crate) fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
             item => Type::array(item),
         },
     })
-}
-
-fn describe(ty: &Type) -> String {
-    match ty {
-        Type::Void => "nothing".into(),
-        Type::Int => "an int".into(),
-        Type::Float => "a float".into(),
-        Type::Bool => "a bool".into(),
-        Type::Color => "a color".into(),
-        Type::Signal => "a signal".into(),
-        Type::Marks => "marks".into(),
-        Type::Curve => "a curve".into(),
-        Type::Gradient => "a gradient".into(),
-        Type::Array(item) => format!(
-            "an array of {}",
-            describe(item)
-                .trim_start_matches("a ")
-                .trim_start_matches("an ")
-        ),
-        Type::Enum(options) => format!(
-            "an enum of {}",
-            options
-                .iter()
-                .map(|option| option.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    }
 }
 
 fn operator_text(op: BinaryOp) -> &'static str {

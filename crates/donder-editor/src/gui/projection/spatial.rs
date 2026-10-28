@@ -1,13 +1,13 @@
+use crate::dto::{
+    FixtureGuiDocument, GeometryRenderBounds, GuiDocument, GuiFixtureHandle, GuiFixtureSource,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, LayoutGuiDocument, OwnedObjectSlot,
+    Point3Meters, SpatialRenderPixel, SpatialRenderPlan,
+};
 use crate::gui::{ResolvedGuiObject, blocked};
 use donder_model::FixtureDefinitionId;
 use donder_model::PreparedFixtureDefinitions;
 use donder_model::{LayoutFixture, LayoutFixtureKind, LayoutId};
-use donder_project_io::{ProjectSession, SourceObjectKind};
-use donder_sequence_api::{
-    FixtureGuiDocument, GeometryRenderBounds, GuiDocument, GuiFixtureHandle, GuiFixtureSource,
-    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep, LayoutGuiDocument,
-    Point3Meters, SpatialRenderPixel, SpatialRenderPlan,
-};
+use donder_project_io::ProjectSession;
 
 pub(in crate::gui) fn project_fixture(
     session: &ProjectSession,
@@ -17,28 +17,17 @@ pub(in crate::gui) fn project_fixture(
         [] => {
             let Some(value) = session
                 .project
-                .definitions()
-                .fixtures
-                .definitions
-                .get(&FixtureDefinitionId(resolved.identity.clone()))
+                .reusable::<donder_model::FixtureDefinition>()
+                .get(&resolved.id::<FixtureDefinitionId>())
             else {
                 return blocked("Fixture was not found.", Vec::new());
             };
             (value, resolved.identity.object().to_string())
         }
-        [parent @ .., GuiOwnedStep::Fixture { id }] => {
-            let parent = parent.iter().fold(
-                donder_model::ObjectIdentity::from(resolved.identity.clone()),
-                |address, step| {
-                    address.owned(
-                        step.try_into()
-                            .unwrap_or_else(|_| unreachable!("projected owned paths are valid")),
-                    )
-                },
-            );
+        [.., OwnedObjectSlot::Fixture { id }] => {
             let Some(placement) = session
                 .project
-                .layout(&LayoutId(parent))
+                .get::<donder_model::Layout>(resolved.id::<LayoutId>())
                 .and_then(|layout| layout.fixture(donder_model::FixtureInstanceId(*id)))
             else {
                 return blocked("Fixture was not found.", Vec::new());
@@ -111,11 +100,15 @@ pub(in crate::gui) fn project_layout(
 ) -> GuiDocument {
     let Some(layout) = session
         .project
-        .layout(&LayoutId(resolved.object_identity()))
+        .get::<donder_model::Layout>(resolved.id::<LayoutId>())
     else {
         return blocked("Layout was not found.", Vec::new());
     };
-    let definitions = PreparedFixtureDefinitions::prepare(&session.project.definitions().fixtures);
+    let definitions = PreparedFixtureDefinitions::prepare(
+        session
+            .project
+            .reusable::<donder_model::FixtureDefinition>(),
+    );
     let prepared = definitions.prepare_layout(layout);
     let mut pixels = Vec::new();
     for instance in prepared.instances {
@@ -135,28 +128,26 @@ pub(in crate::gui) fn project_layout(
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
-            fixtures: layout.fixtures.iter().map(fixture).collect(),
+            fixtures: layout
+                .fixtures
+                .iter()
+                .map(|value| fixture(session, value))
+                .collect(),
             root: layout.root.iter().map(|member| member.0).collect(),
             available_fixtures: crate::gui::ownership::available_sources(
                 session,
-                resolved.identity.document_id(),
-                &[SourceObjectKind::FixtureDefinition],
+                &[donder_model::ObjectKind::FixtureDefinition],
             ),
             render_plan: render_plan(pixels),
         },
     }
 }
 
-pub(crate) fn definition_ref(id: &FixtureDefinitionId) -> GuiObjectRef {
-    ResolvedGuiObject {
-        owned_path: Vec::new(),
-        identity: id.0.clone(),
-        kind: SourceObjectKind::FixtureDefinition,
-    }
-    .source_ref()
+pub(crate) fn definition_ref(session: &ProjectSession, id: &FixtureDefinitionId) -> GuiObjectRef {
+    crate::gui::model::object_ref(session, *id)
 }
 
-fn fixture(fixture: &LayoutFixture) -> GuiLayoutFixture {
+fn fixture(session: &ProjectSession, fixture: &LayoutFixture) -> GuiLayoutFixture {
     GuiLayoutFixture {
         id: fixture.id.0,
         name: fixture.name.as_str().to_string(),
@@ -175,7 +166,7 @@ fn fixture(fixture: &LayoutFixture) -> GuiLayoutFixture {
                             .collect(),
                     },
                     donder_model::FixtureSource::Reference(id) => GuiFixtureSource::Reference {
-                        source: definition_ref(id),
+                        source: definition_ref(session, id),
                     },
                 },
                 transform: crate::gui::fixture::gui_transform(value),

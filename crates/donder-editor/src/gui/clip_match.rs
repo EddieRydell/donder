@@ -1,9 +1,9 @@
+use crate::dto::{
+    GuiDocumentRequest, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch,
+    SequenceEffectParam, SequenceEffectParamValue, SequenceSelection,
+};
 use donder_model::{EffectInst, FixtureTarget, SequenceId};
 use donder_project_io::ProjectSession;
-use donder_sequence_api::{
-    DocumentViewId, GuiDocumentRequest, SequenceClipMatchRequest, SequenceClipParamMatch,
-    SequenceClipTimeMatch, SequenceEffectParam, SequenceEffectParamValue, SequenceSelection,
-};
 
 use super::projection::effect_params;
 use super::resolve_request;
@@ -24,13 +24,13 @@ pub fn matching_sequence_clips(
     request: &GuiDocumentRequest,
     query: &SequenceClipMatchRequest,
 ) -> Result<SequenceSelection, String> {
-    if request.view != DocumentViewId::Sequence {
+    let resolved = resolve_request(session, request)?;
+    if resolved.kind != donder_model::ObjectKind::Sequence {
         return Err("Clip matching belongs to sequence documents.".into());
     }
-    let resolved = resolve_request(session, request)?;
     let sequence = session
         .project
-        .sequence(&SequenceId(resolved.object_identity()))
+        .get::<donder_model::Sequence>(resolved.id::<SequenceId>())
         .ok_or("Sequence is not available in the checked project model.")?;
     let seconds = |nanos: u128| nanos as f64 / 1e9;
     let effects: Vec<MatchClip> = sequence
@@ -77,15 +77,16 @@ pub fn matching_sequence_clips(
             })
             .collect()
     };
+    let (effect_ids, automation_ids) = super::selection::split_clips(&query.clips);
     // Automation seeds take part only when automation clips do.
-    let seeds: Vec<&MatchClip> = seed(&effects, &query.effect_ids)?
+    let seeds: Vec<&MatchClip> = seed(&effects, &effect_ids)?
         .into_iter()
         .map(|index| &effects[index])
         .chain(
             seed(
                 &automation,
                 if query.criteria.automation_clips {
-                    &query.automation_ids
+                    &automation_ids
                 } else {
                     &[]
                 },
@@ -102,8 +103,7 @@ pub fn matching_sequence_clips(
             .collect()
     };
     Ok(SequenceSelection::Clips {
-        effect_ids: matching(&effects),
-        automation_ids: matching(&automation),
+        clips: super::selection::clip_refs(&matching(&effects), &matching(&automation)),
     })
 }
 

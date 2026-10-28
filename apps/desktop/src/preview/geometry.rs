@@ -10,12 +10,14 @@ pub(crate) struct PreviewGeometry {
 impl PreviewGeometry {
     pub(crate) fn from_project(project: &DonderProject) -> Result<Self, String> {
         let setup = project
-            .setup(project.root().setup.id())
+            .get::<donder_model::Setup>(*project.root().setup.id())
             .ok_or_else(|| "Preview setup was not found.".to_string())?;
         let layout = project
-            .layout(setup.layout.id())
+            .get::<donder_model::Layout>(*setup.layout.id())
             .ok_or_else(|| "Preview layout was not found.".to_string())?;
-        let definitions = PreparedFixtureDefinitions::prepare(&project.definitions().fixtures);
+        let definitions = PreparedFixtureDefinitions::prepare(
+            project.reusable::<donder_model::FixtureDefinition>(),
+        );
         let layout = definitions.prepare_layout(layout);
         let mut instances = Vec::new();
         let mut fixtures = Vec::new();

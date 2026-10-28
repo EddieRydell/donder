@@ -1,7 +1,7 @@
 //! Runtime output encodings admitted with their authored patch and route IDs.
 use super::DonderProject;
 use crate::patch::{PatchId, PixelRouteId};
-use crate::validation::ProjectValidationError;
+use crate::validation::{AdmissionProblem, ProjectValidationError, ValidationProblem, at};
 use donder_runtime_types::OutputEncoding;
 use indexmap::IndexMap;
 use std::fmt;
@@ -23,22 +23,20 @@ pub(super) fn admit(
     project: &DonderProject,
 ) -> Result<IndexMap<PatchId, PatchEncodings>, ProjectValidationError> {
     project
-        .patches()
+        .objects::<crate::Patch>()
         .map(|patch| {
             let routes = patch
                 .routes
                 .iter()
                 .map(|route| {
-                    let encoding = OutputEncoding::admit(route.encoding).ok_or_else(|| {
-                        ProjectValidationError::InvalidRelationship(format!(
-                            "Invalid output encoding for route {} in patch {:?}",
-                            route.id.0, patch.id
-                        ))
-                    })?;
+                    let encoding = OutputEncoding::admit(route.encoding).ok_or(
+                        ValidationProblem::Admission(AdmissionProblem::InvalidEncoding(route.id)),
+                    )?;
                     Ok((route.id, encoding))
                 })
-                .collect::<Result<_, ProjectValidationError>>()?;
-            Ok((patch.id.clone(), PatchEncodings { routes }))
+                .collect::<Result<_, ValidationProblem>>()
+                .map_err(at(patch.id))?;
+            Ok((patch.id, PatchEncodings { routes }))
         })
         .collect()
 }

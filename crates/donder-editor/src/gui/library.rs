@@ -2,16 +2,14 @@ use donder_model::{CurveId, GradientId};
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked, model};
-use donder_sequence_api::{
+use crate::dto::{
     CurveGuiDocument, GradientGuiDocument, GuiDocument, SequenceCurvePoint, SequenceGradientStop,
 };
 
 pub(super) fn project_curve(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
     let Some(definition) = session
         .project
-        .definitions()
-        .curves
-        .get(&CurveId(resolved.identity.clone()))
+        .get::<donder_model::CurveDefinition>(resolved.id::<CurveId>())
     else {
         return blocked("Curve definition was not found.", Vec::new());
     };
@@ -31,9 +29,7 @@ pub(super) fn project_gradient(
 ) -> GuiDocument {
     let Some(definition) = session
         .project
-        .definitions()
-        .gradients
-        .get(&GradientId(resolved.identity.clone()))
+        .get::<donder_model::GradientDefinition>(resolved.id::<GradientId>())
     else {
         return blocked("Gradient definition was not found.", Vec::new());
     };
@@ -54,10 +50,8 @@ pub(super) fn edit_curve(
 ) -> Result<(), GuiMutationError> {
     let mut definition = session
         .project
-        .definitions()
-        .curves
-        .definitions
-        .get(&CurveId(resolved.identity.clone()))
+        .reusable::<donder_model::CurveDefinition>()
+        .get(&resolved.id::<CurveId>())
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Curve definition was not found.".into()))?;
     let curve = model::curve_from_points(points);
@@ -67,11 +61,11 @@ pub(super) fn edit_curve(
     definition.curve = curve;
     session
         .project
-        .apply_edits([donder_model::ProjectEdit::SetCurveDefinition {
-            id: CurveId(resolved.identity.clone()),
-            value: definition,
-        }])
-        .map_err(GuiMutationError::Invalid)
+        .apply_edits([donder_model::ProjectEdit::Put(donder_model::Object::Curve(
+            resolved.id::<CurveId>(),
+            definition,
+        ))])
+        .map_err(GuiMutationError::from)
 }
 
 pub(super) fn edit_gradient(
@@ -81,10 +75,8 @@ pub(super) fn edit_gradient(
 ) -> Result<(), GuiMutationError> {
     let mut definition = session
         .project
-        .definitions()
-        .gradients
-        .definitions
-        .get(&GradientId(resolved.identity.clone()))
+        .reusable::<donder_model::GradientDefinition>()
+        .get(&resolved.id::<GradientId>())
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Gradient definition was not found.".into()))?;
     let gradient = model::gradient_from_stops(stops)?;
@@ -94,9 +86,8 @@ pub(super) fn edit_gradient(
     definition.gradient = gradient;
     session
         .project
-        .apply_edits([donder_model::ProjectEdit::SetGradientDefinition {
-            id: GradientId(resolved.identity.clone()),
-            value: definition,
-        }])
-        .map_err(GuiMutationError::Invalid)
+        .apply_edits([donder_model::ProjectEdit::Put(
+            donder_model::Object::Gradient(resolved.id::<GradientId>(), definition),
+        )])
+        .map_err(GuiMutationError::from)
 }

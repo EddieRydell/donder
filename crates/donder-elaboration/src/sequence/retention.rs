@@ -6,8 +6,8 @@ use donder_runtime_types::{FixtureGeometry, TargetGeometry};
 use indexmap::IndexMap;
 use std::collections::{BTreeSet, HashSet};
 
-pub(crate) fn cells<'a>(
-    operators: impl Iterator<Item = AcceptedOperatorInputs<'a>>,
+pub(crate) fn cells(
+    operators: &[AcceptedOperatorInputs<'_>],
     geometry: &[FixtureGeometry],
     routes: &IndexMap<PixelRouteId, TargetGeometry>,
     dependencies: &HashSet<CompositionGraphNodeId>,
@@ -28,6 +28,7 @@ pub(crate) fn cells<'a>(
     // Reads of other pixels of a fixture can address every original cell of
     // the selected fixtures.
     let local = operators
+        .iter()
         .filter(|operator| dependencies.contains(&operator.node().id))
         .any(|operator| operator.invocation().reads_fixture_pixels());
     if local {

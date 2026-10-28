@@ -3722,16 +3722,6 @@ html.donder-app-shell :is(
   border: 0;
 }
 
-.resource-editor-readonly {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--donder-space-8);
-  margin: 0;
-  padding: var(--donder-space-5) var(--donder-space-8);
-  color: var(--donder-text-muted);
-}
-
 .dialog-content.resource-editor-dialog {
   width: min(1200px, calc(100vw - var(--donder-space-14) * 2));
   height: min(840px, calc(100vh - var(--donder-space-14) * 2));

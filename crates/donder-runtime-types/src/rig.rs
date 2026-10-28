@@ -5,7 +5,7 @@
 use crate::SampleTime;
 
 /// Indices of a prepared rig's voices, live mark collections and controls.
-#[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RigCommand {
     /// Start a voice from its beginning, restarting it if it is playing.
     Start { voice: u16 },
@@ -17,9 +17,8 @@ pub enum RigCommand {
     Control { control: u16, value: f32 },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RigEvent {
-    #[rkyv(with = crate::Microseconds)]
     pub time: SampleTime,
     pub command: RigCommand,
 }

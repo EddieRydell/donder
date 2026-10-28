@@ -51,7 +51,7 @@ pub fn save_project(session: &ProjectSession) -> Result<SaveReport, ExportProjec
 
 pub fn source_document_text(
     session: &ProjectSession,
-    document_id: &donder_model::DocumentId,
+    document_id: &crate::DocumentId,
 ) -> Result<Option<String>, ExportProjectError> {
     Ok(source_document_texts(
         session,
@@ -66,7 +66,7 @@ pub fn source_document_text(
 /// prints after every edit reprints only the clips that changed.
 pub fn source_document_texts(
     session: &ProjectSession,
-    documents: &[donder_model::DocumentId],
+    documents: &[crate::DocumentId],
     cache: &mut DocumentTextCache,
 ) -> Result<Vec<Option<String>>, ExportProjectError> {
     serialization::validate_source_inventory(session)?;

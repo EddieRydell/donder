@@ -26,75 +26,76 @@ mod project;
 mod rig;
 mod sequence;
 mod setup;
-mod source_remap;
 mod validation;
 
 pub use controller::{
-    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
-    ControllerPortId, ControllerProtocol, ControllerSource, ControllerValidationError,
-    DonderConfig, DonderDeviceId, E131Config, E131Mode,
+    ArtNetConfig, ArtNetMode, Controller, ControllerPort, ControllerPortAddress, ControllerPortId,
+    ControllerProtocol, ControllerSource, ControllerValidationError, DonderConfig, DonderDeviceId,
+    E131Config, E131Mode,
 };
 pub use effect::{
-    CurveDefinition, CurveDefinitionStore, CurveId, CurveSource, EffectDefinition,
-    EffectDefinitionId, EffectDefinitionStore, EffectImplementation, EffectInst, EffectInstId,
-    EffectParamValue, EffectRef, EffectScope, GradientDefinition, GradientDefinitionStore,
-    GradientId, GradientSource,
+    CurveDefinition, CurveSource, EffectDefinition, EffectInst, EffectInstId, EffectParamValue,
+    EffectScope, GradientDefinition, GradientSource,
 };
 pub use fixture::{
-    FixtureDefinition, FixtureDefinitionError, FixtureDefinitionId, FixtureDefinitions,
-    FixtureElement, FixtureElementId, FixtureGeometryError, FixtureShape, FixtureSource,
-    FixtureTransform, GridAxis, GridCorner,
+    FixtureDefinition, FixtureDefinitionError, FixtureElement, FixtureElementId,
+    FixtureGeometryError, FixtureShape, FixtureSource, FixtureTransform, GridAxis, GridCorner,
+    fixture_pixel_counts,
 };
 pub use geometry::{
     InvalidFixtureElement, PreparedFixtureDefinitions, PreparedFixtureInstance, PreparedLayout,
     PreparedPixel, element_handles, element_pixels, fixture_transform, prepare_geometry,
 };
-pub use identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
+pub use identity::{
+    ControllerId, CurveId, EffectDefinitionId, FixtureDefinitionId, GradientId, InputDeviceId,
+    LayoutId, ObjectId, ObjectKind, OperatorDefinitionId, PatchId, ProjectId, RigId, SequenceId,
+    SetupId,
+};
 pub use input_device::{
     ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDeviceSource, InputDeviceValidationError, InputDriver,
-    InputSource, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, OscAddress,
+    InputDevice, InputDeviceSource, InputDeviceValidationError, InputDriver, InputSource, KeyCode,
+    KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, OscAddress,
 };
 pub use layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
-    LayoutId, LayoutSource,
+    LayoutSource,
 };
 pub use operator::{
-    GraphOperatorNode, GraphValidationError, OperatorDefinition, OperatorDefinitionId,
-    OperatorDefinitionStore, OperatorImplementation, OperatorPortDefinition, OperatorRef,
-    composition_graph_output_dependencies, custom_operator_definition, effect_param_matches_type,
-    validate_composition_graph,
+    GraphOperatorNode, GraphValidationError, OperatorDefinition, OperatorPortDefinition,
+    composition_graph_output_dependencies, effect_param_matches_type, validate_composition_graph,
 };
 pub use ownership::edit::{
     OwnershipSite, add_rig, add_sequence, duplicate_layout_fixture, make_independent,
     make_reusable, use_existing,
 };
-pub use ownership::{Identified, ValueSource};
-pub use patch::{Patch, PatchId, PatchSource, PixelRoute, PixelRouteId, PixelSpan};
+pub use ownership::{Identified, MemberSource, ValueSource};
+pub use patch::{Patch, PatchSource, PixelRoute, PixelRouteId, PixelSpan};
 pub use project::{
     AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigEffect, AcceptedSequence,
-    DonderProject, ProjectData, ProjectDefinitionStores, ProjectEdit, ProjectId, ProjectRoot,
-    RIG_SESSION, RigBinding, RigEffectOrigin,
+    DonderProject, EditError, EditRejection, Object, ProjectData, ProjectEdit, ProjectObject,
+    ProjectRoot, RIG_SESSION, Reusable, RigBinding, RigEffectOrigin,
 };
 pub use rig::{
     ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, PlayedSource,
-    PlayedValue, Rig, RigEffect, RigId, RigMappingId, RigSource, RigSwitchId, RigVoiceId, Switch,
-    Trigger, TriggerLength, Voice, VoicePolicy, When,
+    PlayedValue, Rig, RigEffect, RigMappingId, RigSource, RigSwitchId, RigVoiceId, Switch, Trigger,
+    TriggerLength, Voice, VoicePolicy, When,
 };
 pub use sequence::{
-    AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
-    AutomationEnvelope, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
-    CompositionGraphNodeKind, DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition,
-    GraphPortId, Mark, MarkCollection, MarkCollectionKey, Sequence, SequenceAudio,
-    SequenceCompositionGraph, SequenceId, SequenceLayer, SequenceLayerId, SequenceSource,
-    automation_curve_is_normalized, automation_value_at,
+    AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationEnvelope,
+    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
+    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, Mark,
+    MarkCollection, MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph,
+    SequenceLayer, SequenceLayerId, SequenceSource, automation_curve_is_normalized,
+    automation_value_at,
 };
 pub use setup::authoring::{
     attach_controller, attach_input_device, detach_controller, detach_input_device,
 };
-pub use setup::{Setup, SetupId, SetupSource};
-pub use source_remap::{remap_document_paths, remap_identity, remap_object_identity};
+pub use setup::{Setup, SetupSource};
 pub use validation::{
-    ProjectValidationError, SequenceValidationError, automation_target_param, validate_project,
-    validate_rig, validate_sequence,
+    AdmissionProblem, AutomationProblem, CompositionProblem, EffectProblem, InputProblem,
+    MappingProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem, ProblemSite,
+    ProjectValidationError, RegionProblem, RigValidationError, RouteProblem,
+    SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
+    automation_target_param, validate_project, validate_rig, validate_sequence,
 };

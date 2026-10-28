@@ -3,20 +3,20 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use donder_sequence_api::{
+use donder_editor::dto::{
     AppSettings, AppSnapshot, PlaybackRange, WorkspaceExplorerState, WorkspaceLayoutState,
 };
 
 pub(crate) const VERSION: u32 = 2;
 
-pub use donder_sequence_api::{
+pub use donder_editor::dto::{
     PersistedEditorViewState, PersistedEditorViewStateUpdate, PersistedGraphViewState,
     PersistedGraphViewStateUpdate, PersistedPreviewWindowState, PersistedSequenceViewportState,
     PersistedSequenceViewportStateUpdate, PersistedSpatialViewState,
     PersistedSpatialViewStateUpdate, PersistedWindowState, ProjectRestoreState,
 };
 #[cfg(test)]
-pub use donder_sequence_api::{SpatialGuide, SpatialGuideAxis};
+pub use donder_editor::dto::{SpatialGuide, SpatialGuideAxis};
 #[derive(Debug, Clone)]
 pub struct ProjectSessionRestore {
     pub session: PersistedProjectSession,

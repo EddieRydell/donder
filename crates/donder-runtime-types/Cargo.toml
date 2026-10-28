@@ -10,7 +10,6 @@ license = "MIT"
 atomic = []
 
 [dependencies]
-rkyv.workspace = true
 bytemuck.workspace = true
 libm.workspace = true
 micromath.workspace = true

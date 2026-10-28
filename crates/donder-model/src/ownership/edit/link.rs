@@ -1,169 +1,180 @@
 use super::*;
-use crate::controller::ControllerId;
 
 /// Replace a membership with a reusable source, rejecting incompatible routing
 /// or dangling targets without changing the accepted project.
 pub fn use_existing(
     project: &mut DonderProject,
     site: &OwnershipSite,
-    source: SourceIdentity,
-) -> Result<(), String> {
-    project.checked_edit(|project| use_existing_candidate(project, site, source))
+    source: ObjectId,
+    name_of: &dyn Fn(ObjectId) -> Option<Identifier>,
+) -> Result<(), crate::EditError> {
+    project.checked_edit(|project| {
+        let slot = site.slot(project)?;
+        use_existing_candidate(project, &slot, source, name_of)
+    })
 }
 
 fn use_existing_candidate(
     project: &mut DonderProject,
-    site: &OwnershipSite,
-    source: SourceIdentity,
-) -> Result<(), String> {
-    let target = ObjectIdentity::from(source.clone());
-    match site {
-        OwnershipSite::ProjectSetup => {
-            let id = SetupId(target);
-            let replacement = project.setups.get(&id).ok_or("Choose a reusable setup.")?;
-            let to = replacement.layout.id().clone();
+    site: &Slot,
+    source: ObjectId,
+    name_of: &dyn Fn(ObjectId) -> Option<Identifier>,
+) -> Result<(), EditRejection> {
+    match (site, source) {
+        (Slot::ProjectSetup, ObjectId::Setup(id)) => {
+            let replacement = project
+                .setups
+                .get(&id)
+                .ok_or(EditRejection::ChooseReusable(ObjectKind::Setup))?;
+            let to = *replacement.layout.id();
             let current = project
-                .setup(project.root.setup.id())
-                .ok_or("Setup was not found.")?;
-            let from = current.layout.id().clone();
+                .get::<crate::Setup>(*project.root.setup.id())
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
+            let from = *current.layout.id();
             let retires_layout = matches!(project.root.setup, ValueSource::Inline(_))
                 && matches!(current.layout, ValueSource::Inline(_));
             if from != to {
+                let renames = Renames::of(from, to);
                 if retires_layout {
-                    retarget(project, &from.0, &to.0);
+                    retarget(project, &renames);
                 } else {
-                    retarget_active_members(project, &from, &to)?;
+                    follow_active(project, &renames, name_of)?;
                 }
             }
             project.root.setup = ValueSource::Reference(id);
         }
-        OwnershipSite::ProjectSequence(index) => {
-            let id = SequenceId(target);
+        (Slot::ProjectSequence(index), ObjectId::Sequence(id)) => {
             if !project.sequences.contains_key(&id) {
-                return Err("Choose a reusable sequence.".into());
+                return Err(EditRejection::ChooseReusable(ObjectKind::Sequence));
             }
             *project
                 .root
                 .sequences
                 .get_mut(*index)
-                .ok_or("Sequence was not found.")? = ValueSource::Reference(id);
+                .ok_or(EditRejection::Missing(ObjectKind::Sequence))? = MemberSource::Reference(id);
         }
-        OwnershipSite::ProjectRig(index) => {
-            let id = RigId(target);
+        (Slot::ProjectRig(index), ObjectId::Rig(id)) => {
             if !project.rigs.contains_key(&id) {
-                return Err("Choose a reusable rig.".into());
+                return Err(EditRejection::ChooseReusable(ObjectKind::Rig));
             }
             *project
                 .root
                 .rigs
                 .get_mut(*index)
-                .ok_or("Rig was not found.")? = ValueSource::Reference(id);
+                .ok_or(EditRejection::Missing(ObjectKind::Rig))? = MemberSource::Reference(id);
         }
-        OwnershipSite::SetupInputDevice { setup, index } => {
-            let id = InputDeviceId(target);
+        (Slot::SetupInputDevice { setup, index }, ObjectId::InputDevice(id)) => {
             if !project.input_devices.contains_key(&id) {
-                return Err("Choose a reusable input device.".into());
+                return Err(EditRejection::ChooseReusable(ObjectKind::InputDevice));
             }
-            let current = project.setup(setup).ok_or("Setup was not found.")?;
+            let current = project
+                .get::<crate::Setup>(*setup)
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
             let current = current
                 .input_devices
                 .get(*index)
-                .ok_or("Input device was not found.")?;
-            let from = current.id().0.clone();
-            if from == id.0 {
+                .ok_or(EditRejection::Missing(ObjectKind::InputDevice))?;
+            let from = *current.id();
+            if from == id {
                 return Ok(());
             }
-            let retires_device = matches!(current, ValueSource::Inline(_));
+            let retires_device = matches!(current, MemberSource::Inline { .. });
             project
-                .setup_mut(setup)
-                .ok_or("Setup was not found.")?
-                .input_devices[*index] = ValueSource::Reference(id.clone());
+                .find_mut::<crate::Setup>(*setup)
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?
+                .input_devices[*index] = MemberSource::Reference(id);
             if retires_device {
-                retarget(project, &from, &id.0);
+                retarget(project, &Renames::of(from, id));
             }
         }
-        OwnershipSite::SetupPatch(setup) => {
-            let id = PatchId(target);
+        (Slot::SetupPatch(setup), ObjectId::Patch(id)) => {
             if !project.patches.contains_key(&id) {
-                return Err("Choose a reusable patch.".into());
+                return Err(EditRejection::ChooseReusable(ObjectKind::Patch));
             }
             project
-                .setup_mut(setup)
-                .ok_or("Setup was not found.")?
+                .find_mut::<crate::Setup>(*setup)
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?
                 .patch = ValueSource::Reference(id);
         }
-        OwnershipSite::SetupLayout(setup) => {
-            let id = LayoutId(target);
+        (Slot::SetupLayout(setup), ObjectId::Layout(id)) => {
             if !project.layouts.contains_key(&id) {
-                return Err("Choose a reusable layout.".into());
+                return Err(EditRejection::ChooseReusable(ObjectKind::Layout));
             }
-            let current = project.setup(setup).ok_or("Setup was not found.")?;
-            let from = current.layout.id().clone();
+            let current = project
+                .get::<crate::Setup>(*setup)
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
+            let from = *current.layout.id();
             if from == id {
                 return Ok(());
             }
             let retires_layout = matches!(current.layout, ValueSource::Inline(_));
+            let renames = Renames::of(from, id);
             copy_patch_if_linked(project, setup)?;
-            let current = project.setup_mut(setup).ok_or("Setup was not found.")?;
-            current.layout = ValueSource::Reference(id.clone());
-            for route in &mut current
-                .patch
-                .inline_mut()
-                .ok_or("Independent patch was not found.")?
-                .routes
-            {
-                route.target.layout.0.rebase(&from.0, &id.0);
-            }
+            let current = project
+                .find_mut::<crate::Setup>(*setup)
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
+            current.layout = ValueSource::Reference(id);
+            renames.apply(
+                current
+                    .patch
+                    .inline_mut()
+                    .ok_or(EditRejection::Missing(ObjectKind::Patch))?,
+            );
             if retires_layout {
-                retarget(project, &from.0, &id.0);
+                retarget(project, &renames);
             } else if project.root.setup.id() == setup {
-                retarget_active_members(project, &from, &id)?;
+                follow_active(project, &renames, name_of)?;
             }
         }
-        OwnershipSite::SetupController { setup, index } => {
-            let id = ControllerId(target);
+        (Slot::SetupController { setup, index }, ObjectId::Controller(id)) => {
             if !project.controllers.contains_key(&id) {
-                return Err("Choose a reusable controller.".into());
+                return Err(EditRejection::ChooseReusable(ObjectKind::Controller));
             }
-            let current = project.setup(setup).ok_or("Setup was not found.")?;
+            let current = project
+                .get::<crate::Setup>(*setup)
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
             let current = current
                 .controllers
                 .get(*index)
-                .ok_or("Controller was not found.")?;
-            let from = current.id().0.clone();
-            if from == id.0 {
+                .ok_or(EditRejection::Missing(ObjectKind::Controller))?;
+            let from = *current.id();
+            if from == id {
                 return Ok(());
             }
-            let retires_controller = matches!(current, ValueSource::Inline(_));
+            let retires_controller = matches!(current, MemberSource::Inline { .. });
+            let renames = Renames::of(from, id);
             copy_patch_if_linked(project, setup)?;
-            let current = project.setup_mut(setup).ok_or("Setup was not found.")?;
-            current.controllers[*index] = ValueSource::Reference(id.clone());
-            for route in &mut current
-                .patch
-                .inline_mut()
-                .ok_or("Independent patch was not found.")?
-                .routes
-            {
-                route.controller.0.rebase(&from, &id.0);
-            }
+            let current = project
+                .find_mut::<crate::Setup>(*setup)
+                .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
+            current.controllers[*index] = MemberSource::Reference(id);
+            renames.apply(
+                current
+                    .patch
+                    .inline_mut()
+                    .ok_or(EditRejection::Missing(ObjectKind::Patch))?,
+            );
             if retires_controller {
-                retarget(project, &from, &id.0);
+                retarget(project, &renames);
             }
         }
-        OwnershipSite::LayoutFixture { layout, fixture } => {
-            let id = FixtureDefinitionId(source);
-            if !project.definitions.fixtures.definitions.contains_key(&id) {
-                return Err("Choose a reusable fixture.".into());
+        (Slot::LayoutFixture { layout, fixture }, ObjectId::FixtureDefinition(id)) => {
+            if !project
+                .reusable::<crate::FixtureDefinition>()
+                .contains_key(&id)
+            {
+                return Err(EditRejection::ChooseReusable(ObjectKind::FixtureDefinition));
             }
             *fixture_mut(
                 &mut project
-                    .layout_mut(layout)
-                    .ok_or("Layout was not found.")?
+                    .find_mut::<crate::Layout>(*layout)
+                    .ok_or(EditRejection::Missing(ObjectKind::Layout))?
                     .fixtures,
                 *fixture,
             )
-            .ok_or("Fixture was not found.")? = FixtureSource::Reference(id);
+            .ok_or(EditRejection::MissingItem)? = FixtureSource::Reference(id);
         }
+        _ => return Err(EditRejection::ChooseMatchingKind),
     }
     Ok(())
 }

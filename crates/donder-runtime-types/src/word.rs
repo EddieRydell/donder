@@ -11,20 +11,7 @@ use crate::bytecode::{
 };
 
 /// One encoded instruction word.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    bytemuck::Pod,
-    bytemuck::Zeroable,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct InstructionWord(pub [u8; 8]);
 

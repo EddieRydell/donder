@@ -4,13 +4,12 @@ use camino::Utf8Path;
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::EffectInst;
 use donder_model::SequenceId;
-use donder_model::SourceIdentity;
-use donder_project_io::{ProjectSession, SourceObjectKind};
+use donder_project_io::SourceIdentity;
+use donder_project_io::{DocumentId, ProjectSession};
 
-use donder_sequence_api::{
-    DiagnosticSeverity, DocumentViewId, GuiDocument, GuiDocumentChange, GuiDocumentRequest,
-    GuiEditCommand, GuiObjectRef, ObjectKind, ProjectDiagnostic, SequenceEffectDetails,
-    SequenceSelection, SequenceSelectionEdit,
+use crate::dto::{
+    GuiDocument, GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiObjectRef, IoDiagnostic,
+    SequenceEffectDetails, SequenceSelection,
 };
 
 mod arrange;
@@ -23,6 +22,7 @@ mod edit;
 mod fixture;
 mod graph;
 mod input_device;
+mod item;
 mod layout;
 mod library;
 pub(crate) mod model;
@@ -42,24 +42,22 @@ use layout::edit_layout;
 pub use project::create_sequence;
 use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};
-pub use selection::copy_sequence_selection;
+use selection::copy_sequence_selection;
 use selection::{
     delete_sequence_selection, edit_effect_selection, move_clip_selection, move_mark_selection,
     paste_sequence_clipboard, resize_clip_selection,
 };
 use setup::{edit_setup, project_setup};
 
-pub use dispatch::apply_edit;
 pub use dispatch::{
-    ClipboardAutomation, ClipboardEffect, ClipboardMark, SequenceClipboard,
-    SequenceSelectionMutation, apply_sequence_selection_edit,
+    ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiEditOutcome, SequenceClipboard,
+    apply_edit, copy_selection,
 };
-pub(crate) use document::gui_diagnostic;
 pub use document::{
     GuiMutationError, blocked, project_gui_document, project_gui_document_change,
     sequence_effect_details,
 };
-pub use document::{ResolvedGuiObject, affected_paths, ensure_owned_gui_document, resolve_request};
+pub use document::{ResolvedGuiObject, affected_paths, gui_editor_order, resolve_request};
 
 fn checked_gui_time(seconds: f64) -> Result<DonderTime, GuiMutationError> {
     DonderTime::try_from_seconds_f64(seconds)

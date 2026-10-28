@@ -2,10 +2,12 @@ use crate::common;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::{DonderDuration, DonderTime};
-use donder_model::DocumentId;
+use donder_model::{
+    CompositionProblem, EditError, EffectProblem, ParamProblem, ProjectValidationError,
+    RegionProblem, SequenceValidationError, TimingProblem, ValidationProblem,
+};
 use donder_project_io::{
-    IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, TextRange, check_document_text,
-    check_project, check_project_document_text,
+    IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, TextRange, check_project,
 };
 use std::fs;
 use std::sync::OnceLock;
@@ -24,7 +26,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
     let session = starter_session();
     let mut sequence = session
         .project
-        .reusable_sequences()
+        .reusable::<donder_model::Sequence>()
         .values()
         .find(|sequence| !sequence.effects.is_empty())
         .unwrap()
@@ -32,14 +34,29 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
     sequence.frame_rate = 1;
     sequence.duration = DonderDuration(Duration::from_secs(4_300));
     let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
-    assert!(error.message.contains("runtime clock range"), "{error:?}");
+    assert!(
+        matches!(
+            error,
+            SequenceValidationError::Timing(TimingProblem::DurationBeyondClock)
+        ),
+        "{error:?}"
+    );
 
     sequence.duration = DonderDuration(Duration::from_micros(u32::MAX as u64));
     let effect = std::sync::Arc::make_mut(&mut sequence.effects[0]);
     effect.start = DonderTime(Duration::from_nanos(500));
     effect.duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
     let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
-    assert!(error.message.contains("after rounding"), "{error:?}");
+    assert!(
+        matches!(
+            error,
+            SequenceValidationError::Clip {
+                problem: EffectProblem::Region(RegionProblem::EndBeyondAfterRounding),
+                ..
+            }
+        ),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -47,22 +64,28 @@ fn project_validation_rejects_invalid_edited_curve_definitions() {
     let mut session = starter_session().clone();
     let (id, mut definition) = session
         .project
-        .definitions()
-        .curves
-        .definitions
+        .reusable::<donder_model::CurveDefinition>()
         .iter()
         .next()
-        .map(|(id, definition)| (id.clone(), definition.clone()))
+        .map(|(id, definition)| (*id, definition.clone()))
         .unwrap();
     definition.curve.points[0].position = f32::NAN;
     let error = session
         .project
-        .apply_edits([donder_model::ProjectEdit::SetCurveDefinition {
-            id,
-            value: definition,
-        }])
+        .apply_edits([donder_model::ProjectEdit::Put(donder_model::Object::Curve(
+            id, definition,
+        ))])
         .unwrap_err();
-    assert!(error.to_string().contains("Curve"), "{error}");
+    assert!(
+        matches!(
+            error,
+            EditError::Invalid(ProjectValidationError {
+                problem: ValidationProblem::Curve(_),
+                ..
+            })
+        ),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -72,7 +95,7 @@ fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
     let gradient_path = Utf8PathBuf::from("gradients/basic_gradients.data.donder");
     let source = sources.get_mut(&gradient_path).unwrap();
     *source = source.replacen("(0.35, #ffb000)", "(-0.1, #ffb000)", 1);
-    let report = donder_project_io::check_project_with_overrides(&root, &sources);
+    let report = donder_project_io::check_project(&root, &sources, &mut Default::default());
     assert!(report.session.is_none());
     assert!(
         report
@@ -86,77 +109,68 @@ fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
     let mut session = starter_session().clone();
     let (id, mut definition) = session
         .project
-        .definitions()
-        .gradients
-        .definitions
+        .reusable::<donder_model::GradientDefinition>()
         .iter()
         .next()
-        .map(|(id, definition)| (id.clone(), definition.clone()))
+        .map(|(id, definition)| (*id, definition.clone()))
         .unwrap();
     definition.gradient.stops[0].position = f32::NAN;
     let error = session
         .project
-        .apply_edits([donder_model::ProjectEdit::SetGradientDefinition {
-            id,
-            value: definition,
-        }])
+        .apply_edits([donder_model::ProjectEdit::Put(
+            donder_model::Object::Gradient(id, definition),
+        )])
         .unwrap_err();
-    assert!(error.to_string().contains("Gradient"), "{error}");
+    assert!(
+        matches!(
+            error,
+            EditError::Invalid(ProjectValidationError {
+                problem: ValidationProblem::Gradient(_),
+                ..
+            })
+        ),
+        "{error:?}"
+    );
 }
 
 #[test]
 fn edited_operator_parameters_validate_inline_resources() {
-    use donder_language::compiler::compile_operators;
-    use donder_model::SourceIdentity;
+    use donder_language::compiler::compile_script;
     use donder_model::{
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, GraphNodePosition,
     };
     use donder_model::{EffectParamValue, GradientSource};
-    use donder_model::{
-        GraphOperatorNode, OperatorDefinitionId, OperatorRef, custom_operator_definition,
-    };
+    use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
     use donder_runtime_types::Identifier;
     use donder_runtime_types::{Color, Gradient, GradientStop};
 
     let mut session = starter_session().clone();
-    let document = session
-        .project
-        .definitions()
-        .operators
-        .definitions
-        .keys()
-        .next()
-        .unwrap()
-        .0
-        .document_id()
-        .clone();
-    let id = OperatorDefinitionId(SourceIdentity::from_document(
-        document,
-        "gradient_probe".into(),
-    ));
-    let compiled = compile_operators(
+    let id = OperatorDefinitionId(session.project.new_id());
+    let compiled = compile_script(
         "operator GradientProbe { input source; param colors: gradient; sample { source } }",
     )
     .unwrap()
     .remove(0);
     session
         .project
-        .apply_edits([donder_model::ProjectEdit::SetOperatorDefinition {
-            id: id.clone(),
-            value: custom_operator_definition(id.clone(), compiled),
-        }])
+        .apply_edits([donder_model::ProjectEdit::Put(
+            donder_model::Object::OperatorDefinition(OperatorDefinition::new(id, compiled)),
+        )])
         .unwrap();
-    let sequence_id = session
+    let sequence_id = *session
         .project
-        .reusable_sequences()
+        .reusable::<donder_model::Sequence>()
         .keys()
         .next()
+        .unwrap();
+    let mut sequence = session
+        .project
+        .get::<donder_model::Sequence>(sequence_id)
         .unwrap()
         .clone();
-    let mut sequence = session.project.sequence(&sequence_id).unwrap().clone();
     let mut operator = GraphOperatorNode {
         name: donder_language::object_name("operator"),
-        operator: OperatorRef::Custom(id),
+        operator: (id),
         params: Default::default(),
     };
     operator.params.insert(
@@ -174,11 +188,22 @@ fn edited_operator_parameters_validate_inline_resources() {
         kind: CompositionGraphNodeKind::Operator(operator),
     });
     let accepted = session.project.clone();
-    let error = session
-        .project
-        .replace_sequence(&sequence_id, sequence)
-        .unwrap_err();
-    assert!(error.contains("inline gradient is invalid"), "{error:?}");
+    let error = session.project.put(sequence).unwrap_err();
+    assert!(
+        matches!(
+            error,
+            EditError::Invalid(ProjectValidationError {
+                problem: ValidationProblem::Sequence(SequenceValidationError::Composition(
+                    CompositionProblem::Param {
+                        problem: ParamProblem::InvalidGradient(..),
+                        ..
+                    }
+                )),
+                ..
+            })
+        ),
+        "{error:?}"
+    );
     assert_eq!(session.project, accepted);
 }
 
@@ -193,7 +218,7 @@ fn malformed_multibyte_color_reports_a_diagnostic_without_panicking() {
             "marks: [MarkCollection { name: beats, description: none, color: #1é234, times: [] }]",
         ),
     );
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.session.is_none());
     assert!(
         report
@@ -216,13 +241,13 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
         sequence.clone(),
         original[&sequence].replace("frame_rate: 144", "frame_rate: 90"),
     );
-    let report = donder_project_io::check_project_with_overrides(&root, &overrides);
+    let report = donder_project_io::check_project(&root, &overrides, &mut Default::default());
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let session = report.session.unwrap();
     assert!(
         session
             .project
-            .reusable_sequences()
+            .reusable::<donder_model::Sequence>()
             .values()
             .any(|sequence| sequence.frame_rate == 90)
     );
@@ -234,7 +259,7 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
     ] {
         let mut invalid = original.clone();
         invalid.insert(path.into(), "[ invalid source".into());
-        let report = donder_project_io::check_project_with_overrides(&root, &invalid);
+        let report = donder_project_io::check_project(&root, &invalid, &mut Default::default());
         assert!(report.session.is_none(), "{path} unexpectedly compiled");
         assert!(
             report
@@ -261,7 +286,7 @@ fn invalid_data_syntax_reports_parser_range() {
     )
     .unwrap();
 
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     let diagnostic = report
         .diagnostics
         .iter()
@@ -280,7 +305,7 @@ fn invalid_data_syntax_reports_parser_range() {
 #[test]
 fn unclosed_bracket_inside_a_record_is_one_syntax_error() {
     let text = "Project main {\n  format: 1,\n  setup: [\n  sequences: [],\n}\n";
-    let diagnostics = check_document_text(Utf8Path::new(PROJECT_ROOT_FILE), text);
+    let diagnostics = common::document_diagnostics(Utf8Path::new(PROJECT_ROOT_FILE), text);
     assert!(
         !diagnostics.is_empty()
             && diagnostics
@@ -293,7 +318,7 @@ fn unclosed_bracket_inside_a_record_is_one_syntax_error() {
 
 #[test]
 fn comments_are_syntax_errors_in_data_documents() {
-    let diagnostics = check_document_text(
+    let diagnostics = common::document_diagnostics(
         Utf8Path::new("curves/commented.data.donder"),
         "-- a note\nCurve flat { description: none, points: [] }\n",
     );
@@ -309,7 +334,7 @@ const BAD_EFFECT: &str = "effect Bad {\n  sample {\n    @\n  }\n}\n";
 
 #[test]
 fn invalid_effect_dsl_reports_exact_span() {
-    let diagnostics = check_document_text(Utf8Path::new("effects/bad.donder"), BAD_EFFECT);
+    let diagnostics = common::document_diagnostics(Utf8Path::new("effects/bad.donder"), BAD_EFFECT);
     let diagnostic = diagnostics
         .iter()
         .find(|diagnostic| diagnostic.code == IoDiagnosticCode::ScriptCompile)
@@ -327,7 +352,7 @@ fn invalid_effect_dsl_reports_exact_span() {
 #[test]
 fn invalid_operator_dsl_reports_script_compile_diagnostic() {
     let source = "operator Bad { input source; sample { source.at(true) } }";
-    let diagnostics = check_document_text(Utf8Path::new("operators/bad.donder"), source);
+    let diagnostics = common::document_diagnostics(Utf8Path::new("operators/bad.donder"), source);
     let diagnostic = diagnostics
         .iter()
         .find(|diagnostic| diagnostic.code == IoDiagnosticCode::ScriptCompile)
@@ -350,7 +375,7 @@ fn invalid_reference_reports_donder_reference_diagnostic() {
     )
     .unwrap();
 
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     let diagnostic = report
         .diagnostics
         .iter()
@@ -360,7 +385,7 @@ fn invalid_reference_reports_donder_reference_diagnostic() {
     assert!(report.session.is_none());
     assert_eq!(diagnostic.path, Utf8Path::new(PROJECT_ROOT_FILE));
     assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
-    assert_range(diagnostic.range.as_ref().unwrap(), 5, 9, 5, 22);
+    assert_range(diagnostic.range.as_ref().unwrap(), 4, 9, 4, 22);
     assert!(diagnostic.message.contains("missing.setup"));
 }
 
@@ -380,40 +405,15 @@ fn repeated_reference_text_reports_the_failing_occurrence() {
     fs::write(root.join("display.data.donder"), common::DISPLAY).unwrap();
     fs::write(root.join("patch.data.donder"), common::PATCH).unwrap();
 
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     let diagnostic = report
         .diagnostics
         .iter()
         .find(|diagnostic| diagnostic.message.contains("shared.main"))
         .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
     let range = diagnostic.range.as_ref().unwrap();
-    assert_eq!(range.start.line, 7);
+    assert_eq!(range.start.line, 6);
     assert_eq!(range.start.character, 14);
-}
-
-#[test]
-fn project_document_override_runs_semantic_validation() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
-    let session = load_local_project(&root);
-    let document = DocumentId::new(
-        session.source.project_module_id(),
-        "sequence.data.donder".into(),
-    );
-    // Well-formed text whose edge names a node the sequence lacks.
-    let text = common::MINIMAL_SEQUENCE
-        .replace("edges: []", "edges: [Edge { from: nothing, to: output }]");
-    assert!(check_document_text(document.path(), &text).is_empty());
-    let diagnostics = check_project_document_text(&session, &document, &text);
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.path == Utf8Path::new("sequence.data.donder")
-                && diagnostic.code == IoDiagnosticCode::DonderLoad
-                && diagnostic.message.contains("nothing")
-        }),
-        "{diagnostics:?}"
-    );
 }
 
 /// The diagnostic for `sequence`, a variant of the minimal sequence.
@@ -421,7 +421,7 @@ fn sequence_diagnostic(sequence: &str, message: &str) -> donder_project_io::IoDi
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     common::write_imported_sequence_project(&root, sequence);
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.session.is_none());
     report
         .diagnostics
@@ -538,7 +538,7 @@ fn wrong_reference_kind_names_both_kinds() {
     common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
     let setup = common::SETUP.replace("layout: display.main", "layout: display.pixel");
     fs::write(root.join("setup.data.donder"), &setup).unwrap();
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     let diagnostic = report
         .diagnostics
         .iter()
@@ -584,7 +584,12 @@ fn missing_fixture_and_layer_names_are_reported_at_the_name() {
             "effect Flat { sample { #ffffff } }",
         )
         .unwrap();
-        assert!(check_project(&root).session.is_some(), "{sequence}");
+        assert!(
+            check_project(&root, &Default::default(), &mut Default::default())
+                .session
+                .is_some(),
+            "{sequence}"
+        );
         let text = sequence.replace(before, after);
         let diagnostic = sequence_diagnostic_in(&root, &text, needle);
         assert_at(&diagnostic, &text, needle);
@@ -597,7 +602,7 @@ fn sequence_diagnostic_in(
     message: &str,
 ) -> donder_project_io::IoDiagnostic {
     fs::write(root.join("sequence.data.donder"), text).unwrap();
-    let report = check_project(root);
+    let report = check_project(root, &Default::default(), &mut Default::default());
     assert!(report.session.is_none());
     report
         .diagnostics
@@ -622,7 +627,7 @@ fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
     .unwrap();
     fs::write(root.join("bad.donder"), BAD_EFFECT).unwrap();
 
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     let script_diagnostics = report
         .diagnostics
         .iter()
@@ -649,7 +654,7 @@ fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
 fn missing_root_document_reports_no_range() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     let diagnostic = report.diagnostics.first().unwrap();
 
     assert_eq!(diagnostic.code, IoDiagnosticCode::IoRead);
@@ -657,32 +662,34 @@ fn missing_root_document_reports_no_range() {
 }
 
 #[test]
-fn root_metadata_is_validated() {
-    for (before, after) in [("format: 1", "format: 7"), ("id: \"", "id: \"not-a-uuid")] {
-        let temp = tempfile::tempdir().unwrap();
-        let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-        common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
-        let path = root.join(PROJECT_ROOT_FILE);
-        let text = fs::read_to_string(&path)
-            .unwrap()
-            .replacen(before, after, 1);
-        fs::write(&path, text).unwrap();
-        let report = check_project(&root);
-        assert!(report.session.is_none(), "{after}");
-        assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.path == PROJECT_ROOT_FILE),
-            "{after}: {:?}",
-            report.diagnostics
-        );
-    }
+fn root_format_is_validated() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
+    common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
+    let path = root.join(PROJECT_ROOT_FILE);
+    let text = fs::read_to_string(&path)
+        .unwrap()
+        .replacen("format: 1", "format: 7", 1);
+    fs::write(&path, text).unwrap();
+    let report = check_project(&root, &Default::default(), &mut Default::default());
+    assert!(report.session.is_none());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.path == PROJECT_ROOT_FILE),
+        "{:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
 fn valid_example_project_loads_without_diagnostics() {
-    let report = check_project(&common::starter_root());
+    let report = check_project(
+        &common::starter_root(),
+        &Default::default(),
+        &mut Default::default(),
+    );
 
     assert!(report.session.is_some());
     assert_eq!(report.diagnostics, Vec::new());

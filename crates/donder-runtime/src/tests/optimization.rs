@@ -1,8 +1,7 @@
 //! Rewrites of the compiler pipeline (folding, choices, hoisting, early exits,
 //! prepared reciprocals), checked by what programs compute and sample.
 use super::evaluation::{
-    OperatorEvaluation, SampleEvaluation, bind, compile_effect, compile_operator, context, effect,
-    operator, runtime_effect,
+    OperatorEvaluation, SampleEvaluation, bind, compile, context, effect, operator, runtime_effect,
 };
 use super::playback;
 use super::std;
@@ -88,7 +87,7 @@ fn conditions_sample_only_when_they_decide() {
             "operator Branch {{ input source; sample {{ if {condition} {{ #ffffff }} else {{ #000000 }} }} }}"
         ));
         let mut sampler = FailOnSample { calls: Vec::new() };
-        let result = operator.evaluate(
+        let result = operator.evaluate_signals(
             &context(1, 0, 0),
             &SPATIAL,
             &mut sampler,
@@ -106,12 +105,12 @@ fn conditions_sample_only_when_they_decide() {
 #[test]
 fn unused_samples_are_never_taken() {
     let operator =
-        compile_operator("operator Dead { input source; sample { let unused = source; #000000 } }");
+        compile("operator Dead { input source; sample { let unused = source; #000000 } }");
     let instance = bind(&operator, &[]).instance(ProgramConstants::default());
     assert_eq!(instance.constant_color(), Some(Color::BLACK));
     let mut sampler = FailOnSample { calls: Vec::new() };
     assert_eq!(
-        instance.operator().evaluate(
+        playback::bind(&instance).evaluate_signals(
             &context(1, 0, 0),
             &SPATIAL,
             &mut sampler,
@@ -152,7 +151,7 @@ fn reductions_sample_only_contributing_iterations_and_exit_early() {
         ));
         let mut sampler = Times::default();
         operator
-            .evaluate(
+            .evaluate_signals(
                 &context(10, 0, 0),
                 &SPATIAL,
                 &mut sampler,
@@ -165,7 +164,7 @@ fn reductions_sample_only_contributing_iterations_and_exit_early() {
 
 #[test]
 fn reductions_of_index_free_bodies_fold() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Folded { param n: int in 0..8 = 3; sample {
             let channels = rgb(max for i in 0..n { progress }, first for i in 0..n { 0.375 } else { 0.0 }, min for i in 0..n { pixel.fraction });
             channels + sum for i in 0..n { #000000 }
@@ -173,13 +172,13 @@ fn reductions_of_index_free_bodies_fold() {
     );
     for n in [0, 3] {
         for invocation in [
-            playback::lower_sample(&bind(&effect, &[("n", Value::Int(n))])),
+            playback::lower(&bind(&effect, &[("n", Value::Int(n))])),
             runtime_effect(&effect, &[], &[("n", Value::Int(n))]),
         ] {
             assert!(
                 !invocation
                     .program()
-                    .bytecode()
+                    .bytecode
                     .instructions()
                     .any(|op| matches!(op, Instruction::Reduce { .. })),
                 "n={n}"
@@ -220,31 +219,28 @@ fn fixed_definitions_fold_to_constant_colors() {
         ),
         ("effect Wave { sample { rgb(sin(1.0), 0.0, 0.0) } }", None),
     ] {
-        let instance = bind(&compile_effect(source), &[]).instance(ProgramConstants::default());
+        let instance = bind(&compile(source), &[]).instance(ProgramConstants::default());
         assert_eq!(instance.constant_color(), expected, "{source}");
-        let lowered = instance.sample();
+        let lowered = playback::bind(&instance);
         let color = lowered.evaluate(&context(4, 1, 0), &SPATIAL, &mut StripWorkspace::default());
         if let Some(expected) = expected {
             assert_eq!(color, expected, "{source}");
-            assert!(
-                !lowered.program().bytecode().uses_pixel_context(),
-                "{source}"
-            );
+            assert!(!lowered.program().bytecode.uses_pixel_context(), "{source}");
         }
     }
 }
 
 #[test]
 fn preparation_computes_fixed_values_into_parameter_slots() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Tint { param tint: color = #204060; param level: float in 0.0..1.0 = 0.5;
           sample { tint * level } }",
     );
     let expected = crate::sampling::scale_color(Color::from_bytes([0x20, 0x40, 0x60]), 0.5);
-    let lowered = playback::lower_sample(&bind(&effect, &[]));
+    let lowered = playback::lower(&bind(&effect, &[]));
     assert_eq!(lowered.params().values(), [Value::Color(expected)]);
     // The program only reads the computed parameter.
-    let bytecode = lowered.program().bytecode();
+    let bytecode = &lowered.program().bytecode;
     assert_eq!(
         bytecode.instructions().collect::<Vec<_>>(),
         [Instruction::Param {
@@ -262,7 +258,7 @@ fn preparation_computes_fixed_values_into_parameter_slots() {
 #[test]
 fn invariant_divisors_divide_correctly_with_either_sign() {
     for denominator in ["max(scale, 0.01)", "-max(scale, 0.01)"] {
-        let effect = compile_effect(&format!(
+        let effect = compile(&format!(
             "effect Divide {{ param scale: float in 0.0..10.0 = 2.0;
             sample {{
                 let d = {denominator};
@@ -271,7 +267,7 @@ fn invariant_divisors_divide_correctly_with_either_sign() {
         }}"
         ));
         for invocation in [
-            playback::lower_sample(&bind(&effect, &[])),
+            playback::lower(&bind(&effect, &[])),
             runtime_effect(&effect, &[], &[("scale", Value::Float(2.0))]),
         ] {
             assert_eq!(
@@ -288,11 +284,11 @@ fn invariant_divisors_divide_correctly_with_either_sign() {
 #[test]
 fn smoothstep_with_bounded_edges_preserves_boundaries() {
     for (edge0, edge1) in [("0.0", "max(width, 0.01)"), ("max(width, 0.01)", "0.0")] {
-        let effect = compile_effect(&format!(
+        let effect = compile(&format!(
             "effect Smooth {{ param width: float in 0.0..1.0 = 0.75;
             sample {{ rgb(smoothstep({edge0}, {edge1}, pixel.fraction), 0.0, 0.0) }} }}"
         ));
-        let fixed = playback::lower_sample(&bind(&effect, &[]));
+        let fixed = playback::lower(&bind(&effect, &[]));
         let runtime = runtime_effect(&effect, &[], &[("width", Value::Float(0.75))]);
         let mut workspace = StripWorkspace::default();
         for pixel in 0..65 {
@@ -340,15 +336,15 @@ fn smoothstep_keeps_varying_edge_semantics() {
 
 #[test]
 fn uniform_smoothstep_runs_in_the_query_block() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Smooth { param width: float in 0.0..1.0 = 0.75;
         sample { rgb(smoothstep(0.0, width, time), 0.0, 0.0) } }",
     );
     for invocation in [
-        playback::lower_sample(&bind(&effect, &[])),
+        playback::lower(&bind(&effect, &[])),
         runtime_effect(&effect, &[], &[("width", Value::Float(0.75))]),
     ] {
-        let bytecode = invocation.program().bytecode();
+        let bytecode = &invocation.program().bytecode;
         assert!(!bytecode.uses_pixel_context());
         let query: Vec<_> = instructions(bytecode.query()).collect();
         assert!(query.iter().any(|op| matches!(
@@ -375,7 +371,7 @@ fn uniform_smoothstep_runs_in_the_query_block() {
 
 #[test]
 fn hoisted_reduction_work_keeps_empty_and_filtered_results() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Zero { param count: int in -1..4 = 0; sample {
             let d = max(target.count + 1.0, 1.0);
             let last = last for i in 0..count { guard pixel.index == 0; 1.0 / d } else { 0.25 };
@@ -386,7 +382,7 @@ fn hoisted_reduction_work_keeps_empty_and_filtered_results() {
     for count in [-1, 0, 3, 4] {
         let values = [("count", Value::Int(count))];
         for invocation in [
-            playback::lower_sample(&bind(&effect, &values)),
+            playback::lower(&bind(&effect, &values)),
             runtime_effect(&effect, &[], &values),
         ] {
             let mut workspace = StripWorkspace::default();
@@ -413,7 +409,7 @@ fn hoisted_reduction_work_keeps_empty_and_filtered_results() {
 
 #[test]
 fn reciprocals_of_infinite_divisors_divide_exactly() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Missing { param divisor: float in 0.0..10.0 = 1.0;
         sample {
             let d = max(divisor, 0.01);

@@ -265,11 +265,11 @@ function automationBindingControl(host: SequenceEditorHost,
         title="Unlink automation"
         onClick={() =>
           void runGuiEditCommand((request) =>
-            commands.applySequenceGuiEdit(request, {
+            commands.applyGuiEdit(request, { type: "sequence", edit: {
               type: "unbindAutomationParam",
               clipId: param.automation?.clipId ?? 0,
               target
-            })
+            } })
           )
         }
       >
@@ -297,10 +297,10 @@ function automationBindingControl(host: SequenceEditorHost,
         disabled={!canCreateAutomationClip}
         onClick={() =>
           void runGuiEditCommand((request) =>
-            commands.applySequenceGuiEdit(request, {
+            commands.applyGuiEdit(request, { type: "sequence", edit: {
               type: "createAndBindAutomationClip",
               target
-            })
+            } })
           )
         }
       >
@@ -476,7 +476,7 @@ function CurveValueEditor({ name, value, sources, range, commit, disabled = fals
   return <LibraryValueShell name={name} label="curve" source={value.source} sources={sources}
     points={points} commit={(points) => commit({ points, source: { type: "inline" } })}
     disabled={disabled} actions={actions}
-    link={(curve) => commit({ points: curve.points, source: { type: "library", moduleId: curve.moduleId, path: curve.path, objectKey: curve.objectKey, displayName: curve.displayName } })}
+    link={(curve) => commit({ points: curve.points, source: { type: "library", path: curve.path, objectKey: curve.objectKey, displayName: curve.displayName } })}
     unlink={() => commit({ points, source: { type: "inline" } })}
     flipVerticalPoints={(current) => {
       const axis = curveAxis(current, range);
@@ -494,12 +494,12 @@ function GradientValueEditor({ name, value, sources, commit }: {
   const points = normalizeSequenceGradientStops(value.stops);
   return <LibraryValueShell name={name} label="gradient" source={value.source} sources={sources}
     points={points} commit={(stops) => commit({ stops, source: { type: "inline" } })}
-    link={(gradient) => commit({ stops: gradient.stops, source: { type: "library", moduleId: gradient.moduleId, path: gradient.path, objectKey: gradient.objectKey, displayName: gradient.displayName } })}
+    link={(gradient) => commit({ stops: gradient.stops, source: { type: "library", path: gradient.path, objectKey: gradient.objectKey, displayName: gradient.displayName } })}
     unlink={() => commit({ stops: points, source: { type: "inline" } })}
     render={(props) => <GradientParam name={name} {...props} />} />;
 }
 
-type LibraryItem = { moduleId: string; path: string; objectKey: string; displayName: string };
+type LibraryItem = { path: string; objectKey: string; displayName: string };
 
 function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   name,
@@ -538,8 +538,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   const availableSources = sources;
   const selectedSourceIndex = linked
     ? availableSources.findIndex((item) =>
-      item.moduleId === librarySource.moduleId
-      && item.path === librarySource.path
+      item.path === librarySource.path
       && item.objectKey === librarySource.objectKey
     )
     : -1;
@@ -624,7 +623,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
           {linked && (
             <a href="#" className="neutral-button" onClick={(event) => {
               event.preventDefault();
-              void navigateToGuiObject({ ownedPath: [], moduleId: librarySource.moduleId, path: librarySource.path, objectKey: librarySource.objectKey });
+              void navigateToGuiObject({ ownedPath: [], path: librarySource.path, objectKey: librarySource.objectKey });
             }}>Open source</a>
           )}
           {linked && (

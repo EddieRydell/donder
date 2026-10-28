@@ -10,20 +10,20 @@ const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::Spat
 
 use super::evaluation::StripWorkspace;
 use crate::dsl::RunContext;
-use donder_language::compiler::compile_effects;
+use donder_language::compiler::compile_script;
 use donder_runtime_types::Value;
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration};
 
 #[test]
 fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
-    let pulse = compile_effects(include_str!(
+    let pulse = compile_script(include_str!(
         "../../../../examples/starter/effects/standard.donder"
     ))
     .unwrap()
     .into_iter()
     .find(|effect| effect.name().as_str() == "Pulse")
     .unwrap();
-    let invocation = playback::lower_sample(&bind(
+    let invocation = playback::lower(&bind(
         &pulse,
         &[
             (

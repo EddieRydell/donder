@@ -183,11 +183,10 @@ impl PreviewHostApplication {
             } => self
                 .replace_content(revision, instances, archive)
                 .map(|()| CommandEffect::Redraw),
-            PreviewCommand::RigEvents { events } => self
-                .playback
-                .apply_rig_events(&events)
-                .map(|()| CommandEffect::Redraw)
-                .map_err(|error| format!("Cannot apply rig commands: {error:?}")),
+            PreviewCommand::RigEvents { events } => {
+                self.playback.apply_rig_events(&events);
+                Ok(CommandEffect::Redraw)
+            }
             PreviewCommand::SetClock {
                 generation,
                 state,
@@ -239,10 +238,10 @@ impl PreviewHostApplication {
         &mut self,
         revision: u64,
         instances: Vec<[f32; 4]>,
-        archive: Option<super::protocol::PreviewArchive>,
+        archive: Option<Vec<u8>>,
     ) -> Result<(), String> {
         self.playback
-            .replace_content(archive.as_ref(), instances.len())
+            .replace_content(archive.as_deref(), instances.len())
             .map_err(|error| format!("Cannot load Preview content: {error:?}"))?;
         self.scene = PreviewScene::new(
             revision,
@@ -256,7 +255,7 @@ impl PreviewHostApplication {
 
     fn set_appearance(
         &mut self,
-        appearance: donder_sequence_api::PreviewAppearance,
+        appearance: donder_editor::dto::PreviewAppearance,
     ) -> Result<(), String> {
         self.style = PreviewStyle::from_appearance(appearance)?;
         self.startup.appearance = appearance;
@@ -514,14 +513,14 @@ fn refresh_period(window: &Window) -> Result<Duration, String> {
     Ok(Duration::from_secs(1000) / millihertz)
 }
 
-fn playback_state(state: donder_sequence_api::AudioTransportState) -> PreviewPlaybackState {
+fn playback_state(state: donder_editor::dto::AudioTransportState) -> PreviewPlaybackState {
     match state {
-        donder_sequence_api::AudioTransportState::Playing => PreviewPlaybackState::Playing,
-        donder_sequence_api::AudioTransportState::Paused => PreviewPlaybackState::Paused,
-        donder_sequence_api::AudioTransportState::Stopped => PreviewPlaybackState::Stopped,
-        donder_sequence_api::AudioTransportState::Ended => PreviewPlaybackState::Ended,
-        donder_sequence_api::AudioTransportState::Unloaded
-        | donder_sequence_api::AudioTransportState::Error => PreviewPlaybackState::Unavailable,
+        donder_editor::dto::AudioTransportState::Playing => PreviewPlaybackState::Playing,
+        donder_editor::dto::AudioTransportState::Paused => PreviewPlaybackState::Paused,
+        donder_editor::dto::AudioTransportState::Stopped => PreviewPlaybackState::Stopped,
+        donder_editor::dto::AudioTransportState::Ended => PreviewPlaybackState::Ended,
+        donder_editor::dto::AudioTransportState::Unloaded
+        | donder_editor::dto::AudioTransportState::Error => PreviewPlaybackState::Unavailable,
     }
 }
 

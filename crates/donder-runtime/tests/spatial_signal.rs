@@ -1,52 +1,59 @@
-use donder_language::compiler::{compile_effects, compile_operators};
-use donder_runtime::PreparedSequence;
+use donder_language::compiler::compile_script;
+use donder_runtime::PreparedShow;
+use donder_runtime_types::BoundProgram;
 use donder_runtime_types::Color;
 use donder_runtime_types::FixtureGeometry;
-use donder_runtime_types::OperatorInvocation;
 use donder_runtime_types::SampleTime;
-use donder_runtime_types::TargetScope;
+use donder_runtime_types::{SampleDuration, TargetGeometry, TargetScope};
 use donder_test_support::playback;
 
 /// Fixtures of `sizes` pixels under one whole-target effect whose colors
 /// encode each pixel's place in its fixture and the time.
-fn sequence(sizes: &[usize], operator: Option<&OperatorInvocation>) -> PreparedSequence {
-    let effect = compile_effects(
+fn sequence(sizes: &[usize], operator: Option<&BoundProgram>) -> PreparedShow {
+    let effect = compile_script(
         "effect Positions { sample { rgb(pixel.index / 255.0, time / 8.0, pixel.fraction) } }",
     )
     .unwrap()
     .remove(0);
-    let sample = playback::sample(&effect);
-    PreparedSequence::build(playback::timing(8_000_000), |builder| {
+    let sample = playback::program(&effect);
+    PreparedShow::build(playback::timing(8_000_000), |builder| {
         let fixtures: Vec<_> = sizes
             .iter()
-            .enumerate()
-            .map(|(id, &size)| {
-                builder.fixture(
-                    id as u32,
-                    FixtureGeometry::admit(vec![[0.0; 2]; size].into()).unwrap(),
-                )
-            })
+            .map(|&size| FixtureGeometry::admit(vec![[0.0; 2]; size].into()).unwrap())
             .collect();
-        let target = builder.target(fixtures, TargetScope::WholeTarget);
-        let effect = builder.sample(&sample, builder.whole_sequence(), target);
+        for (id, geometry) in fixtures.iter().enumerate() {
+            builder.fixture(id as u32, geometry.clone());
+        }
+        let target = builder.target(&TargetGeometry::new(
+            fixtures.iter().enumerate(),
+            TargetScope::WholeTarget,
+        ));
+        let effect = builder.clip(
+            None,
+            &sample,
+            SampleTime::from_ticks(0),
+            SampleDuration::from_ticks(8_000_000),
+            target,
+        );
         let layer = builder.layer(true, [effect]);
         let output = operator.map_or(layer, |operator| builder.operator(operator, |_| layer));
-        builder.output(Some(output))
+        Some(output)
     })
 }
 
 /// `query` over fixtures of `sizes` shows at each pixel `n` the source pixel
 /// `indices[n]` (black for `None`).
 fn assert_query(sizes: &[usize], query: &str, indices: &[Option<usize>]) {
-    let invocation = compile_operators(&format!(
-        "operator Spatial {{ input source; sample {{ {query} }} }}"
-    ))
-    .unwrap()
-    .remove(0)
-    .bind(std::iter::empty())
-    .unwrap();
+    let invocation = playback::invoke(
+        &compile_script(&format!(
+            "operator Spatial {{ input source; sample {{ {query} }} }}"
+        ))
+        .unwrap()
+        .remove(0),
+        &[],
+    );
     assert!(invocation.reads_fixture_pixels(), "{query}");
-    let lowered = playback::lower_operator(&invocation);
+    let lowered = playback::lower(&invocation);
     let mut workspace = sequence(sizes, Some(&lowered)).into_playback();
     let mut source_workspace = sequence(sizes, None).into_playback();
     for ticks in [0, 500_000, 2_000_000, 100_000, 0] {

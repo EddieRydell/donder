@@ -5,18 +5,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::borrow::Borrow;
 
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Hash,
-    Ord,
-    PartialOrd,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Identifier(Arc<str>);
 
 impl Identifier {
@@ -59,28 +48,21 @@ pub enum IdentifierError {
     InvalidCharacter,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[rkyv(serialize_bounds(__S: rkyv::ser::Writer + rkyv::ser::Allocator, __S::Error: rkyv::rancor::Source))]
-#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
-#[rkyv(bytecheck(bounds(__C: rkyv::validation::ArchiveContext)))]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Type {
     Void,
     Int,
     Float,
     Bool,
     Color,
-    Signal,
     Marks,
     Curve,
     Gradient,
-    Array(#[rkyv(omit_bounds)] Box<Type>),
+    Array(Box<Type>),
     Enum(Vec<Identifier>),
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[rkyv(serialize_bounds(__S: rkyv::ser::Writer + rkyv::ser::Allocator + rkyv::ser::Sharing, __S::Error: rkyv::rancor::Source))]
-#[rkyv(deserialize_bounds(__D: rkyv::de::Pooling, __D::Error: rkyv::rancor::Source))]
-#[rkyv(bytecheck(bounds(__C: rkyv::validation::ArchiveContext + rkyv::validation::SharedContext)))]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Void,
     Int(i32),
@@ -90,7 +72,7 @@ pub enum Value {
     Marks(Arc<Marks>),
     Curve(Arc<Curve>),
     Gradient(Arc<Gradient>),
-    Array(#[rkyv(omit_bounds)] Arc<[Value]>),
+    Array(Arc<[Value]>),
     Enum(Identifier),
 }
 
@@ -139,16 +121,6 @@ impl Value {
 }
 
 impl Type {
-    /// Context values belong to the current invocation, never to authored
-    /// parameter declarations, including when nested inside arrays.
-    pub fn is_context_only(&self) -> bool {
-        match self {
-            Self::Signal => true,
-            Self::Array(item) => item.is_context_only(),
-            _ => false,
-        }
-    }
-
     pub fn accepts(&self, actual: &Self) -> bool {
         self == actual
             || matches!((self, actual), (Self::Float, Self::Int))
@@ -185,7 +157,7 @@ impl Type {
 
     pub fn default_value(&self) -> Value {
         match self {
-            Self::Void | Self::Signal => Value::Void,
+            Self::Void => Value::Void,
             Self::Int => Value::Int(0),
             Self::Float => Value::Float(0.0),
             Self::Bool => Value::Bool(false),

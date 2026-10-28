@@ -4,8 +4,10 @@
 //! The pipeline is described in `docs/effect_compiler.md`.
 pub(crate) mod builtins;
 pub use builtins::{
-    BUILTINS, Builtin, BuiltinFunction, BuiltinGroup, ContextValue, Signature, builtin_reference,
+    ARRAY_WORD, AT, ArgType, BUILTINS, Builtin, BuiltinGroup, CONTEXT, ContextValue, ENUM_WORD,
+    Method, NAMED_TYPES, REDUCERS, Reducer, Signature, builtin_reference, type_text,
 };
+pub(crate) use definition::lowering_diagnostics;
 pub(crate) mod check;
 mod declarations;
 mod definition;
@@ -15,13 +17,11 @@ mod ir;
 mod lower;
 pub(crate) mod syntax;
 
-pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange, bind_params};
-pub use definition::{
-    CompiledEffect, CompiledOperator, CompiledScript, Instance, Invocation, compile_effects,
-    compile_operators, compile_script,
-};
+pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange};
+pub use definition::{CompiledDefinition, Instance, Invocation, compile_script};
 pub use diagnostic::Diagnostic;
 pub use instance::ProgramConstants;
+pub use lower::Lowered;
 pub use syntax::ast::{DeclarationKind, DeclarationSpan};
 pub use syntax::lexer::TextSpan;
 

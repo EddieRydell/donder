@@ -73,7 +73,6 @@ pub struct DeviceCapabilities {
     pub max_graph_nodes: u32,
     pub max_workspace_bytes: u32,
     pub output: DeviceOutputCapabilities,
-    pub sequence_storage: DeviceSequenceStorage,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -92,12 +91,6 @@ pub enum DeviceOutputCapabilities {
         clock_udp_port: u16,
     },
     EvaluationOnly,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum DeviceSequenceStorage {
-    Persistent,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

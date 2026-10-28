@@ -1,7 +1,7 @@
 //! Original target membership for section queries. Routing may discard
 //! physical pixels, but must not change the authored section population or
 //! numbering.
-use donder_runtime_types::image::{self, SectionPixel};
+use crate::image::{self, SectionPixel};
 
 use crate::show::Show;
 

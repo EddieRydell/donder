@@ -1,31 +1,73 @@
 //! Documents the project never reaches: a warning on each, with the root
 //! import that brings it in.
-use camino::{Utf8Path, Utf8PathBuf};
+use crate::address::DocumentId;
+use camino::Utf8PathBuf;
 use donder_language::compiler::TextSpan;
-use donder_language::compiler::{DeclarationKind, partial_declaration_spans};
 use donder_language::data::{DataImport, DataValue, Spanned};
-use donder_model::DocumentId;
+use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
 use indexmap::IndexSet;
 
-use crate::diagnostics::byte_range;
 use crate::imports::canonical_reference_alias;
 use crate::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoFix, PROJECT_ROOT_FILE, ProjectSession,
-    SourceDocumentFormat, SourceObjectKind, source_document_format,
+    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoFix, PROJECT_ROOT_FILE,
+    ProjectRecovery, ProjectSession, RecoveryObject, SourceDocumentFormat,
 };
 
 /// Bringing an unreferenced document into the project from the root document.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, specta::Type)]
 pub struct Inclusion {
     pub document: Utf8PathBuf,
     /// The root import that takes the document: an existing alias it extends
     /// without a name clash, or a new one.
+    #[specta(type = String)]
     pub alias: Identifier,
     /// The sequences the document declares, added to the project's `sequences`.
+    #[specta(type = Vec<String>)]
     pub sequences: Vec<Identifier>,
     /// The rigs the document declares, added to the project's `rigs`.
+    #[specta(type = Vec<String>)]
     pub rigs: Vec<Identifier>,
+}
+
+/// An inclusion as text: names read back must be valid identifiers.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InclusionText {
+    document: Utf8PathBuf,
+    alias: String,
+    sequences: Vec<String>,
+    rigs: Vec<String>,
+}
+
+impl serde::Serialize for Inclusion {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let names =
+            |names: &[Identifier]| names.iter().map(|name| name.as_str().to_string()).collect();
+        InclusionText {
+            document: self.document.clone(),
+            alias: self.alias.as_str().to_string(),
+            sequences: names(&self.sequences),
+            rigs: names(&self.rigs),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Inclusion {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = InclusionText::deserialize(deserializer)?;
+        let name = |name: String| {
+            Identifier::new(name).map_err(|error| serde::de::Error::custom(format!("{error:?}")))
+        };
+        let names = |names: Vec<String>| names.into_iter().map(name).collect::<Result<_, _>>();
+        Ok(Self {
+            document: text.document,
+            alias: name(text.alias)?,
+            sequences: names(text.sequences)?,
+            rigs: names(text.rigs)?,
+        })
+    }
 }
 
 /// The root document's text with `inclusion` applied.
@@ -79,63 +121,19 @@ pub fn include_document(root_text: &str, inclusion: &Inclusion) -> Result<String
     Ok(donder_language::data::print(&document))
 }
 
-/// What an unreferenced document declares.
-struct Declared {
-    names: Vec<(SourceObjectKind, Identifier)>,
-    /// The first declaration's name, where the warning goes.
-    first: Option<TextSpan>,
-}
-
-fn declared(path: &Utf8Path, text: &str, cache: &mut crate::ProjectCheckCache) -> Declared {
-    match source_document_format(path) {
-        SourceDocumentFormat::Script => {
-            let names = partial_declaration_spans(text)
-                .into_iter()
-                .map(|declaration| {
-                    let kind = match declaration.kind {
-                        DeclarationKind::Effect => SourceObjectKind::EffectDefinition,
-                        DeclarationKind::Operator => SourceObjectKind::OperatorDefinition,
-                    };
-                    (kind, declaration.name, declaration.name_span)
-                })
-                .collect::<Vec<_>>();
-            Declared {
-                first: names.first().map(|(_, _, span)| *span),
-                names: names
-                    .into_iter()
-                    .map(|(kind, name, _)| (kind, name))
-                    .collect(),
-            }
-        }
-        SourceDocumentFormat::Data => {
-            let read = cache.read(path, text);
-            let document = &read.document;
-            Declared {
-                first: document.declarations.first().map(|(name, _, _)| name.span),
-                names: document
-                    .declarations
-                    .iter()
-                    .map(|(name, _, declaration)| (declaration.kind(), name.value.clone()))
-                    .collect(),
-            }
-        }
-        SourceDocumentFormat::Other => Declared {
-            names: Vec::new(),
-            first: None,
-        },
-    }
-}
-
 /// The root alias for a document's declarations, by what they are.
-fn alias_base(names: &[(SourceObjectKind, Identifier)]) -> Option<&'static str> {
-    let kinds = names.iter().map(|(kind, _)| kind).collect::<IndexSet<_>>();
-    if kinds.contains(&SourceObjectKind::Project) || kinds.contains(&SourceObjectKind::Setup) {
+fn alias_base(objects: &[RecoveryObject]) -> Option<&'static str> {
+    let kinds = objects
+        .iter()
+        .map(|object| &object.kind)
+        .collect::<IndexSet<_>>();
+    if kinds.contains(&ObjectKind::Project) || kinds.contains(&ObjectKind::Setup) {
         return None;
     }
-    let script = |kind: &&SourceObjectKind| {
+    let script = |kind: &&ObjectKind| {
         matches!(
             kind,
-            SourceObjectKind::EffectDefinition | SourceObjectKind::OperatorDefinition
+            ObjectKind::EffectDefinition | ObjectKind::OperatorDefinition
         )
     };
     if kinds.len() > 1 && kinds.iter().all(script) {
@@ -144,13 +142,13 @@ fn alias_base(names: &[(SourceObjectKind, Identifier)]) -> Option<&'static str> 
     canonical_reference_alias(kinds.first()?)
 }
 
-/// The root import that can take `names`: `base`, if its documents declare
+/// The root import that can take `objects`: `base`, if its documents declare
 /// none of them, or the first free `base_2`, `base_3`, ...
 fn inclusion_alias(
     session: &ProjectSession,
     root: &DocumentId,
     base: &str,
-    names: &[(SourceObjectKind, Identifier)],
+    objects: &[RecoveryObject],
 ) -> Option<Identifier> {
     let document = session.source.documents.get(root)?;
     let fits = |alias: &str| {
@@ -161,7 +159,7 @@ fn inclusion_alias(
             .flat_map(|import| &import.targets)
             .filter_map(|target| session.source.documents.get(target))
             .flat_map(|target| &target.objects)
-            .all(|object| names.iter().all(|(_, name)| name.as_str() != object.id))
+            .all(|declared| objects.iter().all(|object| object.name != declared.name))
     };
     std::iter::once(base.to_string())
         .chain((2_u32..).map(|suffix| format!("{base}_{suffix}")))
@@ -172,55 +170,42 @@ fn inclusion_alias(
 /// A warning on every Donder document the loaded project does not reach.
 pub(crate) fn unreferenced_documents(
     session: &ProjectSession,
-    project_id: uuid::Uuid,
-    paths: impl IntoIterator<Item = Utf8PathBuf>,
-    text: impl Fn(&Utf8Path) -> Option<String>,
-    cache: &mut crate::ProjectCheckCache,
+    recovery: &ProjectRecovery,
     diagnostics: &mut Vec<IoDiagnostic>,
 ) {
-    let root = DocumentId::new(project_id, Utf8PathBuf::from(PROJECT_ROOT_FILE));
-    for path in paths {
-        if source_document_format(&path) == SourceDocumentFormat::Other
+    let root = DocumentId::new(Utf8PathBuf::from(PROJECT_ROOT_FILE));
+    for (path, document) in &recovery.documents {
+        if document.format == SourceDocumentFormat::Other
             || session
                 .source
                 .documents
-                .contains_key(&DocumentId::new(project_id, path.clone()))
+                .contains_key(&DocumentId::new(path.clone()))
         {
             continue;
         }
-        let Some(text) = text(&path) else {
-            continue;
-        };
-        let declared = declared(&path, &text, cache);
-        let is_setup = declared
-            .names
+        let objects = &document.objects;
+        let is_setup = objects
             .iter()
-            .any(|(kind, _)| *kind == SourceObjectKind::Setup);
-        let declared_of = |wanted: SourceObjectKind| {
-            declared
-                .names
+            .any(|object| object.kind == ObjectKind::Setup);
+        let declared_of = |wanted: ObjectKind| {
+            objects
                 .iter()
-                .filter(|(kind, _)| *kind == wanted)
-                .map(|(_, name)| name.clone())
+                .filter(|object| object.kind == wanted)
+                .map(|object| object.name.clone())
                 .collect()
         };
-        let fix = alias_base(&declared.names)
-            .and_then(|base| inclusion_alias(session, &root, base, &declared.names))
+        let fix = alias_base(objects)
+            .and_then(|base| inclusion_alias(session, &root, base, objects))
             .map(|alias| {
                 IoFix::Include(Inclusion {
                     document: path.clone(),
                     alias,
-                    sequences: declared_of(SourceObjectKind::Sequence),
-                    rigs: declared_of(SourceObjectKind::Rig),
+                    sequences: declared_of(ObjectKind::Sequence),
+                    rigs: declared_of(ObjectKind::Rig),
                 })
             });
         diagnostics.push(IoDiagnostic {
-            range: declared
-                .first
-                .map(|span| byte_range(&text, span.start, span.end)),
             severity: IoDiagnosticSeverity::Warning,
-            code: IoDiagnosticCode::UnreferencedDocument,
-            message: "Nothing imports this document, so the project does not use it.".into(),
             detail: is_setup.then(|| {
                 format!(
                     "A project has one setup; name this one in {PROJECT_ROOT_FILE}'s `setup` \
@@ -228,8 +213,12 @@ pub(crate) fn unreferenced_documents(
                 )
             }),
             fix,
-            related: Vec::new(),
-            path,
+            ..IoDiagnostic::error(
+                path.clone(),
+                document.first_name.clone(),
+                IoDiagnosticCode::UnreferencedDocument,
+                "Nothing imports this document, so the project does not use it.",
+            )
         });
     }
 }

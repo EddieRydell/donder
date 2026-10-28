@@ -1,4 +1,4 @@
-use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
+use donder_elaboration::{PrepareOutputs, PreparedShow, prepare};
 use donder_model::DonderProject;
 use donder_model::GraphOperatorNode;
 use donder_model::{
@@ -11,16 +11,24 @@ use donder_runtime_types::SampleTime;
 /// feeds an operator.
 fn layer_test() -> (DonderProject, SequenceId) {
     let root = camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let project = donder_project_io::load_project(&root).unwrap().project;
-    let id = project
+    let session =
+        donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap();
+    let id = session
+        .project
         .root()
         .sequences
         .iter()
-        .map(|source| source.id())
-        .find(|id| id.0.root_source().object() == "layer_test")
-        .unwrap()
-        .clone();
-    (project, id)
+        .map(|source| *source.id())
+        .find(|id| {
+            session
+                .source
+                .declared_name((*id).into())
+                .is_some_and(|name| name.as_str() == "layer_test")
+        })
+        .unwrap();
+    (session.project, id)
 }
 
 fn node(id: u32, kind: CompositionGraphNodeKind) -> CompositionGraphNode {
@@ -44,28 +52,24 @@ fn edge(from: u32, to: u32, port: &str) -> EffectGraphEdge {
 fn project_operator(project: &DonderProject, id: u32, name: &str) -> CompositionGraphNodeKind {
     CompositionGraphNodeKind::Operator(GraphOperatorNode {
         name: donder_language::object_name(&format!("operator_{id}")),
-        operator: project
-            .definitions()
-            .operators
-            .definitions
+        operator: *project
+            .reusable::<donder_model::OperatorDefinition>()
             .values()
-            .find(|definition| definition.declaration_name == name)
+            .find(|definition| definition.name() == name)
             .unwrap()
-            .id()
-            .clone(),
+            .id(),
         params: Default::default(),
     })
 }
 
 #[test]
 fn fusion_preserves_shared_sources_and_addressed_reads() {
-    use donder_language::compiler::compile_operators;
+    use donder_language::compiler::compile_script;
     use donder_model::ProjectEdit;
-    use donder_model::SourceIdentity;
-    use donder_model::{OperatorDefinitionId, OperatorRef, custom_operator_definition};
+    use donder_model::{OperatorDefinition, OperatorDefinitionId};
 
     let (mut project, id) = layer_test();
-    let definitions = compile_operators(
+    let definitions = compile_script(
         "operator Clock { input source;
         sample { max(source, rgb(progress, 0.05, 0.1)) }
     }
@@ -79,25 +83,21 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
     .unwrap();
     let mut refs = Vec::new();
     for compiled in definitions {
-        let definition = OperatorDefinitionId(SourceIdentity::from_document(
-            id.0.root_source().document_id().clone(),
-            compiled.name().as_str().into(),
-        ));
-        refs.push(OperatorRef::Custom(definition.clone()));
+        let definition = OperatorDefinitionId(project.new_id());
+        refs.push(definition);
         project
-            .apply_edits([ProjectEdit::SetOperatorDefinition {
-                id: definition.clone(),
-                value: custom_operator_definition(definition, compiled),
-            }])
+            .apply_edits([ProjectEdit::Put(donder_model::Object::OperatorDefinition(
+                OperatorDefinition::new(definition, compiled),
+            ))])
             .unwrap();
     }
-    let mut sequence = project.sequence(&id).unwrap().clone();
+    let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
     sequence.automation_clips.clear();
     // Node `id` runs operator `index`.
     let operator = |id: u32, index: usize| {
         CompositionGraphNodeKind::Operator(GraphOperatorNode {
             name: donder_language::object_name(&format!("operator_{id}")),
-            operator: refs[index].clone(),
+            operator: refs[index],
             params: Default::default(),
         })
     };
@@ -122,7 +122,7 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
             edge(3, 4, "input"),
         ],
     };
-    project.replace_sequence(&id, sequence.clone()).unwrap();
+    project.put(sequence.clone()).unwrap();
     let shared = prepare(&project, &id, PrepareOutputs::All).unwrap();
     // The shared source stays a graph node. Duplicating it gives each consumer
     // a private source, which stays a boundary for the consumers' addressed
@@ -139,7 +139,7 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
         .composition_graph
         .edges
         .extend([edge(0, 5, "source"), edge(5, 3, "source")]);
-    project.replace_sequence(&id, sequence).unwrap();
+    project.put(sequence).unwrap();
     let duplicated = prepare(&project, &id, PrepareOutputs::All).unwrap();
     let mut shared = shared.into_playback();
     let mut duplicated = duplicated.into_playback();
@@ -157,9 +157,9 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
 
 /// `layer_test` with layer 1 made black by `blacken`, feeding the output
 /// through a chain of `(operator, input port)`, beside the lit layer 0.
-fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -> PreparedSequence {
+fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -> PreparedShow {
     let (mut project, id) = layer_test();
-    let mut sequence = project.sequence(&id).unwrap().clone();
+    let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
     sequence.automation_clips.clear();
     blacken(&mut sequence);
     let layer = |index: usize| CompositionGraphNodeKind::Layer {
@@ -179,12 +179,12 @@ fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -
     }
     edges.push(edge(previous, 2, "input"));
     sequence.composition_graph = SequenceCompositionGraph { nodes, edges };
-    project.replace_sequence(&id, sequence).unwrap();
+    project.put(sequence).unwrap();
     prepare(&project, &id, PrepareOutputs::All).unwrap()
 }
 
 /// The archive bytes, which record every prepared signal and program.
-fn encoded(sequence: &PreparedSequence) -> Vec<u8> {
+fn encoded(sequence: &PreparedShow) -> Vec<u8> {
     sequence.encode()
 }
 
@@ -247,12 +247,12 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     use donder_model::validate_composition_graph;
     let (mut project, id) = layer_test();
     let baseline = prepare(&project, &id, PrepareOutputs::All).unwrap();
-    let definitions = &project.definitions().operators;
+    let definitions = project.reusable::<donder_model::OperatorDefinition>();
     let make_node = |id, name| CompositionGraphNode {
         position: GraphNodePosition { x: 100.0, y: 100.0 },
         ..node(id, project_operator(&project, id, name))
     };
-    let mut sequence = project.sequence(&id).unwrap().clone();
+    let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
     let graph = &mut sequence.composition_graph;
     graph
         .nodes
@@ -278,7 +278,7 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         validate_composition_graph(&invalid, definitions).is_err(),
         "unknown port accepted"
     );
-    project.replace_sequence(&id, sequence.clone()).unwrap();
+    project.put(sequence.clone()).unwrap();
     let disconnected = prepare(&project, &id, PrepareOutputs::All).unwrap();
     assert!(encoded(&baseline) == encoded(&disconnected));
     sequence
@@ -286,7 +286,7 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         .edges
         .push(edge(8001, output, "input"));
     assert!(
-        project.replace_sequence(&id, sequence).is_err(),
+        project.put(sequence).is_err(),
         "incomplete branch contributing to output accepted"
     );
 }

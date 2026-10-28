@@ -1,7 +1,8 @@
 //! Sparse sampling of one authored clip from an already prepared show.
 //! Raster dimensions, scheduling, image storage, and caching belong to the host.
+use crate::image;
 use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
-use donder_runtime_types::{Color, SampleDuration, SampleTime, SampleTimeError, image};
+use donder_runtime_types::{Color, SampleDuration, SampleTime, SampleTimeError};
 
 use crate::arena::{Carve, Size};
 use crate::dsl::{Invocation, NoSignals, StripSlots, invocation_params, scratch_shape};

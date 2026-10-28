@@ -1,14 +1,14 @@
 use super::DesktopState;
-use donder_sequence_api::{
-    DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand, SequenceCurveValue,
-    SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGradientValue,
+use donder_editor::dto::{
+    GuiDocument, GuiDocumentRequest, GuiEditCommand, SequenceClipRef, SequenceCurveValue,
+    SequenceEffectCommonEdit, SequenceEffectParamValue, SequenceEffectScope, SequenceGradientValue,
     SequenceGuiEdit, SequenceLibrarySource,
 };
 
 #[test]
 fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     use crate::desktop_foundation_tests::tests::starter_copy;
-    use donder_project_io::load_project;
+    use donder_project_io::check_project;
     use std::fs;
     let (_temporary, root) = starter_copy();
     fs::write(
@@ -31,7 +31,9 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     );
     assert_ne!(authored, original);
     fs::write(root.join(path), authored).unwrap();
-    load_project(&root).expect("array parameter fixture loads");
+    check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .expect("array parameter fixture loads");
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let mut settings = state.snapshot().settings;
@@ -42,8 +44,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         owned_path: Vec::new(),
         project_revision: state.snapshot().project_revision,
         path: path.into(),
-        view: DocumentViewId::Sequence,
-        object_key: Some("empty".into()),
+        object_key: "empty".into(),
     };
     let GuiDocument::Sequence { document } = state.get_gui_document(request()).document else {
         panic!("sequence unavailable");
@@ -51,7 +52,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     let definition = document
         .effect_definitions
         .iter()
-        .find(|item| matches!(&item.effect, SequenceEffectReference::Custom { effect_name, .. } if effect_name == "ArrayValues"))
+        .find(|item| item.effect.effect_name == "ArrayValues")
         .unwrap();
     let edit = |edit| {
         let result = state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
@@ -76,15 +77,19 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
             .remove(0)
             .params
     };
-    edit(SequenceGuiEdit::UpdateEffectParam {
-        id: effect_id,
-        name: "shapes".into(),
-        value: SequenceEffectParamValue::CurveArray { values: vec![] },
+    edit(SequenceGuiEdit::EditEffects {
+        clips: vec![SequenceClipRef::Effect { id: effect_id }],
+        edit: SequenceEffectCommonEdit::Param {
+            name: "shapes".into(),
+            value: SequenceEffectParamValue::CurveArray { values: vec![] },
+        },
     });
-    let document = edit(SequenceGuiEdit::UpdateEffectParam {
-        id: effect_id,
-        name: "colors".into(),
-        value: SequenceEffectParamValue::GradientArray { values: vec![] },
+    let document = edit(SequenceGuiEdit::EditEffects {
+        clips: vec![SequenceClipRef::Effect { id: effect_id }],
+        edit: SequenceEffectCommonEdit::Param {
+            name: "colors".into(),
+            value: SequenceEffectParamValue::GradientArray { values: vec![] },
+        },
     });
     let effect = &document.effects[0];
     let effect_params = params(effect.id);
@@ -96,31 +101,19 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     );
     let curve = &document.curve_library[0];
     let gradient = &document.gradient_library[0];
-    let source = |module_id: &str, path: &str, object_key: &str, display_name: &str| {
-        SequenceLibrarySource::Library {
-            module_id: module_id.into(),
+    let source =
+        |path: &str, object_key: &str, display_name: &str| SequenceLibrarySource::Library {
             path: path.into(),
             object_key: object_key.into(),
             display_name: display_name.into(),
-        }
-    };
+        };
     let curve = SequenceCurveValue {
         points: curve.points.clone(),
-        source: source(
-            &curve.module_id,
-            &curve.path,
-            &curve.object_key,
-            &curve.display_name,
-        ),
+        source: source(&curve.path, &curve.object_key, &curve.display_name),
     };
     let gradient = SequenceGradientValue {
         stops: gradient.stops.clone(),
-        source: source(
-            &gradient.module_id,
-            &gradient.path,
-            &gradient.object_key,
-            &gradient.display_name,
-        ),
+        source: source(&gradient.path, &gradient.object_key, &gradient.display_name),
     };
     for (name, value) in [
         (
@@ -136,10 +129,12 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
             },
         ),
     ] {
-        let document = edit(SequenceGuiEdit::UpdateEffectParam {
-            id: effect.id,
-            name: name.into(),
-            value,
+        let document = edit(SequenceGuiEdit::EditEffects {
+            clips: vec![SequenceClipRef::Effect { id: effect.id }],
+            edit: SequenceEffectCommonEdit::Param {
+                name: name.into(),
+                value,
+            },
         });
         let mut value = params(document.effects[0].id)
             .iter()
@@ -158,10 +153,12 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
             }
             _ => panic!("wrong array editor"),
         }
-        let document = edit(SequenceGuiEdit::UpdateEffectParam {
-            id: effect.id,
-            name: name.into(),
-            value,
+        let document = edit(SequenceGuiEdit::EditEffects {
+            clips: vec![SequenceClipRef::Effect { id: effect.id }],
+            edit: SequenceEffectCommonEdit::Param {
+                name: name.into(),
+                value,
+            },
         });
         let edited = params(document.effects[0].id);
         let value = &edited

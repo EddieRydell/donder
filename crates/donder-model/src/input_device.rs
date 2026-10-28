@@ -1,8 +1,5 @@
-use crate::identity::ObjectIdentity;
+pub(crate) use crate::identity::InputDeviceId;
 use donder_runtime_types::Identifier;
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct InputDeviceId(pub ObjectIdentity);
 
 /// A control of an input device, numbered from 1 in authored order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -362,53 +359,84 @@ key_codes!(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InputDeviceValidationError {
     DuplicateControl(InputControlId),
-    /// Control names are `snake_case` and unique within their device.
-    InvalidControlName(Identifier),
+    /// Control names are `snake_case`.
+    InvalidControlName(InputControlId, Identifier),
+    /// Control names are unique within their device.
+    DuplicateControlName(InputControlId, Identifier),
     /// Two controls read the same input.
-    DuplicateInput(Identifier),
+    DuplicateInput {
+        control: InputControlId,
+        name: Identifier,
+        source: InputSource,
+        other: Identifier,
+    },
     /// A control reads an input its device's driver does not have.
-    ForeignInput(Identifier),
+    ForeignInput(InputControlId, Identifier),
     /// A note or control change number MIDI does not have, or keys whose
     /// lowest note is above their highest.
-    InputOutOfRange(Identifier),
+    InputOutOfRange(InputControlId, Identifier),
     /// An OSC address that is not `/` followed by address characters.
-    InvalidAddress(Identifier),
+    InvalidAddress(InputControlId, Identifier),
     /// A dial whose range is not two finite values from lower to higher.
-    InvalidDialRange(Identifier),
+    InvalidDialRange(InputControlId, Identifier),
     /// An OSC device listening on port 0.
     InvalidOscPort,
+}
+
+impl InputDeviceValidationError {
+    /// The control the error concerns.
+    pub(crate) fn control(&self) -> Option<InputControlId> {
+        match self {
+            Self::DuplicateControl(control)
+            | Self::InvalidControlName(control, _)
+            | Self::DuplicateControlName(control, _)
+            | Self::DuplicateInput { control, .. }
+            | Self::ForeignInput(control, _)
+            | Self::InputOutOfRange(control, _)
+            | Self::InvalidAddress(control, _)
+            | Self::InvalidDialRange(control, _) => Some(*control),
+            Self::InvalidOscPort => None,
+        }
+    }
 }
 
 impl std::fmt::Display for InputDeviceValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DuplicateControl(id) => write!(f, "control {} appears twice", id.0),
-            Self::InvalidControlName(name) => write!(
+            Self::InvalidControlName(_, name) => {
+                write!(f, "`{}` is not a snake_case name", name.as_str())
+            }
+            Self::DuplicateControlName(_, name) => {
+                write!(f, "control `{}` is declared twice", name.as_str())
+            }
+            Self::DuplicateInput {
+                name,
+                source,
+                other,
+                ..
+            } => write!(
                 f,
-                "control `{}` must be a snake_case name unique within its device",
-                name.as_str()
+                "control `{}` reads {source}, which control `{}` already reads",
+                name.as_str(),
+                other.as_str()
             ),
-            Self::DuplicateInput(name) => write!(
-                f,
-                "control `{}` reads an input another control already reads",
-                name.as_str()
-            ),
-            Self::ForeignInput(name) => write!(
+            Self::ForeignInput(_, name) => write!(
                 f,
                 "control `{}` reads an input its device's driver does not have",
                 name.as_str()
             ),
-            Self::InputOutOfRange(name) => write!(
+            Self::InputOutOfRange(_, name) => write!(
                 f,
                 "control `{}` reads a note above {MAX_MIDI_NOTE}, a control change above {MAX_MIDI_CONTROL_CHANGE}, or keys from a higher note to a lower one",
                 name.as_str()
             ),
-            Self::InvalidAddress(name) => write!(
+            Self::InvalidAddress(_, name) => write!(
                 f,
                 "control `{}` reads an OSC address that is not `/` followed by printable characters other than spaces and `*?[]{{}}#,`",
                 name.as_str()
             ),
-            Self::InvalidDialRange(name) => write!(
+            Self::InvalidDialRange(_, name) => write!(
                 f,
                 "dial `{}` must run from a lower to a higher finite value",
                 name.as_str()
@@ -420,50 +448,48 @@ impl std::fmt::Display for InputDeviceValidationError {
 
 impl InputDevice {
     pub fn validate(&self) -> Result<(), InputDeviceValidationError> {
+        use InputDeviceValidationError as Error;
         let mut ids = std::collections::HashSet::new();
         let mut names = std::collections::HashSet::new();
-        let mut inputs = std::collections::HashSet::new();
+        let mut inputs = std::collections::HashMap::new();
         if self.driver == (InputDriver::Osc { port: 0 }) {
-            return Err(InputDeviceValidationError::InvalidOscPort);
+            return Err(Error::InvalidOscPort);
         }
         for control in &self.controls {
+            let (id, name) = (control.id, || control.name.clone());
             if !ids.insert(control.id) {
-                return Err(InputDeviceValidationError::DuplicateControl(control.id));
+                return Err(Error::DuplicateControl(id));
             }
-            if !donder_language::NameKind::Object.accepts(control.name.as_str())
-                || !names.insert(&control.name)
-            {
-                return Err(InputDeviceValidationError::InvalidControlName(
-                    control.name.clone(),
-                ));
+            if !donder_language::NameKind::Object.accepts(control.name.as_str()) {
+                return Err(Error::InvalidControlName(id, name()));
+            }
+            if !names.insert(&control.name) {
+                return Err(Error::DuplicateControlName(id, name()));
             }
             let sources = control.kind.sources();
             if sources.iter().any(|source| !self.driver.reads(source)) {
-                return Err(InputDeviceValidationError::ForeignInput(
-                    control.name.clone(),
-                ));
+                return Err(Error::ForeignInput(id, name()));
             }
             if sources.iter().any(
                 |source| matches!(source, InputSource::Address(address) if !address.is_valid()),
             ) {
-                return Err(InputDeviceValidationError::InvalidAddress(
-                    control.name.clone(),
-                ));
+                return Err(Error::InvalidAddress(id, name()));
             }
             if !control.kind.range_is_valid() {
-                return Err(InputDeviceValidationError::InvalidDialRange(
-                    control.name.clone(),
-                ));
+                return Err(Error::InvalidDialRange(id, name()));
             }
             if sources.is_empty() || sources.iter().any(|source| !source.in_range()) {
-                return Err(InputDeviceValidationError::InputOutOfRange(
-                    control.name.clone(),
-                ));
+                return Err(Error::InputOutOfRange(id, name()));
             }
-            if !sources.into_iter().all(|source| inputs.insert(source)) {
-                return Err(InputDeviceValidationError::DuplicateInput(
-                    control.name.clone(),
-                ));
+            for source in sources {
+                if let Some(other) = inputs.insert(source.clone(), &control.name) {
+                    return Err(Error::DuplicateInput {
+                        control: id,
+                        name: name(),
+                        source,
+                        other: other.clone(),
+                    });
+                }
             }
         }
         Ok(())
@@ -481,10 +507,4 @@ impl crate::ownership::Identified for InputDevice {
     }
 }
 
-pub type InputDeviceSource = crate::ownership::ValueSource<Box<InputDevice>, InputDeviceId>;
-
-impl AsRef<ObjectIdentity> for InputDeviceId {
-    fn as_ref(&self) -> &ObjectIdentity {
-        &self.0
-    }
-}
+pub type InputDeviceSource = crate::ownership::MemberSource<InputDevice, InputDeviceId>;

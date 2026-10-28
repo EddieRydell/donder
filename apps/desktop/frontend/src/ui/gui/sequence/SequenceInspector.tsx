@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 
 import type {
-  SequenceEditorDocument,
+  SequenceGuiDocument,
   SequenceAutomationTarget,
   SequenceEffect,
   SequenceEffectDetails,
@@ -23,10 +23,10 @@ import { TypedParamInput } from "./params/TypedParamInput";
 import { sequenceComposition } from "./composition";
 import { NameField } from "./NameField";
 import { DescriptionField } from "../DescriptionField";
-import { activeMarkCollection, defaultMarkColor, nextCollectionKey } from "./marks";
+import { activeMarkCollection, defaultMarkColor } from "./marks";
 import { BeatDetectionDialog } from "./BeatDetectionDialog";
 import { MarkSubdivision } from "./MarkSubdivision";
-import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
+import { clipIdsOfKind, clipRefs, selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { useSequenceEffectDetails } from "./sequenceEffectDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
@@ -48,7 +48,7 @@ const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
   { id: "marks", label: "Marks" },
 ];
 
-function supportsAutomation(document: SequenceEditorDocument, details: Map<number, SequenceEffectDetails> | null, target: SequenceAutomationTarget) {
+function supportsAutomation(document: SequenceGuiDocument, details: Map<number, SequenceEffectDetails> | null, target: SequenceAutomationTarget) {
   if (target.type === "effectParam") {
     return details?.get(target.effectId)?.params
       .find((param) => param.name === target.param)?.supportsAutomation === true;
@@ -71,7 +71,7 @@ export function SequenceInspector({
   visibleMarkCollectionKeys,
   setVisibleMarkCollectionKeys
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   selected: GuiFocus;
   setSelected: (id: GuiFocus) => void;
   sequenceSelection: SequenceSelection;
@@ -140,7 +140,7 @@ function SelectedEffectsInspector({
   effectIds,
   onDelete
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   effectIds: number[];
   onDelete: () => void;
 }) {
@@ -163,11 +163,11 @@ function SelectedEffectsInspector({
   const commonParams = details === null ? [] : commonEditableEffectParams(effects.map((effect) => details.get(effect.id)).filter((effect) => effect !== undefined));
   const applyEdit = (edit: SequenceEffectCommonEdit) =>
     runGuiEditCommand((request) =>
-      commands.applySequenceSelectionEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "editEffects",
-        effectIds: selectedEffectIds,
+        clips: clipRefs("effect", selectedEffectIds),
         edit
-      })
+      } })
     );
 
   return (
@@ -282,7 +282,7 @@ function SharedEffectParamInput({
   param: SequenceEffectParam;
   mixed: boolean;
   commitParam: (name: string, value: SequenceEffectParam["value"]) => Promise<void>;
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
 }) {
   const [editingMixed, setEditingMixed] = useState(false);
   if (mixed && !editingMixed) {
@@ -367,7 +367,7 @@ function EffectInspectorPanel({
   automationClipChooser,
   setAutomationClipChooser
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   selected: GuiFocus;
   setSelected: (id: GuiFocus) => void;
   sequenceSelection: SequenceSelection;
@@ -393,14 +393,14 @@ function EffectInspectorPanel({
         </>
       );
     }
-    if (sequenceSelection.automationIds.length === 0) {
+    if (sequenceSelection.clips.every((clip) => clip.type === "effect")) {
       return (
         <SelectedEffectsInspector
           document={document}
-          effectIds={sequenceSelection.effectIds}
+          effectIds={clipIdsOfKind(sequenceSelection.clips, "effect")}
           onDelete={() => {
             void runGuiEditCommand((request) =>
-              commands.applySequenceSelectionEdit(request, { type: "delete", selection: sequenceSelection })
+              commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: sequenceSelection } })
             ).then(() => {
               setSelected(null);
             });
@@ -417,7 +417,7 @@ function EffectInspectorPanel({
         <button
           type="button"
           onClick={() =>
-            void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type: "delete", selection: sequenceSelection })).then(() => {
+            void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: sequenceSelection } })).then(() => {
               setSelected(null);
             })
           }
@@ -444,26 +444,28 @@ function EffectInspectorPanel({
         {automationClip.detachedBindings.map((binding, index) => (
           <div key={`${binding.target.type}-${index}`}>
             <span className="status-warning">Detached</span>
-            <p>{detachedAutomationTargetLabel(binding.target)} · {detachmentReasonLabel(binding.reason)}</p>
+            <p>{detachedAutomationTargetLabel(binding.target)}</p>
             <div className="effect-param-actions">
               <button
                 type="button"
                 disabled={!supportsAutomation(document, details, binding.target)}
-                onClick={() => void runGuiEditCommand((request) => commands.rebindDetachedAutomation(request,
-                  automationClip.id,
-                  index,
-                  binding.target
-                ))}
+                onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
+                  type: "rebindDetachedAutomation",
+                  clipId: automationClip.id,
+                  detachedIndex: index,
+                  target: binding.target
+                } }))}
               >
                 Rebind
               </button>
               <button
                 type="button"
                 className="danger"
-                onClick={() => void runGuiEditCommand((request) => commands.discardDetachedAutomation(request,
-                  automationClip.id,
-                  index
-                ))}
+                onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
+                  type: "discardDetachedAutomation",
+                  clipId: automationClip.id,
+                  detachedIndex: index
+                } }))}
               >
                 Discard provenance
               </button>
@@ -474,7 +476,10 @@ function EffectInspectorPanel({
           type="button"
           onClick={() =>
             void runGuiEditCommand((request) =>
-              commands.applySequenceGuiEdit(request, { type: "deleteAutomationClip", id: automationClip.id })
+              commands.applyGuiEdit(request, { type: "sequence", edit: {
+                type: "deleteSelection",
+                selection: { type: "clips", clips: [{ type: "automation", id: automationClip.id }] }
+              } })
             ).then(() => {
               setSelected(null);
             })
@@ -502,15 +507,11 @@ function EffectInspectorPanel({
   const currentDefinition = effectDetails === undefined ? undefined : document.effectDefinitions.find((definition) =>
     effectReferencesEqual(definition.effect, effectDetails.effectReference)
   );
-  const resizeEffect = (startSeconds: number, durationSeconds: number) =>
+  const editEffect = (edit: SequenceEffectCommonEdit) =>
     runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "resizeEffect",
-        id: effect.id,
-        startSeconds: Math.max(0, roundToNanosecond(startSeconds)),
-        durationSeconds: Math.max(0.000000001, roundToNanosecond(durationSeconds))
-      })
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "editEffects", clips: [{ type: "effect", id: effect.id }], edit } })
     );
+  const item = { type: "clip", id: effect.id } as const;
 
   return (
     <>
@@ -521,7 +522,7 @@ function EffectInspectorPanel({
           label="Name"
           commit={(name) =>
             runGuiEditCommand((request) =>
-              commands.applySequenceGuiEdit(request, { type: "renameClip", id: effect.id, name })
+              commands.applyGuiEdit(request, { type: "rename", item, name })
             )
           }
         />
@@ -529,11 +530,7 @@ function EffectInspectorPanel({
           description={effect.description}
           onCommit={(description) =>
             runGuiEditCommand((request) =>
-              commands.applySequenceGuiEdit(request, {
-                type: "setItemDescription",
-                item: { type: "clip", id: effect.id },
-                description
-              })
+              commands.applyGuiEdit(request, { type: "setDescription", item, description })
             )
           }
         />
@@ -542,13 +539,7 @@ function EffectInspectorPanel({
           <select
             value={String(effect.layerId)}
             onChange={(event) =>
-              void runGuiEditCommand((request) =>
-                commands.applySequenceGuiEdit(request, {
-                  type: "setEffectLayer",
-                  id: effect.id,
-                  layerId: Number(event.currentTarget.value)
-                })
-              )
+              void editEffect({ type: "layer", layerId: Number(event.currentTarget.value) })
             }
           >
             {document.layers.map((layer) => (
@@ -570,7 +561,7 @@ function EffectInspectorPanel({
               onBlur={(event) => {
                 const nextStartSeconds = Number(event.currentTarget.value);
                 if (!Number.isFinite(nextStartSeconds) || roundToNanosecond(nextStartSeconds) === effect.startSeconds) return;
-                void resizeEffect(nextStartSeconds, effect.durationSeconds);
+                void editEffect({ type: "start", startSeconds: Math.max(0, roundToNanosecond(nextStartSeconds)) });
               }}
             />
           </label>
@@ -585,7 +576,7 @@ function EffectInspectorPanel({
               onBlur={(event) => {
                 const nextDurationSeconds = Number(event.currentTarget.value);
                 if (!Number.isFinite(nextDurationSeconds) || roundToNanosecond(nextDurationSeconds) === effect.durationSeconds) return;
-                void resizeEffect(effect.startSeconds, nextDurationSeconds);
+                void editEffect({ type: "duration", durationSeconds: Math.max(0.000000001, roundToNanosecond(nextDurationSeconds)) });
               }}
             />
           </label>
@@ -597,12 +588,12 @@ function EffectInspectorPanel({
             label={currentDefinition?.name ?? effect.effect}
             onSelect={(definition) =>
               void runGuiEditCommand((request) =>
-                commands.applySequenceGuiEdit(request, {
+                commands.applyGuiEdit(request, { type: "sequence", edit: {
                   type: "changeEffectDefinition",
                   initialColor: THEME_COLORS.white,
                   id: effect.id,
                   effect: definition.effect
-                })
+                } })
               )
             }
           />
@@ -616,13 +607,7 @@ function EffectInspectorPanel({
         <select
           value={effect.scope}
           onChange={(event) =>
-            void runGuiEditCommand((request) =>
-              commands.applySequenceGuiEdit(request, {
-                type: "setEffectScope",
-                id: effect.id,
-                scope: event.currentTarget.value as SequenceEffectScope
-              })
-            )
+            void editEffect({ type: "scope", scope: event.currentTarget.value as SequenceEffectScope })
           }
         >
           <option value="perFixture">Per fixture</option>
@@ -642,14 +627,7 @@ function EffectInspectorPanel({
                 <TypedParamInput
                   param={param}
                   commitParam={(name, value) =>
-                    runGuiEditCommand((request) =>
-                      commands.applySequenceGuiEdit(request, {
-                        type: "updateEffectParam",
-                        id: effect.id,
-                        name,
-                        value
-                      })
-                    ).then(() => undefined)
+                    editEffect({ type: "param", name, value }).then(() => undefined)
                   }
                   curveLibrary={document.curveLibrary}
                   gradientLibrary={document.gradientLibrary}
@@ -671,15 +649,7 @@ function EffectInspectorPanel({
   );
 }
 
-const DETACHMENT_REASON_LABELS: Record<import("../../../editor/types").SequenceAutomationDetachmentReason, string> = {
-  definitionChanged: "definition changed"
-};
-
-function detachmentReasonLabel(reason: import("../../../editor/types").SequenceAutomationDetachmentReason): string {
-  return DETACHMENT_REASON_LABELS[reason];
-}
-
-function LayerInspectorPanel({ document }: { document: SequenceEditorDocument }) {
+function LayerInspectorPanel({ document }: { document: SequenceGuiDocument }) {
   const host = useSequenceEditorHost();
   const composition = useMemo(() => sequenceComposition(host, document, null), [host, document]);
   return <><h2>Layers</h2><LayerList composition={composition} /></>;
@@ -696,7 +666,7 @@ function MarkInspectorPanel({
   visibleMarkCollectionKeys,
   setVisibleMarkCollectionKeys
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   selected: GuiFocus;
   setSelected: (id: GuiFocus) => void;
   sequenceSelection: SequenceSelection;
@@ -715,16 +685,14 @@ function MarkInspectorPanel({
   const selectedMarks = selectedMarkEntries(document, selected, sequenceSelection);
 
   const createCollection = () => {
-    const name = "Marks";
-    const key = nextCollectionKey(name, document.markCollections);
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "createMarkCollections",
-        collections: [{ name: key, color: defaultMarkColor(document.markCollections.length), marksSeconds: [] }]
-      })
-    ).then(() => {
-      setActiveMarkCollectionKey(key);
-      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, key]));
+        collections: [{ name: "Marks", color: defaultMarkColor(document.markCollections.length), marksSeconds: [] }]
+      } })
+    ).then(({ created }) => {
+      setActiveMarkCollectionKey(created[0] ?? null);
+      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...created]));
     });
   };
 
@@ -736,12 +704,13 @@ function MarkInspectorPanel({
       return;
     }
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, { type: "renameMarkCollection", key, name })
+      commands.applyGuiEdit(request, { type: "rename", item: { type: "markCollection", key }, name })
     ).then(
-      () => {
-        if (activeMarkCollectionKey === key) setActiveMarkCollectionKey(name);
+      (result) => {
+        const renamed = result.created[0] ?? key;
+        if (activeMarkCollectionKey === key) setActiveMarkCollectionKey(renamed);
         if (visibleMarkCollectionKeys.has(key)) {
-          setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys].map((visible) => (visible === key ? name : visible))));
+          setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys].map((visible) => (visible === key ? renamed : visible))));
         }
       },
       () => {
@@ -758,10 +727,7 @@ function MarkInspectorPanel({
       danger: true
     })) return;
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "deleteMarkCollection",
-        key: collection.key
-      })
+      commands.applyGuiEdit(request, { type: "delete", item: { type: "markCollection", key: collection.key } })
     ).then(() => {
       if (selectedMark?.collectionKey === collection.key) setSelected(null);
       if (activeCollection?.key === collection.key) {
@@ -789,12 +755,11 @@ function MarkInspectorPanel({
     if (!Number.isFinite(nextTimeSeconds) || nextTimeSeconds === entry.timeSeconds) return;
     const nextRefs = selectedRefsAfterMove(selectedMarks.map((mark) => mark.ref), entry.collection, entry.ref, nextTimeSeconds);
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "moveMark",
-        collectionKey: entry.ref.collectionKey,
-        index: entry.ref.index,
-        timeSeconds: nextTimeSeconds
-      })
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
+        type: "moveMarks",
+        marks: [entry.ref],
+        timeDeltaSeconds: nextTimeSeconds - entry.timeSeconds
+      } })
     ).then(() => {
       setSelectedMarkRefs(nextRefs);
     });
@@ -806,12 +771,12 @@ function MarkInspectorPanel({
     if (targetCollection === undefined) return;
     const nextRefs = selectedRefsAfterReassign(selectedMarks.map((mark) => mark.ref), entry.ref, targetCollection, entry.timeSeconds);
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "reassignMarkCollection",
         collectionKey: entry.ref.collectionKey,
         index: entry.ref.index,
         targetCollectionKey
-      })
+      } })
     ).then(() => {
       setSelectedMarkRefs(nextRefs);
     });
@@ -821,23 +786,22 @@ function MarkInspectorPanel({
     const next = label.trim() === "" ? null : label.trim();
     if (next === entry.label) return;
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "setMarkLabel",
         collectionKey: entry.ref.collectionKey,
         index: entry.ref.index,
         label: next
-      })
+      } })
     );
   };
 
   const deleteSelectedMark = (entry: SelectedMarkEntry) => {
     const nextRefs = selectedRefsAfterDelete(selectedMarks.map((mark) => mark.ref), entry.ref);
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "deleteMark",
-        collectionKey: entry.ref.collectionKey,
-        index: entry.ref.index
-      })
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
+        type: "deleteSelection",
+        selection: { type: "marks", marks: [entry.ref] }
+      } })
     ).then(() => {
       setSelectedMarkRefs(nextRefs);
     });
@@ -865,8 +829,8 @@ function MarkInspectorPanel({
           description={activeCollection.description}
           onCommit={(description) =>
             runGuiEditCommand((request) =>
-              commands.applySequenceGuiEdit(request, {
-                type: "setItemDescription",
+              commands.applyGuiEdit(request, {
+                type: "setDescription",
                 item: { type: "markCollection", key: activeCollection.key },
                 description
               })
@@ -918,11 +882,7 @@ function MarkInspectorPanel({
                   label={`${collection.key} color`}
                   commit={(color) =>
                     runGuiEditCommand((request) =>
-                      commands.applySequenceGuiEdit(request, {
-                        type: "setMarkCollectionColor",
-                        key: collection.key,
-                        color
-                      })
+                      commands.applyGuiEdit(request, { type: "setColor", item: { type: "markCollection", key: collection.key }, color })
                     ).then(() => undefined)
                   }
                 />
@@ -1041,7 +1001,7 @@ function markIndexAfterInsert(collection: SequenceMarkCollection, timeSeconds: n
 }
 
 function selectedMarkEntries(
-  document: SequenceEditorDocument,
+  document: SequenceGuiDocument,
   selected: GuiFocus,
   sequenceSelection: SequenceSelection
 ): SelectedMarkEntry[] {
@@ -1063,7 +1023,7 @@ function selectedMarkEntries(
   return entries;
 }
 
-function markEntry(document: SequenceEditorDocument, ref: SequenceMarkRef): SelectedMarkEntry | null {
+function markEntry(document: SequenceGuiDocument, ref: SequenceMarkRef): SelectedMarkEntry | null {
   const collection = document.markCollections.find((candidate) => candidate.key === ref.collectionKey);
   const timeSeconds = collection?.marksSeconds[ref.index];
   if (collection === undefined || timeSeconds === undefined) return null;

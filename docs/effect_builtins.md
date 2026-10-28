@@ -2,7 +2,7 @@
 
 <!-- Generated from crates/donder-language/src/compiler/builtins.rs by `pnpm generate:builtins`; do not edit. -->
 
-Every builtin function and context value of the [effect language](effect_language.md). An int argument is accepted wherever a float is expected. Signatures listing both int and float forms keep ints as ints when every argument is an int.
+Every builtin function, context value and signal method of the [effect language](effect_language.md). A call takes a signature its arguments fit exactly, and otherwise one they fit with int arguments widened to floats, so an int is accepted wherever a float is expected and signatures with int forms keep ints as ints when every argument is an int.
 
 ## Context values
 
@@ -25,6 +25,16 @@ Every builtin function and context value of the [effect language](effect_languag
 | `target.max_y` | float | The largest y coordinate of the target's pixels. |
 | `PI` | float | π, half a turn in radians. |
 | `TAU` | float | 2π, a full turn in radians. |
+
+## Signal methods
+
+Operator inputs and `previous` are signals.
+
+```text
+at(pixel: int) -> color
+```
+
+The signal at another pixel of this fixture, at this frame; `pixel` is a zero-based index within the fixture.
 
 ## Math
 

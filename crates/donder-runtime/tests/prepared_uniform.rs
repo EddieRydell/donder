@@ -2,25 +2,23 @@
 //! and target blocks run once before the per-strip body, and a uniform result
 //! is sampled once for its whole target. Playback must match each pixel
 //! sampled alone and the same programs run unstaged.
-use donder_runtime::{PreparedSequence, SequencePlayback};
+use donder_runtime::{PreparedShow, ShowPlayback};
 use donder_runtime_types::AutomationMapping;
 use donder_runtime_types::bytecode::{
     BytecodeProgram, ContextRead, FloatUnary, Instruction, STRIP, instructions,
 };
+use donder_runtime_types::{BoundProgram, Value};
 use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
 };
-use donder_runtime_types::{
-    OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram, Value,
-};
-use donder_runtime_types::{PreparedAutomation, SequenceTiming, SequenceWindow, TargetScope};
+use donder_runtime_types::{PreparedAutomation, SequenceTiming, TargetGeometry, TargetScope};
 use donder_test_support::marks as mark_workload;
-use donder_test_support::playback::{compile_effect, compile_operator};
+use donder_test_support::playback::compile;
 use donder_test_support::{fixtures, playback, workload};
 use std::num::NonZeroU32;
 
 /// The sequence's first output, as bytes.
-fn frame(playback: &mut SequencePlayback, time: SampleTime) -> Vec<u8> {
+fn frame(playback: &mut ShowPlayback, time: SampleTime) -> Vec<u8> {
     playback
         .evaluate(time)
         .outputs()
@@ -75,50 +73,26 @@ fn is_sin(instruction: &Instruction) -> bool {
     )
 }
 
-/// `operator` with its query and target blocks rerun for every strip and no
+/// `program` with its query and target blocks rerun for every strip and no
 /// frame caches.
-fn unstaged_operator(operator: &OperatorInvocation) -> OperatorInvocation {
-    let program = (**operator.program()).clone();
-    let inputs = program.input_count();
-    let mut bytecode = program.into_bytecode();
-    workload::unstaged(&mut bytecode);
-    OperatorInvocation::bind(
-        OperatorProgram::new(bytecode, inputs),
-        operator.params().iter_values().collect(),
-    )
-    .unwrap()
-    .with_automation(operator.automation().into())
-    .unwrap()
-}
-
-/// `program` with its query and target blocks rerun for every strip.
-fn unstaged_program(program: &SampleProgram) -> SampleProgram {
-    let mut bytecode = program.clone().into_bytecode();
-    workload::unstaged(&mut bytecode);
-    SampleProgram::new(bytecode)
-}
-
-fn unstaged_sample(invocation: &SampleInvocation) -> SampleInvocation {
-    SampleInvocation::bind(
-        unstaged_program(invocation.program()),
-        invocation.params().iter_values().collect(),
-    )
-    .unwrap()
+fn unstaged(program: &BoundProgram) -> BoundProgram {
+    workload::edit(program, workload::unstaged)
 }
 
 /// Every pixel of a `count`-pixel fixture sampled alone: `invocation` on a
 /// one-pixel slice of the fixture's target for each pixel.
-fn single_pixels(count: usize, invocation: &SampleInvocation) -> PreparedSequence {
-    playback::build(count, playback::timing(8_000_000), |builder, target| {
-        let window = builder.whole_sequence();
+fn single_pixels(count: usize, invocation: &BoundProgram) -> PreparedShow {
+    playback::build(count, playback::timing(8_000_000), |builder, _| {
+        let window = SampleDuration::from_ticks(8_000_000);
+        let domain = TargetGeometry::new([(0, &playback::row(count))], TargetScope::WholeTarget);
         let effects: Vec<_> = (0..count)
             .map(|pixel| {
-                let slice = builder.target_slice(target, pixel..pixel + 1);
-                builder.sample(invocation, window, slice)
+                let slice = builder.target(&domain.slice(pixel..pixel + 1));
+                builder.clip(None, invocation, SampleTime::from_ticks(0), window, slice)
             })
             .collect();
         let layer = builder.layer(true, effects);
-        builder.output(Some(layer))
+        Some(layer)
     })
 }
 
@@ -127,7 +101,7 @@ fn single_pixels(count: usize, invocation: &SampleInvocation) -> PreparedSequenc
 fn assert_matches_single_pixels(
     show: workload::Workload,
     count: usize,
-    invocation: &SampleInvocation,
+    invocation: &BoundProgram,
     what: &str,
 ) {
     let mut playback = show.prepare().into_playback();
@@ -193,53 +167,56 @@ fn uniform_gradient() -> Gradient {
 
 #[test]
 fn effect_automation_slots_skip_unautomated_effects() {
-    let effect = compile_effect(UNIFORM_RESOURCES);
+    let effect = compile(UNIFORM_RESOURCES);
     let curve = ramp(0.0, 1.0);
     let values = vec![
         Value::Curve(curve.clone().into()),
         Value::Gradient(uniform_gradient().into()),
     ];
-    let sample = playback::lower_sample(&effect.invoke(values.clone(), Box::new([])).unwrap());
+    let sample = playback::lower(&effect.invoke(values.clone(), Box::new([])).unwrap());
     let automated = [0, 1].map(|slot| {
         let mapping = AutomationMapping::Curve {
             min: slot as f32 * 0.8,
             max: 0.2 + slot as f32 * 0.8,
         };
-        playback::lower_sample(
+        playback::lower(
             &effect
                 .invoke(values.clone(), automation(0, curve.clone(), mapping))
                 .unwrap(),
         )
     });
-    let timing = SequenceTiming::admit(
+    let timing = SequenceTiming::new(
         NonZeroU32::new(120).unwrap(),
         NonZeroU32::new(960).unwrap(),
         NonZeroU32::new(8_000_000).unwrap(),
-        vec![SequenceWindow {
-            start: SampleTime::from_ticks(7_999_999),
-            duration: NonZeroU32::new(1).unwrap(),
-        }]
-        .into(),
-    )
-    .unwrap();
+    );
     let show = playback::build(200, timing, |builder, target| {
-        let late = builder.windows().next().unwrap();
-        let whole = builder.whole_sequence();
+        let (late, last) = (
+            SampleTime::from_ticks(7_999_999),
+            SampleDuration::from_ticks(1),
+        );
+        let (start, whole) = (
+            SampleTime::from_ticks(0),
+            SampleDuration::from_ticks(8_000_000),
+        );
         let effects = [
-            builder.sample(&sample, late, target),
-            builder.sample(&automated[0], whole, target),
-            builder.sample(&sample, late, target),
-            builder.sample(&automated[1], whole, target),
+            builder.clip(None, &sample, late, last, target),
+            builder.clip(None, &automated[0], start, whole, target),
+            builder.clip(None, &sample, late, last, target),
+            builder.clip(None, &automated[1], start, whole, target),
         ];
         let layer = builder.layer(true, [effects[1], effects[3], effects[0], effects[2]]);
-        builder.output(Some(layer))
+        Some(layer)
     });
     let mut playback = show.into_playback();
     for frame_index in [0, 31, 4, 0] {
         let time = playback::time(frame_index);
         let mut expected = vec![0; 600];
         for single in &automated {
-            let component = frame(&mut playback::show(200, single, 1).into_playback(), time);
+            let component = frame(
+                &mut playback::show(200, single, 1, &[]).into_playback(),
+                time,
+            );
             for (expected, component) in expected.iter_mut().zip(&component) {
                 *expected = (*expected).max(*component);
             }
@@ -252,25 +229,25 @@ fn effect_automation_slots_skip_unautomated_effects() {
 fn uniform_resource_samples_match_single_pixels() {
     let invocation = fixtures::uniform_resources();
     assert_matches_single_pixels(
-        workload::show(200, &invocation),
+        workload::layered_show(200, &invocation, 1),
         200,
-        &playback::lower_sample(&invocation),
+        &playback::lower(&invocation),
         "uniform resources",
     );
 }
 
 #[test]
 fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() {
-    let sample = playback::sample(&compile_effect(
+    let sample = playback::program(&compile(
         "effect Source { sample { rgb(pixel.fraction, progress, 0.25) } }",
     ));
-    let gain = compile_operator(
+    let gain = compile(
         "operator Gain { input source; param gain: float in 0.0..1.0 = 0.5; sample { source * gain } }",
     );
     {
-        let outer = playback::operator(&compile_operator(playback::IDENTITY_SOURCE));
+        let outer = playback::program(&compile(playback::IDENTITY_SOURCE));
         for min in [0.0, 0.4] {
-            let gain = playback::lower_operator(
+            let gain = playback::lower(
                 &gain
                     .invoke(
                         vec![Value::Float(0.5)],
@@ -282,9 +259,9 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
                     )
                     .unwrap(),
             );
-            let direct = || playback::chain(200, &sample, 1, core::slice::from_ref(&gain));
+            let direct = || playback::show(200, &sample, 1, core::slice::from_ref(&gain));
             let mut playback =
-                playback::chain(200, &sample, 1, &[gain.clone(), outer.clone()]).into_playback();
+                playback::show(200, &sample, 1, &[gain.clone(), outer.clone()]).into_playback();
             for ticks in [3_000_000, 6_000_000, 1_000_000, 3_000_000] {
                 let actual = frame(&mut playback, SampleTime::from_ticks(ticks));
                 let expected = frame(&mut direct().into_playback(), SampleTime::from_ticks(ticks));
@@ -295,7 +272,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
     }
 }
 
-fn assert_same_frames(staged: PreparedSequence, unstaged: PreparedSequence, what: &str) {
+fn assert_same_frames(staged: PreparedShow, unstaged: PreparedShow, what: &str) {
     let mut staged = staged.into_playback();
     let mut unstaged = unstaged.into_playback();
     for frame_index in [0, 31, 4, 0] {
@@ -312,21 +289,22 @@ fn assert_same_frames(staged: PreparedSequence, unstaged: PreparedSequence, what
 
 #[test]
 fn staged_upstream_matches_unstaged_execution_across_effects() {
-    let effect = compile_effect(
-        "effect Source { sample {
+    let effect = playback::invoke(
+        &compile(
+            "effect Source { sample {
             let gain = sin(time * 7.0) * 0.5 + 0.5;
             rgb(pixel.fraction, progress * gain, gain)
         } }",
-    )
-    .bind(std::iter::empty())
-    .unwrap();
+        ),
+        &[],
+    );
     let sample = workload::sample_fixture(
         &effect,
         200,
         SampleTime::from_ticks(0),
         SampleDuration::from_ticks(8_000_000),
     );
-    assert!(in_query_block(sample.program.bytecode(), is_sin));
+    assert!(in_query_block(&sample.program.program().bytecode, is_sin));
     for (source, count) in [
         playback::IDENTITY_SOURCE,
         "operator Mix { input source; sample { max(source, source.at(pixel.index + 1)) } }",
@@ -334,31 +312,32 @@ fn staged_upstream_matches_unstaged_execution_across_effects() {
     .into_iter()
     .flat_map(|source| [1, 2].map(|count| (source, count)))
     {
-        let operator = workload::operator_invocation(&compile_operator(source));
+        let operator = workload::operator_program(&compile(source));
         let prepare = |staged| {
             let (sample, operator) = if staged {
                 (sample.clone(), operator.clone())
             } else {
                 (
-                    workload::SampleFixture {
-                        program: unstaged_program(&sample.program),
+                    workload::Clip {
+                        program: unstaged(&sample.program),
                         ..sample.clone()
                     },
-                    unstaged_operator(&operator),
+                    unstaged(&operator),
                 )
             };
             let mut effects = vec![sample.clone()];
             if count == 2 {
-                effects.push(workload::SampleFixture {
+                effects.push(workload::Clip {
                     start: SampleTime::from_ticks(500_000),
                     duration: SampleDuration::from_ticks(3_000_000),
                     ..sample
                 });
             }
-            workload::Workload::samples(200, vec![effects]).prepare_with(|builder, _, signal| {
-                let result = builder.operator(&operator, |_| signal);
-                builder.output(Some(result))
-            })
+            workload::Workload {
+                operators: vec![operator],
+                ..workload::Workload::new(200, vec![effects])
+            }
+            .prepare()
         };
         assert_same_frames(prepare(true), prepare(false), &format!("effects={count}"));
     }
@@ -366,7 +345,7 @@ fn staged_upstream_matches_unstaged_execution_across_effects() {
 
 #[test]
 fn staged_operators_match_unstaged_evaluation_with_nested_signals() {
-    let sample = playback::sample(&compile_effect(
+    let sample = playback::program(&compile(
         "effect Source { sample { rgb(pixel.fraction, progress, 0.25) } }",
     ));
     for source in [
@@ -380,16 +359,16 @@ fn staged_operators_match_unstaged_evaluation_with_nested_signals() {
             source.at(pixel.index + 1) * gain
         } }",
     ] {
-        let operator = workload::operator_invocation(&compile_operator(source));
-        assert!(in_query_block(operator.program().bytecode(), is_sin));
+        let operator = workload::operator_program(&compile(source));
+        assert!(in_query_block(&operator.program().bytecode, is_sin));
         for depth in [1, 2] {
             let prepare = |staged| {
                 let operator = if staged {
                     operator.clone()
                 } else {
-                    unstaged_operator(&operator)
+                    unstaged(&operator)
                 };
-                playback::chain(200, &sample, 1, &vec![operator; depth])
+                playback::show(200, &sample, 1, &vec![operator; depth])
             };
             assert_same_frames(
                 prepare(true),
@@ -402,21 +381,22 @@ fn staged_operators_match_unstaged_evaluation_with_nested_signals() {
 
 #[test]
 fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
-    let effect = compile_effect("effect Source { sample { rgb(pixel.fraction, progress, 0.25) } }")
-        .bind(std::iter::empty())
-        .unwrap();
-    let gain = compile_operator(
+    let effect = playback::invoke(
+        &compile("effect Source { sample { rgb(pixel.fraction, progress, 0.25) } }"),
+        &[],
+    );
+    let gain = compile(
         "operator Gain { input source; param gain: float in 0.0..1.0 = 0.5;
             sample { source * (gain * progress) } }",
     );
-    let mix = workload::operator_invocation(&compile_operator(
+    let mix = workload::operator_program(&compile(
         "operator Mix { input a; input b; sample {
             max(max(a, b), max(a.at(pixel.index + 1), a))
         } }",
     ));
     // The parameter's product with the query's progress runs once per query.
-    let gain_program = workload::operator_invocation(&gain);
-    assert!(in_query_block(gain_program.program().bytecode(), |op| {
+    let gain_program = workload::operator_program(&gain);
+    assert!(in_query_block(&gain_program.program().bytecode, |op| {
         matches!(
             op,
             Instruction::Context {
@@ -426,7 +406,7 @@ fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
         )
     }));
     let siblings = [0.2, 0.9].map(|value| {
-        playback::lower_operator(
+        playback::lower(
             &gain
                 .invoke(
                     vec![Value::Float(value)],
@@ -443,24 +423,30 @@ fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
         )
     });
     let prepare = |staged| {
-        let sample = playback::lower_sample(&effect);
+        let sample = playback::lower(&effect);
         let (sample, siblings, mix) = if staged {
             (sample, siblings.clone(), mix.clone())
         } else {
             (
-                unstaged_sample(&sample),
-                siblings.each_ref().map(unstaged_operator),
-                unstaged_operator(&mix),
+                unstaged(&sample),
+                siblings.each_ref().map(unstaged),
+                unstaged(&mix),
             )
         };
         playback::build(200, playback::timing(8_000_000), |builder, target| {
-            let effect = builder.sample(&sample, builder.whole_sequence(), target);
+            let effect = builder.clip(
+                None,
+                &sample,
+                SampleTime::from_ticks(0),
+                SampleDuration::from_ticks(8_000_000),
+                target,
+            );
             let layer = builder.layer(true, [effect]);
             let siblings = siblings
                 .each_ref()
                 .map(|invocation| builder.operator(invocation, |_| layer));
             let mixed = builder.operator(&mix, |input| siblings[input]);
-            builder.output(Some(mixed))
+            Some(mixed)
         })
     };
     assert_same_frames(prepare(true), prepare(false), "siblings");
@@ -468,13 +454,13 @@ fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
 
 #[test]
 fn uniform_frames_match_single_pixels_when_seeking() {
-    let effect =
-        compile_effect("effect Uniform { sample { rgb(progress, sin(time) * 0.5 + 0.5, 0.25) } }")
-            .bind(std::iter::empty())
-            .unwrap();
-    let invocation = playback::lower_sample(&effect);
-    assert!(!invocation.program().bytecode().uses_pixel_context());
-    let identity = compile_operator(playback::IDENTITY_SOURCE);
+    let effect = playback::invoke(
+        &compile("effect Uniform { sample { rgb(progress, sin(time) * 0.5 + 0.5, 0.25) } }"),
+        &[],
+    );
+    let invocation = playback::lower(&effect);
+    assert!(!invocation.program().bytecode.uses_pixel_context());
+    let identity = compile(playback::IDENTITY_SOURCE);
     for (layers, wrapped) in [1, 16]
         .into_iter()
         .flat_map(|layers| [false, true].map(|wrapped| (layers, wrapped)))
@@ -494,11 +480,11 @@ fn uniform_frames_match_single_pixels_when_seeking() {
 
 #[test]
 fn uniform_results_made_rows_keep_their_colors() {
-    let effect =
-        compile_effect("effect Uniform { sample { rgb(progress, sin(time) * 0.5 + 0.5, 0.25) } }")
-            .bind(std::iter::empty())
-            .unwrap();
-    let identity = compile_operator(playback::IDENTITY_SOURCE);
+    let effect = playback::invoke(
+        &compile("effect Uniform { sample { rgb(progress, sin(time) * 0.5 + 0.5, 0.25) } }"),
+        &[],
+    );
+    let identity = compile(playback::IDENTITY_SOURCE);
     for count in [1, STRIP - 1, STRIP, STRIP + 1, 2 * STRIP + 1] {
         for wrapped in [false, true] {
             let show = |reuse| {
@@ -532,9 +518,8 @@ fn uniform_results_made_rows_keep_their_colors() {
 
 #[test]
 fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
-    let effect =
-        compile_effect("effect Uniform { param colors: gradient; sample { colors[progress] } }");
-    let invocation = playback::lower_sample(
+    let effect = compile("effect Uniform { param colors: gradient; sample { colors[progress] } }");
+    let invocation = playback::lower(
         &effect
             .invoke(
                 vec![Value::Gradient(Gradient { stops: vec![] }.into())],
@@ -542,17 +527,23 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
             )
             .unwrap(),
     );
-    assert!(!invocation.program().bytecode().uses_pixel_context());
+    assert!(!invocation.program().bytecode.uses_pixel_context());
     for empty in [false, true] {
         let show = playback::build(200, playback::timing(8_000_000), |builder, target| {
             let effect_target = if empty {
-                builder.target([], TargetScope::WholeTarget)
+                builder.target(&TargetGeometry::new([], TargetScope::WholeTarget))
             } else {
                 target
             };
-            let effect = builder.sample(&invocation, builder.whole_sequence(), effect_target);
+            let effect = builder.clip(
+                None,
+                &invocation,
+                SampleTime::from_ticks(0),
+                SampleDuration::from_ticks(8_000_000),
+                effect_target,
+            );
             let layer = builder.layer(true, [effect]);
-            builder.output(Some(layer))
+            Some(layer)
         });
         let output = frame(&mut show.into_playback(), playback::time(0));
         assert!(output.iter().all(|&byte| byte == 0));
@@ -598,9 +589,9 @@ fn mixed_pixel_and_time_expressions_match_single_pixels() {
             rgb(max for i in 0..pixel.index % 5 { phase * i * 0.25 }, phase, progress)
         } }",
     ] {
-        let effect = compile_effect(source).bind(std::iter::empty()).unwrap();
-        let invocation = playback::lower_sample(&effect);
-        let bytecode = invocation.program().bytecode();
+        let effect = playback::invoke(&compile(source), &[]);
+        let invocation = playback::lower(&effect);
+        let bytecode = &invocation.program().bytecode;
         assert!(bytecode.uses_pixel_context());
         // The pixel-independent work runs once per query, before the body.
         assert!(in_query_block(bytecode, is_sin), "{source}");
@@ -651,8 +642,8 @@ fn early_exit_reductions_match_single_pixels() {
             if hit { rgb(1.0, progress, 0.0) } else { rgb(0.0, 0.0, 1.0) }
         } }",
     ] {
-        let effect = compile_effect(source).bind(std::iter::empty()).unwrap();
-        let invocation = playback::lower_sample(&effect);
+        let effect = playback::invoke(&compile(source), &[]);
+        let invocation = playback::lower(&effect);
         for count in [STRIP, 2 * STRIP + 1] {
             assert_matches_single_pixels(
                 workload::layered_show(count, &effect, 1),

@@ -1,6 +1,6 @@
 use super::{DesktopState, lock_unpoisoned};
 use crate::persistence::{PersistedSequenceTransport, sequence_viewport_key};
-use donder_sequence_api::{
+use donder_editor::dto::{
     AppSnapshot, AudioTransportSnapshot, AudioTransportState, GuiDocumentRequest, PlaybackRange,
 };
 
@@ -15,9 +15,13 @@ impl DesktopState {
         }
         let audio = self.resolve_sequence_audio(&request);
         let sequence_id = self.resolve_sequence_id(&request);
+        let sequence_address = sequence_id.and_then(|id| {
+            self.project_session()
+                .and_then(|session| session.address_of(id.into()))
+        });
         if let Err(error) = self
             .device_playback
-            .stop_for_source(self.snapshot().project_epoch, sequence_id.as_ref())
+            .stop_for_source(self.snapshot().project_epoch, sequence_address.as_ref())
         {
             return self.device_transport_error(error);
         }
@@ -27,7 +31,7 @@ impl DesktopState {
             .and_then(|project| {
                 sequence_id
                     .as_ref()
-                    .and_then(|id| project.project.sequence(id))
+                    .and_then(|id| project.project.get::<donder_model::Sequence>(*id))
             })
             .filter(|sequence| matches!(sequence.audio, donder_model::SequenceAudio::None))
             .map(|sequence| sequence.duration.as_seconds_f64());
@@ -75,7 +79,7 @@ impl DesktopState {
         }
         let audio_transport = lock_unpoisoned(&self.audio).unload();
         lock_unpoisoned(&self.workspace).transport_view_key = None;
-        if self.snapshot().project_health == donder_sequence_api::ProjectHealth::Ready {
+        if self.snapshot().project_health == donder_editor::dto::ProjectHealth::Ready {
             lock_unpoisoned(&self.workspace).render_target = None;
             self.unload_render_session();
         } else {
@@ -108,7 +112,7 @@ impl DesktopState {
     pub fn audio_pause(&self) -> AppSnapshot {
         if self.device_playback.has_devices() {
             return self
-                .device_audio_hold(donder_sequence_api::DevicePlaybackMode::Paused, None, false)
+                .device_audio_hold(donder_editor::dto::DevicePlaybackMode::Paused, None, false)
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).pause();
@@ -121,7 +125,7 @@ impl DesktopState {
         if self.device_playback.has_devices() {
             return self
                 .device_audio_hold(
-                    donder_sequence_api::DevicePlaybackMode::Stopped,
+                    donder_editor::dto::DevicePlaybackMode::Stopped,
                     Some(self.audio_snapshot().home_seconds),
                     false,
                 )
@@ -137,7 +141,7 @@ impl DesktopState {
         if self.device_playback.has_devices() {
             return self
                 .device_audio_hold(
-                    donder_sequence_api::DevicePlaybackMode::Paused,
+                    donder_editor::dto::DevicePlaybackMode::Paused,
                     Some(0.0),
                     true,
                 )
@@ -157,7 +161,7 @@ impl DesktopState {
             }
             return self
                 .device_audio_hold(
-                    donder_sequence_api::DevicePlaybackMode::Paused,
+                    donder_editor::dto::DevicePlaybackMode::Paused,
                     Some(position_seconds.clamp(0.0, duration)),
                     true,
                 )
@@ -317,7 +321,7 @@ impl DesktopState {
             }
             return Ok(crate::preview::PreviewContent {
                 instances: geometry.instances,
-                archive: Some(crate::preview::PreviewArchive::Rig(performance.archive)),
+                archive: Some(performance.archive),
                 performance: Some(performance.generation),
             });
         }
@@ -332,8 +336,7 @@ impl DesktopState {
 
         Ok(crate::preview::PreviewContent {
             instances: geometry.instances,
-            archive: sequence
-                .map(|sequence| crate::preview::PreviewArchive::Sequence(sequence.bytes)),
+            archive: sequence.map(|sequence| sequence.bytes),
             performance: None,
         })
     }
@@ -344,60 +347,63 @@ mod tests {
     use super::*;
     use crate::project::{new_test_project_files, write_new_project_files};
     use camino::Utf8PathBuf;
-    use donder_sequence_api::{AudioTransportState, DocumentViewId, GuiDocument};
+    use donder_editor::dto::{AudioTransportState, GuiDocument};
 
     #[test]
     fn local_sequence_resolves_and_plays_without_copying() {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
         write_new_project_files(&root, &new_test_project_files("Show").unwrap()).unwrap();
-        let mut session = donder_project_io::load_project(&root).unwrap();
-        for (site, kind, path) in [
+        let mut session =
+            donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
+                .into_session()
+                .unwrap();
+        for (site, path) in [
             (
-                donder_model::OwnershipSite::ProjectSetup,
-                donder_project_io::SourceObjectKind::Setup,
+                donder_model::OwnershipSite::Member {
+                    owner: session.project.root().id.into(),
+                    member: (*session.project.root().setup.id()).into(),
+                },
                 "setups/main.data.donder",
             ),
             (
-                donder_model::OwnershipSite::ProjectSequence(0),
-                donder_project_io::SourceObjectKind::Sequence,
+                donder_model::OwnershipSite::Member {
+                    owner: session.project.root().id.into(),
+                    member: (*session.project.root().sequences[0].id()).into(),
+                },
                 "sequences/main.data.donder",
             ),
         ] {
-            let source = session
+            let id = donder_model::make_reusable(&mut session.project, &site).unwrap();
+            session
                 .source
-                .add_data_document(path.into(), vec![(kind, "main".into())])
-                .unwrap()
-                .remove(0);
-            donder_model::make_reusable(&mut session.project, &site, source).unwrap();
+                .add_data_document(
+                    path.into(),
+                    vec![(id, donder_language::object_name("main"))],
+                )
+                .unwrap();
         }
         donder_project_io::maintain_ownership_sources(&mut session).unwrap();
         donder_project_io::save_project(&session).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let loaded = state.project_session().unwrap();
-        let imported = loaded.project.root().sequences[0].id().clone();
-        assert!(loaded.source.is_project_owned(imported.0.document_id()));
+        let imported = *loaded.project.root().sequences[0].id();
+        let address = loaded.address_of(imported.into()).unwrap();
         let request = state
-            .resolve_gui_source(
-                &imported.0.module_id().to_string(),
-                imported.0.document().as_str(),
-                imported.0.root_source().object(),
-            )
+            .resolve_gui_source(address.document().as_str(), address.root_source().object())
             .unwrap();
-        let opened = state.open_file_path(&request.path);
-        assert!(!opened.active_buffer.as_ref().unwrap().read_only);
-        assert_eq!(request.view, DocumentViewId::Sequence);
+        state.open_file_path(&request.path);
         let projected = state.get_gui_document(request.clone()).document;
         assert!(
             matches!(projected, GuiDocument::Sequence { .. }),
             "{projected:?}"
         );
-        assert_eq!(state.resolve_sequence_id(&request), Some(imported.clone()));
+        assert_eq!(state.resolve_sequence_id(&request), Some(imported));
         let transport = state.load_sequence_audio(request.clone()).audio_transport;
         assert_eq!(
             transport.duration_seconds,
-            loaded.project.reusable_sequences()[&imported]
+            loaded.project.reusable::<donder_model::Sequence>()[&imported]
                 .duration
                 .as_seconds_f64()
         );
@@ -414,11 +420,11 @@ mod tests {
         let frame = state.render_current_sequence_frame().unwrap();
         assert_eq!(
             lock_unpoisoned(&state.sequence_render).active_target(),
-            Some((loaded.project.root().setup.id().clone(), imported.clone()))
+            Some((*loaded.project.root().setup.id(), imported))
         );
         assert_eq!(
             frame.frame.frame_rate,
-            loaded.project.reusable_sequences()[&imported].frame_rate
+            loaded.project.reusable::<donder_model::Sequence>()[&imported].frame_rate
         );
         assert!(state.active_preview_render_identity().unwrap().frame_count > 0);
         state.unload_audio();
@@ -426,8 +432,12 @@ mod tests {
             &loaded,
             &state.project_session().unwrap()
         ));
+        let setup = loaded
+            .address_of((*loaded.project.root().setup.id()).into())
+            .unwrap();
         let mut wrong_view = request.clone();
-        wrong_view.view = DocumentViewId::Setup;
+        wrong_view.path = setup.document().to_string();
+        wrong_view.object_key = setup.root_source().object().into();
         assert!(state.resolve_sequence_id(&wrong_view).is_none());
         let mut stale = request;
         stale.project_revision += 1;

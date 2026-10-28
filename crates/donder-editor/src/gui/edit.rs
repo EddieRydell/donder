@@ -2,40 +2,47 @@ pub(super) fn edit_sequence(
     session: &mut ProjectSession,
     resolved: &ResolvedGuiObject,
     edit: SequenceGuiEdit,
-) -> Result<(), GuiMutationError> {
-    let sequence_id = SequenceId(resolved.object_identity());
+) -> Result<Vec<String>, GuiMutationError> {
+    let sequence_id = resolved.id::<SequenceId>();
+    let mut created = Vec::new();
     let mut draft = session
         .project
-        .sequence(&sequence_id)
+        .get::<donder_model::Sequence>(sequence_id)
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
     let layout = session
         .project
-        .setup(session.project.root().setup.id())
-        .map(|setup| setup.layout.id().clone())
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
+        .map(|setup| *setup.layout.id())
         .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".to_string()))?;
     if matches!(
         &edit,
         SequenceGuiEdit::AddEffect { .. }
             | SequenceGuiEdit::AddAutomationClip { .. }
-            | SequenceGuiEdit::MoveAutomationClip { .. }
             | SequenceGuiEdit::CreateAndBindAutomationClip { .. }
             | SequenceGuiEdit::RetargetEffect { .. }
-            | SequenceGuiEdit::MoveEffect {
-                target: Some(_),
-                ..
-            }
     ) {
         donder_project_io::ensure_document_can_reference_object(
             session,
-            resolved.identity.document_id(),
-            &layout.0,
+            resolved.document_id(),
+            layout.into(),
         )
         .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     }
     match edit {
+        SequenceGuiEdit::CutSelection { .. }
+        | SequenceGuiEdit::DeleteSelection { .. }
+        | SequenceGuiEdit::Paste { .. }
+        | SequenceGuiEdit::MoveClips { .. }
+        | SequenceGuiEdit::ResizeClips { .. }
+        | SequenceGuiEdit::EditEffects { .. }
+        | SequenceGuiEdit::ArrangeClips { .. }
+        | SequenceGuiEdit::MoveMarks { .. } => {
+            unreachable!("selection edits are applied to the selection")
+        }
         SequenceGuiEdit::Composition { edit } => {
-            super::graph::edit_composition(session, &resolved.identity, &mut draft, edit)?;
+            created =
+                super::graph::edit_composition(session, resolved.document_id(), &mut draft, edit)?;
         }
         SequenceGuiEdit::SetDuration { duration_seconds } => {
             if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
@@ -50,7 +57,7 @@ pub(super) fn edit_sequence(
                 Some(import_path) => {
                     let id = register_sequence_audio_asset(
                         session,
-                        resolved.identity.document_id(),
+                        resolved.document_id(),
                         &import_path,
                     )?;
                     DomainSequenceAudio::Asset(id)
@@ -59,50 +66,10 @@ pub(super) fn edit_sequence(
             };
             draft.audio = audio;
         }
-        SequenceGuiEdit::MoveEffect {
-            id,
-            start_seconds,
-            target,
-        } => {
-            let parsed_target =
-                target.map(|target| layout_target_to_effect_target(&layout, target));
-            let sequence = &mut draft;
-            let effect = effect_mut(sequence, id)?;
-            effect.start = super::checked_gui_time(start_seconds.max(0.0))?;
-            if let Some(target) = parsed_target {
-                effect.target = target;
-            }
-        }
-        SequenceGuiEdit::ResizeEffect {
-            id,
-            start_seconds,
-            duration_seconds,
-        } => {
-            let sequence = &mut draft;
-            let start = super::checked_gui_time(start_seconds.max(0.0))?;
-            let duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
-            let effect = effect_mut(sequence, id)?;
-            effect.start = start;
-            effect.duration = duration;
-        }
-        SequenceGuiEdit::SetEffectScope { id, scope } => {
-            let sequence = &mut draft;
-            let scope = effect_scope(scope);
-            effect_mut(sequence, id)?.scope = scope;
-        }
         SequenceGuiEdit::RetargetEffect { id, target } => {
             let sequence = &mut draft;
             let target = layout_target_to_effect_target(&layout, target);
             effect_mut(sequence, id)?.target = target;
-        }
-        SequenceGuiEdit::DeleteEffect { id } => {
-            let sequence = &mut draft;
-            sequence.effects.retain(|effect| effect.id.0 != id);
-            for clip in &mut sequence.automation_clips {
-                clip.remove_bindings(|target| {
-                    matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id.0 == id)
-                });
-            }
         }
         SequenceGuiEdit::SplitEffects { ids, time_seconds } => {
             let at = super::checked_gui_time(time_seconds)?;
@@ -161,12 +128,8 @@ pub(super) fn edit_sequence(
                     let detached = clip
                         .detached_bindings
                         .iter()
-                        .filter_map(|binding| {
-                            rebind(&binding.target).map(|target| DetachedAutomationBinding {
-                                target,
-                                reason: binding.reason.clone(),
-                            })
-                        })
+                        .filter_map(|binding| rebind(&binding.target))
+                        .map(|target| DetachedAutomationBinding { target })
                         .collect::<Vec<_>>();
                     clip.bindings.extend(bindings);
                     clip.detached_bindings.extend(detached);
@@ -175,19 +138,6 @@ pub(super) fn edit_sequence(
                     .effects
                     .insert(index + 1, std::sync::Arc::new(right));
             }
-        }
-        SequenceGuiEdit::MoveMark {
-            collection_key,
-            index,
-            time_seconds,
-        } => {
-            let collection = mark_collection_mut(&mut draft, &collection_key)?;
-            let mark = collection
-                .marks
-                .get_mut(index as usize)
-                .ok_or_else(|| GuiMutationError::Invalid("Mark was not found.".to_string()))?;
-            mark.time = super::checked_gui_time(time_seconds.max(0.0))?;
-            collection.marks.sort_by_key(|mark| mark.time.0);
         }
         SequenceGuiEdit::ReassignMarkCollection {
             collection_key,
@@ -234,15 +184,6 @@ pub(super) fn edit_sequence(
                 .map(|label| label.trim().to_string())
                 .filter(|label| !label.is_empty());
         }
-        SequenceGuiEdit::DeleteMark {
-            collection_key,
-            index,
-        } => {
-            let collection = mark_collection_mut(&mut draft, &collection_key)?;
-            if (index as usize) < collection.marks.len() {
-                collection.marks.remove(index as usize);
-            }
-        }
         SequenceGuiEdit::CreateMarkCollections { collections } => {
             let sequence = &mut draft;
             for collection in collections {
@@ -259,6 +200,7 @@ pub(super) fn edit_sequence(
                     .map(|&seconds| super::checked_gui_time(seconds.max(0.0)).map(Mark::at))
                     .collect::<Result<Vec<_>, _>>()?;
                 marks.sort_by_key(|mark| mark.time.0);
+                created.push(name.as_str().to_string());
                 sequence.mark_collections.push(MarkCollection {
                     key: MarkCollectionKey { name },
                     description: None,
@@ -266,43 +208,6 @@ pub(super) fn edit_sequence(
                     marks,
                 });
             }
-        }
-        SequenceGuiEdit::RenameMarkCollection { key, name } => {
-            // A rename moves every effect parameter that names the collection.
-            let name = super::model::typed_name(&name)?;
-            let from = mark_collection_mut(&mut draft, &key)?.key.name.clone();
-            mark_collection_mut(&mut draft, &key)?.key.name = name.clone();
-            mark_references_mut(&mut draft, |reference| {
-                if let Some(collection) = reference
-                    && collection.name == from
-                {
-                    collection.name = name.clone();
-                }
-            });
-        }
-        SequenceGuiEdit::DeleteMarkCollection { key } => {
-            // Parameters that named the collection keep working with no marks.
-            let sequence = &mut draft;
-            mark_references_mut(sequence, |reference| {
-                if reference
-                    .as_ref()
-                    .is_some_and(|collection| collection.name.as_str() == key)
-                {
-                    *reference = None;
-                }
-            });
-            sequence
-                .mark_collections
-                .retain(|collection| collection.key.name.as_str() != key);
-        }
-        SequenceGuiEdit::SetMarkCollectionColor { key, color } => {
-            mark_collection_mut(&mut draft, &key)?.display_color = parse_color(&color)?;
-        }
-        SequenceGuiEdit::UpdateEffectParam { id, name, value } => {
-            let value = effect_param_value_from_gui(session, &resolved.identity, value)?;
-            effect_mut(&mut draft, id)?
-                .param_overrides
-                .insert(identifier(&name)?, value);
         }
         SequenceGuiEdit::AddEffect {
             effect: effect_reference,
@@ -314,12 +219,10 @@ pub(super) fn edit_sequence(
             let definition = effect_ref_from_gui(session, effect_reference)?;
             let param_overrides =
                 required_param_values(session, &definition, parse_color(&initial_color)?)?;
-            let EffectRef::Custom(definition_id) = &definition;
-            ensure_document_can_reference_source(
+            ensure_document_can_reference_object(
                 session,
-                resolved.identity.document_id(),
-                SourceObjectKind::EffectDefinition,
-                &definition_id.0,
+                resolved.document_id(),
+                definition.into(),
             )
             .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
             let sequence = &mut draft;
@@ -339,8 +242,12 @@ pub(super) fn edit_sequence(
                 .max()
                 .unwrap_or(0)
                 + 1;
-            let donder_model::EffectRef::Custom(effect) = &definition;
-            let name = super::model::fresh_name(effect.0.object(), |candidate| {
+            let effect_name = session
+                .project
+                .get::<donder_model::EffectDefinition>(definition)
+                .map(|effect| effect.name().to_string())
+                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
+            let name = super::model::fresh_name(&effect_name, |candidate| {
                 sequence
                     .effects
                     .iter()
@@ -359,48 +266,6 @@ pub(super) fn edit_sequence(
                 param_overrides,
             }));
         }
-        SequenceGuiEdit::RenameClip { id, name } => {
-            let clip = draft
-                .effects
-                .iter_mut()
-                .find(|effect| effect.id.0 == id)
-                .map(std::sync::Arc::make_mut)
-                .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?;
-            clip.name = super::model::typed_name(&name)?;
-        }
-        SequenceGuiEdit::SetItemDescription { item, description } => {
-            let description = super::description::normalized(description);
-            let missing = || GuiMutationError::Invalid("The item was not found.".to_string());
-            match item {
-                donder_sequence_api::SequenceDescribedItem::MarkCollection { key } => {
-                    mark_collection_mut(&mut draft, &key)?.description = description;
-                }
-                donder_sequence_api::SequenceDescribedItem::Clip { id } => {
-                    draft
-                        .effects
-                        .iter_mut()
-                        .find(|effect| effect.id.0 == id)
-                        .map(std::sync::Arc::make_mut)
-                        .ok_or_else(missing)?
-                        .description = description;
-                }
-            }
-        }
-        SequenceGuiEdit::SetEffectLayer { id, layer_id } => {
-            let sequence = &mut draft;
-            if !sequence.layers.iter().any(|layer| layer.id.0 == layer_id) {
-                return Err(GuiMutationError::Invalid(
-                    "Layer was not found.".to_string(),
-                ));
-            }
-            let effect = sequence
-                .effects
-                .iter_mut()
-                .find(|effect| effect.id.0 == id)
-                .map(std::sync::Arc::make_mut)
-                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
-            effect.layer_id = SequenceLayerId(layer_id);
-        }
         SequenceGuiEdit::ChangeEffectDefinition {
             id,
             effect: effect_reference,
@@ -409,12 +274,10 @@ pub(super) fn edit_sequence(
             let definition = effect_ref_from_gui(session, effect_reference)?;
             let param_overrides =
                 required_param_values(session, &definition, parse_color(&initial_color)?)?;
-            let EffectRef::Custom(definition_id) = &definition;
-            ensure_document_can_reference_source(
+            ensure_document_can_reference_object(
                 session,
-                resolved.identity.document_id(),
-                SourceObjectKind::EffectDefinition,
-                &definition_id.0,
+                resolved.document_id(),
+                definition.into(),
             )
             .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
             let sequence = &mut draft;
@@ -422,7 +285,7 @@ pub(super) fn edit_sequence(
             effect.definition = definition;
             effect.param_overrides = param_overrides;
             for clip in &mut sequence.automation_clips {
-                clip.detach_bindings(AutomationDetachmentReason::DefinitionChanged, |target| {
+                clip.detach_bindings(|target| {
                     matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id.0 == id)
                 });
             }
@@ -454,9 +317,12 @@ pub(super) fn edit_sequence(
             let target = automation_target_from_gui(target)?;
             automation_target_mapping(session, &sequence_id, &target)?;
             let (start, duration, row_target) = {
-                let sequence = session.project.sequence(&sequence_id).ok_or_else(|| {
-                    GuiMutationError::Invalid("Sequence was not found.".to_string())
-                })?;
+                let sequence = session
+                    .project
+                    .get::<donder_model::Sequence>(sequence_id)
+                    .ok_or_else(|| {
+                        GuiMutationError::Invalid("Sequence was not found.".to_string())
+                    })?;
                 automation_target_timing(session, sequence, &target)?
             };
             let next_id = draft
@@ -478,15 +344,6 @@ pub(super) fn edit_sequence(
             require_available_automation_target(&draft, &target, &clip)?;
             clip.bindings.push(AutomationBinding { target });
             draft.automation_clips.push(clip);
-        }
-        SequenceGuiEdit::MoveAutomationClip {
-            id,
-            start_seconds,
-            row_target,
-        } => {
-            let clip = automation_clip_mut(&mut draft, id)?;
-            clip.start = super::checked_gui_time(start_seconds.max(0.0))?;
-            clip.row_target = layout_target_to_effect_target(&layout, row_target);
         }
         SequenceGuiEdit::SplitAutomationClip { id, time_seconds } => {
             let next_id = draft
@@ -522,9 +379,6 @@ pub(super) fn edit_sequence(
                 ));
             }
             automation_clip_mut(&mut draft, id)?.curve = curve;
-        }
-        SequenceGuiEdit::DeleteAutomationClip { id } => {
-            draft.automation_clips.retain(|clip| clip.id.0 != id);
         }
         SequenceGuiEdit::BindAutomationParam { clip_id, target } => {
             let target = automation_target_from_gui(target)?;
@@ -618,10 +472,8 @@ pub(super) fn edit_sequence(
             clip.detached_bindings.remove(detached_index as usize);
         }
     }
-    session
-        .project
-        .replace_sequence(&sequence_id, draft)
-        .map_err(GuiMutationError::Invalid)
+    session.project.put(draft).map_err(GuiMutationError::from)?;
+    Ok(created)
 }
 
 fn automation_target_from_gui(
@@ -699,10 +551,10 @@ fn automation_target_mapping(
 ) -> Result<AutomationMapping, GuiMutationError> {
     let sequence = session
         .project
-        .sequence(sequence_id)
+        .get::<donder_model::Sequence>(*sequence_id)
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
     donder_model::automation_target_param(&session.project, sequence, target)
-        .map_err(|error| GuiMutationError::Invalid(error.message))?
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?
         .automation_mapping()
         .ok_or_else(|| GuiMutationError::Invalid("Param does not support automation.".to_string()))
 }
@@ -732,27 +584,26 @@ fn require_available_automation_target(
 
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
-    AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
-    AutomationTarget, CompositionGraphNodeKind, DetachedAutomationBinding, Mark, MarkCollection,
-    MarkCollectionKey, SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
-    automation_curve_is_normalized,
+    AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
+    CompositionGraphNodeKind, DetachedAutomationBinding, Mark, MarkCollection, MarkCollectionKey,
+    SequenceAudio as DomainSequenceAudio, SequenceId, automation_curve_is_normalized,
 };
-use donder_model::{EffectInst, EffectInstId, EffectRef};
-use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_model::{EffectInst, EffectInstId};
+use donder_project_io::{ProjectSession, ensure_document_can_reference_object};
 use donder_runtime_types::AutomationMapping;
 
 use super::model::{
     automation_binding_value_at, automation_clip_mut, curve_from_points, default_automation_curve,
-    effect_mut, effect_param_value_from_gui, effect_ref_from_gui, effect_scope, identifier,
-    layout_target_to_effect_target, mark_collection_mut, parse_color, parse_graph_node_id,
-    register_sequence_audio_asset, required_param_values,
+    effect_mut, effect_ref_from_gui, effect_scope, identifier, layout_target_to_effect_target,
+    mark_collection_mut, parse_color, parse_graph_node_id, register_sequence_audio_asset,
+    required_param_values,
 };
 use super::{GuiMutationError, ResolvedGuiObject};
-use donder_sequence_api::{SequenceAutomationTarget, SequenceGuiEdit};
+use crate::dto::{SequenceAutomationTarget, SequenceGuiEdit};
 
 /// Visit every marks parameter value in a sequence's effects and operator
 /// nodes, including the elements of marks arrays.
-fn mark_references_mut(
+pub(super) fn mark_references_mut(
     sequence: &mut donder_model::Sequence,
     mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
 ) {

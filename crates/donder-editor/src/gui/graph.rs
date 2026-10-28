@@ -3,11 +3,10 @@ use std::collections::BTreeSet;
 
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    EffectGraphEdge, EffectParamValue, GraphNodePosition, GraphOperatorNode, GraphPortId,
-    OperatorRef, Rig, Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId,
-    SourceIdentity, validate_composition_graph,
+    EffectGraphEdge, EffectParamValue, GraphNodePosition, GraphOperatorNode, GraphPortId, Rig,
+    Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
 };
-use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 use indexmap::IndexMap;
 
 use super::GuiMutationError;
@@ -15,7 +14,7 @@ use super::model::{
     effect_param_value_from_gui, fresh_name, graph_operator_from_gui, identifier, parse_color,
     parse_graph_node_id, typed_name,
 };
-use donder_sequence_api::{CompositionGuiEdit, SequenceGraphEdge, SequenceGraphNodePosition};
+use crate::dto::{CompositionGuiEdit, SequenceGraphEdge, SequenceGraphNodePosition};
 
 /// An object that composes its layers through a graph.
 pub(super) trait Composition {
@@ -84,39 +83,20 @@ impl Composition for Rig {
 /// Apply a layer or graph edit to `composition`, which `owner` declares.
 pub(super) fn edit_composition(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     composition: &mut impl Composition,
     edit: CompositionGuiEdit,
-) -> Result<(), GuiMutationError> {
+) -> Result<Vec<String>, GuiMutationError> {
     match edit {
         CompositionGuiEdit::CreateLayer { name, color } => {
-            create_layer(composition, name, color, None, true)?;
+            return create_layer(composition, name, color, None, true).map(|name| vec![name]);
         }
         CompositionGuiEdit::CreateLayerAt { name, color, x, y } => {
-            create_layer(composition, name, color, Some((x, y)), false)?;
-        }
-        CompositionGuiEdit::RenameLayer { id, name } => {
-            layer_mut(composition, id)?.name = typed_name(&name)?;
-        }
-        CompositionGuiEdit::SetLayerColor { id, color } => {
-            layer_mut(composition, id)?.color = parse_color(&color)?;
+            return create_layer(composition, name, color, Some((x, y)), false)
+                .map(|name| vec![name]);
         }
         CompositionGuiEdit::SetLayerEnabled { id, enabled } => {
             layer_mut(composition, id)?.enabled = enabled;
-        }
-        CompositionGuiEdit::SetLayerDescription { id, description } => {
-            layer_mut(composition, id)?.description = super::description::normalized(description);
-        }
-        CompositionGuiEdit::RenameGraphNode { node_id, name } => {
-            let node_id = parse_graph_node_id(&node_id)?;
-            let CompositionGraphNodeKind::Operator(operator) =
-                &mut node_mut(composition, &node_id)?.kind
-            else {
-                return Err(GuiMutationError::Invalid(
-                    "Layer and output nodes are named by what they show.".to_string(),
-                ));
-            };
-            operator.name = typed_name(&name)?;
         }
         CompositionGuiEdit::AddGraphOperatorNode {
             operator,
@@ -128,21 +108,13 @@ pub(super) fn edit_composition(
             let operator = graph_operator_from_gui(session, &operator)?;
             let definition = session
                 .project
-                .definitions()
-                .operators
-                .resolve(&operator)
+                .get::<donder_model::OperatorDefinition>(operator)
                 .cloned()
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Operator definition was not found.".to_string())
                 })?;
-            let OperatorRef::Custom(id) = &operator;
-            ensure_document_can_reference_source(
-                session,
-                owner.document_id(),
-                SourceObjectKind::OperatorDefinition,
-                &id.0,
-            )
-            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+            ensure_document_can_reference_object(session, owner, operator.into())
+                .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
             let mut params = IndexMap::new();
             for declaration in definition.params() {
                 if declaration.default.is_none() {
@@ -157,8 +129,7 @@ pub(super) fn edit_composition(
                 }
             }
             let next_id = next_node_id(composition);
-            let OperatorRef::Custom(definition) = &operator;
-            let name = fresh_name(definition.0.object(), |candidate| {
+            let name = fresh_name(definition.name(), |candidate| {
                 name_taken(composition, candidate)
             });
             composition.graph_mut().nodes.push(CompositionGraphNode {
@@ -188,7 +159,10 @@ pub(super) fn edit_composition(
             to_node,
             to_port,
         } => {
-            let definitions = session.project.definitions().operators.clone();
+            let definitions = session
+                .project
+                .reusable::<donder_model::OperatorDefinition>()
+                .clone();
             connect_nodes(
                 composition,
                 &definitions,
@@ -205,7 +179,10 @@ pub(super) fn edit_composition(
             previous,
             connection,
         } => {
-            let definitions = session.project.definitions().operators.clone();
+            let definitions = session
+                .project
+                .reusable::<donder_model::OperatorDefinition>()
+                .clone();
             connect_nodes(composition, &definitions, connection, Some(previous))?;
         }
         CompositionGuiEdit::UpdateGraphOperatorParam {
@@ -214,7 +191,10 @@ pub(super) fn edit_composition(
             value,
         } => {
             let value = effect_param_value_from_gui(session, owner, value)?;
-            let definitions = session.project.definitions().operators.clone();
+            let definitions = session
+                .project
+                .reusable::<donder_model::OperatorDefinition>()
+                .clone();
             let node_id = parse_graph_node_id(&node_id)?;
             let mut graph = composition.graph().clone();
             let node = graph
@@ -231,14 +211,14 @@ pub(super) fn edit_composition(
             };
             operator.params.insert(identifier(&name)?, value);
             validate_composition_graph(&graph, &definitions)
-                .map_err(|error| GuiMutationError::Invalid(error.message))?;
+                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
             *composition.graph_mut() = graph;
         }
     }
-    Ok(())
+    Ok(Vec::new())
 }
 
-fn layer_mut(
+pub(super) fn layer_mut(
     composition: &mut impl Composition,
     id: u32,
 ) -> Result<&mut SequenceLayer, GuiMutationError> {
@@ -309,7 +289,7 @@ fn create_layer(
     color: String,
     position: Option<(f32, f32)>,
     connect_to_output: bool,
-) -> Result<(), GuiMutationError> {
+) -> Result<String, GuiMutationError> {
     let next_layer_id = composition
         .layers()
         .iter()
@@ -329,6 +309,7 @@ fn create_layer(
     let layer_node_id = CompositionGraphNodeId(next_node_id(composition));
     typed_name(&name)?;
     let name = fresh_name(&name, |candidate| name_taken(composition, candidate));
+    let created = name.as_str().to_string();
     composition.layers_mut().push(SequenceLayer {
         id: SequenceLayerId(next_layer_id),
         name,
@@ -353,12 +334,15 @@ fn create_layer(
             to_port: GraphPortId("input".to_string()),
         });
     }
-    Ok(())
+    Ok(created)
 }
 
 fn connect_nodes(
     composition: &mut impl Composition,
-    definitions: &donder_model::OperatorDefinitionStore,
+    definitions: &indexmap::IndexMap<
+        donder_model::OperatorDefinitionId,
+        donder_model::OperatorDefinition,
+    >,
     connection: SequenceGraphEdge,
     previous: Option<SequenceGraphEdge>,
 ) -> Result<(), GuiMutationError> {
@@ -398,7 +382,7 @@ fn connect_nodes(
     }
     // DesktopState discards this candidate on failure; no partial disconnect reaches history.
     validate_composition_graph(graph, definitions)
-        .map_err(|error| GuiMutationError::Invalid(error.message))
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))
 }
 
 fn move_nodes(

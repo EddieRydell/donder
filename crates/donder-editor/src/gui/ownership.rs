@@ -1,104 +1,80 @@
 use super::{GuiMutationError, ResolvedGuiObject};
+use crate::dto::{GuiOwnershipEdit, OwnershipMember, ReusableStorage};
 use donder_model::{
-    FixtureInstanceId, LayoutId, OwnershipSite, SetupId, make_independent, make_reusable,
+    FixtureInstanceId, ObjectId, ObjectKind, OwnershipSite, make_independent, make_reusable,
     use_existing,
 };
-use donder_project_io::{ProjectSession, SourceObjectKind};
-use donder_sequence_api::{GuiOwnershipEdit, GuiOwnershipSlot, ReusableStorage};
+use donder_project_io::ProjectSession;
 
 pub(super) fn edit(
     session: &mut ProjectSession,
     owner: &ResolvedGuiObject,
-    slot: GuiOwnershipSlot,
+    member: OwnershipMember,
     edit: GuiOwnershipEdit,
 ) -> Result<(), GuiMutationError> {
-    if owner.kind == SourceObjectKind::Project && owner.identity != session.project.root().id.0 {
+    if owner.kind == ObjectKind::Project
+        && owner.object != ObjectId::from(session.project.root().id)
+    {
         return Err(GuiMutationError::Invalid(
             "The requested project is not the active project.".into(),
         ));
     }
-    let identity = owner.object_identity();
-    let (site, kind, directory) = match (&owner.kind, slot) {
-        (SourceObjectKind::Project, GuiOwnershipSlot::Setup) => (
-            OwnershipSite::ProjectSetup,
-            SourceObjectKind::Setup,
-            "setups",
-        ),
-        (SourceObjectKind::Project, GuiOwnershipSlot::Sequence { index }) => (
-            OwnershipSite::ProjectSequence(index as usize),
-            SourceObjectKind::Sequence,
-            "sequences",
-        ),
-        (SourceObjectKind::Project, GuiOwnershipSlot::Rig { index }) => (
-            OwnershipSite::ProjectRig(index as usize),
-            SourceObjectKind::Rig,
-            "rigs",
-        ),
-        (SourceObjectKind::Setup, GuiOwnershipSlot::InputDevice { index }) => (
-            OwnershipSite::SetupInputDevice {
-                setup: SetupId(identity),
-                index: index as usize,
-            },
-            SourceObjectKind::InputDevice,
-            "input_devices",
-        ),
-        (SourceObjectKind::Setup, GuiOwnershipSlot::Layout) => (
-            OwnershipSite::SetupLayout(SetupId(identity)),
-            SourceObjectKind::Layout,
-            "layouts",
-        ),
-        (SourceObjectKind::Setup, GuiOwnershipSlot::Patch) => (
-            OwnershipSite::SetupPatch(SetupId(identity)),
-            SourceObjectKind::Patch,
-            "patches",
-        ),
-        (SourceObjectKind::Setup, GuiOwnershipSlot::Controller { index }) => (
-            OwnershipSite::SetupController {
-                setup: SetupId(identity),
-                index: index as usize,
-            },
-            SourceObjectKind::Controller,
-            "controllers",
-        ),
-        (SourceObjectKind::Layout, GuiOwnershipSlot::Fixture { id }) => (
-            OwnershipSite::LayoutFixture {
-                layout: LayoutId(identity),
+    let site = match member {
+        OwnershipMember::Fixture { id } if owner.kind == ObjectKind::Layout => {
+            OwnershipSite::Fixture {
+                layout: owner.id(),
                 fixture: FixtureInstanceId(id),
-            },
-            SourceObjectKind::FixtureDefinition,
-            "fixtures",
-        ),
-        _ => {
+            }
+        }
+        OwnershipMember::Fixture { .. } => {
             return Err(GuiMutationError::Invalid(
-                "This ownership slot does not belong to the open object.".into(),
+                "Only a layout owns fixtures.".into(),
             ));
         }
+        OwnershipMember::Object { source } => OwnershipSite::Member {
+            owner: owner.object,
+            member: super::model::object_id_from_gui(session, &source)?,
+        },
+    };
+    edit_site(session, owner, site, edit)
+}
+
+pub(super) fn edit_site(
+    session: &mut ProjectSession,
+    owner: &ResolvedGuiObject,
+    site: OwnershipSite,
+    edit: GuiOwnershipEdit,
+) -> Result<(), GuiMutationError> {
+    let kind = match site {
+        OwnershipSite::Member { member, .. } => member.kind(),
+        OwnershipSite::Fixture { .. } => ObjectKind::FixtureDefinition,
     };
     match edit {
         GuiOwnershipEdit::UseExisting { source } => {
-            if source.kind != donder_sequence_api::ObjectKind::from(&kind)
-                || !source.owned_path.is_empty()
-            {
+            if source.kind != crate::dto::ObjectKind::from(kind) || !source.owned_path.is_empty() {
                 return Err(GuiMutationError::Invalid(
                     "Choose a reusable source of the matching kind.".into(),
                 ));
             }
-            let identity = super::model::object_identity_from_gui(&source)?;
-            let source = identity.source().ok_or_else(|| {
-                GuiMutationError::Invalid("Owned values cannot be linked.".into())
-            })?;
-            donder_project_io::link_reusable_source(
-                session,
-                owner.identity.document_id(),
-                kind,
-                source,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            use_existing(&mut session.project, &site, source.clone())
-                .map_err(GuiMutationError::Invalid)?;
+            let source: ObjectId =
+                super::model::declared_from_gui(session, &source.path, &source.object_key)?;
+            if source.kind() != kind {
+                return Err(GuiMutationError::Invalid(
+                    "Choose a reusable source of the matching kind.".into(),
+                ));
+            }
+            donder_project_io::link_reusable_source(session, owner.document_id(), source)
+                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+            use_existing(&mut session.project, &site, source, &|id| {
+                session.source.declared_name(id)
+            })
+            .map_err(GuiMutationError::from)?;
         }
         GuiOwnershipEdit::MakeIndependent => {
-            make_independent(&mut session.project, &site).map_err(GuiMutationError::Invalid)?;
+            make_independent(&mut session.project, &site, &|id| {
+                session.source.declared_name(id)
+            })
+            .map_err(GuiMutationError::from)?;
         }
         GuiOwnershipEdit::MakeReusable { name, storage } => {
             if name.trim().is_empty() {
@@ -106,21 +82,22 @@ pub(super) fn edit(
                     "Enter a name for the reusable source.".into(),
                 ));
             }
-            let destination = match storage {
-                ReusableStorage::SameFile => session
-                    .source
-                    .add_object(
-                        owner.identity.document_id(),
-                        kind,
-                        donder_language::object_name(&name).as_str(),
-                    )
-                    .map_err(GuiMutationError::Invalid)?,
-                ReusableStorage::NewFile => {
-                    super::model::create_object_document(session, kind, &name, directory)?
+            let id = make_reusable(&mut session.project, &site).map_err(GuiMutationError::from)?;
+            match storage {
+                ReusableStorage::SameFile => {
+                    session
+                        .source
+                        .add_object(
+                            owner.document_id(),
+                            id,
+                            donder_language::object_name(&name).as_str(),
+                        )
+                        .map_err(GuiMutationError::Invalid)?;
                 }
-            };
-            make_reusable(&mut session.project, &site, destination)
-                .map_err(GuiMutationError::Invalid)?;
+                ReusableStorage::NewFile => {
+                    super::model::create_object_document(session, id, &name)?;
+                }
+            }
         }
     }
     donder_project_io::maintain_ownership_sources(session)
@@ -129,11 +106,10 @@ pub(super) fn edit(
 
 pub(super) fn available_sources(
     session: &ProjectSession,
-    owner: &donder_model::DocumentId,
-    kinds: &[SourceObjectKind],
-) -> Vec<donder_sequence_api::GuiObjectRef> {
-    donder_project_io::available_reusable_sources(session, owner, kinds)
+    kinds: &[ObjectKind],
+) -> Vec<crate::dto::GuiObjectRef> {
+    donder_project_io::available_reusable_sources(session, kinds)
         .into_iter()
-        .map(|(kind, identity)| super::patch::object_ref(&identity.into(), kind))
+        .map(|id| super::model::object_ref(session, id))
         .collect()
 }

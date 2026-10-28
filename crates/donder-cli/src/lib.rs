@@ -63,12 +63,32 @@ enum Command {
     Lsp,
 }
 
+/// The project at `path`, or why it does not load.
+fn load(path: &camino::Utf8Path) -> Result<donder_project_io::ProjectSession, String> {
+    donder_project_io::check_project(path, &Default::default(), &mut Default::default())
+        .into_session()
+        .map_err(|diagnostics| diagnostics_text(&diagnostics))
+}
+
+/// One diagnostic per line.
+fn diagnostics_text(diagnostics: &[donder_project_io::IoDiagnostic]) -> String {
+    let lines = diagnostics.iter().map(ToString::to_string);
+    lines.collect::<Vec<_>>().join(
+        "
+",
+    )
+}
+
 pub fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
         Command::Check => {
-            let report = donder_project_io::check_project(&cli.path);
+            let report = donder_project_io::check_project(
+                &cli.path,
+                &Default::default(),
+                &mut Default::default(),
+            );
             let Some(session) = report.session else {
-                return Err(donder_project_io::ProjectLoadError(report.diagnostics).to_string());
+                return Err(diagnostics_text(&report.diagnostics));
             };
             for warning in &report.diagnostics {
                 println!("warning: {warning}");
@@ -80,8 +100,7 @@ pub fn run(cli: Cli) -> Result<(), String> {
             Ok(())
         }
         Command::Copy { destination } => {
-            let session =
-                donder_project_io::load_project(&cli.path).map_err(|error| error.to_string())?;
+            let session = load(&cli.path)?;
             let report = donder_project_io::export_editable_project(&session, &destination)?;
             println!(
                 "Copied {} documents and {} assets to {}",
@@ -104,9 +123,8 @@ pub fn run(cli: Cli) -> Result<(), String> {
             step,
             target,
         } => {
-            let session =
-                donder_project_io::load_project(&cli.path).map_err(|error| error.to_string())?;
-            let id = find_sequence(&session.project, &sequence)?;
+            let session = load(&cli.path)?;
+            let id = find_sequence(&session, &sequence)?;
             let times = render::Times {
                 at,
                 range: from
@@ -114,7 +132,7 @@ pub fn run(cli: Cli) -> Result<(), String> {
                     .zip(step)
                     .map(|((from, to), step)| (from, to, step)),
             };
-            print!("{}", render::render(&session.project, &id, times, &target)?);
+            print!("{}", render::render(&session, &id, times, &target)?);
             Ok(())
         }
         Command::Lsp => lsp(),
@@ -128,24 +146,32 @@ pub fn run(cli: Cli) -> Result<(), String> {
     }
 }
 
-/// The project's sequence declared as `name`.
+/// The project's sequence named `name`, as it is declared or owned.
 fn find_sequence(
-    project: &donder_model::DonderProject,
+    session: &donder_project_io::ProjectSession,
     name: &str,
 ) -> Result<donder_model::SequenceId, String> {
-    let ids = project
+    let sequences = session
+        .project
         .root()
         .sequences
         .iter()
-        .map(|source| source.id())
-        .collect::<Vec<_>>();
-    ids.iter()
-        .find(|id| id.0.root_source().object() == name)
-        .map(|&id| id.clone())
+        .map(|source| {
+            let id = *source.id();
+            session
+                .address_of(id.into())
+                .map(|address| (id, address.declared_name().to_string()))
+                .ok_or("A sequence is missing from the source inventory.")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    sequences
+        .iter()
+        .find(|(_, declared)| declared == name)
+        .map(|(id, _)| *id)
         .ok_or_else(|| {
-            let names = ids
+            let names = sequences
                 .iter()
-                .map(|id| id.0.root_source().object())
+                .map(|(_, declared)| declared.as_str())
                 .collect::<Vec<_>>();
             format!(
                 "No sequence named `{name}`. Sequences: {}",
@@ -162,10 +188,12 @@ fn export_fseq(
     output: &camino::Utf8Path,
     step_ms: Option<u8>,
 ) -> Result<(), String> {
-    let session = donder_project_io::load_project(path).map_err(|error| error.to_string())?;
+    let session = load(path)?;
     let project = &session.project;
-    let id = &find_sequence(project, name)?;
-    let sequence = project.sequence(id).ok_or("Sequence is missing.")?;
+    let id = &find_sequence(&session, name)?;
+    let sequence = project
+        .get::<donder_model::Sequence>(*id)
+        .ok_or("Sequence is missing.")?;
     let step = match step_ms {
         Some(millis) => {
             donder_output::FseqStep::from_millis(millis).ok_or("--step-ms must be at least 1.")?
@@ -176,7 +204,7 @@ fn export_fseq(
         donder_elaboration::prepare(project, id, donder_elaboration::PrepareOutputs::All)
             .ok_or("The sequence cannot be played on the active setup.")?;
     let setup = project
-        .setup(project.root().setup.id())
+        .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or("Project setup is missing.")?;
     let mut first = 1;
     let mut channels = Vec::new();
@@ -184,7 +212,7 @@ fn export_fseq(
         let controller = setup
             .controllers
             .get(prepared_output.controller_index as usize)
-            .and_then(|source| project.controller(source.id()))
+            .and_then(|source| project.get::<donder_model::Controller>(*source.id()))
             .ok_or("Setup controller is missing.")?;
         let port = controller
             .ports
@@ -192,16 +220,19 @@ fn export_fseq(
             .find(|port| port.id.0 == prepared_output.port)
             .ok_or("Controller port is missing.")?;
         let last = first + prepared_output.width - 1;
+        let address = session
+            .address_of(controller.id.into())
+            .ok_or("A controller is missing from the source inventory.")?;
         channels.push(format!(
             "  channels {first}-{last}: {}#{} / {}",
-            controller.id.0.document(),
-            controller.id.0.root_source().object(),
+            address.document(),
+            address.declared_name(),
             port.name.as_str()
         ));
         first = last + 1;
     }
     let media = session
-        .audio_asset(id.0.document_id(), &sequence.audio)
+        .audio_asset(&sequence.audio)
         .and_then(|asset| asset.relative_path.file_name());
     let bytes =
         donder_output::encode_fseq(prepared, step, media).map_err(|error| error.to_string())?;

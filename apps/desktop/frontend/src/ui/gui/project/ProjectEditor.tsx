@@ -29,7 +29,7 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
           reference={ownershipLabel(document.setup)}
           detail="Layout, fixture instances and controls, patch, and controllers"
           onOpen={() => void navigateToGuiObject(document.setup)}
-        /><OwnershipActions sources={document.availableSources} source={document.setup} slot={{ type: "setup" }} label="Setup" /></div>
+        /><OwnershipActions sources={document.availableSources} source={document.setup} label="Setup" /></div>
       </section>
 
       <section className="object-overview-group">
@@ -45,7 +45,7 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
             title={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey}
             reference={ownershipLabel(sequence)}
             onOpen={() => void navigateToGuiObject(sequence)}
-          /><OwnershipActions sources={document.availableSources} source={sequence} slot={{ type: "sequence", index }} label={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey} /></div>
+          /><OwnershipActions sources={document.availableSources} source={sequence} label={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey} /></div>
         ))}
       </section>
 
@@ -76,7 +76,7 @@ function RigList({ document }: { document: ProjectGuiDocument }) {
         onOpen={() => void navigateToGuiObject(rig)}
       /><button type="button" className="object-overview-row-perform" disabled={performing} onClick={() => { startPerforming(index); }}>
         <Play aria-hidden="true" /> Perform
-      </button><OwnershipActions sources={document.availableSources} source={rig} slot={{ type: "rig", index }} label={name} /></div>;
+      </button><OwnershipActions sources={document.availableSources} source={rig} label={name} /></div>;
     })}
   </section>;
 }

@@ -77,7 +77,7 @@ pnpm bench:effect-vm           # full set
 
 - **`prepared_playback_bench`** (`donder-runtime`): ScanSweep, ImpactBurst,
   SparkleComet and ShimmerField on four 512-pixel sequences, timed through
-  `SequencePlayback::evaluate`. That includes scheduling, VM execution,
+  `ShowPlayback::evaluate`. That includes scheduling, VM execution,
   composition and output encoding.
   Focused run: `cargo bench -p donder-runtime --bench prepared_playback_bench -- prepared_effect_suite_4x512_pixels`.
 - **`render_bench`** (`donder-elaboration`): preparation of the starter project,

@@ -1,6 +1,5 @@
 import { guiObjectKey, objectViewKey } from "../../workspace/guiIdentity";
 import { CompositionEditor } from "./composition/CompositionEditor";
-import { ReadOnlySourceNotice } from "../ReadOnlySourceNotice";
 import { useEffect, useState } from "react";
 
 import type { GuiDocument, WorkspaceLayoutState } from "../../types";
@@ -35,22 +34,20 @@ const INSPECTOR_MIN_WIDTH_PX = THEME_METRICS.inspectorMinWidth;
 const INSPECTOR_MAX_WIDTH_PX = THEME_METRICS.inspectorMaxWidth;
 
 export function GuiEditor(props: Parameters<typeof ResourceEditor>[0]) {
-  const readOnly = props.snapshot.activeBuffer?.readOnly ?? false;
   const gui = props.guiDocument;
   const key = gui !== null && gui.type !== "blocked" ? guiEditorKey(props.snapshot.activeFile, gui) : "unavailable";
   return <div className="resource-editor-frame">
-    {readOnly && props.snapshot.activeBuffer !== null && <ReadOnlySourceNotice name={props.snapshot.activeBuffer.name} />}
-    {gui !== null && gui.type !== "blocked" && <ObjectDescription key={key} description={gui.document.description} disabled={readOnly} />}
-    <fieldset className="resource-editor-content" disabled={readOnly}><ResourceEditor key={`${key}:${props.resetRevision}`} {...props} /></fieldset>
+    {gui !== null && gui.type !== "blocked" && <ObjectDescription key={key} description={gui.document.description} />}
+    <fieldset className="resource-editor-content"><ResourceEditor key={`${key}:${props.resetRevision}`} {...props} /></fieldset>
   </div>;
 }
 
 /** The open object's description, collapsed to its first line. */
-function ObjectDescription({ description, disabled }: { description: string | null; disabled: boolean }) {
+function ObjectDescription({ description }: { description: string | null }) {
   return <details className="gui-object-description">
     <summary>{description === null ? "Add a description" : description.split("\n")[0]}</summary>
-    <DescriptionField description={description} disabled={disabled} onCommit={(next) =>
-      runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "description", description: next }))} />
+    <DescriptionField description={description} onCommit={(next) =>
+      runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setDescription", item: { type: "object" }, description: next }))} />
   </details>;
 }
 

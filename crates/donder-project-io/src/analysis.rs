@@ -1,13 +1,16 @@
+use donder_language::compiler::{DeclarationKind, partial_declaration_spans};
+use donder_model::ObjectKind;
+use donder_runtime_types::Identifier;
 use std::collections::HashSet;
 use std::fs;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use indexmap::IndexMap;
 
-use crate::diagnostics::{data_diagnostic, push_diagnostic, script_diagnostics};
+use crate::diagnostics::{byte_range, data_diagnostic, push_diagnostic, script_diagnostics};
+use crate::project_loading::SourceTexts;
 use crate::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, SourceDocumentFormat, SourceObjectKind,
-    source_document_format,
+    IoDiagnostic, IoDiagnosticCode, SourceDocumentFormat, TextRange, source_document_format,
 };
 
 /// What a project's documents declare, read even when the project does not
@@ -15,41 +18,37 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectRecovery {
     pub root: Utf8PathBuf,
+    /// Every readable document.
     pub documents: IndexMap<Utf8PathBuf, RecoveryDocument>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecoveryDocument {
-    pub kind: RecoveryDocumentKind,
+    pub format: SourceDocumentFormat,
     pub objects: Vec<RecoveryObject>,
+    /// Where the first declaration is named.
+    pub first_name: Option<TextRange>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum RecoveryDocumentKind {
-    Data,
-    Script,
-    Other,
-}
-
+/// An object a document declares, by its name.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecoveryObject {
-    pub key: String,
-    pub kind: SourceObjectKind,
+    pub kind: ObjectKind,
+    pub name: Identifier,
 }
 
+/// Read every document at `paths`, reporting its syntax errors, and list what
+/// each declares. Scripts the load compiled already reported their errors.
 pub(crate) fn analyze_project_documents(
     root: &Utf8Path,
-    overrides: &crate::SourceOverrides,
+    paths: impl IntoIterator<Item = Utf8PathBuf>,
+    texts: &mut SourceTexts,
     checked_scripts: &indexmap::IndexSet<Utf8PathBuf>,
     active_documents: Option<&indexmap::IndexSet<Utf8PathBuf>>,
     cache: &mut crate::ProjectCheckCache,
     diagnostics: &mut Vec<IoDiagnostic>,
 ) -> ProjectRecovery {
     let mut documents = IndexMap::new();
-    let paths: std::collections::BTreeSet<_> = project_file_inventory(root)
-        .into_iter()
-        .chain(overrides.keys().cloned())
-        .collect();
     for path in paths {
         let mut inactive_diagnostics = Vec::new();
         let diagnostics = if active_documents.is_none_or(|active| active.contains(&path)) {
@@ -58,50 +57,57 @@ pub(crate) fn analyze_project_documents(
             &mut inactive_diagnostics
         };
         let format = source_document_format(&path);
-        let document = match format {
-            SourceDocumentFormat::Other => RecoveryDocument {
-                kind: RecoveryDocumentKind::Other,
-                objects: Vec::new(),
-            },
-            SourceDocumentFormat::Script if checked_scripts.contains(&path) => RecoveryDocument {
-                kind: RecoveryDocumentKind::Script,
-                objects: Vec::new(),
-            },
-            SourceDocumentFormat::Script | SourceDocumentFormat::Data => {
-                let text = match overrides.get(&path).map_or_else(
-                    || fs::read_to_string(root.join(&path)),
-                    |text| Ok(text.clone()),
-                ) {
-                    Ok(text) => text,
-                    Err(error) => {
-                        push_diagnostic(
-                            diagnostics,
-                            IoDiagnostic {
-                                path: path.clone(),
-                                range: None,
-                                severity: IoDiagnosticSeverity::Error,
-                                code: IoDiagnosticCode::IoRead,
-                                message: error.to_string(),
-                                detail: None,
-                                fix: None,
-                                related: Vec::new(),
-                            },
-                        );
-                        String::new()
-                    }
-                };
-                if format == SourceDocumentFormat::Script {
-                    for diagnostic in script_diagnostics(&path, &text) {
-                        push_diagnostic(diagnostics, diagnostic);
-                    }
-                    RecoveryDocument {
-                        kind: RecoveryDocumentKind::Script,
-                        objects: Vec::new(),
-                    }
-                } else {
-                    analyze_data_text(&path, &text, cache, diagnostics)
+        if format == SourceDocumentFormat::Other {
+            documents.insert(
+                path,
+                RecoveryDocument {
+                    format,
+                    objects: Vec::new(),
+                    first_name: None,
+                },
+            );
+            continue;
+        }
+        let text = match texts.text(&path) {
+            Ok(text) => text,
+            Err(error) => {
+                push_diagnostic(
+                    diagnostics,
+                    IoDiagnostic::error(
+                        path.clone(),
+                        None,
+                        IoDiagnosticCode::IoRead,
+                        error.to_string(),
+                    ),
+                );
+                continue;
+            }
+        };
+        let document = if format == SourceDocumentFormat::Script {
+            if !checked_scripts.contains(&path) {
+                for diagnostic in script_diagnostics(&path, text) {
+                    push_diagnostic(diagnostics, diagnostic);
                 }
             }
+            let declarations = partial_declaration_spans(text);
+            RecoveryDocument {
+                format,
+                first_name: declarations.first().map(|declaration| {
+                    byte_range(text, declaration.name_span.start, declaration.name_span.end)
+                }),
+                objects: declarations
+                    .into_iter()
+                    .map(|declaration| RecoveryObject {
+                        kind: match declaration.kind {
+                            DeclarationKind::Effect => ObjectKind::EffectDefinition,
+                            DeclarationKind::Operator => ObjectKind::OperatorDefinition,
+                        },
+                        name: declaration.name,
+                    })
+                    .collect(),
+            }
+        } else {
+            analyze_data_text(&path, text, cache, diagnostics)
         };
         documents.insert(path, document);
     }
@@ -149,13 +155,17 @@ fn analyze_data_text(
     }
     let document = &read.document;
     RecoveryDocument {
-        kind: RecoveryDocumentKind::Data,
+        format: SourceDocumentFormat::Data,
+        first_name: document
+            .declarations
+            .first()
+            .map(|(name, _, _)| byte_range(text, name.span.start, name.span.end)),
         objects: document
             .declarations
             .iter()
             .map(|(name, _, declaration)| RecoveryObject {
-                key: name.value.as_str().to_string(),
                 kind: declaration.kind(),
+                name: name.value.clone(),
             })
             .collect(),
     }
