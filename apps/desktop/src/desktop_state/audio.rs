@@ -98,19 +98,29 @@ impl DesktopState {
                 snapshot.status = "Stop performing to play a sequence.".into();
             });
         }
-        if self.device_playback.has_devices() || self.has_setup_devices() {
+        if self.devices_live() {
             return self
                 .device_audio_play()
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
+        self.local_audio_play()
+    }
+
+    pub(super) fn local_audio_play(&self) -> AppSnapshot {
         let audio_transport = lock_unpoisoned(&self.audio).play();
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;
         })
     }
 
+    /// Transport commands go to Donder controllers while live output drives
+    /// connected ones.
+    fn devices_driven(&self) -> bool {
+        self.devices_live() && self.device_playback.has_devices()
+    }
+
     pub fn audio_pause(&self) -> AppSnapshot {
-        if self.device_playback.has_devices() {
+        if self.devices_driven() {
             return self
                 .device_audio_hold(donder_device_protocol::Mode::Paused, None, false)
                 .unwrap_or_else(|error| self.device_transport_error(error));
@@ -122,7 +132,7 @@ impl DesktopState {
     }
 
     pub fn audio_stop(&self) -> AppSnapshot {
-        if self.device_playback.has_devices() {
+        if self.devices_driven() {
             return self
                 .device_audio_hold(
                     donder_device_protocol::Mode::Stopped,
@@ -138,7 +148,7 @@ impl DesktopState {
     }
 
     pub fn audio_rewind_to_zero(&self) -> AppSnapshot {
-        if self.device_playback.has_devices() {
+        if self.devices_driven() {
             return self
                 .device_audio_hold(donder_device_protocol::Mode::Paused, Some(0.0), true)
                 .unwrap_or_else(|error| self.device_transport_error(error));
@@ -150,7 +160,7 @@ impl DesktopState {
     }
 
     pub fn audio_seek(&self, position_seconds: f64) -> AppSnapshot {
-        if self.device_playback.has_devices() {
+        if self.devices_driven() {
             let duration = self.audio_snapshot().duration_seconds;
             if !position_seconds.is_finite() {
                 return self.device_transport_error("Seek position must be finite".into());
@@ -170,7 +180,7 @@ impl DesktopState {
     }
 
     pub fn audio_set_playback_rate(&self, rate: donder_runtime::PlaybackRate) -> AppSnapshot {
-        if self.device_playback.has_devices() {
+        if self.devices_driven() {
             return self
                 .device_audio_set_rate(rate)
                 .unwrap_or_else(|error| self.device_transport_error(error));
@@ -186,7 +196,7 @@ impl DesktopState {
         self.record_sequence_transport(&audio_transport);
         // The engine moved a stopped playhead to the range start; held devices follow it.
         if let Some(range) = audio_transport.range
-            && self.device_playback.has_devices()
+            && self.devices_driven()
             && !matches!(audio_transport.state, AudioTransportState::Playing)
         {
             return Ok(self.audio_seek(range.start_seconds));

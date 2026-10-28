@@ -161,72 +161,51 @@ impl DeviceClient {
         bytes: Vec<u8>,
         widths: &[u16],
         frame_rate: u32,
-    ) -> Result<String, UploadError> {
-        let capabilities = self.capabilities().map_err(UploadError::Failed)?;
+    ) -> Result<String, String> {
+        let capabilities = self.capabilities()?;
         let header: &[u8; 16] = bytes
             .get(..16)
             .and_then(|header| header.try_into().ok())
-            .ok_or(UploadError::Rejected(
-                "Compiled sequence header is missing.".into(),
-            ))?;
+            .ok_or("Compiled sequence header is missing.")?;
         let format = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
         if capabilities.image_format != format {
-            return Err(UploadError::Rejected("Device firmware and Donder use different sequence formats. Rebuild the firmware and re-export together.".into()));
+            return Err("Device firmware and Donder use different sequence formats. Rebuild the firmware and re-export together.".into());
         }
         if bytes.len() - 16 > capabilities.max_payload_bytes as usize {
-            return Err(UploadError::Rejected(format!(
+            return Err(format!(
                 "Sequence payload exceeds the device limit of {} bytes. Select fewer outputs or simplify the sequence.",
                 capabilities.max_payload_bytes
-            )));
+            ));
         }
         match capabilities.output {
             OutputCapabilities::Ws281x { lanes, channels_per_lane, channel_multiple, max_frame_rate, .. } => {
                 if frame_rate > max_frame_rate {
-                    return Err(UploadError::Rejected(format!("This sequence runs at {frame_rate} frames per second; this controller's outputs carry at most {max_frame_rate}. Lower the sequence's frame rate.")));
+                    return Err(format!("This sequence runs at {frame_rate} frames per second; this controller's outputs carry at most {max_frame_rate}. Lower the sequence's frame rate."));
                 }
                 if channel_multiple == 0 || widths.len() > lanes as usize || widths.iter().any(|width| *width == 0 || u32::from(*width) > channels_per_lane || u32::from(*width) % channel_multiple != 0) {
-                    return Err(UploadError::Rejected(format!("Device accepts at most {lanes} outputs, each with at most {channels_per_lane} channels in multiples of {channel_multiple}. Adjust the selected controller ports in Display Setup.")));
+                    return Err(format!("Device accepts at most {lanes} outputs, each with at most {channels_per_lane} channels in multiples of {channel_multiple}. Adjust the selected controller ports in Display Setup."));
                 }
             }
-            OutputCapabilities::EvaluationOnly => return Err(UploadError::Rejected("This firmware evaluates sequences but cannot drive lights. Install the output-enabled firmware before uploading from Donder.".into())),
+            OutputCapabilities::EvaluationOnly => return Err("This firmware evaluates sequences but cannot drive lights. Install the output-enabled firmware before uploading from Donder.".into()),
         }
         let response = self.client.put(self.url(path::IMAGE))
             .header("content-type", "application/octet-stream").body(bytes).send()
-            .map_err(|error| UploadError::Failed(format!("Upload did not finish: {error}. Check the device before retrying; it may have received the sequence.")))?;
+            .map_err(|error| format!("Upload did not finish: {error}. Check the device before retrying; it may have received the sequence."))?;
         // The controller admits a show only if it fits; the same show is
         // refused again however often it is sent.
         if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
-            let reason = read_body(response).map_err(UploadError::Failed)?;
-            return Err(UploadError::Rejected(format!(
+            let reason = read_body(response)?;
+            return Err(format!(
                 "Controller {} rejected this show: {}",
                 self.address,
                 reason.trim()
-            )));
-        }
-        let response = self.response(response).map_err(UploadError::Failed)?;
-        if !response.starts_with(LOADED) {
-            return Err(UploadError::Failed(
-                "Device did not acknowledge loading the sequence.".into(),
             ));
         }
-        Ok("Sequence uploaded and saved on the device. Press Play to start; uploads and restarts leave playback stopped.".into())
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum UploadError {
-    /// This show cannot be loaded by this controller; sending it again fails
-    /// the same way.
-    Rejected(String),
-    /// The upload did not complete.
-    Failed(String),
-}
-
-impl std::fmt::Display for UploadError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Rejected(message) | Self::Failed(message) => formatter.write_str(message),
+        let response = self.response(response)?;
+        if !response.starts_with(LOADED) {
+            return Err("Device did not acknowledge loading the sequence.".into());
         }
+        Ok("Sequence uploaded and saved on the device. Press Play to start; uploads and restarts leave playback stopped.".into())
     }
 }
 

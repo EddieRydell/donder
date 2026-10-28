@@ -6,6 +6,7 @@ import type { DeviceSerialPort, DonderDeviceNetworkRequest, DonderDeviceStatus }
 
 /** Live status and settings for the Donder controller a setup controller targets. */
 export function DonderDevicePanel({ deviceId }: { deviceId: string }) {
+  useDeviceWatch(true);
   const device = useAppStore((state) => state.snapshot?.devices.find((candidate) => candidate.id === deviceId));
   return <section className="setup-section">
     <h3>Controller device</h3>
@@ -29,7 +30,8 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
   const connection = device.connection;
   return <div className="device-form">
     <p role="status">{device.name} · {device.address} · {device.network === "accessPoint" ? "own Wi-Fi network" : "joined Wi-Fi network"}
-      {connection.state === "connected" ? ` · ready for playback${connection.clockUncertaintyMicros === null ? "" : `, clock within ${(connection.clockUncertaintyMicros / 1000).toFixed(2)} ms`}` : ""}</p>
+      {connection.state === "connected" ? ` · live output connected${connection.clockUncertaintyMicros === null ? "" : `, clock within ${(connection.clockUncertaintyMicros / 1000).toFixed(2)} ms`}` : ""}
+      {connection.state === "connecting" ? " · live output connecting" : ""}</p>
     {connection.state === "failed" && <p role="alert">{connection.error}</p>}
     {!device.firmwareCurrent && <p role="alert">This controller runs firmware for a different sequence format. Flash the current Donder firmware onto it.</p>}
     {error !== null && <p role="alert">{error}</p>}
@@ -60,6 +62,15 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
       </div>
     </fieldset>}
   </div>;
+}
+
+/** Keeps controller discovery running while a view that lists Donder controllers is open. */
+export function useDeviceWatch(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    void commands.watchDevices(true);
+    return () => { void commands.watchDevices(false); };
+  }, [active]);
 }
 
 /** Factory reset for a controller connected over USB. */

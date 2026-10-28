@@ -321,6 +321,8 @@ impl DesktopState {
         ) {
             self.audio_stop();
         }
+        // A rig plays only on streamed controllers.
+        self.set_devices_live(false);
         {
             let mut perform = lock_unpoisoned(&self.perform);
             let armed =

@@ -170,7 +170,9 @@ Choose **Perform** for a rig: in the project's rig list, or by right-clicking th
 rig's document in the Explorer. Donder prepares the rig on the active setup and
 starts the session clock. The Perform bar shows the rig, the elapsed time, which
 switches are on and which buttons you hold, with toggles for live output and the
-Preview, and **Stop**.
+Preview, and **Stop**. Live output plays a performance on E1.31 and Art-Net
+controllers only; starting one stops and releases the setup's Donder
+controllers.
 
 While you perform, the rig's keys go to the rig before any editor shortcut, both
 in the main window and in the Preview window. Keys typed into a text field stay

@@ -46,6 +46,10 @@ effects persist. GUI edits support undo and redo.
 
 ## Use a controller
 
+Play always plays the Preview; light controllers follow only while live output
+is on (the toolbar's antenna button). Live output stays on through Stop and
+Pause until you turn it off or open another sequence or project.
+
 For live E1.31 output, configure the real receiver's address, universe, channels,
 and pixel order, then enable live output and play. Setup's channel test sends a
 chosen raw channel value for ten seconds and blackouts on stop or expiry. This
@@ -53,9 +57,10 @@ test bypasses the patch and does not edit the project.
 
 For a supported ESP32 flashed with the Donder firmware, join the
 controller's `Donder-XXXX` Wi-Fi network, and add a **Donder controller** to the
-setup. Claim it, then press Play: the editor uploads the sequence and starts the
-controller in sync with the audio. See
-[controller setup](esp32_loading.md#set-up-a-controller).
+setup. Claim it, turn on live output, then press Play: the editor uploads the
+sequence and starts the controller in sync with the audio. A controller that is
+off the network or fails is listed as failed in the live-output status and the
+rest still play. See [controller setup](esp32_loading.md#set-up-a-controller).
 
 From here, the composition graph, operators and automation clips are described
 in [project language](project_language.md#sequences), and writing your own effects
