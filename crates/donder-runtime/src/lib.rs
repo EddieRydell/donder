@@ -1,7 +1,6 @@
 #![no_std]
 #![recursion_limit = "256"]
 #![deny(unsafe_code)]
-#![deny(unreachable_pub)]
 #![deny(private_interfaces, private_bounds)]
 #![cfg_attr(
     not(test),

@@ -14,6 +14,5 @@ bytemuck.workspace = true
 libm.workspace = true
 micromath.workspace = true
 
-[lints.rust]
-unreachable_pub = "warn"
-unnameable_types = "warn"
+[lints]
+workspace = true

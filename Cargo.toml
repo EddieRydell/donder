@@ -8,6 +8,10 @@ edition = "2024"
 rust-version = "1.98"
 version = "0.1.0"
 
+[workspace.lints.rust]
+unnameable_types = "warn"
+unreachable_pub = "warn"
+
 [workspace.dependencies]
 crc32fast = { version = "1.5.1", default-features = false }
 bytemuck = { version = "1.25.2", features = ["derive"] }

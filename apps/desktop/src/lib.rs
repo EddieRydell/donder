@@ -13,7 +13,7 @@
 use tauri::{Emitter, Manager};
 
 mod audio;
-pub mod bindings;
+mod bindings;
 mod commands;
 mod desktop_foundation_tests;
 mod desktop_state;

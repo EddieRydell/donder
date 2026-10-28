@@ -1,10 +1,10 @@
 //! Show time follows a clock, never the number of completed render iterations.
 
-pub use donder_device_protocol::Mode;
+pub(crate) use donder_device_protocol::Mode;
 use donder_runtime::PlaybackRate;
 
 #[derive(Clone, Copy)]
-pub struct Clock {
+pub(crate) struct Clock {
     pub id: u32,
     pub local_anchor: u64,
     pub master_anchor: u64,
@@ -13,7 +13,7 @@ pub struct Clock {
 }
 
 impl Clock {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             id: 0,
             local_anchor: 0,
@@ -22,25 +22,25 @@ impl Clock {
             valid_until: 0,
         }
     }
-    pub fn master_at(&self, local: u64) -> u64 {
+    pub(crate) fn master_at(&self, local: u64) -> u64 {
         let elapsed = i128::from(local) - i128::from(self.local_anchor);
         (i128::from(self.master_anchor)
             + elapsed
             + elapsed * i128::from(self.rate_ppb) / 1_000_000_000)
             .clamp(0, i128::from(u64::MAX)) as u64
     }
-    pub fn local_at(&self, master: u64) -> u64 {
+    pub(crate) fn local_at(&self, master: u64) -> u64 {
         let elapsed = (i128::from(master) - i128::from(self.master_anchor)) * 1_000_000_000
             / (1_000_000_000 + i128::from(self.rate_ppb));
         (i128::from(self.local_anchor) + elapsed).clamp(0, i128::from(u64::MAX)) as u64
     }
-    pub fn usable(&self, id: u32, local: u64) -> bool {
+    pub(crate) fn usable(&self, id: u32, local: u64) -> bool {
         id != 0 && self.id == id && local < self.valid_until
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct Scheduled {
+pub(crate) struct Scheduled {
     pub id: u32,
     pub at: u64,
     pub mode: Mode,
@@ -50,7 +50,7 @@ pub struct Scheduled {
 }
 
 #[derive(Clone, Copy)]
-pub struct Transport {
+pub(crate) struct Transport {
     pub mode: Mode,
     anchor_time: u64,
     anchor_position: u32,
@@ -62,7 +62,7 @@ pub struct Transport {
 }
 
 impl Transport {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             mode: Mode::Stopped,
             anchor_time: 0,
@@ -74,7 +74,7 @@ impl Transport {
             generation: 0,
         }
     }
-    pub fn apply(
+    pub(crate) fn apply(
         &mut self,
         mode: Mode,
         position: u32,
@@ -90,7 +90,7 @@ impl Transport {
         self.rate = rate;
         self.pending = None;
     }
-    pub fn schedule(&mut self, command: Scheduled) -> bool {
+    pub(crate) fn schedule(&mut self, command: Scheduled) -> bool {
         if command.id <= self.command_id {
             return false;
         }
@@ -100,7 +100,7 @@ impl Transport {
         true
     }
     /// The rate in effect at `now`, after any due pending command.
-    pub fn rate(&self, now: u64) -> PlaybackRate {
+    pub(crate) fn rate(&self, now: u64) -> PlaybackRate {
         self.at(now).rate
     }
     fn at(&self, now: u64) -> Self {
@@ -121,7 +121,7 @@ impl Transport {
             );
         }
     }
-    pub fn sample(&self, now: u64, duration: u32) -> (Mode, u32) {
+    pub(crate) fn sample(&self, now: u64, duration: u32) -> (Mode, u32) {
         let current = self.at(now);
         if current.mode != Mode::Playing {
             return (current.mode, current.anchor_position);
@@ -137,14 +137,14 @@ impl Transport {
             (Mode::Playing, position as u32)
         }
     }
-    pub fn refresh(&mut self, now: u64, duration: u32) {
+    pub(crate) fn refresh(&mut self, now: u64, duration: u32) {
         self.apply_due(now);
         let (mode, position) = self.sample(now, duration);
         if mode == Mode::Ended && self.mode != Mode::Ended {
             self.apply(mode, position, now, false, self.rate);
         }
     }
-    pub fn cancel(&mut self, id: u32, now: u64) -> bool {
+    pub(crate) fn cancel(&mut self, id: u32, now: u64) -> bool {
         if self
             .pending
             .is_some_and(|pending| pending.id == id && now < pending.at)

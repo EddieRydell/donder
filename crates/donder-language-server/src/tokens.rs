@@ -24,7 +24,7 @@ const DECLARATION: u32 = 1;
 const DEFAULT_LIBRARY: u32 = 1 << 1;
 const READONLY: u32 = 1 << 2;
 
-pub fn legend() -> SemanticTokensLegend {
+pub(crate) fn legend() -> SemanticTokensLegend {
     SemanticTokensLegend {
         token_types: TYPES.to_vec(),
         token_modifiers: vec![
@@ -56,7 +56,7 @@ fn encoding(class: TokenClass) -> (u32, u32) {
 
 /// `tokens`, in source order, as LSP encodes them: each relative to the one
 /// before, the first relative to the document start.
-pub fn encode(document: &Document, tokens: &[SemanticToken]) -> SemanticTokens {
+pub(crate) fn encode(document: &Document, tokens: &[SemanticToken]) -> SemanticTokens {
     let mut data = Vec::with_capacity(tokens.len());
     let (mut previous_line, mut previous_start) = (0, 0);
     for token in tokens {

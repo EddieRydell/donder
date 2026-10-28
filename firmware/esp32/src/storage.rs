@@ -9,7 +9,7 @@ static FLASH_REQUESTED: core::sync::atomic::AtomicBool = core::sync::atomic::Ato
 #[cfg(feature = "i2s-output")]
 static FLASH_READY: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
-pub struct OutputSuspension {
+pub(crate) struct OutputSuspension {
     #[cfg(feature = "i2s-output")]
     active: bool,
 }
@@ -25,7 +25,7 @@ impl Drop for OutputSuspension {
 
 /// Keep the rendering core in an interrupt-free IRAM loop while flash is used.
 /// Hardware parking alone can freeze an outstanding cache fill indefinitely.
-pub async fn suspend_output() -> Result<OutputSuspension, embassy_time::TimeoutError> {
+pub(crate) async fn suspend_output() -> Result<OutputSuspension, embassy_time::TimeoutError> {
     #[cfg(feature = "i2s-output")]
     {
         use core::sync::atomic::Ordering::{Acquire, Release};
@@ -53,18 +53,18 @@ pub async fn suspend_output() -> Result<OutputSuspension, embassy_time::TimeoutE
 }
 
 #[cfg(feature = "i2s-output")]
-pub fn output_started() {
+pub(crate) fn output_started() {
     OUTPUT_RUNNING.store(true, core::sync::atomic::Ordering::Release);
 }
 
 #[cfg(feature = "i2s-output")]
-pub fn flash_requested() -> bool {
+pub(crate) fn flash_requested() -> bool {
     FLASH_REQUESTED.load(core::sync::atomic::Ordering::Acquire)
 }
 
 #[cfg(feature = "i2s-output")]
 #[esp_hal::ram]
-pub fn flash_checkpoint() {
+pub(crate) fn flash_checkpoint() {
     use core::sync::atomic::Ordering::{Acquire, Release};
     if !FLASH_REQUESTED.load(Acquire) {
         return;
@@ -81,7 +81,7 @@ pub fn flash_checkpoint() {
     unsafe { core::arch::asm!("wsr.ps {0}", "rsync", in(reg) previous_ps, options(nostack)) };
 }
 
-pub struct DeviceStorage {
+pub(crate) struct DeviceStorage {
     flash: FlashStorage<'static>,
     offset: u32,
     show_offset: u32,
@@ -93,7 +93,7 @@ pub struct DeviceStorage {
 struct AlignedBytes([u8; 256]);
 
 impl DeviceStorage {
-    pub fn new(peripheral: Flash<'static>) -> Result<Self, &'static str> {
+    pub(crate) fn new(peripheral: Flash<'static>) -> Result<Self, &'static str> {
         let mut flash = FlashStorage::new(peripheral).multicore_auto_park();
         let mut bytes = alloc::vec![0; PARTITION_TABLE_MAX_LEN];
         let table =
@@ -191,12 +191,12 @@ impl Storage for DeviceStorage {
 }
 
 impl DeviceStorage {
-    pub fn shows(&mut self) -> Shows<'_> {
+    pub(crate) fn shows(&mut self) -> Shows<'_> {
         Shows(self)
     }
     /// The slot's image, read into RAM as little-endian 4-byte
     /// words, where playback reads it.
-    pub fn read_image(
+    pub(crate) fn read_image(
         &mut self,
         slot: donder_device_storage::show_slots::Slot,
     ) -> Result<alloc::boxed::Box<[u32]>, Error> {
@@ -214,7 +214,7 @@ impl DeviceStorage {
     }
 }
 
-pub struct Shows<'a>(&'a mut DeviceStorage);
+pub(crate) struct Shows<'a>(&'a mut DeviceStorage);
 impl Shows<'_> {
     fn address(&self, offset: usize, length: usize) -> Result<u32, Error> {
         if offset

@@ -855,8 +855,12 @@ impl RequestHandlerService<LoaderState> for UploadImage {
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
                 if show_slots::commit(&mut storage.shows(), slot).is_err() {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Cannot commit image; playback stopped and previous saved image retained\n")
-                        .write_to(connection, response_writer).await;
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Cannot commit image; playback stopped and previous saved image retained\n",
+                    )
+                        .write_to(connection, response_writer)
+                        .await;
                 }
                 *state.playback.lock().await = Some(playback);
                 (

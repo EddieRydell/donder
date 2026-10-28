@@ -2,7 +2,7 @@ use tauri::{Runtime, Window};
 
 use super::model::PersistedWindowState;
 
-pub fn read_window_state<R: Runtime>(window: &Window<R>) -> Option<PersistedWindowState> {
+pub(crate) fn read_window_state<R: Runtime>(window: &Window<R>) -> Option<PersistedWindowState> {
     if window.is_minimized().ok()? {
         return None;
     }
@@ -17,7 +17,7 @@ pub fn read_window_state<R: Runtime>(window: &Window<R>) -> Option<PersistedWind
     })
 }
 
-pub fn apply_window_state<R: Runtime>(window: &Window<R>, state: &PersistedWindowState) {
+pub(crate) fn apply_window_state<R: Runtime>(window: &Window<R>, state: &PersistedWindowState) {
     if !state_is_visible_on_monitor(window, state) {
         return;
     }

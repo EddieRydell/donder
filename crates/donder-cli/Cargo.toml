@@ -26,3 +26,6 @@ tempfile.workspace = true
 [[bin]]
 name = "donder"
 path = "src/main.rs"
+
+[lints]
+workspace = true

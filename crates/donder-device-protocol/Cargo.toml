@@ -12,6 +12,5 @@ donder-runtime = { path = "../donder-runtime", default-features = false }
 # `alloc` buffering derives the decoder of an internally tagged enum.
 serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"] }
 
-[lints.rust]
-unreachable_pub = "warn"
-unnameable_types = "warn"
+[lints]
+workspace = true

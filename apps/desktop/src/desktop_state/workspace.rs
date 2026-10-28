@@ -14,7 +14,7 @@ use donder_editor::dto::{
 };
 
 impl DesktopState {
-    pub fn open_project_path(&self, path: &str) -> AppSnapshot {
+    pub(crate) fn open_project_path(&self, path: &str) -> AppSnapshot {
         let candidate = Utf8Path::new(path);
         let root = if candidate.is_dir() {
             candidate
@@ -32,7 +32,7 @@ impl DesktopState {
 
     /// Keep one piece of view state: the workbench layout and explorer in the
     /// snapshot, an editor's state with the open project.
-    pub fn save_view_state(&self, update: ViewStateUpdate) -> AppSnapshot {
+    pub(crate) fn save_view_state(&self, update: ViewStateUpdate) -> AppSnapshot {
         let snapshot = self.snapshot();
         let result = match (update, snapshot.project_root.as_deref()) {
             (ViewStateUpdate::WorkspaceLayout(state), _) => {
@@ -67,7 +67,7 @@ impl DesktopState {
         }
     }
 
-    pub fn restored_view_state(&self) -> ProjectRestoreState {
+    pub(crate) fn restored_view_state(&self) -> ProjectRestoreState {
         let snapshot = self.snapshot();
         let Some(project_root) = snapshot.project_root.as_deref() else {
             return ProjectRestoreState {
@@ -80,7 +80,7 @@ impl DesktopState {
         self.persistence.restore_view_state(project_root)
     }
 
-    pub fn open_file_path(&self, path: &str) -> AppSnapshot {
+    pub(crate) fn open_file_path(&self, path: &str) -> AppSnapshot {
         let Some(root) = self.project_root_path() else {
             return self.snapshot();
         };
@@ -135,7 +135,7 @@ impl DesktopState {
         })
     }
 
-    pub fn plan_workspace_path_change(
+    pub(crate) fn plan_workspace_path_change(
         &self,
         request: WorkspacePathChangeRequest,
     ) -> Result<WorkspacePathChangePlan, String> {
@@ -193,7 +193,7 @@ impl DesktopState {
         })
     }
 
-    pub fn apply_workspace_path_change(
+    pub(crate) fn apply_workspace_path_change(
         &self,
         request: WorkspacePathChangeRequest,
     ) -> Result<AppSnapshot, String> {
@@ -333,7 +333,7 @@ impl DesktopState {
         Ok(snapshot)
     }
 
-    pub fn set_active_file_path(&self, path: &str) -> AppSnapshot {
+    pub(crate) fn set_active_file_path(&self, path: &str) -> AppSnapshot {
         let _authoring = self.settled_authoring();
         self.open_file_path(path)
     }
@@ -362,7 +362,7 @@ impl DesktopState {
         }
     }
 
-    pub fn set_editor_view_mode(&self, mode: EditorViewMode) -> AppSnapshot {
+    pub(crate) fn set_editor_view_mode(&self, mode: EditorViewMode) -> AppSnapshot {
         if matches!(mode, EditorViewMode::Gui) {
             if let Err(error) = self.reconcile_external_files() {
                 return self.snapshot_with_error("project.reconcile", "", &error);
@@ -387,11 +387,11 @@ impl DesktopState {
         self.update_app_settings(settings)
     }
 
-    pub fn create_file(&self, parent: &str, name: &str) -> AppSnapshot {
+    pub(crate) fn create_file(&self, parent: &str, name: &str) -> AppSnapshot {
         self.create_fs_entry(parent, name, FsEntryKind::File)
     }
 
-    pub fn create_directory(&self, parent: &str, name: &str) -> AppSnapshot {
+    pub(crate) fn create_directory(&self, parent: &str, name: &str) -> AppSnapshot {
         self.create_fs_entry(parent, name, FsEntryKind::Directory)
     }
 
@@ -487,7 +487,7 @@ impl DesktopState {
         self.update_app_settings_locked(settings)
     }
 
-    pub fn create_sequence(
+    pub(crate) fn create_sequence(
         &self,
         request: NewSequenceRequest,
     ) -> Result<donder_editor::dto::NewSequenceResult, String> {
@@ -515,7 +515,7 @@ impl DesktopState {
         })
     }
 
-    pub fn delete_path(&self, path: &str) -> AppSnapshot {
+    pub(crate) fn delete_path(&self, path: &str) -> AppSnapshot {
         let _authoring = self.settled_authoring();
         if lock_unpoisoned(&self.workspace)
             .documents

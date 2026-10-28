@@ -18,6 +18,10 @@ required-features = ["loader"]
 [workspace]
 resolver = "2"
 
+[workspace.lints.rust]
+unnameable_types = "warn"
+unreachable_pub = "warn"
+
 [dependencies]
 # Supply only littlefs's two string routines absent from the ESP32 ROM bindings.
 tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"], optional = true }
@@ -67,3 +71,6 @@ codegen-units = 1
 lto = "fat"
 debug = 2
 panic = "abort"
+
+[lints]
+workspace = true

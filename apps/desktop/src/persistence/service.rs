@@ -37,18 +37,18 @@ fn remap_object_views<T>(views: &mut BTreeMap<String, T>, source: &str, destinat
 }
 
 #[derive(Debug, Default)]
-pub struct PersistenceService {
+pub(crate) struct PersistenceService {
     inner: Mutex<PersistenceInner>,
 }
 
 impl PersistenceService {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             inner: Mutex::new(PersistenceInner::default()),
         }
     }
 
-    pub fn load(&self, app: &AppHandle) -> Result<Option<String>, String> {
+    pub(crate) fn load(&self, app: &AppHandle) -> Result<Option<String>, String> {
         let path = persistence_path(app)?;
         let mut inner = self.inner();
         inner.path = Some(path.clone());
@@ -76,15 +76,15 @@ impl PersistenceService {
         Ok(last_project)
     }
 
-    pub fn settings(&self) -> AppSettings {
+    pub(crate) fn settings(&self) -> AppSettings {
         self.inner().store.settings.clone()
     }
 
-    pub fn workspace_layout(&self) -> WorkspaceLayoutState {
+    pub(crate) fn workspace_layout(&self) -> WorkspaceLayoutState {
         self.inner().store.workspace_layout.clone()
     }
 
-    pub fn record_settings(&self, settings: AppSettings) -> Result<(), String> {
+    pub(crate) fn record_settings(&self, settings: AppSettings) -> Result<(), String> {
         let mut inner = self.inner();
         if !inner.write_allowed {
             return Ok(());
@@ -93,7 +93,10 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn record_workspace_layout(&self, state: WorkspaceLayoutState) -> Result<(), String> {
+    pub(crate) fn record_workspace_layout(
+        &self,
+        state: WorkspaceLayoutState,
+    ) -> Result<(), String> {
         let mut inner = self.inner();
         if !inner.write_allowed {
             return Ok(());
@@ -102,7 +105,7 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn record_snapshot(&self, snapshot: &AppSnapshot) -> Result<(), String> {
+    pub(crate) fn record_snapshot(&self, snapshot: &AppSnapshot) -> Result<(), String> {
         let Some(project_root) = snapshot.project_root.clone() else {
             return Ok(());
         };
@@ -122,7 +125,7 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn record_editor_state(
+    pub(crate) fn record_editor_state(
         &self,
         project_root: &str,
         update: PersistedEditorViewStateUpdate,
@@ -140,7 +143,11 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn sequence_transport(&self, project_root: &str, key: &str) -> PersistedSequenceTransport {
+    pub(crate) fn sequence_transport(
+        &self,
+        project_root: &str,
+        key: &str,
+    ) -> PersistedSequenceTransport {
         self.inner()
             .store
             .projects
@@ -149,7 +156,7 @@ impl PersistenceService {
             .unwrap_or_default()
     }
 
-    pub fn record_sequence_transport(
+    pub(crate) fn record_sequence_transport(
         &self,
         project_root: &str,
         key: String,
@@ -169,7 +176,7 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn record_sequence_viewport(
+    pub(crate) fn record_sequence_viewport(
         &self,
         project_root: &str,
         update: PersistedSequenceViewportStateUpdate,
@@ -213,7 +220,7 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn record_graph_view(
+    pub(crate) fn record_graph_view(
         &self,
         project_root: &str,
         update: PersistedGraphViewStateUpdate,
@@ -244,7 +251,7 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn record_spatial_view(
+    pub(crate) fn record_spatial_view(
         &self,
         project_root: &str,
         update: PersistedSpatialViewStateUpdate,
@@ -274,7 +281,7 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn remap_project_paths(
+    pub(crate) fn remap_project_paths(
         &self,
         project_root: &str,
         source: &str,
@@ -316,7 +323,7 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn restore_for_project(
+    pub(crate) fn restore_for_project(
         &self,
         project_root: &str,
         valid_paths: &std::collections::BTreeSet<String>,
@@ -335,7 +342,7 @@ impl PersistenceService {
         })
     }
 
-    pub fn restore_view_state(&self, project_root: &str) -> ProjectRestoreState {
+    pub(crate) fn restore_view_state(&self, project_root: &str) -> ProjectRestoreState {
         let inner = self.inner();
         let Some(session) = inner.store.projects.get(project_root) else {
             return ProjectRestoreState {
@@ -353,7 +360,7 @@ impl PersistenceService {
         }
     }
 
-    pub fn record_main_window(&self, geometry: PersistedWindowState) -> Result<(), String> {
+    pub(crate) fn record_main_window(&self, geometry: PersistedWindowState) -> Result<(), String> {
         let mut inner = self.inner();
         if !inner.write_allowed {
             return Ok(());
@@ -362,11 +369,14 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn main_window(&self) -> Option<PersistedWindowState> {
+    pub(crate) fn main_window(&self) -> Option<PersistedWindowState> {
         self.inner().store.main_window.clone()
     }
 
-    pub fn record_preview_window(&self, state: PersistedPreviewWindowState) -> Result<(), String> {
+    pub(crate) fn record_preview_window(
+        &self,
+        state: PersistedPreviewWindowState,
+    ) -> Result<(), String> {
         let mut inner = self.inner();
         if !inner.write_allowed {
             return Ok(());
@@ -375,15 +385,15 @@ impl PersistenceService {
         inner.save_now()
     }
 
-    pub fn preview_window(&self) -> PersistedPreviewWindowState {
+    pub(crate) fn preview_window(&self) -> PersistedPreviewWindowState {
         self.inner().store.preview_window.clone()
     }
 
-    pub fn device_tokens(&self) -> std::collections::BTreeMap<String, String> {
+    pub(crate) fn device_tokens(&self) -> std::collections::BTreeMap<String, String> {
         self.inner().store.device_tokens.clone()
     }
 
-    pub fn record_device_token(&self, device: &str, token: String) -> Result<(), String> {
+    pub(crate) fn record_device_token(&self, device: &str, token: String) -> Result<(), String> {
         let mut inner = self.inner();
         if !inner.write_allowed {
             return Err("Desktop settings are not loaded; the claim token cannot be saved.".into());

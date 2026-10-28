@@ -11,3 +11,6 @@ realfft.workspace = true
 rubato.workspace = true
 symphonia.workspace = true
 tract-onnx.workspace = true
+
+[lints]
+workspace = true

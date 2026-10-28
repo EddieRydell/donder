@@ -23,34 +23,34 @@ use esp_radio::wifi::{
 };
 use static_cell::StaticCell;
 
-pub const ACCESS_POINT_ADDRESS: Ipv4Addr = Ipv4Addr::new(192, 168, 4, 1);
+pub(crate) const ACCESS_POINT_ADDRESS: Ipv4Addr = Ipv4Addr::new(192, 168, 4, 1);
 const STATION_JOIN_TIMEOUT: Duration = Duration::from_secs(20);
 
-pub type Name = heapless::String<MAX_NAME_BYTES>;
+pub(crate) type Name = heapless::String<MAX_NAME_BYTES>;
 
 /// The controller's mutable identity, shared by HTTP, clock and mDNS tasks.
 /// Flash holds the saved copy; this is updated only after a save succeeds.
-pub struct Identity {
+pub(crate) struct Identity {
     pub name: Name,
     pub token: Option<[u8; 32]>,
 }
 
-pub static IDENTITY: Mutex<CriticalSectionRawMutex, RefCell<Identity>> =
+pub(crate) static IDENTITY: Mutex<CriticalSectionRawMutex, RefCell<Identity>> =
     Mutex::new(RefCell::new(Identity {
         name: heapless::String::new(),
         token: None,
     }));
 /// Re-announce mDNS records after the name or claim changes.
-pub static ANNOUNCE: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+pub(crate) static ANNOUNCE: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 /// Restart after a network change has been acknowledged to the editor.
-pub static RESTART: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+pub(crate) static RESTART: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
-pub fn token() -> Option<[u8; 32]> {
+pub(crate) fn token() -> Option<[u8; 32]> {
     IDENTITY.lock(|identity| identity.borrow().token)
 }
 
 /// Stable controller identity: the factory MAC address in lowercase hex.
-pub fn device_id() -> heapless::String<12> {
+pub(crate) fn device_id() -> heapless::String<12> {
     let mut id = heapless::String::new();
     for byte in esp_hal::efuse::base_mac_address().as_bytes() {
         write!(id, "{byte:02x}").unwrap();
@@ -67,7 +67,7 @@ fn access_point_ssid() -> heapless::String<11> {
     ssid
 }
 
-pub fn default_config() -> DeviceConfig {
+pub(crate) fn default_config() -> DeviceConfig {
     DeviceConfig {
         name: access_point_ssid().as_str().into(),
         network: None,
@@ -76,13 +76,13 @@ pub fn default_config() -> DeviceConfig {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
+pub(crate) enum Mode {
     Station,
     AccessPoint,
 }
 
 impl Mode {
-    pub fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Station => "station",
             Self::AccessPoint => "accessPoint",
@@ -91,7 +91,7 @@ impl Mode {
 }
 
 /// Join the saved network, falling back to the controller's own access point.
-pub async fn start(
+pub(crate) async fn start(
     device: esp_hal::peripherals::WIFI<'static>,
     config: &DeviceConfig,
 ) -> (WifiController<'static>, Interface, Mode) {
@@ -144,7 +144,7 @@ async fn join(controller: &mut WifiController<'static>) {
     }
 }
 
-pub fn stack_config(mode: Mode) -> embassy_net::Config {
+pub(crate) fn stack_config(mode: Mode) -> embassy_net::Config {
     match mode {
         Mode::Station => embassy_net::Config::dhcpv4(Default::default()),
         Mode::AccessPoint => embassy_net::Config::ipv4_static(StaticConfigV4 {
@@ -187,7 +187,7 @@ pub async fn restart_after_change() {
 // Network buffers live in the ESP32's 8 KiB RTC fast RAM. Only core 0 can
 // address it, and only core 0 runs the network, which leaves main DRAM to the
 // core 0 stack and the show heap.
-pub type UdpPool = edge_nal_embassy::UdpBuffers<2, 768, 768, 2>;
+pub(crate) type UdpPool = edge_nal_embassy::UdpBuffers<2, 768, 768, 2>;
 type MdnsBuffer = edge_mdns::buf::VecBufAccess<NoopRawMutex, 768>;
 #[esp_hal::ram(unstable(rtc_fast))]
 static UDP_POOL: StaticCell<UdpPool> = StaticCell::new();
@@ -196,7 +196,7 @@ static MDNS_BUFFERS: StaticCell<(MdnsBuffer, MdnsBuffer)> = StaticCell::new();
 #[esp_hal::ram(unstable(rtc_fast))]
 static DHCP_BUFFER: StaticCell<[u8; 768]> = StaticCell::new();
 
-pub fn udp_pool() -> &'static UdpPool {
+pub(crate) fn udp_pool() -> &'static UdpPool {
     UDP_POOL.init(UdpPool::new())
 }
 

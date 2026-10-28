@@ -95,7 +95,7 @@ impl DesktopState {
         }
     }
 
-    pub fn update_document(&self, update: DocumentUpdate) -> Result<AppSnapshot, String> {
+    pub(crate) fn update_document(&self, update: DocumentUpdate) -> Result<AppSnapshot, String> {
         let _authoring = lock_unpoisoned(&self.authoring);
         {
             let mut workspace = lock_unpoisoned(&self.workspace);
@@ -134,7 +134,7 @@ impl DesktopState {
 
     /// Apply language-server edits to project documents, loading any that are
     /// not open into unsaved buffers with tabs, as a rename across files does.
-    pub fn apply_text_edits(
+    pub(crate) fn apply_text_edits(
         &self,
         project_epoch: u32,
         edits: Vec<DocumentTextEdits>,
@@ -158,7 +158,7 @@ impl DesktopState {
 
     /// Import an unreferenced document from the project root, as the
     /// diagnostic on it proposes.
-    pub fn include_document(
+    pub(crate) fn include_document(
         &self,
         project_epoch: u32,
         inclusion: donder_project_io::Inclusion,
@@ -217,7 +217,11 @@ impl DesktopState {
     }
 
     /// An open document's working text, for an editor that shows it.
-    pub fn document_text(&self, project_epoch: u32, path: &str) -> Result<DocumentText, String> {
+    pub(crate) fn document_text(
+        &self,
+        project_epoch: u32,
+        path: &str,
+    ) -> Result<DocumentText, String> {
         let workspace = lock_unpoisoned(&self.workspace);
         if workspace.view.project_epoch != project_epoch {
             return Err("The project changed before the text was read".into());
@@ -263,7 +267,7 @@ impl DesktopState {
             .expect("the active document is open")
     }
 
-    pub fn working_text(&self, path: &Utf8Path) -> Option<String> {
+    pub(crate) fn working_text(&self, path: &Utf8Path) -> Option<String> {
         lock_unpoisoned(&self.workspace)
             .documents
             .get(path)
@@ -419,7 +423,7 @@ impl DesktopState {
         result.map(|_| ())
     }
 
-    pub fn save_all(&self) -> Result<AppSnapshot, String> {
+    pub(crate) fn save_all(&self) -> Result<AppSnapshot, String> {
         let _authoring = self.settled_authoring();
         let result = self.write_working_sources();
         let snapshot = self.update_snapshot(|snapshot| {
@@ -480,7 +484,7 @@ impl DesktopState {
         }))
     }
 
-    pub fn reconcile_external_files(&self) -> Result<AppSnapshot, String> {
+    pub(crate) fn reconcile_external_files(&self) -> Result<AppSnapshot, String> {
         let _authoring = lock_unpoisoned(&self.authoring);
         self.reconcile_external_files_locked()
     }
@@ -582,7 +586,7 @@ impl DesktopState {
         }
     }
 
-    pub fn resolve_external_conflict(
+    pub(crate) fn resolve_external_conflict(
         &self,
         epoch: u32,
         path: String,

@@ -6,7 +6,7 @@ use donder_editor::dto::{
 };
 
 impl DesktopState {
-    pub fn request_transition(
+    pub(crate) fn request_transition(
         &self,
         request: TransitionRequest,
     ) -> Result<TransitionResult, String> {

@@ -13,7 +13,7 @@ const MAX_SEARCH_RESULTS: usize = 500;
 const MAX_SEARCH_FILE_BYTES: u64 = 1024 * 1024;
 
 impl DesktopState {
-    pub fn search_project(
+    pub(crate) fn search_project(
         &self,
         request: ProjectSearchRequest,
     ) -> Result<ProjectSearchResponse, String> {

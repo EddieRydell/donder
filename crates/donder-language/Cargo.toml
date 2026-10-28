@@ -11,6 +11,5 @@ camino.workspace = true
 donder-runtime-types = { workspace = true, features = ["atomic"] }
 indexmap.workspace = true
 
-[lints.rust]
-unnameable_types = "warn"
-unreachable_pub = "warn"
+[lints]
+workspace = true

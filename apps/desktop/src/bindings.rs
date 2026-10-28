@@ -1,7 +1,7 @@
 use specta_typescript::semantic;
 use tauri_specta::Builder;
 
-pub fn builder() -> Builder<tauri::Wry> {
+pub(crate) fn builder() -> Builder<tauri::Wry> {
     crate::commands::register(
         Builder::<tauri::Wry>::new()
             .semantic_types(semantic::Configuration::default().enable_lossless_floats()),
