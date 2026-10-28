@@ -33,13 +33,13 @@ export function automationTargetsEqual(
   right: SequenceAutomationTarget
 ) {
   if (left.type !== right.type) return false;
-  return left.type === "effectParam"
-    ? left.effectId === (right.type === "effectParam" ? right.effectId : undefined) && left.param === right.param
+  return left.type === "clipParam"
+    ? left.clipId === (right.type === "clipParam" ? right.clipId : undefined) && left.param === right.param
     : left.nodeId === (right.type === "compositionNodeParam" ? right.nodeId : undefined) && left.param === right.param;
 }
 
 export type GuiFocus =
-  | { type: "effect"; id: number }
+  | { type: "clip"; id: number }
   | { type: "graphNode"; nodeId: string }
   | { type: "graphEdge"; edgeId: string }
   | { type: "automationClip"; id: number }

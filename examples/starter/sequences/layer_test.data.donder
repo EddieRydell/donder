@@ -483,7 +483,7 @@ Sequence layer_test {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (566.45416, -474.141) },
-      OutputNode { position: (1393.0885, -375.6623) },
+      RootNode { position: (1393.0885, -375.6623) },
       LayerNode { layer: afterglow, position: (444.03857, -40.094635) },
       OperatorNode {
         name: afterglow_2,
@@ -493,9 +493,9 @@ Sequence layer_test {
       },
     ],
     edges: [
-      Edge { from: default, to: output },
+      Edge { from: default, to: root },
       Edge { from: afterglow, to: afterglow_2.input },
-      Edge { from: afterglow_2, to: output },
+      Edge { from: afterglow_2, to: root },
     ],
   },
   automation: [],

@@ -1,12 +1,12 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{Retain, prepare};
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 
 fn main() {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     assert!(
         args.len() == 2,
-        "usage: export_sequence PROJECT OUTPUT.donderseq"
+        "usage: export_image PROJECT OUTPUT.donderimage"
     );
     let session = donder_project_io::check_project(
         &Utf8PathBuf::from(&args[0]),
@@ -40,7 +40,7 @@ fn main() {
         .take(4)
         .map(|port| (*controller, port.id))
         .collect::<Vec<_>>();
-    let prepared = prepare(project, id, PrepareOutputs::Ports(&ports)).unwrap();
+    let prepared = prepare(project, id, Retain::Ports(&ports)).unwrap();
     let bytes = prepared.encode();
     let decoded = donder_runtime::PreparedShow::decode(&bytes).unwrap();
     let mut checksums = String::new();
@@ -73,7 +73,7 @@ fn main() {
             .map_or_else(|| "owned".to_string(), |name| name.as_str().to_string()),
         ports.len(),
         source_playback.prepared().pixel_count(),
-        source_playback.prepared().effect_count(),
+        source_playback.prepared().clip_count(),
         bytes.len()
     );
 }

@@ -237,9 +237,9 @@ pub enum Shape {
     /// A record or variant type registered in the [`Schema`].
     Named(&'static str),
     /// A reference to an object of a type, or that object written inline.
-    Source(&'static str),
+    OwnedRecord(&'static str),
     /// A reference, or a named object of the type written inline.
-    NamedSource(&'static str),
+    OwnedNamedRecord(&'static str),
 }
 
 /// What a reference names. A record field declares it with `#[refers(...)]`.
@@ -509,12 +509,12 @@ impl Data for Reference {
 /// A reference to an object, or the object written in place, which its
 /// owner then owns: `definition: fixtures.strip` or `definition: Fixture { ... }`.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Source<T> {
+pub enum OwnedRecord<T> {
     Reference(Reference),
     Inline(T),
 }
 
-impl<T: Record> Data for Source<T> {
+impl<T: Record> Data for OwnedRecord<T> {
     fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
         match &value.value {
             DataValue::Reference(_) => Reference::decode(value, decoder).map(Self::Reference),
@@ -530,19 +530,19 @@ impl<T: Record> Data for Source<T> {
     }
     fn shape(schema: &mut Schema) -> Shape {
         T::shape(schema);
-        Shape::Source(T::TYPE)
+        Shape::OwnedRecord(T::TYPE)
     }
 }
 
 /// A reference to an object, or a named object written in place, which its
 /// owner then owns: `controllers: [shared, Controller main { ... }]`.
 #[derive(Clone, Debug, PartialEq)]
-pub enum NamedSource<T> {
+pub enum OwnedNamedRecord<T> {
     Reference(Reference),
     Inline(Name, T),
 }
 
-impl<T: Record> Data for NamedSource<T> {
+impl<T: Record> Data for OwnedNamedRecord<T> {
     fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
         match &value.value {
             DataValue::Reference(_) => Reference::decode(value, decoder).map(Self::Reference),
@@ -568,7 +568,7 @@ impl<T: Record> Data for NamedSource<T> {
     }
     fn shape(schema: &mut Schema) -> Shape {
         T::shape(schema);
-        Shape::NamedSource(T::TYPE)
+        Shape::OwnedNamedRecord(T::TYPE)
     }
 }
 

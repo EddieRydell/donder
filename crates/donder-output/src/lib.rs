@@ -24,13 +24,13 @@ pub use fseq::{FseqError, FseqStep, encode_fseq};
 
 /// Bytes for one authored controller port, ready for network transport.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ControllerPortFrame {
+pub struct OutputFrame {
     pub controller: ControllerId,
     pub port: ControllerPortId,
     pub slots: Vec<u8>,
 }
 
-impl AsMut<[u8]> for ControllerPortFrame {
+impl AsMut<[u8]> for OutputFrame {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.slots
     }
@@ -80,7 +80,7 @@ impl ControllerSender {
 
     pub fn send<'a>(
         &mut self,
-        frames: impl IntoIterator<Item = &'a ControllerPortFrame>,
+        frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
         match self {
             Self::E131(sender) => sender.send(frames),
@@ -122,7 +122,7 @@ impl OutputTransports {
         Ok(Self { senders })
     }
 
-    pub fn send(&mut self, frames: &[ControllerPortFrame]) -> Result<(), OutputError> {
+    pub fn send(&mut self, frames: &[OutputFrame]) -> Result<(), OutputError> {
         for (id, sender) in &mut self.senders {
             sender.send(frames.iter().filter(|frame| &frame.controller == id))?;
         }

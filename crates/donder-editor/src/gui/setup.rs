@@ -13,13 +13,11 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
     else {
         return blocked("The requested setup is missing.", Vec::new());
     };
-    let available_controllers = donder_project_io::available_reusable_sources(
-        session,
-        &[donder_model::ObjectKind::Controller],
-    )
-    .into_iter()
-    .filter_map(|id| ControllerId::try_from(id).ok())
-    .collect::<std::collections::HashSet<_>>();
+    let available_controllers =
+        donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Controller])
+            .into_iter()
+            .filter_map(|id| ControllerId::try_from(id).ok())
+            .collect::<std::collections::HashSet<_>>();
     let controllers = setup
         .controllers
         .iter()
@@ -36,7 +34,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
         Ok(controllers) => controllers,
         Err(error) => return blocked(error, Vec::new()),
     };
-    let available_devices = donder_project_io::available_reusable_sources(
+    let available_devices = donder_project_io::available_declarations(
         session,
         &[donder_model::ObjectKind::InputDevice],
     )
@@ -62,7 +60,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
     GuiDocument::Setup {
         document: SetupGuiDocument {
             description: setup.description.clone(),
-            available_sources: super::ownership::available_sources(
+            available_declarations: super::ownership::available_declarations(
                 session,
                 &[
                     donder_model::ObjectKind::Layout,
@@ -121,7 +119,7 @@ pub(super) fn edit_setup(
             let id: ControllerId = object_id_from_gui(session, &controller)?;
             donder_model::attach_controller(&mut session.project, &setup.id, id)
                 .map_err(GuiMutationError::from)?;
-            donder_project_io::link_reusable_source(session, resolved.document_id(), id.into())
+            donder_project_io::link_declaration(session, resolved.document_id(), id.into())
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
         SetupGuiEdit::DetachController {
@@ -136,7 +134,7 @@ pub(super) fn edit_setup(
             let id: InputDeviceId = object_id_from_gui(session, &device)?;
             donder_model::attach_input_device(&mut session.project, &setup.id, id)
                 .map_err(GuiMutationError::from)?;
-            donder_project_io::link_reusable_source(session, resolved.document_id(), id.into())
+            donder_project_io::link_declaration(session, resolved.document_id(), id.into())
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
         SetupGuiEdit::DetachInputDevice { device } => {
@@ -153,12 +151,10 @@ pub(super) fn edit_setup(
             });
             let id = InputDeviceId(session.project.new_id());
             let device = super::input_device::domain_input_device(id, None, driver, controls)?;
-            setup
-                .input_devices
-                .push(donder_model::MemberSource::Inline {
-                    name,
-                    value: Box::new(device),
-                });
+            setup.input_devices.push(donder_model::OwnedMember::Inline {
+                name,
+                value: Box::new(device),
+            });
             session.project.put(setup).map_err(GuiMutationError::from)?;
         }
         SetupGuiEdit::AddController { config, ports } => {
@@ -170,7 +166,7 @@ pub(super) fn edit_setup(
             });
             let id = ControllerId(session.project.new_id());
             let controller = super::controller::domain_controller(id, None, config, ports)?;
-            setup.controllers.push(donder_model::MemberSource::Inline {
+            setup.controllers.push(donder_model::OwnedMember::Inline {
                 name,
                 value: Box::new(controller),
             });

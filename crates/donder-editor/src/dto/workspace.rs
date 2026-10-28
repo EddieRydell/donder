@@ -92,7 +92,7 @@ pub struct AppSettings {
     /// Marks draw only in the Marks lane instead of also across the waveform and lanes.
     #[serde(default)]
     pub sequence_marks_lane_only: bool,
-    pub effect_raster: EffectRasterSettings,
+    pub clip_raster: ClipRasterSettings,
     pub spatial_snap: SpatialSnapSettings,
     /// Commands whose keys differ from their defaults.
     #[serde(default)]
@@ -129,7 +129,7 @@ impl Default for AppSettings {
                 default_sequence_spectrogram_time_resolution_ms(),
             sequence_spectrogram_fft_size: default_sequence_spectrogram_fft_size(),
             sequence_marks_lane_only: false,
-            effect_raster: EffectRasterSettings::default(),
+            clip_raster: ClipRasterSettings::default(),
             spatial_snap: SpatialSnapSettings::default(),
             keybindings: Vec::new(),
         }
@@ -157,13 +157,13 @@ pub enum SequenceFollowMode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct EffectRasterSettings {
+pub struct ClipRasterSettings {
     pub max_columns: u32,
     pub max_rows: u32,
     pub min_frame_stride: u32,
 }
 
-impl Default for EffectRasterSettings {
+impl Default for ClipRasterSettings {
     fn default() -> Self {
         Self {
             max_columns: 1024,
@@ -569,7 +569,7 @@ impl Default for SpatialSnapSettings {
 }
 
 /// Which properties "Select Matching" compares between each seed clip and the
-/// other clips. Effect type applies only between effects.
+/// other clips. Effect type applies only between clips.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipMatch {

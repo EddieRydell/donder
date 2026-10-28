@@ -1,10 +1,10 @@
-use donder_elaboration::{PreparationCache, PrepareOutputs, prepare_cached};
+use donder_elaboration::{PreparationCache, Retain, prepare_cached};
 use donder_language::sample_time_from_seconds_f64;
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::SetupId;
 use donder_model::{ControllerId, ControllerPortId};
-use donder_output::ControllerPortFrame;
+use donder_output::OutputFrame;
 use donder_runtime::{PlaybackRate, SequenceFrame, ShowPlayback};
 use donder_runtime_types::{Color, SampleTime, SampleTimeError};
 use std::time::Duration;
@@ -42,7 +42,7 @@ pub(crate) struct RenderedSequenceFrame {
     pub frame_interval: Duration,
     pub sample_time: SampleTime,
     pub fixtures: Vec<RenderedFixture>,
-    pub controller_frames: Vec<ControllerPortFrame>,
+    pub controller_frames: Vec<OutputFrame>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -249,7 +249,7 @@ pub(crate) fn prepare_render_session_cached(
     sequence_id: &SequenceId,
     cache: &mut PreparationCache,
 ) -> Result<PreparedRenderSession, RenderSessionPrepareError> {
-    let sequence = prepare_cached(project, sequence_id, PrepareOutputs::All, cache)
+    let sequence = prepare_cached(project, sequence_id, Retain::All, cache)
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
@@ -269,10 +269,10 @@ pub(crate) fn prepare_render_session_cached(
 pub(crate) fn controller_frames(
     frame: &SequenceFrame<'_>,
     controllers: &[ControllerId],
-) -> Vec<ControllerPortFrame> {
+) -> Vec<OutputFrame> {
     frame
         .outputs()
-        .map(|output| ControllerPortFrame {
+        .map(|output| OutputFrame {
             controller: controllers[output.output.controller_index as usize],
             port: ControllerPortId(output.output.port),
             slots: output.bytes.to_vec(),

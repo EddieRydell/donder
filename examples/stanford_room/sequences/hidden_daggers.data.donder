@@ -58,7 +58,7 @@ Sequence hidden_daggers {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (-178.86101, -194.91646) },
-      OutputNode { position: (420.0, 80.0) },
+      RootNode { position: (420.0, 80.0) },
       LayerNode { layer: layer_1, position: (-264.56934, 174.86365) },
       LayerNode { layer: gradient, position: (-322.68674, 416.47565) },
       OperatorNode {
@@ -69,10 +69,10 @@ Sequence hidden_daggers {
       },
     ],
     edges: [
-      Edge { from: default, to: output },
+      Edge { from: default, to: root },
       Edge { from: gradient, to: hue_map.gradient },
       Edge { from: layer_1, to: hue_map.source },
-      Edge { from: hue_map, to: output },
+      Edge { from: hue_map, to: root },
     ],
   },
   automation: [],

@@ -104,7 +104,7 @@ pub(crate) fn prepare<'id>(
                         .collect::<Vec<_>>();
                     Some(simplify(instance, inputs, &mut pending, &consumers))
                 }
-                CompositionGraphNodeKind::Output => {
+                CompositionGraphNodeKind::Root => {
                     let sources = incoming[index].iter().map(|(_, source)| *source).collect();
                     output = Some(fan_in(sources, &mut pending, &mut order));
                     None
@@ -128,7 +128,7 @@ pub(crate) fn prepare<'id>(
                 signals.insert(index, signal);
             }
             Some(Pending::Operator { instance, inputs }) => {
-                let (program, _) = programs.lower(&instance);
+                let program = programs.lower(&instance);
                 let signal = builder.operator(&program, |input| signals[&inputs[input]]);
                 signals.insert(index, signal);
             }

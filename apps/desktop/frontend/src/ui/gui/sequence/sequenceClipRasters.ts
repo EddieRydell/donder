@@ -19,8 +19,8 @@ type DecodedClipRaster = {
 export type ClipRasterState = {
   // Changes whenever a raster is decoded, failed or dropped.
   version: number;
-  raster: (effectId: number) => DecodedClipRaster | undefined;
-  failed: (effectId: number) => boolean;
+  raster: (clipId: number) => DecodedClipRaster | undefined;
+  failed: (clipId: number) => boolean;
 };
 
 const CLIP_RASTER_REQUEST_THROTTLE_MS = 50;
@@ -34,25 +34,25 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
   const { commands, store: useAppStore } = host;
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
   const documentKey = guiObjectKey(document.sourceRef);
-  const visibleKey = visibleClips.map((clip) => clip.effect.id).join(",");
+  const visibleKey = visibleClips.map((clip) => clip.clip.id).join(",");
   const [version, setVersion] = useState(0);
   // Rasters live outside React: worker callbacks fill the cache and `version`
   // tells the canvas to redraw.
   const { ownedPath } = document.sourceRef;
-  const { path, objectKey, effects } = document;
+  const { path, objectKey, clips } = document;
 
   // Rasters of clips the sequence no longer has are dropped; the canvas
   // never asks for them, so nothing needs to redraw.
   useEffect(() => {
     const cache = rasterCache(documentKey);
-    const ids = new Set(effects.map((effect) => effect.id));
+    const ids = new Set(clips.map((clip) => clip.id));
     for (const id of [...cache.known.keys()]) {
       if (ids.has(id)) continue;
       cache.known.delete(id);
       cache.failed.delete(id);
       forgetDecoded(cache, id);
     }
-  }, [documentKey, effects]);
+  }, [documentKey, clips]);
 
   // Tell the worker which clips are on screen, and fetch what it renders.
   useEffect(() => {
@@ -72,13 +72,13 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
       cache.since = batch.revision;
       let changed = false;
       for (const raster of batch.rasters) {
-        cache.known.set(raster.effectId, raster);
-        changed = cache.failed.delete(raster.effectId) || changed;
+        cache.known.set(raster.clipId, raster);
+        changed = cache.failed.delete(raster.clipId) || changed;
       }
       for (const error of batch.errors) {
-        cache.known.delete(error.effectId);
-        cache.failed.add(error.effectId);
-        changed = forgetDecoded(cache, error.effectId) || changed;
+        cache.known.delete(error.clipId);
+        cache.failed.add(error.clipId);
+        changed = forgetDecoded(cache, error.clipId) || changed;
       }
       if (changed) publish();
       scheduleDecode(host, cache, publish);
@@ -89,7 +89,7 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
       }
     };
     const requestTimeout = window.setTimeout(() => {
-      void commands.requestSequenceClipRasters({ ...request, visibleEffectIds: cache.visible }).then(() => {
+      void commands.requestSequenceClipRasters({ ...request, visibleClipIds: cache.visible }).then(() => {
         if (!cancelled) void poll();
       });
     }, CLIP_RASTER_REQUEST_THROTTLE_MS);
@@ -102,8 +102,8 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
 
   return useMemo(() => ({
     version,
-    raster: (effectId: number) => usedRaster(documentKey, effectId),
-    failed: (effectId: number) => rasterCache(documentKey).failed.has(effectId)
+    raster: (clipId: number) => usedRaster(documentKey, clipId),
+    failed: (clipId: number) => rasterCache(documentKey).failed.has(clipId)
   }), [documentKey, version]);
 }
 
@@ -115,9 +115,9 @@ function rasterCache(documentKey: string): RasterCache {
   return openRasters;
 }
 
-function usedRaster(documentKey: string, effectId: number): DecodedClipRaster | undefined {
+function usedRaster(documentKey: string, clipId: number): DecodedClipRaster | undefined {
   const cache = rasterCache(documentKey);
-  const decoded = cache.decoded.get(effectId);
+  const decoded = cache.decoded.get(clipId);
   if (decoded !== undefined) decoded.lastUsed = cache.access++;
   return decoded;
 }
@@ -141,23 +141,23 @@ function newRasterCache(documentKey: string): RasterCache {
   return { documentKey, since: 0, known: new Map(), decoded: new Map(), failed: new Set(), decodedBytes: 0, access: 0, decoding: false, visible: [] };
 }
 
-function forgetDecoded(cache: RasterCache, effectId: number): boolean {
-  const decoded = cache.decoded.get(effectId);
+function forgetDecoded(cache: RasterCache, clipId: number): boolean {
+  const decoded = cache.decoded.get(clipId);
   if (decoded === undefined) return false;
-  cache.decoded.delete(effectId);
+  cache.decoded.delete(clipId);
   cache.decodedBytes -= decoded.byteLength;
   return true;
 }
 
 // The known rasters not yet decoded at their latest revision, visible clips first.
 function decodeQueue(cache: RasterCache, visible: number[]): SequenceClipRaster[] {
-  const stale = (raster: SequenceClipRaster | undefined) => raster !== undefined && cache.decoded.get(raster.effectId)?.revision !== raster.revision;
+  const stale = (raster: SequenceClipRaster | undefined) => raster !== undefined && cache.decoded.get(raster.clipId)?.revision !== raster.revision;
   const queue = visible.map((id) => cache.known.get(id)).filter(stale) as SequenceClipRaster[];
-  const queued = new Set(queue.map((raster) => raster.effectId));
+  const queued = new Set(queue.map((raster) => raster.clipId));
   // Off-screen clips decode while the budget has room, so scrolling shows them at once.
   if (cache.decodedBytes < CLIP_RASTER_DECODED_BYTE_BUDGET) {
     for (const raster of cache.known.values()) {
-      if (!queued.has(raster.effectId) && stale(raster)) queue.push(raster);
+      if (!queued.has(raster.clipId) && stale(raster)) queue.push(raster);
     }
   }
   return queue;
@@ -174,15 +174,15 @@ function scheduleDecode(host: SequenceEditorHost, cache: RasterCache, published:
       if (performance.now() - started > CLIP_RASTER_DECODE_FRAME_BUDGET_MS) break;
       try {
         const image = await decodeClipRaster(host, raster);
-        if (cache.known.get(raster.effectId)?.revision !== raster.revision) continue;
-        forgetDecoded(cache, raster.effectId);
+        if (cache.known.get(raster.clipId)?.revision !== raster.revision) continue;
+        forgetDecoded(cache, raster.clipId);
         const byteLength = raster.columns * raster.rows * 4;
-        cache.decoded.set(raster.effectId, { revision: raster.revision, image, byteLength, lastUsed: cache.access++ });
+        cache.decoded.set(raster.clipId, { revision: raster.revision, image, byteLength, lastUsed: cache.access++ });
         cache.decodedBytes += byteLength;
         decodedAny = true;
       } catch {
-        cache.known.delete(raster.effectId);
-        cache.failed.add(raster.effectId);
+        cache.known.delete(raster.clipId);
+        cache.failed.add(raster.clipId);
         decodedAny = true;
       }
     }

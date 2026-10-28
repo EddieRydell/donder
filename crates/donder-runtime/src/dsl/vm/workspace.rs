@@ -3,8 +3,8 @@
 //! Carving runs once, so it stays out of instruction RAM.
 use super::strip::{Handle, Levels, Pixels, Range, STRIP, Store};
 use crate::arena::{Carve, Size};
-use crate::image::{self, SectionPixel};
-use crate::show::ProgramView;
+use crate::format::{self, SectionPixel};
+use crate::image::ProgramView;
 use core::cell::{Cell, RefCell};
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::Banks;
@@ -25,7 +25,7 @@ pub(super) struct Segment {
     pub(super) key: i32,
 }
 
-/// The input colors, fixture indices and source weights of a stencil's
+/// The input colors, fixture indices and neighbor weights of a stencil's
 /// neighborhood.
 pub(super) struct Neighborhood<'w> {
     pub(super) colors: &'w mut [Color],
@@ -67,7 +67,7 @@ impl StripSlots {
         self.scalars = self.scalars.max(scalars);
         self.rows = self.rows.max(rows);
         self.depth = self.depth.max(depth);
-        self.stencils |= program.flag(image::PROGRAM_HAS_STENCIL);
+        self.stencils |= program.flag(format::PROGRAM_HAS_STENCIL);
     }
 
     fn banks(&self) -> [(usize, usize); 4] {

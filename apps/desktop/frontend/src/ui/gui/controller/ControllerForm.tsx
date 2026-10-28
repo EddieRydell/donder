@@ -8,7 +8,7 @@ type ControllerPorts = SetupGuiDocument["controllers"][number]["ports"];
 
 function defaultConfig(type: ControllerConfig["type"], device: string): ControllerConfig {
   switch (type) {
-    case "e131": return { type, sourceName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null };
+    case "e131": return { type, senderName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null };
     case "artNet": return { type, bindAddress: "0.0.0.0:6454", destination: "255.255.255.255:6454", broadcast: true };
     case "donder": return { type, device };
   }
@@ -43,7 +43,7 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDo
         }}><option value="e131">E1.31 / sACN</option><option value="artNet">Art-Net</option><option value="donder">Donder controller</option></select></label>
         {config.type === "e131" && <>
           <label>Local interface<input required value={config.bindAddress} onChange={(event) => { setConfig({ ...config, bindAddress: event.target.value }); }} /></label>
-          <label>Source name<input required value={config.sourceName} onChange={(event) => { setConfig({ ...config, sourceName: event.target.value }); }} /></label>
+          <label>Sender name<input required value={config.senderName} onChange={(event) => { setConfig({ ...config, senderName: event.target.value }); }} /></label>
           <label>Priority<input type="number" min={1} max={200} value={config.priority} onChange={(event) => { setConfig({ ...config, priority: Number(event.target.value) }); }} /></label>
           <label>Destination (empty for multicast)<input value={config.destination ?? ""} onChange={(event) => { setConfig({ ...config, destination: event.target.value || null }); }} /></label>
         </>}

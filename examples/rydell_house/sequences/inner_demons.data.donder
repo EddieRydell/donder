@@ -66789,12 +66789,12 @@ Sequence inner_demons {
         params: {},
         position: (400.0, 120.0),
       },
-      OutputNode { position: (600.0, 120.0) },
+      RootNode { position: (600.0, 120.0) },
     ],
     edges: [
       Edge { from: intensity_overlay, to: intensity_overlay_mix.dim },
       Edge { from: default, to: intensity_overlay_mix.source },
-      Edge { from: intensity_overlay_mix, to: output },
+      Edge { from: intensity_overlay_mix, to: root },
     ],
   },
   automation: [

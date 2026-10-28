@@ -19,7 +19,7 @@ pub(crate) fn explain(prepared: &Prepared, plan: &Plan, listing: &str) -> String
     }
     for (title, nodes) in [
         ("query", &plan.query),
-        ("source", &plan.source),
+        ("neighbor", &plan.neighbor),
         ("target", &plan.target),
     ] {
         let _ = writeln!(text, "{title}:");
@@ -86,15 +86,13 @@ fn line(graph: &Graph, node: Node) -> String {
         Op::Ternary(op, ..) => format!("{op:?}"),
         Op::Select(..) => "Select".into(),
         Op::Reduce(id) => format!("{:?} L{}", graph.loop_(*id).reducer, id.index()),
-        Op::Sample { input, pixel, .. } => format!("Sample input{input} {pixel:?}"),
+        Op::Read { input, pixel, .. } => format!("Sample input{input} {pixel:?}"),
         Op::Items(_) => "Items".into(),
         Op::Pick { .. } => "Pick".into(),
-        Op::Source => "Source".into(),
-        Op::Previous => "Previous".into(),
-        Op::Scan { direction, .. } => format!("Scan {direction:?}"),
-        Op::ScanTap {
+        Op::Neighbor => "Neighbor".into(),
+        Op::Scan {
             direction, input, ..
-        } => format!("ScanTap {direction:?} input{input}"),
+        } => format!("Scan {direction:?} input{input}"),
         Op::Tap { id, input, .. } => format!("Tap L{} input{input}", id.index()),
     };
     format!(

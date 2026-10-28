@@ -6,7 +6,7 @@ use super::std;
 use crate::arena::{Carve, Size};
 use crate::dsl::bytecode::SignalPixel;
 use crate::dsl::{Bound, NoSignals, RunContext, STRIP, Strip, StripSignals, StripSlots};
-use crate::dsl::{ScanQuery, SourceWeights};
+use crate::dsl::{NeighborWeights, ScanQuery};
 use crate::resources::ParamsView;
 use crate::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
 use donder_language::compiler::{CompiledDefinition, Instance, ParamDecl, ParamRange};
@@ -62,11 +62,11 @@ impl Adapter<'_> {
 }
 
 impl StripSignals for Adapter<'_> {
-    fn sample_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
+    fn read_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
         output[0] = self.sample(input, SignalPixel::Current);
     }
 
-    fn sample_pixel(&mut self, input: usize, _: usize, pixel: SignalPixel<i32>) -> Color {
+    fn read_pixel(&mut self, input: usize, _: usize, pixel: SignalPixel<i32>) -> Color {
         let pixel = match pixel {
             SignalPixel::Shifted(shift, edges) => {
                 let read = edges.local(self.index + shift, self.count);
@@ -80,7 +80,7 @@ impl StripSignals for Adapter<'_> {
     fn scan(
         &mut self,
         query: &ScanQuery,
-        weights: &mut dyn SourceWeights,
+        weights: &mut dyn NeighborWeights,
         output: &mut [Color; STRIP],
     ) {
         let colors: Vec<Color> = (0..self.count)
@@ -108,7 +108,7 @@ impl StripSignals for Adapter<'_> {
 /// A scan of one fixture's `colors`, pixel by pixel as the language defines it.
 pub(super) fn scan_fixture(
     query: &ScanQuery,
-    weights: &mut dyn SourceWeights,
+    weights: &mut dyn NeighborWeights,
     colors: &[Color],
 ) -> Vec<Color> {
     let mut factors = vec![0.0; colors.len()];
@@ -179,10 +179,10 @@ impl Single {
                 Some(builder.operator(program, |_| layer))
             }
         });
-        let show = sequence.show();
-        let (program, params) = match show.s.effects.first() {
+        let image = sequence.image();
+        let (program, params) = match image.s.clips.first() {
             Some(effect) => (effect.program, effect.params),
-            None => (show.s.nodes[1].program, show.s.nodes[1].params),
+            None => (image.s.nodes[1].program, image.s.nodes[1].params),
         };
         Self {
             sequence,
@@ -198,8 +198,8 @@ impl Single {
         workspace: &mut StripWorkspace,
         run: impl FnOnce(&mut Strip<'_, '_>) -> R,
     ) -> R {
-        let show = self.sequence.show();
-        let program = show.program(self.program);
+        let image = self.sequence.image();
+        let program = image.program(self.program);
         let mut slots = StripSlots::default();
         slots.include(program);
         let mut size = Size::default();
@@ -209,9 +209,9 @@ impl Single {
         let mut arena = Carve::new(bytemuck::cast_slice_mut(&mut workspace.buffer));
         let mut strip_workspace = slots.carve(&mut arena).unwrap();
         let bound = Bound {
-            show,
+            image,
             program,
-            params: ParamsView::image(show, self.params),
+            params: ParamsView::image(image, self.params),
             sections: None,
         };
         let mut strip = Strip::new(bound, context, &mut strip_workspace);

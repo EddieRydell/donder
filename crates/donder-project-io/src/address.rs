@@ -3,7 +3,7 @@
 //! session ids; the source inventory names each declared one, and an owned
 //! object's address follows from its owner's.
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_model::{MemberSource, ObjectId, ObjectKind, Setup, ValueSource};
+use donder_model::{ObjectId, ObjectKind, Owned, OwnedMember, Setup};
 use donder_runtime_types::Identifier;
 use std::collections::HashMap;
 
@@ -212,7 +212,7 @@ impl OwnedObjectSlot {
 
 /// Each member of a collection by the name it is owned under.
 fn member<T, I: Copy + Into<ObjectId>>(
-    members: &[MemberSource<T, I>],
+    members: &[OwnedMember<T, I>],
     name: &Identifier,
 ) -> Option<ObjectId>
 where
@@ -317,8 +317,8 @@ impl ProjectSession {
         match (owner, slot) {
             (ObjectId::Project(id), OwnedObjectSlot::Setup) if id == project.root().id => {
                 match &project.root().setup {
-                    ValueSource::Inline(setup) => Some(setup.id.into()),
-                    ValueSource::Reference(_) => None,
+                    Owned::Inline(setup) => Some(setup.id.into()),
+                    Owned::Reference(_) => None,
                 }
             }
             (ObjectId::Project(id), OwnedObjectSlot::Sequence(name)) if id == project.root().id => {
@@ -347,13 +347,13 @@ impl ProjectSession {
         let Some(root) = self.address_of_declared(project.root().id.into()) else {
             return;
         };
-        if let ValueSource::Inline(setup) = &project.root().setup {
+        if let Owned::Inline(setup) = &project.root().setup {
             let address = root.owned(OwnedObjectSlot::Setup);
             visit(setup.id.into(), &address);
             setup_addresses(setup, &address, visit);
         }
         for source in &project.root().sequences {
-            if let MemberSource::Inline { name, value } = source {
+            if let OwnedMember::Inline { name, value } = source {
                 visit(
                     value.id.into(),
                     &root.owned(OwnedObjectSlot::Sequence(name.clone())),
@@ -361,7 +361,7 @@ impl ProjectSession {
             }
         }
         for source in &project.root().rigs {
-            if let MemberSource::Inline { name, value } = source {
+            if let OwnedMember::Inline { name, value } = source {
                 visit(
                     value.id.into(),
                     &root.owned(OwnedObjectSlot::Rig(name.clone())),
@@ -385,14 +385,14 @@ fn setup_addresses(
     address: &ObjectAddress,
     visit: &mut dyn FnMut(ObjectId, &ObjectAddress),
 ) {
-    if let ValueSource::Inline(layout) = &setup.layout {
+    if let Owned::Inline(layout) = &setup.layout {
         visit(layout.id.into(), &address.owned(OwnedObjectSlot::Layout));
     }
-    if let ValueSource::Inline(patch) = &setup.patch {
+    if let Owned::Inline(patch) = &setup.patch {
         visit(patch.id.into(), &address.owned(OwnedObjectSlot::Patch));
     }
     for source in &setup.controllers {
-        if let MemberSource::Inline { name, value } = source {
+        if let OwnedMember::Inline { name, value } = source {
             visit(
                 value.id.into(),
                 &address.owned(OwnedObjectSlot::Controller(name.clone())),
@@ -400,7 +400,7 @@ fn setup_addresses(
         }
     }
     for source in &setup.input_devices {
-        if let MemberSource::Inline { name, value } = source {
+        if let OwnedMember::Inline { name, value } = source {
             visit(
                 value.id.into(),
                 &address.owned(OwnedObjectSlot::InputDevice(name.clone())),

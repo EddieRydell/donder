@@ -2,10 +2,10 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceGuiDocument, SequenceEffectParam, SequenceEffectParamKind, SequenceSelection } from "../../../editor/types";
+import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceGuiDocument, SequenceClipParam, SequenceParamKind, SequenceSelection } from "../../../editor/types";
 import { shortcutLabel } from "../../../commandRegistry";
 import { THEME_METRICS } from "../../../theme";
-import { useSequenceEffectDetails } from "./sequenceEffectDetails";
+import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { clipIdsOfKind } from "./sequenceSelection";
 
 export type ClipMatchSeed = Pick<SequenceClipMatchRequest, "clips">;
@@ -23,7 +23,7 @@ const FLAG_CRITERIA: Record<FlagKey, string> = {
   sameLane: "Same lane",
   automationClips: "Automation clips"
 };
-const NUMERIC_KINDS = new Set<SequenceEffectParamKind>(["int", "float", "intArray", "floatArray"]);
+const NUMERIC_KINDS = new Set<SequenceParamKind>(["int", "float", "intArray", "floatArray"]);
 const MS_PER_SECOND = 1000;
 
 function toleranceLabel(time: SequenceClipTimeMatch) {
@@ -66,17 +66,17 @@ function paramMatches(params: Map<string, number>): SequenceClipParamMatch[] {
   return [...params].map(([name, tolerance]) => ({ name, tolerance }));
 }
 
-/** Each parameter name the seed effects have, first declaration first. */
-function seedParams(details: Iterable<{ params: SequenceEffectParam[] }>): SequenceEffectParam[] {
-  const byName = new Map<string, SequenceEffectParam>();
-  for (const effect of details) {
-    for (const param of effect.params) if (!byName.has(param.name)) byName.set(param.name, param);
+/** Each parameter name the seed clips have, first declaration first. */
+function seedParams(details: Iterable<{ params: SequenceClipParam[] }>): SequenceClipParam[] {
+  const byName = new Map<string, SequenceClipParam>();
+  for (const clip of details) {
+    for (const param of clip.params) if (!byName.has(param.name)) byName.set(param.name, param);
   }
   return [...byName.values()];
 }
 
 /**
- * Every criterion with its tolerance, plus the seed effects' parameters, with a live count of the
+ * Every criterion with its tolerance, plus the seed clips' parameters, with a live count of the
  * matching clips. Parameter picks belong to this dialog; the other criteria are saved on Select.
  */
 export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match, onSelect, onClose }: {
@@ -93,7 +93,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
   const [result, setResult] = useState<{ criteria: SequenceClipMatch; params: Map<string, number>; count: number } | null>(null);
   const count = result !== null && result.criteria === criteria && result.params === params ? result.count : null;
   const [error, setError] = useState<string | null>(null);
-  const details = useSequenceEffectDetails(document, clipIdsOfKind(seed.clips, "effect"));
+  const details = useSequenceClipDetails(document, clipIdsOfKind(seed.clips, "clip"));
   const available = details === null ? [] : seedParams(details.values());
 
   useEffect(() => {
@@ -150,7 +150,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
           <fieldset className="clip-options">
             <legend>Parameters</legend>
             {details === null && <p>Loading parameters…</p>}
-            {details !== null && available.length === 0 && <p>The selected effects have no parameters.</p>}
+            {details !== null && available.length === 0 && <p>The selected clips have no parameters.</p>}
             {available.map((param) => {
               const tolerance = params.get(param.name);
               const toggle = (enabled: boolean) => { setParam(param.name, enabled ? 0 : null); };
@@ -170,7 +170,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
   );
 }
 
-function ParamRow({ param, enabled, onEnabled }: { param: SequenceEffectParam; enabled: boolean; onEnabled: (enabled: boolean) => void }) {
+function ParamRow({ param, enabled, onEnabled }: { param: SequenceClipParam; enabled: boolean; onEnabled: (enabled: boolean) => void }) {
   return <>
     <label title={param.description ?? undefined}><input type="checkbox" checked={enabled} onChange={(event) => { onEnabled(event.currentTarget.checked); }} />{param.name}</label>
     <span />

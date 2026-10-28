@@ -14,7 +14,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
     let output = graph
         .nodes
         .iter()
-        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
+        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
         .unwrap()
         .id
         .clone();
@@ -68,7 +68,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
         CompositionGraphNode {
             id: output.clone(),
             position: GraphNodePosition { x: 0.0, y: 0.0 },
-            kind: CompositionGraphNodeKind::Output,
+            kind: CompositionGraphNodeKind::Root,
         },
     ]);
     graph.edges.extend([

@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{Retain, prepare};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, EffectGraphEdge, GraphPortId};
 use donder_runtime_types::SampleTime;
 
@@ -18,15 +18,15 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
         .iter()
         .map(|source| project.get::<donder_model::Sequence>(*source.id()).unwrap())
     {
-        let prepared = prepare(&project, &sequence.id, PrepareOutputs::All).unwrap();
+        let prepared = prepare(&project, &sequence.id, Retain::All).unwrap();
         let decoded = donder_runtime::PreparedShow::decode(&prepared.encode()).unwrap();
-        for authored in sequence.effects.iter().take(2) {
+        for authored in sequence.clips.iter().take(2) {
             sample_checked = true;
             // Prepare the authored clip alone through a plain layer/output graph.
             // The reference uses full playback; the decoded sequence uses sparse sampling.
             let mut reference_project = project.clone();
             let mut reference = sequence.clone();
-            reference.effects = vec![authored.clone()];
+            reference.clips = vec![authored.clone()];
             reference
                 .layers
                 .retain(|layer| layer.id == authored.layer_id);
@@ -36,7 +36,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                 .nodes
                 .retain(|node| match &node.kind {
                     CompositionGraphNodeKind::Layer { layer_id } => *layer_id == authored.layer_id,
-                    CompositionGraphNodeKind::Output => true,
+                    CompositionGraphNodeKind::Root => true,
                     CompositionGraphNodeKind::Operator(_) => false,
                 });
             let layer = reference
@@ -51,7 +51,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                 .composition_graph
                 .nodes
                 .iter()
-                .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
+                .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
                 .unwrap()
                 .id
                 .clone();
@@ -64,7 +64,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
             for automation in &mut reference.automation_clips {
                 automation.bindings.retain(|binding| {
                     matches!(&binding.target,
-                        AutomationTarget::EffectParam { effect_id, .. } if *effect_id == authored.id
+                        AutomationTarget::ClipParam { clip_id, .. } if *clip_id == authored.id
                     )
                 });
                 automation.detached_bindings.clear();
@@ -73,7 +73,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                 .automation_clips
                 .retain(|clip| !clip.bindings.is_empty());
             reference_project.put(reference).unwrap();
-            let mut workspace = prepare(&reference_project, &sequence.id, PrepareOutputs::All)
+            let mut workspace = prepare(&reference_project, &sequence.id, Retain::All)
                 .unwrap()
                 .into_playback();
             let fixtures = project
@@ -87,7 +87,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
             let target_count = clip.target_pixel_count();
             for row_limit in [1, 17, target_count] {
                 let rows = row_limit.min(target_count);
-                let mut sampler = clip.sampler(rows);
+                let mut raster = clip.raster(rows);
                 for fraction in [0.75, 0.0, 0.25, 0.75] {
                     let time = SampleTime::from_ticks(
                         clip.start_time().as_ticks()
@@ -100,7 +100,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                         .flat_map(|fixture| fixture.pixels.iter().copied())
                         .collect::<Vec<_>>();
                     assert_eq!(expected.len(), target_count);
-                    let actual = sampler.evaluate(time);
+                    let actual = raster.evaluate(time);
                     for (row, color) in actual.iter().enumerate() {
                         let index = if rows == 1 {
                             0

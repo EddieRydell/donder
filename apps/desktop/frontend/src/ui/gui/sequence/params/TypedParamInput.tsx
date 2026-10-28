@@ -7,7 +7,7 @@ import { ArrowDown, ArrowUp, ChevronRight, FlipHorizontal2, FlipVertical2, Link2
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
-import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceEffectParam, SequenceEffectParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibrarySource } from "../../../../editor/types";
+import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibraryLink } from "../../../../editor/types";
 
 
 import { ColorPicker } from "../../../ColorPicker";
@@ -51,8 +51,8 @@ function TypedParamValue({
   markCollections,
   automation = null
 }: {
-  param: SequenceEffectParam;
-  commitParam: (name: string, value: SequenceEffectParamValue) => Promise<void>;
+  param: SequenceClipParam;
+  commitParam: (name: string, value: SequenceParamValue) => Promise<void>;
   curveLibrary: SequenceCurveLibraryItem[];
   gradientLibrary: SequenceGradientLibraryItem[];
   markCollections: Pick<SequenceMarkCollection, "key">[];
@@ -60,7 +60,7 @@ function TypedParamValue({
 }) {
   const host = useSequenceEditorHost();
 
-  const commit = (value: SequenceEffectParamValue) => {
+  const commit = (value: SequenceParamValue) => {
     return commitParam(param.name, value);
   };
   const automated = param.automation !== null;
@@ -122,7 +122,7 @@ function TypedParamValue({
     case "curve":
       return (
         <ParamShell name={param.name} description={param.description} automated={automated}>
-        <CurveValueEditor name={param.name} value={param.value.value} sources={curveLibrary} range={param.range}
+        <CurveValueEditor name={param.name} value={param.value.value} declarations={curveLibrary} range={param.range}
           commit={(value) => commit({ type: "curve", value })}
           disabled={automated} actions={automationActions} />
         </ParamShell>
@@ -130,7 +130,7 @@ function TypedParamValue({
     case "gradient":
       return (
         <ParamShell name={param.name} description={param.description}>
-        <GradientValueEditor name={param.name} value={param.value.value} sources={gradientLibrary}
+        <GradientValueEditor name={param.name} value={param.value.value} declarations={gradientLibrary}
           commit={(value) => commit({ type: "gradient", value })} />
         </ParamShell>
       );
@@ -143,9 +143,9 @@ function TypedParamValue({
     case "colorArray":
       return <ColorArrayParam name={param.name} values={param.value.values} commit={(values) => commit({ type: "colorArray", values })} />;
     case "curveArray":
-      return <CurveArrayParam sources={curveLibrary} name={param.name} values={param.value.values} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
+      return <CurveArrayParam declarations={curveLibrary} name={param.name} values={param.value.values} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
     case "gradientArray":
-      return <GradientArrayParam sources={gradientLibrary} name={param.name} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
+      return <GradientArrayParam declarations={gradientLibrary} name={param.name} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
     case "marks":
       return (
         <ParamShell name={param.name} description={param.description}>
@@ -248,7 +248,7 @@ function NumberArrayParam({ name, values, step, commit }: { name: string; values
 
 function automationBindingControl(host: SequenceEditorHost,
   target: SequenceAutomationTarget,
-  param: SequenceEffectParam,
+  param: SequenceClipParam,
   clips: SequenceAutomationClip[],
   canCreateAutomationClip: boolean,
   automationClipChooser: AutomationClipChooser,
@@ -267,7 +267,7 @@ function automationBindingControl(host: SequenceEditorHost,
           void runGuiEditCommand((request) =>
             commands.applyGuiEdit(request, { type: "sequence", edit: {
               type: "unbindAutomationParam",
-              clipId: param.automation?.clipId ?? 0,
+              automationClipId: param.automation?.automationClipId ?? 0,
               target
             } })
           )
@@ -346,22 +346,22 @@ function ColorArrayParam({ name, values, commit }: { name: string; values: strin
   );
 }
 
-function CurveArrayParam({ name, values, sources, range, commit }: { name: string; values: SequenceCurveValue[]; sources: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
+function CurveArrayParam({ name, values, declarations, range, commit }: { name: string; values: SequenceCurveValue[]; declarations: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
   const newValue = (): SequenceCurveValue => {
     const axis = curveAxis([], range);
-    return values[values.length - 1] ?? { points: [{ time: 0, value: axis.min }, { time: 1, value: axis.max }], source: { type: "inline" } };
+    return values[values.length - 1] ?? { points: [{ time: 0, value: axis.min }, { time: 1, value: axis.max }], link: { type: "inline" } };
   };
   return <ArrayShell name={name} values={values}
     newValue={newValue}
     commit={commit}
-    render={(value, index) => <CurveValueEditor name={`#${index + 1}`} value={value} sources={sources} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
+    render={(value, index) => <CurveValueEditor name={`#${index + 1}`} value={value} declarations={declarations} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
 
-function GradientArrayParam({ name, values, sources, commit }: { name: string; values: SequenceGradientValue[]; sources: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
+function GradientArrayParam({ name, values, declarations, commit }: { name: string; values: SequenceGradientValue[]; declarations: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
   return <ArrayShell name={name} values={values}
-    newValue={(): SequenceGradientValue => values[values.length - 1] ?? { stops: [{ time: 0, value: CURVE_EDITOR.defaultColor }], source: { type: "inline" } }}
+    newValue={(): SequenceGradientValue => values[values.length - 1] ?? { stops: [{ time: 0, value: CURVE_EDITOR.defaultColor }], link: { type: "inline" } }}
     commit={commit}
-    render={(value, index) => <GradientValueEditor name={`#${index + 1}`} value={value} sources={sources} commit={(next) => commit(replaceAt(values, index, next))} />} />;
+    render={(value, index) => <GradientValueEditor name={`#${index + 1}`} value={value} declarations={declarations} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
 
 function ArrayShell<T>({
@@ -463,21 +463,21 @@ type CurveEditorProps<T extends { time: number }> = {
 
 type UnlinkAction = "edit" | "flipHorizontal" | "flipVertical";
 
-function CurveValueEditor({ name, value, sources, range, commit, disabled = false, actions = null }: {
+function CurveValueEditor({ name, value, declarations, range, commit, disabled = false, actions = null }: {
   name: string;
   value: SequenceCurveValue;
-  sources: SequenceCurveLibraryItem[];
+  declarations: SequenceCurveLibraryItem[];
   range: SequenceParamRange | null;
   commit: (value: SequenceCurveValue) => Promise<void>;
   disabled?: boolean;
   actions?: ReactNode;
 }) {
   const points = normalizeSequenceCurvePoints(value.points);
-  return <LibraryValueShell name={name} label="curve" source={value.source} sources={sources}
-    points={points} commit={(points) => commit({ points, source: { type: "inline" } })}
+  return <LibraryValueShell name={name} label="curve" libraryLink={value.link} declarations={declarations}
+    points={points} commit={(points) => commit({ points, link: { type: "inline" } })}
     disabled={disabled} actions={actions}
-    link={(curve) => commit({ points: curve.points, source: { type: "library", path: curve.path, objectKey: curve.objectKey, displayName: curve.displayName } })}
-    unlink={() => commit({ points, source: { type: "inline" } })}
+    link={(curve) => commit({ points: curve.points, link: { type: "library", path: curve.path, objectKey: curve.objectKey, displayName: curve.displayName } })}
+    unlink={() => commit({ points, link: { type: "inline" } })}
     flipVerticalPoints={(current) => {
       const axis = curveAxis(current, range);
       return current.map((point) => ({ ...point, value: roundCurveValue(axis.min + axis.max - point.value) }));
@@ -485,17 +485,17 @@ function CurveValueEditor({ name, value, sources, range, commit, disabled = fals
     render={(props) => <CurveParam name={name} range={range} {...props} />} />;
 }
 
-function GradientValueEditor({ name, value, sources, commit }: {
+function GradientValueEditor({ name, value, declarations, commit }: {
   name: string;
   value: SequenceGradientValue;
-  sources: SequenceGradientLibraryItem[];
+  declarations: SequenceGradientLibraryItem[];
   commit: (value: SequenceGradientValue) => Promise<void>;
 }) {
   const points = normalizeSequenceGradientStops(value.stops);
-  return <LibraryValueShell name={name} label="gradient" source={value.source} sources={sources}
-    points={points} commit={(stops) => commit({ stops, source: { type: "inline" } })}
-    link={(gradient) => commit({ stops: gradient.stops, source: { type: "library", path: gradient.path, objectKey: gradient.objectKey, displayName: gradient.displayName } })}
-    unlink={() => commit({ stops: points, source: { type: "inline" } })}
+  return <LibraryValueShell name={name} label="gradient" libraryLink={value.link} declarations={declarations}
+    points={points} commit={(stops) => commit({ stops, link: { type: "inline" } })}
+    link={(gradient) => commit({ stops: gradient.stops, link: { type: "library", path: gradient.path, objectKey: gradient.objectKey, displayName: gradient.displayName } })}
+    unlink={() => commit({ stops: points, link: { type: "inline" } })}
     render={(props) => <GradientParam name={name} {...props} />} />;
 }
 
@@ -504,8 +504,8 @@ type LibraryItem = { path: string; objectKey: string; displayName: string };
 function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   name,
   label,
-  source,
-  sources,
+  libraryLink,
+  declarations,
   points,
   commit,
   disabled = false,
@@ -517,13 +517,13 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
 }: {
   name: string;
   label: "curve" | "gradient";
-  source: SequenceLibrarySource;
-  sources: S[];
+  libraryLink: SequenceLibraryLink;
+  declarations: S[];
   points: T[];
   commit: (points: T[]) => Promise<void>;
   disabled?: boolean;
   actions?: ReactNode;
-  link: (source: S) => Promise<void>;
+  link: (declaration: S) => Promise<void>;
   unlink: () => Promise<void>;
   flipVerticalPoints?: (points: T[]) => T[];
   render: (props: CurveEditorProps<T>) => ReactNode;
@@ -532,14 +532,14 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   const { navigateToGuiObject } = host;
 
   const [pendingUnlinkAction, setPendingUnlinkAction] = useState<UnlinkAction | null>(null);
-  const librarySource = source.type === "library" ? source : null;
-  const linked = librarySource !== null;
-  const linkedLabel = librarySource?.displayName ?? "";
-  const availableSources = sources;
-  const selectedSourceIndex = linked
-    ? availableSources.findIndex((item) =>
-      item.path === librarySource.path
-      && item.objectKey === librarySource.objectKey
+  const linkedDeclaration = libraryLink.type === "library" ? libraryLink : null;
+  const linked = linkedDeclaration !== null;
+  const linkedLabel = linkedDeclaration?.displayName ?? "";
+  const availableDeclarations = declarations;
+  const selectedDeclarationIndex = linked
+    ? availableDeclarations.findIndex((item) =>
+      item.path === linkedDeclaration.path
+      && item.objectKey === linkedDeclaration.objectKey
     )
     : -1;
   const requestUnlink = (action: UnlinkAction) => {
@@ -583,15 +583,15 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
     ? `Make independent and flip ${name}?`
     : `Make ${name} independent of ${linkedLabel}?`;
   const unlinkDialogDescription = pendingUnlinkAction === "flipHorizontal" || pendingUnlinkAction === "flipVertical"
-    ? `Keep the current ${label} from ${linkedLabel} in this parameter, then apply the flip. The library source stays unchanged, and this parameter will no longer follow changes to it.`
-    : `Keep the current ${label} from ${linkedLabel} in this parameter. Changes here will leave the library source unchanged, and this parameter will no longer follow changes to it.`;
+    ? `Keep the current ${label} from ${linkedLabel} in this parameter, then apply the flip. The library declaration stays unchanged, and this parameter will no longer follow changes to it.`
+    : `Keep the current ${label} from ${linkedLabel} in this parameter. Changes here will leave the library declaration unchanged, and this parameter will no longer follow changes to it.`;
   return (
     <div className={`param-source-shell ${linked ? "linked" : ""}`}>
       <div className="param-source-row">
         <select
-          title={`${name} ${label} source`}
+          title={`${name} ${label} declaration`}
           disabled={disabled}
-          value={linked ? `library:${selectedSourceIndex}` : "custom"}
+          value={linked ? `library:${selectedDeclarationIndex}` : "custom"}
           onChange={(event) => {
             const value = event.currentTarget.value;
             if (value === "custom") {
@@ -599,16 +599,16 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
               return;
             }
             const index = Number(value.replace("library:", ""));
-            const source = availableSources[index];
-            if (source === undefined) return;
-            void link(source);
+            const declaration = availableDeclarations[index];
+            if (declaration === undefined) return;
+            void link(declaration);
           }}
         >
           <option value="custom">{linked ? "Make independent..." : `Custom ${label} - This parameter`}</option>
-          {linked && selectedSourceIndex === -1 && (
+          {linked && selectedDeclarationIndex === -1 && (
             <option value="library:-1">{linkedLabel}</option>
           )}
-          {availableSources.map((item, index) => (
+          {availableDeclarations.map((item, index) => (
             <option key={index} value={`library:${index}`}>
               {item.displayName}
             </option>
@@ -616,15 +616,15 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
         </select>
         {actions !== null && <div className="effect-param-actions">{actions}</div>}
       </div>
-      <p className="param-source-description">{linked ? `Linked to ${label}: ${linkedLabel}. Make independent to customize this parameter, or open the shared source.` : `Custom ${label} - Stored in this parameter.`}</p>
-      {librarySource !== null && <p className="param-source-description">Source: {librarySource.path}</p>}
+      <p className="param-source-description">{linked ? `Linked to ${label}: ${linkedLabel}. Make independent to customize this parameter, or open the shared declaration.` : `Custom ${label} - Stored in this parameter.`}</p>
+      {linkedDeclaration !== null && <p className="param-source-description">Declared in: {linkedDeclaration.path}</p>}
       {!disabled && (
         <div className="param-source-actions">
           {linked && (
             <a href="#" className="neutral-button" onClick={(event) => {
               event.preventDefault();
-              void navigateToGuiObject({ ownedPath: [], path: librarySource.path, objectKey: librarySource.objectKey });
-            }}>Open source</a>
+              void navigateToGuiObject({ ownedPath: [], path: linkedDeclaration.path, objectKey: linkedDeclaration.objectKey });
+            }}>Open declaration</a>
           )}
           {linked && (
             <button type="button" className="neutral-button" onClick={() => { requestUnlink("edit"); }}>

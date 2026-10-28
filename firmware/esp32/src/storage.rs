@@ -194,9 +194,9 @@ impl DeviceStorage {
     pub fn shows(&mut self) -> Shows<'_> {
         Shows(self)
     }
-    /// The slot's prepared sequence, read into RAM as little-endian 4-byte
+    /// The slot's image, read into RAM as little-endian 4-byte
     /// words, where playback reads it.
-    pub fn read_show(
+    pub fn read_image(
         &mut self,
         slot: donder_device_storage::show_slots::Slot,
     ) -> Result<alloc::boxed::Box<[u32]>, Error> {
@@ -368,4 +368,3 @@ unsafe fn restore_app_cache(enabled: bool) {
         }
     }
 }
-

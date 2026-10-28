@@ -2,7 +2,7 @@
 //! whole input frame. A scan runs once per frame rather than once per strip,
 //! so it stays in flash, outside the interpreter's instruction RAM.
 use crate::dsl::bytecode::Direction;
-use crate::dsl::{STRIP, ScanQuery, SourceWeights};
+use crate::dsl::{NeighborWeights, STRIP, ScanQuery};
 use crate::targets::TargetView;
 use donder_runtime_types::Color;
 
@@ -11,7 +11,7 @@ use donder_runtime_types::Color;
 pub(crate) fn scan_frame(
     pixels: TargetView<'_>,
     query: &ScanQuery,
-    weights: &mut dyn SourceWeights,
+    weights: &mut dyn NeighborWeights,
     input: &[Color],
     output: &mut [Color],
 ) {

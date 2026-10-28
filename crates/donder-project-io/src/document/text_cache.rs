@@ -8,7 +8,7 @@ use super::encode::Encoder;
 use crate::ExportProjectError;
 use donder_language::data::{Data, DataImport, list_item};
 use donder_model::{
-    DonderProject, EffectInst, EffectInstId, MarkCollection, Sequence, SequenceId, SequenceLayer,
+    Clip, ClipId, DonderProject, MarkCollection, Sequence, SequenceId, SequenceLayer,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ struct SequenceClips {
     imports: Vec<DataImport>,
     layers: Vec<SequenceLayer>,
     marks: Vec<MarkCollection>,
-    clips: HashMap<EffectInstId, (Arc<EffectInst>, Arc<str>)>,
+    clips: HashMap<ClipId, (Arc<Clip>, Arc<str>)>,
 }
 
 impl DocumentTextCache {
@@ -71,26 +71,26 @@ impl DocumentTextCache {
             cached.marks = sequence.mark_collections.clone();
             cached.clips.clear();
         }
-        let mut texts = Vec::with_capacity(sequence.effects.len());
-        for effect in &sequence.effects {
-            let text = match cached.clips.get(&effect.id) {
-                Some((printed, text)) if Arc::ptr_eq(printed, effect) => Arc::clone(text),
+        let mut texts = Vec::with_capacity(sequence.clips.len());
+        for clip in &sequence.clips {
+            let text = match cached.clips.get(&clip.id) {
+                Some((printed, text)) if Arc::ptr_eq(printed, clip) => Arc::clone(text),
                 _ => {
                     let text: Arc<str> =
-                        list_item(&encoder.clip(sequence, effect)?.encode(), CLIP_LEVEL).into();
+                        list_item(&encoder.clip(sequence, clip)?.encode(), CLIP_LEVEL).into();
                     cached
                         .clips
-                        .insert(effect.id.clone(), (Arc::clone(effect), Arc::clone(&text)));
+                        .insert(clip.id.clone(), (Arc::clone(clip), Arc::clone(&text)));
                     text
                 }
             };
             texts.push(text);
         }
-        if cached.clips.len() > sequence.effects.len() {
+        if cached.clips.len() > sequence.clips.len() {
             let current = sequence
-                .effects
+                .clips
                 .iter()
-                .map(|effect| &effect.id)
+                .map(|clip| &clip.id)
                 .collect::<std::collections::HashSet<_>>();
             cached.clips.retain(|id, _| current.contains(id));
         }

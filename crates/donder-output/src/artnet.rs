@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::UdpSocket;
 
-use crate::ControllerPortFrame;
+use crate::OutputFrame;
 use artnet_protocol::{ArtCommand, Output, PaddedData, PortAddress};
 use donder_model::{
     ArtNetConfig, ArtNetMode, ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId,
@@ -49,7 +49,7 @@ impl ArtNetSender {
 
     pub fn send<'a>(
         &mut self,
-        frames: impl IntoIterator<Item = &'a ControllerPortFrame>,
+        frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
         for frame in frames {
             let (address, expected) =
@@ -94,7 +94,7 @@ impl ArtNetSender {
         let frames = self
             .ports
             .iter()
-            .map(|(port, (_, slots))| ControllerPortFrame {
+            .map(|(port, (_, slots))| OutputFrame {
                 controller: self.id,
                 port: *port,
                 slots: vec![0; *slots],
@@ -147,7 +147,7 @@ mod tests {
             slot_count: 3,
         };
         let mut sender = ArtNetSender::open(id, &config, &[port]).unwrap();
-        let frame = ControllerPortFrame {
+        let frame = OutputFrame {
             controller: id,
             port: ControllerPortId(1),
             slots: vec![1, 2, 3],

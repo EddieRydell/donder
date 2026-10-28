@@ -1,6 +1,6 @@
 pub(crate) use ownership::ensure_document_can_reference_address;
 pub use ownership::{
-    available_reusable_sources, ensure_document_can_reference_object, link_reusable_source,
+    available_declarations, ensure_document_can_reference_object, link_declaration,
 };
 mod ownership;
 use crate::address::{DocumentId, SourceIdentity};

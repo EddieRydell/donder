@@ -1,7 +1,7 @@
 //! Generic lookup: one store per kind of reusable object, keyed by id, and
 //! the owners that hold objects in place.
 use super::*;
-use crate::ownership::MemberSource;
+use crate::ownership::OwnedMember;
 
 /// A kind of project object, found by its id wherever it is written.
 pub trait ProjectObject: Sized + 'static {
@@ -108,7 +108,7 @@ macro_rules! owned_kind {
 
 /// The owner holding `id` among its members, and the member's position.
 fn member_position<T: crate::ownership::Identified<Id = I>, I: PartialEq>(
-    members: &[MemberSource<T, I>],
+    members: &[OwnedMember<T, I>],
     id: &I,
 ) -> Option<usize> {
     members.iter().position(|source| source.id() == id)
@@ -145,7 +145,7 @@ owned_kind!(Controller => ControllerId, controllers,
 |project| project
     .objects::<Setup>()
     .flat_map(|setup| setup.controllers.iter())
-    .filter_map(MemberSource::inline),
+    .filter_map(OwnedMember::inline),
 |project, id| {
     let (owner, index) = project.objects::<Setup>().find_map(|setup| {
         member_position(&setup.controllers, &id).map(|index| (setup.id, index))
@@ -157,7 +157,7 @@ owned_kind!(InputDevice => InputDeviceId, input_devices,
 |project| project
     .objects::<Setup>()
     .flat_map(|setup| setup.input_devices.iter())
-    .filter_map(MemberSource::inline),
+    .filter_map(OwnedMember::inline),
 |project, id| {
     let (owner, index) = project.objects::<Setup>().find_map(|setup| {
         member_position(&setup.input_devices, &id).map(|index| (setup.id, index))
@@ -166,14 +166,14 @@ owned_kind!(InputDevice => InputDeviceId, input_devices,
 });
 
 owned_kind!(Sequence => SequenceId, sequences,
-|project| project.root.sequences.iter().filter_map(MemberSource::inline),
+|project| project.root.sequences.iter().filter_map(OwnedMember::inline),
 |project, id| {
     let index = member_position(&project.root.sequences, &id)?;
     project.root.sequences[index].inline_mut()
 });
 
 owned_kind!(Rig => RigId, rigs,
-|project| project.root.rigs.iter().filter_map(MemberSource::inline),
+|project| project.root.rigs.iter().filter_map(OwnedMember::inline),
 |project, id| {
     let index = member_position(&project.root.rigs, &id)?;
     project.root.rigs[index].inline_mut()

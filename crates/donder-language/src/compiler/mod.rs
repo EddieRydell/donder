@@ -18,9 +18,9 @@ mod lower;
 pub(crate) mod syntax;
 
 pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange};
-pub use definition::{CompiledDefinition, Instance, Invocation, compile_script};
+pub use definition::{CompiledDefinition, Invocation, compile_script};
 pub use diagnostic::Diagnostic;
-pub use instance::ProgramConstants;
+pub use instance::{Instance, ProgramConstants};
 pub use lower::Lowered;
 pub use syntax::ast::{DeclarationKind, DeclarationSpan};
 pub use syntax::lexer::TextSpan;

@@ -1,0 +1,17 @@
+[package]
+name = "donder-device-protocol"
+edition.workspace = true
+version.workspace = true
+description = "The wire protocol between the Donder editor and its controllers"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+donder-runtime = { path = "../donder-runtime", default-features = false }
+# The firmware decodes with serde-json-core, without an allocator; serde's
+# `alloc` buffering derives the decoder of an internally tagged enum.
+serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"] }
+
+[lints.rust]
+unreachable_pub = "warn"
+unnameable_types = "warn"

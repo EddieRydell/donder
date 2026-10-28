@@ -19,8 +19,6 @@ struct CachedClip {
     invocation: Invocation,
     constants: ProgramConstants,
     program: BoundProgram,
-    /// The program's indices of the invocation's live marks parameters.
-    live: Box<[u16]>,
     used: bool,
 }
 
@@ -71,14 +69,12 @@ impl<'cache> Programs<'cache> {
     }
 
     /// `instance` lowered and bound to its values, sharing an equal
-    /// program lowered before; with the program's indices of its live
-    /// marks parameters, in invocation order.
-    pub(crate) fn lower(&mut self, instance: &Instance) -> (BoundProgram, Box<[u16]>) {
+    /// program lowered before.
+    pub(crate) fn lower(&mut self, instance: &Instance) -> BoundProgram {
         let lowered = instance.lower();
         let program = self.intern(&Shared::new(lowered.program));
-        let bound = BoundProgram::bind(program, lowered.values, lowered.automation)
-            .unwrap_or_else(|_| unreachable!("lowered values match their program"));
-        (bound, lowered.live)
+        BoundProgram::bind(program, lowered.values, lowered.automation)
+            .unwrap_or_else(|_| unreachable!("lowered values match their program"))
     }
 
     /// The program of `invocation` with `constants`, lowered once per
@@ -87,7 +83,7 @@ impl<'cache> Programs<'cache> {
         &mut self,
         invocation: &Invocation,
         constants: ProgramConstants,
-    ) -> (BoundProgram, Box<[u16]>) {
+    ) -> BoundProgram {
         let mut hasher = self.cache.hasher.build_hasher();
         invocation.hash_same(&mut hasher);
         constants.hash_same(&mut hasher);
@@ -98,19 +94,18 @@ impl<'cache> Programs<'cache> {
                 .find(|entry| entry.constants.same(&constants) && entry.invocation.same(invocation))
         }) {
             entry.used = true;
-            let (program, live) = (entry.program.clone(), entry.live.clone());
+            let program = entry.program.clone();
             // A program cached by an earlier preparation joins this one's bank.
             self.intern(program.program());
-            return (program, live);
+            return program;
         }
-        let (program, live) = self.lower(&invocation.instance(constants));
+        let program = self.lower(&invocation.instance(constants));
         self.cache.clips.entry(key).or_default().push(CachedClip {
             invocation: invocation.clone(),
             constants,
             program: program.clone(),
-            live: live.clone(),
             used: true,
         });
-        (program, live)
+        program
     }
 }

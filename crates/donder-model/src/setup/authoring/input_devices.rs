@@ -1,6 +1,6 @@
 use crate::identity::ObjectKind;
 use crate::input_device::InputDeviceId;
-use crate::ownership::MemberSource;
+use crate::ownership::OwnedMember;
 use crate::project::DonderProject;
 use crate::project::EditRejection;
 use crate::setup::SetupId;
@@ -24,7 +24,7 @@ pub fn attach_input_device(
         {
             return Err(EditRejection::AlreadyInSetup(ObjectKind::InputDevice));
         }
-        setup.input_devices.push(MemberSource::Reference(device));
+        setup.input_devices.push(OwnedMember::Reference(device));
         Ok(())
     })
 }

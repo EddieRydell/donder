@@ -1,15 +1,10 @@
-//! Authenticated clock exchanges and scheduled transport commands.
+//! Authenticated control commands: clock estimates and scheduled transport.
 use super::*;
 use picoserve::extract::FromRequest;
 
-#[derive(Clone, Copy)]
-pub enum Endpoint {
-    Clock,
-    Command,
-}
-pub struct Control(pub Endpoint);
+pub struct Control;
 
-use crate::control_protocol::Command;
+use donder_device_protocol::Command;
 
 impl RequestHandlerService<LoaderState> for Control {
     async fn call_request_handler_service<
@@ -22,23 +17,12 @@ impl RequestHandlerService<LoaderState> for Control {
         mut request: picoserve::request::Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        let received = local_micros();
         if !authorized(state, &request.parts) {
             return (
                 StatusCode::UNAUTHORIZED,
                 "Missing or invalid X-Donder-Token\n",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
-        }
-        if matches!(self.0, Endpoint::Clock) {
-            let connection = request.body_connection.finalize().await?;
-            return picoserve::response::Response::empty(StatusCode::NO_CONTENT)
-                .with_header("X-Donder-Boot-Id", state.boot_id)
-                .with_header("X-Donder-Received-Micros", received)
-                .with_header("X-Donder-Sent-Micros", local_micros())
-                .with_header("Cache-Control", "no-store")
-                .write_to(connection, response_writer)
                 .await;
         }
         if request.body_connection.content_length() > 512 {
@@ -91,7 +75,7 @@ impl RequestHandlerService<LoaderState> for Control {
                             p.transport
                                 .sample(
                                     clock.master_at(now),
-                                    p.show.sequence().duration().as_ticks(),
+                                    p.image.view().duration().as_ticks(),
                                 )
                                 .0
                                 == transport::Mode::Playing
@@ -120,22 +104,25 @@ impl RequestHandlerService<LoaderState> for Control {
                 position_micros,
                 speed,
                 looping,
-                archive_id,
-                archive_bytes,
+                image_id,
+                image_bytes,
             } => {
                 let clock = *state.clock.lock().await;
                 let master_now = clock.master_at(now);
                 let mut active = state.playback.lock().await;
                 match active.as_mut() {
-                    None => Err("No sequence loaded"),
+                    None => Err("No image loaded"),
                     Some(_) if boot_id != state.boot_id || !clock.usable(clock_id, now) => {
                         Err("Clock is not synchronized")
                     }
-                    Some(p) if p.archive_id != archive_id || p.archive_bytes != archive_bytes => {
-                        Err("Sequence changed before scheduling")
+                    Some(p) if p.image_id != image_id || p.image_bytes != image_bytes => {
+                        Err("Image changed before scheduling")
                     }
-                    Some(p) if position_micros > p.show.sequence().duration().as_ticks() => {
-                        Err("Position exceeds sequence duration")
+                    Some(_) if mode == transport::Mode::Ended => {
+                        Err("Ended is a playback status, not a command")
+                    }
+                    Some(p) if position_micros > p.image.view().duration().as_ticks() => {
+                        Err("Position exceeds image duration")
                     }
                     Some(_)
                         if at_micros < master_now + 20_000
@@ -184,7 +171,11 @@ impl RequestHandlerService<LoaderState> for Control {
             }
         };
         match result {
-            Ok(()) => "OK\n".write_to(connection, response_writer).await,
+            Ok(()) => {
+                donder_device_protocol::OK
+                    .write_to(connection, response_writer)
+                    .await
+            }
             Err(message) => {
                 (StatusCode::CONFLICT, message)
                     .write_to(connection, response_writer)

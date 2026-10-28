@@ -30,16 +30,16 @@ mod validation;
 
 pub use controller::{
     ArtNetConfig, ArtNetMode, Controller, ControllerPort, ControllerPortAddress, ControllerPortId,
-    ControllerProtocol, ControllerSource, ControllerValidationError, DonderConfig, DonderDeviceId,
-    E131Config, E131Mode,
+    ControllerProtocol, ControllerValidationError, DonderConfig, DonderDeviceId, E131Config,
+    E131Mode, OwnedController,
 };
 pub use effect::{
-    CurveDefinition, CurveSource, EffectDefinition, EffectInst, EffectInstId, EffectParamValue,
-    EffectScope, GradientDefinition, GradientSource,
+    Clip, ClipId, ClipScope, CurveDefinition, EffectDefinition, GradientDefinition, OwnedCurve,
+    OwnedGradient, ParamValue,
 };
 pub use fixture::{
     FixtureDefinition, FixtureDefinitionError, FixtureElement, FixtureElementId,
-    FixtureGeometryError, FixtureShape, FixtureSource, FixtureTransform, GridAxis, GridCorner,
+    FixtureGeometryError, FixtureShape, FixtureTransform, GridAxis, GridCorner, OwnedFixture,
     fixture_pixel_counts,
 };
 pub use geometry::{
@@ -52,48 +52,48 @@ pub use identity::{
     SetupId,
 };
 pub use input_device::{
-    ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceSource, InputDeviceValidationError, InputDriver, InputSource, KeyCode,
-    KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, OscAddress,
+    ButtonInput, ControlInput, ControlRef, DialInput, InputControl, InputControlId,
+    InputControlKind, InputDevice, InputDeviceValidationError, InputDriver, KeyCode, KeyRange,
+    MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, OscAddress, OwnedInputDevice,
 };
 pub use layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
-    LayoutSource,
+    OwnedLayout,
 };
 pub use operator::{
     GraphOperatorNode, GraphValidationError, OperatorDefinition, OperatorPortDefinition,
-    composition_graph_output_dependencies, effect_param_matches_type, validate_composition_graph,
+    composition_graph_root_dependencies, param_matches_type, validate_composition_graph,
 };
 pub use ownership::edit::{
     OwnershipSite, add_rig, add_sequence, duplicate_layout_fixture, make_independent,
     make_reusable, use_existing,
 };
-pub use ownership::{Identified, MemberSource, ValueSource};
-pub use patch::{Patch, PatchSource, PixelRoute, PixelRouteId, PixelSpan};
+pub use ownership::{Identified, Owned, OwnedMember};
+pub use patch::{OwnedPatch, Patch, PixelRoute, PixelRouteId, PixelSpan};
 pub use project::{
-    AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigEffect, AcceptedSequence,
+    AcceptedClipInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigClip, AcceptedSequence,
     DonderProject, EditError, EditRejection, Object, ProjectData, ProjectEdit, ProjectObject,
-    ProjectRoot, RIG_SESSION, Reusable, RigBinding, RigEffectOrigin,
+    ProjectRoot, RIG_SESSION, Reusable, RigBinding, RigClipOrigin,
 };
 pub use rig::{
-    ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, PlayedSource,
-    PlayedValue, Rig, RigEffect, RigMappingId, RigSource, RigSwitchId, RigVoiceId, Switch, Trigger,
+    ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, OwnedRig, PlayedQuantity,
+    PlayedValue, Rig, RigClip, RigMappingId, RigSwitchId, RigVoiceId, Switch, Trigger,
     TriggerLength, Voice, VoicePolicy, When,
 };
 pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationEnvelope,
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
     DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, Mark,
-    MarkCollection, MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph,
-    SequenceLayer, SequenceLayerId, SequenceSource, automation_curve_is_normalized,
+    MarkCollection, MarkCollectionKey, OwnedSequence, Sequence, SequenceAudio,
+    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
     automation_value_at,
 };
 pub use setup::authoring::{
     attach_controller, attach_input_device, detach_controller, detach_input_device,
 };
-pub use setup::{Setup, SetupSource};
+pub use setup::{OwnedSetup, Setup};
 pub use validation::{
-    AdmissionProblem, AutomationProblem, CompositionProblem, EffectProblem, InputProblem,
+    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, InputProblem,
     MappingProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem, ProblemSite,
     ProjectValidationError, RegionProblem, RigValidationError, RouteProblem,
     SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,

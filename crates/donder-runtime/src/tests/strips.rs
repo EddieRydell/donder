@@ -1005,20 +1005,20 @@ struct Run {
 }
 
 impl StripSignals for Run {
-    fn sample_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
+    fn read_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
         for (offset, color) in output.iter_mut().enumerate() {
             *color = signal(input, self.first + offset);
         }
     }
 
-    fn sample_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color {
+    fn read_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color {
         query(input, self.first + offset, self.count, pixel)
     }
 
     fn scan(
         &mut self,
         query: &crate::dsl::ScanQuery,
-        weights: &mut dyn crate::dsl::SourceWeights,
+        weights: &mut dyn crate::dsl::NeighborWeights,
         output: &mut [Color; STRIP],
     ) {
         let colors: Vec<Color> = (0..self.count)

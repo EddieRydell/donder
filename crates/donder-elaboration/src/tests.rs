@@ -1,7 +1,7 @@
 use camino::Utf8PathBuf;
 use donder_project_io::check_project;
 
-use crate::{PrepareOutputs, prepare};
+use crate::{Retain, prepare};
 use donder_runtime::SequenceFrame;
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 
@@ -19,7 +19,7 @@ fn example(name: &str) -> donder_project_io::ProjectSession {
 fn starter_prepares_and_produces_exact_controller_widths() {
     let session = example("starter");
     let sequence_id = session.project.root().sequences.first().unwrap().id();
-    let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All).unwrap();
+    let renderer = prepare(&session.project, sequence_id, Retain::All).unwrap();
     let mut playback = renderer.into_playback();
     let frame = playback.evaluate(SampleTime::from_ticks(0));
     let setup = session
@@ -61,7 +61,7 @@ fn starter_prepares_and_produces_exact_controller_widths() {
 fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
     let session = example("starter");
     let sequence_id = session.project.root().sequences.get(1).unwrap().id();
-    let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All).unwrap();
+    let renderer = prepare(&session.project, sequence_id, Retain::All).unwrap();
     let time = sample_time_from_frame(3594, renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();
     let rendered = playback.evaluate(time);
@@ -72,7 +72,7 @@ fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
 fn output_fixtures_preserve_layout_instance_order() {
     let session = example("starter");
     let sequence_id = session.project.root().sequences.first().unwrap().id();
-    let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All).unwrap();
+    let renderer = prepare(&session.project, sequence_id, Retain::All).unwrap();
     let time = sample_time_from_frame(renderer.frame_rate(), renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();
     let frame = playback.evaluate(time);

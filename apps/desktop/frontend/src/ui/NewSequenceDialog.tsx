@@ -12,7 +12,7 @@ const NEW_SEQUENCE_EVENT = "donder:new-sequence";
 export function NewSequenceDialog() {
   const snapshot = useAppStore((store) => store.snapshot);
   const [open, setOpen] = useState(false);
-  const [sourceName, setSourceName] = useState("Sequence");
+  const [declarationName, setDeclarationName] = useState("Sequence");
   const [storage, setStorage] = useState<NewSequenceStorage["type"]>("inline");
   const [durationSeconds, setDurationSeconds] = useState("60");
   const [frameRate, setFrameRate] = useState("60");
@@ -21,7 +21,7 @@ export function NewSequenceDialog() {
 
   useEffect(() => {
     const onNewSequence = () => {
-      setSourceName("Sequence");
+      setDeclarationName("Sequence");
       setStorage("inline");
       setDurationSeconds("60");
       setFrameRate("60");
@@ -35,8 +35,8 @@ export function NewSequenceDialog() {
   }, []);
 
   const validationError = useMemo(
-    () => validateRequest(snapshot?.projectRoot ?? null, storage, sourceName, durationSeconds, frameRate),
-    [snapshot?.projectRoot, storage, sourceName, durationSeconds, frameRate]
+    () => validateRequest(snapshot?.projectRoot ?? null, storage, declarationName, durationSeconds, frameRate),
+    [snapshot?.projectRoot, storage, declarationName, durationSeconds, frameRate]
   );
   const createDisabled = creating || validationError !== null;
 
@@ -47,7 +47,7 @@ export function NewSequenceDialog() {
     setError(null);
     try {
       const next = await commands.createSequence({
-        storage: storage === "inline" ? { type: "inline" } : { type: storage, name: sourceName.trim() },
+        storage: storage === "inline" ? { type: "inline" } : { type: storage, name: declarationName.trim() },
         initialColor: THEME_COLORS.defaultSequenceColor,
         durationSeconds: Number(durationSeconds),
         frameRate: Number(frameRate)
@@ -76,14 +76,14 @@ export function NewSequenceDialog() {
                 <span>Storage</span>
                 <select value={storage} onChange={(event) => { setStorage(event.target.value as NewSequenceStorage["type"]); }}>
                   <option value="inline">Inline in this project</option>
-                  <option value="sameFile">Reusable source in this file</option>
-                  <option value="newFile">Reusable source in a new file</option>
+                  <option value="sameFile">Reusable declaration in this file</option>
+                  <option value="newFile">Reusable declaration in a new file</option>
                 </select>
               </label>
               {storage !== "inline" && (
                 <label>
-                  <span>Source name</span>
-                  <input value={sourceName} onChange={(event) => { setSourceName(event.target.value); }} />
+                  <span>Declaration name</span>
+                  <input value={declarationName} onChange={(event) => { setDeclarationName(event.target.value); }} />
                 </label>
               )}
             </details>
@@ -130,12 +130,12 @@ export function NewSequenceDialog() {
 function validateRequest(
   projectRoot: string | null,
   storage: NewSequenceStorage["type"],
-  sourceName: string,
+  declarationName: string,
   durationSeconds: string,
   frameRate: string
 ): string | null {
   if (projectRoot === null) return "Open or create a project before adding a sequence.";
-  if (storage !== "inline" && sourceName.trim() === "") return "Enter a name for the reusable source.";
+  if (storage !== "inline" && declarationName.trim() === "") return "Enter a name for the reusable declaration.";
   const duration = Number(durationSeconds);
   if (!Number.isFinite(duration) || duration <= 0) return "Duration must be greater than zero.";
   const rate = Number(frameRate);

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 
-use crate::ControllerPortFrame;
+use crate::OutputFrame;
 use donder_model::{
     ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId, E131Config, E131Mode,
 };
@@ -29,7 +29,7 @@ impl E131Sender {
         ports: &[ControllerPort],
     ) -> Result<Self, OutputError> {
         let bind = SocketAddr::new(config.bind_address, 0);
-        let mut source = SacnSource::with_ip(&config.source_name, bind)
+        let mut source = SacnSource::with_ip(&config.sender_name, bind)
             .map_err(|error| socket_error(&id, error))?;
         let termination_socket = UdpSocket::bind(bind).map_err(|error| socket_error(&id, error))?;
         let mut universes = HashMap::new();
@@ -59,7 +59,7 @@ impl E131Sender {
 
     pub fn send<'a>(
         &mut self,
-        frames: impl IntoIterator<Item = &'a ControllerPortFrame>,
+        frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
         let destination = self.destination();
         for frame in frames {
@@ -100,7 +100,7 @@ impl E131Sender {
         let frames = self
             .universes
             .iter()
-            .map(|(port, (_, slots))| ControllerPortFrame {
+            .map(|(port, (_, slots))| OutputFrame {
                 controller: self.id,
                 port: *port,
                 slots: vec![0; *slots],
@@ -127,7 +127,7 @@ impl E131Sender {
                                     .cid()
                                     .map_err(|error| socket_error(&self.id, error))?,
                                 data: E131RootLayerData::DataPacket(DataPacketFramingLayer {
-                                    source_name: self.config.source_name.clone().into(),
+                                    source_name: self.config.sender_name.clone().into(),
                                     priority: self.config.priority,
                                     synchronization_address: 0,
                                     sequence_number,
@@ -193,7 +193,7 @@ mod tests {
             .unwrap();
         let id = ControllerId(0);
         let config = E131Config {
-            source_name: "Donder test".to_string(),
+            sender_name: "Donder test".to_string(),
             bind_address: IpAddr::V4(Ipv4Addr::LOCALHOST),
             priority: 120,
             mode: E131Mode::Unicast {
@@ -207,7 +207,7 @@ mod tests {
             slot_count: 3,
         };
         let mut sender = E131Sender::open(id, &config, &[port]).unwrap();
-        let frame = ControllerPortFrame {
+        let frame = OutputFrame {
             controller: id,
             port: ControllerPortId(1),
             slots: vec![5, 6, 7],

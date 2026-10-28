@@ -44,7 +44,7 @@ fn instance(id: u32, definition: &str) -> LayoutFixture {
         id: FixtureInstanceId(id),
         name: donder_language::object_name(&format!("fixture_{id}")),
         kind: LayoutFixtureKind::Fixture {
-            definition: donder_model::FixtureSource::Reference(definition_id(definition)),
+            definition: donder_model::OwnedFixture::Reference(definition_id(definition)),
             transform: translation(id as f32, 0.0),
         },
     }

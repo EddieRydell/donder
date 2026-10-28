@@ -1,29 +1,29 @@
 mod params;
-pub(super) use params::effect_params;
+pub(super) use params::clip_params;
 use params::graph_node_id;
 pub(super) use params::{
     composition_graph, curve_library, gradient_library, invocation_params, layers_to_gui,
 };
 
-/// The inspector's view of `effect_ids` in the requested sequence, in the
+/// The inspector's view of `clip_ids` in the requested sequence, in the
 /// requested order; ids the sequence does not have are skipped.
-pub(super) fn sequence_effect_details(
+pub(super) fn sequence_clip_details(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
-    effect_ids: &[u32],
-) -> Result<Vec<SequenceEffectDetails>, String> {
+    clip_ids: &[u32],
+) -> Result<Vec<SequenceClipDetails>, String> {
     let id = resolved.id::<SequenceId>();
     let sequence = session
         .project
         .get::<donder_model::Sequence>(id)
         .ok_or("Sequence is not available in the checked project model.")?;
-    Ok(effect_ids
+    Ok(clip_ids
         .iter()
-        .filter_map(|id| sequence.effects.iter().find(|effect| effect.id.0 == *id))
-        .map(|effect| SequenceEffectDetails {
-            id: effect.id.0,
-            effect_reference: effect_ref_to_gui(session, &effect.definition),
-            params: effect_params(session, sequence, effect),
+        .filter_map(|id| sequence.clips.iter().find(|clip| clip.id.0 == *id))
+        .map(|clip| SequenceClipDetails {
+            id: clip.id.0,
+            effect_reference: effect_ref_to_gui(session, &clip.definition),
+            params: clip_params(session, sequence, clip),
         })
         .collect())
 }
@@ -39,7 +39,7 @@ pub(super) fn project_sequence(
 pub(super) fn project_sequence_clips(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
-    include: &dyn Fn(&std::sync::Arc<donder_model::EffectInst>) -> bool,
+    include: &dyn Fn(&std::sync::Arc<donder_model::Clip>) -> bool,
 ) -> GuiDocument {
     let id = resolved.id::<SequenceId>();
     let Some(sequence) = session.project.get::<donder_model::Sequence>(id) else {
@@ -49,28 +49,28 @@ pub(super) fn project_sequence_clips(
         );
     };
     let lanes = active_layout(session).map(layout_lanes).unwrap_or_default();
-    let effects = sequence
-        .effects
+    let clips = sequence
+        .clips
         .iter()
         .enumerate()
-        .filter(|(_, effect)| include(effect))
-        .map(|(index, effect)| SequenceEffect {
+        .filter(|(_, clip)| include(clip))
+        .map(|(index, clip)| SequenceClip {
             index: index as u32,
-            id: effect.id.0,
-            name: effect.name.as_str().to_string(),
-            description: effect.description.clone(),
-            layer_id: effect.layer_id.0,
-            start_seconds: effect.start.as_seconds_f64(),
-            duration_seconds: effect.duration.as_seconds_f64(),
-            target: effect_target(&effect.target),
-            target_label: effect_target_label(session, &effect.target),
-            scope: match effect.scope {
-                EffectScope::PerFixture => SequenceEffectScope::PerFixture,
-                EffectScope::WholeTarget => SequenceEffectScope::WholeTarget,
+            id: clip.id.0,
+            name: clip.name.as_str().to_string(),
+            description: clip.description.clone(),
+            layer_id: clip.layer_id.0,
+            start_seconds: clip.start.as_seconds_f64(),
+            duration_seconds: clip.duration.as_seconds_f64(),
+            target: target_to_gui(&clip.target),
+            target_label: target_label(session, &clip.target),
+            scope: match clip.scope {
+                ClipScope::PerFixture => SequenceClipScope::PerFixture,
+                ClipScope::WholeTarget => SequenceClipScope::WholeTarget,
             },
             effect: session
                 .project
-                .get::<donder_model::EffectDefinition>(effect.definition)
+                .get::<donder_model::EffectDefinition>(clip.definition)
                 .map(|definition| definition.name().to_string())
                 .unwrap_or_else(|| "Missing effect".to_string()),
         })
@@ -114,7 +114,7 @@ pub(super) fn project_sequence_clips(
             curve_library: curve_library(session),
             gradient_library: gradient_library(session),
             layers: layers_to_gui(&sequence.layers),
-            effects,
+            clips,
             composition_graph,
             automation_clips: automation_clips(sequence),
         },
@@ -129,7 +129,7 @@ fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomation
             id: clip.id.0,
             start_seconds: clip.start.as_seconds_f64(),
             duration_seconds: clip.duration.as_seconds_f64(),
-            row_target: effect_target(&clip.row_target),
+            row_target: target_to_gui(&clip.row_target),
             curve: clip
                 .curve
                 .points
@@ -159,12 +159,10 @@ fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomation
 
 fn automation_target_to_gui(target: &AutomationTarget) -> SequenceAutomationTarget {
     match target {
-        AutomationTarget::EffectParam { effect_id, param } => {
-            SequenceAutomationTarget::EffectParam {
-                effect_id: effect_id.0,
-                param: param.as_str().to_string(),
-            }
-        }
+        AutomationTarget::ClipParam { clip_id, param } => SequenceAutomationTarget::ClipParam {
+            clip_id: clip_id.0,
+            param: param.as_str().to_string(),
+        },
         AutomationTarget::CompositionNodeParam { node_id, param } => {
             SequenceAutomationTarget::CompositionNodeParam {
                 node_id: graph_node_id(node_id),
@@ -249,16 +247,13 @@ pub(super) fn layout_lanes(layout: &donder_model::Layout) -> Vec<SequenceLane> {
     lanes
 }
 
-pub(super) fn effect_target(target: &DomainFixtureTarget) -> FixtureTarget {
+pub(super) fn target_to_gui(target: &DomainFixtureTarget) -> FixtureTarget {
     FixtureTarget {
         fixture: target.fixture.0,
     }
 }
 
-pub(super) fn effect_target_label(
-    session: &ProjectSession,
-    target: &DomainFixtureTarget,
-) -> String {
+pub(super) fn target_label(session: &ProjectSession, target: &DomainFixtureTarget) -> String {
     session
         .project
         .get::<donder_model::Layout>(target.layout)
@@ -300,7 +295,7 @@ pub(super) fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffect
         .collect()
 }
 use donder_model::{AutomationTarget, SequenceId};
-use donder_model::{EffectDefinitionId, EffectScope};
+use donder_model::{ClipScope, EffectDefinitionId};
 use donder_model::{FixtureTarget as DomainFixtureTarget, Layout};
 use donder_project_io::ProjectSession;
 
@@ -308,9 +303,9 @@ mod spatial;
 use super::{ResolvedGuiObject, blocked};
 use crate::dto::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceAutomationTarget, SequenceCurvePoint, SequenceDetachedAutomationBinding,
-    SequenceEffect, SequenceEffectDefinition, SequenceEffectDetails, SequenceEffectReference,
-    SequenceEffectScope, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
+    SequenceAutomationTarget, SequenceClip, SequenceClipDetails, SequenceClipScope,
+    SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffectDefinition,
+    SequenceEffectReference, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
     SequenceMarkCollection,
 };
 pub(super) use spatial::{project_fixture, project_layout};

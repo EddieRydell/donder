@@ -16,8 +16,8 @@ use std::collections::{HashMap, HashSet};
 pub(crate) enum Stage {
     /// Once per query: time and parameters.
     Query,
-    /// Once per neighbor of a stencil: its source weight.
-    Source,
+    /// Once per neighbor of a stencil: its neighbor weight.
+    Neighbor,
     /// Once per run with the same target shape.
     Target,
     /// Once per index of a reduction, into a table its stage fills.
@@ -52,8 +52,8 @@ pub(crate) struct Region {
 #[derive(Clone, Debug)]
 pub(crate) struct Plan {
     pub(crate) query: Vec<Node>,
-    /// Source weights of every stencil, operands first.
-    pub(crate) source: Vec<Node>,
+    /// Neighbor weights of every stencil, operands first.
+    pub(crate) neighbor: Vec<Node>,
     pub(crate) target: Vec<Node>,
     pub(crate) regions: Vec<Region>,
     pub(crate) region_of: HashMap<Node, RegionId>,
@@ -310,12 +310,12 @@ fn stages(graph: &Graph, nodes: &[Node]) -> HashMap<Node, Stage> {
             .map(|operand| stage.get(&operand).copied().unwrap_or(Stage::Query))
             .max()
             .unwrap_or(Stage::Query);
-        // A stencil's source and the weight computed from it run per neighbor.
-        if matches!(graph.op(node), Op::Source)
-            || (operands == Stage::Source
-                && !matches!(graph.op(node), Op::Tap { .. } | Op::ScanTap { .. }))
+        // A stencil's neighbor and the weight computed from it run per neighbor.
+        if matches!(graph.op(node), Op::Neighbor)
+            || (operands == Stage::Neighbor
+                && !matches!(graph.op(node), Op::Tap { .. } | Op::Scan { .. }))
         {
-            stage.insert(node, Stage::Source);
+            stage.insert(node, Stage::Neighbor);
             continue;
         }
         let own = if is_leaf(graph, node) {
@@ -346,7 +346,7 @@ fn prefix_capable(graph: &Graph, node: Node) -> bool {
             | Op::Binary(Binary::SectionPosition, ..)
             | Op::Reduce(_)
             | Op::LoopIndex(_)
-            | Op::Sample { .. }
+            | Op::Read { .. }
             | Op::Items(_)
     )
 }
@@ -401,7 +401,7 @@ fn place(
 ) -> Plan {
     let mut plan = Plan {
         query: Vec::new(),
-        source: Vec::new(),
+        neighbor: Vec::new(),
         target: Vec::new(),
         regions: vec![Region {
             parent: None,
@@ -429,7 +429,7 @@ fn place(
     for &node in nodes.iter().rev() {
         match stage[&node] {
             Stage::Query if !is_leaf(graph, node) => plan.query.push(node),
-            Stage::Source => plan.source.push(node),
+            Stage::Neighbor => plan.neighbor.push(node),
             Stage::Target => plan.target.push(node),
             Stage::Body => {
                 let region = if node == root {
@@ -489,7 +489,7 @@ fn place(
         }
     }
     plan.query.reverse();
-    plan.source.reverse();
+    plan.neighbor.reverse();
     plan.target.reverse();
     for region in &mut plan.regions {
         region.nodes.reverse();
@@ -567,7 +567,7 @@ impl Plan {
             heavy |= self.regions[region]
                 .nodes
                 .iter()
-                .any(|node| matches!(graph.op(*node), Op::Sample { .. }));
+                .any(|node| matches!(graph.op(*node), Op::Read { .. }));
         }
         (count, heavy)
     }

@@ -267,13 +267,11 @@ impl<'a> Evaluator<'a> {
             Op::Param(index) => self.params.get(*index as usize)?.clone(),
             Op::ParamIntegral(_)
             | Op::Context(_)
-            | Op::Sample { .. }
+            | Op::Read { .. }
             | Op::Items(_)
-            | Op::Source
+            | Op::Neighbor
             | Op::Tap { .. }
-            | Op::Previous
-            | Op::Scan { .. }
-            | Op::ScanTap { .. } => None,
+            | Op::Scan { .. } => None,
             Op::Pick { index, items } => {
                 let index = as_int(&self.value(*index)?)?;
                 let item = items[sampling::clamp_array_index(index, items.len())];

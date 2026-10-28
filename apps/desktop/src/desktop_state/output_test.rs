@@ -1,7 +1,7 @@
 use super::{DesktopState, lock_unpoisoned};
 use donder_editor::dto::{AppSnapshot, ControllerOutputTest, GuiDocumentRequest};
 use donder_model::ControllerId;
-use donder_output::ControllerPortFrame;
+use donder_output::OutputFrame;
 
 impl DesktopState {
     pub(crate) fn start_output_test(
@@ -39,7 +39,7 @@ impl DesktopState {
         let mut slots = vec![0; usize::from(port.slot_count)];
         slots[usize::from(test.start_slot)..end].fill(test.value);
         controller.ports = vec![port.clone()];
-        let frame = ControllerPortFrame {
+        let frame = OutputFrame {
             controller: id,
             port: port.id,
             slots,

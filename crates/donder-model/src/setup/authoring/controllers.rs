@@ -1,6 +1,6 @@
 use crate::controller::ControllerId;
 use crate::identity::ObjectKind;
-use crate::ownership::MemberSource;
+use crate::ownership::OwnedMember;
 use crate::project::DonderProject;
 use crate::project::EditRejection;
 use crate::setup::SetupId;
@@ -31,7 +31,7 @@ fn attach_controller_candidate(
     {
         return Err(EditRejection::AlreadyInSetup(ObjectKind::Controller));
     }
-    setup.controllers.push(MemberSource::Reference(controller));
+    setup.controllers.push(OwnedMember::Reference(controller));
     Ok(())
 }
 

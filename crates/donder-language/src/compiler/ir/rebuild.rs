@@ -2,13 +2,13 @@
 //! and constant signals are rebuilds. Building in the target refolds every
 //! node, so a substituted constant simplifies everything that depends on it,
 //! and a decided condition copies only the arm it selects.
-use super::{Binary, Context, Graph, Node, Op, TooManyLoops};
-use donder_runtime_types::Value;
+use super::{Binary, Context, Graph, LoopId, Node, Op, TooManyLoops};
 use donder_runtime_types::bytecode::SignalPixel;
+use donder_runtime_types::{Color, Value};
 use std::collections::HashMap;
 
 pub(crate) trait Substitute {
-    /// A replacement for a whole source node, before its operands are copied.
+    /// A replacement for a whole node of the graph being rebuilt, before its operands are copied.
     fn replace(&mut self, _target: &mut Graph, _node: Node) -> Option<Node> {
         None
     }
@@ -21,13 +21,13 @@ pub(crate) trait Substitute {
     fn context(&mut self, target: &mut Graph, context: Context) -> Node {
         target.add(Op::Context(context))
     }
-    fn sample(
+    fn read(
         &mut self,
         target: &mut Graph,
         input: u32,
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
-        Ok(target.add(Op::Sample { input, pixel }))
+        Ok(target.add(Op::Read { input, pixel }))
     }
     /// A node to multiply by instead of dividing by `divisor`.
     fn reciprocal(&mut self, _target: &mut Graph, _divisor: Node) -> Option<Node> {
@@ -42,22 +42,17 @@ pub(crate) trait Substitute {
     fn share_index(&mut self, _target: &Graph, _start: Node, _end: Node) -> bool {
         false
     }
-    /// Whether `around` reductions become stencils, as they do in the last
-    /// rebuild before lowering.
-    fn stencils(&self) -> bool {
-        false
-    }
 }
 
 pub(crate) struct Rebuild<'a> {
-    source: &'a Graph,
+    from: &'a Graph,
     memo: HashMap<Node, Node>,
 }
 
 impl<'a> Rebuild<'a> {
-    pub(crate) fn new(source: &'a Graph) -> Self {
+    pub(crate) fn new(from: &'a Graph) -> Self {
         Self {
-            source,
+            from,
             memo: HashMap::new(),
         }
     }
@@ -75,7 +70,7 @@ impl<'a> Rebuild<'a> {
             self.memo.insert(node, built);
             return Ok(built);
         }
-        let built = match self.source.op(node).clone() {
+        let built = match self.from.op(node).clone() {
             Op::Constant(constant) => target.add(Op::Constant(constant)),
             Op::Param(index) => substitute.param(target, index),
             Op::ParamIntegral(index) => substitute.param_integral(target, index),
@@ -132,7 +127,7 @@ impl<'a> Rebuild<'a> {
                 }
             }
             Op::Reduce(id) => {
-                let data = self.source.loop_(id).clone();
+                let data = self.from.loop_(id).clone();
                 let mut bound = |rebuild: &mut Self, target: &mut Graph, node| {
                     let node = rebuild.node(target, node, substitute)?;
                     Ok(match decided(target, node, substitute) {
@@ -144,11 +139,11 @@ impl<'a> Rebuild<'a> {
                 let end = bound(self, target, data.end)?;
                 let shared = data.shared || substitute.share_index(target, start, end);
                 let (id, index) = target.begin_loop(start, end, shared)?;
-                if let Some(edges) = data.around {
-                    target.set_around(id, edges);
-                }
                 self.memo.insert(data.index, index);
-                let body = self.node(target, data.body, substitute)?;
+                let body = match *self.from.op(data.body) {
+                    Op::Tap { .. } => self.tap(target, data.body, id, substitute)?,
+                    _ => self.node(target, data.body, substitute)?,
+                };
                 let filter = data
                     .filter
                     .map(|filter| self.node(target, filter, substitute))
@@ -157,15 +152,7 @@ impl<'a> Rebuild<'a> {
                     .default
                     .map(|default| self.node(target, default, substitute))
                     .transpose()?;
-                // Checking proved an `around` contribution a stencil, and
-                // binding values keeps it one.
-                let tap = (data.around.is_some() && substitute.stencils())
-                    .then(|| target.tap(id, data.reducer, body, filter))
-                    .flatten();
-                match tap {
-                    Some(tap) => target.finish_loop(id, data.reducer, tap, None, None),
-                    None => target.finish_loop(id, data.reducer, body, filter, default),
-                }
+                target.finish_loop(id, data.reducer, body, filter, default)
             }
             Op::Items(items) => {
                 let items = items
@@ -182,47 +169,30 @@ impl<'a> Rebuild<'a> {
                     .collect::<Result<_, _>>()?;
                 target.add(Op::Pick { index, items })
             }
-            Op::Source | Op::Tap { .. } | Op::ScanTap { .. } => {
-                unreachable!("stencils form in the last rebuild")
-            }
-            Op::Previous => unreachable!("checking replaces a scan body's previous value"),
+            Op::Neighbor => target.add(Op::Neighbor),
+            Op::Tap { .. } => unreachable!("a tap is copied with its reduction"),
             Op::Scan {
                 direction,
-                light,
+                input,
                 decay,
                 weight,
             } => {
-                let light = self.node(target, light, substitute)?;
                 let decay = self.node(target, decay, substitute)?;
                 let weight = weight
                     .map(|weight| self.node(target, weight, substitute))
                     .transpose()?;
-                match *target.op(light) {
-                    Op::Sample {
-                        input,
-                        pixel: SignalPixel::Current,
-                    } if substitute.stencils() => {
-                        let weight = weight.map(|weight| {
-                            super::source_of(target, weight, light, &mut HashMap::new())
-                        });
-                        target.add(Op::ScanTap {
-                            direction,
-                            input,
-                            decay,
-                            weight,
-                        })
-                    }
-                    Op::Sample { .. } => target.add(Op::Scan {
+                match self.input(target, input, substitute)? {
+                    Some(input) => target.add(Op::Scan {
                         direction,
-                        light,
+                        input,
                         decay,
                         weight,
                     }),
                     // A black input leaves the trail black.
-                    _ => target.color(donder_runtime_types::Color::BLACK),
+                    None => target.color(Color::BLACK),
                 }
             }
-            Op::Sample { input, pixel } => {
+            Op::Read { input, pixel } => {
                 let pixel = match pixel {
                     SignalPixel::Current => SignalPixel::Current,
                     SignalPixel::Local(index) => {
@@ -232,11 +202,66 @@ impl<'a> Rebuild<'a> {
                         SignalPixel::Shifted(self.node(target, offset, substitute)?, edges)
                     }
                 };
-                substitute.sample(target, input, pixel)?
+                substitute.read(target, input, pixel)?
             }
         };
         self.memo.insert(node, built);
         Ok(built)
+    }
+
+    /// Stencil `tap` of the reduction now `id`; black when its input is.
+    fn tap(
+        &mut self,
+        target: &mut Graph,
+        tap: Node,
+        id: LoopId,
+        substitute: &mut impl Substitute,
+    ) -> Result<Node, TooManyLoops> {
+        let Op::Tap {
+            input,
+            edges,
+            weight,
+            scale,
+            pixel,
+            ..
+        } = *self.from.op(tap)
+        else {
+            unreachable!("taps are tap nodes")
+        };
+        let mut part = |rebuild: &mut Self, target: &mut Graph, node: Option<Node>| {
+            node.map(|node| rebuild.node(target, node, substitute))
+                .transpose()
+        };
+        let weight = part(self, target, weight)?;
+        let scale = part(self, target, scale)?;
+        let pixel = part(self, target, pixel)?;
+        Ok(match self.input(target, input, substitute)? {
+            Some(input) => target.add(Op::Tap {
+                id,
+                input,
+                edges,
+                weight,
+                scale,
+                pixel,
+            }),
+            None => target.color(Color::BLACK),
+        })
+    }
+
+    /// The input a scan or stencil reads once `substitute` renumbers its
+    /// inputs, or `None` when it is black. Fusion keeps such inputs.
+    fn input(
+        &mut self,
+        target: &mut Graph,
+        input: u32,
+        substitute: &mut impl Substitute,
+    ) -> Result<Option<u32>, TooManyLoops> {
+        let sample = substitute.read(target, input, SignalPixel::Current)?;
+        Ok(match *target.op(sample) {
+            Op::Read { input, .. } => Some(input),
+            _ if target.constant_value(sample) == Some(&Value::Color(Color::BLACK)) => None,
+            _ => unreachable!("fusion keeps the inputs of scans and stencils"),
+        })
     }
 }
 

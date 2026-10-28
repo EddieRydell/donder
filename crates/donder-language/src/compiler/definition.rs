@@ -4,13 +4,12 @@
 //! constant inputs and fuse sources before lowering it to a program.
 use super::check::{self, Definition};
 use super::declarations::check_ranges;
-use super::instance::{self, ProgramConstants};
+use super::instance::{Instance, ProgramConstants};
 use super::ir::Op;
 use super::ir::interval::{Bounds, interval};
-use super::lower::{LowerError, Lowered};
+use super::lower::LowerError;
 use super::syntax::ast::DeclarationKind;
 use super::{Diagnostic, OperatorInputDecl, ParamDecl, ParamRange};
-use donder_runtime_types::Color;
 use donder_runtime_types::PreparedAutomation;
 use donder_runtime_types::bytecode::SignalPixel;
 use donder_runtime_types::{BindingError, BoundParams, Identifier, Type, Value};
@@ -55,7 +54,7 @@ pub(crate) fn lowering_diagnostics(definitions: &[Definition]) -> Vec<Diagnostic
         // The most general instance, with every parameter left to playback,
         // has the most code; specialization only removes work from it.
         let name = definition.name.as_str();
-        let message = match instance::Instance::generic(definition).lower() {
+        let message = match Instance::generic(definition).try_lower() {
             Err(LowerError::Rows(bytes)) => Some(format!(
                 "`{name}` needs {bytes} bytes of per-pixel values; a program has at most {}",
                 donder_runtime_types::bytecode::MAX_ROW_BYTES
@@ -108,32 +107,22 @@ impl CompiledDefinition {
         check_values(&self.0, values, &[])
     }
 
-    /// Bind validated positional values and automation.
+    /// Bind validated positional values and automation. An automated
+    /// parameter's length is unknown, so no reduction may be bounded by a
+    /// live marks parameter's.
     pub fn invoke(
         &self,
         values: Vec<Value>,
         automation: Box<[PreparedAutomation]>,
     ) -> Result<Invocation, BindingError> {
-        invoke(&self.0, values, automation, Box::new([]))
-    }
-
-    /// Bind values and automation, with `live` marks parameters that
-    /// playback rebinds as marks arrive. Their length is unknown, so
-    /// no reduction may be bounded by it.
-    pub fn invoke_live(
-        &self,
-        values: Vec<Value>,
-        automation: Box<[PreparedAutomation]>,
-        live: Box<[u16]>,
-    ) -> Result<Invocation, BindingError> {
-        invoke(&self.0, values, automation, live)
+        invoke(&self.0, values, automation)
     }
 }
 
 fn check_values(
     definition: &Definition,
     values: &[Value],
-    live: &[u16],
+    automation: &[PreparedAutomation],
 ) -> Result<(), BindingError> {
     check_ranges(&definition.params, values)?;
     if definition.length_bounds.is_empty() {
@@ -156,7 +145,12 @@ fn check_values(
         .iter()
         .enumerate()
         .map(|(index, value)| match value {
-            _ if live.iter().any(|&param| usize::from(param) == index) => None,
+            _ if automation
+                .iter()
+                .any(|binding| usize::from(binding.param_index) == index) =>
+            {
+                None
+            }
             Value::Array(items) => Some(items.len()),
             Value::Marks(marks) => Some(marks.len()),
             _ => None,
@@ -189,9 +183,8 @@ fn invoke(
     definition: &Arc<Definition>,
     values: Vec<Value>,
     automation: Box<[PreparedAutomation]>,
-    live: Box<[u16]>,
 ) -> Result<Invocation, BindingError> {
-    check_values(definition, &values, &live)?;
+    check_values(definition, &values, &automation)?;
     let types: Vec<_> = definition
         .params
         .iter()
@@ -203,22 +196,10 @@ fn invoke(
             message: "automation does not match its declaration".into(),
         });
     }
-    let marks = |&param: &u16| {
-        definition
-            .params
-            .get(usize::from(param))
-            .is_some_and(|declared| declared.ty == Type::Marks)
-    };
-    if !live.iter().all(marks) {
-        return Err(BindingError {
-            message: "live mark collections bind marks parameters only".into(),
-        });
-    }
     Ok(Invocation {
         definition: Arc::clone(definition),
         params,
         automation,
-        live,
     })
 }
 
@@ -228,7 +209,6 @@ pub struct Invocation {
     definition: Arc<Definition>,
     params: BoundParams,
     automation: Box<[PreparedAutomation]>,
-    live: Box<[u16]>,
 }
 
 impl Invocation {
@@ -247,24 +227,16 @@ impl Invocation {
         super::lower::reachable(graph, self.definition.root)
             .into_iter()
             .any(|node| match graph.op(node) {
-                Op::Scan { .. } => true,
-                Op::Sample { pixel, .. } => !matches!(pixel, SignalPixel::Current),
+                Op::Scan { .. } | Op::Tap { .. } => true,
+                Op::Read { pixel, .. } => !matches!(pixel, SignalPixel::Current),
                 _ => false,
             })
     }
 
     /// This invocation at one place in a prepared sequence.
     pub fn instance(&self, constants: ProgramConstants) -> Instance {
-        Instance(
-            instance::Instance::new(
-                &self.definition,
-                &self.params,
-                &self.automation,
-                &self.live,
-                constants,
-            )
-            .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance")),
-        )
+        Instance::new(&self.definition, &self.params, &self.automation, constants)
+            .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance"))
     }
 
     /// Whether `other` prepares identically: the same definition, bitwise
@@ -284,7 +256,6 @@ impl Invocation {
                 .iter()
                 .zip(other.automation.iter())
                 .all(|(a, b)| a.same(b))
-            && self.live == other.live
     }
 
     /// A hash consistent with [`Self::same`].
@@ -300,60 +271,5 @@ impl Invocation {
         for automation in self.automation.iter() {
             automation.hash_same(state);
         }
-        self.live.hash(state);
-    }
-}
-
-/// An invocation prepared for the global signal graph.
-#[derive(Clone, Debug)]
-pub struct Instance(instance::Instance);
-
-impl Instance {
-    pub fn inputs(&self) -> usize {
-        self.0.inputs() as usize
-    }
-
-    /// The color this instance always produces, if it is constant.
-    pub fn constant_color(&self) -> Option<Color> {
-        self.0.constant_color()
-    }
-
-    /// Whether this instance without inputs is black at every frame.
-    pub fn stays_black(&self) -> bool {
-        self.0.stays_black()
-    }
-
-    /// Replace an input that is black everywhere; later inputs shift down.
-    pub fn with_black_input(&self, input: usize) -> Self {
-        Self(
-            self.0
-                .with_black_input(input as u32)
-                .unwrap_or_else(|_| unreachable!("substitution keeps the reductions")),
-        )
-    }
-
-    /// Substitute `upstream` into this instance's only sample of `input`, on
-    /// the current pixel. `None` keeps the boundary: several sample sites,
-    /// addressed pixels, upstream automation at another time, or a combined
-    /// program beyond the row or nesting limits.
-    pub fn fuse_input(&self, input: usize, upstream: &Self) -> Option<Self> {
-        let fused = self.0.fuse_input(input as u32, &upstream.0)?;
-        fused.lower().ok()?;
-        Some(Self(fused))
-    }
-
-    /// The prepared dataflow graph, its execution plan and its bytecode.
-    pub fn explain(&self) -> String {
-        self.0
-            .explain()
-            .unwrap_or_else(|error| format!("lowering failed: {error:?}"))
-    }
-
-    /// The program, its parameter values and automation, and its
-    /// parameter indices of the live marks parameters in invocation order.
-    pub fn lower(&self) -> Lowered {
-        self.0
-            .lower()
-            .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"))
     }
 }

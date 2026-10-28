@@ -45,9 +45,7 @@ pub use diagnostics::{
 };
 pub use document::{DECLARATION_TYPE_NAMES, document_schema};
 pub use errors::ExportProjectError;
-pub use imports::{
-    available_reusable_sources, ensure_document_can_reference_object, link_reusable_source,
-};
+pub use imports::{available_declarations, ensure_document_can_reference_object, link_declaration};
 pub use inclusion::{Inclusion, include_document};
 pub use index::{Link, LinkTarget, ProjectIndex, ScriptMember};
 pub use path_refactor::{

@@ -222,7 +222,7 @@ pub fn edit(program: &BoundProgram, edit: impl FnOnce(&mut BytecodeProgram)) -> 
 }
 
 /// Edit the first effect's lowered bytecode.
-pub fn edit_effect(show: &mut Workload, change: impl FnOnce(&mut BytecodeProgram)) {
+pub fn edit_clip(show: &mut Workload, change: impl FnOnce(&mut BytecodeProgram)) {
     let clip = &mut show.layers[0][0];
     clip.program = edit(&clip.program, change);
 }
@@ -233,7 +233,7 @@ pub fn set_uniform_upstream(show: &mut Workload, reuse: bool) {
     if reuse {
         return;
     }
-    edit_effect(show, |program| {
+    edit_clip(show, |program| {
         assert!(!program.uses_pixel_context());
         let row = Slot::row(program.rows.floats);
         program.rows.floats += 3;

@@ -54,7 +54,7 @@ impl From<PreviewWindowState> for PersistedWindowState {
     rename_all_fields = "camelCase"
 )]
 pub(crate) enum PreviewCommand {
-    /// Fixture instances and the encoded archive travel as the frame's binary
+    /// Fixture instances and the encoded image travel as the frame's binary
     /// payload, not in the JSON header.
     ReplaceContent {
         revision: u64,
@@ -62,7 +62,7 @@ pub(crate) enum PreviewCommand {
         instances: Vec<[f32; 4]>,
         #[serde(skip)]
         /// The encoded show the Preview plays: a sequence's or a rig's.
-        archive: Option<Vec<u8>>,
+        image: Option<Vec<u8>>,
     },
     /// Commands for the rig the content plays, in the order they apply. They
     /// travel as the frame's binary payload.
@@ -120,8 +120,8 @@ pub(crate) fn write_command(
 ) -> Result<(), String> {
     let payload = match command {
         PreviewCommand::ReplaceContent {
-            instances, archive, ..
-        } => content_payload(instances, archive.as_deref())?,
+            instances, image, ..
+        } => content_payload(instances, image.as_deref())?,
         PreviewCommand::RigEvents { events } => rig_events_payload(events),
         _ => Vec::new(),
     };
@@ -136,8 +136,8 @@ pub(crate) fn read_command(
     };
     match &mut command {
         PreviewCommand::ReplaceContent {
-            instances, archive, ..
-        } => (*instances, *archive) = read_content_payload(&payload)?,
+            instances, image, ..
+        } => (*instances, *image) = read_content_payload(&payload)?,
         PreviewCommand::RigEvents { events } => {
             *events = read_rig_events_payload(&payload)?;
         }
@@ -206,15 +206,15 @@ fn frame_length(length: usize) -> std::io::Result<u32> {
 }
 
 const NO_ARCHIVE: u8 = 0;
-const ARCHIVE: u8 = 1;
+const IMAGE: u8 = 1;
 
-/// Instance count, the instances' f32 components, whether an archive
-/// follows, then the archive.
-fn content_payload(instances: &[[f32; 4]], archive: Option<&[u8]>) -> Result<Vec<u8>, String> {
+/// Instance count, the instances' f32 components, whether an image
+/// follows, then the image.
+fn content_payload(instances: &[[f32; 4]], image: Option<&[u8]>) -> Result<Vec<u8>, String> {
     let count = frame_length(instances.len()).map_err(|error| error.to_string())?;
-    let (kind, bytes) = match archive {
+    let (kind, bytes) = match image {
         None => (NO_ARCHIVE, &[][..]),
-        Some(bytes) => (ARCHIVE, bytes),
+        Some(bytes) => (IMAGE, bytes),
     };
     let mut payload = Vec::with_capacity(5 + instances.len() * 16 + bytes.len());
     payload.extend_from_slice(&count.to_le_bytes());
@@ -226,7 +226,7 @@ fn content_payload(instances: &[[f32; 4]], archive: Option<&[u8]>) -> Result<Vec
     Ok(payload)
 }
 
-/// Fixture instances and the encoded archive, if any.
+/// Fixture instances and the encoded image, if any.
 type PreviewContent = (Vec<[f32; 4]>, Option<Vec<u8>>);
 
 fn read_content_payload(payload: &[u8]) -> Result<PreviewContent, String> {
@@ -245,12 +245,12 @@ fn read_content_payload(payload: &[u8]) -> Result<PreviewContent, String> {
             core::array::from_fn(|index| f32::from_le_bytes(components[index]))
         })
         .collect();
-    let archive = match rest.split_first().ok_or_else(invalid)? {
+    let image = match rest.split_first().ok_or_else(invalid)? {
         (&NO_ARCHIVE, []) => None,
-        (&ARCHIVE, archive) => Some(archive.to_vec()),
+        (&IMAGE, image) => Some(image.to_vec()),
         _ => return Err(invalid()),
     };
-    Ok((instances, archive))
+    Ok((instances, image))
 }
 
 const START: u8 = 0;
@@ -317,13 +317,13 @@ mod tests {
     #[test]
     fn content_round_trips_through_a_binary_frame() {
         let mut bytes = Vec::new();
-        for archive in [None, Some(vec![]), Some(vec![7, 0, 255])] {
+        for image in [None, Some(vec![]), Some(vec![7, 0, 255])] {
             write_command(
                 &mut bytes,
                 &PreviewCommand::ReplaceContent {
                     revision: 3,
                     instances: vec![[1.0, -2.5, 0.0, 4.25], [5.0, 6.0, 7.0, 8.0]],
-                    archive: archive.clone(),
+                    image: image.clone(),
                 },
             )
             .unwrap();
@@ -332,14 +332,14 @@ mod tests {
             let Some(PreviewCommand::ReplaceContent {
                 revision,
                 instances,
-                archive: decoded,
+                image: decoded,
             }) = read_command(&mut reader).unwrap()
             else {
                 panic!("expected content");
             };
             assert_eq!(revision, 3);
             assert_eq!(instances, [[1.0, -2.5, 0.0, 4.25], [5.0, 6.0, 7.0, 8.0]]);
-            assert_eq!(decoded, archive);
+            assert_eq!(decoded, image);
             assert!(matches!(
                 read_command(&mut reader),
                 Ok(Some(PreviewCommand::Focus))

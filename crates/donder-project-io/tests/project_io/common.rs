@@ -79,7 +79,7 @@ pub const MINIMAL_SEQUENCE: &str = r#"Sequence main {
   marks: [],
   layers: [],
   clips: [],
-  graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+  graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
   automation: [],
 }
 "#;

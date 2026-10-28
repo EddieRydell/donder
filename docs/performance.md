@@ -183,7 +183,7 @@ over every frame):
 | --- | ---: |
 | Stanford show, 150 pixels, mean per frame | 7.6 µs |
 | Stanford preparation | 5.6 ms |
-| Stanford archive | 29,081 bytes |
+| Stanford image | 29,081 bytes |
 | `prepare_starter` | 3.06 ms |
 | `prepared_effect_suite_4x512_pixels` | 96.9 µs |
 | `prepared_600_pixels_4_layers_3_operators` | 432.7 µs |
@@ -195,7 +195,7 @@ Stanford's FreezeFrame samples an empty layer, so preparation removes it; the
 rest of the show is its mark effects, gradients and hue operators.
 
 Compact parameters (October 9, 2026, same machine; sizes from a 32-bit host
-build, which matched the ESP32 within 1%): the Stanford device archive fell
+build, which matched the ESP32 within 1%): the Stanford device image fell
 from 41,289 to 27,882 bytes, its decoded show from 52.3 to 30.7 KB, and its
 playback workspace from 41.0 to 33.3 KB. The load-time workspace estimate fell
 from 46.1 to 33.4 KB and now sizes each strip workspace by the programs it
@@ -341,7 +341,7 @@ caller buffer, with byte-identical output. Host playback is slower:
 `render_playback_dense_60_frames` 3.31 ms (+28%), `prepared_temporal/standard_echo`
 +40 to 45%; preparation is 4 to 7% faster. A one-entry cache of the resource a
 strip's handles name recovered about a third of the first measured loss. For
-`all_we_are` the image is 526 KB (529 KB archive), of which per-pixel layout
+`all_we_are` the image is 526 KB (529 KB encoded), of which per-pixel layout
 positions are 203 KB and instruction words 100 KB, and the playback buffer is
 447 KB, mostly three whole-frame operator caches.
 
@@ -372,14 +372,14 @@ firmware of its date.
 - **October 16, 2026:** Stanford `main` (150 pixels, format 64, `i2s-output`
   image), every frame from 64 s to 91 s through `/frame`: evaluation averaged
   5.27 ms (5.34 ms with the previous firmware), 95th percentile 6.39 ms
-  (6.61 ms), slowest 8.28 ms (9.42 ms). The archive is 26.6 KB (28.4 KB); 68.8
+  (6.61 ms), slowest 8.28 ms (9.42 ms). The encoded image is 26.6 KB (28.4 KB); 68.8
   KB of heap stayed free after loading (70.5 KB).
 - **October 17, 2026:** flat show images (format 65), played from the flash
   slot through the DROM window with only the playback buffer on the heap.
   Stanford `main` on the Dig-Quad, every frame from 64 s to 91 s through
   `/frame`: matching checksums and no evaluation allocations, but evaluation
   averaged 8.85 ms (5.27 ms with format 64), 95th percentile 11.0 ms, slowest
-  14.9 ms. The image is 30.3 KB (26.6 KB archive) and needs no RAM copy; the
+  14.9 ms. The image is 30.3 KB (26.6 KB encoded) and needs no RAM copy; the
   playback buffer is 39.8 KB, and 45 KB of the now 126 KiB heap stays free.
   The likely cost is reading program words and records through the flash
   cache; it was not isolated, because a RAM copy of the image did not fit the

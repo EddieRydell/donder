@@ -3,22 +3,22 @@
 Elaboration has one public preparation function, declared in its `lib.rs`:
 
 ```rust,ignore
-prepare(&DonderProject, &SequenceId, PrepareOutputs) -> Option<PreparedShow>
+prepare(&DonderProject, &SequenceId, Retain) -> Option<PreparedShow>
 ```
 
-The project supplies its active setup. `PrepareOutputs::All` retains every output
+The project supplies its active setup. `Retain::All` retains every output
 and logical preview fixture; `Controllers(&[ControllerId])` selects all ports of
 the requested controllers; `Ports(&[(ControllerId, ControllerPortId)])` selects
 individual ports. Explicit lists preserve first-occurrence order and ignore
 duplicates. Select a controller's independent playback fragment with:
 
 ```rust,ignore
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{Retain, prepare};
 
 if let Some(sequence) = prepare(
     &project,
     &sequence_id,
-    PrepareOutputs::Controllers(&[controller_id]),
+    Retain::Controllers(&[controller_id]),
 ) {
     let mut playback = sequence.into_playback();
     let frame = playback.evaluate(time);
@@ -31,7 +31,7 @@ if let Some(sequence) = prepare(
 `PreparedShow` is owned by runtime and re-exported by elaboration. Its fields
 are private; elaboration assembles it through `PreparedShow::build`, and callers
 inspect it through read-only accessors. Cloning preserves the accepted sequence;
-`effect_windows()` exposes only retained start/duration metadata.
+`clip_windows()` exposes only retained start/duration metadata.
 Neither operation exposes execution-plan or storage addresses.
 The builder issues owner-bound handles for
 fixtures, targets, effects and signal nodes; callers cannot supply mismatched graph
@@ -67,7 +67,7 @@ modules are not alternate entry points. The boundaries have different contracts:
 | Elaboration | Accepted project plus selection to `Option<PreparedShow>` | Resolving the selection, not repeating text validation |
 | Runtime construction | Accepted inputs and builder-issued handles to a private sequence | Handles preserve graph/storage ownership |
 | Playback | Owned sequence plus sample time to borrowed frame views | No ordinary failure; scratch storage cannot be paired with another sequence |
-| Image opening | Image bytes to a borrowed `Show` | The format version only; the image is trusted |
+| Image opening | Image bytes to a borrowed `Image` | The format version only; the image is trusted |
 
 Image records are runtime-private: callers build them only through the builder
 and read them through accessors. The builder asserts the playback limits: at most 16

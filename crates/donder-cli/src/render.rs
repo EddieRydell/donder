@@ -58,9 +58,8 @@ pub(crate) fn render(
         .get::<donder_model::Layout>(*setup.layout.id())
         .ok_or("Setup layout is missing.")?;
     let selected = selected_fixtures(layout, &name(layout.id.into())?, targets)?;
-    let prepared =
-        donder_elaboration::prepare(project, id, donder_elaboration::PrepareOutputs::All)
-            .ok_or("The sequence cannot be played on the active setup.")?;
+    let prepared = donder_elaboration::prepare(project, id, donder_elaboration::Retain::All)
+        .ok_or("The sequence cannot be played on the active setup.")?;
     let rate = prepared.frame_rate();
     let frame_count = prepared.frame_count();
     // Each fixture's label, or `None` when it is not selected.

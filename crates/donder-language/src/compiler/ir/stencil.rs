@@ -1,12 +1,24 @@
-//! Neighborhood reductions as stencils. An `around` reduction sums, or takes
-//! the max of, its input's neighbors along the pixel's fixture, each scaled by
-//! factors that depend on the neighbor alone, on the offset alone or on the
-//! pixel alone. It becomes a tap: playback computes each neighbor's factors
-//! once, not once per offset that reads it, and accumulates every offset in
-//! one instruction. Factor products reassociate, which only changes rounding.
+//! Stencils and scan weights, formed when the body is checked.
+//!
+//! An `around` reduction sums, or takes the max of, its input's neighbors
+//! along the pixel's fixture, each scaled by factors that depend on the
+//! neighbor alone, on the offset alone or on the pixel alone. It becomes a
+//! tap: playback computes each neighbor's factors once, not once per offset
+//! that reads it, and accumulates every offset in one instruction.
+//!
+//! A contribution is classified after flattening: the scales and guards
+//! around the sample, then every product and quotient of the scales, so how
+//! the author grouped or ordered the factors never decides whether it is a
+//! stencil. `neighbor * a * b`, `a * (neighbor * b)` and `neighbor * (a * b)`
+//! are the same stencil, and `if c { neighbor * w } else { black }` is the
+//! guard `c`. Factor products reassociate, which only changes rounding.
+//!
+//! A scan adds its input at each pixel scaled by a weight: the same flattened
+//! scales and guards, which may read the input's sample and values fixed for
+//! the frame.
 use super::{Binary, Domain, Graph, LoopId, Node, Op, Reducer};
-use donder_runtime_types::bytecode::{Edges, SignalPixel};
-use donder_runtime_types::{Type, Value};
+use donder_runtime_types::bytecode::SignalPixel;
+use donder_runtime_types::{Color, Type, Value};
 use std::collections::HashMap;
 
 /// Why a reduction's contribution is not a stencil.
@@ -28,7 +40,7 @@ impl StencilError {
         match self {
             Self::Reducer => "`around` combines neighbors with `sum` or `max` into a color",
             Self::Shape => {
-                "an `around` body produces the neighbor, optionally scaled by a number: `neighbor * weight`; change its color after the reduction"
+                "an `around` body produces the neighbor, optionally scaled by numbers: `neighbor * weight`; change its color after the reduction"
             }
             Self::Neighbor => {
                 "a weight or guard that reads the neighbor may combine it only with values fixed for the frame; write the offset's part as a separate factor"
@@ -44,7 +56,7 @@ impl StencilError {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Part {
     /// The neighbor, and values fixed for the query.
-    Source,
+    Neighbor,
     /// The offset, and values fixed for the strip.
     Offset,
     /// Not the offset.
@@ -54,65 +66,56 @@ enum Part {
 /// A factor of the scale: a value, or the reciprocal of a divisor.
 type Factor = (Node, bool);
 
-/// A contribution split into its parts.
-struct Parts {
-    sample: Node,
-    input: u32,
-    edges: Edges,
-    /// Factors and conditions of each part, by [`Part`].
-    parts: [(Vec<Factor>, Vec<Node>); 3],
-}
-
-/// Whether reduction `id`'s contribution is a stencil, and if not, why.
-pub(crate) fn check(
-    graph: &Graph,
-    id: LoopId,
-    reducer: Reducer,
-    body: Node,
-    filter: Option<Node>,
-) -> Result<(), StencilError> {
-    split(graph, id, reducer, body, filter).map(|_| ())
-}
-
-/// The tap replacing reduction `id`'s contribution.
+/// The tap replacing `around` reduction `id`'s contribution, or why it is
+/// not a stencil.
 pub(super) fn tap(
     graph: &mut Graph,
     id: LoopId,
     reducer: Reducer,
     body: Node,
     filter: Option<Node>,
-) -> Option<Node> {
-    let Parts {
-        sample,
+) -> Result<Node, StencilError> {
+    if !matches!(reducer, Reducer::Sum | Reducer::Max) || *graph.ty(body) != Type::Color {
+        return Err(StencilError::Reducer);
+    }
+    let mut scales = Vec::new();
+    let mut conditions = Vec::new();
+    if let Some(filter) = filter {
+        conjuncts(graph, filter, &mut conditions);
+    }
+    let sample = scaled(graph, body, &mut scales, &mut conditions);
+    let Op::Read {
         input,
-        edges,
-        parts,
-    } = split(graph, id, reducer, body, filter).ok()?;
-    let [source, offset, pixel] = parts.map(|(factors, conditions)| {
-        let mut value = None;
-        for (node, inverse) in factors {
-            let factor = if inverse {
-                let one = graph.float(1.0);
-                graph.binary(Binary::Divide, one, node)
-            } else {
-                node
-            };
-            value = Some(match value {
-                Some(value) => graph.binary(Binary::Multiply, value, factor),
-                None => factor,
-            });
-        }
-        let condition = conditions.into_iter().reduce(|a, b| graph.and(a, b));
-        match condition {
-            Some(condition) => {
-                let (one, zero) = (graph.float(1.0), graph.float(0.0));
-                Some(graph.select(condition, value.unwrap_or(one), zero))
-            }
-            None => value,
-        }
-    });
-    let weight = source.map(|node| source_of(graph, node, sample, &mut HashMap::new()));
-    Some(graph.add(Op::Tap {
+        pixel: SignalPixel::Shifted(offset, edges),
+    } = *graph.op(sample)
+    else {
+        return Err(StencilError::Shape);
+    };
+    if offset != graph.loop_(id).index {
+        return Err(StencilError::Shape);
+    }
+    let mut factors = Vec::new();
+    for scale in scales {
+        product(graph, scale, false, &mut factors);
+    }
+    let mut reads = Reads {
+        sample,
+        own: Some(id),
+        memo: HashMap::new(),
+    };
+    let mut parts: [(Vec<Factor>, Vec<Node>); 3] = Default::default();
+    for (node, inverse) in factors {
+        let part = part(graph, &mut reads, id, node)?;
+        parts[part as usize].0.push((node, inverse));
+    }
+    for node in conditions {
+        let part = part(graph, &mut reads, id, node)?;
+        parts[part as usize].1.push(node);
+    }
+    let [neighbor, offset, pixel] =
+        parts.map(|(factors, conditions)| assemble(graph, factors, conditions));
+    let weight = neighbor.map(|node| weight_of(graph, node, sample, &mut HashMap::new()));
+    Ok(graph.add(Op::Tap {
         id,
         input,
         edges,
@@ -120,6 +123,35 @@ pub(super) fn tap(
         scale: offset,
         pixel,
     }))
+}
+
+/// The weight a scan adds `light`, a color computed from `sample`, with:
+/// `None` for the sample itself, or `None` inside when `light` is not the
+/// sample scaled by numbers and guarded by conditions that read only it and
+/// values fixed for the frame.
+pub(crate) fn scan_weight(graph: &mut Graph, light: Node, sample: Node) -> Option<Option<Node>> {
+    let mut scales = Vec::new();
+    let mut conditions = Vec::new();
+    if scaled(graph, light, &mut scales, &mut conditions) != sample {
+        return None;
+    }
+    let mut reads = Reads {
+        sample,
+        own: None,
+        memo: HashMap::new(),
+    };
+    if !scales
+        .iter()
+        .chain(&conditions)
+        .all(|&node| reads.source_only(graph, node))
+    {
+        return None;
+    }
+    let factors = scales.into_iter().map(|scale| (scale, false)).collect();
+    Some(
+        assemble(graph, factors, conditions)
+            .map(|weight| weight_of(graph, weight, sample, &mut HashMap::new())),
+    )
 }
 
 /// Whether `node` reads `sample`.
@@ -132,59 +164,49 @@ pub(crate) fn reads(graph: &Graph, node: Node, sample: Node) -> bool {
     .of(graph, node)
 }
 
-fn split(
-    graph: &Graph,
-    id: LoopId,
-    reducer: Reducer,
-    body: Node,
-    filter: Option<Node>,
-) -> Result<Parts, StencilError> {
-    if !matches!(reducer, Reducer::Sum | Reducer::Max) || *graph.ty(body) != Type::Color {
-        return Err(StencilError::Reducer);
+/// The color that `node` scales and guards: its scales, outermost last, are
+/// added to `scales` and its guards to `conditions`.
+fn scaled(graph: &Graph, node: Node, scales: &mut Vec<Node>, conditions: &mut Vec<Node>) -> Node {
+    match *graph.op(node) {
+        Op::Binary(Binary::ColorScale, color, scale) => {
+            let color = scaled(graph, color, scales, conditions);
+            scales.push(scale);
+            color
+        }
+        Op::Select(condition, yes, no)
+            if graph.constant_value(no) == Some(&Value::Color(Color::BLACK)) =>
+        {
+            conjuncts(graph, condition, conditions);
+            scaled(graph, yes, scales, conditions)
+        }
+        _ => node,
     }
-    let index = graph.loop_(id).index;
-    let (sample, scale) = match *graph.op(body) {
-        Op::Binary(Binary::ColorScale, color, scale) => (color, Some(scale)),
-        _ => (body, None),
-    };
-    let Op::Sample {
-        input,
-        pixel: SignalPixel::Shifted(offset, edges),
-    } = *graph.op(sample)
-    else {
-        return Err(StencilError::Shape);
-    };
-    if offset != index {
-        return Err(StencilError::Shape);
+}
+
+/// The product of `factors`, chosen where every condition holds and zero
+/// elsewhere; `None` for no factors and no conditions.
+fn assemble(graph: &mut Graph, factors: Vec<Factor>, conditions: Vec<Node>) -> Option<Node> {
+    let mut value = None;
+    for (node, inverse) in factors {
+        let factor = if inverse {
+            let one = graph.float(1.0);
+            graph.binary(Binary::Divide, one, node)
+        } else {
+            node
+        };
+        value = Some(match value {
+            Some(value) => graph.binary(Binary::Multiply, value, factor),
+            None => factor,
+        });
     }
-    let mut reads = Reads {
-        sample,
-        own: Some(id),
-        memo: HashMap::new(),
-    };
-    let mut factors = Vec::new();
-    if let Some(scale) = scale {
-        product(graph, scale, false, &mut factors);
+    let condition = conditions.into_iter().reduce(|a, b| graph.and(a, b));
+    match condition {
+        Some(condition) => {
+            let (one, zero) = (graph.float(1.0), graph.float(0.0));
+            Some(graph.select(condition, value.unwrap_or(one), zero))
+        }
+        None => value,
     }
-    let mut conditions = Vec::new();
-    if let Some(filter) = filter {
-        conjuncts(graph, filter, &mut conditions);
-    }
-    let mut parts: [(Vec<Factor>, Vec<Node>); 3] = Default::default();
-    for &(node, inverse) in &factors {
-        let part = part(graph, &mut reads, id, node)?;
-        parts[part as usize].0.push((node, inverse));
-    }
-    for &node in &conditions {
-        let part = part(graph, &mut reads, id, node)?;
-        parts[part as usize].1.push(node);
-    }
-    Ok(Parts {
-        sample,
-        input,
-        edges,
-        parts,
-    })
 }
 
 /// The same at every pixel. Without `own`, also fixed for the query:
@@ -228,7 +250,7 @@ fn conjuncts(graph: &Graph, node: Node, conditions: &mut Vec<Node>) {
 fn part(graph: &Graph, reads: &mut Reads, id: LoopId, node: Node) -> Result<Part, StencilError> {
     if reads.of(graph, node) {
         return if reads.source_only(graph, node) {
-            Ok(Part::Source)
+            Ok(Part::Neighbor)
         } else {
             Err(StencilError::Neighbor)
         };
@@ -248,7 +270,7 @@ fn part(graph: &Graph, reads: &mut Reads, id: LoopId, node: Node) -> Result<Part
 
 struct Reads {
     sample: Node,
-    /// The stencil whose source this is; none for a scan.
+    /// The stencil whose neighbor this is; none for a scan.
     own: Option<LoopId>,
     memo: HashMap<Node, bool>,
 }
@@ -286,25 +308,10 @@ impl Reads {
     }
 }
 
-/// Whether `node` is arithmetic on `sample` and query values.
-pub(crate) fn source_only(graph: &Graph, node: Node, sample: Node) -> bool {
-    Reads {
-        sample,
-        own: None,
-        memo: HashMap::new(),
-    }
-    .source_only(graph, node)
-}
-
-/// `node` with the sample replaced by the stencil's source.
-pub(crate) fn source_of(
-    graph: &mut Graph,
-    node: Node,
-    sample: Node,
-    memo: &mut HashMap<Node, Node>,
-) -> Node {
+/// `node` with the sample replaced by the stencil's or scan's neighbor.
+fn weight_of(graph: &mut Graph, node: Node, sample: Node, memo: &mut HashMap<Node, Node>) -> Node {
     if node == sample {
-        return graph.add(Op::Source);
+        return graph.add(Op::Neighbor);
     }
     if !reads(graph, node, sample) {
         return node;
@@ -314,27 +321,27 @@ pub(crate) fn source_of(
     }
     let built = match graph.op(node).clone() {
         Op::Unary(op, a) => {
-            let a = source_of(graph, a, sample, memo);
+            let a = weight_of(graph, a, sample, memo);
             graph.unary(op, a)
         }
         Op::Binary(op, a, b) => {
-            let a = source_of(graph, a, sample, memo);
-            let b = source_of(graph, b, sample, memo);
+            let a = weight_of(graph, a, sample, memo);
+            let b = weight_of(graph, b, sample, memo);
             graph.binary(op, a, b)
         }
         Op::Ternary(op, a, b, c) => {
-            let a = source_of(graph, a, sample, memo);
-            let b = source_of(graph, b, sample, memo);
-            let c = source_of(graph, c, sample, memo);
+            let a = weight_of(graph, a, sample, memo);
+            let b = weight_of(graph, b, sample, memo);
+            let c = weight_of(graph, c, sample, memo);
             graph.ternary(op, a, b, c)
         }
         Op::Select(condition, yes, no) => {
-            let condition = source_of(graph, condition, sample, memo);
-            let yes = source_of(graph, yes, sample, memo);
-            let no = source_of(graph, no, sample, memo);
+            let condition = weight_of(graph, condition, sample, memo);
+            let yes = weight_of(graph, yes, sample, memo);
+            let no = weight_of(graph, no, sample, memo);
             graph.select(condition, yes, no)
         }
-        _ => unreachable!("source factors are arithmetic"),
+        _ => unreachable!("neighbor factors are arithmetic"),
     };
     memo.insert(node, built);
     built

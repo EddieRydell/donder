@@ -15,7 +15,7 @@ export function AvailableControllers({ document }: { document: SetupGuiDocument 
 
 export function SetupControllerActions({ controller }: { controller: SetupGuiDocument["controllers"][number] }) {
   return <div className="setup-controller-membership">
-    <p>{controller.sourceRef.ownedPath.length > 0 ? "Removing this controller deletes its owned contents." : "Removing this link keeps the reusable controller source."}</p>
+    <p>{controller.sourceRef.ownedPath.length > 0 ? "Removing this controller deletes its owned contents." : "Removing this link keeps the reusable controller declaration."}</p>
     <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "detachController", controller: controller.sourceRef, removeOutputs: false } }))}>Remove from setup</button>
     <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "detachController", controller: controller.sourceRef, removeOutputs: true } }))}>Remove controller and outputs</button>
   </div>;

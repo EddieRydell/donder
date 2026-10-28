@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{Retain, prepare};
 use donder_runtime::LoadError;
 use donder_runtime_types::sample_time_from_frame;
 
@@ -15,7 +15,7 @@ fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
     let controller = setup.controllers[0].id();
     let port = project.reusable::<donder_model::Controller>()[controller].ports[0].id;
     for id in project.root().sequences.iter().map(|source| source.id()) {
-        let prepared = prepare(project, id, PrepareOutputs::Ports(&[(*controller, port)])).unwrap();
+        let prepared = prepare(project, id, Retain::Ports(&[(*controller, port)])).unwrap();
         let original = prepared;
         let bytes = original.encode();
         let decoded = donder_runtime::PreparedShow::decode(&bytes).unwrap();

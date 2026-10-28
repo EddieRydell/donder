@@ -15,7 +15,7 @@ use donder_editor::dto::{
     AudioTransportState, LiveOutputState, PerformButton, PerformMidi, PerformOsc, PerformRig,
     PerformSession, PerformSnapshot, PerformSwitch,
 };
-use donder_elaboration::{PreparationCache, PrepareOutputs};
+use donder_elaboration::{PreparationCache, Retain};
 use donder_model::{
     ButtonInput, ControllerId, DialInput, InputControlKind, InputDevice, InputDriver, KeyCode,
     KeyRange, OscAddress, RigId,
@@ -31,14 +31,14 @@ pub(crate) struct PerformService {
     /// Numbers performances, so the Preview tells one from the next.
     generation: u32,
     revision: u32,
-    /// Keeps effects lowered between performances.
+    /// Keeps clips lowered between performances.
     preparation: PreparationCache,
 }
 
 /// What the Preview needs to play a performance.
 pub(crate) struct PreviewPerformance {
     pub(crate) generation: u32,
-    pub(crate) archive: Vec<u8>,
+    pub(crate) image: Vec<u8>,
     /// Each fixture's id and pixel count, in prepared order.
     pub(crate) fixtures: Vec<(u32, usize)>,
 }
@@ -186,7 +186,7 @@ struct Performance {
     clock: SessionClock,
     prepared: PreparedShow,
     /// The prepared rig, encoded once for the Preview.
-    archive: Vec<u8>,
+    image: Vec<u8>,
     fixtures: Vec<(u32, usize)>,
     router: RigRouter,
     /// Each router button's device and control names.
@@ -323,18 +323,14 @@ impl DesktopState {
         }
         {
             let mut perform = lock_unpoisoned(&self.perform);
-            let armed = donder_elaboration::arm(
-                project,
-                &rig_id,
-                PrepareOutputs::All,
-                &mut perform.preparation,
-            )
-            .ok_or_else(|| {
-                format!(
-                    "Rig {} cannot be prepared on the active setup.",
-                    described.name
-                )
-            })?;
+            let armed =
+                donder_elaboration::arm(project, &rig_id, Retain::All, &mut perform.preparation)
+                    .ok_or_else(|| {
+                        format!(
+                            "Rig {} cannot be prepared on the active setup.",
+                            described.name
+                        )
+                    })?;
             let router = RigRouter::new(
                 project,
                 project
@@ -442,7 +438,7 @@ impl DesktopState {
                 generation,
                 rig: described,
                 clock: SessionClock::start(prepared.duration()),
-                archive: prepared.encode(),
+                image: prepared.encode(),
                 fixtures: prepared
                     .fixtures()
                     .iter()
@@ -707,14 +703,14 @@ impl DesktopState {
             .map(|performance| performance.generation)
     }
 
-    /// The performance's archive and fixtures, for the Preview.
+    /// The performance's image and fixtures, for the Preview.
     pub(crate) fn preview_performance(&self) -> Option<PreviewPerformance> {
         lock_unpoisoned(&self.perform)
             .performance
             .as_ref()
             .map(|performance| PreviewPerformance {
                 generation: performance.generation,
-                archive: performance.archive.clone(),
+                image: performance.image.clone(),
                 fixtures: performance.fixtures.clone(),
             })
     }
@@ -803,7 +799,7 @@ fn check_armable(session: &ProjectSession, rig: &RigId, name: &str) -> Result<()
         .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or("The active setup is missing.")?;
     let layout = setup.layout.id();
-    if rig.effects().any(|effect| &effect.target.layout != layout) {
+    if rig.clips().any(|clip| &clip.target.layout != layout) {
         return Err(format!(
             "Rig {name} targets a layout other than the active setup's."
         ));

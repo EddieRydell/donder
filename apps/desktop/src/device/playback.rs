@@ -1,11 +1,10 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
 use super::{DeviceClient, UploadError};
 use crate::desktop_state::lock_unpoisoned;
-use donder_editor::dto::{DeviceOutputCapabilities, DevicePlaybackMode, PlaybackSpeed};
+use donder_device_protocol::{Command, Mode, OutputCapabilities, clock};
 use donder_model::{ControllerId, ControllerPortId, DonderDeviceId};
 use donder_project_io::ObjectAddress;
 use donder_runtime::PlaybackRate;
-use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, hash_map::RandomState},
@@ -34,34 +33,6 @@ struct ClockSample {
     delay: u64,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
-enum Control {
-    SyncClock {
-        boot_id: u32,
-        clock_id: u32,
-        local_micros: u64,
-        master_micros: u64,
-        rate_ppb: i32,
-        valid_for_micros: u32,
-    },
-    Schedule {
-        boot_id: u32,
-        clock_id: u32,
-        command_id: u32,
-        at_micros: u64,
-        mode: DevicePlaybackMode,
-        position_micros: u32,
-        speed: PlaybackSpeed,
-        looping: bool,
-        archive_id: u32,
-        archive_bytes: u32,
-    },
-    Cancel {
-        command_id: u32,
-    },
-}
-
 fn clock_sample(t1: u64, t2: u64, t3: u64, t4: u64, boot_id: u32) -> Result<ClockSample, String> {
     let elapsed = t4.checked_sub(t1).ok_or("Desktop clock moved backwards")?;
     let processing = t3
@@ -84,12 +55,12 @@ fn udp_clock_sample(
     origin: Instant,
 ) -> Result<ClockSample, String> {
     let t1 = origin.elapsed().as_micros() as u64;
-    let mut request = [0; 44];
-    request[..4].copy_from_slice(b"DCLK");
-    request[4..36].copy_from_slice(token);
-    request[36..].copy_from_slice(&t1.to_le_bytes());
+    let request = clock::Request {
+        token: *token,
+        sent_micros: t1,
+    };
     socket
-        .send(&request)
+        .send(&request.encode())
         .map_err(|error| format!("UDP clock send failed: {error}"))?;
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
@@ -100,51 +71,43 @@ fn udp_clock_sample(
         socket
             .set_read_timeout(Some(remaining))
             .map_err(|error| error.to_string())?;
-        let mut reply = [0; 33];
+        let mut reply = [0; clock::Reply::BYTES + 1];
         let length = socket
             .recv(&mut reply)
             .map_err(|error| format!("UDP clock receive failed: {error}"))?;
         let t4 = origin.elapsed().as_micros() as u64;
-        if length != 32 || &reply[..4] != b"DCLK" {
-            return Err("Malformed UDP clock reply".into());
-        }
-        if reply[4..12] != t1.to_le_bytes() {
+        let reply = clock::Reply::decode(&reply[..length]).ok_or("Malformed UDP clock reply")?;
+        if reply.sent_micros != t1 {
             continue;
         }
-        let read_u64 = |range: std::ops::Range<usize>| -> Result<u64, String> {
-            Ok(u64::from_le_bytes(
-                reply[range]
-                    .try_into()
-                    .map_err(|_| "Invalid clock timestamp")?,
-            ))
-        };
-        let boot = u32::from_le_bytes(
-            reply[12..16]
-                .try_into()
-                .map_err(|_| "Invalid clock identity")?,
+        return clock_sample(
+            t1,
+            reply.received_micros,
+            reply.replied_micros,
+            t4,
+            reply.boot_id,
         );
-        return clock_sample(t1, read_u64(16..24)?, read_u64(24..32)?, t4, boot);
     }
 }
 
 impl DeviceClient {
     fn stop_loaded(&self) -> Result<(), String> {
         if self.transport(None)?.playback.is_some() {
-            self.transport(Some(DevicePlaybackMode::Stopped))?;
+            self.transport(Some(Mode::Stopped))?;
         }
         Ok(())
     }
-    fn control(&self, command: &Control) -> Result<(), String> {
+    fn control(&self, command: &Command) -> Result<(), String> {
         let body = serde_json::to_vec(command).map_err(|error| error.to_string())?;
         let response = self
             .client
-            .post(format!("http://{}/control", self.address))
+            .post(self.url(donder_device_protocol::path::CONTROL))
             .timeout(Duration::from_secs(2))
             .header("content-type", "application/json")
             .body(body)
             .send()
             .map_err(|error| format!("Controller command failed: {error}"))?;
-        if self.response(response)?.trim() != "OK" {
+        if self.response(response)?.trim() != donder_device_protocol::OK {
             return Err("Controller did not acknowledge the command".into());
         }
         Ok(())
@@ -232,7 +195,7 @@ impl Binding {
                 rate = estimate as i32;
             }
         }
-        self.client.control(&Control::SyncClock {
+        self.client.control(&Command::SyncClock {
             boot_id: sample.boot_id,
             clock_id,
             local_micros: sample.local,
@@ -429,13 +392,13 @@ impl DevicePlaybackService {
                 prepared
                     .bytes
                     .get(8..12)
-                    .ok_or("Prepared archive header is missing")?
+                    .ok_or("Prepared image header is missing")?
                     .try_into()
-                    .map_err(|_| "Invalid prepared archive header")?,
+                    .map_err(|_| "Invalid prepared image header")?,
             );
             let matches = status.playback.as_ref().is_some_and(|playback| {
-                playback.archive_bytes as usize == prepared.bytes.len()
-                    && playback.archive_id == checksum
+                playback.image_bytes as usize == prepared.bytes.len()
+                    && playback.image_id == checksum
             });
             if binding.uploaded != Some(prepared.hash) || !matches {
                 if let Some((hash, reason)) = &binding.rejected
@@ -463,7 +426,7 @@ impl DevicePlaybackService {
     /// `rate` is the playback rate the devices follow after the deadline.
     pub(crate) fn schedule(
         &self,
-        mode: DevicePlaybackMode,
+        mode: Mode,
         position: u32,
         advancing: Option<PlaybackRate>,
         rate: PlaybackRate,
@@ -490,11 +453,11 @@ impl DevicePlaybackService {
                 prepared
                     .bytes
                     .get(8..12)
-                    .ok_or("Prepared archive header is missing")?
+                    .ok_or("Prepared image header is missing")?
                     .try_into()
-                    .map_err(|_| "Invalid prepared archive header")?,
+                    .map_err(|_| "Invalid prepared image header")?,
             );
-            if status.archive_id != crc || status.archive_bytes as usize != prepared.bytes.len() {
+            if status.image_id != crc || status.image_bytes as usize != prepared.bytes.len() {
                 return Err(format!(
                     "Controller {} has a different show loaded; press Play to upload the current sequence",
                     binding.client.address
@@ -544,7 +507,7 @@ impl DevicePlaybackService {
                 .command_id
                 .checked_add(1)
                 .ok_or("Controller command counter exhausted; restart the controller")?;
-            let command = Control::Schedule {
+            let command = Command::Schedule {
                 boot_id: sample.boot_id,
                 clock_id,
                 command_id,
@@ -553,8 +516,8 @@ impl DevicePlaybackService {
                 position_micros: position,
                 speed: rate.into(),
                 looping: false,
-                archive_id: status.archive_id,
-                archive_bytes: status.archive_bytes,
+                image_id: status.image_id,
+                image_bytes: status.image_bytes,
             };
             // Include the current target in cancellation: a lost reply may hide acceptance.
             commands.push((binding.client.address, command_id));
@@ -590,7 +553,7 @@ fn cancel(core: &Core, commands: &[(SocketAddr, u32)]) -> String {
             .bindings
             .iter()
             .find(|binding| binding.client.address == *address)
-            && let Err(error) = binding.client.control(&Control::Cancel {
+            && let Err(error) = binding.client.control(&Command::Cancel {
                 command_id: *command_id,
             })
         {
@@ -609,9 +572,7 @@ fn cancel(core: &Core, commands: &[(SocketAddr, u32)]) -> String {
 fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
     let client = DeviceClient::new(device.address, &device.token)?;
     let clock_udp_port = match client.capabilities()?.output {
-        DeviceOutputCapabilities::Ws281x { clock_udp_port, .. } if clock_udp_port > 0 => {
-            clock_udp_port
-        }
+        OutputCapabilities::Ws281x { clock_udp_port, .. } if clock_udp_port > 0 => clock_udp_port,
         _ => return Err("Device does not advertise a physical output clock".into()),
     };
     let bind_address = if client.address.is_ipv4() {
@@ -668,17 +629,17 @@ mod tests {
         let server = UdpSocket::bind("127.0.0.1:0").unwrap();
         let address = server.local_addr().unwrap();
         let worker = thread::spawn(move || {
-            let mut request = [0; 45];
+            let mut request = [0; clock::Request::BYTES + 1];
             let (length, peer) = server.recv_from(&mut request).unwrap();
-            assert_eq!(length, 44);
-            assert_eq!(&request[..4], b"DCLK");
-            assert_eq!(&request[4..36], &[b'a'; 32]);
-            let mut reply = [0; 32];
-            reply[..4].copy_from_slice(b"DCLK");
-            reply[4..12].copy_from_slice(&request[36..44]);
-            reply[12..16].copy_from_slice(&7u32.to_le_bytes());
-            reply[16..24].copy_from_slice(&600000u64.to_le_bytes());
-            reply[24..32].copy_from_slice(&600000u64.to_le_bytes());
+            let request = clock::Request::decode(&request[..length]).unwrap();
+            assert_eq!(request.token, [b'a'; 32]);
+            let reply = clock::Reply {
+                sent_micros: request.sent_micros,
+                boot_id: 7,
+                received_micros: 600000,
+                replied_micros: 600000,
+            }
+            .encode();
             let mut stale = reply;
             stale[4] ^= 1;
             server.send_to(&stale, peer).unwrap();

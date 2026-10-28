@@ -16,7 +16,7 @@ pub(super) fn project_controller(
 ) -> SetupController {
     SetupController {
         label: match &controller.protocol {
-            ControllerProtocol::E131(config) => config.source_name.clone(),
+            ControllerProtocol::E131(config) => config.sender_name.clone(),
             ControllerProtocol::ArtNet(config) => format!("Art-Net {}", config.destination),
             ControllerProtocol::Donder(config) => format!("Donder {}", config.device.as_str()),
         },
@@ -85,12 +85,12 @@ pub(super) fn domain_controller(
         |error| GuiMutationError::Invalid(format!("Invalid network address: {error}"));
     let protocol = match config {
         SetupControllerConfig::E131 {
-            source_name,
+            sender_name,
             bind_address,
             priority,
             destination,
         } => ControllerProtocol::E131(E131Config {
-            source_name,
+            sender_name,
             bind_address: bind_address.parse().map_err(invalid_address)?,
             priority,
             mode: match destination {

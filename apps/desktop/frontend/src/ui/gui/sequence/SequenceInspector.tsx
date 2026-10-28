@@ -7,13 +7,13 @@ import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import type {
   SequenceGuiDocument,
   SequenceAutomationTarget,
-  SequenceEffect,
-  SequenceEffectDetails,
-  SequenceEffectParam,
+  SequenceClip,
+  SequenceClipDetails,
+  SequenceClipParam,
   SequenceMarkCollection,
   SequenceMarkRef,
-  SequenceEffectScope,
-  SequenceEffectCommonEdit
+  SequenceClipScope,
+  SequenceClipCommonEdit
 } from "../../../editor/types";
 import { ColorPicker } from "../../ColorPicker";
 import { EffectDefinitionPicker, effectReferencesEqual } from "./definitionMenu";
@@ -26,14 +26,14 @@ import { DescriptionField } from "../DescriptionField";
 import { activeMarkCollection, defaultMarkColor } from "./marks";
 import { BeatDetectionDialog } from "./BeatDetectionDialog";
 import { MarkSubdivision } from "./MarkSubdivision";
-import { clipIdsOfKind, clipRefs, selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
-import { useSequenceEffectDetails } from "./sequenceEffectDetails";
+import { clipIdsOfKind, clipRefs, selectedClipId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
+import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
 import { useConfirmDialog } from "../../ConfirmDialog";
 import { LayerList } from "./sequenceLayers";
 
-type SequenceInspectorTab = "effect" | "layers" | "marks";
+type SequenceInspectorTab = "clip" | "layers" | "marks";
 
 type SelectedMarkEntry = {
   ref: SequenceMarkRef;
@@ -43,14 +43,14 @@ type SelectedMarkEntry = {
 };
 
 const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
-  { id: "effect", label: "Effect" },
+  { id: "clip", label: "Clip" },
   { id: "layers", label: "Layers" },
   { id: "marks", label: "Marks" },
 ];
 
-function supportsAutomation(document: SequenceGuiDocument, details: Map<number, SequenceEffectDetails> | null, target: SequenceAutomationTarget) {
-  if (target.type === "effectParam") {
-    return details?.get(target.effectId)?.params
+function supportsAutomation(document: SequenceGuiDocument, details: Map<number, SequenceClipDetails> | null, target: SequenceAutomationTarget) {
+  if (target.type === "clipParam") {
+    return details?.get(target.clipId)?.params
       .find((param) => param.name === target.param)?.supportsAutomation === true;
   }
   const node = document.compositionGraph.nodes.find((node) => node.id === target.nodeId);
@@ -83,7 +83,7 @@ export function SequenceInspector({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const [tab, setActiveTab] = useState<SequenceInspectorTab>("effect");
+  const [tab, setActiveTab] = useState<SequenceInspectorTab>("clip");
   const activeTab = tab;
 
   const footer = (
@@ -107,8 +107,8 @@ export function SequenceInspector({
 
   return (
     <InspectorScrollArea footer={footer}>
-      {activeTab === "effect" && (
-        <EffectInspectorPanel
+      {activeTab === "clip" && (
+        <ClipInspectorPanel
           document={document}
           selected={selected}
           setSelected={setSelected}
@@ -135,48 +135,48 @@ export function SequenceInspector({
   );
 }
 
-function SelectedEffectsInspector({
+function SelectedClipsInspector({
   document,
-  effectIds,
+  clipIds,
   onDelete
 }: {
   document: SequenceGuiDocument;
-  effectIds: number[];
+  clipIds: number[];
   onDelete: () => void;
 }) {
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
 
-  const effects = effectIds
-    .map((id) => document.effects.find((effect) => effect.id === id))
-    .filter((effect): effect is SequenceEffect => effect !== undefined);
-  const details = useSequenceEffectDetails(document, effects.map((effect) => effect.id));
-  if (effects.length === 0) {
-    return <><h2>Effects</h2><p>Select an effect on the timeline.</p></>;
+  const clips = clipIds
+    .map((id) => document.clips.find((clip) => clip.id === id))
+    .filter((clip): clip is SequenceClip => clip !== undefined);
+  const details = useSequenceClipDetails(document, clips.map((clip) => clip.id));
+  if (clips.length === 0) {
+    return <><h2>Clips</h2><p>Select a clip on the timeline.</p></>;
   }
 
-  const selectedEffectIds = effects.map((effect) => effect.id);
-  const layerId = commonEffectValue(effects, (effect) => effect.layerId);
-  const scope = commonEffectValue(effects, (effect) => effect.scope);
-  const startSeconds = commonEffectValue(effects, (effect) => effect.startSeconds);
-  const durationSeconds = commonEffectValue(effects, (effect) => effect.durationSeconds);
-  const commonParams = details === null ? [] : commonEditableEffectParams(effects.map((effect) => details.get(effect.id)).filter((effect) => effect !== undefined));
-  const applyEdit = (edit: SequenceEffectCommonEdit) =>
+  const selectedClipIds = clips.map((clip) => clip.id);
+  const layerId = commonClipValue(clips, (clip) => clip.layerId);
+  const scope = commonClipValue(clips, (clip) => clip.scope);
+  const startSeconds = commonClipValue(clips, (clip) => clip.startSeconds);
+  const durationSeconds = commonClipValue(clips, (clip) => clip.durationSeconds);
+  const commonParams = details === null ? [] : commonEditableClipParams(clips.map((clip) => details.get(clip.id)).filter((clip) => clip !== undefined));
+  const applyEdit = (edit: SequenceClipCommonEdit) =>
     runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "editEffects",
-        clips: clipRefs("effect", selectedEffectIds),
+        type: "editClips",
+        clips: clipRefs("clip", selectedClipIds),
         edit
       } })
     );
 
   return (
     <>
-      <h2>Effects</h2>
+      <h2>Clips</h2>
       <div className="inspector-readout-grid">
-        <Readout label="Selected" value={String(effects.length)} />
+        <Readout label="Selected" value={String(clips.length)} />
       </div>
-      <div className="effect-inspector-fields">
+      <div className="clip-inspector-fields">
         <label>
           Layer
           <select
@@ -211,16 +211,16 @@ function SelectedEffectsInspector({
           </select>
         </label>
         <div className="inspector-inline-row">
-          <MultiEffectNumberField
-            effectIds={selectedEffectIds}
+          <MultiClipNumberField
+            clipIds={selectedClipIds}
             field="start"
             label="Start"
             min={0}
             value={startSeconds}
             onCommit={(value) => void applyEdit({ type: "start", startSeconds: value })}
           />
-          <MultiEffectNumberField
-            effectIds={selectedEffectIds}
+          <MultiClipNumberField
+            clipIds={selectedClipIds}
             field="duration"
             label="Duration"
             min={0.000000001}
@@ -230,14 +230,14 @@ function SelectedEffectsInspector({
         </div>
       </div>
       {commonParams.length > 0 && (
-        <div className="effect-param-section">
+        <div className="clip-param-section">
           <h3>Shared parameters</h3>
           {commonParams.map(({ param, mixed }, index) => (
             <div
-              key={`${selectedEffectIds.join(",")}:${param.name}`}
-              className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}
+              key={`${selectedClipIds.join(",")}:${param.name}`}
+              className={`clip-param-row ${index % 2 === 0 ? "clip-param-row-even" : "clip-param-row-odd"}`}
             >
-              <SharedEffectParamInput
+              <SharedClipParamInput
                 param={param}
                 mixed={mixed}
                 commitParam={(name, value) => applyEdit({ type: "param", name, value }).then(() => undefined)}
@@ -252,12 +252,12 @@ function SelectedEffectsInspector({
   );
 }
 
-function commonEditableEffectParams(effects: SequenceEffectDetails[]): { param: SequenceEffectParam; mixed: boolean }[] {
-  const first = effects[0];
+function commonEditableClipParams(clips: SequenceClipDetails[]): { param: SequenceClipParam; mixed: boolean }[] {
+  const first = clips[0];
   if (first === undefined) return [];
   return first.params.flatMap((param) => {
     if (!param.editable) return [];
-    const matches = effects.slice(1).map((effect) => effect.params.find((candidate) =>
+    const matches = clips.slice(1).map((clip) => clip.params.find((candidate) =>
       candidate.name === param.name && candidate.kind === param.kind && candidate.editable
     ));
     if (matches.some((match) => match === undefined)) return [];
@@ -273,22 +273,22 @@ function commonEditableEffectParams(effects: SequenceEffectDetails[]): { param: 
   });
 }
 
-function SharedEffectParamInput({
+function SharedClipParamInput({
   param,
   mixed,
   commitParam,
   document
 }: {
-  param: SequenceEffectParam;
+  param: SequenceClipParam;
   mixed: boolean;
-  commitParam: (name: string, value: SequenceEffectParam["value"]) => Promise<void>;
+  commitParam: (name: string, value: SequenceClipParam["value"]) => Promise<void>;
   document: SequenceGuiDocument;
 }) {
   const [editingMixed, setEditingMixed] = useState(false);
   if (mixed && !editingMixed) {
     return (
-      <div className="effect-param-group">
-        <div className="effect-param-name">{param.name}</div>
+      <div className="clip-param-group">
+        <div className="clip-param-name">{param.name}</div>
         <button type="button" className="neutral-button" onClick={() => { setEditingMixed(true); }}>
           Multiple values · Edit all
         </button>
@@ -313,15 +313,15 @@ function SharedEffectParamInput({
   );
 }
 
-function MultiEffectNumberField({
-  effectIds,
+function MultiClipNumberField({
+  clipIds,
   field,
   label,
   min,
   value,
   onCommit
 }: {
-  effectIds: number[];
+  clipIds: number[];
   field: "start" | "duration";
   label: string;
   min: number;
@@ -332,7 +332,7 @@ function MultiEffectNumberField({
     <label>
       {label}
       <input
-        key={`${effectIds.join(",")}:${field}:${value ?? "multiple"}`}
+        key={`${clipIds.join(",")}:${field}:${value ?? "multiple"}`}
         type="number"
         min={min}
         step="any"
@@ -352,14 +352,14 @@ function MultiEffectNumberField({
   );
 }
 
-function commonEffectValue<T>(effects: SequenceEffect[], read: (effect: SequenceEffect) => T): T | null {
-  const first = effects[0];
+function commonClipValue<T>(clips: SequenceClip[], read: (clip: SequenceClip) => T): T | null {
+  const first = clips[0];
   if (first === undefined) return null;
   const value = read(first);
-  return effects.every((effect) => Object.is(read(effect), value)) ? value : null;
+  return clips.every((clip) => Object.is(read(clip), value)) ? value : null;
 }
 
-function EffectInspectorPanel({
+function ClipInspectorPanel({
   document,
   selected,
   setSelected,
@@ -377,27 +377,27 @@ function EffectInspectorPanel({
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
   const inspectedAutomationClip = selected?.type === "automationClip"
-    ? document.automationClips.find((clip) => clip.id === selected.id) ?? null
+    ? document.automationClips.find((automationClip) => automationClip.id === selected.id) ?? null
     : null;
-  const inspectedEffectIds = inspectedAutomationClip !== null
-    ? inspectedAutomationClip.detachedBindings.flatMap((binding) => binding.target.type === "effectParam" ? [binding.target.effectId] : [])
-    : [selectedEffectId(selected)].filter((id) => id !== null);
-  const details = useSequenceEffectDetails(document, inspectedEffectIds);
+  const inspectedClipIds = inspectedAutomationClip !== null
+    ? inspectedAutomationClip.detachedBindings.flatMap((binding) => binding.target.type === "clipParam" ? [binding.target.clipId] : [])
+    : [selectedClipId(selected)].filter((id) => id !== null);
+  const details = useSequenceClipDetails(document, inspectedClipIds);
 
   if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
     if (sequenceSelection.type !== "clips") {
       return (
         <>
-          <h2>Effect Parameters</h2>
-          <p>Select an effect on the timeline.</p>
+          <h2>Clip</h2>
+          <p>Select a clip on the timeline.</p>
         </>
       );
     }
-    if (sequenceSelection.clips.every((clip) => clip.type === "effect")) {
+    if (sequenceSelection.clips.every((clip) => clip.type === "clip")) {
       return (
-        <SelectedEffectsInspector
+        <SelectedClipsInspector
           document={document}
-          effectIds={clipIdsOfKind(sequenceSelection.clips, "effect")}
+          clipIds={clipIdsOfKind(sequenceSelection.clips, "clip")}
           onDelete={() => {
             void runGuiEditCommand((request) =>
               commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: sequenceSelection } })
@@ -429,7 +429,7 @@ function EffectInspectorPanel({
   }
 
   const automationClip = selected?.type === "automationClip"
-    ? document.automationClips.find((clip) => clip.id === selected.id) ?? null
+    ? document.automationClips.find((automationClip) => automationClip.id === selected.id) ?? null
     : null;
   if (automationClip !== null) {
     return (
@@ -445,13 +445,13 @@ function EffectInspectorPanel({
           <div key={`${binding.target.type}-${index}`}>
             <span className="status-warning">Detached</span>
             <p>{detachedAutomationTargetLabel(binding.target)}</p>
-            <div className="effect-param-actions">
+            <div className="clip-param-actions">
               <button
                 type="button"
                 disabled={!supportsAutomation(document, details, binding.target)}
                 onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
                   type: "rebindDetachedAutomation",
-                  clipId: automationClip.id,
+                  automationClipId: automationClip.id,
                   detachedIndex: index,
                   target: binding.target
                 } }))}
@@ -463,7 +463,7 @@ function EffectInspectorPanel({
                 className="danger"
                 onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
                   type: "discardDetachedAutomation",
-                  clipId: automationClip.id,
+                  automationClipId: automationClip.id,
                   detachedIndex: index
                 } }))}
               >
@@ -490,35 +490,35 @@ function EffectInspectorPanel({
       </>
     );
   }
-  const id = selectedEffectId(selected);
-  const effect = document.effects.find((candidate) => candidate.id === id);
+  const id = selectedClipId(selected);
+  const clip = document.clips.find((candidate) => candidate.id === id);
 
 
-  if (effect === undefined) {
+  if (clip === undefined) {
     return (
       <>
-        <h2>Effect Parameters</h2>
-        <p>Select an effect on the timeline.</p>
+        <h2>Clip</h2>
+        <p>Select a clip on the timeline.</p>
       </>
     );
   }
 
-  const effectDetails = details?.get(effect.id);
-  const currentDefinition = effectDetails === undefined ? undefined : document.effectDefinitions.find((definition) =>
-    effectReferencesEqual(definition.effect, effectDetails.effectReference)
+  const clipDetails = details?.get(clip.id);
+  const currentDefinition = clipDetails === undefined ? undefined : document.effectDefinitions.find((definition) =>
+    effectReferencesEqual(definition.effect, clipDetails.effectReference)
   );
-  const editEffect = (edit: SequenceEffectCommonEdit) =>
+  const editClip = (edit: SequenceClipCommonEdit) =>
     runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "editEffects", clips: [{ type: "effect", id: effect.id }], edit } })
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "editClips", clips: [{ type: "clip", id: clip.id }], edit } })
     );
-  const item = { type: "clip", id: effect.id } as const;
+  const item = { type: "clip", id: clip.id } as const;
 
   return (
     <>
-      <h2>Effect Parameters</h2>
-      <div className="effect-inspector-fields">
+      <h2>Clip</h2>
+      <div className="clip-inspector-fields">
         <NameField
-          name={effect.name}
+          name={clip.name}
           label="Name"
           commit={(name) =>
             runGuiEditCommand((request) =>
@@ -527,7 +527,7 @@ function EffectInspectorPanel({
           }
         />
         <DescriptionField
-          description={effect.description}
+          description={clip.description}
           onCommit={(description) =>
             runGuiEditCommand((request) =>
               commands.applyGuiEdit(request, { type: "setDescription", item, description })
@@ -537,9 +537,9 @@ function EffectInspectorPanel({
         <label>
           Layer
           <select
-            value={String(effect.layerId)}
+            value={String(clip.layerId)}
             onChange={(event) =>
-              void editEffect({ type: "layer", layerId: Number(event.currentTarget.value) })
+              void editClip({ type: "layer", layerId: Number(event.currentTarget.value) })
             }
           >
             {document.layers.map((layer) => (
@@ -553,30 +553,30 @@ function EffectInspectorPanel({
           <label>
             Start
             <input
-              key={`${effect.id}:start:${effect.startSeconds}`}
+              key={`${clip.id}:start:${clip.startSeconds}`}
               type="number"
               min={0}
               step="any"
-              defaultValue={effect.startSeconds}
+              defaultValue={clip.startSeconds}
               onBlur={(event) => {
                 const nextStartSeconds = Number(event.currentTarget.value);
-                if (!Number.isFinite(nextStartSeconds) || roundToNanosecond(nextStartSeconds) === effect.startSeconds) return;
-                void editEffect({ type: "start", startSeconds: Math.max(0, roundToNanosecond(nextStartSeconds)) });
+                if (!Number.isFinite(nextStartSeconds) || roundToNanosecond(nextStartSeconds) === clip.startSeconds) return;
+                void editClip({ type: "start", startSeconds: Math.max(0, roundToNanosecond(nextStartSeconds)) });
               }}
             />
           </label>
           <label>
             Duration
             <input
-              key={`${effect.id}:duration:${effect.durationSeconds}`}
+              key={`${clip.id}:duration:${clip.durationSeconds}`}
               type="number"
               min={0.000000001}
               step="any"
-              defaultValue={effect.durationSeconds}
+              defaultValue={clip.durationSeconds}
               onBlur={(event) => {
                 const nextDurationSeconds = Number(event.currentTarget.value);
-                if (!Number.isFinite(nextDurationSeconds) || roundToNanosecond(nextDurationSeconds) === effect.durationSeconds) return;
-                void editEffect({ type: "duration", durationSeconds: Math.max(0.000000001, roundToNanosecond(nextDurationSeconds)) });
+                if (!Number.isFinite(nextDurationSeconds) || roundToNanosecond(nextDurationSeconds) === clip.durationSeconds) return;
+                void editClip({ type: "duration", durationSeconds: Math.max(0.000000001, roundToNanosecond(nextDurationSeconds)) });
               }}
             />
           </label>
@@ -585,13 +585,13 @@ function EffectInspectorPanel({
           Effect type
           <EffectDefinitionPicker
             definitions={document.effectDefinitions}
-            label={currentDefinition?.name ?? effect.effect}
+            label={currentDefinition?.name ?? clip.effect}
             onSelect={(definition) =>
               void runGuiEditCommand((request) =>
                 commands.applyGuiEdit(request, { type: "sequence", edit: {
                   type: "changeEffectDefinition",
                   initialColor: THEME_COLORS.white,
-                  id: effect.id,
+                  id: clip.id,
                   effect: definition.effect
                 } })
               )
@@ -599,43 +599,43 @@ function EffectInspectorPanel({
           />
         </label>
         {currentDefinition !== undefined && currentDefinition.description !== null && (
-          <p className="effect-param-description">{currentDefinition.description}</p>
+          <p className="clip-param-description">{currentDefinition.description}</p>
         )}
       </div>
       <label>
         Scope
         <select
-          value={effect.scope}
+          value={clip.scope}
           onChange={(event) =>
-            void editEffect({ type: "scope", scope: event.currentTarget.value as SequenceEffectScope })
+            void editClip({ type: "scope", scope: event.currentTarget.value as SequenceClipScope })
           }
         >
           <option value="perFixture">Per fixture</option>
           <option value="wholeTarget">Whole target</option>
         </select>
       </label>
-      {effectDetails !== undefined && effectDetails.params.length > 0 && (
+      {clipDetails !== undefined && clipDetails.params.length > 0 && (
         <>
           <div className="inspector-section-divider" />
-          <div className="effect-param-section">
+          <div className="clip-param-section">
             <h3>Parameters</h3>
-            {effectDetails.params.map((param, index) => (
+            {clipDetails.params.map((param, index) => (
               <div
-                key={`${effect.id}:${param.name}`}
-                className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}
+                key={`${clip.id}:${param.name}`}
+                className={`clip-param-row ${index % 2 === 0 ? "clip-param-row-even" : "clip-param-row-odd"}`}
               >
                 <TypedParamInput
                   param={param}
                   commitParam={(name, value) =>
-                    editEffect({ type: "param", name, value }).then(() => undefined)
+                    editClip({ type: "param", name, value }).then(() => undefined)
                   }
                   curveLibrary={document.curveLibrary}
                   gradientLibrary={document.gradientLibrary}
                   markCollections={document.markCollections}
                   automation={{
-                    target: { type: "effectParam", effectId: effect.id, param: param.name },
+                    target: { type: "clipParam", clipId: clip.id, param: param.name },
                     automationClips: document.automationClips,
-                    canCreateAutomationClip: document.lanes.some((lane) => targetsEqual(lane.target, effect.target)),
+                    canCreateAutomationClip: document.lanes.some((lane) => targetsEqual(lane.target, clip.target)),
                     automationClipChooser,
                     setAutomationClipChooser
                   }}
@@ -722,7 +722,7 @@ function MarkInspectorPanel({
   const deleteCollection = async (collection: SequenceMarkCollection) => {
     if (collection.marksSeconds.length > 0 && !await confirm({
       title: `Delete ${collection.key}?`,
-      description: `Its ${collection.marksSeconds.length} marks are deleted too. Effects using it will have no marks.`,
+      description: `Its ${collection.marksSeconds.length} marks are deleted too. Clips using it will have no marks.`,
       confirmLabel: "Delete",
       danger: true
     })) return;

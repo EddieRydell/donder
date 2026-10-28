@@ -7,8 +7,7 @@ extern crate alloc;
 mod transport;
 
 #[cfg(test)]
-#[path = "../../../src/control_protocol.rs"]
-mod control_protocol;
+mod protocol_tests;
 
 use alloc::vec::Vec;
 use littlefs2::io::{Read, Write};

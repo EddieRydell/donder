@@ -17,10 +17,10 @@ pub(super) fn edit_sequence(
         .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".to_string()))?;
     if matches!(
         &edit,
-        SequenceGuiEdit::AddEffect { .. }
+        SequenceGuiEdit::AddClip { .. }
             | SequenceGuiEdit::AddAutomationClip { .. }
             | SequenceGuiEdit::CreateAndBindAutomationClip { .. }
-            | SequenceGuiEdit::RetargetEffect { .. }
+            | SequenceGuiEdit::RetargetClip { .. }
     ) {
         donder_project_io::ensure_document_can_reference_object(
             session,
@@ -35,7 +35,7 @@ pub(super) fn edit_sequence(
         | SequenceGuiEdit::Paste { .. }
         | SequenceGuiEdit::MoveClips { .. }
         | SequenceGuiEdit::ResizeClips { .. }
-        | SequenceGuiEdit::EditEffects { .. }
+        | SequenceGuiEdit::EditClips { .. }
         | SequenceGuiEdit::ArrangeClips { .. }
         | SequenceGuiEdit::MoveMarks { .. } => {
             unreachable!("selection edits are applied to the selection")
@@ -66,27 +66,27 @@ pub(super) fn edit_sequence(
             };
             draft.audio = audio;
         }
-        SequenceGuiEdit::RetargetEffect { id, target } => {
+        SequenceGuiEdit::RetargetClip { id, target } => {
             let sequence = &mut draft;
-            let target = layout_target_to_effect_target(&layout, target);
-            effect_mut(sequence, id)?.target = target;
+            let target = layout_target_to_clip_target(&layout, target);
+            clip_mut(sequence, id)?.target = target;
         }
-        SequenceGuiEdit::SplitEffects { ids, time_seconds } => {
+        SequenceGuiEdit::SplitClips { ids, time_seconds } => {
             let at = super::checked_gui_time(time_seconds)?;
             let sequence = &mut draft;
             let mut next_id = sequence
-                .effects
+                .clips
                 .iter()
-                .map(|effect| effect.id.0)
+                .map(|clip| clip.id.0)
                 .max()
                 .unwrap_or(0);
             for id in ids {
                 let index = sequence
-                    .effects
+                    .clips
                     .iter()
-                    .position(|effect| effect.id.0 == id)
-                    .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
-                let left = &sequence.effects[index];
+                    .position(|clip| clip.id.0 == id)
+                    .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".into()))?;
+                let left = &sequence.clips[index];
                 let end = left.start.0.saturating_add(left.duration.0);
                 if at.0 <= left.start.0 || at.0 >= end {
                     return Err(GuiMutationError::Invalid(
@@ -95,24 +95,24 @@ pub(super) fn edit_sequence(
                 }
                 next_id = next_id
                     .checked_add(1)
-                    .ok_or_else(|| GuiMutationError::Invalid("Effect IDs exhausted.".into()))?;
-                let mut right = EffectInst::clone(left);
-                right.id = EffectInstId(next_id);
+                    .ok_or_else(|| GuiMutationError::Invalid("Clip IDs exhausted.".into()))?;
+                let mut right = Clip::clone(left);
+                right.id = ClipId(next_id);
                 right.name = donder_language::unique_name(left.name.as_str(), |name| {
                     sequence
-                        .effects
+                        .clips
                         .iter()
                         .any(|other| other.name.as_str() == name)
                 });
                 right.start = at.clone();
                 right.duration = DonderDuration(end - at.0);
-                let left = std::sync::Arc::make_mut(&mut sequence.effects[index]);
+                let left = std::sync::Arc::make_mut(&mut sequence.clips[index]);
                 left.duration = DonderDuration(at.0 - left.start.0);
                 let left_id = left.id.clone();
                 let rebind = |target: &AutomationTarget| match target {
-                    AutomationTarget::EffectParam { effect_id, param } if *effect_id == left_id => {
-                        Some(AutomationTarget::EffectParam {
-                            effect_id: right.id.clone(),
+                    AutomationTarget::ClipParam { clip_id, param } if *clip_id == left_id => {
+                        Some(AutomationTarget::ClipParam {
+                            clip_id: right.id.clone(),
                             param: param.clone(),
                         })
                     }
@@ -134,9 +134,7 @@ pub(super) fn edit_sequence(
                     clip.bindings.extend(bindings);
                     clip.detached_bindings.extend(detached);
                 }
-                sequence
-                    .effects
-                    .insert(index + 1, std::sync::Arc::new(right));
+                sequence.clips.insert(index + 1, std::sync::Arc::new(right));
             }
         }
         SequenceGuiEdit::ReassignMarkCollection {
@@ -209,7 +207,7 @@ pub(super) fn edit_sequence(
                 });
             }
         }
-        SequenceGuiEdit::AddEffect {
+        SequenceGuiEdit::AddClip {
             effect: effect_reference,
             target,
             initial_color,
@@ -232,13 +230,13 @@ pub(super) fn edit_sequence(
                 .map(|layer| layer.id.clone())
                 .ok_or_else(|| {
                     GuiMutationError::Invalid(
-                        "An effect cannot be added to a sequence without a layer.".to_string(),
+                        "A clip cannot be added to a sequence without a layer.".to_string(),
                     )
                 })?;
             let next_id = sequence
-                .effects
+                .clips
                 .iter()
-                .map(|effect| effect.id.0)
+                .map(|clip| clip.id.0)
                 .max()
                 .unwrap_or(0)
                 + 1;
@@ -246,22 +244,24 @@ pub(super) fn edit_sequence(
                 .project
                 .get::<donder_model::EffectDefinition>(definition)
                 .map(|effect| effect.name().to_string())
-                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Effect definition was not found.".to_string())
+                })?;
             let name = super::model::fresh_name(&effect_name, |candidate| {
                 sequence
-                    .effects
+                    .clips
                     .iter()
-                    .any(|effect| effect.name.as_str() == candidate)
+                    .any(|clip| clip.name.as_str() == candidate)
             });
-            sequence.effects.push(std::sync::Arc::new(EffectInst {
-                id: EffectInstId(next_id),
+            sequence.clips.push(std::sync::Arc::new(Clip {
+                id: ClipId(next_id),
                 name,
                 description: None,
                 layer_id,
                 start: super::checked_gui_time(start_seconds.max(0.0))?,
                 duration: super::checked_gui_duration(1.0)?,
-                target: layout_target_to_effect_target(&layout, target),
-                scope: effect_scope(scope),
+                target: layout_target_to_clip_target(&layout, target),
+                scope: clip_scope(scope),
                 definition,
                 param_overrides,
             }));
@@ -281,12 +281,12 @@ pub(super) fn edit_sequence(
             )
             .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
             let sequence = &mut draft;
-            let effect = effect_mut(sequence, id)?;
-            effect.definition = definition;
-            effect.param_overrides = param_overrides;
+            let clip = clip_mut(sequence, id)?;
+            clip.definition = definition;
+            clip.param_overrides = param_overrides;
             for clip in &mut sequence.automation_clips {
                 clip.detach_bindings(|target| {
-                    matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id.0 == id)
+                    matches!(target, AutomationTarget::ClipParam { clip_id, .. } if clip_id.0 == id)
                 });
             }
         }
@@ -307,7 +307,7 @@ pub(super) fn edit_sequence(
                 id: AutomationClipId(next_id),
                 start: super::checked_gui_time(start_seconds.max(0.0))?,
                 duration: super::checked_gui_duration(duration_seconds.max(0.000000001))?,
-                row_target: layout_target_to_effect_target(&layout, row_target),
+                row_target: layout_target_to_clip_target(&layout, row_target),
                 curve: default_automation_curve(),
                 bindings: Vec::new(),
                 detached_bindings: Vec::new(),
@@ -380,20 +380,26 @@ pub(super) fn edit_sequence(
             }
             automation_clip_mut(&mut draft, id)?.curve = curve;
         }
-        SequenceGuiEdit::BindAutomationParam { clip_id, target } => {
+        SequenceGuiEdit::BindAutomationParam {
+            automation_clip_id,
+            target,
+        } => {
             let target = automation_target_from_gui(target)?;
             automation_target_mapping(session, &sequence_id, &target)?;
-            let clip = automation_clip_mut(&mut draft, clip_id)?.clone();
+            let clip = automation_clip_mut(&mut draft, automation_clip_id)?.clone();
             require_available_automation_target(&draft, &target, &clip)?;
-            automation_clip_mut(&mut draft, clip_id)?.bind(target);
+            automation_clip_mut(&mut draft, automation_clip_id)?.bind(target);
         }
-        SequenceGuiEdit::UnbindAutomationParam { clip_id, target } => {
+        SequenceGuiEdit::UnbindAutomationParam {
+            automation_clip_id,
+            target,
+        } => {
             let target = automation_target_from_gui(target)?;
             let sequence = &mut draft;
             let clip = sequence
                 .automation_clips
                 .iter()
-                .find(|clip| clip.id.0 == clip_id)
+                .find(|clip| clip.id.0 == automation_clip_id)
                 .cloned()
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Automation clip was not found.".to_string())
@@ -409,21 +415,19 @@ pub(super) fn edit_sequence(
                 ));
             };
             let sample_seconds = match &target {
-                AutomationTarget::EffectParam { effect_id, .. } => sequence
-                    .effects
+                AutomationTarget::ClipParam { clip_id, .. } => sequence
+                    .clips
                     .iter()
-                    .find(|effect| &effect.id == effect_id)
-                    .map(|effect| effect.start.as_seconds_f64())
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid("Effect was not found.".to_string())
-                    })?,
+                    .find(|clip| &clip.id == clip_id)
+                    .map(|clip| clip.start.as_seconds_f64())
+                    .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?,
                 AutomationTarget::CompositionNodeParam { .. } => clip.start.as_seconds_f64(),
             };
             let mapping = automation_target_mapping(session, &sequence_id, &binding.target)?;
             let value = automation_binding_value_at(&clip, &mapping, sample_seconds)?;
             match &target {
-                AutomationTarget::EffectParam { effect_id, param } => {
-                    effect_mut(sequence, effect_id.0)?
+                AutomationTarget::ClipParam { clip_id, param } => {
+                    clip_mut(sequence, clip_id.0)?
                         .param_overrides
                         .insert(param.clone(), value);
                 }
@@ -437,20 +441,20 @@ pub(super) fn edit_sequence(
                     operator.params.insert(param.clone(), value);
                 }
             }
-            automation_clip_mut(sequence, clip_id)?
+            automation_clip_mut(sequence, automation_clip_id)?
                 .bindings
                 .retain(|binding| binding.target != target);
         }
         SequenceGuiEdit::RebindDetachedAutomation {
-            clip_id,
+            automation_clip_id,
             detached_index,
             target,
         } => {
             let target = automation_target_from_gui(target)?;
             automation_target_mapping(session, &sequence_id, &target)?;
-            let clip = automation_clip_mut(&mut draft, clip_id)?.clone();
+            let clip = automation_clip_mut(&mut draft, automation_clip_id)?.clone();
             require_available_automation_target(&draft, &target, &clip)?;
-            let clip = automation_clip_mut(&mut draft, clip_id)?;
+            let clip = automation_clip_mut(&mut draft, automation_clip_id)?;
             if detached_index as usize >= clip.detached_bindings.len() {
                 return Err(GuiMutationError::Invalid(
                     "Detached automation binding was not found.".to_string(),
@@ -460,10 +464,10 @@ pub(super) fn edit_sequence(
             clip.bind(target);
         }
         SequenceGuiEdit::DiscardDetachedAutomation {
-            clip_id,
+            automation_clip_id,
             detached_index,
         } => {
-            let clip = automation_clip_mut(&mut draft, clip_id)?;
+            let clip = automation_clip_mut(&mut draft, automation_clip_id)?;
             if detached_index as usize >= clip.detached_bindings.len() {
                 return Err(GuiMutationError::Invalid(
                     "Detached automation binding was not found.".to_string(),
@@ -480,12 +484,10 @@ fn automation_target_from_gui(
     target: SequenceAutomationTarget,
 ) -> Result<AutomationTarget, GuiMutationError> {
     Ok(match target {
-        SequenceAutomationTarget::EffectParam { effect_id, param } => {
-            AutomationTarget::EffectParam {
-                effect_id: EffectInstId(effect_id),
-                param: identifier(&param)?,
-            }
-        }
+        SequenceAutomationTarget::ClipParam { clip_id, param } => AutomationTarget::ClipParam {
+            clip_id: ClipId(clip_id),
+            param: identifier(&param)?,
+        },
         SequenceAutomationTarget::CompositionNodeParam { node_id, param } => {
             AutomationTarget::CompositionNodeParam {
                 node_id: parse_graph_node_id(&node_id)?,
@@ -501,16 +503,16 @@ fn automation_target_timing(
     target: &AutomationTarget,
 ) -> Result<(DonderTime, DonderDuration, donder_model::FixtureTarget), GuiMutationError> {
     match target {
-        AutomationTarget::EffectParam { effect_id, .. } => {
-            let effect = sequence
-                .effects
+        AutomationTarget::ClipParam { clip_id, .. } => {
+            let clip = sequence
+                .clips
                 .iter()
-                .find(|effect| &effect.id == effect_id)
-                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
+                .find(|clip| &clip.id == clip_id)
+                .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?;
             Ok((
-                effect.start.clone(),
-                effect.duration.clone(),
-                effect.target.clone(),
+                clip.start.clone(),
+                clip.duration.clone(),
+                clip.target.clone(),
             ))
         }
         AutomationTarget::CompositionNodeParam { node_id, .. } => {
@@ -588,30 +590,29 @@ use donder_model::{
     CompositionGraphNodeKind, DetachedAutomationBinding, Mark, MarkCollection, MarkCollectionKey,
     SequenceAudio as DomainSequenceAudio, SequenceId, automation_curve_is_normalized,
 };
-use donder_model::{EffectInst, EffectInstId};
+use donder_model::{Clip, ClipId};
 use donder_project_io::{ProjectSession, ensure_document_can_reference_object};
 use donder_runtime_types::AutomationMapping;
 
 use super::model::{
-    automation_binding_value_at, automation_clip_mut, curve_from_points, default_automation_curve,
-    effect_mut, effect_ref_from_gui, effect_scope, identifier, layout_target_to_effect_target,
+    automation_binding_value_at, automation_clip_mut, clip_mut, clip_scope, curve_from_points,
+    default_automation_curve, effect_ref_from_gui, identifier, layout_target_to_clip_target,
     mark_collection_mut, parse_color, parse_graph_node_id, register_sequence_audio_asset,
     required_param_values,
 };
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{SequenceAutomationTarget, SequenceGuiEdit};
 
-/// Visit every marks parameter value in a sequence's effects and operator
+/// Visit every marks parameter value in a sequence's clips and operator
 /// nodes, including the elements of marks arrays.
 pub(super) fn mark_references_mut(
     sequence: &mut donder_model::Sequence,
     mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
 ) {
-    let effects = sequence.effects.iter_mut().flat_map(|effect| {
-        std::sync::Arc::make_mut(effect)
-            .param_overrides
-            .values_mut()
-    });
+    let clips = sequence
+        .clips
+        .iter_mut()
+        .flat_map(|clip| std::sync::Arc::make_mut(clip).param_overrides.values_mut());
     let operators = sequence
         .composition_graph
         .nodes
@@ -621,7 +622,7 @@ pub(super) fn mark_references_mut(
             _ => None,
         })
         .flatten();
-    for value in effects.chain(operators) {
+    for value in clips.chain(operators) {
         super::model::visit_marks(value, &mut visit);
     }
 }

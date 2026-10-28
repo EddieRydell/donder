@@ -24,8 +24,6 @@ pub struct Lowered {
     pub program: Program,
     pub values: Vec<Value>,
     pub automation: Box<[PreparedAutomation]>,
-    /// The program's indices of the instance's live marks parameters.
-    pub live: Box<[u16]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,8 +45,19 @@ impl From<TooManyLoops> for LowerError {
 }
 
 impl Instance {
-    /// The prepared graph, its plan and its bytecode, for inspection.
-    pub(crate) fn explain(&self) -> Result<String, LowerError> {
+    /// The prepared dataflow graph, its execution plan and its bytecode.
+    pub fn explain(&self) -> String {
+        self.try_explain()
+            .unwrap_or_else(|error| format!("lowering failed: {error:?}"))
+    }
+
+    /// The program, its parameter values and automation.
+    pub fn lower(&self) -> Lowered {
+        self.try_lower()
+            .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"))
+    }
+
+    fn try_explain(&self) -> Result<String, LowerError> {
         let prepared = prepare(self)?;
         let plan = schedule::schedule(&prepared.graph, prepared.root);
         let bytecode = emit::emit(&prepared.graph, prepared.root, &plan)?;
@@ -59,18 +68,17 @@ impl Instance {
         ))
     }
 
-    pub(crate) fn lower(&self) -> Result<Lowered, LowerError> {
+    pub(crate) fn try_lower(&self) -> Result<Lowered, LowerError> {
         let prepared = prepare(self)?;
         let plan = schedule::schedule(&prepared.graph, prepared.root);
         let bytecode = emit::emit(&prepared.graph, prepared.root, &plan)?;
         Ok(Lowered {
             program: Program {
                 bytecode,
-                inputs: self.inputs() as usize,
+                inputs: self.inputs(),
             },
             values: prepared.values,
             automation: prepared.automation.into(),
-            live: prepared.live.into(),
         })
     }
 }
@@ -81,7 +89,6 @@ pub(crate) struct Prepared {
     pub(crate) root: Node,
     pub(crate) values: Vec<Value>,
     pub(crate) automation: Vec<PreparedAutomation>,
-    pub(crate) live: Vec<u16>,
 }
 
 /// Evaluate every value fixed for the instance. Those that a playback-time
@@ -93,7 +100,6 @@ pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         .automation
         .iter()
         .map(|binding| u32::from(binding.param_index))
-        .chain(instance.live.iter().map(|&param| u32::from(param)))
         .collect();
     let known: Vec<Option<Value>> = instance
         .values
@@ -195,7 +201,7 @@ pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
             _ => None,
         })
         .collect();
-    // Automated and live slots change during playback, and so may their lengths.
+    // Automated slots change during playback, and so may their lengths.
     let lengths: Vec<Option<usize>> = values
         .iter()
         .enumerate()
@@ -215,17 +221,11 @@ pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         lengths,
     };
     let root = Rebuild::new(graph).node(&mut target, instance.root, &mut substitute)?;
-    let live = instance
-        .live
-        .iter()
-        .map(|param| substitute.remap[&u32::from(*param)] as u16)
-        .collect();
     Ok(Prepared {
         graph: target,
         root,
         values,
         automation,
-        live,
     })
 }
 
@@ -271,10 +271,6 @@ impl Substitute for Frontier {
             .union(target.domain(end))
             .contains(Domain::PIXEL);
         per_pixel && self.within_strip(target, start, end)
-    }
-
-    fn stencils(&self) -> bool {
-        true
     }
 }
 

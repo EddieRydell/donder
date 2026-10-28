@@ -126,14 +126,14 @@ pub(super) fn allocate(
                 weight,
                 scale,
                 pixel,
-                source_len,
+                weight_len,
                 tap_len,
                 ..
             } => {
-                // The source block runs once per strip of the neighborhood and
+                // The weight block runs once per strip of the neighborhood and
                 // the weight is read after it; the offset block runs once per
                 // offset, and the rest is read with every offset's term.
-                let source_end = header + usize::from(source_len);
+                let source_end = header + usize::from(weight_len);
                 let last = source_end + usize::from(tap_len);
                 loops.push((at, last));
                 touch(Bank::Int, start, last);
@@ -148,13 +148,13 @@ pub(super) fn allocate(
                 dst,
                 decay,
                 weight,
-                source_len,
+                weight_len,
                 ..
             } => {
-                // The source block runs once per strip of the frame; the scan
+                // The weight block runs once per strip of the frame; the scan
                 // reads the decay and the weight after each and writes its
                 // destination last.
-                let last = header + usize::from(source_len);
+                let last = header + usize::from(weight_len);
                 loops.push((at, last));
                 touch(Bank::Float, decay, last);
                 touch(Bank::Float, weight, last);

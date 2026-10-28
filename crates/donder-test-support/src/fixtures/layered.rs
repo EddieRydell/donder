@@ -44,10 +44,9 @@ pub fn layered_600() -> PreparedShow {
     build(600, session, |builder, target| {
         let layers = effects
             .iter()
-            .map(|effect| {
-                let effect =
-                    builder.clip(None, effect, SampleTime::from_ticks(0), duration, target);
-                builder.layer(true, [effect])
+            .map(|program| {
+                let clip = builder.clip(None, program, SampleTime::from_ticks(0), duration, target);
+                builder.layer(true, [clip])
             })
             .collect::<Vec<_>>();
         let mut signal = builder.mix(layers);

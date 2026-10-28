@@ -1,6 +1,6 @@
 use camino::Utf8PathBuf;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use donder_elaboration::{PreparationCache, PrepareOutputs, prepare, prepare_cached};
+use donder_elaboration::{PreparationCache, Retain, prepare, prepare_cached};
 use donder_model::{DonderProject, ProjectEdit};
 use donder_project_io::check_project;
 use donder_runtime::PreparedShow;
@@ -22,37 +22,37 @@ const SCENARIOS: [RenderScenario; 7] = [
     RenderScenario {
         frame: 8398,
         checksum: 0xa86e_2634_3f3b_69f3,
-        active_effect_count: 15,
+        active_clip_count: 15,
     },
     RenderScenario {
         frame: 8450,
         checksum: 0xbc0c_32fc_34f1_6b8a,
-        active_effect_count: 30,
+        active_clip_count: 30,
     },
     RenderScenario {
         frame: 8494,
         checksum: 0x1eb6_eec0_ec80_1ba7,
-        active_effect_count: 32,
+        active_clip_count: 32,
     },
     RenderScenario {
         frame: 8530,
         checksum: 0xc379_3ec9_60b2_ca9d,
-        active_effect_count: 3,
+        active_clip_count: 3,
     },
     RenderScenario {
         frame: 9270,
         checksum: 0x63b9_3b8a_48a9_04fc,
-        active_effect_count: 2,
+        active_clip_count: 2,
     },
     RenderScenario {
         frame: 9504,
         checksum: 0x1786_8a6c_5a4b_c3d1,
-        active_effect_count: 1,
+        active_clip_count: 1,
     },
     RenderScenario {
         frame: 9650,
         checksum: 0xa122_9e90_b926_5ab3,
-        active_effect_count: 2,
+        active_clip_count: 2,
     },
 ];
 
@@ -60,7 +60,7 @@ const SCENARIOS: [RenderScenario; 7] = [
 struct RenderScenario {
     frame: u32,
     checksum: u64,
-    active_effect_count: usize,
+    active_clip_count: usize,
 }
 
 fn bench_render(c: &mut Criterion) {
@@ -87,10 +87,10 @@ fn bench_render(c: &mut Criterion) {
                 })
         })
         .expect("benchmark project should include the layer_test sequence");
-    let output = prepare(&session.project, sequence_id, PrepareOutputs::All)
+    let output = prepare(&session.project, sequence_id, Retain::All)
         .expect("benchmark controller output should prepare");
     let logical_project = render_only_project(&session.project);
-    let renderer = prepare(&logical_project, sequence_id, PrepareOutputs::All)
+    let renderer = prepare(&logical_project, sequence_id, Retain::All)
         .expect("benchmark logical fixtures should prepare");
     assert!(renderer.outputs().is_empty());
     assert!(
@@ -113,7 +113,7 @@ fn bench_render(c: &mut Criterion) {
                 prepare(
                     black_box(&session.project),
                     black_box(sequence_id),
-                    PrepareOutputs::All,
+                    Retain::All,
                 )
                 .expect("benchmark project should prepare"),
             )
@@ -202,7 +202,7 @@ fn bench_large_show(c: &mut Criterion) {
                 prepare(
                     black_box(&session.project),
                     black_box(sequence_id),
-                    PrepareOutputs::All,
+                    Retain::All,
                 )
                 .expect("large show should prepare"),
             )
@@ -210,20 +210,15 @@ fn bench_large_show(c: &mut Criterion) {
     });
 
     let mut cache = PreparationCache::default();
-    prepare_cached(
-        &session.project,
-        sequence_id,
-        PrepareOutputs::All,
-        &mut cache,
-    )
-    .expect("large show should prepare");
+    prepare_cached(&session.project, sequence_id, Retain::All, &mut cache)
+        .expect("large show should prepare");
     c.bench_function("prepare_large_show_warm", |b| {
         b.iter(|| {
             black_box(
                 prepare_cached(
                     black_box(&session.project),
                     black_box(sequence_id),
-                    PrepareOutputs::All,
+                    Retain::All,
                     &mut cache,
                 )
                 .expect("large show should prepare"),
@@ -231,8 +226,8 @@ fn bench_large_show(c: &mut Criterion) {
         });
     });
 
-    let output = prepare(&session.project, sequence_id, PrepareOutputs::All)
-        .expect("large show should prepare");
+    let output =
+        prepare(&session.project, sequence_id, Retain::All).expect("large show should prepare");
     let frame_rate = output.frame_rate();
     let start = output.frame_count() / 2;
     let mut workspace = output.into_playback();
@@ -249,8 +244,8 @@ fn bench_large_show(c: &mut Criterion) {
 
 fn bench_mark_playback(c: &mut Criterion) {
     use donder_language::{DonderDuration, DonderTime};
-    use donder_model::{CurveSource, EffectParamValue};
     use donder_model::{MarkCollection, MarkCollectionKey};
+    use donder_model::{OwnedCurve, ParamValue};
     use donder_runtime_types::Identifier;
     use donder_runtime_types::SampleTime;
     use donder_runtime_types::{Curve, CurvePoint};
@@ -278,8 +273,8 @@ fn bench_mark_playback(c: &mut Criterion) {
             })
             .unwrap();
         let mut source = project.get::<donder_model::Sequence>(id).unwrap().clone();
-        let mut effect = (*source.effects[0]).clone();
-        let gradient = effect.param_overrides.get("gradient").unwrap().clone();
+        let mut clip = (*source.clips[0]).clone();
+        let gradient = clip.param_overrides.get("gradient").unwrap().clone();
         let mark_key = MarkCollectionKey {
             name: donder_language::object_name("profile_beats"),
         };
@@ -298,12 +293,12 @@ fn bench_mark_playback(c: &mut Criterion) {
             .find(|(_, definition)| definition.name() == effect_name)
             .expect("standard mark effect must be imported")
             .0;
-        effect.definition = definition_id;
-        effect.start = DonderTime(Duration::ZERO);
-        effect.duration = DonderDuration(Duration::from_secs(8));
-        effect.layer_id = source.layers[0].id.clone();
-        effect.param_overrides.clear();
-        let ramp = EffectParamValue::Curve(CurveSource::Inline(Curve {
+        clip.definition = definition_id;
+        clip.start = DonderTime(Duration::ZERO);
+        clip.duration = DonderDuration(Duration::from_secs(8));
+        clip.layer_id = source.layers[0].id.clone();
+        clip.param_overrides.clear();
+        let ramp = ParamValue::Curve(OwnedCurve::Inline(Curve {
             points: vec![
                 CurvePoint {
                     position: 0.0,
@@ -315,8 +310,8 @@ fn bench_mark_playback(c: &mut Criterion) {
                 },
             ],
         }));
-        let mut values = vec![("beats", EffectParamValue::Marks(Some(mark_key)))];
-        let falloff = EffectParamValue::Curve(CurveSource::Inline(Curve {
+        let mut values = vec![("beats", ParamValue::Marks(Some(mark_key)))];
+        let falloff = ParamValue::Curve(OwnedCurve::Inline(Curve {
             points: vec![
                 CurvePoint {
                     position: 0.0,
@@ -332,32 +327,32 @@ fn bench_mark_playback(c: &mut Criterion) {
             values.extend([
                 ("accent", gradient),
                 ("pulse_shape", falloff),
-                ("decay_seconds", EffectParamValue::Float(1.2)),
+                ("decay_seconds", ParamValue::Float(1.2)),
             ]);
         } else {
             values.extend([
-                ("gradients", EffectParamValue::Array(vec![gradient])),
+                ("gradients", ParamValue::Array(vec![gradient])),
                 ("chase_position", ramp),
                 ("pulse_shape", falloff),
-                ("chase_seconds", EffectParamValue::Float(1.2)),
+                ("chase_seconds", ParamValue::Float(1.2)),
             ]);
         }
-        effect.param_overrides.extend(
+        clip.param_overrides.extend(
             values
                 .into_iter()
                 .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value)),
         );
-        source.effects = vec![std::sync::Arc::new(effect)];
+        source.clips = vec![std::sync::Arc::new(clip)];
         source.automation_clips.clear();
         project.put(source).unwrap();
-        let prepared = prepare(&project, &id, PrepareOutputs::All).unwrap();
+        let prepared = prepare(&project, &id, Retain::All).unwrap();
         assert!(prepared.outputs().is_empty());
         let (_, duration) = prepared
-            .effect_windows()
+            .clip_windows()
             .next()
             .expect("constructed fixture must contain a mark effect");
         assert!(duration.as_ticks() > 0);
-        assert_eq!(prepared.effect_count(), 1);
+        assert_eq!(prepared.clip_count(), 1);
         let start = 3_000_000;
         let mut workspace = prepared.clone().into_playback();
         let black = Color::BLACK;
@@ -556,7 +551,7 @@ fn bench_uniform_resources(c: &mut Criterion) {
     for (name, reuse) in [("full", false), ("reuse", true)] {
         let mut show = workload::layered_show(200, &invocation, 1);
         if !reuse {
-            workload::edit_effect(&mut show, workload::unstaged);
+            workload::edit_clip(&mut show, workload::unstaged);
         }
         let mut workspace = show.clone().prepare().into_playback();
         let mut output = [vec![0; 600]];
@@ -697,10 +692,7 @@ fn assert_scenarios(sequence: &PreparedShow) {
         let time = sample_time_from_frame(scenario.frame, sequence.frame_rate()).unwrap();
         let rendered = playback.evaluate(time);
         assert_eq!(checksum_frame(scenario.frame, &rendered), scenario.checksum);
-        assert_eq!(
-            sequence.active_effect_count(time),
-            scenario.active_effect_count
-        );
+        assert_eq!(sequence.active_clip_count(time), scenario.active_clip_count);
     }
 }
 

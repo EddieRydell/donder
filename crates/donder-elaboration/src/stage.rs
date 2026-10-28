@@ -1,16 +1,16 @@
 //! The preparation shared by sequences and rigs: the fixtures and cells a
-//! show keeps, the prepared targets its effects use, its layers, its global
-//! signal graph and its output routes. Only how effects are placed differs.
+//! show keeps, the prepared targets its clips use, its layers, its global
+//! signal graph and its output routes. Only how clips are placed differs.
 use crate::selection::Selection;
 use crate::sequence::programs::Programs;
 use crate::sequence::{PreparationCache, composition};
 use donder_language::compiler::{Invocation, ProgramConstants};
 use donder_model::{
-    AcceptedOperatorInputs, CompositionGraphNodeId, CompositionGraphNodeKind, EffectScope,
+    AcceptedOperatorInputs, ClipScope, CompositionGraphNodeId, CompositionGraphNodeKind,
     FixtureInstanceId, FixtureTarget, PixelRouteId, SequenceCompositionGraph, SequenceLayer,
-    SequenceLayerId, composition_graph_output_dependencies,
+    SequenceLayerId, composition_graph_root_dependencies,
 };
-use donder_runtime::{EffectHandle, PreparedShow, ShowBuilder, TargetHandle};
+use donder_runtime::{ClipHandle, PreparedShow, ShowBuilder, TargetHandle};
 use donder_runtime_types::{
     BoundProgram, FixtureGeometry, SequenceTiming, TargetGeometry, TargetScope,
 };
@@ -30,7 +30,7 @@ pub(crate) struct Stage {
     compact: bool,
 }
 
-/// What a show plays besides its effects: its layers and its graph.
+/// What a show plays besides its clips: its layers and its graph.
 pub(crate) struct Parts<'a> {
     pub(crate) layers: &'a [SequenceLayer],
     pub(crate) graph: &'a SequenceCompositionGraph,
@@ -38,19 +38,19 @@ pub(crate) struct Parts<'a> {
     pub(crate) timing: &'a SequenceTiming,
 }
 
-/// Build the show of `parts` on the selected setup, with the effects
-/// `effects` places. Without `compact` every cell, layer and effect is kept;
+/// Build the show of `parts` on the selected setup, with the clips
+/// `clips` places. Without `compact` every cell, layer and clip is kept;
 /// with it, only what the selected outputs show.
 pub(crate) fn build<'a, S>(
     selected: &Selection<'a, S>,
     parts: Parts<'a>,
     compact: bool,
     cache: &mut PreparationCache,
-    effects: impl for<'id> FnOnce(&mut Effects<'_, 'id>),
+    clips: impl for<'id> FnOnce(&mut Clips<'_, 'id>),
 ) -> PreparedShow {
     let stage = Stage::new(selected, parts.graph, &parts.operators, compact);
     let required = stage.required_layers(parts.graph);
-    // A compact show plays effects only in the enabled layers its output
+    // A compact show plays clips only in the enabled layers its output
     // depends on.
     let playing = parts
         .layers
@@ -67,7 +67,7 @@ pub(crate) fn build<'a, S>(
             };
             builder.fixture(id.0, geometry);
         }
-        let mut placed = Effects {
+        let mut placed = Clips {
             builder,
             stage: &stage,
             programs: Programs::new(cache),
@@ -79,11 +79,11 @@ pub(crate) fn build<'a, S>(
                 .map(|layer| (&layer.id, Vec::new()))
                 .collect(),
         };
-        effects(&mut placed);
-        let Effects {
+        clips(&mut placed);
+        let Clips {
             builder,
             mut programs,
-            layers: layer_effects,
+            layers: layer_clips,
             ..
         } = placed;
         let layers = parts
@@ -93,7 +93,7 @@ pub(crate) fn build<'a, S>(
             .map(|layer| {
                 (
                     &layer.id,
-                    builder.layer(layer.enabled, layer_effects[&layer.id].iter().copied()),
+                    builder.layer(layer.enabled, layer_clips[&layer.id].iter().copied()),
                 )
             })
             .collect::<IndexMap<_, _>>();
@@ -101,7 +101,7 @@ pub(crate) fn build<'a, S>(
         let black = parts
             .layers
             .iter()
-            .filter(|layer| !layer.enabled || layer_effects[&layer.id].is_empty())
+            .filter(|layer| !layer.enabled || layer_clips[&layer.id].is_empty())
             .map(|layer| &layer.id)
             .collect::<HashSet<_>>();
         let root = if compact && !stage.has_pixels {
@@ -121,19 +121,19 @@ pub(crate) fn build<'a, S>(
     })
 }
 
-/// Placing a show's effects: their targets, programs and layers.
-pub(crate) struct Effects<'s, 'id> {
+/// Placing a show's clips: their targets, programs and layers.
+pub(crate) struct Clips<'s, 'id> {
     pub(crate) builder: &'s mut ShowBuilder<'id>,
     stage: &'s Stage,
     programs: Programs<'s>,
     playing: &'s HashSet<&'s SequenceLayerId>,
-    /// Effects on one target share its prepared geometry.
+    /// Clips on one target share its prepared geometry.
     targets: HashMap<(FixtureInstanceId, bool), TargetHandle<'id>>,
-    layers: IndexMap<&'s SequenceLayerId, Vec<EffectHandle<'id>>>,
+    layers: IndexMap<&'s SequenceLayerId, Vec<ClipHandle<'id>>>,
 }
 
-impl<'id> Effects<'_, 'id> {
-    /// Whether the show leaves out an effect on `layer` and `target`: a
+impl<'id> Clips<'_, 'id> {
+    /// Whether the show leaves out a clip on `layer` and `target`: a
     /// compact show keeps only what its outputs show.
     pub(crate) fn drops(&self, layer: &SequenceLayerId, target: &FixtureTarget) -> bool {
         let stage = self.stage;
@@ -149,11 +149,11 @@ impl<'id> Effects<'_, 'id> {
     pub(crate) fn target(
         &mut self,
         target: &FixtureTarget,
-        scope: &EffectScope,
+        scope: &ClipScope,
     ) -> (TargetHandle<'id>, Option<i32>) {
         let scope = match scope {
-            EffectScope::PerFixture => TargetScope::PerFixture,
-            EffectScope::WholeTarget => TargetScope::WholeTarget,
+            ClipScope::PerFixture => TargetScope::PerFixture,
+            ClipScope::WholeTarget => TargetScope::WholeTarget,
         };
         let stage = self.stage;
         let members = &stage.targets[&target.fixture];
@@ -179,19 +179,18 @@ impl<'id> Effects<'_, 'id> {
         (handle, pixel_count)
     }
 
-    /// The program of `invocation` with `constants`, and its indices of the
-    /// invocation's live marks parameters.
+    /// The program of `invocation` with `constants`.
     pub(crate) fn lower(
         &mut self,
         invocation: &Invocation,
         constants: ProgramConstants,
-    ) -> (BoundProgram, Box<[u16]>) {
+    ) -> BoundProgram {
         self.programs.clip(invocation, constants)
     }
 
-    /// Play `effect` in `layer`.
-    pub(crate) fn layer(&mut self, layer: &SequenceLayerId, effect: EffectHandle<'id>) {
-        self.layers[layer].push(effect);
+    /// Play `clip` in `layer`.
+    pub(crate) fn layer(&mut self, layer: &SequenceLayerId, clip: ClipHandle<'id>) {
+        self.layers[layer].push(clip);
     }
 }
 
@@ -223,7 +222,7 @@ impl Stage {
             })
             .collect::<IndexMap<FixtureInstanceId, Vec<usize>>>();
         let routes = crate::sequence::route_targets(selected, &geometry, &targets);
-        let dependencies = composition_graph_output_dependencies(graph);
+        let dependencies = composition_graph_root_dependencies(graph);
         let cells =
             crate::sequence::retained_cells(operators, &geometry, &routes, &dependencies, compact);
         let has_pixels = cells.iter().any(|cells| !cells.is_empty());

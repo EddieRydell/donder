@@ -28,18 +28,18 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
         lane_delta: 1,
     });
     let moved = timeline.sequence();
-    let effect = moved
-        .effects
+    let clip = moved
+        .clips
         .iter()
-        .find(|effect| effect.id.0 == timeline.effect)
+        .find(|clip| clip.id.0 == timeline.effect)
         .unwrap();
     let automation = moved
         .automation_clips
         .iter()
         .find(|clip| clip.id.0 == timeline.automation)
         .unwrap();
-    assert_eq!(effect.target.fixture.0, timeline.targets()[1].fixture);
-    assert_eq!(automation.row_target, effect.target);
+    assert_eq!(clip.target.fixture.0, timeline.targets()[1].fixture);
+    assert_eq!(automation.row_target, clip.target);
     assert_eq!(
         automation.bindings,
         before
@@ -62,13 +62,13 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
     let resized = timeline.sequence();
     assert_eq!(
         resized
-            .effects
+            .clips
             .iter()
             .find(|clip| clip.id.0 == timeline.effect)
             .unwrap()
             .duration
             .as_seconds_f64(),
-        effect.duration.as_seconds_f64() + 1.0
+        clip.duration.as_seconds_f64() + 1.0
     );
     assert_eq!(
         resized
@@ -101,12 +101,12 @@ impl Timeline {
             .project
             .reusable::<donder_model::Sequence>()
             .values()
-            .find(|sequence| !sequence.effects.is_empty())
+            .find(|sequence| !sequence.clips.is_empty())
             .unwrap();
         let mut timeline = Self {
             state,
             id: sequence.id,
-            effect: sequence.effects[0].id.0,
+            effect: sequence.clips[0].id.0,
             automation: 0,
             root,
             _temporary: temporary,
@@ -120,13 +120,13 @@ impl Timeline {
             initial_color: sequence.layers[0].color.to_hex(),
         });
         timeline.edit(SequenceGuiEdit::CreateAndBindAutomationClip {
-            target: SequenceAutomationTarget::EffectParam {
-                effect_id: timeline.effect,
+            target: SequenceAutomationTarget::ClipParam {
+                clip_id: timeline.effect,
                 param: "level".into(),
             },
         });
         timeline.automation = timeline.sequence().automation_clips.iter().find(|clip| clip.bindings.iter().any(|binding|
-            matches!(&binding.target, AutomationTarget::EffectParam { effect_id, .. } if effect_id.0 == timeline.effect)
+            matches!(&binding.target, AutomationTarget::ClipParam { clip_id, .. } if clip_id.0 == timeline.effect)
         )).unwrap().id.0;
         timeline
     }
@@ -222,24 +222,24 @@ fn mixed_clipboard_remaps_bindings_and_is_one_undoable_persisted_edit() {
     let before = timeline.sequence();
     timeline.copy(timeline.selection());
     let target = timeline.targets()[1].clone();
-    let (effect_ids, automation_ids) = ids(timeline.paste(1));
+    let (clip_ids, automation_ids) = ids(timeline.paste(1));
     let pasted = timeline.sequence();
-    let effect = pasted
-        .effects
+    let clip = pasted
+        .clips
         .iter()
-        .find(|effect| effect.id.0 == effect_ids[0])
+        .find(|clip| clip.id.0 == clip_ids[0])
         .unwrap();
     let automation = pasted
         .automation_clips
         .iter()
         .find(|clip| clip.id.0 == automation_ids[0])
         .unwrap();
-    assert_eq!(effect.target.fixture.0, target.fixture);
-    assert_eq!(automation.row_target, effect.target);
+    assert_eq!(clip.target.fixture.0, target.fixture);
+    assert_eq!(automation.row_target, clip.target);
     assert!(
-        matches!(&automation.bindings[0].target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id)
+        matches!(&automation.bindings[0].target, AutomationTarget::ClipParam { clip_id, .. } if clip_id == &clip.id)
     );
-    assert_ne!(effect.id.0, timeline.effect);
+    assert_ne!(clip.id.0, timeline.effect);
     assert_ne!(automation.id.0, timeline.automation);
     timeline.state.undo_active_edit();
     assert_eq!(timeline.sequence(), before);
@@ -267,8 +267,8 @@ fn out_of_bounds_paste_is_atomic_and_does_not_consume_history() {
     let timeline = Timeline::new();
     timeline.copy(timeline.selection());
     let before = timeline.sequence();
-    let (effect_ids, _) = ids(timeline.paste(1));
-    timeline.copy(clips(vec![timeline.effect, effect_ids[0]], vec![]));
+    let (clip_ids, _) = ids(timeline.paste(1));
+    timeline.copy(clips(vec![timeline.effect, clip_ids[0]], vec![]));
     let session = timeline.state.project_session().unwrap();
     let rejected = timeline.state.edit_gui_document(
         timeline.request(),
@@ -392,12 +392,12 @@ fn shared_members_have_a_lane_per_group_and_move_from_the_nearest_copy() {
     assert_eq!((lanes[1].occurrences, lanes[pair + 1].occurrences), (2, 2));
     assert_eq!((lanes[0].occurrences, lanes[pair].occurrences), (1, 1));
     assert_eq!(lanes[pair + 1].depth, 1);
-    let effect_target = || {
+    let clip_target = || {
         timeline
             .sequence()
-            .effects
+            .clips
             .iter()
-            .find(|effect| effect.id.0 == timeline.effect)
+            .find(|clip| clip.id.0 == timeline.effect)
             .unwrap()
             .target
             .fixture
@@ -412,14 +412,14 @@ fn shared_members_have_a_lane_per_group_and_move_from_the_nearest_copy() {
         });
     };
     move_clip(0, 1);
-    assert_eq!(effect_target(), first);
+    assert_eq!(clip_target(), first);
     // Moving up from the copy under `Pair` reaches `Pair`, not the lane above
     // the first copy.
     move_clip(pair + 1, -1);
-    assert_eq!(effect_target(), 100);
+    assert_eq!(clip_target(), 100);
 }
 
-/// A selection of effect and automation clips.
+/// A selection of clips and automation clips.
 fn clips(effects: Vec<u32>, automation: Vec<u32>) -> SequenceSelection {
     SequenceSelection::Clips {
         clips: clip_refs(effects, automation),
@@ -429,7 +429,7 @@ fn clips(effects: Vec<u32>, automation: Vec<u32>) -> SequenceSelection {
 fn clip_refs(effects: Vec<u32>, automation: Vec<u32>) -> Vec<SequenceClipRef> {
     effects
         .into_iter()
-        .map(|id| SequenceClipRef::Effect { id })
+        .map(|id| SequenceClipRef::Clip { id })
         .chain(
             automation
                 .into_iter()
@@ -438,18 +438,18 @@ fn clip_refs(effects: Vec<u32>, automation: Vec<u32>) -> Vec<SequenceClipRef> {
         .collect()
 }
 
-/// The effect and automation clip ids of a clip selection.
+/// The clip and automation clip ids of a clip selection.
 fn ids(selection: SequenceSelection) -> (Vec<u32>, Vec<u32>) {
     let SequenceSelection::Clips { clips } = selection else {
         panic!("clip selection missing")
     };
-    let mut effects = Vec::new();
+    let mut clip_ids = Vec::new();
     let mut automation = Vec::new();
     for clip in clips {
         match clip {
-            SequenceClipRef::Effect { id } => effects.push(id),
+            SequenceClipRef::Clip { id } => clip_ids.push(id),
             SequenceClipRef::Automation { id } => automation.push(id),
         }
     }
-    (effects, automation)
+    (clip_ids, automation)
 }

@@ -10,8 +10,8 @@ use super::builtins::{
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange};
 use super::ir::interval::{Bounds, interval};
 use super::ir::{
-    Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, STATE, Unary, check_stencil, reads,
-    source_only,
+    Binary, Context, Domain, Graph, LoopSet, Node, Op, Param, Reducer, STATE, Unary, reads,
+    scan_weight,
 };
 use super::syntax::ast::*;
 use super::syntax::lexer::{Keyword, TextSpan};
@@ -896,8 +896,8 @@ impl Checker {
             && !in_function
         {
             self.refer_symbol(span, self.inputs[input].symbol);
-            // A signal used as a color samples the current pixel.
-            return Some(Operand::Node(self.graph.add(Op::Sample {
+            // A signal used as a color reads the current pixel.
+            return Some(Operand::Node(self.graph.add(Op::Read {
                 input: input as u32,
                 pixel: SignalPixel::Current,
             })));
@@ -928,7 +928,7 @@ impl Checker {
     fn read(&mut self, read: Read) -> Node {
         match read {
             Read::Context(context) => self.graph.add(Op::Context(context)),
-            Read::Previous => self.graph.add(Op::Sample {
+            Read::Previous => self.graph.add(Op::Read {
                 input: STATE,
                 pixel: SignalPixel::Current,
             }),
@@ -1039,7 +1039,7 @@ impl Checker {
             return None;
         }
         let pixel = SignalPixel::Local(self.int(&args[0])?);
-        Some(self.graph.add(Op::Sample { input, pixel }))
+        Some(self.graph.add(Op::Read { input, pixel }))
     }
 
     /// An array literal of one item type; ints widen when any item is a float.
@@ -1429,12 +1429,14 @@ impl Checker {
                 (reducer, value, filter, Some(default))
             }
         };
-        if let (Some(around), Some(_)) = (around, stencil) {
-            if let Err(error) = check_stencil(&self.graph, id, reducer, body, filter) {
-                self.error(result_span, error.message());
-                return None;
-            }
-            self.graph.set_around(id, around.edges);
+        if stencil.is_some() {
+            return match self.graph.tap(id, reducer, body, filter) {
+                Ok(tap) => Some(self.graph.finish_loop(id, reducer, tap, None, None)),
+                Err(error) => {
+                    self.error(result_span, error.message());
+                    None
+                }
+            };
         }
         Some(self.graph.finish_loop(id, reducer, body, filter, default))
     }
@@ -1480,15 +1482,15 @@ impl Checker {
         Some(())
     }
 
-    /// A scan: `previous * decay + light * weight`, with the decay fixed for
-    /// the frame and the weight depending on the light alone.
+    /// A scan: the trail so far times `decay`, which is fixed for the frame,
+    /// plus the light the body adds: the input's sample scaled by numbers that
+    /// read only it and values fixed for the frame.
     fn scan(&mut self, scan: &Scan) -> Checked<Node> {
         let Scan {
             direction,
             input,
+            decay,
             light,
-            previous,
-            body,
         } = scan;
         let Some(index) = self.signal(input) else {
             let message = format!(
@@ -1498,69 +1500,52 @@ impl Checker {
             self.error(input.span, message);
             return None;
         };
-        let sample = self.graph.add(Op::Sample {
+        let decay_span = decay.span;
+        let decay = self.float(decay)?;
+        let fixed = self.graph.loops_of(decay).is_empty()
+            && !self
+                .graph
+                .domain(decay)
+                .intersects(Domain::PIXEL.union(Domain::SIGNAL).union(Domain::TARGET));
+        if !fixed {
+            self.error(
+                decay_span,
+                "a scan's decay is fixed for the frame: it may depend on parameters and time, not on the pixel, a signal or a reduction",
+            );
+            return None;
+        }
+        let sample = self.graph.add(Op::Read {
             input: index,
             pixel: SignalPixel::Current,
         });
-        let before = self.graph.add(Op::Previous);
-        let depth = self.scopes.len();
-        for (name, node) in [(light, sample), (previous, before)] {
-            self.diagnostics
-                .extend(name_diagnostic(NameKind::Value, name));
-            self.bind(name, SymbolKind::Let, node);
-        }
-        let value = self.tail_block(body, Mode::Value);
-        self.scopes.truncate(depth);
-        let value = value?.value?;
-        let value = self.require(value, &Type::Color, body.result.span)?;
-        if !reads(&self.graph, value, before) {
-            return Some(value);
-        }
-        let Some((decay, weight)) = self.trail(value, sample, before) else {
-            self.error(
-                body.result.span,
-                "a scan produces `previous * decay + light * weight`, with the decay fixed for the frame and the weight depending on `light`, parameters and time alone",
-            );
-            return None;
+        let weight = match light {
+            None => None,
+            Some((name, body)) => {
+                let depth = self.scopes.len();
+                self.diagnostics
+                    .extend(name_diagnostic(NameKind::Value, name));
+                self.bind(name, SymbolKind::Let, sample);
+                let value = self.tail_block(body, Mode::Value);
+                self.scopes.truncate(depth);
+                let value = value?.value?;
+                let value = self.require(value, &Type::Color, body.result.span)?;
+                let Some(weight) = scan_weight(&mut self.graph, value, sample) else {
+                    let message = format!(
+                        "a scan adds `{}` scaled by numbers that depend on it, parameters and time alone",
+                        name.name.as_str()
+                    );
+                    self.error(body.result.span, message);
+                    return None;
+                };
+                weight
+            }
         };
         Some(self.graph.add(Op::Scan {
             direction: *direction,
-            light: sample,
+            input: index,
             decay,
             weight,
         }))
-    }
-
-    /// The decay and weight of `previous * decay + light * weight`.
-    fn trail(&mut self, value: Node, light: Node, previous: Node) -> Option<(Node, Option<Node>)> {
-        let Op::Binary(Binary::ColorAdd, a, b) = *self.graph.op(value) else {
-            return None;
-        };
-        let decay_of = |graph: &mut Graph, node: Node| match *graph.op(node) {
-            _ if node == previous => Some(graph.float(1.0)),
-            Op::Binary(Binary::ColorScale, color, decay) if color == previous => Some(decay),
-            _ => None,
-        };
-        let (decay, term) = match (decay_of(&mut self.graph, a), decay_of(&mut self.graph, b)) {
-            (Some(decay), None) => (decay, b),
-            (None, Some(decay)) => (decay, a),
-            _ => return None,
-        };
-        let fixed = self.graph.loops_of(decay).is_empty()
-            && !self.graph.domain(decay).intersects(
-                super::ir::Domain::PIXEL
-                    .union(super::ir::Domain::SIGNAL)
-                    .union(super::ir::Domain::TARGET),
-            );
-        let weight = match *self.graph.op(term) {
-            _ if term == light => None,
-            Op::Binary(Binary::ColorScale, color, weight) if color == light => Some(weight),
-            _ => return None,
-        };
-        let weighted = weight.is_none_or(|weight| {
-            !reads(&self.graph, weight, previous) && source_only(&self.graph, weight, light)
-        });
-        (fixed && weighted).then_some((decay, weight))
     }
 
     /// The input `around` names, read `offset` pixels along the fixture.
@@ -1574,7 +1559,7 @@ impl Checker {
             self.error(name.span, message);
             return None;
         };
-        Some(self.graph.add(Op::Sample {
+        Some(self.graph.add(Op::Read {
             input,
             pixel: SignalPixel::Shifted(offset, around.edges),
         }))

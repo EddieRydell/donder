@@ -13,8 +13,8 @@ use donder_language::compiler::{DeclarationKind, TextSpan, compile_script};
 use donder_language::data::NO_SPAN;
 use donder_language::{ImportAlias, ImportDeclaration, SourceReference};
 use donder_model::ObjectId;
+use donder_model::Owned;
 use donder_model::SetupId;
-use donder_model::ValueSource;
 use donder_model::{
     CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
 };
@@ -603,7 +603,7 @@ impl Loader {
             root: ProjectRoot {
                 id: root_id,
                 description: root.description.clone(),
-                setup: ValueSource::Reference(SetupId(u32::MAX)),
+                setup: Owned::Reference(SetupId(u32::MAX)),
                 sequences: Vec::new(),
                 rigs: Vec::new(),
             },
@@ -626,16 +626,16 @@ impl Loader {
             loader: self,
             project: &mut project,
         };
-        let setup = resolver.setup_source(entrypoint, &owner, &root.setup)?;
+        let setup = resolver.owned_setup(entrypoint, &owner, &root.setup)?;
         let sequences = root
             .sequences
             .iter()
-            .map(|source| resolver.sequence_source(entrypoint, &owner, source))
+            .map(|record| resolver.owned_sequence(entrypoint, &owner, record))
             .collect::<Result<_, _>>()?;
         let rigs = root
             .rigs
             .iter()
-            .map(|source| resolver.rig_source(entrypoint, &owner, source))
+            .map(|record| resolver.owned_rig(entrypoint, &owner, record))
             .collect::<Result<_, _>>()?;
         project.root.setup = setup;
         project.root.sequences = sequences;

@@ -3,46 +3,46 @@
 //!
 //! Commands change only the workspace: a voice's start and duration, its
 //! layer's start order, live marks, and the controls' parameter values.
-use crate::image::{self, NONE};
+use crate::format::{self, NONE};
 use donder_runtime_types::{Color, MICROS_PER_SECOND, RigCommand, RigEvent, SampleTime, mul_div};
 
 use crate::dsl::set_value;
-use crate::evaluation::{Timeline, evaluate_frame, index_layer, output_buffer};
-use crate::show::Show;
+use crate::evaluation::{Timeline, evaluate_frame, index_layer, root_buffer};
+use crate::image::Image;
 use crate::workspace::{LIVE_MARK_CAPACITY, Layout, Timing, Workspace, carve};
 
 /// A show playing in a caller's buffer of [`Layout::words`] words.
 pub struct Playback<'a, 'w> {
-    show: Show<'a>,
+    image: Image<'a>,
     workspace: Workspace<'w>,
 }
 
 impl<'a, 'w> Playback<'a, 'w> {
-    /// Start `show` in `buffer`; `None` when it is smaller than the show needs.
-    pub fn new(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
+    /// Start `image` in `buffer`; `None` when it is smaller than the image needs.
+    pub fn new(image: Image<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
         Some(Self {
-            show,
-            workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), true)?,
+            image,
+            workspace: carve(image, layout, bytemuck::cast_slice_mut(buffer), true)?,
         })
     }
 
-    /// Continue `show` in the `buffer` an earlier playback of it left, as a
+    /// Continue `image` in the `buffer` an earlier playback of it left, as a
     /// caller that keeps the buffer between frames does.
-    pub fn resume(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
+    pub fn resume(image: Image<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
         Some(Self {
-            show,
-            workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), false)?,
+            image,
+            workspace: carve(image, layout, bytemuck::cast_slice_mut(buffer), false)?,
         })
     }
 
-    pub fn show(&self) -> Show<'a> {
-        self.show
+    pub fn image(&self) -> Image<'a> {
+        self.image
     }
 
     pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
-        let buffer = run(self.show, &mut self.workspace, time);
+        let buffer = run(self.image, &mut self.workspace, time);
         SequenceFrame {
-            show: self.show,
+            image: self.image,
             colors: self.workspace.buffers[buffer],
             outputs: self.workspace.outputs,
         }
@@ -53,7 +53,7 @@ impl<'a, 'w> Playback<'a, 'w> {
     where
         'a: 'w,
     {
-        let buffer = run(self.show, &mut self.workspace, time);
+        let buffer = run(self.image, &mut self.workspace, time);
         let Workspace {
             buffers, outputs, ..
         } = self.workspace;
@@ -61,7 +61,7 @@ impl<'a, 'w> Playback<'a, 'w> {
             unreachable!("evaluation names one of the buffers")
         };
         SequenceFrame {
-            show: self.show,
+            image: self.image,
             colors,
             outputs,
         }
@@ -72,22 +72,22 @@ impl<'a, 'w> Playback<'a, 'w> {
     where
         'a: 'w,
     {
-        output_frames(self.show, self.workspace.outputs)
+        output_frames(self.image, self.workspace.outputs)
     }
 
-    /// Effects active at `time` as commands have placed them.
-    pub fn active_effect_count(&self, time: SampleTime) -> usize {
+    /// Clips active at `time` as commands have placed them.
+    pub fn active_clip_count(&self, time: SampleTime) -> usize {
         let rig = &self.workspace.rig;
-        let timeline = Timeline::new(self.show, rig.timing, rig.layer_order, rig.layer_ends);
-        (0..self.show.effect_count())
-            .filter(|&effect| timeline.timing(effect).is_active(time))
+        let timeline = Timeline::new(self.image, rig.timing, rig.layer_order, rig.layer_ends);
+        (0..self.image.clip_count())
+            .filter(|&clip| timeline.timing(clip).is_active(time))
             .count()
     }
 
     /// Apply a command at its time. Commands arrive in time order; one the
     /// show does not address is ignored.
     pub fn apply(&mut self, event: RigEvent) {
-        apply(self.show, &mut self.workspace, event);
+        apply(self.image, &mut self.workspace, event);
     }
 }
 
@@ -105,11 +105,11 @@ fn frame_at(time: SampleTime, frame_rate: u32) -> u32 {
 /// colors. A frame after the one before advances its state by the frames
 /// between them, the same frame after a command by none, and any other is a
 /// seek: one frame on from the state it has.
-pub(crate) fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize {
-    let frame = frame_at(time, show.frame_rate());
+pub(crate) fn run(image: Image<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize {
+    let frame = frame_at(time, image.frame_rate());
     let [last, held] = *workspace.frame;
     if last == frame && held != 0 {
-        return output_buffer(show);
+        return root_buffer(image);
     }
     let frames_elapsed = if last == NONE || frame < last {
         1
@@ -117,15 +117,15 @@ pub(crate) fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTim
         frame - last
     };
     *workspace.frame = [frame, 1];
-    let buffer = evaluate_frame(show, workspace, time, frames_elapsed);
-    crate::patch::evaluate(show, workspace.buffers[buffer], workspace.outputs);
+    let buffer = evaluate_frame(image, workspace, time, frames_elapsed);
+    crate::patch::evaluate(image, workspace.buffers[buffer], workspace.outputs);
     buffer
 }
 
 /// Borrowed logical colors and packed controller outputs from one evaluation.
 #[derive(Clone, Copy)]
 pub struct SequenceFrame<'a> {
-    pub(crate) show: Show<'a>,
+    pub(crate) image: Image<'a>,
     pub(crate) colors: &'a [Color],
     pub(crate) outputs: &'a [u8],
 }
@@ -138,7 +138,7 @@ pub struct FixtureFrame<'a> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutputFrame<'a> {
-    pub output: &'a image::Output,
+    pub output: &'a format::Output,
     pub bytes: &'a [u8],
 }
 
@@ -149,7 +149,7 @@ impl<'a> SequenceFrame<'a> {
 
     pub fn fixtures(&self) -> impl ExactSizeIterator<Item = FixtureFrame<'a>> + 'a {
         let colors = self.colors;
-        self.show.fixtures().iter().map(move |fixture| {
+        self.image.fixtures().iter().map(move |fixture| {
             let start = fixture.offset as usize;
             FixtureFrame {
                 fixture_id: fixture.id,
@@ -159,15 +159,15 @@ impl<'a> SequenceFrame<'a> {
     }
 
     pub fn outputs(&self) -> impl ExactSizeIterator<Item = OutputFrame<'a>> + 'a {
-        output_frames(self.show, self.outputs)
+        output_frames(self.image, self.outputs)
     }
 }
 
 pub(crate) fn output_frames<'a>(
-    show: Show<'a>,
+    image: Image<'a>,
     bytes: &'a [u8],
 ) -> impl ExactSizeIterator<Item = OutputFrame<'a>> + 'a {
-    show.outputs().iter().map(move |output| {
+    image.outputs().iter().map(move |output| {
         let start = output.offset as usize;
         OutputFrame {
             output,
@@ -176,13 +176,13 @@ pub(crate) fn output_frames<'a>(
     })
 }
 
-impl Show<'_> {
+impl Image<'_> {
     pub fn voice_count(&self) -> usize {
         self.s.voices.len()
     }
 
     pub fn collection_count(&self) -> usize {
-        self.s.collections.len()
+        self.meta().collections as usize
     }
 
     pub fn control_count(&self) -> usize {
@@ -203,21 +203,21 @@ impl Show<'_> {
     }
 }
 
-pub(crate) fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEvent) {
-    if !show.accepts(event.command) {
+pub(crate) fn apply(image: Image<'_>, workspace: &mut Workspace<'_>, event: RigEvent) {
+    if !image.accepts(event.command) {
         return;
     }
-    let s = &show.s;
+    let s = &image.s;
     let time = event.time;
     let ticks = time.as_ticks();
     let rig = &mut workspace.rig;
     match event.command {
         RigCommand::Start { voice } => {
             let voice = &s.voices[usize::from(voice)];
-            rig.timing[voice.effect as usize] = Timing {
+            rig.timing[voice.clip as usize] = Timing {
                 start: ticks,
                 duration: if voice.duration == NONE {
-                    show.duration().as_ticks().saturating_sub(ticks)
+                    image.duration().as_ticks().saturating_sub(ticks)
                 } else {
                     voice.duration
                 },
@@ -225,14 +225,14 @@ pub(crate) fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEve
             if let Some(layer) = s
                 .layers
                 .iter()
-                .find(|layer| layer.effects.get(s.layer_order).contains(&voice.effect))
+                .find(|layer| layer.clips.get(s.layer_order).contains(&voice.clip))
             {
                 index_layer(layer, rig.timing, rig.layer_order, rig.layer_ends);
             }
         }
         RigCommand::Stop { voice } => {
-            let effect = s.voices[usize::from(voice)].effect as usize;
-            let timing = &mut rig.timing[effect];
+            let clip = s.voices[usize::from(voice)].clip as usize;
+            let timing = &mut rig.timing[clip];
             if timing.is_active(time) {
                 timing.duration = ticks - timing.start;
             }
@@ -253,15 +253,15 @@ pub(crate) fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEve
                 .targets
                 .get(s.control_targets)
             {
-                let effect = target.effect as usize;
-                let Some(plan) = show.plan(s.effects[effect].automation) else {
+                let clip = target.clip as usize;
+                let Some(plan) = image.plan(s.clips[clip].automation) else {
                     continue;
                 };
                 let start = plan.bindings.start as usize;
                 let overrides = &mut rig.overrides[start..start + plan.bindings.len as usize];
-                let origin = rig.timing[effect].start;
+                let origin = rig.timing[clip].start;
                 set_value(
-                    show,
+                    image,
                     plan,
                     overrides,
                     target.binding as usize,

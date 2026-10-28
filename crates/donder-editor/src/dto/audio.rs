@@ -19,7 +19,7 @@ pub enum AudioTransportState {
 #[serde(rename_all = "camelCase")]
 pub struct AudioTransportSnapshot {
     pub state: AudioTransportState,
-    pub source: Option<SequenceAudio>,
+    pub audio: Option<SequenceAudio>,
     pub generation: u32,
     pub position_seconds: f64,
     pub start_delay_seconds: f64,

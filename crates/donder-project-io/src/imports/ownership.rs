@@ -103,7 +103,7 @@ pub(crate) fn ensure_document_can_reference_address(
 }
 
 /// Declared objects available for an explicit GUI link choice.
-pub fn available_reusable_sources(session: &ProjectSession, kinds: &[ObjectKind]) -> Vec<ObjectId> {
+pub fn available_declarations(session: &ProjectSession, kinds: &[ObjectKind]) -> Vec<ObjectId> {
     session
         .source
         .documents
@@ -117,7 +117,7 @@ pub fn available_reusable_sources(session: &ProjectSession, kinds: &[ObjectKind]
 /// Explicitly selecting an existing declared object establishes its document
 /// import. This differs from ordinary reference validation, which never
 /// infers scope.
-pub fn link_reusable_source(
+pub fn link_declaration(
     session: &mut ProjectSession,
     owner: &DocumentId,
     source: ObjectId,

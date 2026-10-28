@@ -3,11 +3,11 @@
 //! by exact id replacement. The caller names promoted values in its documents.
 mod duplicate;
 mod link;
-use super::{MemberSource, ValueSource};
+use super::{Owned, OwnedMember};
 use crate::project::references::References;
 use crate::{
     controller::ControllerId,
-    fixture::{FixtureDefinitionId, FixtureSource},
+    fixture::{FixtureDefinitionId, OwnedFixture},
     identity::{ObjectId, ObjectKind},
     input_device::InputDeviceId,
     layout::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId},
@@ -163,11 +163,11 @@ impl Renames {
 /// A name for a newly owned collection member, unique among its owner's
 /// owned members of that kind.
 fn next_local_name<'a, T: 'a, I: 'a>(
-    members: impl Iterator<Item = &'a MemberSource<T, I>>,
+    members: impl Iterator<Item = &'a OwnedMember<T, I>>,
     prefix: &str,
 ) -> Identifier {
     let taken = members
-        .filter_map(MemberSource::name)
+        .filter_map(OwnedMember::name)
         .map(Identifier::as_str)
         .collect::<std::collections::HashSet<_>>();
     donder_language::unique_name(prefix, |name| taken.contains(name))
@@ -181,10 +181,7 @@ fn preferred_name(
     name_of(id.into()).ok_or(EditRejection::Unnamed)
 }
 
-fn fixture_mut(
-    fixtures: &mut [LayoutFixture],
-    id: FixtureInstanceId,
-) -> Option<&mut FixtureSource> {
+fn fixture_mut(fixtures: &mut [LayoutFixture], id: FixtureInstanceId) -> Option<&mut OwnedFixture> {
     fixtures
         .iter_mut()
         .find(|fixture| fixture.id == id)
@@ -199,29 +196,29 @@ fn retarget(project: &mut DonderProject, renames: &Renames) {
     project.retarget_references(&mut |owner, target| renames.target(owner, target));
 }
 
-fn promote<T, I: Copy>(source: &mut ValueSource<Box<T>, I>) -> Result<Box<T>, EditRejection>
+fn promote<T, I: Copy>(source: &mut Owned<Box<T>, I>) -> Result<Box<T>, EditRejection>
 where
     T: super::Identified<Id = I>,
 {
-    let ValueSource::Inline(value) = source else {
+    let Owned::Inline(value) = source else {
         return Err(EditRejection::AlreadyReusable);
     };
     let id = *value.id();
-    let ValueSource::Inline(value) = std::mem::replace(source, ValueSource::Reference(id)) else {
+    let Owned::Inline(value) = std::mem::replace(source, Owned::Reference(id)) else {
         return Err(EditRejection::MissingItem);
     };
     Ok(value)
 }
 
-fn promote_member<T, I: Copy>(source: &mut MemberSource<T, I>) -> Result<Box<T>, EditRejection>
+fn promote_member<T, I: Copy>(source: &mut OwnedMember<T, I>) -> Result<Box<T>, EditRejection>
 where
     T: super::Identified<Id = I>,
 {
-    let MemberSource::Inline { value, .. } = source else {
+    let OwnedMember::Inline { value, .. } = source else {
         return Err(EditRejection::AlreadyReusable);
     };
     let id = *value.id();
-    let MemberSource::Inline { value, .. } = std::mem::replace(source, MemberSource::Reference(id))
+    let OwnedMember::Inline { value, .. } = std::mem::replace(source, OwnedMember::Reference(id))
     else {
         return Err(EditRejection::MissingItem);
     };
@@ -328,11 +325,11 @@ fn make_reusable_candidate(
                 *fixture,
             )
             .ok_or(EditRejection::MissingItem)?;
-            if matches!(source, FixtureSource::Reference(_)) {
+            if matches!(source, OwnedFixture::Reference(_)) {
                 return Err(EditRejection::AlreadyReusable);
             }
-            let FixtureSource::Inline(value) =
-                std::mem::replace(source, FixtureSource::Reference(id))
+            let OwnedFixture::Inline(value) =
+                std::mem::replace(source, OwnedFixture::Reference(id))
             else {
                 return Err(EditRejection::MissingItem);
             };
@@ -362,7 +359,7 @@ pub fn make_independent(
 fn fresh_setup(project: &mut DonderProject, setup: &mut Setup) -> Renames {
     let mut renames = Renames::default();
     setup.id = SetupId(project.new_id());
-    if let ValueSource::Inline(layout) = &mut setup.layout {
+    if let Owned::Inline(layout) = &mut setup.layout {
         let id = LayoutId(project.new_id());
         renames.insert(layout.id, id);
         layout.id = id;
@@ -381,7 +378,7 @@ fn fresh_setup(project: &mut DonderProject, setup: &mut Setup) -> Renames {
             device.id = id;
         }
     }
-    if let ValueSource::Inline(patch) = &mut setup.patch {
+    if let Owned::Inline(patch) = &mut setup.patch {
         patch.id = PatchId(project.new_id());
         renames.apply(patch);
     }
@@ -395,7 +392,7 @@ fn make_independent_candidate(
 ) -> Result<(), EditRejection> {
     match site {
         Slot::ProjectSetup => {
-            let ValueSource::Reference(id) = &project.root.setup else {
+            let Owned::Reference(id) = &project.root.setup else {
                 return Err(EditRejection::AlreadyIndependent(ObjectKind::Setup));
             };
             let mut value = project
@@ -405,7 +402,7 @@ fn make_independent_candidate(
             let renames = fresh_setup(project, &mut value);
             let setup = value.id;
             let patch_id = *value.patch.id();
-            project.root.setup = ValueSource::Inline(Box::new(value));
+            project.root.setup = Owned::Inline(Box::new(value));
             let patch = project
                 .get::<crate::Patch>(patch_id)
                 .ok_or(EditRejection::Missing(ObjectKind::Patch))?;
@@ -437,7 +434,7 @@ fn make_independent_candidate(
             let current = project
                 .get::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-            let ValueSource::Reference(from) = current.layout else {
+            let Owned::Reference(from) = current.layout else {
                 return Err(EditRejection::AlreadyIndependent(ObjectKind::Layout));
             };
             let mut value = project
@@ -450,7 +447,7 @@ fn make_independent_candidate(
             let current = project
                 .find_mut::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-            current.layout = ValueSource::Inline(Box::new(value));
+            current.layout = Owned::Inline(Box::new(value));
             renames.apply(
                 current
                     .patch
@@ -469,7 +466,7 @@ fn make_independent_candidate(
                 .input_devices
                 .get(*index)
                 .ok_or(EditRejection::Missing(ObjectKind::InputDevice))?;
-            let MemberSource::Reference(from) = *source else {
+            let OwnedMember::Reference(from) = *source else {
                 return Err(EditRejection::AlreadyIndependent(ObjectKind::InputDevice));
             };
             let name = next_local_name(
@@ -485,7 +482,7 @@ fn make_independent_candidate(
             project
                 .find_mut::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?
-                .input_devices[*index] = MemberSource::Inline {
+                .input_devices[*index] = OwnedMember::Inline {
                 name,
                 value: Box::new(value),
             };
@@ -501,7 +498,7 @@ fn make_independent_candidate(
                 .controllers
                 .get(*index)
                 .ok_or(EditRejection::Missing(ObjectKind::Controller))?;
-            let MemberSource::Reference(from) = *source else {
+            let OwnedMember::Reference(from) = *source else {
                 return Err(EditRejection::AlreadyIndependent(ObjectKind::Controller));
             };
             let name = next_local_name(
@@ -518,7 +515,7 @@ fn make_independent_candidate(
             let current = project
                 .find_mut::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-            current.controllers[*index] = MemberSource::Inline {
+            current.controllers[*index] = OwnedMember::Inline {
                 name,
                 value: Box::new(value),
             };
@@ -535,7 +532,7 @@ fn make_independent_candidate(
                 .and_then(|layout| layout.fixture(*fixture))
                 .ok_or(EditRejection::MissingItem)?;
             let LayoutFixtureKind::Fixture {
-                definition: FixtureSource::Reference(id),
+                definition: OwnedFixture::Reference(id),
                 ..
             } = &placement.kind
             else {
@@ -555,7 +552,7 @@ fn make_independent_candidate(
                     .fixtures,
                 *fixture,
             )
-            .ok_or(EditRejection::MissingItem)? = FixtureSource::Inline(value);
+            .ok_or(EditRejection::MissingItem)? = OwnedFixture::Inline(value);
         }
     }
     Ok(())
@@ -567,7 +564,7 @@ fn copy_patch_if_linked(project: &mut DonderProject, setup: &SetupId) -> Result<
             .get::<crate::Setup>(*setup)
             .ok_or(EditRejection::Missing(ObjectKind::Setup))?
             .patch,
-        ValueSource::Reference(_)
+        Owned::Reference(_)
     ) {
         copy_patch(project, setup)?;
     }
@@ -577,7 +574,7 @@ fn copy_patch(project: &mut DonderProject, setup: &SetupId) -> Result<(), EditRe
     let current = project
         .get::<crate::Setup>(*setup)
         .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-    let ValueSource::Reference(id) = &current.patch else {
+    let Owned::Reference(id) = &current.patch else {
         return Err(EditRejection::AlreadyIndependent(ObjectKind::Patch));
     };
     let mut value = project
@@ -588,7 +585,7 @@ fn copy_patch(project: &mut DonderProject, setup: &SetupId) -> Result<(), EditRe
     project
         .find_mut::<crate::Setup>(*setup)
         .ok_or(EditRejection::Missing(ObjectKind::Setup))?
-        .patch = ValueSource::Inline(Box::new(value));
+        .patch = Owned::Inline(Box::new(value));
     Ok(())
 }
 fn copy_sequence(
@@ -601,7 +598,7 @@ fn copy_sequence(
         .sequences
         .get(index)
         .ok_or(EditRejection::Missing(ObjectKind::Sequence))?;
-    let MemberSource::Reference(id) = *source else {
+    let OwnedMember::Reference(id) = *source else {
         return Err(EditRejection::AlreadyIndependent(ObjectKind::Sequence));
     };
     let name = next_local_name(
@@ -613,7 +610,7 @@ fn copy_sequence(
         .ok_or(EditRejection::Missing(ObjectKind::Sequence))?
         .clone();
     value.id = SequenceId(project.new_id());
-    project.root.sequences[index] = MemberSource::Inline {
+    project.root.sequences[index] = OwnedMember::Inline {
         name,
         value: Box::new(value),
     };
@@ -629,7 +626,7 @@ fn copy_rig(
         .rigs
         .get(index)
         .ok_or(EditRejection::Missing(ObjectKind::Rig))?;
-    let MemberSource::Reference(id) = *source else {
+    let OwnedMember::Reference(id) = *source else {
         return Err(EditRejection::AlreadyIndependent(ObjectKind::Rig));
     };
     let name = next_local_name(
@@ -641,7 +638,7 @@ fn copy_rig(
         .ok_or(EditRejection::Missing(ObjectKind::Rig))?
         .clone();
     value.id = RigId(project.new_id());
-    project.root.rigs[index] = MemberSource::Inline {
+    project.root.rigs[index] = OwnedMember::Inline {
         name,
         value: Box::new(value),
     };
@@ -664,7 +661,7 @@ fn follow_active(
         if !renames.moves(rig) {
             continue;
         }
-        if matches!(project.root.rigs[index], MemberSource::Reference(_)) {
+        if matches!(project.root.rigs[index], OwnedMember::Reference(_)) {
             copy_rig(project, index, name_of)?;
         }
         renames.apply(
@@ -681,7 +678,7 @@ fn follow_active(
         if !renames.moves(sequence) {
             continue;
         }
-        if matches!(project.root.sequences[index], MemberSource::Reference(_)) {
+        if matches!(project.root.sequences[index], OwnedMember::Reference(_)) {
             copy_sequence(project, index, name_of)?;
         }
         renames.apply(
@@ -735,11 +732,11 @@ fn add_sequence_candidate(
             marks: Vec::new(),
         }],
         layers,
-        effects: Vec::new(),
+        clips: Vec::new(),
         composition_graph,
         automation_clips: Vec::new(),
     };
-    project.root.sequences.push(MemberSource::Inline {
+    project.root.sequences.push(OwnedMember::Inline {
         name,
         value: Box::new(sequence),
     });
@@ -756,7 +753,7 @@ pub fn add_rig(
         let name = next_local_name(project.root.rigs.iter(), "rig");
         let id = RigId(project.new_id());
         let (layers, composition_graph) = default_composition(color);
-        project.root.rigs.push(MemberSource::Inline {
+        project.root.rigs.push(OwnedMember::Inline {
             name,
             value: Box::new(Rig {
                 id,
@@ -802,7 +799,7 @@ fn default_composition(
             CompositionGraphNode {
                 id: CompositionGraphNodeId(2),
                 position: GraphNodePosition { x: 420.0, y: 80.0 },
-                kind: CompositionGraphNodeKind::Output,
+                kind: CompositionGraphNodeKind::Root,
             },
         ],
         edges: vec![EffectGraphEdge {

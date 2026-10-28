@@ -21,16 +21,16 @@ extern crate alloc;
 // in a caller's buffer without allocating; the host feature builds images and
 // owns them. Language values and executable definitions belong to
 // donder-language; the VM is an implementation detail.
+pub use image::{FORMAT_VERSION, Image, LoadError, header_bytes, image_len};
 pub use playback::{FixtureFrame, OutputFrame, Playback, SequenceFrame};
 pub use playback_rate::{FrameTiming, PlaybackRate};
-pub use show::{FORMAT_VERSION, LoadError, Show, header_bytes, image_len};
 pub use workspace::{LIVE_MARK_CAPACITY, Layout};
 
-pub use crate::image::{Fixture, Output};
+pub use crate::format::{Fixture, Output};
 
 #[cfg(feature = "host")]
 pub use host::{
-    ClipSampler, EffectHandle, OutputHandle, PreparedShow, SequenceClip, ShowBuilder, ShowPlayback,
+    ClipHandle, ClipRaster, ImageClip, OutputHandle, PreparedShow, ShowBuilder, ShowPlayback,
     SignalHandle, TargetHandle,
 };
 
@@ -44,6 +44,7 @@ mod host;
 // The image format is written by the host builder; a player alone reads only
 // part of it.
 #[cfg_attr(not(feature = "host"), allow(dead_code))]
+mod format;
 mod image;
 mod patch;
 mod playback;
@@ -51,7 +52,6 @@ mod playback_rate;
 mod resources;
 mod scan;
 mod sections;
-mod show;
 mod targets;
 mod workspace;
 

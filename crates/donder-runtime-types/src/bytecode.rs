@@ -649,7 +649,7 @@ pub enum Instruction {
     Section { index: bool, dst: Slot, width: Slot },
     /// Color: an operator input, or the node's own previous frame as
     /// [`STATE_INPUT`], at this frame and a pixel.
-    Sample {
+    Read {
         dst: Slot,
         input: u16,
         pixel: SignalPixel<Slot>,
@@ -711,7 +711,7 @@ pub enum Instruction {
     /// `scale` and the pixel's `pixel`. Skipped neighbors, and neighbors of
     /// zero weight, contribute nothing.
     ///
-    /// The next `source_len` words are the source block: a `Sample` at the
+    /// The next `weight_len` words are the weight block: a `Read` at the
     /// current pixel names the input, then code computing `weight` from that
     /// sample alone. The block runs over the strip's neighborhood, not its
     /// pixels. The `tap_len` after it run once per offset with `index` set
@@ -726,7 +726,7 @@ pub enum Instruction {
         weight: Slot,
         scale: Slot,
         pixel: Slot,
-        source_len: u16,
+        weight_len: u16,
         tap_len: u16,
     },
     /// Color: a trail along each fixture in `direction`. From black at the
@@ -735,8 +735,8 @@ pub enum Instruction {
     /// `weight`. The scan computes every pixel of the frame once per query
     /// into frame cache `cache`.
     ///
-    /// The next `source_len` words are its source block, as a stencil's: a
-    /// `Sample` at the current pixel names the input, then code computing
+    /// The next `weight_len` words are its weight block, as a stencil's: a
+    /// `Read` at the current pixel names the input, then code computing
     /// `weight` from that sample alone.
     Scan {
         direction: Direction,
@@ -744,11 +744,11 @@ pub enum Instruction {
         decay: Slot,
         weight: Slot,
         cache: u8,
-        source_len: u16,
+        weight_len: u16,
     },
 }
 
-/// The input a [`Instruction::Sample`] of the node's own previous frame reads:
+/// The input a [`Instruction::Read`] of the node's own previous frame reads:
 /// an operator's own last output, or an effect's layer's.
 pub const STATE_INPUT: u16 = u16::MAX;
 
@@ -1031,7 +1031,7 @@ impl Instruction {
                 v(Int, width, Read);
                 v(Int, dst, Write);
             }
-            I::Sample { dst, pixel, .. } => {
+            I::Read { dst, pixel, .. } => {
                 if let Some(index) = pixel.index_mut() {
                     v(Int, index, Read);
                 }
@@ -1152,11 +1152,11 @@ impl Instruction {
                 ..
             } => u32::from(loop_len) + u32::from(contribute_len),
             Self::Stencil {
-                source_len,
+                weight_len,
                 tap_len,
                 ..
-            } => u32::from(source_len) + u32::from(tap_len),
-            Self::Scan { source_len, .. } => u32::from(source_len),
+            } => u32::from(weight_len) + u32::from(tap_len),
+            Self::Scan { weight_len, .. } => u32::from(weight_len),
             Self::Tabulate { len, .. } => u32::from(len),
             _ => 0,
         }
@@ -1219,7 +1219,7 @@ impl BytecodeProgram {
         self.reads(|instruction| match instruction {
             Instruction::Context { read, .. } => read.reads_target(),
             Instruction::Stencil { edges, .. }
-            | Instruction::Sample {
+            | Instruction::Read {
                 pixel: SignalPixel::Shifted(_, edges),
                 ..
             } => *edges != Edges::Skip,
@@ -1232,7 +1232,7 @@ impl BytecodeProgram {
         self.reads(|instruction| {
             matches!(
                 instruction,
-                Instruction::Sample {
+                Instruction::Read {
                     input: STATE_INPUT,
                     ..
                 }

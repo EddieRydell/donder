@@ -54,29 +54,22 @@ espflash flash --port COM4 --baud 460800 --chip esp32 --non-interactive --flash-
 
 ## Uploading and measuring
 
-Export a selected fragment with checksums, then upload and verify it with
-`upload.py` (run through `uvx --from esptool`, which supplies pyserial):
+The editor uploads each controller's show when Play is pressed (see
+[ESP32 loading](../../docs/esp32_loading.md)). Uploads stay stopped, so start
+playback through the editor or `POST /transport/play`. To check a build's
+frames against the host, export a fragment with checksums:
 
 ```powershell
-cargo run -p donder-elaboration --example export_sequence -- examples/starter firmware/esp32/target/loaded-sequence.donderseq
-cd firmware/esp32
-uvx --from esptool python upload.py target/loaded-sequence.donderseq
-uvx --from esptool python upload.py target/loaded-sequence.donderseq --checksums target/loaded-sequence.donderseq.checksums --elf target/xtensa-esp32-none-elf/release/loader --port COM4 --uploads 3 --exercise-rejections --repeat 1 --monitor-seconds 75 --log target/i2s-playback.txt
+cargo run -p donder-elaboration --example export_image -- examples/starter firmware/esp32/target/loaded.donderimage
 ```
 
-- Join the controller's `Donder-XXXX` access point first, or pass
-  `--address` for a controller on another network. An unclaimed controller is
-  claimed and its token saved to `target/device-token`; a controller that the
-  editor claimed needs that token copied there. Never write tokens to logs.
-- Claiming that frames are verified requires `--checksums`; `--elf` records the
-  image hash.
-- Uploads stay stopped, so start playback through the desktop or
-  `POST /transport/play` first.
-- `upload.py` rejects incomplete records, checksum mismatches and corrupt serial
-  data. Never repair a capture by deleting bytes.
-- Serial monitoring needs UART0 free, so it is unavailable on the Dig-Quad.
+`PUT /image` loads the exported image, and `POST /frame` with a frame's tick
+as a 4-byte little-endian body replies `FRAME tick crc32 micros allocations
+global_allocations`; each tick and CRC must match a row of the `.checksums`
+file, with zero allocations. Never write tokens to logs.
 
-During playback the loader prints a `PLAYBACK` line per window: missed frames and
+During playback the loader prints a `PLAYBACK` line per window on the serial
+port (not on the Dig-Quad, whose UART0 pins drive LEDs): missed frames and
 average and maximum evaluation, encoding, DMA-wait and total frame times. To
 measure a runtime change, upload a representative show such as
 `examples/stanford_room` and compare those lines. Keep captures under `target/`

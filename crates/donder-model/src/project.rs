@@ -22,8 +22,8 @@ pub use objects::{ProjectObject, Reusable};
 mod accepted;
 pub(crate) mod references;
 pub use accepted::{
-    AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigEffect, AcceptedSequence,
-    RIG_SESSION, RigBinding, RigEffectOrigin,
+    AcceptedClipInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigClip, AcceptedSequence,
+    RIG_SESSION, RigBinding, RigClipOrigin,
 };
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;
@@ -118,9 +118,9 @@ impl PartialEq for DonderProject {
 pub struct ProjectRoot {
     pub id: ProjectId,
     pub description: Option<String>,
-    pub setup: crate::setup::SetupSource,
-    pub sequences: Vec<crate::sequence::SequenceSource>,
-    pub rigs: Vec<crate::rig::RigSource>,
+    pub setup: crate::setup::OwnedSetup,
+    pub sequences: Vec<crate::sequence::OwnedSequence>,
+    pub rigs: Vec<crate::rig::OwnedRig>,
 }
 
 /// Why an edit of a project failed: the edit itself was refused, or the edited
@@ -188,7 +188,7 @@ impl std::fmt::Display for EditRejection {
                 f.write_str("Sequence duration and frame rate must be positive.")
             }
             Self::ChooseReusable(kind) => write!(f, "Choose a reusable {kind}."),
-            Self::ChooseMatchingKind => f.write_str("Choose a reusable source of the matching kind."),
+            Self::ChooseMatchingKind => f.write_str("Choose a reusable declaration of the matching kind."),
             Self::AlreadyInSetup(kind) => write!(f, "This {kind} is already in the setup."),
             Self::NotInSetup(kind) => write!(f, "Choose a {kind} in this setup."),
             Self::ControllerHasOutputs(count) => write!(

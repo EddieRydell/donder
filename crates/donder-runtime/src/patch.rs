@@ -1,19 +1,19 @@
 //! Packing a frame's colors into its outputs' bytes: each channel becomes
 //! the nearest byte, through the route's lookup table when it has one. Light
 //! below 0 or NaN is off and light above 1 is full, as the cast saturates.
-use crate::image::{self, NONE};
+use crate::format::{self, NONE};
 use donder_runtime_types::Color;
 use donder_runtime_types::sampling::min_float;
 
-use crate::show::Show;
+use crate::image::Image;
 
 /// Pack `colors` into every output's bytes; bytes no route writes are zero.
-pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8]) {
+pub(crate) fn evaluate(image: Image<'_>, colors: &[Color], outputs: &mut [u8]) {
     outputs.fill(0);
-    let s = &show.s;
+    let s = &image.s;
     for route in s.routes {
         let colors = &colors[route.first as usize..route.end as usize];
-        let rgbw = route.encoding == image::ENCODING_RGBW;
+        let rgbw = route.encoding == format::ENCODING_RGBW;
         let channels = if rgbw { 4 } else { 3 };
         let output = &s.outputs[route.output as usize];
         let start = (output.offset + route.start_slot) as usize;

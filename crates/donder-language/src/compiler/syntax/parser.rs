@@ -702,7 +702,7 @@ impl Parser<'_> {
             && input.kind == TokenKind::Identifier
     }
 
-    /// `scan (forward | backward) input as light, previous { body }`.
+    /// `scan (forward | backward) input decay expression [as light { body }]`.
     fn scan(&mut self) -> Parsed<Expr> {
         let start = self.advance().span;
         let token = self.advance();
@@ -711,22 +711,25 @@ impl Parser<'_> {
             _ => Direction::Backward,
         };
         let input = self.name("an input name")?;
-        if !self.at_word("as") {
-            return Err(self.unexpected("`as` and names for the light and the previous value"));
+        if !self.at_word("decay") {
+            return Err(self.unexpected("`decay` and the trail's decay at each pixel"));
         }
         self.advance();
-        let light = self.name("a name for the input's light")?;
-        self.expect(TokenKind::Comma, "`,`")?;
-        let previous = self.name("a name for the previous pixel's value")?;
-        let body = self.block()?;
+        let decay = self.expression()?;
+        let light = if self.at_word("as") {
+            self.advance();
+            let name = self.name("a name for the input's light")?;
+            Some((name, self.block()?))
+        } else {
+            None
+        };
         let span = start.to(self.previous_span());
         Ok(Expr {
             kind: ExprKind::Scan(Box::new(Scan {
                 direction,
                 input,
+                decay,
                 light,
-                previous,
-                body,
             })),
             span,
         })

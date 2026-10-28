@@ -1,9 +1,9 @@
 //! Original target membership for section queries. Routing may discard
 //! physical pixels, but must not change the authored section population or
 //! numbering.
-use crate::image::{self, SectionPixel};
+use crate::format::{self, SectionPixel};
 
-use crate::show::Show;
+use crate::image::Image;
 
 pub(crate) fn normalize_width(width: f32) -> u32 {
     libm::floorf(width.max(1.0)) as u32
@@ -12,17 +12,17 @@ pub(crate) fn normalize_width(width: f32) -> u32 {
 /// A target's section runs, and each of its pixels' place among them.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SectionsView<'a> {
-    runs: &'a [image::SectionRun],
-    spans: &'a [image::SectionSpan],
+    runs: &'a [format::SectionRun],
+    spans: &'a [format::SectionSpan],
     pixels: &'a [SectionPixel],
     per_fixture: bool,
 }
 
 impl<'a> SectionsView<'a> {
     #[inline(never)]
-    pub(crate) fn of(show: Show<'a>, target: &'a image::Target) -> Self {
-        let s = &show.s;
-        let (spans, pixels) = if target.section_kind == image::PIXELS_RUNS {
+    pub(crate) fn of(image: Image<'a>, target: &'a format::Target) -> Self {
+        let s = &image.s;
+        let (spans, pixels) = if target.section_kind == format::PIXELS_RUNS {
             (target.section_pixels.get(s.section_spans), &[][..])
         } else {
             (&[][..], target.section_pixels.get(s.section_pixels))

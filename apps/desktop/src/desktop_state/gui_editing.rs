@@ -46,18 +46,18 @@ impl DesktopState {
     }
 
     /// The inspector's view of selected clips in the newest project snapshot.
-    pub fn get_sequence_effect_details(
+    pub fn get_sequence_clip_details(
         &self,
         request: GuiDocumentRequest,
-        effect_ids: Vec<u32>,
-    ) -> Result<donder_editor::dto::SequenceEffectDetailsResult, String> {
+        clip_ids: Vec<u32>,
+    ) -> Result<donder_editor::dto::SequenceClipDetailsResult, String> {
         let project_revision = self.snapshot().project_revision;
         let project = self
             .project_session()
             .ok_or("The current project source is not ready for GUI editing.")?;
-        Ok(donder_editor::dto::SequenceEffectDetailsResult {
+        Ok(donder_editor::dto::SequenceClipDetailsResult {
             project_revision,
-            details: donder_editor::sequence_effect_details(&project, &request, &effect_ids)?,
+            details: donder_editor::sequence_clip_details(&project, &request, &clip_ids)?,
         })
     }
 
@@ -104,7 +104,7 @@ impl DesktopState {
         &self,
         request: donder_editor::dto::SequenceClipRasterRequest,
     ) -> donder_editor::dto::SequenceClipRasterResponse {
-        let settings = self.snapshot().settings.effect_raster;
+        let settings = self.snapshot().settings.clip_raster;
         let project = self.project_session();
         let sequence_id = self.resolve_sequence_id(&request.document);
         lock_unpoisoned(&self.sequence_clip_raster).request(settings, project, sequence_id, request)

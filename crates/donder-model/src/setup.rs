@@ -6,10 +6,10 @@ pub(crate) mod authoring;
 pub struct Setup {
     pub id: SetupId,
     pub description: Option<String>,
-    pub layout: crate::layout::LayoutSource,
-    pub patch: crate::patch::PatchSource,
-    pub controllers: Vec<crate::controller::ControllerSource>,
-    pub input_devices: Vec<crate::input_device::InputDeviceSource>,
+    pub layout: crate::layout::OwnedLayout,
+    pub patch: crate::patch::OwnedPatch,
+    pub controllers: Vec<crate::controller::OwnedController>,
+    pub input_devices: Vec<crate::input_device::OwnedInputDevice>,
 }
 
 impl crate::ownership::Identified for Setup {
@@ -19,4 +19,4 @@ impl crate::ownership::Identified for Setup {
     }
 }
 
-pub type SetupSource = crate::ownership::ValueSource<Box<Setup>, SetupId>;
+pub type OwnedSetup = crate::ownership::Owned<Box<Setup>, SetupId>;

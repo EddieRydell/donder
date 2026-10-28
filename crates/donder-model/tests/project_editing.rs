@@ -4,7 +4,7 @@ use donder_language::{DonderDuration, DonderTime};
 use donder_model::{DonderProject, ProjectData, ProjectEdit, ProjectId, ProjectRoot};
 use donder_model::{Layout, LayoutId};
 use donder_model::{ObjectId, SequenceId};
-use donder_model::{OwnershipSite, ValueSource, add_sequence, make_reusable, use_existing};
+use donder_model::{Owned, OwnershipSite, add_sequence, make_reusable, use_existing};
 use donder_model::{Patch, PatchId};
 use donder_model::{Setup, SetupId};
 use donder_runtime_types::Color;
@@ -15,16 +15,16 @@ fn data() -> ProjectData {
         root: ProjectRoot {
             description: None,
             id: ProjectId(0),
-            setup: ValueSource::Inline(Box::new(Setup {
+            setup: Owned::Inline(Box::new(Setup {
                 description: None,
                 id: SetupId(1),
-                layout: ValueSource::Inline(Box::new(Layout {
+                layout: Owned::Inline(Box::new(Layout {
                     description: None,
                     id: LayoutId(2),
                     fixtures: vec![],
                     root: vec![],
                 })),
-                patch: ValueSource::Inline(Box::new(Patch {
+                patch: Owned::Inline(Box::new(Patch {
                     description: None,
                     id: PatchId(3),
                     routes: vec![],
@@ -79,10 +79,10 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     let fixture_id = FixtureDefinitionId(data.next_id);
     data.next_id += 1;
     data.fixtures.insert(fixture_id, fixture.clone());
-    let ValueSource::Inline(setup) = &mut data.root.setup else {
+    let Owned::Inline(setup) = &mut data.root.setup else {
         panic!("test setup is inline")
     };
-    let ValueSource::Inline(layout) = &mut setup.layout else {
+    let Owned::Inline(layout) = &mut setup.layout else {
         panic!("test layout is inline")
     };
     let layout_id = layout.id;
@@ -91,7 +91,7 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
         id: FixtureInstanceId(1),
         name: donder_language::object_name("fixture"),
         kind: LayoutFixtureKind::Fixture {
-            definition: ValueSource::Reference(fixture_id),
+            definition: Owned::Reference(fixture_id),
             transform: FixtureTransform::default(),
         },
     });
@@ -166,7 +166,7 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
 #[test]
 fn admission_rejects_missing_references_and_accepts_owned_setup() {
     let mut invalid = data();
-    invalid.root.setup = ValueSource::Reference(SetupId(99));
+    invalid.root.setup = Owned::Reference(SetupId(99));
     assert!(DonderProject::try_new(invalid).is_err());
     let project = DonderProject::try_new(data()).unwrap();
     assert!(
@@ -222,7 +222,7 @@ fn related_replacements_commit_together_and_do_not_change_prior_snapshots() {
         .get::<donder_model::Setup>(*project.root().setup.id())
         .unwrap()
         .clone();
-    setup.layout = ValueSource::Reference(named_layout.id);
+    setup.layout = Owned::Reference(named_layout.id);
     assert!(project.put(setup.clone()).is_err());
     assert_eq!(project, before);
     project

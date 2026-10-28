@@ -6,7 +6,7 @@ use crate::controller::{
     ARTNET_PORT_ADDRESS_MAX, ControllerPortId, ControllerValidationError, DMX_SLOT_LIMIT,
     E131_UNIVERSE_MAX, E131_UNIVERSE_MIN,
 };
-use crate::effect::EffectInstId;
+use crate::effect::ClipId;
 use crate::fixture::{FixtureDefinitionError, FixtureElementId, FixtureGeometryError};
 use crate::identity::{ObjectId, ObjectKind};
 use crate::input_device::{InputControlId, InputDeviceValidationError};
@@ -103,14 +103,14 @@ pub enum SequenceValidationError {
     Timing(TimingProblem),
     Name(NameProblem),
     Composition(CompositionProblem),
-    DuplicateClipId(EffectInstId),
+    DuplicateClipId(ClipId),
     DuplicateAutomationClipId(AutomationClipId),
     MarkOutsideDuration(Identifier),
     InvalidMarkLabel(Identifier),
     Clip {
-        clip: EffectInstId,
+        clip: ClipId,
         name: Identifier,
-        problem: EffectProblem,
+        problem: ClipProblem,
     },
     Automation {
         clip: AutomationClipId,
@@ -131,7 +131,7 @@ pub enum RigValidationError {
     Voice {
         voice: RigVoiceId,
         name: Identifier,
-        problem: EffectProblem,
+        problem: ClipProblem,
     },
     Switch {
         switch: RigSwitchId,
@@ -175,9 +175,9 @@ pub enum CompositionProblem {
     },
 }
 
-/// A clip, voice or trigger's effect.
+/// A sequence clip or a rig voice or trigger clip.
 #[derive(Clone, Debug, PartialEq)]
-pub enum EffectProblem {
+pub enum ClipProblem {
     MissingLayer,
     Region(RegionProblem),
     NotInActiveLayout,
@@ -188,7 +188,7 @@ pub enum EffectProblem {
     Param(ParamProblem),
 }
 
-/// A parameter value of an effect or operator.
+/// A parameter value of a clip or operator.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParamProblem {
     WrongType(Identifier),
@@ -223,7 +223,7 @@ pub enum AutomationProblem {
     CurveOutOfRange,
     BindsTwice,
     NotAutomatable(Identifier),
-    MissingEffect,
+    MissingClip,
     MissingNode,
     MissingParam(Identifier),
     Overlap,
@@ -255,7 +255,7 @@ pub enum MappingProblem {
     MissingControlTarget,
     UnknownControlParam(Identifier),
     ControlNotAutomatable(Identifier),
-    Effect(EffectProblem),
+    Clip(ClipProblem),
 }
 
 /// Rules found while binding a validated project for playback.
@@ -279,7 +279,7 @@ pub enum AdmissionProblem {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Member {
     Layer(SequenceLayerId),
-    Clip(EffectInstId),
+    Clip(ClipId),
     Marks(Identifier),
     AutomationClip(AutomationClipId),
     Node(CompositionGraphNodeId),
@@ -425,7 +425,7 @@ impl RigValidationError {
                     | MappingProblem::ValueNotAutomatable(param) => {
                         ProblemSite::with(member, MemberPart::PlayedValue(param.clone()))
                     }
-                    MappingProblem::Effect(problem) => problem.site(member),
+                    MappingProblem::Clip(problem) => problem.site(member),
                     MappingProblem::UnknownControlParam(param)
                     | MappingProblem::ControlNotAutomatable(param) => {
                         ProblemSite::with(member, MemberPart::Param(param.clone()))
@@ -466,7 +466,7 @@ impl CompositionProblem {
     }
 }
 
-impl EffectProblem {
+impl ClipProblem {
     fn site(&self, member: Member) -> ProblemSite {
         match self {
             Self::Param(problem) => {
@@ -710,17 +710,17 @@ impl fmt::Display for CompositionProblem {
     }
 }
 
-impl fmt::Display for EffectProblem {
+impl fmt::Display for ClipProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingLayer => f.write_str("the effect's layer is missing"),
+            Self::MissingLayer => f.write_str("the clip's layer is missing"),
             Self::Region(problem) => problem.fmt(f),
             Self::NotInActiveLayout => {
-                f.write_str("the effect target is not present in the active layout")
+                f.write_str("the clip target is not present in the active layout")
             }
-            Self::MixedLayouts => f.write_str("all effect targets must use the same layout"),
-            Self::MissingTargetLayout => f.write_str("the effect target layout is missing"),
-            Self::MissingTarget => f.write_str("the effect target is not in its layout"),
+            Self::MixedLayouts => f.write_str("all clip targets must use the same layout"),
+            Self::MissingTargetLayout => f.write_str("the clip target layout is missing"),
+            Self::MissingTarget => f.write_str("the clip target is not in its layout"),
             Self::MissingDefinition => f.write_str("the effect definition is missing"),
             Self::Param(problem) => problem.fmt(f),
         }
@@ -799,7 +799,7 @@ impl fmt::Display for AutomationProblem {
             Self::NotAutomatable(param) => {
                 write!(f, "parameter `{}` cannot be automated", param.as_str())
             }
-            Self::MissingEffect => f.write_str("the automated clip is missing"),
+            Self::MissingClip => f.write_str("the automated clip is missing"),
             Self::MissingNode => f.write_str("the automated graph node is missing"),
             Self::MissingParam(param) => {
                 write!(f, "the automated parameter `{}` is missing", param.as_str())
@@ -827,7 +827,7 @@ impl fmt::Display for MappingProblem {
         match self {
             Self::Input(problem) => problem.fmt(f),
             Self::KeysDriveControl => {
-                f.write_str("keys trigger effects and add marks; they cannot drive a `Control`")
+                f.write_str("keys trigger clips and add marks; they cannot drive a `Control`")
             }
             Self::DialDrivesTrigger => f.write_str("a dial can only drive a `Control`"),
             Self::MissingSwitch => f.write_str("`when` names a missing switch"),
@@ -864,7 +864,7 @@ impl fmt::Display for MappingProblem {
                 "`{}` cannot be controlled; a control sets a float, int, bool, enum or curve parameter",
                 param.as_str()
             ),
-            Self::Effect(problem) => problem.fmt(f),
+            Self::Clip(problem) => problem.fmt(f),
         }
     }
 }
@@ -1028,7 +1028,7 @@ impl fmt::Display for ControllerValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use crate::controller::ControllerPortAddress as Address;
         match self {
-            Self::EmptySourceName => f.write_str("an E1.31 source name is not empty"),
+            Self::EmptySenderName => f.write_str("an E1.31 sender name is not empty"),
             Self::InvalidPriority(priority) => {
                 write!(f, "E1.31 priority {priority} is outside 1..200")
             }
@@ -1082,7 +1082,7 @@ impl ControllerValidationError {
             | Self::InvalidE131Universe { port, .. }
             | Self::InvalidArtNetPort { port, .. }
             | Self::InvalidDonderOutput { port, .. } => Some(*port),
-            Self::EmptySourceName
+            Self::EmptySenderName
             | Self::InvalidPriority(_)
             | Self::DuplicateProtocolAddress(_) => None,
         }

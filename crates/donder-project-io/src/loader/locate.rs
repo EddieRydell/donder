@@ -2,7 +2,7 @@
 //! numbers every member by its position in the document, so a member id the
 //! model names finds its text again.
 use donder_language::compiler::TextSpan;
-use donder_language::data::{Name, NamedSource, Params, Source};
+use donder_language::data::{Name, OwnedNamedRecord, OwnedRecord, Params};
 use donder_model::{Member, MemberPart, ProblemSite};
 use donder_runtime_types::Identifier;
 
@@ -10,7 +10,7 @@ use crate::address::OwnedObjectSlot;
 use crate::document::{Declaration, types};
 
 /// A declaration, or an object written in place inside one.
-pub(super) enum Owned<'a> {
+pub(super) enum Located<'a> {
     Project(&'a types::Project),
     Setup(&'a types::Setup),
     Controller(&'a types::Controller),
@@ -27,50 +27,50 @@ pub(super) enum Owned<'a> {
 pub(super) fn owned<'a>(
     declaration: &'a Declaration,
     path: &[OwnedObjectSlot],
-) -> Option<Owned<'a>> {
+) -> Option<Located<'a>> {
     let mut current = match declaration {
-        Declaration::Project(project) => Owned::Project(project),
-        Declaration::Setup(setup) => Owned::Setup(setup),
-        Declaration::Controller(controller) => Owned::Controller(controller),
-        Declaration::InputDevice(device) => Owned::InputDevice(device),
-        Declaration::Layout(layout) => Owned::Layout(layout),
-        Declaration::Patch(patch) => Owned::Patch(patch),
-        Declaration::Sequence(sequence) => Owned::Sequence(sequence),
-        Declaration::Rig(rig) => Owned::Rig(rig),
-        Declaration::FixtureDefinition(definition) => Owned::Fixture(definition),
-        Declaration::Curve(_) | Declaration::Gradient(_) => Owned::Other,
+        Declaration::Project(project) => Located::Project(project),
+        Declaration::Setup(setup) => Located::Setup(setup),
+        Declaration::Controller(controller) => Located::Controller(controller),
+        Declaration::InputDevice(device) => Located::InputDevice(device),
+        Declaration::Layout(layout) => Located::Layout(layout),
+        Declaration::Patch(patch) => Located::Patch(patch),
+        Declaration::Sequence(sequence) => Located::Sequence(sequence),
+        Declaration::Rig(rig) => Located::Rig(rig),
+        Declaration::FixtureDefinition(definition) => Located::Fixture(definition),
+        Declaration::Curve(_) | Declaration::Gradient(_) => Located::Other,
     };
-    fn member<'a, T>(sources: &'a [NamedSource<T>], name: &Identifier) -> Option<&'a T> {
+    fn member<'a, T>(sources: &'a [OwnedNamedRecord<T>], name: &Identifier) -> Option<&'a T> {
         sources.iter().find_map(|source| match source {
-            NamedSource::Inline(member, value) if &member.0.value == name => Some(value),
+            OwnedNamedRecord::Inline(member, value) if &member.0.value == name => Some(value),
             _ => None,
         })
     }
     for slot in path {
         current = match (current, slot) {
-            (Owned::Project(project), OwnedObjectSlot::Setup) => match &project.setup {
-                Source::Inline(setup) => Owned::Setup(setup),
-                Source::Reference(_) => return None,
+            (Located::Project(project), OwnedObjectSlot::Setup) => match &project.setup {
+                OwnedRecord::Inline(setup) => Located::Setup(setup),
+                OwnedRecord::Reference(_) => return None,
             },
-            (Owned::Project(project), OwnedObjectSlot::Sequence(name)) => {
-                Owned::Sequence(member(&project.sequences, name)?)
+            (Located::Project(project), OwnedObjectSlot::Sequence(name)) => {
+                Located::Sequence(member(&project.sequences, name)?)
             }
-            (Owned::Project(project), OwnedObjectSlot::Rig(name)) => {
-                Owned::Rig(member(&project.rigs, name)?)
+            (Located::Project(project), OwnedObjectSlot::Rig(name)) => {
+                Located::Rig(member(&project.rigs, name)?)
             }
-            (Owned::Setup(setup), OwnedObjectSlot::Layout) => match &setup.layout {
-                Source::Inline(layout) => Owned::Layout(layout),
-                Source::Reference(_) => return None,
+            (Located::Setup(setup), OwnedObjectSlot::Layout) => match &setup.layout {
+                OwnedRecord::Inline(layout) => Located::Layout(layout),
+                OwnedRecord::Reference(_) => return None,
             },
-            (Owned::Setup(setup), OwnedObjectSlot::Patch) => match &setup.patch {
-                Source::Inline(patch) => Owned::Patch(patch),
-                Source::Reference(_) => return None,
+            (Located::Setup(setup), OwnedObjectSlot::Patch) => match &setup.patch {
+                OwnedRecord::Inline(patch) => Located::Patch(patch),
+                OwnedRecord::Reference(_) => return None,
             },
-            (Owned::Setup(setup), OwnedObjectSlot::Controller(name)) => {
-                Owned::Controller(member(&setup.controllers, name)?)
+            (Located::Setup(setup), OwnedObjectSlot::Controller(name)) => {
+                Located::Controller(member(&setup.controllers, name)?)
             }
-            (Owned::Setup(setup), OwnedObjectSlot::InputDevice(name)) => {
-                Owned::InputDevice(member(&setup.input_devices, name)?)
+            (Located::Setup(setup), OwnedObjectSlot::InputDevice(name)) => {
+                Located::InputDevice(member(&setup.input_devices, name)?)
             }
             _ => return None,
         };
@@ -81,19 +81,21 @@ pub(super) fn owned<'a>(
 /// The name span of the owned collection member at the end of `path`.
 pub(super) fn member_name(declaration: &Declaration, path: &[OwnedObjectSlot]) -> Option<TextSpan> {
     let (last, parent) = path.split_last()?;
-    fn named<T>(sources: &[NamedSource<T>], name: &Identifier) -> Option<TextSpan> {
+    fn named<T>(sources: &[OwnedNamedRecord<T>], name: &Identifier) -> Option<TextSpan> {
         sources.iter().find_map(|source| match source {
-            NamedSource::Inline(member, _) if &member.0.value == name => Some(member.0.span),
+            OwnedNamedRecord::Inline(member, _) if &member.0.value == name => Some(member.0.span),
             _ => None,
         })
     }
     match (owned(declaration, parent)?, last) {
-        (Owned::Project(project), OwnedObjectSlot::Sequence(name)) => {
+        (Located::Project(project), OwnedObjectSlot::Sequence(name)) => {
             named(&project.sequences, name)
         }
-        (Owned::Project(project), OwnedObjectSlot::Rig(name)) => named(&project.rigs, name),
-        (Owned::Setup(setup), OwnedObjectSlot::Controller(name)) => named(&setup.controllers, name),
-        (Owned::Setup(setup), OwnedObjectSlot::InputDevice(name)) => {
+        (Located::Project(project), OwnedObjectSlot::Rig(name)) => named(&project.rigs, name),
+        (Located::Setup(setup), OwnedObjectSlot::Controller(name)) => {
+            named(&setup.controllers, name)
+        }
+        (Located::Setup(setup), OwnedObjectSlot::InputDevice(name)) => {
             named(&setup.input_devices, name)
         }
         _ => None,
@@ -128,7 +130,7 @@ pub(super) fn site_span(
     let node = |graph: &types::Graph, id: u32| match nth(&graph.nodes, id)? {
         types::Node::LayerNode { layer, .. } => Some(name_span(layer)),
         types::Node::OperatorNode { name, params, .. } => with_param(name, params),
-        types::Node::OutputNode { .. } => None,
+        types::Node::RootNode { .. } => None,
     };
     let layer = |layers: &[types::Layer], id: u32| {
         layers
@@ -136,7 +138,7 @@ pub(super) fn site_span(
             .map(|layer| name_span(&layer.name))
     };
     match (owned(declaration, path)?, &site.member) {
-        (Owned::Sequence(sequence), member) => match member {
+        (Located::Sequence(sequence), member) => match member {
             Member::Layer(id) => layer(&sequence.layers, id.0),
             Member::Clip(id) => {
                 let clip = nth(&sequence.clips, id.0)?;
@@ -151,7 +153,7 @@ pub(super) fn site_span(
             Member::Node(id) => node(&sequence.graph, id.0),
             _ => None,
         },
-        (Owned::Rig(rig), member) => match member {
+        (Located::Rig(rig), member) => match member {
             Member::Layer(id) => layer(&rig.layers, id.0),
             Member::Node(id) => node(&rig.graph, id.0),
             Member::LiveMarks(name) => rig
@@ -192,18 +194,18 @@ pub(super) fn site_span(
             }
             _ => None,
         },
-        (Owned::InputDevice(device), Member::Control(id)) => {
+        (Located::InputDevice(device), Member::Control(id)) => {
             nth(&device.controls, id.0).map(|control| name_span(control.name()))
         }
-        (Owned::Controller(controller), Member::Port(id)) => {
+        (Located::Controller(controller), Member::Port(id)) => {
             nth(&controller.ports, id.0).map(|port| name_span(&port.name))
         }
-        (Owned::Layout(layout), Member::LayoutItem(id)) => {
+        (Located::Layout(layout), Member::LayoutItem(id)) => {
             let item = nth(&layout.items, id.0)?;
             match (item, part) {
                 (
                     types::LayoutItem::Fixture {
-                        definition: Source::Inline(definition),
+                        definition: OwnedRecord::Inline(definition),
                         ..
                     },
                     Some(MemberPart::Shape(shape)),
@@ -214,10 +216,10 @@ pub(super) fn site_span(
                 ) => Some(name_span(name)),
             }
         }
-        (Owned::Patch(patch), Member::Route(id)) => {
+        (Located::Patch(patch), Member::Route(id)) => {
             nth(&patch.routes, id.0).map(|route| route.target.span)
         }
-        (Owned::Fixture(definition), Member::Shape(id)) => {
+        (Located::Fixture(definition), Member::Shape(id)) => {
             nth(&definition.shapes, id.0).map(|shape| name_span(&shape.name))
         }
         _ => None,

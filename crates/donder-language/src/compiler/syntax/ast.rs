@@ -197,15 +197,17 @@ pub(crate) struct Reduction {
     pub(crate) around: Option<Around>,
 }
 
-/// `scan forward input as light, previous { body }`: a trail along each
+/// `scan forward input decay d [as light { body }]`: a trail along each
 /// fixture's pixels.
 #[derive(Clone, Debug)]
 pub(crate) struct Scan {
     pub(crate) direction: donder_runtime_types::bytecode::Direction,
     pub(crate) input: Name,
-    pub(crate) light: Name,
-    pub(crate) previous: Name,
-    pub(crate) body: Block,
+    /// What the trail so far is multiplied by at each pixel.
+    pub(crate) decay: Expr,
+    /// The light added at each pixel, computed from the input's, which the
+    /// name binds; without it the input's light itself.
+    pub(crate) light: Option<(Name, Block)>,
 }
 
 /// A neighborhood reduction's input, read at each offset along the pixel's

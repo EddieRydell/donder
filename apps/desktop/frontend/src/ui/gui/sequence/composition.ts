@@ -10,7 +10,7 @@ export type CompositionDocument = Pick<SequenceGuiDocument, "sourceRef" | "layer
 /** A sequence's or rig's layers and composition graph, with how to edit them. */
 export type CompositionEditing = {
   document: CompositionDocument;
-  /** How many effects play on the layer. */
+  /** How many clips play on the layer. */
   layerUses: (layerId: number) => number;
   apply: (edit: CompositionGuiEdit, origin?: GuiDocumentRequest | null) => Promise<unknown>;
   /** Rename, describe, color or delete a layer or graph node. */
@@ -30,7 +30,7 @@ export function sequenceComposition(
 ): CompositionEditing {
   return {
     document,
-    layerUses: (layerId) => document.effects.filter((effect) => effect.layerId === layerId).length,
+    layerUses: (layerId) => document.clips.filter((clip) => clip.layerId === layerId).length,
     apply: (edit, origin) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit } }), origin),
     applyItem: (edit) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, edit)),
     automation

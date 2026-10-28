@@ -17,9 +17,9 @@ pub use literal::{canonical_distance, canonical_duration, canonical_float, parse
 pub use parser::parse;
 pub use printer::{ListSplice, list_item, print, print_spliced};
 pub use schema::{
-    Data, Decoder, Definition, FieldReader, Fields, Meters, NO_SPAN, Name, NamedSource, Params,
-    Path, Record, Reference, Refers, Schema, Shape, Source, declaration, decode_record, field,
-    record, spanned, variant,
+    Data, Decoder, Definition, FieldReader, Fields, Meters, NO_SPAN, Name, OwnedNamedRecord,
+    OwnedRecord, Params, Path, Record, Reference, Refers, Schema, Shape, declaration,
+    decode_record, field, record, spanned, variant,
 };
 pub use tree::{
     DataDeclaration, DataDocument, DataField, DataImport, DataValue, Spanned, is_pascal_case,

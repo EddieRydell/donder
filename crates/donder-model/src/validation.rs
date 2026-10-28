@@ -2,14 +2,14 @@ mod problem;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::effect::{CurveSource, EffectParamValue, GradientSource};
+use crate::effect::{OwnedCurve, OwnedGradient, ParamValue};
 use crate::fixture::FixtureDefinitionId;
 use crate::identity::ObjectId;
 use crate::input_device::{ControlRef, InputControlKind};
-use crate::operator::{effect_param_matches_type, validate_composition_graph};
+use crate::operator::{param_matches_type, validate_composition_graph};
 use crate::project::DonderProject;
 use crate::rig::{
-    MAX_STACKED_VOICES, MappingAction, Rig, RigEffect, TriggerLength, VoicePolicy, When,
+    MAX_STACKED_VOICES, MappingAction, Rig, RigClip, TriggerLength, VoicePolicy, When,
 };
 use crate::sequence::{
     AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
@@ -23,7 +23,7 @@ use donder_runtime_types::{Identifier, SampleDuration};
 use indexmap::IndexMap;
 
 pub use problem::{
-    AdmissionProblem, AutomationProblem, CompositionProblem, EffectProblem, InputProblem,
+    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, InputProblem,
     MappingProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem, ProblemSite,
     ProjectValidationError, RegionProblem, RigValidationError, RouteProblem,
     SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
@@ -283,9 +283,9 @@ fn validate_sequence_since(
         })
         .map(|previous| {
             previous
-                .effects
+                .clips
                 .iter()
-                .map(|effect| (&effect.id, effect))
+                .map(|clip| (&clip.id, clip))
                 .collect::<HashMap<_, _>>()
         })
         .unwrap_or_default();
@@ -319,8 +319,8 @@ fn validate_sequence_since(
     if sequence.frame_count() > u128::from(MAX_SEQUENCE_FRAME_COUNT) {
         return timing(TimingProblem::TooManyFrames);
     }
-    if let Some(effect) = first_repeat(&sequence.effects, |effect| effect.id.clone()) {
-        return Err(Error::DuplicateClipId(effect.id.clone()));
+    if let Some(clip) = first_repeat(&sequence.clips, |clip| clip.id.clone()) {
+        return Err(Error::DuplicateClipId(clip.id.clone()));
     }
     if let Some(clip) = first_repeat(&sequence.automation_clips, |clip| clip.id.0) {
         return Err(Error::DuplicateAutomationClipId(clip.id.clone()));
@@ -356,68 +356,63 @@ fn validate_sequence_since(
         }
     }
 
-    let is_unchanged = |effect: &std::sync::Arc<crate::effect::EffectInst>| {
+    let is_unchanged = |clip: &std::sync::Arc<crate::effect::Clip>| {
         unchanged
-            .get(&effect.id)
-            .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, effect))
+            .get(&clip.id)
+            .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, clip))
     };
     // An unchanged clip compared against an unchanged first clip in an unchanged
     // context only needs the checks that involve the sequence's own duration.
-    let first_unchanged = sequence.effects.first().is_none_or(is_unchanged);
-    for effect in &sequence.effects {
+    let first_unchanged = sequence.clips.first().is_none_or(is_unchanged);
+    for clip in &sequence.clips {
         let fail = |problem| Error::Clip {
-            clip: effect.id.clone(),
-            name: effect.name.clone(),
+            clip: clip.id.clone(),
+            name: clip.name.clone(),
             problem,
         };
-        let region = |region| fail(EffectProblem::Region(region));
-        if first_unchanged && is_unchanged(effect) {
+        let region = |region| fail(ClipProblem::Region(region));
+        if first_unchanged && is_unchanged(clip) {
             validate_timed_region(
-                effect.start.0,
-                effect.duration.0,
+                clip.start.0,
+                clip.duration.0,
                 sequence.duration.0,
                 sampled_sequence_duration,
             )
             .map_err(region)?;
             continue;
         }
-        if !layer_ids.contains(&effect.layer_id) {
-            return Err(fail(EffectProblem::MissingLayer));
+        if !layer_ids.contains(&clip.layer_id) {
+            return Err(fail(ClipProblem::MissingLayer));
         }
         validate_timed_region(
-            effect.start.0,
-            effect.duration.0,
+            clip.start.0,
+            clip.duration.0,
             sequence.duration.0,
             sampled_sequence_duration,
         )
         .map_err(region)?;
-        if active && &effect.target.layout != active_layout {
-            return Err(fail(EffectProblem::NotInActiveLayout));
+        if active && &clip.target.layout != active_layout {
+            return Err(fail(ClipProblem::NotInActiveLayout));
         }
         if sequence
-            .effects
+            .clips
             .first()
-            .is_some_and(|first| first.target.layout != effect.target.layout)
+            .is_some_and(|first| first.target.layout != clip.target.layout)
         {
-            return Err(fail(EffectProblem::MixedLayouts));
+            return Err(fail(ClipProblem::MixedLayouts));
         }
-        if is_unchanged(effect) {
+        if is_unchanged(clip) {
             continue;
         }
-        validate_target(project, &effect.target).map_err(fail)?;
-        validate_effect_params(
-            project,
-            &effect.definition,
-            &effect.param_overrides,
-            &mark_keys,
-        )
-        .map_err(fail)?;
+        validate_target(project, &clip.target).map_err(fail)?;
+        validate_params(project, &clip.definition, &clip.param_overrides, &mark_keys)
+            .map_err(fail)?;
     }
     let mut automation_targets = HashMap::<_, Vec<_>>::new();
     let sequence_layout = sequence
-        .effects
+        .clips
         .first()
-        .map(|effect| &effect.target.layout)
+        .map(|clip| &clip.target.layout)
         .or_else(|| {
             sequence
                 .automation_clips
@@ -493,12 +488,12 @@ fn validate_sequence_since(
 /// and unique among its kind.
 fn validate_sequence_names(
     sequence: &Sequence,
-    unchanged: &HashMap<&crate::effect::EffectInstId, &std::sync::Arc<crate::effect::EffectInst>>,
+    unchanged: &HashMap<&crate::effect::ClipId, &std::sync::Arc<crate::effect::Clip>>,
 ) -> Result<(), NameProblem> {
     let clips = sequence
-        .effects
+        .clips
         .iter()
-        .map(|effect| (Member::Clip(effect.id.clone()), &effect.name));
+        .map(|clip| (Member::Clip(clip.id.clone()), &clip.name));
     let marks = sequence.mark_collections.iter().map(|collection| {
         (
             Member::Marks(collection.key.name.clone()),
@@ -508,14 +503,14 @@ fn validate_sequence_names(
     // An unchanged clip's name was accepted when it was admitted.
     snake_case(
         sequence
-            .effects
+            .clips
             .iter()
-            .filter(|effect| {
+            .filter(|clip| {
                 !unchanged
-                    .get(&effect.id)
-                    .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, effect))
+                    .get(&clip.id)
+                    .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, clip))
             })
-            .map(|effect| (Member::Clip(effect.id.clone()), &effect.name))
+            .map(|clip| (Member::Clip(clip.id.clone()), &clip.name))
             .chain(marks.clone()),
     )?;
     distinct(clips)?;
@@ -524,7 +519,7 @@ fn validate_sequence_names(
 
 /// The layers and composition graph of a sequence or rig: layers and graph
 /// nodes are referred to by name, so each name is valid and unique. A layer
-/// node is named by its layer and the output node is `output`, so operator
+/// node is named by its layer and the root node is `root`, so operator
 /// nodes share that namespace with layers. Returns the layer ids.
 fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>>(
     project: &DonderProject,
@@ -548,13 +543,13 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
         || operators().map(|(id, operator)| (Member::Node(id.clone()), &operator.name));
     snake_case(layer_names.clone().chain(node_names()))?;
     distinct(layer_names.clone())?;
-    let output = donder_language::object_name("output");
-    let output_node = graph
+    let root = donder_language::object_name("root");
+    let root_node = graph
         .nodes
         .iter()
-        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
-        .map(|node| (Member::Node(node.id.clone()), &output));
-    distinct(layer_names.chain(output_node).chain(node_names()))?;
+        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
+        .map(|node| (Member::Node(node.id.clone()), &root));
+    distinct(layer_names.chain(root_node).chain(node_names()))?;
     validate_composition_graph(graph, project.reusable::<crate::OperatorDefinition>())
         .map_err(CompositionProblem::Graph)?;
     for (node, operator) in operators() {
@@ -582,32 +577,32 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
     Ok(layer_ids)
 }
 
-/// A clip's or rig effect's target names an existing fixture or group.
+/// A sequence or rig clip's target names an existing fixture or group.
 fn validate_target(
     project: &DonderProject,
     target: &crate::layout::FixtureTarget,
-) -> Result<(), EffectProblem> {
+) -> Result<(), ClipProblem> {
     let layout = project
         .get::<crate::Layout>(target.layout)
-        .ok_or(EffectProblem::MissingTargetLayout)?;
+        .ok_or(ClipProblem::MissingTargetLayout)?;
     if layout.fixture(target.fixture).is_none() {
-        return Err(EffectProblem::MissingTarget);
+        return Err(ClipProblem::MissingTarget);
     }
     Ok(())
 }
 
-/// An effect's parameter overrides: each declared, typed by its declaration,
+/// A clip's parameter overrides: each declared, typed by its declaration,
 /// and every parameter without a default supplied.
-fn validate_effect_params(
+fn validate_params(
     project: &DonderProject,
     definition: &crate::effect::EffectDefinitionId,
-    overrides: &IndexMap<Identifier, EffectParamValue>,
+    overrides: &IndexMap<Identifier, ParamValue>,
     mark_keys: &HashSet<&MarkCollectionKey>,
-) -> Result<(), EffectProblem> {
+) -> Result<(), ClipProblem> {
     let definition = project
         .get::<crate::EffectDefinition>(*definition)
-        .ok_or(EffectProblem::MissingDefinition)?;
-    let param = |problem| Err(EffectProblem::Param(problem));
+        .ok_or(ClipProblem::MissingDefinition)?;
+    let param = |problem| Err(ClipProblem::Param(problem));
     if let Some(name) = overrides
         .keys()
         .find(|name| !definition.params().iter().any(|param| &param.name == *name))
@@ -616,9 +611,9 @@ fn validate_effect_params(
     }
     for declaration in definition.params() {
         match overrides.get(&declaration.name) {
-            Some(value) if effect_param_matches_type(value, &declaration.ty) => {
+            Some(value) if param_matches_type(value, &declaration.ty) => {
                 validate_param_references(project, &declaration.name, value, mark_keys)
-                    .map_err(EffectProblem::Param)?;
+                    .map_err(ClipProblem::Param)?;
             }
             Some(_) => return param(ParamProblem::WrongType(declaration.name.clone())),
             None if declaration.default.is_none() => {
@@ -630,31 +625,26 @@ fn validate_effect_params(
     Ok(())
 }
 
-/// A rig voice's or trigger's effect.
-fn validate_rig_effect(
+/// A rig voice's or trigger's clip.
+fn validate_rig_clip(
     project: &DonderProject,
-    effect: &RigEffect,
+    clip: &RigClip,
     layer_ids: &HashSet<&SequenceLayerId>,
     mark_keys: &HashSet<&MarkCollectionKey>,
     active_layout: Option<&crate::layout::LayoutId>,
     rig_layout: Option<&crate::layout::LayoutId>,
-) -> Result<(), EffectProblem> {
-    if !layer_ids.contains(&effect.layer_id) {
-        return Err(EffectProblem::MissingLayer);
+) -> Result<(), ClipProblem> {
+    if !layer_ids.contains(&clip.layer_id) {
+        return Err(ClipProblem::MissingLayer);
     }
-    if active_layout.is_some_and(|layout| &effect.target.layout != layout) {
-        return Err(EffectProblem::NotInActiveLayout);
+    if active_layout.is_some_and(|layout| &clip.target.layout != layout) {
+        return Err(ClipProblem::NotInActiveLayout);
     }
-    if rig_layout.is_some_and(|layout| layout != &effect.target.layout) {
-        return Err(EffectProblem::MixedLayouts);
+    if rig_layout.is_some_and(|layout| layout != &clip.target.layout) {
+        return Err(ClipProblem::MixedLayouts);
     }
-    validate_target(project, &effect.target)?;
-    validate_effect_params(
-        project,
-        &effect.definition,
-        &effect.param_overrides,
-        mark_keys,
-    )
+    validate_target(project, &clip.target)?;
+    validate_params(project, &clip.definition, &clip.param_overrides, mark_keys)
 }
 
 pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), RigValidationError> {
@@ -719,12 +709,12 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), RigValidat
         &rig.composition_graph,
         &mark_keys,
     )?;
-    let rig_layout = rig.effects().next().map(|effect| &effect.target.layout);
+    let rig_layout = rig.clips().next().map(|clip| &clip.target.layout);
     let active_layout = active.then(|| setup.layout.id());
-    let effect = |effect: &RigEffect| {
-        validate_rig_effect(
+    let clip = |clip: &RigClip| {
+        validate_rig_clip(
             project,
-            effect,
+            clip,
             &layer_ids,
             &mark_keys,
             active_layout,
@@ -732,7 +722,7 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), RigValidat
         )
     };
     for voice in &rig.voices {
-        effect(&voice.effect).map_err(|problem| Error::Voice {
+        clip(&voice.clip).map_err(|problem| Error::Voice {
             voice: voice.id,
             name: voice.name.clone(),
             problem,
@@ -766,7 +756,7 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), RigValidat
         }
     }
     for mapping in &rig.mappings {
-        validate_mapping(project, rig, mapping, &mark_keys, &control, &effect).map_err(
+        validate_mapping(project, rig, mapping, &mark_keys, &control, &clip).map_err(
             |problem| Error::Mapping {
                 mapping: mapping.id,
                 name: mapping.name.clone(),
@@ -783,7 +773,7 @@ fn validate_mapping<'a>(
     mapping: &crate::rig::Mapping,
     mark_keys: &HashSet<&MarkCollectionKey>,
     control: &impl Fn(&ControlRef) -> Result<&'a InputControlKind, InputProblem>,
-    effect: &impl Fn(&RigEffect) -> Result<(), EffectProblem>,
+    clip: &impl Fn(&RigClip) -> Result<(), ClipProblem>,
 ) -> Result<(), MappingProblem> {
     let input = control(&mapping.input).map_err(MappingProblem::Input)?;
     match &mapping.action {
@@ -813,7 +803,7 @@ fn validate_mapping<'a>(
     };
     match &mapping.action {
         MappingAction::Trigger(trigger) => {
-            effect(&trigger.effect).map_err(MappingProblem::Effect)?;
+            clip(&trigger.clip).map_err(MappingProblem::Clip)?;
             if let TriggerLength::Fixed(duration) = &trigger.length {
                 let sampled = sample_duration_from_donder_duration(duration)
                     .map_err(|_| MappingProblem::DurationBeyondClock)?;
@@ -829,7 +819,7 @@ fn validate_mapping<'a>(
             let mut played = HashSet::new();
             for value in &trigger.values {
                 let name = || value.param.clone();
-                match param(&trigger.effect.definition, &value.param) {
+                match param(&trigger.clip.definition, &value.param) {
                     None => return Err(MappingProblem::UnknownValue(name())),
                     Some(None) => return Err(MappingProblem::ValueNotAutomatable(name())),
                     Some(Some(_)) => {}
@@ -851,10 +841,10 @@ fn validate_mapping<'a>(
             target,
             param: name,
         } => {
-            let effect = rig
-                .control_effect(*target)
+            let clip = rig
+                .control_clip(*target)
                 .ok_or(MappingProblem::MissingControlTarget)?;
-            match param(&effect.definition, name) {
+            match param(&clip.definition, name) {
                 None => return Err(MappingProblem::UnknownControlParam(name.clone())),
                 Some(None) => return Err(MappingProblem::ControlNotAutomatable(name.clone())),
                 Some(Some(_)) => {}
@@ -927,35 +917,35 @@ fn validate_timed_region(
 fn validate_param_references(
     project: &DonderProject,
     param: &Identifier,
-    value: &EffectParamValue,
+    value: &ParamValue,
     mark_keys: &HashSet<&MarkCollectionKey>,
 ) -> Result<(), ParamProblem> {
     let name = || param.clone();
     match value {
-        EffectParamValue::Marks(Some(key)) if !mark_keys.contains(key) => {
+        ParamValue::Marks(Some(key)) if !mark_keys.contains(key) => {
             Err(ParamProblem::MissingMarks(name()))
         }
-        EffectParamValue::Curve(CurveSource::Inline(curve)) => curve
+        ParamValue::Curve(OwnedCurve::Inline(curve)) => curve
             .validate()
             .map_err(|error| ParamProblem::InvalidCurve(name(), error)),
-        EffectParamValue::Curve(CurveSource::Reference(id))
+        ParamValue::Curve(OwnedCurve::Reference(id))
             if !project
                 .reusable::<crate::CurveDefinition>()
                 .contains_key(id) =>
         {
             Err(ParamProblem::MissingCurve(name()))
         }
-        EffectParamValue::Gradient(GradientSource::Reference(id))
+        ParamValue::Gradient(OwnedGradient::Reference(id))
             if !project
                 .reusable::<crate::GradientDefinition>()
                 .contains_key(id) =>
         {
             Err(ParamProblem::MissingGradient(name()))
         }
-        EffectParamValue::Gradient(GradientSource::Inline(gradient)) => gradient
+        ParamValue::Gradient(OwnedGradient::Inline(gradient)) => gradient
             .validate()
             .map_err(|error| ParamProblem::InvalidGradient(name(), error)),
-        EffectParamValue::Array(values) => {
+        ParamValue::Array(values) => {
             for value in values {
                 validate_param_references(project, param, value, mark_keys)?;
             }
@@ -978,14 +968,14 @@ pub fn automation_target_param<'a>(
             .ok_or_else(|| AutomationProblem::MissingParam(param.clone()))
     };
     match target {
-        AutomationTarget::EffectParam { effect_id, param } => {
-            let effect = sequence
-                .effects
+        AutomationTarget::ClipParam { clip_id, param } => {
+            let clip = sequence
+                .clips
                 .iter()
-                .find(|effect| &effect.id == effect_id)
-                .ok_or(AutomationProblem::MissingEffect)?;
+                .find(|clip| &clip.id == clip_id)
+                .ok_or(AutomationProblem::MissingClip)?;
             let definition = project
-                .get::<crate::EffectDefinition>(effect.definition)
+                .get::<crate::EffectDefinition>(clip.definition)
                 .ok_or_else(|| AutomationProblem::MissingParam(param.clone()))?;
             find(definition.params(), param)
         }

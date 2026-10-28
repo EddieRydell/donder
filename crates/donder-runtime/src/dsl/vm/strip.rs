@@ -22,7 +22,8 @@ use crate::dsl::bytecode::{
     Bank, ColorComponent, CompareOp, ContextRead, CurveOp, Direction, Edges, FloatBinary, Input,
     Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource, SignalPixel, Slot, SlotKind,
 };
-use crate::image::{self, GradientStop, SectionPixel};
+use crate::format::{self, GradientStop, SectionPixel};
+use crate::image::{Image, ProgramView};
 use crate::resources::{CurveView, ParamsView};
 use crate::sampling::{
     clamp_array_index, color_hue, color_intensity, color_saturation, float_binary, float_unary,
@@ -30,7 +31,6 @@ use crate::sampling::{
     previous_mark_index, sample_gradient_stops, value_or,
 };
 use crate::sections::{RunSections, SectionsView, single_section_query};
-use crate::show::{ProgramView, Show};
 use core::cell::Cell;
 use donder_runtime_types::{Color, InstructionWord, MarkWindow};
 
@@ -49,25 +49,25 @@ fn decoded(code: &[InstructionWord]) -> Instruction {
 
 /// A bound color word: the index of its color in the image.
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn word_color(show: Show<'_>, word: u32) -> Color {
-    show.s.colors[word as usize]
+fn word_color(image: Image<'_>, word: u32) -> Color {
+    image.s.colors[word as usize]
 }
 
 /// Signal queries of a running strip. Pixel `n` of a strip is its `n`th
 /// pixel; the provider knows which pixels the strip covers.
 pub(crate) trait StripSignals {
     /// `input` for every pixel of the strip, each at its own pixel.
-    fn sample_strip(&mut self, input: usize, output: &mut [Color; STRIP]);
+    fn read_strip(&mut self, input: usize, output: &mut [Color; STRIP]);
 
     /// `input` for one pixel at an explicit address.
-    fn sample_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color;
+    fn read_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color;
 
     /// The strip's pixels of `query`'s scan, computed for the whole frame
     /// the first time the node reads it.
     fn scan(
         &mut self,
         query: &ScanQuery,
-        weights: &mut dyn SourceWeights,
+        weights: &mut dyn NeighborWeights,
         output: &mut [Color; STRIP],
     );
 
@@ -92,20 +92,20 @@ pub(crate) struct ScanQuery {
     pub(crate) decay: f32,
 }
 
-/// A scan's weight of each input color, from its source block.
-pub(crate) trait SourceWeights {
+/// A scan's weight of each input color, from its weight block.
+pub(crate) trait NeighborWeights {
     fn weights(&mut self, colors: &[Color], weights: &mut [f32]);
 }
 
 /// A clip sampled alone: it has no layer, so its previous frame is black.
 impl StripSignals for super::NoSignals {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn sample_strip(&mut self, _: usize, output: &mut [Color; STRIP]) {
+    fn read_strip(&mut self, _: usize, output: &mut [Color; STRIP]) {
         output.fill(Color::BLACK);
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn sample_pixel(&mut self, _: usize, _: usize, _: SignalPixel<i32>) -> Color {
+    fn read_pixel(&mut self, _: usize, _: usize, _: SignalPixel<i32>) -> Color {
         Color::BLACK
     }
 
@@ -116,7 +116,7 @@ impl StripSignals for super::NoSignals {
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn scan(&mut self, _: &ScanQuery, _: &mut dyn SourceWeights, output: &mut [Color; STRIP]) {
+    fn scan(&mut self, _: &ScanQuery, _: &mut dyn NeighborWeights, output: &mut [Color; STRIP]) {
         output.fill(Color::BLACK);
     }
 }
@@ -557,7 +557,7 @@ struct Term<'n, 'm> {
     runs: &'n [Segment],
 }
 
-/// A scan's source block, run over strips of input colors.
+/// A scan's weight block, run over strips of input colors.
 struct Weights<'s, 'm, 'w> {
     machine: &'s Machine<'m, 'w>,
     code: &'s [InstructionWord],
@@ -566,7 +566,7 @@ struct Weights<'s, 'm, 'w> {
     levels: Levels<'w>,
 }
 
-impl SourceWeights for Weights<'_, '_, '_> {
+impl NeighborWeights for Weights<'_, '_, '_> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn weights(&mut self, colors: &[Color], weights: &mut [f32]) {
         for (colors, weights) in colors.chunks(STRIP).zip(weights.chunks_mut(STRIP)) {
@@ -585,7 +585,7 @@ impl SourceWeights for Weights<'_, '_, '_> {
 /// What a program runs with: its show, code, parameters and target.
 #[derive(Clone, Copy)]
 pub(crate) struct Bound<'a> {
-    pub(crate) show: Show<'a>,
+    pub(crate) image: Image<'a>,
     pub(crate) program: ProgramView<'a>,
     pub(crate) params: ParamsView<'a>,
     pub(crate) sections: Option<SectionsView<'a>>,
@@ -852,19 +852,19 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     self.reduce(instruction, loop_code, contribute, sel, levels, signals);
                 }
                 Instruction::Stencil {
-                    source_len,
+                    weight_len,
                     tap_len,
                     ..
                 } => {
-                    let source = &code[at..at + usize::from(source_len)];
-                    at += usize::from(source_len);
+                    let source = &code[at..at + usize::from(weight_len)];
+                    at += usize::from(weight_len);
                     let taps = &code[at..at + usize::from(tap_len)];
                     at += usize::from(tap_len);
                     self.stencil(instruction, source, taps, sel, levels, signals);
                 }
-                Instruction::Scan { source_len, .. } => {
-                    let source = &code[at..at + usize::from(source_len)];
-                    at += usize::from(source_len);
+                Instruction::Scan { weight_len, .. } => {
+                    let source = &code[at..at + usize::from(weight_len)];
+                    at += usize::from(weight_len);
                     self.scan(instruction, source, sel, levels, signals);
                 }
                 Instruction::Tabulate { len, .. } => {
@@ -1090,7 +1090,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     /// A neighborhood reduction. The union of the selected pixels' offset
     /// ranges and the pixels they read make a neighborhood of at most two
-    /// strips: its input is read once and its source weights computed once,
+    /// strips: its input is read once and its neighbor weights computed once,
     /// a strip at a time; then each offset runs its scalar code and
     /// accumulates its term at every selected pixel.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
@@ -1118,7 +1118,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         else {
             unreachable!()
         };
-        let Instruction::Sample {
+        let Instruction::Read {
             dst: sample, input, ..
         } = decoded(source)
         else {
@@ -1361,7 +1361,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     /// A scan: the provider computes it for the whole frame, once per query,
-    /// with the source block weighting each input color.
+    /// with the weight block weighting each input color.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn scan(
         &self,
@@ -1382,7 +1382,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         else {
             unreachable!()
         };
-        let Instruction::Sample {
+        let Instruction::Read {
             dst: sample, input, ..
         } = decoded(source)
         else {
@@ -1545,17 +1545,17 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn curve(&self, handle: Handle) -> CurveView<'m> {
-        let show = self.bound.show;
+        let image = self.bound.image;
         match handle.kind() {
-            Ok(index) => show.curve(index),
-            Err(bank) => self.bound.params.curve(show, self.resource(bank)),
+            Ok(index) => image.curve(index),
+            Err(bank) => self.bound.params.curve(image, self.resource(bank)),
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn gradient(&self, handle: Handle) -> &'m [GradientStop] {
         match handle.kind() {
-            Ok(index) => self.bound.show.gradient(index),
+            Ok(index) => self.bound.image.gradient(index),
             Err(_) => unreachable!("image gradients resolve when bound"),
         }
     }
@@ -1563,17 +1563,17 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn marks(&self, handle: Handle) -> MarkWindow<'m> {
-        let show = self.bound.show;
+        let image = self.bound.image;
         match handle.kind() {
-            Ok(index) => show.marks(index),
-            Err(bank) => self.bound.params.marks(show, self.resource(bank)),
+            Ok(index) => image.marks(index),
+            Err(bank) => self.bound.params.marks(image, self.resource(bank)),
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array(&self, handle: Handle) -> &'m [image::Value] {
+    fn array(&self, handle: Handle) -> &'m [format::Value] {
         match handle.kind() {
-            Ok(index) => self.bound.show.array(index),
+            Ok(index) => self.bound.image.array(index),
             Err(_) => unreachable!("image arrays resolve when bound"),
         }
     }
@@ -1652,7 +1652,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     /// Item `index` of `array`, clamped to it; none of an empty array.
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array_item(&self, array: Handle, index: i32) -> Option<&'m image::Value> {
+    fn array_item(&self, array: Handle, index: i32) -> Option<&'m format::Value> {
         let items = self.array(array);
         if items.is_empty() {
             return None;
@@ -1663,9 +1663,9 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     /// An int array item: an int, or an enum option's index.
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn int_item(&self, item: Option<&image::Value>, default: i32) -> i32 {
+    fn int_item(&self, item: Option<&format::Value>, default: i32) -> i32 {
         match item {
-            Some(item) if matches!(item.kind, image::VALUE_INT | image::VALUE_ENUM) => {
+            Some(item) if matches!(item.kind, format::VALUE_INT | format::VALUE_ENUM) => {
                 item.word as i32
             }
             _ => default,
@@ -1750,14 +1750,14 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     Bank::Int => Self::set_scalar(self.int_dst(dst), word() as i32),
                     Bank::Bool => Self::set_scalar(self.bool_dst(dst), word() != 0),
                     Bank::Color => {
-                        let color = word_color(self.bound.show, word());
+                        let color = word_color(self.bound.image, word());
                         pick_color(sel, self.color_dst(dst), |_| color);
                     }
                     Bank::Resource => {
                         // An image resource resolves now; a rewritten one
                         // when read.
                         let slot = self.resource(index);
-                        let handle = if slot.source == crate::resources::SOURCE_IMAGE {
+                        let handle = if slot.store == crate::resources::STORE_IMAGE {
                             Handle::image(slot.index)
                         } else {
                             Handle::param(index)
@@ -2069,7 +2069,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     self.section_query(width.at(i), index, i, &run)
                 });
             }
-            I::Sample { .. } => self.sample(instruction, sel, signals),
+            I::Read { .. } => self.sample(instruction, sel, signals),
             I::Lookup {
                 bank,
                 dst,
@@ -2148,8 +2148,8 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             Bank::Float => {
                 let default = self.float(default);
                 pick_each(sel, self.float_dst(dst), |i| match item(i) {
-                    Some(item) if item.kind == image::VALUE_FLOAT => f32::from_bits(item.word),
-                    Some(item) if item.kind == image::VALUE_INT => item.word as i32 as f32,
+                    Some(item) if item.kind == format::VALUE_FLOAT => f32::from_bits(item.word),
+                    Some(item) if item.kind == format::VALUE_INT => item.word as i32 as f32,
                     _ => default.at(i),
                 });
             }
@@ -2162,15 +2162,15 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             Bank::Bool => {
                 let default = self.boolean(default);
                 pick_each(sel, self.bool_dst(dst), |i| match item(i) {
-                    Some(item) if item.kind == image::VALUE_BOOL => item.word != 0,
+                    Some(item) if item.kind == format::VALUE_BOOL => item.word != 0,
                     _ => default.at(i),
                 });
             }
             Bank::Color => {
                 let default = self.color(default);
                 pick_color(sel, self.color_dst(dst), |i| match item(i) {
-                    Some(item) if item.kind == image::VALUE_COLOR => {
-                        word_color(self.bound.show, item.word)
+                    Some(item) if item.kind == format::VALUE_COLOR => {
+                        word_color(self.bound.image, item.word)
                     }
                     _ => color_at(default, i),
                 });
@@ -2187,14 +2187,14 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn sample(&self, instruction: &Instruction, sel: Sel<'_>, signals: &mut dyn StripSignals) {
-        let Instruction::Sample { dst, input, pixel } = *instruction else {
+        let Instruction::Read { dst, input, pixel } = *instruction else {
             unreachable!("dispatched by step")
         };
         let input = usize::from(input);
         let dst = self.color_dst(dst);
         if matches!(pixel, SignalPixel::Current) {
             let mut samples = self.ws.samples.borrow_mut();
-            signals.sample_strip(input, &mut samples);
+            signals.read_strip(input, &mut samples);
             let samples = &**samples;
             pick_color(sel, dst, |i| samples[i]);
             return;
@@ -2204,7 +2204,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             unreachable!("the compiler keeps samples in rows")
         };
         each(sel, |i| {
-            let color = signals.sample_pixel(input, i, address.map(|index| index.at(i)));
+            let color = signals.read_pixel(input, i, address.map(|index| index.at(i)));
             red[i].set(color.red);
             green[i].set(color.green);
             blue[i].set(color.blue);

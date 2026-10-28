@@ -1,6 +1,6 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
-import type { RigControlRef, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInputDevice } from "../../../types";
+import type { RigControlRef, RigClipOwner, RigGuiDocument, RigGuiEdit, RigInputDevice } from "../../../types";
 import type { CompositionEditing } from "../sequence/composition";
 import type { GuiItemEdit } from "../shared";
 
@@ -14,15 +14,15 @@ export async function applyRigItemEdit(edit: GuiItemEdit): Promise<void> {
   await runGuiEditCommand((request) => commands.applyGuiEdit(request, edit));
 }
 
-export function editRigEffect(owner: RigEffectOwner, edit: Extract<RigGuiEdit, { type: "editEffect" }>["edit"]) {
-  return applyRigEdit({ type: "editEffect", owner, edit });
+export function editRigClip(owner: RigClipOwner, edit: Extract<RigGuiEdit, { type: "editClip" }>["edit"]) {
+  return applyRigEdit({ type: "editClip", owner, edit });
 }
 
 export function rigComposition(document: RigGuiDocument): CompositionEditing {
   return {
     document: { ...document, markCollections: document.liveMarks },
-    layerUses: (layerId) => document.voices.filter((voice) => voice.effect.layerId === layerId).length
-      + document.mappings.filter((mapping) => mapping.action.type === "trigger" && mapping.action.effect.layerId === layerId).length,
+    layerUses: (layerId) => document.voices.filter((voice) => voice.clip.layerId === layerId).length
+      + document.mappings.filter((mapping) => mapping.action.type === "trigger" && mapping.action.clip.layerId === layerId).length,
     apply: (edit, origin) => runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "rig", edit: { type: "composition", edit } }), origin),
     applyItem: applyRigItemEdit,
     automation: null

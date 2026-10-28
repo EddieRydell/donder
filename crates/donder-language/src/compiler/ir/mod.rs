@@ -13,7 +13,7 @@ mod stencil;
 
 pub(crate) use eval::{Evaluator, evaluate, reduce_identity};
 pub(crate) use rebuild::{Rebuild, Substitute};
-pub(crate) use stencil::{check as check_stencil, reads, source_of, source_only};
+pub(crate) use stencil::{StencilError, reads, scan_weight};
 
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::{Direction, Edges, SignalPixel};
@@ -295,7 +295,7 @@ impl Hash for Constant {
     }
 }
 
-/// The input index a [`Op::Sample`] of the node's own previous frame reads.
+/// The input index a [`Op::Read`] of the node's own previous frame reads.
 pub(crate) const STATE: u32 = u32::MAX;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -315,7 +315,7 @@ pub(crate) enum Op {
     Reduce(LoopId),
     /// An operator input, or the node's own previous frame as [`STATE`], at
     /// this frame and a pixel.
-    Sample {
+    Read {
         input: u32,
         pixel: SignalPixel<Node>,
     },
@@ -329,21 +329,12 @@ pub(crate) enum Op {
     },
     /// A stencil's or scan's input sample at the pixel its weight is
     /// computed for.
-    Source,
-    /// A scan body's value at the previous pixel. Checking turns the body
-    /// into a [`Op::Scan`], so it is never lowered.
-    Previous,
+    Neighbor,
     /// A trail along each fixture: `decay` (fixed for the query) times the
-    /// previous pixel's value, plus `light` (a sample at the current pixel)
-    /// times `weight`, which depends on `light` alone.
+    /// previous pixel's value, plus the input at the current pixel times
+    /// `weight`, which reads that sample as [`Op::Neighbor`] and otherwise
+    /// values fixed for the query.
     Scan {
-        direction: Direction,
-        light: Node,
-        decay: Node,
-        weight: Option<Node>,
-    },
-    /// A scan as lowering emits it: its weight reads [`Op::Source`].
-    ScanTap {
         direction: Direction,
         input: u32,
         decay: Node,
@@ -351,7 +342,7 @@ pub(crate) enum Op {
     },
     /// The contribution of a neighborhood reduction: the input at the loop's
     /// offset along the pixel's fixture, scaled by the product of the
-    /// present factors. `weight` depends on that sample, as [`Op::Source`],
+    /// present factors. `weight` depends on that sample, as [`Op::Neighbor`],
     /// alone; `scale` on the offset but not the pixel; `pixel` not on the
     /// offset.
     Tap {
@@ -365,6 +356,16 @@ pub(crate) enum Op {
 }
 
 impl Op {
+    /// The operator input, or [`STATE`], that a sample, scan or stencil reads.
+    pub(crate) fn input(&self) -> Option<u32> {
+        match *self {
+            Self::Read { input, .. } | Self::Scan { input, .. } | Self::Tap { input, .. } => {
+                Some(input)
+            }
+            _ => None,
+        }
+    }
+
     /// Direct operands, in a stable order. A reduction's parts live in its loop.
     pub(crate) fn operands(&self) -> Vec<Node> {
         match *self {
@@ -374,24 +375,14 @@ impl Op {
             | Self::Context(_)
             | Self::LoopIndex(_)
             | Self::Reduce(_)
-            | Self::Source
-            | Self::Previous => Vec::new(),
-            Self::Scan {
-                light,
-                decay,
-                weight,
-                ..
-            } => [Some(light), Some(decay), weight]
-                .into_iter()
-                .flatten()
-                .collect(),
-            Self::ScanTap { decay, weight, .. } => {
+            | Self::Neighbor => Vec::new(),
+            Self::Scan { decay, weight, .. } => {
                 [Some(decay), weight].into_iter().flatten().collect()
             }
             Self::Unary(_, a) => vec![a],
             Self::Binary(_, a, b) => vec![a, b],
             Self::Ternary(_, a, b, c) | Self::Select(a, b, c) => vec![a, b, c],
-            Self::Sample { pixel, .. } => pixel.index().copied().into_iter().collect(),
+            Self::Read { pixel, .. } => pixel.index().copied().into_iter().collect(),
             Self::Items(ref items) => items.to_vec(),
             Self::Pick { index, ref items } => {
                 let mut operands = vec![index];
@@ -425,9 +416,6 @@ pub(crate) struct Loop {
     /// ranges, each pixel taking part in its own, so work that depends only
     /// on the index runs once per iteration rather than once per pixel.
     pub(crate) shared: bool,
-    /// An `around` reduction over its input's neighbors, read past the
-    /// fixture's ends as these say: lowered as a stencil.
-    pub(crate) around: Option<Edges>,
 }
 
 impl Loop {
@@ -632,12 +620,12 @@ impl Graph {
             Op::Select(_, a, _) => (self.ty(*a).clone(), none),
             Op::Items(items) => (Type::array(self.ty(items[0]).clone()), none),
             Op::Pick { items, .. } => (self.ty(items[0]).clone(), none),
-            Op::Sample { .. } => (
+            Op::Read { .. } => (
                 Type::Color,
                 (Domain::SIGNAL.union(Domain::PIXEL), LoopSet::default()),
             ),
-            Op::Source => (Type::Color, (Domain::SIGNAL, LoopSet::default())),
-            Op::Previous | Op::Scan { .. } | Op::ScanTap { .. } => (
+            Op::Neighbor => (Type::Color, (Domain::SIGNAL, LoopSet::default())),
+            Op::Scan { .. } => (
                 Type::Color,
                 (Domain::SIGNAL.union(Domain::PIXEL), LoopSet::default()),
             ),
@@ -677,7 +665,6 @@ impl Graph {
             filter: None,
             default: None,
             shared,
-            around: None,
         });
         let index = self.intern(Op::LoopIndex(id));
         // The index ranges over the bounds, so it varies wherever they do,
@@ -695,19 +682,15 @@ impl Graph {
         Ok((id, index))
     }
 
-    pub(crate) fn set_around(&mut self, id: LoopId, edges: Edges) {
-        self.loops[id.index()].around = Some(edges);
-    }
-
-    /// The tap replacing the contribution of reduction `id`, when it is a
-    /// stencil.
+    /// The tap replacing the contribution of `around` reduction `id`, or why
+    /// it is not a stencil.
     pub(crate) fn tap(
         &mut self,
         id: LoopId,
         reducer: Reducer,
         body: Node,
         filter: Option<Node>,
-    ) -> Option<Node> {
+    ) -> Result<Node, StencilError> {
         stencil::tap(self, id, reducer, body, filter)
     }
 

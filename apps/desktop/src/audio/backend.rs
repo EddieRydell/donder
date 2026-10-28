@@ -10,13 +10,13 @@ use donder_runtime::PlaybackRate;
 type KiraManager = AudioManager<DefaultBackend>;
 type KiraStreamingHandle = StreamingSoundHandle<FromFileError>;
 
-pub(super) struct LoadedSource {
+pub(super) struct LoadedAudio {
     pub(super) audio: SequenceAudio,
     pub(super) canonical_path: String,
     pub(super) duration_seconds: f64,
 }
 
-pub(super) struct SourceMetadata {
+pub(super) struct AudioMetadata {
     pub(super) duration_seconds: f64,
 }
 
@@ -28,7 +28,7 @@ pub(super) struct PlaybackBounds {
 }
 
 pub(super) trait AudioDriver: Send {
-    fn load_metadata(&mut self, path: &str) -> Result<SourceMetadata, String>;
+    fn load_metadata(&mut self, path: &str) -> Result<AudioMetadata, String>;
     fn play(
         &mut self,
         path: &str,
@@ -74,9 +74,9 @@ impl KiraAudioDriver {
 }
 
 impl AudioDriver for KiraAudioDriver {
-    fn load_metadata(&mut self, path: &str) -> Result<SourceMetadata, String> {
+    fn load_metadata(&mut self, path: &str) -> Result<AudioMetadata, String> {
         StreamingSoundData::from_file(path)
-            .map(|sound| SourceMetadata {
+            .map(|sound| AudioMetadata {
                 duration_seconds: sound.duration().as_secs_f64(),
             })
             .map_err(|error| error.to_string())

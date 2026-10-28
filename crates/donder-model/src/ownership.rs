@@ -10,12 +10,12 @@ use donder_runtime_types::Identifier;
 /// Inline values are copied with and deleted with their owner. References retain
 /// shared identity whether the target is in the same document or another one.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ValueSource<T, I> {
+pub enum Owned<T, I> {
     Inline(T),
     Reference(I),
 }
 
-impl<T, I> ValueSource<T, I> {
+impl<T, I> Owned<T, I> {
     pub fn inline(&self) -> Option<&T> {
         match self {
             Self::Inline(value) => Some(value),
@@ -34,12 +34,12 @@ impl<T, I> ValueSource<T, I> {
 /// A member of an owner's collection: one owned in place under a name unique
 /// among the owner's members, or a link to a reusable value.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MemberSource<T, I> {
+pub enum OwnedMember<T, I> {
     Inline { name: Identifier, value: Box<T> },
     Reference(I),
 }
 
-impl<T, I> MemberSource<T, I> {
+impl<T, I> OwnedMember<T, I> {
     pub fn inline(&self) -> Option<&T> {
         match self {
             Self::Inline { value, .. } => Some(value),
@@ -75,7 +75,7 @@ impl<T: Identified> Identified for Box<T> {
     }
 }
 
-impl<T: Identified<Id = I>, I> ValueSource<T, I> {
+impl<T: Identified<Id = I>, I> Owned<T, I> {
     pub fn id(&self) -> &I {
         match self {
             Self::Inline(value) => value.id(),
@@ -84,7 +84,7 @@ impl<T: Identified<Id = I>, I> ValueSource<T, I> {
     }
 }
 
-impl<T: Identified<Id = I>, I> MemberSource<T, I> {
+impl<T: Identified<Id = I>, I> OwnedMember<T, I> {
     pub fn id(&self) -> &I {
         match self {
             Self::Inline { value, .. } => value.id(),

@@ -36,16 +36,15 @@ impl ProgramConstants {
     }
 }
 
+/// An invocation prepared for the global signal graph.
 #[derive(Clone, Debug)]
-pub(crate) struct Instance {
+pub struct Instance {
     pub(crate) graph: Graph,
     pub(crate) root: Node,
     /// The value of every parameter slot. Automated slots hold their authored
     /// value; playback replaces it.
     pub(crate) values: Vec<Value>,
     pub(crate) automation: Vec<PreparedAutomation>,
-    /// Marks parameters that playback rebinds as live marks arrive.
-    pub(crate) live: Vec<u16>,
 }
 
 impl Instance {
@@ -53,14 +52,12 @@ impl Instance {
         definition: &Definition,
         params: &BoundParams,
         automation: &[PreparedAutomation],
-        live: &[u16],
         constants: ProgramConstants,
     ) -> Result<Self, TooManyLoops> {
         let automated = |index: usize| {
             automation
                 .iter()
                 .any(|binding| usize::from(binding.param_index) == index)
-                || live.iter().any(|&param| usize::from(param) == index)
         };
         let mut slots: Vec<Param> = definition
             .graph
@@ -138,7 +135,6 @@ impl Instance {
             root,
             values,
             automation,
-            live: live.to_vec(),
         })
     }
 
@@ -174,18 +170,17 @@ impl Instance {
             definition,
             &params,
             &automation,
-            &[],
             ProgramConstants::default(),
         )
         .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance"))
     }
 
-    pub(crate) fn inputs(&self) -> u32 {
-        self.graph.inputs()
+    pub fn inputs(&self) -> usize {
+        self.graph.inputs() as usize
     }
 
     /// The color this instance always produces, if it is constant.
-    pub(crate) fn constant_color(&self) -> Option<Color> {
+    pub fn constant_color(&self) -> Option<Color> {
         match self.graph.constant_value(self.root) {
             Some(Value::Color(color)) => Some(*color),
             _ => None,
@@ -194,7 +189,7 @@ impl Instance {
 
     /// Whether this instance, once its inputs are all black, is black at
     /// every frame: black while its previous frame is, which starts black.
-    pub(crate) fn stays_black(&self) -> bool {
+    pub fn stays_black(&self) -> bool {
         let mut graph = Graph::new(self.graph.params().to_vec(), self.graph.inputs());
         let Ok(root) = Rebuild::new(&self.graph).node(&mut graph, self.root, &mut BlackState)
         else {
@@ -203,43 +198,48 @@ impl Instance {
         matches!(graph.constant_value(root), Some(Value::Color(color)) if *color == Color::BLACK)
     }
 
-    /// Replace every sample of `input` with black, for a signal that is black
+    /// Replace every read of `input` with black, for a signal that is black
     /// everywhere. The input is removed and later inputs shift down.
-    pub(crate) fn with_black_input(&self, input: u32) -> Result<Self, TooManyLoops> {
+    pub fn with_black_input(&self, input: usize) -> Self {
         let mut graph = Graph::new(self.graph.params().to_vec(), self.graph.inputs() - 1);
-        let mut substitute = BlackInput { input };
-        let root = Rebuild::new(&self.graph).node(&mut graph, self.root, &mut substitute)?;
-        Ok(Self {
+        let mut substitute = BlackInput {
+            input: input as u32,
+        };
+        let root = Rebuild::new(&self.graph)
+            .node(&mut graph, self.root, &mut substitute)
+            .unwrap_or_else(|_| unreachable!("substitution keeps the reductions"));
+        Self {
             graph,
             root,
             values: self.values.clone(),
             automation: self.automation.clone(),
-            live: self.live.clone(),
-        })
+        }
     }
 
-    /// Substitute `upstream` into its only sample site on `input`. The source
-    /// runs at the consumer's query, on the same pixel. Its inputs follow the
-    /// consumer's remaining inputs.
-    pub(crate) fn fuse_input(&self, input: u32, upstream: &Self) -> Option<Self> {
+    /// Substitute `upstream` into this instance's only read of `input`, on
+    /// the current pixel; the upstream instance runs at the consumer's query
+    /// and its inputs follow the consumer's remaining inputs. `None` keeps the
+    /// boundary: several read sites, addressed pixels, upstream automation at
+    /// another time, or a combined program beyond the row or nesting limits.
+    pub fn fuse_input(&self, input: usize, upstream: &Self) -> Option<Self> {
+        let fused = self.fuse(input as u32, upstream)?;
+        fused.try_lower().ok()?;
+        Some(fused)
+    }
+
+    fn fuse(&self, input: u32, upstream: &Self) -> Option<Self> {
         let sites: Vec<Node> = self
             .graph
             .nodes()
             .filter(|&node| self.reaches(node))
-            .filter(|&node| matches!(self.graph.op(node), Op::Sample { input: sampled, .. } if *sampled == input))
+            .filter(|&node| self.graph.op(node).input() == Some(input))
             .collect();
+        // One sample at the current pixel; a scan or a stencil reads its input
+        // at other pixels of the fixture too.
         let [site] = sites.as_slice() else {
             return None;
         };
-        // A scan reads its input at every pixel of the fixture.
-        let scanned = self.graph.nodes().any(|node| {
-            matches!(self.graph.op(node), Op::Scan { light, .. } if light == site)
-                && self.reaches(node)
-        });
-        if scanned {
-            return None;
-        }
-        let Op::Sample {
+        let Op::Read {
             pixel: SignalPixel::Current,
             ..
         } = *self.graph.op(*site)
@@ -248,10 +248,6 @@ impl Instance {
         };
         // A node's previous frame is its own; fused, it would be another's.
         if self.reads_state() || upstream.reads_state() {
-            return None;
-        }
-        // Playback rebinds live marks by the parameter index preparation recorded.
-        if !self.live.is_empty() || !upstream.live.is_empty() {
             return None;
         }
         let offset = self.graph.params().len() as u32;
@@ -280,16 +276,14 @@ impl Instance {
             root,
             values,
             automation,
-            live: Vec::new(),
         })
     }
 
     /// Whether the program reads its node's previous frame.
     fn reads_state(&self) -> bool {
-        self.graph.nodes().any(|node| {
-            matches!(self.graph.op(node), Op::Sample { input, .. } if *input == STATE)
-                && self.reaches(node)
-        })
+        self.graph
+            .nodes()
+            .any(|node| self.graph.op(node).input() == Some(STATE) && self.reaches(node))
     }
 
     /// Whether `node` is reachable from the root, through reductions.
@@ -361,17 +355,17 @@ struct BlackInput {
 }
 
 impl Substitute for BlackInput {
-    fn sample(
+    fn read(
         &mut self,
         target: &mut Graph,
         input: u32,
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
         Ok(match input.cmp(&self.input) {
-            _ if input == STATE => target.add(Op::Sample { input, pixel }),
+            _ if input == STATE => target.add(Op::Read { input, pixel }),
             core::cmp::Ordering::Equal => target.color(Color::BLACK),
-            core::cmp::Ordering::Less => target.add(Op::Sample { input, pixel }),
-            core::cmp::Ordering::Greater => target.add(Op::Sample {
+            core::cmp::Ordering::Less => target.add(Op::Read { input, pixel }),
+            core::cmp::Ordering::Greater => target.add(Op::Read {
                 input: input - 1,
                 pixel,
             }),
@@ -383,7 +377,7 @@ impl Substitute for BlackInput {
 struct BlackState;
 
 impl Substitute for BlackState {
-    fn sample(
+    fn read(
         &mut self,
         target: &mut Graph,
         input: u32,
@@ -392,7 +386,7 @@ impl Substitute for BlackState {
         Ok(if input == STATE {
             target.color(Color::BLACK)
         } else {
-            target.add(Op::Sample { input, pixel })
+            target.add(Op::Read { input, pixel })
         })
     }
 }
@@ -406,7 +400,7 @@ struct Fuse<'a> {
 }
 
 impl Substitute for Fuse<'_> {
-    fn sample(
+    fn read(
         &mut self,
         target: &mut Graph,
         input: u32,
@@ -414,35 +408,35 @@ impl Substitute for Fuse<'_> {
     ) -> Result<Node, TooManyLoops> {
         if input != self.input {
             let input = if input > self.input { input - 1 } else { input };
-            return Ok(target.add(Op::Sample { input, pixel }));
+            return Ok(target.add(Op::Read { input, pixel }));
         }
-        let mut source = Source {
+        let mut leaves = Leaves {
             offset: self.offset,
             first_input: self.remaining,
         };
-        Rebuild::new(&self.upstream.graph).node(target, self.upstream.root, &mut source)
+        Rebuild::new(&self.upstream.graph).node(target, self.upstream.root, &mut leaves)
     }
 }
 
-/// A fused source's leaves: its parameters after the consumer's, and its
+/// A fused upstream instance's leaves: its parameters after the consumer's, and its
 /// inputs after the consumer's remaining inputs.
-struct Source {
+struct Leaves {
     offset: u32,
     first_input: u32,
 }
 
-impl Substitute for Source {
+impl Substitute for Leaves {
     fn param(&mut self, target: &mut Graph, index: u32) -> Node {
         target.add(Op::Param(index + self.offset))
     }
 
-    fn sample(
+    fn read(
         &mut self,
         target: &mut Graph,
         input: u32,
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
-        Ok(target.add(Op::Sample {
+        Ok(target.add(Op::Read {
             input: input + self.first_input,
             pixel,
         }))

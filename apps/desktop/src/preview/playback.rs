@@ -105,10 +105,10 @@ impl PreviewPlayback {
 
     pub(crate) fn replace_content(
         &mut self,
-        archive: Option<&[u8]>,
+        image: Option<&[u8]>,
         instance_count: usize,
     ) -> Result<(), PreviewPlaybackError> {
-        let content = match archive {
+        let content = match image {
             None => None,
             Some(bytes) => Some(Box::new(
                 PreparedShow::decode(bytes)

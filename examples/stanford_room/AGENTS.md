@@ -15,7 +15,7 @@ with the show, tell the author.
   setup and the sequence.
 - `sequences/main.data.donder` is the show: the song's audio, its mark
   collections (beats and cues, in seconds), its layers, its clips, the graph that
-  combines layers into the output, and automation. Most requests are edits here.
+  combines layers into its root node, and automation. Most requests are edits here.
 - `layouts/main.data.donder` places the strips. Its fixtures and groups (`desk`,
   `desk_top`, `desk_left`, `desk_legs`, `desk_leg_left` and so on) are what clips
   target, as `layouts.main.<name>`. A group targets every strip inside it.
@@ -51,7 +51,7 @@ Clip {
   mark inside the clip.
 - `layer` is one of the sequence's layers. Layers are combined by the graph, so a
   clip on `hue_shift` passes through the `HueMap` and `HueShift` operators before
-  the output.
+  the root node.
 - `scope: WholeTarget` treats the target as one strip; `PerFixture` plays the
   effect on each strip of a group separately.
 - `params` lists only the parameters that differ from the effect's defaults, in

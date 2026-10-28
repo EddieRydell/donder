@@ -4,13 +4,29 @@ use crate::sampling::sample_curve;
 use crate::types::{Identifier, Type};
 use crate::values::{Curve, CurvePoint};
 
+/// How a binding sets its parameter: a normalized curve mapped onto the
+/// parameter's range or options, or a rig's live mark collection.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AutomationMapping {
-    Float { min: f32, max: f32 },
-    Int { min: i32, max: i32 },
+    Float {
+        min: f32,
+        max: f32,
+    },
+    Int {
+        min: i32,
+        max: i32,
+    },
     Bool,
-    Enum { values: Vec<Identifier> },
-    Curve { min: f32, max: f32 },
+    Enum {
+        values: Vec<Identifier>,
+    },
+    Curve {
+        min: f32,
+        max: f32,
+    },
+    /// A marks parameter that reads a live collection, whose marks playback
+    /// adds as they arrive. Its binding's curve is unused.
+    LiveMarks,
 }
 
 impl AutomationMapping {
@@ -27,7 +43,7 @@ impl AutomationMapping {
                 min.hash(state);
                 max.hash(state);
             }
-            Self::Bool => {}
+            Self::Bool | Self::LiveMarks => {}
             Self::Enum { values } => values.hash(state),
         }
     }
@@ -37,8 +53,7 @@ impl AutomationMapping {
             Self::Float { min, max } | Self::Curve { min, max } => {
                 min.is_finite() && max.is_finite()
             }
-            Self::Int { .. } => true,
-            Self::Bool => true,
+            Self::Int { .. } | Self::Bool | Self::LiveMarks => true,
             Self::Enum { values } => !values.is_empty(),
         }
     }
@@ -49,7 +64,8 @@ impl AutomationMapping {
                 (Self::Float { .. }, Type::Float)
                 | (Self::Int { .. }, Type::Int)
                 | (Self::Bool, Type::Bool)
-                | (Self::Curve { .. }, Type::Curve) => true,
+                | (Self::Curve { .. }, Type::Curve)
+                | (Self::LiveMarks, Type::Marks) => true,
                 (Self::Enum { values }, Type::Enum(options)) => {
                     values.iter().all(|value| options.contains(value))
                 }
@@ -90,6 +106,7 @@ pub fn automation_value_at_position<'a>(
             curve_window_into(&mut output, curve, *min, *max, position);
             AutomationValue::Curve(output)
         }
+        AutomationMapping::LiveMarks => return None,
     })
 }
 

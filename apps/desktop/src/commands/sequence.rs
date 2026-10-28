@@ -11,18 +11,18 @@ pub(crate) fn sequence_export_options(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn export_sequence_file(
+pub(crate) async fn export_image_file(
     request: GuiDocumentRequest,
     outputs: Vec<u32>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = state.prepare_sequence_export(&request, &outputs)?;
+        let bytes = state.prepare_image_export(&request, &outputs)?;
         save_export_file(
-            "Export compiled sequence",
-            "Donder compiled sequence",
-            "donderseq",
+            "Export show image",
+            "Donder show image",
+            "donderimage",
             &bytes,
         )
     })
@@ -148,12 +148,12 @@ pub(crate) fn get_gui_document(
 
 #[tauri::command(async)]
 #[specta::specta]
-pub(crate) fn get_sequence_effect_details(
+pub(crate) fn get_sequence_clip_details(
     request: GuiDocumentRequest,
-    effect_ids: Vec<u32>,
+    clip_ids: Vec<u32>,
     state: State<'_, DesktopState>,
-) -> Result<donder_editor::dto::SequenceEffectDetailsResult, String> {
-    state.get_sequence_effect_details(request, effect_ids)
+) -> Result<donder_editor::dto::SequenceClipDetailsResult, String> {
+    state.get_sequence_clip_details(request, clip_ids)
 }
 
 #[tauri::command(async)]

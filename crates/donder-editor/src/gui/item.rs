@@ -74,14 +74,14 @@ fn sequence_item(
 ) -> Result<(), GuiMutationError> {
     match (item, verb) {
         (GuiItem::Clip { id }, Verb::Rename(name)) => {
-            super::model::effect_mut(sequence, id)?.name = typed_name(&name)?;
+            super::model::clip_mut(sequence, id)?.name = typed_name(&name)?;
         }
         (GuiItem::Clip { id }, Verb::Describe(description)) => {
-            super::model::effect_mut(sequence, id)?.description =
+            super::model::clip_mut(sequence, id)?.description =
                 super::description::normalized(description);
         }
         (GuiItem::MarkCollection { key }, Verb::Rename(name)) => {
-            // A rename moves every effect parameter that names the collection.
+            // A rename moves every clip parameter that names the collection.
             let name = typed_name(&name)?;
             let from = mark_collection_mut(sequence, &key)?.key.name.clone();
             mark_collection_mut(sequence, &key)?.key.name = name.clone();
@@ -214,7 +214,7 @@ fn composition_item(
                 &mut node_mut(composition, &node_id)?.kind
             else {
                 return Err(GuiMutationError::Invalid(
-                    "Layer and output nodes are named by what they show.".to_string(),
+                    "Layer and root nodes are named by what they show.".to_string(),
                 ));
             };
             operator.name = typed_name(&name)?;

@@ -1,9 +1,9 @@
 use super::worker::RasterWorker;
 use donder_editor::dto::{
-    EffectRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,
+    ClipRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,
     SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
 };
-use donder_model::{AutomationTarget, EffectInst, Sequence, SequenceId};
+use donder_model::{AutomationTarget, Clip, Sequence, SequenceId};
 use donder_project_io::ProjectSession;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -26,8 +26,8 @@ struct OpenSequence {
     object_key: String,
     sequence_id: SequenceId,
     project: Arc<ProjectSession>,
-    settings: EffectRasterSettings,
-    clips: HashMap<u32, ClipRaster>,
+    settings: ClipRasterSettings,
+    clips: HashMap<u32, CachedRaster>,
     /// Clip order in the sequence, for rendering clips off screen.
     order: Vec<u32>,
     visible: Vec<u32>,
@@ -36,8 +36,8 @@ struct OpenSequence {
     tick: u64,
 }
 
-struct ClipRaster {
-    clip: Arc<EffectInst>,
+struct CachedRaster {
+    clip: Arc<Clip>,
     state: RasterState,
     revision: u32,
     seen: u64,
@@ -68,7 +68,7 @@ impl SequenceClipRasterService {
     /// render again, visible clips first.
     pub(crate) fn request(
         &mut self,
-        settings: EffectRasterSettings,
+        settings: ClipRasterSettings,
         project: Option<Arc<ProjectSession>>,
         sequence_id: Option<SequenceId>,
         request: SequenceClipRasterRequest,
@@ -111,7 +111,7 @@ impl SequenceClipRasterService {
             &previous,
         );
         open.tick += 1;
-        open.visible = request.visible_effect_ids;
+        open.visible = request.visible_clip_ids;
         for id in &open.visible {
             if let Some(clip) = open.clips.get_mut(id) {
                 clip.seen = open.tick;
@@ -137,7 +137,7 @@ impl SequenceClipRasterService {
             let Some(open) = self.open.as_mut() else {
                 continue;
             };
-            let Some(entry) = open.clips.get_mut(&outcome.effect_id) else {
+            let Some(entry) = open.clips.get_mut(&outcome.clip_id) else {
                 continue;
             };
             if !Arc::ptr_eq(&entry.clip, &outcome.clip)
@@ -173,22 +173,22 @@ impl SequenceClipRasterService {
             return batch;
         };
         open.enforce_budget();
-        for (&effect_id, entry) in &open.clips {
+        for (&clip_id, entry) in &open.clips {
             match &entry.state {
                 RasterState::Pending => batch.pending += 1,
                 RasterState::Evicted => {}
                 RasterState::Ready { columns, rows, .. } if entry.revision > since => {
                     batch.rasters.push(SequenceClipRaster {
-                        effect_id,
+                        clip_id,
                         revision: entry.revision,
                         columns: *columns,
                         rows: *rows,
-                        pixels_rgba_token: format!("{effect_id}-{}", entry.revision),
+                        pixels_rgba_token: format!("{clip_id}-{}", entry.revision),
                     })
                 }
                 RasterState::Failed(message) if entry.revision > since => {
                     batch.errors.push(SequenceClipRasterError {
-                        effect_id,
+                        clip_id,
                         revision: entry.revision,
                         message: message.clone(),
                     })
@@ -201,12 +201,9 @@ impl SequenceClipRasterService {
 
     /// The pixels named by a token of [`Self::take_results`].
     pub(crate) fn pixels_rgba_for_token(&self, token: &str) -> Option<Vec<u8>> {
-        let (effect_id, revision) = token.split_once('-')?;
-        let (effect_id, revision) = (
-            effect_id.parse::<u32>().ok()?,
-            revision.parse::<u32>().ok()?,
-        );
-        let entry = self.open.as_ref()?.clips.get(&effect_id)?;
+        let (clip_id, revision) = token.split_once('-')?;
+        let (clip_id, revision) = (clip_id.parse::<u32>().ok()?, revision.parse::<u32>().ok()?);
+        let entry = self.open.as_ref()?.clips.get(&clip_id)?;
         match &entry.state {
             RasterState::Ready { pixels_rgba, .. } if entry.revision == revision => {
                 Some(pixels_rgba.to_vec())
@@ -251,21 +248,19 @@ impl OpenSequence {
             self.clips.clear();
             self.bytes = 0;
         }
-        let mut clips = HashMap::with_capacity(sequence.effects.len());
-        for effect in &sequence.effects {
-            let id = effect.id.0;
+        let mut clips = HashMap::with_capacity(sequence.clips.len());
+        for clip in &sequence.clips {
+            let id = clip.id.0;
             let entry = match self.clips.remove(&id) {
-                Some(entry) if Arc::ptr_eq(&entry.clip, effect) && !automated.contains(&id) => {
-                    entry
-                }
+                Some(entry) if Arc::ptr_eq(&entry.clip, clip) && !automated.contains(&id) => entry,
                 stale => {
                     if let Some(RasterState::Ready { pixels_rgba, .. }) =
                         stale.map(|entry| entry.state)
                     {
                         self.bytes -= pixels_rgba.len();
                     }
-                    ClipRaster {
-                        clip: Arc::clone(effect),
+                    CachedRaster {
+                        clip: Arc::clone(clip),
                         state: RasterState::Pending,
                         revision: 0,
                         seen: 0,
@@ -277,7 +272,7 @@ impl OpenSequence {
         for removed in self.clips.drain() {
             if let (
                 _,
-                ClipRaster {
+                CachedRaster {
                     state: RasterState::Ready { pixels_rgba, .. },
                     ..
                 },
@@ -287,12 +282,12 @@ impl OpenSequence {
             }
         }
         self.clips = clips;
-        self.order = sequence.effects.iter().map(|effect| effect.id.0).collect();
+        self.order = sequence.clips.iter().map(|clip| clip.id.0).collect();
     }
 
     /// Clips still to render: visible ones in the editor's order, then the
     /// rest of the sequence. Evicted clips render again only when visible.
-    fn work(&self) -> Vec<(u32, Arc<EffectInst>)> {
+    fn work(&self) -> Vec<(u32, Arc<Clip>)> {
         let visible = self.visible.iter().copied().collect::<HashSet<_>>();
         let wanted = |id: &u32, include_evicted: bool| {
             self.clips.get(id).filter(|entry| match entry.state {
@@ -348,7 +343,7 @@ fn automated_clips(sequence: &Sequence) -> impl Iterator<Item = u32> + '_ {
         .iter()
         .flat_map(|clip| clip.bindings.iter())
         .filter_map(|binding| match &binding.target {
-            AutomationTarget::EffectParam { effect_id, .. } => Some(effect_id.0),
+            AutomationTarget::ClipParam { clip_id, .. } => Some(clip_id.0),
             AutomationTarget::CompositionNodeParam { .. } => None,
         })
 }

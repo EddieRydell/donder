@@ -1,6 +1,6 @@
 use crate::dto::{
-    FixtureGuiDocument, GeometryRenderBounds, GuiDocument, GuiFixtureHandle, GuiFixtureSource,
-    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, LayoutGuiDocument, OwnedObjectSlot,
+    FixtureGuiDocument, GeometryRenderBounds, GuiDocument, GuiFixtureHandle, GuiLayoutFixture,
+    GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, LayoutGuiDocument, OwnedObjectSlot,
     Point3Meters, SpatialRenderPixel, SpatialRenderPlan,
 };
 use crate::gui::{ResolvedGuiObject, blocked};
@@ -33,7 +33,7 @@ pub(in crate::gui) fn project_fixture(
                 return blocked("Fixture was not found.", Vec::new());
             };
             let LayoutFixtureKind::Fixture {
-                definition: donder_model::FixtureSource::Inline(value),
+                definition: donder_model::OwnedFixture::Inline(value),
                 ..
             } = &placement.kind
             else {
@@ -134,7 +134,7 @@ pub(in crate::gui) fn project_layout(
                 .map(|value| fixture(session, value))
                 .collect(),
             root: layout.root.iter().map(|member| member.0).collect(),
-            available_fixtures: crate::gui::ownership::available_sources(
+            available_fixtures: crate::gui::ownership::available_declarations(
                 session,
                 &[donder_model::ObjectKind::FixtureDefinition],
             ),
@@ -158,15 +158,15 @@ fn fixture(session: &ProjectSession, fixture: &LayoutFixture) -> GuiLayoutFixtur
                 transform: value,
             } => GuiLayoutFixtureKind::Fixture {
                 definition: match definition {
-                    donder_model::FixtureSource::Inline(value) => GuiFixtureSource::Inline {
+                    donder_model::OwnedFixture::Inline(value) => GuiOwnedFixture::Inline {
                         elements: value
                             .elements
                             .iter()
                             .map(crate::gui::fixture::gui_element)
                             .collect(),
                     },
-                    donder_model::FixtureSource::Reference(id) => GuiFixtureSource::Reference {
-                        source: definition_ref(session, id),
+                    donder_model::OwnedFixture::Reference(id) => GuiOwnedFixture::Reference {
+                        object: definition_ref(session, id),
                     },
                 },
                 transform: crate::gui::fixture::gui_transform(value),

@@ -1,6 +1,6 @@
 //! Resolve authoring identities once, before lowering anything for playback.
 
-use crate::PrepareOutputs;
+use crate::Retain;
 use donder_model::Layout;
 use donder_model::Patch;
 use donder_model::SequenceId;
@@ -32,17 +32,17 @@ pub(crate) struct Selection<'a, S = AcceptedSequence<'a>> {
 pub(crate) fn resolve<'a>(
     project: &'a DonderProject,
     sequence: &SequenceId,
-    outputs: PrepareOutputs<'_>,
+    retain: Retain<'_>,
 ) -> Option<Selection<'a>> {
     let accepted = project.accepted_sequence(sequence)?;
     let sequence = accepted.sequence();
     // Reusable sequences may belong to another layout. They remain authorable,
     // but cannot be played against this project's active setup.
-    resolve_show(project, accepted, outputs, |layout| {
+    resolve_show(project, accepted, retain, |layout| {
         sequence
-            .effects
+            .clips
             .iter()
-            .all(|effect| &effect.target.layout == layout)
+            .all(|clip| &clip.target.layout == layout)
             && sequence
                 .automation_clips
                 .iter()
@@ -53,14 +53,14 @@ pub(crate) fn resolve<'a>(
 pub(crate) fn resolve_rig<'a>(
     project: &'a DonderProject,
     rig: &donder_model::RigId,
-    outputs: PrepareOutputs<'_>,
+    retain: Retain<'_>,
 ) -> Option<Selection<'a, donder_model::AcceptedRig<'a>>> {
     let accepted = project.accepted_rig(rig)?;
-    resolve_show(project, accepted, outputs, |layout| {
+    resolve_show(project, accepted, retain, |layout| {
         accepted
             .rig()
-            .effects()
-            .all(|effect| &effect.target.layout == layout)
+            .clips()
+            .all(|clip| &clip.target.layout == layout)
     })
 }
 
@@ -69,7 +69,7 @@ pub(crate) fn resolve_rig<'a>(
 fn resolve_show<'a, S>(
     project: &'a DonderProject,
     show: S,
-    outputs: PrepareOutputs<'_>,
+    retain: Retain<'_>,
     targets_only: impl FnOnce(&donder_model::LayoutId) -> bool,
 ) -> Option<Selection<'a, S>> {
     let setup = project.get::<donder_model::Setup>(*project.root().setup.id())?;
@@ -92,8 +92,8 @@ fn resolve_show<'a, S>(
         })
         .collect::<Option<Vec<_>>>()?;
     let mut ports = Vec::new();
-    match outputs {
-        PrepareOutputs::All => {
+    match retain {
+        Retain::All => {
             for (controller_index, controller) in controllers {
                 ports.extend(controller.ports.iter().map(|port| SelectedPort {
                     controller_index,
@@ -102,7 +102,7 @@ fn resolve_show<'a, S>(
                 }));
             }
         }
-        PrepareOutputs::Controllers(requested) => {
+        Retain::Controllers(requested) => {
             let mut seen = IndexSet::new();
             for id in requested {
                 if !seen.insert(id) {
@@ -119,7 +119,7 @@ fn resolve_show<'a, S>(
                 }));
             }
         }
-        PrepareOutputs::Ports(requested) => {
+        Retain::Ports(requested) => {
             let mut seen = IndexSet::new();
             for (id, port_id) in requested {
                 if !seen.insert((id, port_id)) {
@@ -183,13 +183,8 @@ mod tests {
             .map(|source| *source.id())
             .collect::<Vec<_>>();
         controllers.push(controllers[0]);
-        let selected = resolve(
-            &project,
-            sequence,
-            PrepareOutputs::Controllers(&controllers),
-        )
-        .unwrap();
-        let all = resolve(&project, sequence, PrepareOutputs::All).unwrap();
+        let selected = resolve(&project, sequence, Retain::Controllers(&controllers)).unwrap();
+        let all = resolve(&project, sequence, Retain::All).unwrap();
         let expected = (0..setup.controllers.len())
             .rev()
             .map(|index| index as u32)
@@ -207,7 +202,7 @@ mod tests {
     fn port_selection_is_a_stable_set_and_unknown_ports_reject_the_whole_selection() {
         let project = starter();
         let sequence = project.root().sequences[0].id();
-        let all = resolve(&project, sequence, PrepareOutputs::All).unwrap();
+        let all = resolve(&project, sequence, Retain::All).unwrap();
         let first = &all.ports[0];
         let last = all.ports.last().unwrap();
         let requested = [
@@ -215,7 +210,7 @@ mod tests {
             (*first.controller, first.port.id),
             (*last.controller, last.port.id),
         ];
-        let selected = resolve(&project, sequence, PrepareOutputs::Ports(&requested)).unwrap();
+        let selected = resolve(&project, sequence, Retain::Ports(&requested)).unwrap();
         assert_eq!(
             addresses(&selected),
             [
@@ -224,7 +219,7 @@ mod tests {
             ]
         );
         let unknown = [(*first.controller, ControllerPortId(u32::MAX))];
-        assert!(resolve(&project, sequence, PrepareOutputs::Ports(&unknown)).is_none());
+        assert!(resolve(&project, sequence, Retain::Ports(&unknown)).is_none());
     }
 
     #[test]
@@ -236,23 +231,16 @@ mod tests {
             .unwrap();
         let first = setup.controllers[0].id();
         let missing = ControllerId(u32::MAX);
-        assert!(
-            resolve(
-                &project,
-                sequence,
-                PrepareOutputs::Controllers(&[*first, missing])
-            )
-            .is_none()
-        );
+        assert!(resolve(&project, sequence, Retain::Controllers(&[*first, missing])).is_none());
     }
 
     #[test]
     fn empty_output_lists_are_valid_but_absent_sequences_are_not_selected() {
         let mut project = starter();
         let sequence = *project.root().sequences[0].id();
-        for outputs in [PrepareOutputs::Controllers(&[]), PrepareOutputs::Ports(&[])] {
+        for retain in [Retain::Controllers(&[]), Retain::Ports(&[])] {
             assert!(
-                resolve(&project, &sequence, outputs)
+                resolve(&project, &sequence, retain)
                     .unwrap()
                     .ports
                     .is_empty()
@@ -270,6 +258,6 @@ mod tests {
             donder_model::Object::Project(root),
         ));
         project.apply_edits(edits).unwrap();
-        assert!(resolve(&project, &sequence, PrepareOutputs::All).is_none());
+        assert!(resolve(&project, &sequence, Retain::All).is_none());
     }
 }

@@ -1,4 +1,4 @@
-use super::{Identified, MemberSource, ValueSource};
+use super::{Identified, Owned, OwnedMember};
 use crate::identity::ObjectId;
 use crate::project::DonderProject;
 use crate::validation::{OwnershipProblem, ProjectValidationError, ValidationProblem, at};
@@ -38,23 +38,23 @@ impl Ids {
 
     fn value<T: Identified<Id = I>, I: Copy + Into<ObjectId>>(
         &mut self,
-        source: &ValueSource<Box<T>, I>,
+        source: &Owned<Box<T>, I>,
         exists: impl FnOnce(&I) -> bool,
     ) -> Result<(), ValidationProblem> {
         match source {
-            ValueSource::Inline(value) => self.insert(*value.id()),
-            ValueSource::Reference(id) => reference(exists(id), *id),
+            Owned::Inline(value) => self.insert(*value.id()),
+            Owned::Reference(id) => reference(exists(id), *id),
         }
     }
 
     fn member<T: Identified<Id = I>, I: Copy + Into<ObjectId>>(
         &mut self,
-        source: &MemberSource<T, I>,
+        source: &OwnedMember<T, I>,
         exists: impl FnOnce(&I) -> bool,
     ) -> Result<(), ValidationProblem> {
         match source {
-            MemberSource::Inline { value, .. } => self.insert(*value.id()),
-            MemberSource::Reference(id) => reference(exists(id), *id),
+            OwnedMember::Inline { value, .. } => self.insert(*value.id()),
+            OwnedMember::Reference(id) => reference(exists(id), *id),
         }
     }
 }
@@ -71,7 +71,7 @@ fn reference(exists: bool, id: impl Into<ObjectId>) -> Result<(), ValidationProb
 
 /// Members of one collection are distinct values with distinct names.
 fn distinct_members<T: Identified<Id = I>, I: Eq + std::hash::Hash>(
-    sources: &[MemberSource<T, I>],
+    sources: &[OwnedMember<T, I>],
     problem: OwnershipProblem,
 ) -> Result<(), ValidationProblem> {
     let mut ids = HashSet::new();

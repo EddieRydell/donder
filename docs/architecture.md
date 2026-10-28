@@ -1,6 +1,7 @@
 # Architecture
 
-Donder turns a folder of source documents into frames of LED color. Each stage
+Donder turns a folder of source documents into frames of LED color (the five
+top-level calls are listed in the [code map](code_map.md)). Each stage
 has one owner:
 
 ```text
@@ -22,9 +23,10 @@ has one owner:
 | `donder-language` | The text language. `data`: the data-document syntax tree, parser, printer, literal rules and schema traits. `compiler`: the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission). `analysis`: semantic tokens, symbols, hover and completion for editors. The root holds import syntax, naming rules and authored quantities (times, distances, transforms). It does not depend on the model or the runtime. |
 | `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, rigs, effect and operator definitions, ownership, opaque object ids, geometry preparation, validation, and the validated edits that change it: `ProjectEdit::Put` and `ProjectEdit::Remove` batches over one `Object` enum, and the ownership edits. |
 | `donder-project-io` | Source documents and object addresses, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
-| `donder-elaboration` | Resolving a sequence or a rig and an output selection into a `PreparedShow`: targets, fixture geometry, bound programs, automation, the global signal graph (black-signal folding, operator fusion), retention. Sequences and rigs share one preparation (`stage::build`) and differ only in how they place their effects. See [output selection](output_selection.md). |
-| `donder-runtime` | `no_std` show playback without `alloc`: a trusted show image borrowed in place (`Show`), and evaluation into one caller-provided buffer (`Playback`) by the private strip interpreter. The image's record layouts (`image`) are private to it. The default `host` feature adds the image builder (`ShowBuilder`) and the owned `PreparedShow` and `ShowPlayback`. |
+| `donder-elaboration` | Resolving a sequence or a rig and an output selection into a `PreparedShow`: targets, fixture geometry, bound programs, automation, the global signal graph (black-signal folding, operator fusion), retention. Sequences and rigs share one preparation (`stage::build`) and differ only in how they place their clips. See [output selection](output_selection.md). |
+| `donder-runtime` | `no_std` show playback without `alloc`: a trusted show image borrowed in place (`Image`), and evaluation into one caller-provided buffer (`Playback`) by the private strip interpreter. The image's record layouts (`format`) are private to it. The default `host` feature adds the image builder (`ShowBuilder`) and the owned `PreparedShow` and `ShowPlayback`. |
 | `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
+| `donder-device-protocol` | The editor-controller wire protocol, `no_std`: HTTP paths and the token header, the JSON commands and replies, and the UDP clock packets. The desktop and the firmware both use it. |
 | `donder-audio-analysis` | Beat and downbeat detection from song audio: decoding, the log-mel spectrogram and the embedded Beat This! model (small, MIT licensed) run with tract. Host-only. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
 | `donder-cli` | `check`, `copy`, `render` (fixture colors at chosen times), `export-fseq`, `lsp` (the language server over stdio) and the generated builtin reference. |
@@ -72,7 +74,7 @@ object it concerns and a typed `ValidationProblem` that names the member
 (a clip, layer, voice, control, port, layout item, ...) and the parameter or
 input where the problem lies; its sentence is written once, in `Display`. The
 model refuses an edit it cannot apply with an `EditRejection`. Ownership edits (make
-reusable, make independent, use an existing source) name a slot by its owner and
+reusable, make independent, use an existing declaration) name a slot by its owner and
 the member it holds and keep references consistent through
 `DonderProject::for_each_reference`, the one listing of every reference from one
 object to another, which project IO also uses to keep imports visible.
@@ -150,16 +152,16 @@ working copies.
 
 ## Preparation and playback
 
-`donder_elaboration::prepare(&project, &sequence_id, outputs)` returns
+`donder_elaboration::prepare(&project, &sequence_id, retain)` returns
 `Option<PreparedShow>`, with `None` meaning the selection cannot be
-resolved; `donder_elaboration::arm` prepares a rig the same way. `outputs` is `PrepareOutputs::All`, `Controllers` or `Ports`.
+resolved; `donder_elaboration::arm` prepares a rig the same way. `retain` (which hardware outputs the image keeps) is `Retain::All`, `Controllers` or `Ports`.
 Preparation resolves everything symbolic (imports, names, layouts, groups,
 device selection) so that playback never does.
 
 A prepared show, a sequence's or a rig's, is a show image: a header, a section table and sections of
 fixed-size records that refer to one another by index. Playback reads the
 records where they lie, in memory or in a controller's flash. A show's
-`Layout` (`Show::layout`) gives the exact size of its playback buffer;
+`Layout` (`Image::layout`) gives the exact size of its playback buffer;
 `Playback::new` lays the nodes' frame buffers, their state buffers, scan
 frames, port bytes, the strip workspace and the automation scratch out in that
 buffer, and `Playback::resume` borrows them again on a later frame.
@@ -200,7 +202,7 @@ everywhere:
 - **Live output.** The desktop service evaluates controller bytes and sends them
   over E1.31 or Art-Net. Output is opt-in for each run and fails closed: stopping
   blacks out active ports and terminates E1.31 streams.
-- **Controllers.** Prepared sequences, built for a controller's ports, are
+- **Controllers.** Sequence images, built for a controller's ports, are
   uploaded to the ESP32 loader, which stores them in a flash slot and plays
   them from a copy in RAM beside their playback buffer.
 
@@ -210,7 +212,7 @@ playback stops until the performance ends. Keys from the main window and from
 the Preview (forwarded over its event pipe) are stamped on the session clock
 when the desktop receives them, routed by the performance's `RigRouter`
 (`desktop_state/perform/router.rs`, which reads the model's trigger lengths,
-voice policies and played sources directly), and the
+voice policies and played quantities directly), and the
 resulting `RigEvent`s fan out in order to every evaluator: the live output
 worker plays its own `ShowPlayback` on the session clock, and the Preview
 receives the rig image as its content, then the events as they arrive, with
@@ -218,12 +220,14 @@ the session time as its clock anchor. An evaluator that joins mid-performance
 replays the performance's events from the start. Frame caches include the
 events applied, since an event changes a frame without changing its time.
 
-The image is trusted: only the host builder writes it, so `Show::open` checks
+The image is trusted: only the host builder writes it, so `Image::open` checks
 nothing but its format version and playback indexes records without checking
 them. The header holds an `id`, a hash of the image the builder writes, which a
 controller reports so a host can tell which show it holds; playback never reads
 it. A rig is an image with voices, live mark
-collections and controls; their commands change only the playback buffer. The format is a numbered current version; a mismatch is rejected
+collections and controls; their commands change only the playback buffer. A
+control sets automation bindings, and a live collection is read by
+automation bindings of marks parameters (`AutomationMapping::LiveMarks`). The format is a numbered current version; a mismatch is rejected
 (`LoadError::Version`) rather than migrated.
 
 Performance design is described in [performance](performance.md).

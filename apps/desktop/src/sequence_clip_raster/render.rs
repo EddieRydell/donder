@@ -1,4 +1,4 @@
-use donder_editor::dto::EffectRasterSettings;
+use donder_editor::dto::ClipRasterSettings;
 use donder_runtime::PreparedShow;
 use std::sync::Arc;
 
@@ -17,33 +17,33 @@ pub(super) enum RasterRenderFailure {
 /// `min_frame_stride` frames apart; one row per sampled pixel, at most
 /// `max_rows`. The resolution depends only on the clip, never on its size on
 /// screen.
-pub(super) fn render_effect_raster(
+pub(super) fn render_clip_raster(
     sequence: &PreparedShow,
-    effect_id: u32,
-    settings: &EffectRasterSettings,
+    clip_id: u32,
+    settings: &ClipRasterSettings,
     should_continue: &dyn Fn() -> bool,
 ) -> Result<RenderedRaster, RasterRenderFailure> {
     let clip = sequence
-        .clip(effect_id)
+        .clip(clip_id)
         .ok_or_else(|| RasterRenderFailure::Error("the clip is not prepared".into()))?;
     let duration_seconds = donder_runtime_types::sample_duration_seconds_f32(clip.duration());
     let duration_frames = duration_seconds * clip.frame_rate() as f32;
     if !duration_frames.is_finite() || duration_frames <= 0.0 {
         return Err(RasterRenderFailure::Error(
-            "effect duration frames must be positive and finite".into(),
+            "clip duration frames must be positive and finite".into(),
         ));
     }
     let target_pixel_count = clip.target_pixel_count();
     if target_pixel_count == 0 {
         return Err(RasterRenderFailure::Error(
-            "effect target has no pixels".into(),
+            "clip target has no pixels".into(),
         ));
     }
     let min_frame_stride = settings.min_frame_stride.max(1) as f32;
     let columns = ((duration_frames / min_frame_stride).ceil().max(1.0) as u32)
         .clamp(1, settings.max_columns.max(1)) as usize;
     let rows = target_pixel_count.min(settings.max_rows.max(1) as usize);
-    let mut sampler = clip.sampler(rows);
+    let mut raster = clip.raster(rows);
     let mut pixels_rgba = vec![0u8; rows * columns * 4];
     for column in 0..columns {
         if !should_continue() {
@@ -52,7 +52,7 @@ pub(super) fn render_effect_raster(
         let time = clip
             .raster_column_time(column, columns)
             .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
-        for (row, color) in sampler.evaluate(time).iter().enumerate() {
+        for (row, color) in raster.evaluate(time).iter().enumerate() {
             let offset = (row * columns + column) * 4;
             pixels_rgba[offset..offset + 3].copy_from_slice(&color.to_bytes());
             pixels_rgba[offset + 3] = 255;

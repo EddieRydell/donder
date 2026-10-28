@@ -155,7 +155,7 @@ pub struct GuiLayoutFixture {
 )]
 pub enum GuiLayoutFixtureKind {
     Fixture {
-        definition: GuiFixtureSource,
+        definition: GuiOwnedFixture,
         transform: Transform,
     },
     /// Members may belong to several groups.
@@ -249,7 +249,7 @@ pub struct GeometryRenderBounds {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum GuiFixtureSource {
+pub enum GuiOwnedFixture {
     Inline { elements: Vec<GuiFixtureElement> },
-    Reference { source: GuiObjectRef },
+    Reference { object: GuiObjectRef },
 }

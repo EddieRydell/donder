@@ -1,6 +1,6 @@
 use super::*;
 
-/// Replace a membership with a reusable source, rejecting incompatible routing
+/// Replace a membership with a reusable declaration, rejecting incompatible routing
 /// or dangling targets without changing the accepted project.
 pub fn use_existing(
     project: &mut DonderProject,
@@ -31,8 +31,8 @@ fn use_existing_candidate(
                 .get::<crate::Setup>(*project.root.setup.id())
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
             let from = *current.layout.id();
-            let retires_layout = matches!(project.root.setup, ValueSource::Inline(_))
-                && matches!(current.layout, ValueSource::Inline(_));
+            let retires_layout = matches!(project.root.setup, Owned::Inline(_))
+                && matches!(current.layout, Owned::Inline(_));
             if from != to {
                 let renames = Renames::of(from, to);
                 if retires_layout {
@@ -41,7 +41,7 @@ fn use_existing_candidate(
                     follow_active(project, &renames, name_of)?;
                 }
             }
-            project.root.setup = ValueSource::Reference(id);
+            project.root.setup = Owned::Reference(id);
         }
         (Slot::ProjectSequence(index), ObjectId::Sequence(id)) => {
             if !project.sequences.contains_key(&id) {
@@ -51,7 +51,7 @@ fn use_existing_candidate(
                 .root
                 .sequences
                 .get_mut(*index)
-                .ok_or(EditRejection::Missing(ObjectKind::Sequence))? = MemberSource::Reference(id);
+                .ok_or(EditRejection::Missing(ObjectKind::Sequence))? = OwnedMember::Reference(id);
         }
         (Slot::ProjectRig(index), ObjectId::Rig(id)) => {
             if !project.rigs.contains_key(&id) {
@@ -61,7 +61,7 @@ fn use_existing_candidate(
                 .root
                 .rigs
                 .get_mut(*index)
-                .ok_or(EditRejection::Missing(ObjectKind::Rig))? = MemberSource::Reference(id);
+                .ok_or(EditRejection::Missing(ObjectKind::Rig))? = OwnedMember::Reference(id);
         }
         (Slot::SetupInputDevice { setup, index }, ObjectId::InputDevice(id)) => {
             if !project.input_devices.contains_key(&id) {
@@ -78,11 +78,11 @@ fn use_existing_candidate(
             if from == id {
                 return Ok(());
             }
-            let retires_device = matches!(current, MemberSource::Inline { .. });
+            let retires_device = matches!(current, OwnedMember::Inline { .. });
             project
                 .find_mut::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?
-                .input_devices[*index] = MemberSource::Reference(id);
+                .input_devices[*index] = OwnedMember::Reference(id);
             if retires_device {
                 retarget(project, &Renames::of(from, id));
             }
@@ -94,7 +94,7 @@ fn use_existing_candidate(
             project
                 .find_mut::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?
-                .patch = ValueSource::Reference(id);
+                .patch = Owned::Reference(id);
         }
         (Slot::SetupLayout(setup), ObjectId::Layout(id)) => {
             if !project.layouts.contains_key(&id) {
@@ -107,13 +107,13 @@ fn use_existing_candidate(
             if from == id {
                 return Ok(());
             }
-            let retires_layout = matches!(current.layout, ValueSource::Inline(_));
+            let retires_layout = matches!(current.layout, Owned::Inline(_));
             let renames = Renames::of(from, id);
             copy_patch_if_linked(project, setup)?;
             let current = project
                 .find_mut::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-            current.layout = ValueSource::Reference(id);
+            current.layout = Owned::Reference(id);
             renames.apply(
                 current
                     .patch
@@ -141,13 +141,13 @@ fn use_existing_candidate(
             if from == id {
                 return Ok(());
             }
-            let retires_controller = matches!(current, MemberSource::Inline { .. });
+            let retires_controller = matches!(current, OwnedMember::Inline { .. });
             let renames = Renames::of(from, id);
             copy_patch_if_linked(project, setup)?;
             let current = project
                 .find_mut::<crate::Setup>(*setup)
                 .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-            current.controllers[*index] = MemberSource::Reference(id);
+            current.controllers[*index] = OwnedMember::Reference(id);
             renames.apply(
                 current
                     .patch
@@ -172,7 +172,7 @@ fn use_existing_candidate(
                     .fixtures,
                 *fixture,
             )
-            .ok_or(EditRejection::MissingItem)? = FixtureSource::Reference(id);
+            .ok_or(EditRejection::MissingItem)? = OwnedFixture::Reference(id);
         }
         _ => return Err(EditRejection::ChooseMatchingKind),
     }

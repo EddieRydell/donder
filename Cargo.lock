@@ -1606,6 +1606,7 @@ dependencies = [
  "bytemuck",
  "camino",
  "donder-audio-analysis",
+ "donder-device-protocol",
  "donder-editor",
  "donder-elaboration",
  "donder-language",
@@ -1645,6 +1646,14 @@ dependencies = [
  "uuid",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "donder-device-protocol"
+version = "0.1.0"
+dependencies = [
+ "donder-runtime",
+ "serde",
 ]
 
 [[package]]

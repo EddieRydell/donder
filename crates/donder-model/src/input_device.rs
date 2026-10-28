@@ -30,14 +30,14 @@ pub enum InputDriver {
 
 impl InputDriver {
     /// Whether this driver reads `input`.
-    pub fn reads(&self, input: &InputSource) -> bool {
+    pub fn reads(&self, input: &ControlInput) -> bool {
         match self {
-            Self::Keyboard => matches!(input, InputSource::Key(_)),
+            Self::Keyboard => matches!(input, ControlInput::Key(_)),
             Self::Midi { .. } => matches!(
                 input,
-                InputSource::Note(_) | InputSource::ControlChange(_) | InputSource::PitchBend
+                ControlInput::Note(_) | ControlInput::ControlChange(_) | ControlInput::PitchBend
             ),
-            Self::Osc { .. } => matches!(input, InputSource::Address(_)),
+            Self::Osc { .. } => matches!(input, ControlInput::Address(_)),
         }
     }
 }
@@ -128,7 +128,7 @@ pub enum DialInput {
 /// What a control reads, whichever kind of control reads it. No two controls
 /// of a device read the same input.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum InputSource {
+pub enum ControlInput {
     Key(KeyCode),
     Note(u8),
     ControlChange(u8),
@@ -138,20 +138,20 @@ pub enum InputSource {
 
 impl InputControlKind {
     /// Every input the control reads: one, or each key of its range.
-    pub fn sources(&self) -> Vec<InputSource> {
+    pub fn sources(&self) -> Vec<ControlInput> {
         match self {
-            Self::Button(ButtonInput::Key(code)) => vec![InputSource::Key(*code)],
-            Self::Button(ButtonInput::Note(note)) => vec![InputSource::Note(*note)],
+            Self::Button(ButtonInput::Key(code)) => vec![ControlInput::Key(*code)],
+            Self::Button(ButtonInput::Note(note)) => vec![ControlInput::Note(*note)],
             Self::Button(ButtonInput::ControlChange(number))
             | Self::Dial(DialInput::ControlChange(number)) => {
-                vec![InputSource::ControlChange(*number)]
+                vec![ControlInput::ControlChange(*number)]
             }
-            Self::Dial(DialInput::PitchBend) => vec![InputSource::PitchBend],
+            Self::Dial(DialInput::PitchBend) => vec![ControlInput::PitchBend],
             Self::Button(ButtonInput::Address(path))
             | Self::Dial(DialInput::Address { path, .. }) => {
-                vec![InputSource::Address(path.clone())]
+                vec![ControlInput::Address(path.clone())]
             }
-            Self::Keys(range) => (range.low..=range.high).map(InputSource::Note).collect(),
+            Self::Keys(range) => (range.low..=range.high).map(ControlInput::Note).collect(),
         }
     }
 
@@ -194,7 +194,7 @@ impl InputControlKind {
     }
 }
 
-impl InputSource {
+impl ControlInput {
     /// Whether the number it reads is one MIDI has, leaving out the control
     /// changes 120 and up, which are channel modes.
     pub fn in_range(&self) -> bool {
@@ -207,7 +207,7 @@ impl InputSource {
     }
 }
 
-impl std::fmt::Display for InputSource {
+impl std::fmt::Display for ControlInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Key(code) => write!(f, "`{}`", code.name()),
@@ -367,7 +367,7 @@ pub enum InputDeviceValidationError {
     DuplicateInput {
         control: InputControlId,
         name: Identifier,
-        source: InputSource,
+        source: ControlInput,
         other: Identifier,
     },
     /// A control reads an input its device's driver does not have.
@@ -471,7 +471,7 @@ impl InputDevice {
                 return Err(Error::ForeignInput(id, name()));
             }
             if sources.iter().any(
-                |source| matches!(source, InputSource::Address(address) if !address.is_valid()),
+                |source| matches!(source, ControlInput::Address(address) if !address.is_valid()),
             ) {
                 return Err(Error::InvalidAddress(id, name()));
             }
@@ -507,4 +507,4 @@ impl crate::ownership::Identified for InputDevice {
     }
 }
 
-pub type InputDeviceSource = crate::ownership::MemberSource<InputDevice, InputDeviceId>;
+pub type OwnedInputDevice = crate::ownership::OwnedMember<InputDevice, InputDeviceId>;

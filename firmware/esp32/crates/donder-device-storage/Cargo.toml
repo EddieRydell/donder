@@ -12,4 +12,5 @@ serde = { version = "1.0.229", default-features = false, features = ["alloc", "d
 serde-json-core = { version = "0.6.0", default-features = false }
 
 [dev-dependencies]
+donder-device-protocol = { path = "../../../../crates/donder-device-protocol" }
 donder-runtime = { path = "../../../../crates/donder-runtime", default-features = false }

@@ -150,8 +150,10 @@ pub fn shape_text(shape: &Shape) -> String {
             .collect::<Vec<_>>()
             .join(", or "),
         Shape::Named(name) => format!("`{name}`"),
-        Shape::Source(name) => format!("a `{name}` reference, or `{name} {{ ... }}` owned here"),
-        Shape::NamedSource(name) => {
+        Shape::OwnedRecord(name) => {
+            format!("a `{name}` reference, or `{name} {{ ... }}` owned here")
+        }
+        Shape::OwnedNamedRecord(name) => {
             format!("a `{name}` reference, or `{name} name {{ ... }}` owned here")
         }
     }
@@ -371,7 +373,7 @@ fn wanted(schema: &Schema, ty: &str, field: &str) -> Option<Refers> {
     fn refers(shape: &Shape) -> Option<Refers> {
         match shape {
             Shape::Reference(refers) => Some(*refers),
-            Shape::Source(ty) | Shape::NamedSource(ty) => Some(Refers::Declaration(ty)),
+            Shape::OwnedRecord(ty) | Shape::OwnedNamedRecord(ty) => Some(Refers::Declaration(ty)),
             Shape::Option(inner) | Shape::List(inner) => refers(inner),
             _ => None,
         }
@@ -591,11 +593,11 @@ fn shape_completions(schema: &Schema, shape: &Shape, references: &[String]) -> V
                 .collect(),
             _ => record_completions(schema, ty, false),
         },
-        Shape::Source(ty) => reference_items()
+        Shape::OwnedRecord(ty) => reference_items()
             .into_iter()
             .chain(record_completions(schema, ty, false))
             .collect(),
-        Shape::NamedSource(ty) => reference_items()
+        Shape::OwnedNamedRecord(ty) => reference_items()
             .into_iter()
             .chain(record_completions(schema, ty, true))
             .collect(),
@@ -702,7 +704,7 @@ pub fn completions(
             Refers::Node => {
                 let mut names = local_names(document, "OperatorNode", "name");
                 names.extend(local_names(document, "LayerNode", "layer"));
-                names.push("output".into());
+                names.push("root".into());
                 names
             }
         }

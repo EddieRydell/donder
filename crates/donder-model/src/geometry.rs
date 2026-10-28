@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use crate::fixture::{
-    FixtureDefinition, FixtureDefinitionId, FixtureElementId, FixtureSource, FixtureTransform,
+    FixtureDefinition, FixtureDefinitionId, FixtureElementId, FixtureTransform, OwnedFixture,
 };
 use crate::layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixtureKind, LayoutId,
@@ -80,8 +80,8 @@ impl PreparedFixtureDefinitions {
                 prepared.instances.push(PreparedFixtureInstance {
                     id: fixture.id,
                     pixels: match definition {
-                        FixtureSource::Inline(value) => prepare_geometry(value).into(),
-                        FixtureSource::Reference(id) => self.definitions[id].clone(),
+                        OwnedFixture::Inline(value) => prepare_geometry(value).into(),
+                        OwnedFixture::Reference(id) => self.definitions[id].clone(),
                     },
                     transform: fixture_transform(transform),
                 });

@@ -56,4 +56,4 @@ impl crate::ownership::Identified for Patch {
     }
 }
 
-pub type PatchSource = crate::ownership::ValueSource<Box<Patch>, PatchId>;
+pub type OwnedPatch = crate::ownership::Owned<Box<Patch>, PatchId>;

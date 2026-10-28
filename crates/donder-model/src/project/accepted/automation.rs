@@ -27,7 +27,7 @@ pub(super) fn admit(
         .into_iter()
         .map(|target| {
             let name = match target {
-                AutomationTarget::EffectParam { param, .. }
+                AutomationTarget::ClipParam { param, .. }
                 | AutomationTarget::CompositionNodeParam { param, .. } => param,
             };
             let (param_index, mapping) = params

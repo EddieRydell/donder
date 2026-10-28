@@ -11,7 +11,7 @@ export function ReferenceInput({ label, value, choices, onChange }: { label: str
   return <div><label>{label}<select value={index} onChange={(event) => { const next = choices[Number(event.target.value)]; if (next !== undefined) onChange(next.reference); }}>
     {index < 0 && <option value={-1} disabled>{referenceLabel(value)} (unavailable)</option>}
     {choices.map((choice, index) => <option key={guiObjectKey(choice.reference)} value={index}>{choice.label}</option>)}
-  </select></label><a href="#" onClick={(event) => { event.preventDefault(); void navigateToGuiObject(value); }}>Open source</a></div>;
+  </select></label><a href="#" onClick={(event) => { event.preventDefault(); void navigateToGuiObject(value); }}>Open declaration</a></div>;
 }
 
 function referenceLabel(reference: GuiObjectRef): string {

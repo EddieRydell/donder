@@ -66,59 +66,9 @@ pub struct Point3Meters {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct DeviceCapabilities {
-    pub sequence_format: u32,
-    pub max_payload_bytes: u32,
-    pub max_pixels: u32,
-    pub max_graph_nodes: u32,
-    pub max_workspace_bytes: u32,
-    pub output: DeviceOutputCapabilities,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum DeviceOutputCapabilities {
-    Ws281x {
-        lanes: u32,
-        channels_per_lane: u32,
-        channel_multiple: u32,
-        /// The fastest show frame rate the outputs carry.
-        max_frame_rate: u32,
-        clock_udp_port: u16,
-    },
-    EvaluationOnly,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct DeviceSerialPort {
     pub path: String,
     pub label: String,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum DevicePlaybackMode {
-    Playing,
-    Paused,
-    Stopped,
-    Ended,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DevicePlaybackStatus {
-    pub mode: DevicePlaybackMode,
-    pub position_micros: u32,
-    pub duration_micros: u32,
-    pub archive_id: u32,
-    pub archive_bytes: u32,
-    pub pending_command: Option<u32>,
-    pub command_id: u32,
 }
 
 /// A Donder controller seen on the network, merged with this editor's claim
@@ -173,11 +123,6 @@ pub enum DonderDeviceConnection {
 pub struct DonderDeviceNetworkRequest {
     pub ssid: String,
     pub password: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct DeviceTransportStatus {
-    pub playback: Option<DevicePlaybackStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
