@@ -441,7 +441,7 @@ fn load(
     );
     Ok(Playback {
         #[cfg(feature = "i2s-output")]
-        image_id: u32::from_le_bytes(prepared[8..12].try_into().unwrap()),
+        image_id: donder_runtime::image_id(prepared),
         #[cfg(feature = "i2s-output")]
         image_bytes: prepared.len() as u32,
         image: loaded,

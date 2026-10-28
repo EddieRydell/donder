@@ -45,8 +45,6 @@ export const commands = {
 	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
 	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, framesPerSecond: number, progress: Channel<VideoExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, framesPerSecond, progress })),
 	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),
-	deviceFirmwareInfo: () => typedError<DeviceFirmwareInfo, string>(__TAURI_INVOKE("device_firmware_info")),
-	installDeviceFirmware: (port: string, progress: Channel<DeviceInstallProgress>) => typedError<null, string>(__TAURI_INVOKE("install_device_firmware", { port, progress })),
 	eraseDeviceSavedData: (port: string) => typedError<null, string>(__TAURI_INVOKE("erase_device_saved_data", { port })),
 	claimDevice: (id: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("claim_device", { id })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	renameDevice: (id: string, name: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("rename_device", { id, name })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
@@ -193,14 +191,6 @@ export type CurveGuiDocument = {
 	objectKey: string,
 	points: SequenceCurvePoint[],
 };
-
-export type DeviceFirmwareInfo = {
-	version: string,
-	imageBytes: number,
-	sha256: string,
-};
-
-export type DeviceInstallProgress = { stage: "connecting" } | { stage: "writing"; completed: number; total: number } | { stage: "verifying" } | { stage: "restarting" };
 
 export type DeviceSerialPort = {
 	path: string,

@@ -7,17 +7,13 @@ checking and preparation and sends a `.donderimage` image prepared for that
 controller's output ports.
 
 Supported hardware is a classic ESP32 with 4 MB flash and a 40 MHz crystal,
-dual core and rated for 240 MHz, without flash encryption or secure boot. The
-desktop installer checks all of this before writing.
+dual core and rated for 240 MHz, without flash encryption or secure boot.
 
-## Install from Donder
+## Set up a controller
 
-1. Connect the board over USB and install the bundled firmware from **USB setup**
-   in a Donder controller's editor or the new-controller form. The image is
-   `apps/desktop/assets/firmware/donder-esp32.bin`; the installer checks its
-   SHA-256 and that its partition table matches `firmware/esp32/partitions.csv`,
-   then writes at 460,800 baud in about half a minute. Installation keeps the
-   configuration and show partitions.
+1. Build and flash the firmware as described in the
+   [firmware README](../firmware/esp32/README.md). The editor does not install
+   firmware; it assumes a discovered controller already runs it.
 2. Power the controller. With no saved network it hosts an open 2.4 GHz access
    point named `Donder-XXXX` (the last four hex digits of its MAC address) at
    `192.168.4.1`. Join it from the computer; its DHCP server offers no gateway,
@@ -32,9 +28,9 @@ the editor shows, never the access point's name. **Join network** saves a
 2.4 GHz WPA2 network and restarts; the controller then joins that network at
 boot and falls back to its own access point if it cannot join within 20 seconds.
 
-Rebuild the bundled image with `pnpm firmware:build` and commit it whenever
-loader or image code changes. The editor connects only to controllers that
-advertise its own `image_format`.
+Reflash controllers whenever loader or image code changes. The editor connects
+only to controllers that advertise its own `image_format`, and tells you to
+update the firmware otherwise.
 
 ## Discovery
 
@@ -171,14 +167,12 @@ transmits.
 - **QuinLED Dig-Quad v2/v3** (`pnpm firmware:build --board dig-quad`): LED1–LED4
   on GPIO16, GPIO3, GPIO1 and GPIO4. Confirm the module first, because other
   modules may swap GPIO1 and GPIO3.
-  - Unplug the ESP32 module from the Dig-Quad to install firmware or factory
+  - Unplug the ESP32 module from the Dig-Quad to flash firmware or factory
     reset it over USB.
   - UART0 is handed over to LED output one second after boot, so serial capture
     is unavailable on this board.
   - This build caps output at 25/255 of authored values as a brightness ceiling,
     not a current limit.
-
-  The Dig-Quad build also overwrites the bundled desktop image.
 
 Device timing and DMA completion do not show that LEDs lit. Hardware results state
 separately whether LEDs or an oscilloscope were attached.

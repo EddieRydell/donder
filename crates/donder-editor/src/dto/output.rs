@@ -142,20 +142,3 @@ pub enum VideoExportProgress {
     Rendering { completed: u32, total: u32 },
     Saving,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceFirmwareInfo {
-    pub version: String,
-    pub image_bytes: u32,
-    pub sha256: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(tag = "stage", rename_all = "camelCase")]
-pub enum DeviceInstallProgress {
-    Connecting,
-    Writing { completed: u32, total: u32 },
-    Verifying,
-    Restarting,
-}

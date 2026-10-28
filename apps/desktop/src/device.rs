@@ -1,5 +1,4 @@
 pub(crate) mod discovery;
-pub(crate) mod firmware;
 pub(crate) mod playback;
 pub(crate) mod provisioning;
 

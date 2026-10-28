@@ -32,20 +32,20 @@ repeated.
 - `loader`: access point or station networking, mDNS discovery, claiming and
   Wi-Fi upload.
 - `i2s-output`: adds continuous four-output WS281x playback on the second core,
-  on the reference-board pins. This is the bundled desktop image.
+  on the reference-board pins. This is the default build.
 - `dig-quad`: the same, with QuinLED Dig-Quad pins and a 25/255 brightness cap.
 
 From the repository root:
 
 ```powershell
-pnpm firmware:build                      # bundled image, also refreshes apps/desktop/assets/firmware
-pnpm firmware:build --board dig-quad     # Dig-Quad image (also overwrites the bundled image)
+pnpm firmware:build                      # reference-board image in target/firmware/donder-esp32.bin
+pnpm firmware:build --board dig-quad     # Dig-Quad image, same path
 pnpm firmware:cargo build --release --features i2s-output --bin loader --locked
 ```
 
 `firmware:build` refuses an image that would overlap the data partitions.
 Flashing directly must use `partitions.csv`, or the Donder data layout is lost.
-460,800 baud matches the desktop installer:
+The desktop does not flash controllers; flash them with espflash:
 
 ```powershell
 cd firmware/esp32

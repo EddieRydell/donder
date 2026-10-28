@@ -5,7 +5,6 @@ use donder_device_protocol::{Command, Mode, OutputCapabilities, clock};
 use donder_model::{ControllerId, ControllerPortId, DonderDeviceId};
 use donder_project_io::ObjectAddress;
 use donder_runtime::PlaybackRate;
-use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, hash_map::RandomState},
     hash::{BuildHasher, Hasher},
@@ -121,7 +120,8 @@ struct Prepared {
     bytes: Vec<u8>,
     widths: Vec<u16>,
     frame_rate: u32,
-    hash: [u8; 32],
+    /// The image's identity, which the controller reports for the show it holds.
+    id: u32,
 }
 struct Binding {
     id: DonderDeviceId,
@@ -129,9 +129,9 @@ struct Binding {
     clock_socket: UdpSocket,
     ports: DevicePorts,
     prepared: Option<Prepared>,
-    uploaded: Option<[u8; 32]>,
+    uploaded: Option<u32>,
     /// The show this controller refused, and why; it is not sent again.
-    rejected: Option<([u8; 32], String)>,
+    rejected: Option<(u32, String)>,
     sample: Option<ClockSample>,
     rate_ppb: i32,
     uncertainty: Option<u32>,
@@ -373,14 +373,14 @@ impl DevicePlaybackService {
                 prepared.revision != revision || prepared.sequence != *sequence
             }) {
                 let (bytes, widths, frame_rate) = compile(&binding.ports)?;
-                let hash = Sha256::digest(&bytes).into();
+                let id = donder_runtime::image_id(&bytes);
                 binding.prepared = Some(Prepared {
                     revision,
                     sequence: sequence.clone(),
                     bytes,
                     widths,
                     frame_rate,
-                    hash,
+                    id,
                 });
             }
             let prepared = binding
@@ -388,21 +388,13 @@ impl DevicePlaybackService {
                 .as_ref()
                 .ok_or("Prepared sequence is missing")?;
             let status = binding.client.transport(None)?;
-            let checksum = u32::from_le_bytes(
-                prepared
-                    .bytes
-                    .get(8..12)
-                    .ok_or("Prepared image header is missing")?
-                    .try_into()
-                    .map_err(|_| "Invalid prepared image header")?,
-            );
             let matches = status.playback.as_ref().is_some_and(|playback| {
                 playback.image_bytes as usize == prepared.bytes.len()
-                    && playback.image_id == checksum
+                    && playback.image_id == prepared.id
             });
-            if binding.uploaded != Some(prepared.hash) || !matches {
-                if let Some((hash, reason)) = &binding.rejected
-                    && *hash == prepared.hash
+            if binding.uploaded != Some(prepared.id) || !matches {
+                if let Some((id, reason)) = &binding.rejected
+                    && *id == prepared.id
                 {
                     return Err(reason.clone());
                 }
@@ -411,9 +403,9 @@ impl DevicePlaybackService {
                     &prepared.widths,
                     prepared.frame_rate,
                 ) {
-                    Ok(_) => binding.uploaded = Some(prepared.hash),
+                    Ok(_) => binding.uploaded = Some(prepared.id),
                     Err(UploadError::Rejected(reason)) => {
-                        binding.rejected = Some((prepared.hash, reason.clone()));
+                        binding.rejected = Some((prepared.id, reason.clone()));
                         return Err(reason);
                     }
                     Err(UploadError::Failed(error)) => return Err(error),
@@ -449,15 +441,8 @@ impl DevicePlaybackService {
                 .prepared
                 .as_ref()
                 .ok_or("Prepare the current sequence before scheduling")?;
-            let crc = u32::from_le_bytes(
-                prepared
-                    .bytes
-                    .get(8..12)
-                    .ok_or("Prepared image header is missing")?
-                    .try_into()
-                    .map_err(|_| "Invalid prepared image header")?,
-            );
-            if status.image_id != crc || status.image_bytes as usize != prepared.bytes.len() {
+            if status.image_id != prepared.id || status.image_bytes as usize != prepared.bytes.len()
+            {
                 return Err(format!(
                     "Controller {} has a different show loaded; press Play to upload the current sequence",
                     binding.client.address

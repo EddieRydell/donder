@@ -1,6 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, statSync, readFileSync, mkdirSync, renameSync, copyFileSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync, readFileSync, mkdirSync, renameSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 
 const directory = import.meta.dirname;
@@ -125,12 +124,7 @@ function main() {
     throw new Error('Packaged image is empty or overlaps the Donder data partition.');
   }
   renameSync(pending, final);
-  const bundled = join(root, 'apps/desktop/assets/firmware');
-  mkdirSync(bundled, { recursive: true });
-  copyFileSync(final, join(bundled, 'donder-esp32.bin'));
-  const hash = createHash('sha256').update(image).digest('hex').toUpperCase();
-  writeFileSync(join(bundled, 'donder-esp32.sha256'), hash + '\n', 'ascii');
-  console.log(`Controller image: ${final}\nBytes: ${image.length}\nSHA256: ${hash}\nDesktop firmware assets: ${bundled}`);
+  console.log(`Controller firmware: ${final}\nBytes: ${image.length}`);
 }
 
 try {
