@@ -1,9 +1,8 @@
-import { Channel } from "@tauri-apps/api/core";
 import { isMac } from "../../../platform";
 import { useEffect, useState } from "react";
 import { commands } from "../../../api";
 import { runSnapshotCommand, useAppStore } from "../../../store";
-import type { DeviceFirmwareInfo, DeviceInstallProgress, DeviceSerialPort, DonderDeviceNetworkRequest, DonderDeviceStatus } from "../../../types";
+import type { DeviceSerialPort, DonderDeviceNetworkRequest, DonderDeviceStatus } from "../../../types";
 
 /** Live status and settings for the Donder controller a setup controller targets. */
 export function DonderDevicePanel({ deviceId }: { deviceId: string }) {
@@ -32,7 +31,7 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
     <p role="status">{device.name} · {device.address} · {device.network === "accessPoint" ? "own Wi-Fi network" : "joined Wi-Fi network"}
       {connection.state === "connected" ? ` · ready for playback${connection.clockUncertaintyMicros === null ? "" : `, clock within ${(connection.clockUncertaintyMicros / 1000).toFixed(2)} ms`}` : ""}</p>
     {connection.state === "failed" && <p role="alert">{connection.error}</p>}
-    {!device.firmwareCurrent && <p role="alert">This controller runs firmware for a different sequence format. Install the bundled firmware over USB.</p>}
+    {!device.firmwareCurrent && <p role="alert">This controller runs firmware for a different sequence format. Flash the current Donder firmware onto it.</p>}
     {error !== null && <p role="alert">{error}</p>}
     {device.claim === "unclaimed" && <>
       <p>Claim this controller so this computer can upload shows and control playback.</p>
@@ -63,53 +62,36 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
   </div>;
 }
 
-/** Firmware installation and factory reset for a controller connected over USB. */
+/** Factory reset for a controller connected over USB. */
 export function DeviceUsbTools() {
   const [ports, setPorts] = useState<DeviceSerialPort[]>([]);
   const [port, setPort] = useState("");
-  const [firmware, setFirmware] = useState<DeviceFirmwareInfo | null>(null);
-  const [installConfirmed, setInstallConfirmed] = useState(false);
   const [eraseConfirmed, setEraseConfirmed] = useState(false);
-  const [progress, setProgress] = useState<DeviceInstallProgress | null>(null);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const listPorts = () => commands.deviceSerialPorts().then(setPorts).catch((listError: unknown) => { setError(String(listError)); });
   const refresh = () => {
-    setPort(""); setInstallConfirmed(false); setEraseConfirmed(false);
+    setPort(""); setEraseConfirmed(false);
     void listPorts();
   };
   useEffect(() => {
     void listPorts();
-    void commands.deviceFirmwareInfo().then(setFirmware).catch((infoError: unknown) => { setError(String(infoError)); });
   }, []);
   const run = (message: string, command: () => Promise<void>) => {
-    setPending(true); setError(null); setStatus(null); setInstallConfirmed(false); setEraseConfirmed(false);
+    setPending(true); setError(null); setStatus(null); setEraseConfirmed(false);
     void command().then(() => { setStatus(message); }).catch((commandError: unknown) => { setError(String(commandError)); })
-      .finally(() => { setPending(false); setProgress(null); });
+      .finally(() => { setPending(false); });
   };
   return <details className="setup-light-editor">
     <summary>USB setup</summary>
     <fieldset className="device-form" disabled={pending}>
-      <label>USB serial device<select value={port} onChange={(event) => { setPort(event.target.value); setInstallConfirmed(false); setEraseConfirmed(false); }}>
+      <label>USB serial device<select value={port} onChange={(event) => { setPort(event.target.value); setEraseConfirmed(false); }}>
         <option value="" disabled>Choose a device</option>
         {ports.map((candidate) => <option key={candidate.path} value={candidate.path}>{candidate.label}</option>)}
       </select></label>
       <button type="button" onClick={refresh}>Refresh USB devices</button>
       {ports.length === 0 && <p>No serial devices found. Connect the controller with a data-capable USB cable. Remove the Dig-Quad ESP32 module first.{isMac && " On macOS, boards with a CP210x USB chip may need the Silicon Labs driver."}</p>}
-      {firmware !== null && <p>Donder {firmware.version} firmware is included. It supports dual-core ESP32 controllers with 4 MB flash and a 40 MHz crystal, keeps the controller's saved name, claim and show, and takes about half a minute.</p>}
-      <label className="device-erase-confirmation"><input type="checkbox" checked={installConfirmed} onChange={(event) => { setInstallConfirmed(event.target.checked); }} />Replace the software on the selected controller with Donder.</label>
-      <button type="button" disabled={port === "" || !installConfirmed || firmware === null} onClick={() => {
-        const channel = new Channel<DeviceInstallProgress>();
-        channel.onmessage = setProgress;
-        setProgress({ stage: "connecting" });
-        run("Firmware installed. The controller restarts and appears on the network.", async () => {
-          await commands.installDeviceFirmware(port, channel);
-        });
-      }}>Install Donder firmware</button>
-      {progress !== null && <p role="status">{progress.stage === "connecting" ? "Connecting to controller bootloader..."
-        : progress.stage === "writing" ? `Installing firmware: ${Math.round(100 * progress.completed / Math.max(1, progress.total))}%`
-        : progress.stage === "verifying" ? "Verifying written firmware..." : "Restarting controller..."}</p>}
       <label className="device-erase-confirmation"><input type="checkbox" checked={eraseConfirmed} onChange={(event) => { setEraseConfirmed(event.target.checked); }} />Factory reset the selected controller: erase its name, claim, Wi-Fi network and saved show.</label>
       <button type="button" disabled={port === "" || !eraseConfirmed} onClick={() => {
         run("Controller reset. It restarts with its own Wi-Fi network, unclaimed.", async () => {

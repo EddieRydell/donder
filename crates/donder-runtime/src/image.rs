@@ -22,6 +22,12 @@ pub fn image_len(header: &[u8]) -> usize {
     format::image_len(header)
 }
 
+/// An image's identity from its first [`header_bytes`] bytes: a hash of its
+/// contents that a controller reports so a host can tell which show it holds.
+pub fn image_id(header: &[u8]) -> u32 {
+    format::image_id(header)
+}
+
 pub use crate::format::header_bytes;
 
 /// An image: a show's playback bytes, borrowed in place.

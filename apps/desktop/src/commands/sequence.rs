@@ -315,28 +315,6 @@ pub(crate) async fn device_serial_ports()
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn device_firmware_info() -> Result<donder_editor::dto::DeviceFirmwareInfo, String> {
-    crate::device::firmware::info()
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn install_device_firmware(
-    port: String,
-    progress: tauri::ipc::Channel<donder_editor::dto::DeviceInstallProgress>,
-) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::device::firmware::install(&port, |state| {
-            // A disconnected UI must not interrupt a flash write.
-            let _ = progress.send(state);
-        })
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-#[specta::specta]
 pub(crate) async fn erase_device_saved_data(port: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::device::provisioning::erase_saved_data(&port)

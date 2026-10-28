@@ -119,7 +119,7 @@ impl DesktopState {
                         error: "Claim this controller to use it for playback.".into(),
                     },
                     (None, None) if !firmware_current => DonderDeviceConnection::Failed {
-                        error: "Controller firmware does not match this editor. Install the bundled firmware over USB.".into(),
+                        error: "Controller firmware does not match this editor. Flash the current firmware (see firmware/esp32/README.md).".into(),
                     },
                     (None, None) => DonderDeviceConnection::Failed {
                         error: "Connecting...".into(),

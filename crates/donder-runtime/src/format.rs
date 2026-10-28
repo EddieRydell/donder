@@ -619,6 +619,12 @@ pub(crate) fn image_len(header: &[u8]) -> usize {
     header_bytes() + header.payload as usize
 }
 
+/// The image's identity from its header.
+pub(crate) fn image_id(header: &[u8]) -> u32 {
+    let header: Header = bytemuck::pod_read_unaligned(&header[..size_of::<Header>()]);
+    header.id
+}
+
 /// The image's sections, or `None` for an image of another format version.
 /// The image is trusted otherwise: only its producer writes it. `bytes` must
 /// be 4-byte aligned, as the writer's buffers and flash mappings are.

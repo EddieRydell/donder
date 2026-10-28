@@ -21,7 +21,7 @@ extern crate alloc;
 // in a caller's buffer without allocating; the host feature builds images and
 // owns them. Language values and executable definitions belong to
 // donder-language; the VM is an implementation detail.
-pub use image::{FORMAT_VERSION, Image, LoadError, header_bytes, image_len};
+pub use image::{FORMAT_VERSION, Image, LoadError, header_bytes, image_id, image_len};
 pub use playback::{FixtureFrame, OutputFrame, Playback, SequenceFrame};
 pub use playback_rate::{FrameTiming, PlaybackRate};
 pub use workspace::{LIVE_MARK_CAPACITY, Layout};
