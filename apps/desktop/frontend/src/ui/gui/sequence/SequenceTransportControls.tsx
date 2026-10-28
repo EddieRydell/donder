@@ -36,6 +36,8 @@ export function SequenceTransportControls({
   const unsupported = isSequenceTransportUnsupported(document, transport);
   const activePlayback = isActiveAudioPlayback(transport.state);
   const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
+  // Each failing controller, Donder or streamed, once.
+  const liveFailures = [...new Set(liveOutput.controllers.flatMap((controller) => controller.lastError === null ? [] : [controller.lastError]))];
   const stepFrame = (direction: -1 | 1) => {
     stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, direction);
   };
@@ -103,7 +105,7 @@ export function SequenceTransportControls({
       <button
         type="button"
         className={liveActive ? "active" : ""}
-        title={liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
+        title={liveFailures.length > 0 ? liveFailures.join("; ") : liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
         hidden={!host.capabilities.liveOutput}
         disabled={liveOutput.state === "stopping"}
         onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
@@ -149,7 +151,7 @@ export function SequenceTransportControls({
       {host.capabilities.playbackSpeed ? <SequencePlaybackSpeedControls speed={transport.playbackSpeed} /> : null}
       <span className="sequence-time-readout" title="Stop returns the playhead to Home. Click the ruler to move Home; drag in it to set a playback range.">
         <SequenceTimeReadout transport={transport} durationSeconds={document.durationSeconds} />
-        {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeUniverseCount})` : ""}
+        {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeControllerCount} controllers)` : ""}
       </span>
       {host.exportControls}
       {confirmDialog}

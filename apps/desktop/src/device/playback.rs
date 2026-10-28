@@ -1,5 +1,5 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
-use super::{DeviceClient, UploadError};
+use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
 use donder_device_protocol::{Command, Mode, OutputCapabilities, clock};
 use donder_model::{ControllerId, ControllerPortId, DonderDeviceId};
@@ -15,6 +15,9 @@ use std::{
 };
 
 pub(crate) type DevicePorts = Vec<(ControllerId, ControllerPortId)>;
+/// Controllers released because they could not take part, and why.
+pub(crate) type DeviceFailures = BTreeMap<DonderDeviceId, String>;
+type ScheduleReady = (ClockSample, donder_device_protocol::PlaybackStatus);
 
 /// A controller in the open setup that should follow editor playback.
 pub(crate) struct WantedDevice {
@@ -130,8 +133,6 @@ struct Binding {
     ports: DevicePorts,
     prepared: Option<Prepared>,
     uploaded: Option<u32>,
-    /// The show this controller refused, and why; it is not sent again.
-    rejected: Option<(u32, String)>,
     sample: Option<ClockSample>,
     rate_ppb: i32,
     uncertainty: Option<u32>,
@@ -157,9 +158,81 @@ pub(crate) struct GroupSchedule {
     pub deadline: Instant,
     pub position: u32,
     commands: Vec<(SocketAddr, u32)>,
+    pub failures: DeviceFailures,
+}
+
+impl GroupSchedule {
+    /// The controllers that follow the schedule.
+    pub(crate) fn device_count(&self) -> usize {
+        self.commands.len()
+    }
 }
 
 impl Binding {
+    fn prepare(
+        &mut self,
+        revision: u32,
+        sequence: &ObjectAddress,
+        compile: &mut impl FnMut(&DevicePorts) -> Result<(Vec<u8>, Vec<u16>, u32), String>,
+    ) -> Result<(), String> {
+        if self
+            .prepared
+            .as_ref()
+            .is_none_or(|prepared| prepared.revision != revision || prepared.sequence != *sequence)
+        {
+            let (bytes, widths, frame_rate) = compile(&self.ports)?;
+            let id = donder_runtime::image_id(&bytes);
+            self.prepared = Some(Prepared {
+                revision,
+                sequence: sequence.clone(),
+                bytes,
+                widths,
+                frame_rate,
+                id,
+            });
+        }
+        let prepared = self
+            .prepared
+            .as_ref()
+            .ok_or("Prepared sequence is missing")?;
+        let status = self.client.transport(None)?;
+        let matches = status.playback.as_ref().is_some_and(|playback| {
+            playback.image_bytes as usize == prepared.bytes.len()
+                && playback.image_id == prepared.id
+        });
+        if self.uploaded != Some(prepared.id) || !matches {
+            self.client.upload(
+                prepared.bytes.clone(),
+                &prepared.widths,
+                prepared.frame_rate,
+            )?;
+            self.uploaded = Some(prepared.id);
+        }
+        Ok(())
+    }
+
+    /// The controller's clock and loaded show, checked against the prepared one.
+    fn ready(&mut self, origin: Instant, clock_id: u32) -> Result<ScheduleReady, String> {
+        self.synchronize(origin, clock_id)?;
+        let sample = self.sample_clock(origin)?;
+        let status = self
+            .client
+            .transport(None)?
+            .playback
+            .ok_or("Controller has no loaded sequence")?;
+        let prepared = self
+            .prepared
+            .as_ref()
+            .ok_or("Prepare the current sequence before scheduling")?;
+        if status.image_id != prepared.id || status.image_bytes as usize != prepared.bytes.len() {
+            return Err(
+                "Controller has a different show loaded; press Play to upload the current sequence"
+                    .into(),
+            );
+        }
+        Ok((sample, status))
+    }
+
     fn sample_clock(&self, origin: Instant) -> Result<ClockSample, String> {
         udp_clock_sample(&self.clock_socket, &self.client.token, origin)
     }
@@ -355,67 +428,38 @@ impl DevicePlaybackService {
             ))
         }
     }
+    /// Build and upload the sequence for every binding. A controller that
+    /// cannot take it is released and named in the result; the rest play.
     pub(crate) fn prepare(
         &self,
         epoch: u32,
         revision: u32,
         sequence: &ObjectAddress,
         mut compile: impl FnMut(&DevicePorts) -> Result<(Vec<u8>, Vec<u16>, u32), String>,
-    ) -> Result<(), String> {
+    ) -> Result<DeviceFailures, String> {
         let mut core = lock_unpoisoned(&self.shared.core);
         if core.epoch != epoch {
             return Err(
                 "Connected devices belong to a different project. Disconnect them first.".into(),
             );
         }
-        for binding in &mut core.bindings {
-            if binding.prepared.as_ref().is_none_or(|prepared| {
-                prepared.revision != revision || prepared.sequence != *sequence
-            }) {
-                let (bytes, widths, frame_rate) = compile(&binding.ports)?;
-                let id = donder_runtime::image_id(&bytes);
-                binding.prepared = Some(Prepared {
-                    revision,
-                    sequence: sequence.clone(),
-                    bytes,
-                    widths,
-                    frame_rate,
-                    id,
-                });
-            }
-            let prepared = binding
-                .prepared
-                .as_ref()
-                .ok_or("Prepared sequence is missing")?;
-            let status = binding.client.transport(None)?;
-            let matches = status.playback.as_ref().is_some_and(|playback| {
-                playback.image_bytes as usize == prepared.bytes.len()
-                    && playback.image_id == prepared.id
-            });
-            if binding.uploaded != Some(prepared.id) || !matches {
-                if let Some((id, reason)) = &binding.rejected
-                    && *id == prepared.id
-                {
-                    return Err(reason.clone());
-                }
-                match binding.client.upload(
-                    prepared.bytes.clone(),
-                    &prepared.widths,
-                    prepared.frame_rate,
-                ) {
-                    Ok(_) => binding.uploaded = Some(prepared.id),
-                    Err(UploadError::Rejected(reason)) => {
-                        binding.rejected = Some((prepared.id, reason.clone()));
-                        return Err(reason);
-                    }
-                    Err(UploadError::Failed(error)) => return Err(error),
+        let mut failures = DeviceFailures::new();
+        for mut binding in std::mem::take(&mut core.bindings) {
+            match binding.prepare(revision, sequence, &mut compile) {
+                Ok(()) => core.bindings.push(binding),
+                Err(error) => {
+                    let _ = binding.client.stop_loaded();
+                    failures.insert(binding.id, error);
                 }
             }
         }
-        Ok(())
+        Ok(failures)
     }
     /// `advancing` is the rate `position` is moving at as of `observed_at`;
     /// `rate` is the playback rate the devices follow after the deadline.
+    /// A controller that cannot take the schedule is released and named in
+    /// the result; the rest follow it, and with none left the timeline is the
+    /// editor's alone.
     pub(crate) fn schedule(
         &self,
         mode: Mode,
@@ -428,27 +472,19 @@ impl DevicePlaybackService {
         let mut core = lock_unpoisoned(&self.shared.core);
         let origin = core.origin;
         let clock_id = core.clock_id;
-        let mut samples = Vec::new();
-        for binding in &mut core.bindings {
-            binding.synchronize(origin, clock_id)?;
-            let sample = binding.sample_clock(origin)?;
-            let status = binding
-                .client
-                .transport(None)?
-                .playback
-                .ok_or("Controller has no loaded sequence")?;
-            let prepared = binding
-                .prepared
-                .as_ref()
-                .ok_or("Prepare the current sequence before scheduling")?;
-            if status.image_id != prepared.id || status.image_bytes as usize != prepared.bytes.len()
-            {
-                return Err(format!(
-                    "Controller {} has a different show loaded; press Play to upload the current sequence",
-                    binding.client.address
-                ));
+        let mut failures = DeviceFailures::new();
+        let mut ready = Vec::new();
+        for mut binding in std::mem::take(&mut core.bindings) {
+            match binding.ready(origin, clock_id) {
+                Ok(sample) => {
+                    ready.push(sample);
+                    core.bindings.push(binding);
+                }
+                Err(error) => {
+                    let _ = binding.client.stop_loaded();
+                    failures.insert(binding.id, error);
+                }
             }
-            samples.push((sample, status));
         }
         // Each schedule acknowledgment costs a few network round trips; slow
         // links get a later start instead of a missed deadline.
@@ -460,20 +496,21 @@ impl DevicePlaybackService {
             .unwrap_or(0);
         let lead = Duration::from_millis((core.bindings.len() as u64 * 50).clamp(250, 1_000))
             + Duration::from_micros(u64::from(slowest) * 8 * core.bindings.len() as u64);
-        // Every controller plays the same sequence, so starts align to its frames.
-        let frame_rate = u128::from(
-            core.bindings
-                .first()
-                .ok_or("No connected devices")?
-                .prepared
-                .as_ref()
-                .ok_or("Prepare the current sequence before scheduling")?
-                .frame_rate,
-        );
         let earliest = origin.elapsed().as_micros() + lead.as_micros();
-        let frame = (earliest * frame_rate).div_ceil(1_000_000);
-        let at = u64::try_from((frame * 1_000_000).div_ceil(frame_rate))
-            .map_err(|_| "Playback clock overflow")?;
+        // Every controller plays the same sequence, so starts align to its frames.
+        let at = match core
+            .bindings
+            .first()
+            .and_then(|binding| binding.prepared.as_ref())
+        {
+            Some(prepared) => {
+                let frame_rate = u128::from(prepared.frame_rate);
+                let frame = (earliest * frame_rate).div_ceil(1_000_000);
+                (frame * 1_000_000).div_ceil(frame_rate)
+            }
+            None => earliest,
+        };
+        let at = u64::try_from(at).map_err(|_| "Playback clock overflow")?;
         let deadline = origin + Duration::from_micros(at);
         let position = match advancing {
             Some(current) => position
@@ -487,31 +524,42 @@ impl DevicePlaybackService {
             None => position.min(duration),
         };
         let mut commands = Vec::new();
-        for (binding, (sample, status)) in core.bindings.iter().zip(samples) {
-            let command_id = status
+        for (binding, (sample, status)) in std::mem::take(&mut core.bindings).into_iter().zip(ready)
+        {
+            let result = status
                 .command_id
                 .checked_add(1)
-                .ok_or("Controller command counter exhausted; restart the controller")?;
-            let command = Command::Schedule {
-                boot_id: sample.boot_id,
-                clock_id,
-                command_id,
-                at_micros: at,
-                mode,
-                position_micros: position,
-                speed: rate.into(),
-                looping: false,
-                image_id: status.image_id,
-                image_bytes: status.image_bytes,
-            };
-            // Include the current target in cancellation: a lost reply may hide acceptance.
-            commands.push((binding.client.address, command_id));
-            if let Err(error) = binding.client.control(&command) {
-                let cancellation = cancel(&core, &commands);
-                return Err(format!(
-                    "Could not schedule controller {}: {error}. {cancellation}",
-                    binding.client.address
-                ));
+                .ok_or_else(|| {
+                    "Controller command counter exhausted; restart the controller".to_string()
+                })
+                .and_then(|command_id| {
+                    let sent = binding.client.control(&Command::Schedule {
+                        boot_id: sample.boot_id,
+                        clock_id,
+                        command_id,
+                        at_micros: at,
+                        mode,
+                        position_micros: position,
+                        speed: rate.into(),
+                        looping: false,
+                        image_id: status.image_id,
+                        image_bytes: status.image_bytes,
+                    });
+                    if sent.is_err() {
+                        // A lost reply may hide acceptance.
+                        let _ = binding.client.control(&Command::Cancel { command_id });
+                    }
+                    sent.map(|()| command_id)
+                });
+            match result {
+                Ok(command_id) => {
+                    commands.push((binding.client.address, command_id));
+                    core.bindings.push(binding);
+                }
+                Err(error) => {
+                    let _ = binding.client.stop_loaded();
+                    failures.insert(binding.id, error);
+                }
             }
         }
         if deadline.saturating_duration_since(Instant::now()) < Duration::from_millis(40) {
@@ -524,6 +572,7 @@ impl DevicePlaybackService {
             deadline,
             position,
             commands,
+            failures,
         })
     }
     pub(crate) fn cancel(&self, schedule: &GroupSchedule) -> String {
@@ -585,7 +634,6 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
         ports: device.ports.clone(),
         prepared: None,
         uploaded: None,
-        rejected: None,
         sample: None,
         rate_ppb: 0,
         uncertainty: None,

@@ -418,18 +418,6 @@ fn worker(
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .snapshot();
-        if matches!(
-            audio.state,
-            AudioTransportState::Stopped | AudioTransportState::Ended
-        ) {
-            let generation = *generation;
-            let snapshot = stop_output(&mut active, &mut stop_error, generation, None);
-            let _ = updates.send(Update {
-                generation,
-                snapshot,
-            });
-            continue;
-        }
         let rendered = render
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())

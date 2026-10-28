@@ -58,9 +58,14 @@ pub(crate) struct DesktopServices {
     live_output: Mutex<crate::output::LiveOutputService>,
     perform: Mutex<perform::PerformService>,
     device_playback: crate::device::playback::DevicePlaybackService,
-    discovery: crate::device::discovery::DeviceDiscovery,
+    /// Runs while live output drives Donder controllers or a view lists them.
+    discovery: Mutex<Option<crate::device::discovery::DeviceDiscovery>>,
+    /// Open views that list Donder controllers.
+    device_watchers: Mutex<u32>,
+    /// Whether live output drives the setup's Donder controllers.
+    devices_live: AtomicBool,
     device_reconcile: LatestScheduler<()>,
-    device_failures: Mutex<std::collections::BTreeMap<donder_model::DonderDeviceId, String>>,
+    device_failures: Mutex<crate::device::playback::DeviceFailures>,
     transport_operation: Mutex<()>,
     sequence_clip_raster: Mutex<crate::sequence_clip_raster::SequenceClipRasterService>,
     sequence_clipboard: Mutex<Option<donder_editor::SequenceClipboard>>,
@@ -154,14 +159,9 @@ impl DesktopState {
                             }
                         }
                     }),
-                    discovery: crate::device::discovery::DeviceDiscovery::new({
-                        let weak = weak.clone();
-                        move || {
-                            if let Some(inner) = weak.upgrade() {
-                                DesktopState(inner).schedule_device_reconcile();
-                            }
-                        }
-                    }),
+                    discovery: Mutex::new(None),
+                    device_watchers: Mutex::new(0),
+                    devices_live: AtomicBool::new(false),
                     device_reconcile: LatestScheduler::new({
                         let weak = weak.clone();
                         move |()| {
@@ -215,7 +215,8 @@ impl DesktopState {
 
     pub fn live_output_snapshot(&self) -> donder_editor::dto::LiveOutputSnapshot {
         self.resume_live_output_if_ready();
-        lock_unpoisoned(&self.live_output).snapshot()
+        let output = lock_unpoisoned(&self.live_output).snapshot();
+        self.live_output_view(output)
     }
 
     pub(crate) fn claim_audio_poll(&self) -> bool {
@@ -336,82 +337,91 @@ impl DesktopState {
         }
     }
 
+    /// Live output streams frames to the setup's E1.31 and Art-Net controllers
+    /// and drives its Donder controllers, which play uploaded shows on the
+    /// editor's clock. A performance plays only on streamed controllers.
     pub fn set_live_output_active(&self, active: bool) -> Result<AppSnapshot, String> {
         let output = if active {
             let project = self.project_session().ok_or("No project is loaded.")?;
-            let active = project
+            let mut streamed = Vec::new();
+            let mut donder = false;
+            if let Some(setup) = project
                 .project
                 .get::<donder_model::Setup>(*project.project.root().setup.id())
-                .map(|setup| {
-                    // Donder controllers play uploaded shows instead of streamed frames.
-                    setup
-                        .controllers
-                        .iter()
-                        .map(|source| *source.id())
-                        .filter(|id| {
-                            project
-                                .project
-                                .get::<donder_model::Controller>(*id)
-                                .is_some_and(|controller| {
-                                    !matches!(
-                                        controller.protocol,
-                                        donder_model::ControllerProtocol::Donder(_)
-                                    )
-                                })
-                        })
-                        .collect::<Vec<_>>()
-                });
+            {
+                for id in setup.controllers.iter().map(|source| *source.id()) {
+                    match project
+                        .project
+                        .get::<donder_model::Controller>(id)
+                        .map(|controller| &controller.protocol)
+                    {
+                        Some(donder_model::ControllerProtocol::Donder(_)) => donder = true,
+                        Some(_) => streamed.push(id),
+                        None => {}
+                    }
+                }
+            }
             let controllers = project
                 .project
                 .objects::<donder_model::Controller>()
                 .map(|controller| (controller.id, controller.clone()))
                 .collect();
             // A performance in progress plays in place of the sequence.
-            self.perform_live_output(|performance| {
+            let (output, devices) = self.perform_live_output(|performance| {
                 let render_ready = performance.is_some()
                     || lock_unpoisoned(&self.sequence_render)
                         .active_target()
                         .is_some();
-                let Some(active) = active.filter(|active| render_ready && !active.is_empty())
-                else {
+                let devices = donder && performance.is_none();
+                if !render_ready || (streamed.is_empty() && !devices) {
                     return Err(
-                        "Live output requires a prepared sequence or a performance and at least one E1.31 or Art-Net controller."
+                        "Live output requires a prepared sequence and a controller, or a performance and an E1.31 or Art-Net controller."
                             .to_string(),
                     );
-                };
+                }
                 let mut service = lock_unpoisoned(&self.live_output);
                 if service.snapshot().state == donder_editor::dto::LiveOutputState::Stopping {
                     return Err(
                         "Wait for output to finish stopping before starting it again.".into(),
                     );
                 }
-                Ok(match performance {
-                    Some(output) => service.perform(controllers, active, output),
-                    None => service.enable(controllers, active),
-                })
-            })?
+                let output = match performance {
+                    _ if streamed.is_empty() => service.snapshot(),
+                    Some(output) => service.perform(controllers, streamed, output),
+                    None => service.enable(controllers, streamed),
+                };
+                Ok((output, devices))
+            })?;
+            self.set_devices_live(devices);
+            output
         } else {
+            self.set_devices_live(false);
             lock_unpoisoned(&self.live_output).disable()
         };
+        let output = self.live_output_view(output);
         Ok(self.update_snapshot(|snapshot| snapshot.live_output = output))
     }
 
     // A performance owns live output while it runs, so the sequence's
-    // preparation neither suspends, stops nor resumes it.
+    // preparation neither suspends, stops nor resumes it. Donder controllers
+    // stay live while a sequence prepares; they reload at the next Play.
 
     pub(super) fn suspend_live_output(&self) {
         if self.is_performing() {
             return;
         }
         let output = lock_unpoisoned(&self.live_output).suspend();
+        let output = self.live_output_view(output);
         lock_unpoisoned(&self.workspace).view.live_output = output;
     }
 
     pub(super) fn disable_live_output(&self) {
+        self.set_devices_live(false);
         if self.is_performing() {
             return;
         }
         let output = lock_unpoisoned(&self.live_output).disable();
+        let output = self.live_output_view(output);
         lock_unpoisoned(&self.workspace).view.live_output = output;
     }
 

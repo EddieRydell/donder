@@ -46,6 +46,11 @@ export const commands = {
 	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, framesPerSecond: number, progress: Channel<VideoExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, framesPerSecond, progress })),
 	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),
 	eraseDeviceSavedData: (port: string) => typedError<null, string>(__TAURI_INVOKE("erase_device_saved_data", { port })),
+	/**
+	 *  A view that lists Donder controllers opened (`true`) or closed (`false`);
+	 *  discovery runs while one is open.
+	 */
+	watchDevices: (watching: boolean) => __TAURI_INVOKE<void>("watch_devices", { watching }),
 	claimDevice: (id: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("claim_device", { id })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	renameDevice: (id: string, name: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("rename_device", { id, name })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setDeviceNetwork: (id: string, network: {
@@ -252,8 +257,15 @@ export type DocumentUpdate = {
 export type DonderDeviceClaim = "unclaimed" | "claimed" | "claimedElsewhere";
 
 export type DonderDeviceConnection = 
-/**  No controller in the open setup uses this device. */
-{ state: "unused" } | { state: "connected"; clockUncertaintyMicros: number | null } | { state: "failed"; error: string };
+/**
+ *  Not connected: no controller in the open setup uses this device, or
+ *  live output is off.
+ */
+{ state: "unused" } | 
+/**  Live output is connecting to this device. */
+{ state: "connecting" } | 
+/**  Live output drives this device. */
+{ state: "connected"; clockUncertaintyMicros: number | null } | { state: "failed"; error: string };
 
 export type DonderDeviceNetwork = "accessPoint" | "station";
 
@@ -264,7 +276,7 @@ export type DonderDeviceNetworkRequest = {
 
 /**
  *  A Donder controller seen on the network, merged with this editor's claim
- *  and editor-playback connection.
+ *  and live-output connection.
  */
 export type DonderDeviceStatus = {
 	id: string,

@@ -1,149 +1,274 @@
 use super::{DesktopState, lock_unpoisoned};
 use crate::audio::DeviceBoundary;
 use crate::device::DeviceClient;
-use crate::device::playback::{DevicePorts, WantedDevice};
+use crate::device::discovery::{Advertised, Advertisements, DeviceDiscovery};
+use crate::device::playback::{DeviceFailures, DevicePorts, WantedDevice};
 use donder_device_protocol::Mode;
 use donder_editor::dto::{
     AppSnapshot, AudioTransportState, DonderDeviceClaim, DonderDeviceConnection,
-    DonderDeviceNetworkRequest, DonderDeviceStatus,
+    DonderDeviceNetworkRequest, DonderDeviceStatus, LiveOutputControllerSnapshot,
+    LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
 };
-use donder_model::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
+use donder_model::{ControllerId, ControllerPortAddress, ControllerProtocol, DonderDeviceId};
 use donder_runtime::PlaybackRate;
+use std::collections::BTreeMap;
+use std::sync::atomic::Ordering;
+
+/// A Donder controller in the open setup.
+struct SetupDevice {
+    controller: ControllerId,
+    device: DonderDeviceId,
+    /// Its ports in output order.
+    ports: DevicePorts,
+}
+
+/// What the editor knows of its controllers' playback links.
+struct DeviceLinks {
+    live: bool,
+    advertised: Advertisements,
+    tokens: BTreeMap<String, String>,
+    connections: BTreeMap<DonderDeviceId, Result<Option<u32>, String>>,
+    failures: DeviceFailures,
+}
+
+impl DeviceLinks {
+    /// The link to `id`, which the open setup uses when `used`.
+    fn connection(&self, id: &DonderDeviceId, used: bool) -> DonderDeviceConnection {
+        if !used {
+            return DonderDeviceConnection::Unused;
+        }
+        if self.live {
+            match (self.connections.get(id), self.failures.get(id)) {
+                (Some(Ok(uncertainty)), _) => {
+                    return DonderDeviceConnection::Connected {
+                        clock_uncertainty_micros: *uncertainty,
+                    };
+                }
+                (Some(Err(error)), _) | (None, Some(error)) => {
+                    return DonderDeviceConnection::Failed {
+                        error: error.clone(),
+                    };
+                }
+                (None, None) => {}
+            }
+        }
+        let failed = |error: &str| DonderDeviceConnection::Failed {
+            error: error.into(),
+        };
+        match self.advertised.get(id) {
+            None if self.live => failed("Not on the network."),
+            None => DonderDeviceConnection::Unused,
+            Some(_) if !self.tokens.contains_key(id.as_str()) => {
+                failed("Claim this controller to use it for playback.")
+            }
+            Some(Advertised { format, .. }) if *format != donder_runtime::FORMAT_VERSION => failed(
+                "Controller firmware does not match this editor. Flash the current firmware (see firmware/esp32/README.md).",
+            ),
+            Some(_) if self.live => DonderDeviceConnection::Connecting,
+            Some(_) => DonderDeviceConnection::Unused,
+        }
+    }
+}
 
 impl DesktopState {
     pub(super) fn schedule_device_reconcile(&self) {
         self.device_reconcile.schedule(());
     }
 
-    /// Connect editor playback to every Donder controller in the open setup
-    /// that is on the network and claimed by this computer, then publish the
-    /// device list. Performs network I/O on the reconcile task.
+    pub(super) fn devices_live(&self) -> bool {
+        self.devices_live.load(Ordering::Acquire)
+    }
+
+    /// Live output drives the setup's Donder controllers, or releases them.
+    pub(super) fn set_devices_live(&self, live: bool) {
+        if self.devices_live.swap(live, Ordering::AcqRel) != live {
+            self.update_discovery();
+            self.schedule_device_reconcile();
+        }
+    }
+
+    /// A view that lists Donder controllers opened or closed.
+    pub(crate) fn watch_devices(&self, watching: bool) {
+        {
+            let mut watchers = lock_unpoisoned(&self.device_watchers);
+            *watchers = if watching {
+                watchers.saturating_add(1)
+            } else {
+                watchers.saturating_sub(1)
+            };
+        }
+        self.update_discovery();
+        self.schedule_device_reconcile();
+    }
+
+    /// Discovery runs while live output drives Donder controllers or a view
+    /// lists them; dropping it shuts its daemon down.
+    fn update_discovery(&self) {
+        let wanted = self.devices_live() || *lock_unpoisoned(&self.device_watchers) > 0;
+        let stopped = {
+            let mut discovery = lock_unpoisoned(&self.discovery);
+            if !wanted {
+                discovery.take()
+            } else {
+                if discovery.is_none() {
+                    let weak = self.weak.clone();
+                    *discovery = Some(DeviceDiscovery::new(move || {
+                        if let Some(inner) = weak.upgrade() {
+                            DesktopState(inner).schedule_device_reconcile();
+                        }
+                    }));
+                }
+                None
+            }
+        };
+        drop(stopped);
+    }
+
+    fn advertised(&self) -> Advertisements {
+        lock_unpoisoned(&self.discovery)
+            .as_ref()
+            .map(DeviceDiscovery::devices)
+            .unwrap_or_default()
+    }
+
+    /// Connect live output to every Donder controller in the open setup that
+    /// is on the network and claimed by this computer, or release them all
+    /// while live output is off, then publish the device list. Performs
+    /// network I/O on the reconcile task.
     pub(super) fn reconcile_devices(&self) {
         let _operation = lock_unpoisoned(&self.transport_operation);
-        // New bindings stop the controller's show; never interrupt a running one.
-        if !matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
+        if !self.devices_live() {
+            // Releasing a binding stops the show it plays.
+            self.device_playback
+                .sync(self.snapshot().project_epoch, Vec::new());
+            lock_unpoisoned(&self.device_failures).clear();
+        } else if !matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
+            // New bindings stop the controller's show; never interrupt a running one.
             self.connect_setup_devices();
         }
         self.publish_devices();
     }
 
-    pub(super) fn has_setup_devices(&self) -> bool {
-        !self.setup_devices().is_empty()
-    }
-
-    /// Play drives every Donder controller in the open setup. Connect any that
-    /// are not yet connected, and name each one that still cannot play.
-    /// The caller holds the transport operation lock.
-    fn require_setup_devices(&self) -> Result<(), String> {
-        self.connect_setup_devices();
-        self.publish_devices();
-        let devices = self.snapshot().devices;
-        let problems = self
-            .setup_devices()
-            .into_iter()
-            .filter_map(
-                |(id, _)| match devices.iter().find(|device| device.id == id.as_str()) {
-                    None => Some(format!("controller {} is not on the network", id.as_str())),
-                    Some(device) => match &device.connection {
-                        DonderDeviceConnection::Connected { .. } => None,
-                        DonderDeviceConnection::Failed { error } => {
-                            Some(format!("{}: {error}", device.name))
-                        }
-                        DonderDeviceConnection::Unused => {
-                            Some(format!("{} is not connected", device.name))
-                        }
-                    },
-                },
-            )
-            .collect::<Vec<_>>();
-        if problems.is_empty() {
-            Ok(())
-        } else {
-            Err(format!("Cannot play on {}", problems.join("; ")))
-        }
-    }
-
     /// The caller holds the transport operation lock.
     fn connect_setup_devices(&self) {
-        {
-            let advertised = self.discovery.devices();
-            let tokens = self.persistence.device_tokens();
-            let wanted = self
-                .setup_devices()
-                .into_iter()
-                .filter_map(|(id, ports)| {
-                    let device = advertised.get(&id)?;
-                    let token = tokens.get(id.as_str())?.clone();
-                    (device.format == donder_runtime::FORMAT_VERSION).then_some(WantedDevice {
-                        id,
-                        address: device.address,
-                        token,
-                        ports,
-                    })
+        let advertised = self.advertised();
+        let tokens = self.persistence.device_tokens();
+        let wanted = self
+            .setup_devices()
+            .into_iter()
+            .filter_map(|setup| {
+                let device = advertised.get(&setup.device)?;
+                let token = tokens.get(setup.device.as_str())?.clone();
+                (device.format == donder_runtime::FORMAT_VERSION).then_some(WantedDevice {
+                    id: setup.device,
+                    address: device.address,
+                    token,
+                    ports: setup.ports,
                 })
-                .collect();
-            let failures = self
-                .device_playback
-                .sync(self.snapshot().project_epoch, wanted)
-                .into_iter()
-                .filter_map(|(id, result)| result.err().map(|error| (id, error)))
-                .collect();
-            *lock_unpoisoned(&self.device_failures) = failures;
+            })
+            .collect();
+        let failures = self
+            .device_playback
+            .sync(self.snapshot().project_epoch, wanted)
+            .into_iter()
+            .filter_map(|(id, result)| result.err().map(|error| (id, error)))
+            .collect();
+        *lock_unpoisoned(&self.device_failures) = failures;
+    }
+
+    fn record_device_failures(&self, failures: DeviceFailures) {
+        lock_unpoisoned(&self.device_failures).extend(failures);
+    }
+
+    fn device_links(&self) -> DeviceLinks {
+        DeviceLinks {
+            live: self.devices_live(),
+            advertised: self.advertised(),
+            tokens: self.persistence.device_tokens(),
+            connections: self.device_playback.connections(),
+            failures: lock_unpoisoned(&self.device_failures).clone(),
         }
+    }
+
+    /// Live output's view: its streamed controllers, then, while live output
+    /// drives them, each Donder controller in the open setup.
+    pub(super) fn live_output_view(&self, mut output: LiveOutputSnapshot) -> LiveOutputSnapshot {
+        if !self.devices_live() {
+            return output;
+        }
+        let links = self.device_links();
+        for setup in self.setup_devices() {
+            let (state, last_error) = match links.connection(&setup.device, true) {
+                DonderDeviceConnection::Connected { .. } => {
+                    (LiveOutputControllerState::Active, None)
+                }
+                DonderDeviceConnection::Failed { error } => (
+                    LiveOutputControllerState::Error,
+                    Some(format!(
+                        "Donder controller {}: {error}",
+                        setup.device.as_str()
+                    )),
+                ),
+                DonderDeviceConnection::Connecting | DonderDeviceConnection::Unused => {
+                    (LiveOutputControllerState::Opening, None)
+                }
+            };
+            if matches!(state, LiveOutputControllerState::Active) {
+                output.active_controller_count += 1;
+            }
+            output.controllers.push(LiveOutputControllerSnapshot {
+                id: format!("{:?}", setup.controller.0),
+                state,
+                last_error,
+            });
+        }
+        // Streamed output that stopped or failed leaves the Donder controllers live.
+        if matches!(
+            output.state,
+            LiveOutputState::Disabled | LiveOutputState::Error
+        ) {
+            output.state = if matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
+                LiveOutputState::Streaming
+            } else {
+                LiveOutputState::Holding
+            };
+        }
+        output
     }
 
     pub(super) fn publish_devices(&self) {
-        let advertised = self.discovery.devices();
-        let tokens = self.persistence.device_tokens();
+        let links = self.device_links();
         let used = self
             .setup_devices()
             .into_iter()
-            .map(|(id, _)| id)
+            .map(|setup| setup.device)
             .collect::<Vec<_>>();
-        let connections = self.device_playback.connections();
-        let failures = lock_unpoisoned(&self.device_failures).clone();
-        let devices = advertised
-            .into_iter()
-            .map(|(id, device)| {
-                let claimed_here = tokens.contains_key(id.as_str());
-                let firmware_current = device.format == donder_runtime::FORMAT_VERSION;
-                let connection = match (connections.get(&id), failures.get(&id)) {
-                    (Some(Ok(uncertainty)), _) => DonderDeviceConnection::Connected {
-                        clock_uncertainty_micros: *uncertainty,
-                    },
-                    (Some(Err(error)), _) | (None, Some(error)) => DonderDeviceConnection::Failed {
-                        error: error.clone(),
-                    },
-                    (None, None) if !used.contains(&id) => DonderDeviceConnection::Unused,
-                    (None, None) if !claimed_here => DonderDeviceConnection::Failed {
-                        error: "Claim this controller to use it for playback.".into(),
-                    },
-                    (None, None) if !firmware_current => DonderDeviceConnection::Failed {
-                        error: "Controller firmware does not match this editor. Flash the current firmware (see firmware/esp32/README.md).".into(),
-                    },
-                    (None, None) => DonderDeviceConnection::Failed {
-                        error: "Connecting...".into(),
-                    },
-                };
-                DonderDeviceStatus {
-                    claim: match (device.claimed, claimed_here) {
-                        (false, _) => DonderDeviceClaim::Unclaimed,
-                        (true, true) => DonderDeviceClaim::Claimed,
-                        (true, false) => DonderDeviceClaim::ClaimedElsewhere,
-                    },
-                    id: id.as_str().to_string(),
-                    name: device.name,
-                    address: device.address.to_string(),
-                    network: device.network,
-                    firmware_current,
-                    connection,
-                }
+        let devices = links
+            .advertised
+            .iter()
+            .map(|(id, device)| DonderDeviceStatus {
+                claim: match (device.claimed, links.tokens.contains_key(id.as_str())) {
+                    (false, _) => DonderDeviceClaim::Unclaimed,
+                    (true, true) => DonderDeviceClaim::Claimed,
+                    (true, false) => DonderDeviceClaim::ClaimedElsewhere,
+                },
+                id: id.as_str().to_string(),
+                name: device.name.clone(),
+                address: device.address.to_string(),
+                network: device.network,
+                firmware_current: device.format == donder_runtime::FORMAT_VERSION,
+                connection: links.connection(id, used.contains(id)),
             })
             .collect::<Vec<_>>();
-        let error = self.discovery.error().map(str::to_string);
-        if self.snapshot().devices != devices || error.is_some() {
+        let live_output = self.live_output_view(lock_unpoisoned(&self.live_output).snapshot());
+        let error = lock_unpoisoned(&self.discovery)
+            .as_ref()
+            .and_then(|discovery| discovery.error().map(str::to_string));
+        let snapshot = self.snapshot();
+        if snapshot.devices != devices || snapshot.live_output != live_output || error.is_some() {
             self.update_snapshot(|snapshot| {
                 snapshot.devices = devices;
+                snapshot.live_output = live_output;
                 if let Some(error) = error {
                     snapshot.status = error;
                 }
@@ -151,8 +276,8 @@ impl DesktopState {
         }
     }
 
-    /// Donder controllers in the open setup with their ports in output order.
-    fn setup_devices(&self) -> Vec<(DonderDeviceId, DevicePorts)> {
+    /// Donder controllers in the open setup.
+    fn setup_devices(&self) -> Vec<SetupDevice> {
         let Some(session) = self.project_session() else {
             return Vec::new();
         };
@@ -177,13 +302,14 @@ impl DesktopState {
                     })
                     .collect::<Vec<_>>();
                 ports.sort();
-                Some((
-                    config.device.clone(),
-                    ports
+                Some(SetupDevice {
+                    controller: controller.id,
+                    device: config.device.clone(),
+                    ports: ports
                         .into_iter()
                         .map(|(_, port)| (controller.id, port))
                         .collect(),
-                ))
+                })
             })
             .collect()
     }
@@ -191,8 +317,7 @@ impl DesktopState {
     fn device_client(&self, id: &str) -> Result<DeviceClient, String> {
         let id = DonderDeviceId::parse(id).ok_or("Invalid controller ID.")?;
         let device = self
-            .discovery
-            .devices()
+            .advertised()
             .remove(&id)
             .ok_or("Controller is not on the network.")?;
         let token = self
@@ -206,8 +331,7 @@ impl DesktopState {
     pub(crate) fn claim_device(&self, id: &str) -> Result<AppSnapshot, String> {
         let device_id = DonderDeviceId::parse(id).ok_or("Invalid controller ID.")?;
         let device = self
-            .discovery
-            .devices()
+            .advertised()
             .remove(&device_id)
             .ok_or("Controller is not on the network.")?;
         let token = crate::device::claim(device.address)?;
@@ -284,7 +408,7 @@ impl DesktopState {
         let duration = donder_language::sample_duration_from_donder_duration(&model.duration)
             .map_err(|error| format!("Invalid sequence duration: {error:?}"))?
             .as_ticks();
-        self.device_playback.prepare(
+        let failures = self.device_playback.prepare(
             snapshot.project_epoch,
             snapshot.project_revision,
             &target.sequence,
@@ -309,15 +433,22 @@ impl DesktopState {
                 Ok((prepared.encode(), widths, frame_rate))
             },
         )?;
+        self.record_device_failures(failures);
         Ok(duration)
     }
 
+    /// Play connects the setup's Donder controllers that are not yet
+    /// connected; the editor plays alone when none is reachable.
     pub(super) fn device_audio_play(&self) -> Result<AppSnapshot, String> {
         let _operation = lock_unpoisoned(&self.transport_operation);
         if matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
             return Ok(self.snapshot());
         }
-        self.require_setup_devices()?;
+        self.connect_setup_devices();
+        if !self.device_playback.has_devices() {
+            self.publish_devices();
+            return Ok(self.local_audio_play());
+        }
         let duration = self.prepare_device_sequence()?;
         let position = lock_unpoisoned(&self.audio).play_position();
         let rate = lock_unpoisoned(&self.audio).playback_rate();
@@ -349,7 +480,7 @@ impl DesktopState {
         rate: PlaybackRate,
         duration: u32,
     ) -> Result<AppSnapshot, String> {
-        let schedule = self.device_playback.schedule(
+        let mut schedule = self.device_playback.schedule(
             Mode::Playing,
             seconds_to_micros(position)?,
             advancing,
@@ -357,6 +488,7 @@ impl DesktopState {
             duration,
             std::time::Instant::now(),
         )?;
+        self.record_device_failures(std::mem::take(&mut schedule.failures));
         let result = lock_unpoisoned(&self.audio).play_at(
             schedule.deadline,
             f64::from(schedule.position) / 1_000_000.0,
@@ -364,10 +496,17 @@ impl DesktopState {
             rate,
         );
         match result {
-            Ok(transport) => Ok(self.update_snapshot(|snapshot| {
-                snapshot.audio_transport = transport;
-                snapshot.status = "Sequence scheduled on connected devices.".into();
-            })),
+            Ok(transport) => {
+                self.publish_devices();
+                let devices = schedule.device_count();
+                Ok(self.update_snapshot(|snapshot| {
+                    snapshot.audio_transport = transport;
+                    if devices > 0 {
+                        snapshot.status =
+                            format!("Sequence scheduled on {devices} Donder controllers.");
+                    }
+                }))
+            }
             Err(error) => Err(format!(
                 "Could not schedule audio: {error}. {}",
                 self.device_playback.cancel(&schedule)
@@ -422,7 +561,7 @@ impl DesktopState {
         };
         let position = position.unwrap_or(audio.position_seconds);
         let rate = lock_unpoisoned(&self.audio).playback_rate();
-        let schedule = self.device_playback.schedule(
+        let mut schedule = self.device_playback.schedule(
             mode,
             seconds_to_micros(position)?,
             (position == audio.position_seconds
@@ -434,6 +573,7 @@ impl DesktopState {
             duration,
             observed_at,
         )?;
+        self.record_device_failures(std::mem::take(&mut schedule.failures));
         let state = if matches!(mode, Mode::Stopped) {
             AudioTransportState::Stopped
         } else {
@@ -452,6 +592,7 @@ impl DesktopState {
                 .deadline
                 .saturating_duration_since(std::time::Instant::now()),
         );
+        self.publish_devices();
         let transport = self.audio_snapshot();
         Ok(self.update_snapshot(|snapshot| snapshot.audio_transport = transport))
     }

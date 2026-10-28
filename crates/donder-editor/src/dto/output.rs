@@ -17,7 +17,7 @@ pub struct SequenceExportOptions {
     pub fseq_step_millis: u8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveOutputSnapshot {
     pub state: LiveOutputState,
@@ -40,7 +40,7 @@ pub enum LiveOutputState {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveOutputControllerSnapshot {
     pub id: String,
@@ -48,7 +48,7 @@ pub struct LiveOutputControllerSnapshot {
     pub last_error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum LiveOutputControllerState {
     Opening,
@@ -72,7 +72,7 @@ pub struct DeviceSerialPort {
 }
 
 /// A Donder controller seen on the network, merged with this editor's claim
-/// and editor-playback connection.
+/// and live-output connection.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DonderDeviceStatus {
@@ -108,8 +108,12 @@ pub enum DonderDeviceClaim {
     rename_all_fields = "camelCase"
 )]
 pub enum DonderDeviceConnection {
-    /// No controller in the open setup uses this device.
+    /// Not connected: no controller in the open setup uses this device, or
+    /// live output is off.
     Unused,
+    /// Live output is connecting to this device.
+    Connecting,
+    /// Live output drives this device.
     Connected {
         clock_uncertainty_micros: Option<u32>,
     },

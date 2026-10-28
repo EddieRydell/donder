@@ -253,6 +253,14 @@ pub(crate) fn choose_sequence_audio(
     )
 }
 
+/// A view that lists Donder controllers opened (`true`) or closed (`false`);
+/// discovery runs while one is open.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn watch_devices(watching: bool, state: State<'_, DesktopState>) {
+    state.watch_devices(watching);
+}
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn claim_device(

@@ -22,6 +22,7 @@ dual core and rated for 240 MHz, without flash encryption or secure boot.
    and claim it. The first claim wins: the controller returns a token that the
    editor saves in its desktop settings, keyed by device ID. Every later request
    uses it. A USB factory reset erases the claim.
+4. Turn on live output in the sequence toolbar and press Play.
 
 The controller's ID is its factory MAC address. A rename changes only the name
 the editor shows, never the access point's name. **Join network** saves a
@@ -37,8 +38,10 @@ update the firmware otherwise.
 Each controller advertises `_donder._tcp` over mDNS as `donder-<id>.local`.
 TXT records carry `id`, `name`, `claimed` (`0` or `1`), `format` and
 `network` (`accessPoint` or `station`). The editor lists every advertised
-controller; it connects editor playback to each Donder controller in the open
-setup that it has claimed and that runs a matching format.
+controller. It browses only while live output is on or while a Donder
+controller's settings or the controller form are open; otherwise it binds no
+mDNS socket. While live output is on it connects to each Donder controller in
+the open setup that it has claimed and that runs a matching format.
 
 ## Storage and upload
 
@@ -53,7 +56,7 @@ in LittleFS. Images use two 128 KiB slots in a separate
 A failed or interrupted upload leaves no show loaded, but the previous committed
 show stays saved. Reboot restores the newest committed slot, stopped. A saved
 show that the current firmware rejects is left in place and the controller boots
-without one; the editor uploads a current show on its next Play.
+without one; the editor uploads a current show on its next live Play.
 Concurrent uploads are rejected, and an explicit erase clears both partitions.
 
 The loader reads the show's image from its flash slot into RAM
@@ -78,8 +81,8 @@ memory and `GET /panic` returns it (`none` when there was none); on a
 Dig-Quad, whose UART pins drive LEDs, that is the only place it shows. Playback allocates nothing after the show loads.
 
 A rejected show is answered with HTTP 422 and the reason. The
-editor does not send that show to the controller again until the show changes
-or the controller reconnects.
+editor releases that controller and reports the reason in the live-output
+status; the next Play reconnects and sends the show again.
 
 The protocol's messages, paths and clock packets are defined once in
 `crates/donder-device-protocol`, which the editor and the firmware both use.
@@ -98,16 +101,28 @@ TCP sockets disable Nagle.
 ## Editor playback
 
 A setup's Donder controller names its device ID and numbers its ports as outputs
-1..n, which map in order onto the controller's physical outputs. The editor
-connects to each claimed controller as it appears on the network and whenever
-the open project changes, never during playback. Connecting stops the
-controller's standalone show and synchronizes its clock.
+1..n, which map in order onto the controller's physical outputs. Donder
+controllers follow live output, like E1.31 and Art-Net controllers: with live
+output off, Play only plays the Preview and the editor connects to no
+controller. Turning live output on starts discovery; the editor then connects
+to each claimed controller as it appears on the network and whenever the open
+project changes, never during playback. Connecting stops the controller's
+standalone show and synchronizes its clock. Turning live output off, opening
+another sequence or project, or starting a performance stops and releases every
+controller.
 
-The editor's Play button then:
-1. prepares each connected controller's fragment;
+While live output is on, the editor's Play button:
+1. connects any controller that is not yet connected, and prepares each
+   connected controller's fragment;
 2. uploads it if its SHA-256 or the device's loaded image changed (unchanged
    project revisions reuse their compiled fragment);
 3. schedules a shared future start.
+
+A controller that is missing, unclaimed, on other firmware, or fails to connect,
+take its show or acknowledge a schedule never blocks Play: the editor releases
+it, names it with the reason in the live-output status and the controller's
+settings, and plays the Preview and every other controller. The next Play
+tries it again. With no controller connected, Play plays only the Preview.
 
 Each controller evaluates its own frames, and no per-frame pixels cross the
 network. Edits apply on the next Play. Pause holds the position reached at its
@@ -139,8 +154,9 @@ Clock synchronization:
   through a network outage.
 - **Scheduling.** Starts use 250–1000 ms of lead time depending on the number of
   devices, plus eight times the slowest clock uncertainty per device, and round up to the sequence's frame grid. The desktop needs every
-  acknowledgment with at least 40 ms to spare. A failed setup cancels every
-  command that may have been armed.
+  acknowledgment with at least 40 ms to spare, or it cancels every command
+  that may have been armed. A controller that fails to acknowledge has its
+  command cancelled and is released.
 - **Command checks.** Boot identity, clock-master identity, command order and
   the image's id and size are checked before a scheduled command is accepted.
   The id is the hash the editor writes into the image header; the controller

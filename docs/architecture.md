@@ -199,9 +199,15 @@ everywhere:
   Tauri IPC. Audio state arrives as timestamped anchors that the Preview
   interpolates and corrects to. A separate process also keeps GTK and wgpu from
   sharing one Wayland surface.
-- **Live output.** The desktop service evaluates controller bytes and sends them
-  over E1.31 or Art-Net. Output is opt-in for each run and fails closed: stopping
-  blacks out active ports and terminates E1.31 streams.
+- **Live output.** One switch for every controller type. While it is off, Play
+  plays only the Preview. While it is on, the desktop service evaluates
+  controller bytes and sends them over E1.31 or Art-Net, and drives the setup's
+  Donder controllers, which play uploaded shows on the editor's clock
+  (`desktop_state/device_playback.rs`). Output is opt-in and fails
+  closed: turning it off blacks out active ports, terminates E1.31 streams and stops
+  Donder controllers. A controller that is missing or fails is reported in the
+  live-output status and does not stop the others. mDNS discovery runs only
+  while live output drives Donder controllers or a view that lists them is open.
 - **Controllers.** Sequence images, built for a controller's ports, are
   uploaded to the ESP32 loader, which stores them in a flash slot and plays
   them from a copy in RAM beside their playback buffer.

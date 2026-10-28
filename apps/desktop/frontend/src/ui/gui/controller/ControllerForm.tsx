@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAppStore } from "../../../store";
 import type { SetupGuiDocument, SetupGuiEdit } from "../../../types";
-import { DeviceUsbTools } from "./DonderDevicePanel";
+import { DeviceUsbTools, useDeviceWatch } from "./DonderDevicePanel";
 
 type ControllerConfig = Extract<SetupGuiEdit, { type: "addController" }>["config"];
 type ControllerPorts = SetupGuiDocument["controllers"][number]["ports"];
@@ -27,6 +27,7 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDo
   const devices = useAppStore((state) => state.snapshot?.devices ?? []);
   const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? defaultConfig("e131", ""));
   const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [{ id: 1, name: "port_1", address: 1, slotCount: 512 }]);
+  useDeviceWatch(config.type === "donder");
   const firstAddress = config.type === "artNet" ? 0 : 1;
   return <>
     <form className="setup-authoring-form" onSubmit={(event) => {

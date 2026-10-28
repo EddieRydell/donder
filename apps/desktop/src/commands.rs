@@ -72,6 +72,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         export_video_file,
         device_serial_ports,
         erase_device_saved_data,
+        watch_devices,
         claim_device,
         rename_device,
         set_device_network,
