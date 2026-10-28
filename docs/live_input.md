@@ -99,8 +99,8 @@ A rig has the same layers and operator graph as a sequence, plus what plays live
 - **Live mark collections** (`LiveMarks`): start empty each session and gain a
   mark each time a `Mark` mapping fires. Any effect with a marks parameter can
   read one, so effects such as MarkPulse react to the beat you tap.
-- **Scene voices** (`Voice`): effects that play for the whole session, like a
-  clip without a start or an end: a layer, a fixture or group, a scope, an effect
+- **Scene voices** (`Voice`): clips that play for the whole session, like a
+  sequence clip without a start or an end: a layer, a fixture or group, a scope, an effect
   and its parameters.
 - **Switches** (`Switch`): an on/off state that each press of its button flips.
   Switches start off. Use them as pages: the same key does one thing while a
@@ -110,8 +110,8 @@ A rig has the same layers and operator graph as a sequence, plus what plays live
 
 A mapping's action is one of:
 
-- **Trigger** starts an effect: a layer, target, scope, effect and parameters,
-  like a clip. Its `values` set parameters of each voice it starts from how it
+- **Trigger** starts a clip: a layer, target, scope, effect and parameters,
+  like a sequence clip. Its `values` set parameters of each voice it starts from how it
   was played (below). Its `length` is `Fixed { duration }` (plays that long from each
   press), `Held` (plays while you hold the button) or `Latched` (one press starts
   it, the next stops it). Its `voices` decide what another press does while it

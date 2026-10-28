@@ -34,7 +34,7 @@ fn color(rig: &mut ShowPlayback, seconds: f32) -> Color {
 /// collections and controls by effect.
 fn rig(
     effects: &[BoundProgram],
-    register: impl for<'id> FnOnce(&mut crate::ShowBuilder<'id>, &[crate::EffectHandle<'id>]),
+    register: impl for<'id> FnOnce(&mut crate::ShowBuilder<'id>, &[crate::ClipHandle<'id>]),
 ) -> ShowPlayback {
     PreparedShow::build(playback::timing(SESSION), |builder| {
         let geometry = FixtureGeometry::admit(Box::new([[0.0, 0.0]])).unwrap();
@@ -121,17 +121,14 @@ fn live_marks_reach_a_running_effect() {
          guard age >= 0.0 && age < 0.1; #ffffff } }",
     );
     let invocation = effect
-        .invoke_live(
+        .invoke(
             vec![Value::Marks(Shared::new(Marks::empty()))],
-            Box::new([]),
-            Box::new([0]),
+            Box::new([live_marks(0)]),
         )
         .unwrap();
-    let lowered = invocation.instance(ProgramConstants::default()).lower();
-    let live = lowered.live;
-    let sample = BoundProgram::bind(lowered.program, lowered.values, lowered.automation).unwrap();
+    let sample = playback::bind(&invocation.instance(ProgramConstants::default()));
     let mut rig = rig(&[sample], |builder, effects| {
-        builder.live_marks([(effects[0], live[0])]);
+        builder.live_marks([(effects[0], 0)]);
     });
     assert_eq!(color(&mut rig, 0.5), Color::BLACK, "no marks yet");
     rig.apply(event(1.0, RigCommand::Mark { collection: 0 }));
@@ -149,10 +146,9 @@ fn live_marks_reject_reductions_bounded_by_their_length() {
     );
     assert!(
         effect
-            .invoke_live(
+            .invoke(
                 vec![Value::Marks(Shared::new(Marks::empty()))],
-                Box::new([]),
-                Box::new([0]),
+                Box::new([live_marks(0)]),
             )
             .is_err()
     );
@@ -160,6 +156,15 @@ fn live_marks_reject_reductions_bounded_by_their_length() {
 
 /// A float control binding over the whole session, for `param` (in 0..1).
 fn control(param: u16) -> PreparedAutomation {
+    session(AutomationMapping::Float { min: 0.0, max: 1.0 }, param)
+}
+
+/// A binding of marks parameter `param` to a live collection.
+fn live_marks(param: u16) -> PreparedAutomation {
+    session(AutomationMapping::LiveMarks, param)
+}
+
+fn session(mapping: AutomationMapping, param: u16) -> PreparedAutomation {
     PreparedAutomation {
         start: SampleTime::from_ticks(0),
         duration: SampleDuration::from_ticks(SESSION),
@@ -169,7 +174,7 @@ fn control(param: u16) -> PreparedAutomation {
                 value: 0.0,
             }],
         }),
-        mapping: AutomationMapping::Float { min: 0.0, max: 1.0 },
+        mapping,
         quantity: AutomatedQuantity::Value,
         param_index: param,
     }

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use donder_model::ControllerId;
-use donder_output::ControllerPortFrame;
+use donder_output::OutputFrame;
 use donder_runtime::{PreparedShow, ShowPlayback};
 use donder_runtime_types::{RigEvent, SampleDuration, SampleTime};
 
@@ -47,7 +47,7 @@ pub(crate) struct RigOutput {
 struct RenderedRigFrame {
     frame: u64,
     revision: u64,
-    controller_frames: Vec<ControllerPortFrame>,
+    controller_frames: Vec<OutputFrame>,
 }
 
 impl RigOutput {
@@ -81,7 +81,7 @@ impl RigOutput {
     }
 
     /// The controller frames at the session's current time.
-    pub(crate) fn render(&mut self) -> &[ControllerPortFrame] {
+    pub(crate) fn render(&mut self) -> &[OutputFrame] {
         let time = self.clock.now();
         let frame = u64::from(time.as_ticks()) * u64::from(self.playback.prepared().frame_rate())
             / 1_000_000;

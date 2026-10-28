@@ -1,5 +1,5 @@
 use super::DonderProject;
-use crate::effect::EffectInst;
+use crate::effect::Clip;
 use crate::operator::OperatorDefinition;
 use crate::sequence::{CompositionGraphNode, CompositionGraphNodeKind, Sequence, SequenceId};
 mod automation;
@@ -8,8 +8,7 @@ mod inputs;
 mod parameters;
 mod patch;
 mod rig;
-use crate::rig::{Mapping, Rig, RigEffect, RigId, Trigger, Voice};
-use crate::sequence::MarkCollectionKey;
+use crate::rig::{Mapping, Rig, RigClip, RigId, Trigger, Voice};
 use donder_language::compiler::Invocation;
 pub(super) use inputs::ProjectInputs;
 pub use rig::{RIG_SESSION, RigBinding};
@@ -21,11 +20,11 @@ pub struct AcceptedSequence<'a> {
     sequence: &'a Sequence,
 }
 
-/// An authored instance paired with its admitted playback invocation.
+/// An authored clip paired with its admitted playback invocation.
 #[derive(Clone, Copy)]
-pub struct AcceptedEffectInputs<'a> {
-    instance: &'a EffectInst,
-    execution: &'a Invocation,
+pub struct AcceptedClipInputs<'a> {
+    clip: &'a Clip,
+    invocation: &'a Invocation,
 }
 
 #[derive(Clone, Copy)]
@@ -84,18 +83,18 @@ impl<'a> AcceptedSequence<'a> {
         self.sequence
     }
 
-    pub fn effects(self) -> impl ExactSizeIterator<Item = AcceptedEffectInputs<'a>> + 'a {
+    pub fn clips(self) -> impl ExactSizeIterator<Item = AcceptedClipInputs<'a>> + 'a {
         self.sequence
-            .effects
+            .clips
             .iter()
             .zip(
                 self.project.accepted_inputs.sequences[&self.sequence.id]
-                    .effects
+                    .clips
                     .iter(),
             )
-            .map(|(instance, execution)| AcceptedEffectInputs {
-                instance,
-                execution: execution.as_ref(),
+            .map(|(clip, invocation)| AcceptedClipInputs {
+                clip,
+                invocation: invocation.as_ref(),
             })
     }
 
@@ -115,18 +114,18 @@ pub struct AcceptedRig<'a> {
     rig: &'a Rig,
 }
 
-/// Who plays a rig effect: a scene voice, or a trigger mapping's voices.
+/// Who plays a rig clip: a scene voice, or a trigger mapping's voices.
 #[derive(Clone, Copy)]
-pub enum RigEffectOrigin<'a> {
+pub enum RigClipOrigin<'a> {
     Voice(&'a Voice),
     Trigger(&'a Mapping, &'a Trigger),
 }
 
 #[derive(Clone, Copy)]
-pub struct AcceptedRigEffect<'a> {
-    origin: RigEffectOrigin<'a>,
-    effect: &'a RigEffect,
-    inputs: &'a rig::RigEffectInputs,
+pub struct AcceptedRigClip<'a> {
+    origin: RigClipOrigin<'a>,
+    clip: &'a RigClip,
+    inputs: &'a rig::RigClipInputs,
 }
 
 impl<'a> AcceptedRig<'a> {
@@ -139,30 +138,26 @@ impl<'a> AcceptedRig<'a> {
         &self.project.accepted_inputs.rigs[&self.rig.id].timing
     }
 
-    /// The scene's voices, then each trigger's effect.
-    pub fn effects(self) -> impl Iterator<Item = AcceptedRigEffect<'a>> + 'a {
-        let origins = self.rig.voices.iter().map(RigEffectOrigin::Voice).chain(
+    /// The scene's voices, then each trigger's clip.
+    pub fn clips(self) -> impl Iterator<Item = AcceptedRigClip<'a>> + 'a {
+        let origins = self.rig.voices.iter().map(RigClipOrigin::Voice).chain(
             self.rig
                 .mappings
                 .iter()
                 .filter_map(|mapping| match &mapping.action {
                     crate::rig::MappingAction::Trigger(trigger) => {
-                        Some(RigEffectOrigin::Trigger(mapping, trigger))
+                        Some(RigClipOrigin::Trigger(mapping, trigger))
                     }
                     crate::rig::MappingAction::Mark(_)
                     | crate::rig::MappingAction::Control { .. } => None,
                 }),
         );
         origins
-            .zip(self.rig.effects())
-            .zip(
-                self.project.accepted_inputs.rigs[&self.rig.id]
-                    .effects
-                    .iter(),
-            )
-            .map(|((origin, effect), inputs)| AcceptedRigEffect {
+            .zip(self.rig.clips())
+            .zip(self.project.accepted_inputs.rigs[&self.rig.id].clips.iter())
+            .map(|((origin, clip), inputs)| AcceptedRigClip {
                 origin,
-                effect,
+                clip,
                 inputs,
             })
     }
@@ -176,27 +171,22 @@ impl<'a> AcceptedRig<'a> {
     }
 }
 
-impl<'a> AcceptedRigEffect<'a> {
-    pub fn origin(self) -> RigEffectOrigin<'a> {
+impl<'a> AcceptedRigClip<'a> {
+    pub fn origin(self) -> RigClipOrigin<'a> {
         self.origin
     }
 
-    pub fn effect(self) -> &'a RigEffect {
-        self.effect
+    pub fn clip(self) -> &'a RigClip {
+        self.clip
     }
 
-    pub fn execution(self) -> &'a Invocation {
+    pub fn invocation(self) -> &'a Invocation {
         &self.inputs.invocation
     }
 
-    /// The live collection each of the invocation's live marks parameters reads.
-    pub fn live_marks(self) -> &'a [MarkCollectionKey] {
-        &self.inputs.live
-    }
-
     /// What sets each of the invocation's automation bindings.
-    pub fn controls(self) -> &'a [RigBinding] {
-        &self.inputs.controls
+    pub fn bindings(self) -> &'a [RigBinding] {
+        &self.inputs.bindings
     }
 }
 
@@ -218,24 +208,24 @@ fn operator_inputs<'a>(
     })
 }
 
-impl<'a> AcceptedEffectInputs<'a> {
-    pub fn execution(self) -> &'a Invocation {
-        self.execution
+impl<'a> AcceptedClipInputs<'a> {
+    pub fn invocation(self) -> &'a Invocation {
+        self.invocation
     }
 
-    pub fn instance(self) -> &'a EffectInst {
-        self.instance
+    pub fn clip(self) -> &'a Clip {
+        self.clip
     }
 
     /// When the clip starts on the sequence clock; admission checked that it
     /// plays within the sequence.
     pub fn start(self) -> donder_runtime_types::SampleTime {
-        donder_runtime_types::SampleTime::from_ticks(self.instance.start.as_micros_rounded() as u32)
+        donder_runtime_types::SampleTime::from_ticks(self.clip.start.as_micros_rounded() as u32)
     }
 
     pub fn duration(self) -> donder_runtime_types::SampleDuration {
         donder_runtime_types::SampleDuration::from_ticks(
-            self.instance.duration.as_micros_rounded() as u32
+            self.clip.duration.as_micros_rounded() as u32
         )
     }
 }

@@ -22,24 +22,24 @@ const OUTPUT_TEST_DURATION: Duration = Duration::from_secs(10);
 #[cfg(test)]
 const OUTPUT_TEST_DURATION: Duration = Duration::from_millis(500);
 
-enum OutputSource {
+enum LiveFeed {
     Sequence,
     /// A performance, rendered on its own session clock.
     Rig(Box<RigOutput>),
     Test {
-        frames: Vec<donder_output::ControllerPortFrame>,
+        frames: Vec<donder_output::OutputFrame>,
         started: Instant,
     },
 }
 
-type ActiveOutput = (u32, OutputTransports, LiveOutputSnapshot, OutputSource);
+type ActiveOutput = (u32, OutputTransports, LiveOutputSnapshot, LiveFeed);
 
 enum Command {
     Enable {
         generation: u32,
         controllers: IndexMap<ControllerId, Controller>,
         active: Vec<ControllerId>,
-        source: OutputSource,
+        feed: LiveFeed,
     },
     /// Commands for the performance a rig output plays, in arrival order.
     RigEvents {
@@ -96,7 +96,7 @@ impl LiveOutputService {
         controllers: IndexMap<ControllerId, Controller>,
         active: Vec<ControllerId>,
     ) -> LiveOutputSnapshot {
-        self.start(controllers, active, OutputSource::Sequence)
+        self.start(controllers, active, LiveFeed::Sequence)
     }
 
     /// Play a performance to the controllers.
@@ -106,7 +106,7 @@ impl LiveOutputService {
         active: Vec<ControllerId>,
         output: RigOutput,
     ) -> LiveOutputSnapshot {
-        self.start(controllers, active, OutputSource::Rig(Box::new(output)))
+        self.start(controllers, active, LiveFeed::Rig(Box::new(output)))
     }
 
     /// Send a performance's new commands to the output that plays it.
@@ -133,12 +133,12 @@ impl LiveOutputService {
         &mut self,
         id: ControllerId,
         controller: Controller,
-        frame: donder_output::ControllerPortFrame,
+        frame: donder_output::OutputFrame,
     ) -> LiveOutputSnapshot {
         self.start(
             IndexMap::from([(id, controller)]),
             vec![id],
-            OutputSource::Test {
+            LiveFeed::Test {
                 frames: vec![frame],
                 started: Instant::now(),
             },
@@ -149,14 +149,14 @@ impl LiveOutputService {
         &mut self,
         controllers: IndexMap<ControllerId, Controller>,
         active: Vec<ControllerId>,
-        source: OutputSource,
+        feed: LiveFeed,
     ) -> LiveOutputSnapshot {
         self.resume_after_prepare = false;
         self.resume_ready = false;
-        self.rig = matches!(source, OutputSource::Rig(_));
+        self.rig = matches!(feed, LiveFeed::Rig(_));
         self.generation = self.generation.saturating_add(1);
         self.snapshot = preparing_snapshot(self.generation, &controllers, &active);
-        if matches!(source, OutputSource::Test { .. }) {
+        if matches!(feed, LiveFeed::Test { .. }) {
             self.snapshot.state = LiveOutputState::Testing;
         }
         if self
@@ -165,7 +165,7 @@ impl LiveOutputService {
                 generation: self.generation,
                 controllers,
                 active,
-                source,
+                feed,
             })
             .is_err()
         {
@@ -296,7 +296,7 @@ fn worker(
                 generation,
                 controllers,
                 active: ids,
-                source,
+                feed,
             }) => {
                 if active.is_none() {
                     stop_error = None;
@@ -313,10 +313,10 @@ fn worker(
                 let mut snapshot = preparing_snapshot(generation, &controllers, &ids);
                 match OutputTransports::open(&controllers, &ids) {
                     Ok(transports) => {
-                        snapshot.state = match source {
-                            OutputSource::Sequence => LiveOutputState::Holding,
-                            OutputSource::Rig(_) => LiveOutputState::Streaming,
-                            OutputSource::Test { .. } => LiveOutputState::Testing,
+                        snapshot.state = match feed {
+                            LiveFeed::Sequence => LiveOutputState::Holding,
+                            LiveFeed::Rig(_) => LiveOutputState::Streaming,
+                            LiveFeed::Test { .. } => LiveOutputState::Testing,
                         };
                         for controller in &mut snapshot.controllers {
                             controller.state = LiveOutputControllerState::Active;
@@ -325,7 +325,7 @@ fn worker(
                             generation,
                             snapshot: snapshot.clone(),
                         });
-                        active = Some((generation, transports, snapshot, source));
+                        active = Some((generation, transports, snapshot, feed));
                     }
                     Err(error) => {
                         fail_snapshot(&mut snapshot, format!("{error:?}"));
@@ -337,7 +337,7 @@ fn worker(
                 }
             }
             Ok(Command::RigEvents { generation, events }) => {
-                if let Some((active_generation, _, _, OutputSource::Rig(output))) = active.as_mut()
+                if let Some((active_generation, _, _, LiveFeed::Rig(output))) = active.as_mut()
                     && *active_generation == generation
                 {
                     output.apply(&events);
@@ -370,11 +370,11 @@ fn worker(
             Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
 
-        let Some((generation, transports, snapshot, source)) = active.as_mut() else {
+        let Some((generation, transports, snapshot, feed)) = active.as_mut() else {
             continue;
         };
         tick_started = Instant::now();
-        if let OutputSource::Test { frames, started } = source {
+        if let LiveFeed::Test { frames, started } = feed {
             let generation = *generation;
             if started.elapsed() >= OUTPUT_TEST_DURATION {
                 let snapshot = stop_output(&mut active, &mut stop_error, generation, None);
@@ -397,7 +397,7 @@ fn worker(
             tick_interval = INITIAL_TICK_INTERVAL;
             continue;
         }
-        if let OutputSource::Rig(output) = source {
+        if let LiveFeed::Rig(output) = feed {
             tick_interval = output.frame_interval();
             if let Err(error) = transports.send(output.render()) {
                 let generation = *generation;
@@ -598,7 +598,7 @@ mod tests {
         let ids = vec![id];
         let transports = OutputTransports::open(&controllers, &ids).unwrap();
         let snapshot = preparing_snapshot(3, &controllers, &ids);
-        let mut active = Some((3, transports, snapshot, OutputSource::Sequence));
+        let mut active = Some((3, transports, snapshot, LiveFeed::Sequence));
         let mut stop_error = None;
         let stopped = stop_output(
             &mut active,

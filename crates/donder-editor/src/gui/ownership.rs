@@ -50,22 +50,27 @@ pub(super) fn edit_site(
         OwnershipSite::Fixture { .. } => ObjectKind::FixtureDefinition,
     };
     match edit {
-        GuiOwnershipEdit::UseExisting { source } => {
-            if source.kind != crate::dto::ObjectKind::from(kind) || !source.owned_path.is_empty() {
+        GuiOwnershipEdit::UseExisting { declaration } => {
+            if declaration.kind != crate::dto::ObjectKind::from(kind)
+                || !declaration.owned_path.is_empty()
+            {
                 return Err(GuiMutationError::Invalid(
-                    "Choose a reusable source of the matching kind.".into(),
+                    "Choose a reusable declaration of the matching kind.".into(),
                 ));
             }
-            let source: ObjectId =
-                super::model::declared_from_gui(session, &source.path, &source.object_key)?;
-            if source.kind() != kind {
+            let id: ObjectId = super::model::declared_from_gui(
+                session,
+                &declaration.path,
+                &declaration.object_key,
+            )?;
+            if id.kind() != kind {
                 return Err(GuiMutationError::Invalid(
-                    "Choose a reusable source of the matching kind.".into(),
+                    "Choose a reusable declaration of the matching kind.".into(),
                 ));
             }
-            donder_project_io::link_reusable_source(session, owner.document_id(), source)
+            donder_project_io::link_declaration(session, owner.document_id(), id)
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            use_existing(&mut session.project, &site, source, &|id| {
+            use_existing(&mut session.project, &site, id, &|id| {
                 session.source.declared_name(id)
             })
             .map_err(GuiMutationError::from)?;
@@ -79,7 +84,7 @@ pub(super) fn edit_site(
         GuiOwnershipEdit::MakeReusable { name, storage } => {
             if name.trim().is_empty() {
                 return Err(GuiMutationError::Invalid(
-                    "Enter a name for the reusable source.".into(),
+                    "Enter a name for the reusable declaration.".into(),
                 ));
             }
             let id = make_reusable(&mut session.project, &site).map_err(GuiMutationError::from)?;
@@ -104,11 +109,11 @@ pub(super) fn edit_site(
         .map_err(|error| GuiMutationError::Invalid(error.to_string()))
 }
 
-pub(super) fn available_sources(
+pub(super) fn available_declarations(
     session: &ProjectSession,
     kinds: &[ObjectKind],
 ) -> Vec<crate::dto::GuiObjectRef> {
-    donder_project_io::available_reusable_sources(session, kinds)
+    donder_project_io::available_declarations(session, kinds)
         .into_iter()
         .map(|id| super::model::object_ref(session, id))
         .collect()

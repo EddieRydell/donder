@@ -1,6 +1,6 @@
-//! A rig: effects played live from input devices instead of at authored
+//! A rig: clips played live from input devices instead of at authored
 //! times. Its layers and composition graph are a sequence's.
-use crate::effect::{EffectDefinitionId, EffectParamValue, EffectScope};
+use crate::effect::{ClipScope, EffectDefinitionId, ParamValue};
 pub(crate) use crate::identity::RigId;
 use crate::input_device::ControlRef;
 use crate::layout::FixtureTarget;
@@ -37,28 +37,28 @@ pub struct LiveMarks {
     pub display_color: Color,
 }
 
-/// An effect a rig plays: a clip without timing.
+/// A clip a rig plays: a sequence clip without timing.
 #[derive(Clone, Debug, PartialEq)]
-pub struct RigEffect {
+pub struct RigClip {
     pub layer_id: SequenceLayerId,
     pub target: FixtureTarget,
-    pub scope: EffectScope,
+    pub scope: ClipScope,
     pub definition: EffectDefinitionId,
     /// Marks parameters name the rig's live mark collections.
-    pub param_overrides: IndexMap<Identifier, EffectParamValue>,
+    pub param_overrides: IndexMap<Identifier, ParamValue>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct RigVoiceId(pub u32);
 
-/// An always-on effect for the whole session.
+/// A clip always on for the whole session.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Voice {
     pub id: RigVoiceId,
     /// Unique among the rig's voices and mappings.
     pub name: Identifier,
     pub description: Option<String>,
-    pub effect: RigEffect,
+    pub clip: RigClip,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -98,7 +98,7 @@ pub enum When {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MappingAction {
-    /// Start an effect voice.
+    /// Start a voice of a clip.
     Trigger(Box<Trigger>),
     /// Add a mark to a live collection.
     Mark(MarkCollectionKey),
@@ -112,7 +112,7 @@ pub enum MappingAction {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Trigger {
-    pub effect: RigEffect,
+    pub clip: RigClip,
     pub length: TriggerLength,
     pub voices: VoicePolicy,
     /// Parameters each press sets on the voice it starts.
@@ -124,11 +124,11 @@ pub struct Trigger {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlayedValue {
     pub param: Identifier,
-    pub from: PlayedSource,
+    pub from: PlayedQuantity,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum PlayedSource {
+pub enum PlayedQuantity {
     /// How hard a note was struck; a computer key or a pedal plays at 1.
     Velocity,
     /// The note's place in its control's key range, from its lowest key at 0
@@ -142,7 +142,7 @@ pub enum PlayedSource {
     Fifths,
 }
 
-impl PlayedSource {
+impl PlayedQuantity {
     /// Whether the value needs a note, which only MIDI notes and keys carry.
     pub fn needs_note(self) -> bool {
         !matches!(self, Self::Velocity)
@@ -191,46 +191,46 @@ pub enum ControlTarget {
 }
 
 impl Rig {
-    /// The effect a `Control` mapping's target plays.
-    pub fn control_effect(&self, target: ControlTarget) -> Option<&RigEffect> {
+    /// The clip a `Control` mapping's target plays.
+    pub fn control_clip(&self, target: ControlTarget) -> Option<&RigClip> {
         match target {
             ControlTarget::Voice(id) => self
                 .voices
                 .iter()
                 .find(|voice| voice.id == id)
-                .map(|voice| &voice.effect),
+                .map(|voice| &voice.clip),
             ControlTarget::Trigger(id) => self
                 .mappings
                 .iter()
                 .find(|mapping| mapping.id == id)
                 .and_then(|mapping| match &mapping.action {
-                    MappingAction::Trigger(trigger) => Some(&trigger.effect),
+                    MappingAction::Trigger(trigger) => Some(&trigger.clip),
                     MappingAction::Mark(_) | MappingAction::Control { .. } => None,
                 }),
         }
     }
 
-    /// Every effect the rig plays: its voices', then its triggers'.
-    pub fn effects(&self) -> impl Iterator<Item = &RigEffect> {
+    /// Every clip the rig plays: its voices', then its triggers'.
+    pub fn clips(&self) -> impl Iterator<Item = &RigClip> {
         self.voices
             .iter()
-            .map(|voice| &voice.effect)
+            .map(|voice| &voice.clip)
             .chain(
                 self.mappings
                     .iter()
                     .filter_map(|mapping| match &mapping.action {
-                        MappingAction::Trigger(trigger) => Some(&trigger.effect),
+                        MappingAction::Trigger(trigger) => Some(&trigger.clip),
                         MappingAction::Mark(_) | MappingAction::Control { .. } => None,
                     }),
             )
     }
 
-    pub fn effects_mut(&mut self) -> impl Iterator<Item = &mut RigEffect> {
-        self.voices.iter_mut().map(|voice| &mut voice.effect).chain(
+    pub fn clips_mut(&mut self) -> impl Iterator<Item = &mut RigClip> {
+        self.voices.iter_mut().map(|voice| &mut voice.clip).chain(
             self.mappings
                 .iter_mut()
                 .filter_map(|mapping| match &mut mapping.action {
-                    MappingAction::Trigger(trigger) => Some(&mut trigger.effect),
+                    MappingAction::Trigger(trigger) => Some(&mut trigger.clip),
                     MappingAction::Mark(_) | MappingAction::Control { .. } => None,
                 }),
         )
@@ -252,4 +252,4 @@ impl crate::ownership::Identified for Rig {
     }
 }
 
-pub type RigSource = crate::ownership::MemberSource<Rig, RigId>;
+pub type OwnedRig = crate::ownership::OwnedMember<Rig, RigId>;

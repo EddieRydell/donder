@@ -39,8 +39,8 @@ pub(crate) struct PreviewContentIdentity {
 
 pub(crate) struct PreviewContent {
     pub(crate) instances: Vec<[f32; 4]>,
-    pub(crate) archive: Option<Vec<u8>>,
-    /// The performance a rig archive plays, whose commands follow it.
+    pub(crate) image: Option<Vec<u8>>,
+    /// The performance a rig image plays, whose commands follow it.
     pub(crate) performance: Option<u32>,
 }
 
@@ -404,7 +404,7 @@ fn run_sync_loop(
                         &PreviewCommand::ReplaceContent {
                             revision: content_revision,
                             instances: content.instances,
-                            archive: content.archive,
+                            image: content.image,
                         },
                     )
                     .is_err()

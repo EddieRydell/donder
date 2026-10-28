@@ -6,7 +6,7 @@ use donder_model::{FixtureTarget, Sequence, SequenceId};
 use donder_project_io::ProjectSession;
 
 use super::GuiMutationError;
-use super::model::{automation_clip_mut, effect_mut};
+use super::model::{automation_clip_mut, clip_mut};
 use super::selection::{lane_targets, nearest_lane};
 
 /// A clip's timing in whole nanoseconds, so aligned edges are exactly equal.
@@ -37,10 +37,10 @@ impl Span {
     }
 }
 
-/// Effects and automation clips in one lane are separate rows.
+/// Clips and automation clips in one lane are separate rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum RowKind {
-    Effects,
+    Clips,
     Automation,
 }
 
@@ -71,11 +71,11 @@ fn sequence_clips(
             .map(|lane| Row { lane, kind })
             .ok_or_else(|| invalid("Clip row target is missing."))
     };
-    let effects = sequence.effects.iter().map(|effect| {
+    let clips = sequence.clips.iter().map(|clip| {
         Ok(Clip {
-            clip: SequenceClipRef::Effect { id: effect.id.0 },
-            row: row(&effect.target, RowKind::Effects)?,
-            span: Span::of(&effect.start, &effect.duration),
+            clip: SequenceClipRef::Clip { id: clip.id.0 },
+            row: row(&clip.target, RowKind::Clips)?,
+            span: Span::of(&clip.start, &clip.duration),
         })
     });
     let automation = sequence.automation_clips.iter().map(|clip| {
@@ -85,13 +85,13 @@ fn sequence_clips(
             span: Span::of(&clip.start, &clip.duration),
         })
     });
-    effects.chain(automation).collect()
+    clips.chain(automation).collect()
 }
 
 pub(super) fn arrange_clip_selection(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
-    effect_ids: &[u32],
+    clip_ids: &[u32],
     automation_ids: &[u32],
     arrangement: &SequenceClipArrangement,
 ) -> Result<(), GuiMutationError> {
@@ -100,9 +100,9 @@ pub(super) fn arrange_clip_selection(
         .get::<donder_model::Sequence>(*sequence_id)
         .ok_or_else(|| invalid("Sequence was not found."))?;
     let all = sequence_clips(session, sequence)?;
-    let selected: Vec<&Clip> = effect_ids
+    let selected: Vec<&Clip> = clip_ids
         .iter()
-        .map(|id| SequenceClipRef::Effect { id: *id })
+        .map(|id| SequenceClipRef::Clip { id: *id })
         .chain(
             automation_ids
                 .iter()
@@ -133,10 +133,10 @@ pub(super) fn arrange_clip_selection(
             u64::try_from(span.len()).map_err(|_| invalid("A clip length is out of range."))?,
         );
         match clip.clip {
-            SequenceClipRef::Effect { id } => {
-                let effect = effect_mut(&mut draft, id)?;
-                effect.start = start;
-                effect.duration = duration;
+            SequenceClipRef::Clip { id } => {
+                let authored = clip_mut(&mut draft, id)?;
+                authored.start = start;
+                authored.duration = duration;
             }
             // A clip that keeps its length carries its curve; a resized one
             // crops it, as a resize drag does.

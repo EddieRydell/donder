@@ -1,4 +1,4 @@
-use crate::effect::EffectParamValue;
+use crate::effect::ParamValue;
 pub(crate) use crate::identity::OperatorDefinitionId;
 use crate::sequence::{
     CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge, SequenceCompositionGraph,
@@ -13,7 +13,7 @@ pub struct GraphOperatorNode {
     /// Unique among the sequence's layers and graph nodes; edges use it.
     pub name: donder_runtime_types::Identifier,
     pub operator: OperatorDefinitionId,
-    pub params: IndexMap<Identifier, EffectParamValue>,
+    pub params: IndexMap<Identifier, ParamValue>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -77,7 +77,7 @@ fn port(name: &str, display_name: &str) -> OperatorPortDefinition {
 pub enum GraphValidationError {
     DuplicateNode(CompositionGraphNodeId),
     MissingOperator(CompositionGraphNodeId),
-    OutputCount(usize),
+    RootCount(usize),
     MissingEdgeNode(CompositionGraphNodeId),
     UnknownOutputPort {
         node: CompositionGraphNodeId,
@@ -121,7 +121,7 @@ impl GraphValidationError {
             | Self::UnknownParam { node, .. }
             | Self::WrongParamType { node, .. }
             | Self::MissingParam { node, .. } => Some(node.clone()),
-            Self::OutputCount(_) | Self::Cycle => None,
+            Self::RootCount(_) | Self::Cycle => None,
         }
     }
 }
@@ -131,9 +131,9 @@ impl std::fmt::Display for GraphValidationError {
         match self {
             Self::DuplicateNode(node) => write!(f, "graph node id {} is used twice", node.0),
             Self::MissingOperator(_) => f.write_str("the operator definition is missing"),
-            Self::OutputCount(count) => write!(
+            Self::RootCount(count) => write!(
                 f,
-                "a composition graph has exactly one output node, not {count}"
+                "a composition graph has exactly one root node, not {count}"
             ),
             Self::MissingEdgeNode(_) => f.write_str("an edge names a missing graph node"),
             Self::UnknownOutputPort { port, .. } => write!(f, "no output port `{port}`"),
@@ -157,7 +157,7 @@ pub fn validate_composition_graph(
     definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
 ) -> Result<(), GraphValidationError> {
     let mut node_ids = HashSet::new();
-    let mut output_count = 0usize;
+    let mut root_count = 0usize;
     for node in &graph.nodes {
         if !node_ids.insert(&node.id) {
             return Err(GraphValidationError::DuplicateNode(node.id.clone()));
@@ -169,12 +169,12 @@ pub fn validate_composition_graph(
                     .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone()))?;
                 validate_operator_params(&node.id, operator, definition)?;
             }
-            CompositionGraphNodeKind::Output => output_count += 1,
+            CompositionGraphNodeKind::Root => root_count += 1,
             CompositionGraphNodeKind::Layer { .. } => {}
         }
     }
-    if output_count != 1 {
-        return Err(GraphValidationError::OutputCount(output_count));
+    if root_count != 1 {
+        return Err(GraphValidationError::RootCount(root_count));
     }
 
     let nodes = graph
@@ -191,9 +191,9 @@ pub fn validate_composition_graph(
         .iter()
         .map(|edge| (&edge.to, edge.to_port.0.as_str()))
         .collect::<HashSet<_>>();
-    let output_dependencies = composition_graph_output_dependencies(graph);
+    let root_dependencies = composition_graph_root_dependencies(graph);
     for node in &graph.nodes {
-        if output_dependencies.contains(&node.id)
+        if root_dependencies.contains(&node.id)
             && let CompositionGraphNodeKind::Operator(operator) = &node.kind
         {
             let definition = definitions
@@ -212,9 +212,9 @@ pub fn validate_composition_graph(
     validate_acyclic(graph)
 }
 
-/// Nodes that can contribute to the output. Disconnected authoring branches
+/// Nodes that can contribute to the root. Disconnected authoring branches
 /// retain their definitions and edges, but need not have all inputs wired yet.
-pub fn composition_graph_output_dependencies(
+pub fn composition_graph_root_dependencies(
     graph: &SequenceCompositionGraph,
 ) -> HashSet<crate::sequence::CompositionGraphNodeId> {
     let mut incoming = HashMap::<_, Vec<_>>::new();
@@ -224,9 +224,7 @@ pub fn composition_graph_output_dependencies(
     let mut pending = graph
         .nodes
         .iter()
-        .filter_map(|node| {
-            matches!(node.kind, CompositionGraphNodeKind::Output).then_some(&node.id)
-        })
+        .filter_map(|node| matches!(node.kind, CompositionGraphNodeKind::Root).then_some(&node.id))
         .collect::<Vec<_>>();
     let mut required = HashSet::new();
     while let Some(id) = pending.pop() {
@@ -339,7 +337,7 @@ pub(crate) fn input_ports(
             .get(&operator.operator)
             .map(|definition| definition.inputs.clone())
             .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone())),
-        CompositionGraphNodeKind::Output => Ok(vec![port("input", "Input")]),
+        CompositionGraphNodeKind::Root => Ok(vec![port("input", "Input")]),
     }
 }
 
@@ -353,7 +351,7 @@ pub(crate) fn output_ports(
             .get(&operator.operator)
             .map(|definition| vec![definition.output.source_name.clone()])
             .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone())),
-        CompositionGraphNodeKind::Output => Ok(Vec::new()),
+        CompositionGraphNodeKind::Root => Ok(Vec::new()),
     }
 }
 
@@ -371,7 +369,7 @@ fn validate_operator_params(
                 node: id.clone(),
                 param: name.clone(),
             })?;
-        if !effect_param_matches_type(value, &declaration.ty) {
+        if !param_matches_type(value, &declaration.ty) {
             return Err(GraphValidationError::WrongParamType {
                 node: id.clone(),
                 param: name.clone(),
@@ -389,19 +387,19 @@ fn validate_operator_params(
     Ok(())
 }
 
-pub fn effect_param_matches_type(value: &EffectParamValue, ty: &Type) -> bool {
+pub fn param_matches_type(value: &ParamValue, ty: &Type) -> bool {
     match (value, ty) {
-        (EffectParamValue::Int(_), Type::Int)
-        | (EffectParamValue::Float(_), Type::Float)
-        | (EffectParamValue::Bool(_), Type::Bool)
-        | (EffectParamValue::Color(_), Type::Color)
-        | (EffectParamValue::Marks(_), Type::Marks)
-        | (EffectParamValue::Curve(_), Type::Curve)
-        | (EffectParamValue::Gradient(_), Type::Gradient) => true,
-        (EffectParamValue::Enum(value), Type::Enum(options)) => options.contains(value),
-        (EffectParamValue::Array(values), Type::Array(item_type)) => values
+        (ParamValue::Int(_), Type::Int)
+        | (ParamValue::Float(_), Type::Float)
+        | (ParamValue::Bool(_), Type::Bool)
+        | (ParamValue::Color(_), Type::Color)
+        | (ParamValue::Marks(_), Type::Marks)
+        | (ParamValue::Curve(_), Type::Curve)
+        | (ParamValue::Gradient(_), Type::Gradient) => true,
+        (ParamValue::Enum(value), Type::Enum(options)) => options.contains(value),
+        (ParamValue::Array(values), Type::Array(item_type)) => values
             .iter()
-            .all(|value| effect_param_matches_type(value, item_type)),
+            .all(|value| param_matches_type(value, item_type)),
         _ => false,
     }
 }

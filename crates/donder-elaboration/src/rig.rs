@@ -1,20 +1,20 @@
-//! Arming a rig: its effects prepared once on the active setup, each trigger
+//! Arming a rig: its clips prepared once on the active setup, each trigger
 //! with its pool of dormant voices and a control per voice for each value its
 //! presses set. The host routes presses to the commands that start and stop
 //! them.
-use crate::PrepareOutputs;
+use crate::Retain;
 use crate::sequence::PreparationCache;
 use crate::stage::{self, Parts};
 use donder_model::{
-    DonderProject, MappingAction, MarkCollectionKey, RigBinding, RigEffectOrigin, RigId,
+    DonderProject, MappingAction, MarkCollectionKey, RigBinding, RigClipOrigin, RigId,
     RigMappingId, VoicePolicy,
 };
-use donder_runtime::{EffectHandle, PreparedShow};
+use donder_runtime::{ClipHandle, PreparedShow};
 use donder_runtime_types::{SampleTime, Shared, sample_duration_seconds_f32};
 use indexmap::IndexMap;
 
-/// Automation bindings a control sets: an effect, and its binding.
-type Bindings<'a> = Vec<(EffectHandle<'a>, u16)>;
+/// Automation bindings a control sets: a clip, and its binding.
+type Bindings<'a> = Vec<(ClipHandle<'a>, u16)>;
 
 /// A rig ready to perform: its playback data and what its mappings command.
 pub struct ArmedRig {
@@ -35,11 +35,11 @@ pub struct ArmedRig {
 pub fn arm(
     project: &DonderProject,
     rig: &RigId,
-    outputs: PrepareOutputs<'_>,
+    retain: Retain<'_>,
     cache: &mut PreparationCache,
 ) -> Option<ArmedRig> {
-    let compact = !matches!(outputs, PrepareOutputs::All);
-    let selected = crate::selection::resolve_rig(project, rig, outputs)?;
+    let compact = !matches!(retain, Retain::All);
+    let selected = crate::selection::resolve_rig(project, rig, retain)?;
     let accepted = selected.show;
     let rig = accepted.rig();
     let mut armed_voices = IndexMap::new();
@@ -53,22 +53,19 @@ pub fn arm(
         timing: accepted.timing(),
     };
     let session = accepted.timing().duration();
-    let prepared = stage::build(&selected, parts, compact, cache, |effects| {
-        let mut readers: IndexMap<&MarkCollectionKey, Bindings<'_>> = rig
-            .live_marks
-            .iter()
-            .map(|marks| (&marks.key, Vec::new()))
-            .collect();
+    let prepared = stage::build(&selected, parts, compact, cache, |clips| {
+        // Each live mark collection's bindings, in the rig's order.
+        let mut collections: Vec<Bindings<'_>> = vec![Vec::new(); rig.live_marks.len()];
         let mut bindings: IndexMap<RigMappingId, Bindings<'_>> = IndexMap::new();
         // Each trigger's played bindings, by voice, then value.
         let mut played: IndexMap<RigMappingId, Vec<Vec<Bindings<'_>>>> = IndexMap::new();
-        for effect in accepted.effects() {
-            let authored = effect.effect();
+        for clip in accepted.clips() {
+            let authored = clip.clip();
             // Scene voices play for the whole session, triggers' as long as
             // their length says.
-            let (trigger, duration, count) = match effect.origin() {
-                RigEffectOrigin::Voice(_) => (None, None, 1),
-                RigEffectOrigin::Trigger(mapping, trigger) => (
+            let (trigger, duration, count) = match clip.origin() {
+                RigClipOrigin::Voice(_) => (None, None, 1),
+                RigClipOrigin::Trigger(mapping, trigger) => (
                     Some((mapping, trigger)),
                     trigger.length.duration(),
                     match trigger.voices {
@@ -77,12 +74,12 @@ pub fn arm(
                     },
                 ),
             };
-            // A dropped effect keeps its voices, so commands still address
+            // A dropped clip keeps its voices, so commands still address
             // them, but plays in no layer.
-            let dropped = effects.drops(&authored.layer_id, &authored.target);
-            let (target, pixel_count) = effects.target(&authored.target, &authored.scope);
-            let (program, live) = effects.lower(
-                effect.execution(),
+            let dropped = clips.drops(&authored.layer_id, &authored.target);
+            let (target, pixel_count) = clips.target(&authored.target, &authored.scope);
+            let program = clips.lower(
+                clip.invocation(),
                 donder_language::compiler::ProgramConstants {
                     pixel_count,
                     duration_seconds: duration.map(sample_duration_seconds_f32),
@@ -90,7 +87,7 @@ pub fn arm(
             );
             // Lowering keeps the invocation's bindings first and appends a copy
             // of a binding for each integral of its parameter.
-            let authored_bindings = effect.execution().automation().len();
+            let authored_bindings = clip.invocation().automation().len();
             let lowered = program.automation();
             let source = |index: usize| {
                 if index < authored_bindings {
@@ -107,21 +104,15 @@ pub fn arm(
             let value_count = trigger.map_or(0, |(_, trigger)| trigger.values.len());
             let mut values = vec![vec![Vec::new(); value_count]; usize::from(count)];
             for voice_values in &mut values {
-                let handle = effects.builder.clip(
-                    None,
-                    &program,
-                    SampleTime::from_ticks(0),
-                    session,
-                    target,
-                );
+                let handle =
+                    clips
+                        .builder
+                        .clip(None, &program, SampleTime::from_ticks(0), session, target);
                 if trigger.is_some() {
-                    voices.push(effects.builder.voice(handle, duration));
-                }
-                for (key, &param) in effect.live_marks().iter().zip(live.iter()) {
-                    readers[key].push((handle, param));
+                    voices.push(clips.builder.voice(handle, duration));
                 }
                 for index in 0..lowered.len() {
-                    match effect.controls()[source(index)] {
+                    match clip.bindings()[source(index)] {
                         RigBinding::Control(mapping) => bindings
                             .entry(mapping)
                             .or_default()
@@ -129,10 +120,13 @@ pub fn arm(
                         RigBinding::Played(value) => {
                             voice_values[value].push((handle, index as u16));
                         }
+                        RigBinding::LiveMarks(collection) => {
+                            collections[collection].push((handle, index as u16));
+                        }
                     }
                 }
                 if !dropped {
-                    effects.layer(&authored.layer_id, handle);
+                    clips.layer(&authored.layer_id, handle);
                 }
             }
             if let Some((mapping, _)) = trigger {
@@ -140,9 +134,9 @@ pub fn arm(
                 played.insert(mapping.id, values);
             }
         }
-        let builder = &mut *effects.builder;
-        for (key, readers) in readers {
-            armed_collections.insert(key.clone(), builder.live_marks(readers));
+        let builder = &mut *clips.builder;
+        for (marks, targets) in rig.live_marks.iter().zip(collections) {
+            armed_collections.insert(marks.key.clone(), builder.live_marks(targets));
         }
         for mapping in &rig.mappings {
             if matches!(mapping.action, MappingAction::Control { .. }) {

@@ -184,11 +184,17 @@ let glow = sum for offset in -radius..=radius around input as neighbor {
 };
 ```
 
-- A `sum` or `max` of the neighbor, optionally scaled by a number, runs as one
-  fast neighborhood pass. Each factor of the scale, and each guard, may depend
-  on the neighbor (with parameters and time), on the offset, or on neither, but
-  not on two of them: `neighbor * exp(offset * intensity(neighbor))` is an
-  error. Change the neighbor's color after the reduction, not inside it.
+- A `sum` or `max` of the neighbor, optionally scaled by numbers and guarded,
+  runs as one fast neighborhood pass. Each factor of the scale, and each
+  guard, may depend on the neighbor (with parameters and time), on the offset,
+  or on neither, but not on two of them: `neighbor * exp(offset *
+  intensity(neighbor))` is an error. Change the neighbor's color after the
+  reduction, not inside it.
+- The factors are found after flattening every product and quotient of the
+  scale, and every guard, including `if c { .. } else { black }` around the
+  scaled neighbor, so grouping and order never matter: `neighbor * a * b`,
+  `a * (neighbor * b)` and `neighbor * (a * b)` are the same pass. The same
+  rule decides a [scan's](#scans) weight.
 - Past a fixture's ends a neighbor is missing and contributes nothing.
   `around extended input` reads the end pixel there instead, and `around
   mirrored input` the pixels reflected about it (the end pixel is not
@@ -204,18 +210,22 @@ let glow = sum for offset in -radius..=radius around input as neighbor {
 A scan carries light along each fixture's pixel order, however far it reaches:
 
 ```text
-let tail = scan forward input as light, carried {
-  carried * decay + light * threshold_weight(brightness(light, measure), threshold, softness)
+let plain = scan backward input decay d;
+let tail = scan forward input decay d as light {
+  light * threshold_weight(brightness(light, measure), threshold, softness)
 };
 ```
 
-- `scan forward` runs from each fixture's first pixel to its last, `scan
-  backward` the other way. `light` is the input at the pixel and the second
-  name (`carried` here) the scan's value at the pixel before; the first
-  pixel's is black. The scanned signal is an input or `previous`.
-- The body is `carried * decay + light`, optionally with `light` scaled by a
-  weight. The decay may depend on parameters and time; the weight on `light`,
-  parameters and time. Anything else is an error.
+- At each pixel the scan's value is its value at the pixel before times the
+  `decay`, plus the light the pixel adds; the first pixel's previous value is
+  black. `scan forward` runs from each fixture's first pixel to its last,
+  `scan backward` the other way. The scanned signal is an input or `previous`.
+- `decay` and `as` are keywords only here. The decay may depend on parameters
+  and time, not on the pixel.
+- Without `as`, each pixel adds the input there. `as light { .. }` names the
+  input at the pixel and computes the light it adds: `light` scaled by
+  numbers, and guarded, that depend on `light`, parameters and time alone,
+  grouped and ordered in any way. Anything else is an error.
 - The running value is kept in floats and rounded to a color only when
   written, so faint light keeps fading instead of stopping at the last step,
   and the result saturates at full brightness.
@@ -263,10 +273,10 @@ fixture transforms.
 
 ## Operator inputs
 
-An operator samples its input signals in the current frame:
+An operator reads its input signals in the current frame:
 
-- `source` used as a color samples the current pixel.
-- `source.at(pixel)` samples a zero-based pixel of the current fixture
+- `source` used as a color reads the current pixel.
+- `source.at(pixel)` reads a zero-based pixel of the current fixture
   instance. Local coordinates never wrap across fixtures. To read neighbors,
   use an `around` reduction.
 
@@ -279,9 +289,9 @@ fragment is prepared, even if they are patched elsewhere; see
 ## Previous frames
 
 `previous` is the signal's own frame from the frame before: in an operator,
-its output; in an effect, its layer's composited frame. It samples like an
+its output; in an effect, its layer's composited frame. It reads like an
 input: `previous` at the current pixel, `previous.at(pixel)`, `around
-previous` and `scan forward previous as light, carried { ... }`.
+previous` and `scan forward previous decay d`.
 `frames_elapsed` is the number of frames since that frame, so a decay applied
 per frame stays steady when frames are skipped:
 
@@ -302,7 +312,7 @@ operator Afterglow {
 - After a seek or when playback goes backward, `frames_elapsed` is 1 and
   `previous` is whatever frame was shown last. Re-evaluating the same frame
   after a live command gives a `frames_elapsed` of 0.
-- A clip sampled alone, as the sequence editor's thumbnails are, reads a black
+- A clip evaluated alone, as the sequence editor's thumbnails are, reads a black
   `previous`.
 - A signal that reads `previous` is never fused with its input or consumer, and
   a show may have at most 16 of them.
@@ -348,8 +358,8 @@ reaches the color and the pixel is black; each new mark restarts a pulse.
 `section_count(width)` and `section_index(width)` split the target into runs of
 `width` pixels that respect fixture boundaries: a short final section belongs to
 its fixture. Two 113-pixel fixtures with width 7 have 17 sections each, and the
-second fixture starts at section 17. A per-fixture effect sections its own
-fixture; a whole-target effect sections the target's fixtures in order.
+second fixture starts at section 17. A per-fixture clip sections its own
+fixture; a whole-target clip sections the target's fixtures in order.
 
 ## Limits
 
@@ -376,7 +386,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 - **Spin** wraps a chase position extended by `revolutions` onto the strand.
 - **Wipe** projects pixel positions onto `direction_angle` (degrees; 0 is +X,
   90 is +Y) across the target's bounding rectangle, independent of pixel order.
-  `pulse_width` is the fraction of the effect each pixel's pulse lasts, and
+  `pulse_width` is the fraction of the clip each pixel's pulse lasts, and
   `passes` sweeps the pulse across that many times, one after another. `mode`
   `Pass` lights a pixel only while its pulse crosses it, `On` keeps it lit
   after the last pass, and `Off` lights it before the first.

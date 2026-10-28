@@ -76924,12 +76924,12 @@ Sequence here_comes_the_sun {
         params: {},
         position: (400.0, 120.0),
       },
-      OutputNode { position: (600.0, 120.0) },
+      RootNode { position: (600.0, 120.0) },
     ],
     edges: [
       Edge { from: intensity_mask, to: intensity_mask_mix.dim },
       Edge { from: default, to: intensity_mask_mix.source },
-      Edge { from: intensity_mask_mix, to: output },
+      Edge { from: intensity_mask_mix, to: root },
     ],
   },
   automation: [

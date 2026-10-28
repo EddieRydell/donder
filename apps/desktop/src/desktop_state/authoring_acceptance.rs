@@ -5,14 +5,14 @@ use camino::Utf8PathBuf;
 use donder_editor::dto::{
     CompositionGuiEdit, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, FixtureTarget,
     GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiFixtureElement,
-    GuiFixtureShape, GuiFixtureSource, GuiInputControl, GuiInputControlKind, GuiInputDriver,
-    GuiItem, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnershipEdit,
+    GuiFixtureShape, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiItem,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, GuiOwnershipEdit,
     GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument, LayoutGuiEdit, NewSequenceRequest,
     NewSequenceStorage, ObjectKind, OwnedObjectSlot, OwnershipMember, Point3Meters,
     ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, RigActionChoice, RigControlRef,
     RigGuiDocument, RigGuiEdit, RigVoicePolicy, RigWhen, Rotation3Degrees, Scale3,
-    SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge,
-    SequenceGraphNodeKind, SequenceGraphOperator, SequenceGuiEdit, SetupControllerConfig,
+    SequenceClipScope, SequenceEffectReference, SequenceGraphEdge, SequenceGraphNodeKind,
+    SequenceGraphOperator, SequenceGuiEdit, SequenceParamValue, SetupControllerConfig,
     SetupControllerPort, SetupGuiDocument, SetupGuiEdit, Transform,
 };
 
@@ -53,8 +53,8 @@ fn fixture_reference(layout: &LayoutGuiDocument, index: usize) -> GuiObjectRef {
         panic!("fixture missing")
     };
     match definition {
-        GuiFixtureSource::Reference { source } => source.clone(),
-        GuiFixtureSource::Inline { .. } => {
+        GuiOwnedFixture::Reference { object } => object.clone(),
+        GuiOwnedFixture::Inline { .. } => {
             let mut owner = layout.source_ref.clone();
             owner.kind = ObjectKind::Fixture;
             owner
@@ -413,7 +413,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         &state,
         SetupGuiEdit::AddController {
             config: SetupControllerConfig::E131 {
-                source_name: "Test".into(),
+                sender_name: "Test".into(),
                 bind_address: "0.0.0.0".into(),
                 priority: 100,
                 destination: None,
@@ -482,14 +482,14 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             object_key: address(&state, sequence_id).root_source().object().into(),
         },
         GuiEditCommand::Sequence {
-            edit: SequenceGuiEdit::AddEffect {
+            edit: SequenceGuiEdit::AddClip {
                 initial_color,
                 effect: SequenceEffectReference {
                     path: "effects/standard.donder".into(),
                     effect_name: "Pulse".into(),
                 },
                 target: FixtureTarget { fixture: 1 },
-                scope: SequenceEffectScope::PerFixture,
+                scope: SequenceClipScope::PerFixture,
                 start_seconds: 0.0,
             },
         },
@@ -515,7 +515,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         GuiEditCommand::Ownership {
             member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::UseExisting {
-                source: empty_layout,
+                declaration: empty_layout,
             },
         },
     );
@@ -614,7 +614,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             .project
             .get::<donder_model::Sequence>(*final_session.project.root().sequences[0].id())
             .unwrap()
-            .effects[0]
+            .clips[0]
             .target
             .layout,
         *copied_layout
@@ -626,7 +626,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     let prepared = donder_elaboration::prepare(
         &final_session.project,
         final_session.project.root().sequences[0].id(),
-        donder_elaboration::PrepareOutputs::All,
+        donder_elaboration::Retain::All,
     )
     .unwrap();
     let mut playback = prepared.into_playback();
@@ -1113,7 +1113,7 @@ fn inline_fixture_copies_have_independent_ownership() {
         )
         .unwrap();
     assert!(
-        matches!(&copied_layout.fixtures[0].kind, donder_model::LayoutFixtureKind::Fixture {definition: donder_model::FixtureSource::Inline(value),..} if value.elements.len() == 1)
+        matches!(&copied_layout.fixtures[0].kind, donder_model::LayoutFixtureKind::Fixture {definition: donder_model::OwnedFixture::Inline(value),..} if value.elements.len() == 1)
     );
     state.open_file_path(address(&state, original_layout).document().as_str());
     layout_document(
@@ -1273,7 +1273,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
     controllers: [
       Controller main {
         description: none,
-        protocol: E131 { source_name: \"Test\", bind_address: \"0.0.0.0\", priority: 100, mode: Multicast },
+        protocol: E131 { sender_name: \"Test\", bind_address: \"0.0.0.0\", priority: 100, mode: Multicast },
         ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 512 }],
       },
     ],
@@ -1288,7 +1288,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
       marks: [],
       layers: [],
       clips: [],
-      graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+      graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
       automation: [],
     },
   ],",
@@ -1361,8 +1361,8 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                     2 => {
                         let projected = state.get_gui_document(request()).document;
                         let sources = match projected {
-                            GuiDocument::Project { document } => document.available_sources,
-                            GuiDocument::Setup { document } => document.available_sources,
+                            GuiDocument::Project { document } => document.available_declarations,
+                            GuiDocument::Setup { document } => document.available_declarations,
                             GuiDocument::Layout { document } => document.available_fixtures,
                             other => panic!("Missing source choices: {other:?}"),
                         };
@@ -1377,7 +1377,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                             Slot::Fixture(..) => ObjectKind::Fixture,
                         };
                         GuiOwnershipEdit::UseExisting {
-                            source: sources
+                            declaration: sources
                                 .into_iter()
                                 .find(|source| source.kind == kind)
                                 .unwrap(),
@@ -1579,7 +1579,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             edit(CompositionGuiEdit::UpdateGraphOperatorParam {
                 node_id: node.id.clone(),
                 name: "shift".into(),
-                value: SequenceEffectParamValue::Float { value: 0.25 },
+                value: SequenceParamValue::Float { value: 0.25 },
             })
             .document
         else {
@@ -1595,7 +1595,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             unreachable!()
         };
         assert!(
-            matches!(params.iter().find(|param| param.name == "shift").unwrap().value, SequenceEffectParamValue::Float { value } if value == 0.25)
+            matches!(params.iter().find(|param| param.name == "shift").unwrap().value, SequenceParamValue::Float { value } if value == 0.25)
         );
         let accepted = state.project_session().unwrap();
         state.save_all().unwrap();
@@ -1674,7 +1674,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         );
         let source = after.project.root().sequences.last().unwrap();
         assert_eq!(
-            matches!(source, donder_model::MemberSource::Inline { .. }),
+            matches!(source, donder_model::OwnedMember::Inline { .. }),
             inline
         );
         assert_eq!(result.source.owned_path.is_empty(), !inline);
@@ -1822,7 +1822,7 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         else {
             panic!("Expected copied fixture")
         };
-        assert!(matches!(definition, GuiFixtureSource::Inline { .. }));
+        assert!(matches!(definition, GuiOwnedFixture::Inline { .. }));
         assert_eq!(placement.position.x_meters, 2.0);
         assert_eq!(
             after.project.reusable::<donder_model::FixtureDefinition>(),
@@ -2164,7 +2164,7 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
         else {
             panic!("Expected fixture")
         };
-        assert!(matches!(definition, GuiFixtureSource::Inline { elements } if elements.len() == 1));
+        assert!(matches!(definition, GuiOwnedFixture::Inline { elements } if elements.len() == 1));
         assert_eq!(transform.position.x_meters, x);
         assert_eq!(transform.position.y_meters, y);
     }

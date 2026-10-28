@@ -101,17 +101,17 @@ pub fn apply_edit(
 #[derive(Clone)]
 pub enum SequenceClipboard {
     Clips {
-        effects: Vec<ClipboardEffect>,
+        clips: Vec<ClipboardClip>,
         automation: Vec<ClipboardAutomation>,
-        source: SequenceId,
+        sequence: SequenceId,
         cut: bool,
     },
     Marks(Vec<ClipboardMark>),
 }
 
 #[derive(Clone)]
-pub struct ClipboardEffect {
-    pub effect: EffectInst,
+pub struct ClipboardClip {
+    pub clip: Clip,
     pub start_seconds: f64,
     pub lane_index: usize,
 }
@@ -189,11 +189,11 @@ fn edit_sequence_selection(
             anchor_lane,
             lane_delta,
         } => {
-            let (effects, automation) = super::selection::split_clips(&clips);
+            let (clip_ids, automation) = super::selection::split_clips(&clips);
             move_clip_selection(
                 session,
                 &sequence_id,
-                &effects,
+                &clip_ids,
                 &automation,
                 time_delta_seconds,
                 anchor_lane as usize,
@@ -209,11 +209,11 @@ fn edit_sequence_selection(
             automation: resize,
             time_delta_seconds,
         } => {
-            let (effects, automation) = super::selection::split_clips(&clips);
+            let (clip_ids, automation) = super::selection::split_clips(&clips);
             resize_clip_selection(
                 session,
                 &sequence_id,
-                &effects,
+                &clip_ids,
                 &automation,
                 edge,
                 resize,
@@ -224,24 +224,24 @@ fn edit_sequence_selection(
             }))
         }
         SequenceGuiEdit::ArrangeClips { clips, arrangement } => {
-            let (effects, automation) = super::selection::split_clips(&clips);
-            arrange_clip_selection(session, &sequence_id, &effects, &automation, &arrangement)?;
+            let (clip_ids, automation) = super::selection::split_clips(&clips);
+            arrange_clip_selection(session, &sequence_id, &clip_ids, &automation, &arrangement)?;
             Ok(GuiEditOutcome::selection(SequenceSelection::Clips {
                 clips,
             }))
         }
-        SequenceGuiEdit::EditEffects { clips, edit } => {
-            let (effects, automation) = super::selection::split_clips(&clips);
+        SequenceGuiEdit::EditClips { clips, edit } => {
+            let (clip_ids, automation) = super::selection::split_clips(&clips);
             if !automation.is_empty() {
                 return Err(GuiMutationError::Invalid(
-                    "Only effect clips have these properties.".to_string(),
+                    "Only clips have these properties.".to_string(),
                 ));
             }
-            edit_effect_selection(
+            edit_clip_selection(
                 session,
                 resolved.document_id(),
                 &sequence_id,
-                &effects,
+                &clip_ids,
                 edit,
             )?;
             Ok(GuiEditOutcome::selection(SequenceSelection::Clips {

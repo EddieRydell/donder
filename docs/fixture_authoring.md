@@ -85,17 +85,17 @@ The layout sidebar contains groups and fixture instances. Each instance has a
 name and position/rotation/scale. Effects target instances or whole layout groups.
 The list and canvas share Add fixture and Add group actions. New fixtures are
 owned directly by their placement and opened for editing by default. Advanced settings,
-below Name, can instead create a reusable source in this file or a uniquely named
+below Name, can instead create a reusable declaration in this file or a uniquely named
 file in the fixtures folder. Existing reusable fixtures can be added from the
-Add fixture submenu. A selected fixture's source actions offer **Make reusable**
+Add fixture submenu. A selected fixture's ownership actions offer **Make reusable**
 for owned geometry and **Make independent** for a link. Making a link independent
-copies its geometry into that placement and leaves the reusable source unchanged.
+copies its geometry into that placement and leaves the reusable declaration unchanged.
 
 Right-click a fixture row to edit it, change its name and description, or
 remove it. Removing
 an inline fixture removes its owned shape data. Copying an inline fixture creates
 independent geometry. Referenced fixture data remains available after removing
-its placements, whether its source is in the same file or another file.
+its placements, whether its declaration is in the same file or another file.
 Editing a shared fixture
 changes all instances referencing it. Fixtures in the current document open in a
 modal; fixtures in another document open in their editor tab. The fixture modal's
@@ -126,16 +126,16 @@ and moving one moves them all. A vertical drag moves a clip from the copy it was
 grabbed on. Click a lane's ×N badge to jump to its next copy.
 
 Duplicating a fixture or group copies its geometry into independently owned
-values, even when the original used a reusable source. A duplicated group copies
+values, even when the original used a reusable declaration. A duplicated group copies
 each member once and lists the copies; the copy joins every group listing the
 original. Copies get new names (`front_left_copy`) next to the originals. Routes
-and effect targets keep addressing the originals; a copy is not patched
+and clip targets keep addressing the originals; a copy is not patched
 automatically.
 
 ## Authored format
 
 An owned fixture places its geometry directly inside the layout item. It needs
-no extra named source object:
+no extra named declaration:
 
 ```text
 Layout main {
@@ -157,7 +157,7 @@ Layout main {
 ```
 
 A reference instead uses `definition: strip` (or `fixtures.strip` through an
-import). The named source is reusable independently of where its document is
+import). The named declaration is reusable independently of where its document is
 stored:
 
 ```text
@@ -204,4 +204,4 @@ fixtures; effects target whole fixtures or groups.
 
 Copying a layout preserves shared fixtures and instance names, creates its own
 patch, and retargets affected sequences. Shared fixtures remain linked through
-explicit local imports and can be edited at their source.
+explicit local imports and can be edited at their declaration.

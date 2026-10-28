@@ -1,4 +1,4 @@
-use crate::effect::{EffectInst, EffectInstId};
+use crate::effect::{Clip, ClipId};
 pub(crate) use crate::identity::SequenceId;
 use crate::operator::GraphOperatorNode;
 use donder_language::{DonderDuration, DonderTime};
@@ -19,7 +19,7 @@ pub struct Sequence {
     pub layers: Vec<SequenceLayer>,
     /// Each clip is shared between project snapshots until an edit changes it,
     /// so an unchanged clip is the same allocation in both.
-    pub effects: Vec<Arc<EffectInst>>,
+    pub clips: Vec<Arc<Clip>>,
     pub composition_graph: SequenceCompositionGraph,
     pub automation_clips: Vec<AutomationClip>,
 }
@@ -61,7 +61,7 @@ pub struct CompositionGraphNode {
 pub enum CompositionGraphNodeKind {
     Layer { layer_id: SequenceLayerId },
     Operator(GraphOperatorNode),
-    Output,
+    Root,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
@@ -368,9 +368,9 @@ pub struct DetachedAutomationBinding {
 }
 
 impl AutomationBinding {
-    pub fn effect_param(&self) -> Option<(&EffectInstId, &Identifier)> {
+    pub fn clip_param(&self) -> Option<(&ClipId, &Identifier)> {
         match &self.target {
-            AutomationTarget::EffectParam { effect_id, param } => Some((effect_id, param)),
+            AutomationTarget::ClipParam { clip_id, param } => Some((clip_id, param)),
             AutomationTarget::CompositionNodeParam { .. } => None,
         }
     }
@@ -378,15 +378,15 @@ impl AutomationBinding {
     pub fn composition_node_param(&self) -> Option<(&CompositionGraphNodeId, &Identifier)> {
         match &self.target {
             AutomationTarget::CompositionNodeParam { node_id, param } => Some((node_id, param)),
-            AutomationTarget::EffectParam { .. } => None,
+            AutomationTarget::ClipParam { .. } => None,
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AutomationTarget {
-    EffectParam {
-        effect_id: EffectInstId,
+    ClipParam {
+        clip_id: ClipId,
         param: Identifier,
     },
     CompositionNodeParam {
@@ -426,4 +426,4 @@ impl crate::ownership::Identified for Sequence {
     }
 }
 
-pub type SequenceSource = crate::ownership::MemberSource<Sequence, SequenceId>;
+pub type OwnedSequence = crate::ownership::OwnedMember<Sequence, SequenceId>;

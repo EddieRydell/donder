@@ -39,8 +39,8 @@ impl Copier<'_> {
         self.taken.insert(copy.name.clone());
         match &mut copy.kind {
             LayoutFixtureKind::Fixture { definition, .. } => {
-                if let FixtureSource::Reference(id) = definition {
-                    *definition = FixtureSource::Inline(
+                if let OwnedFixture::Reference(id) = definition {
+                    *definition = OwnedFixture::Inline(
                         self.project
                             .reusable::<crate::FixtureDefinition>()
                             .get(id)

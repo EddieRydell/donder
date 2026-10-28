@@ -14,7 +14,7 @@ import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
+import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceClipScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
 
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
@@ -70,7 +70,7 @@ import { CascadeDialog, ClipArrangeMenus } from "./ClipArrange";
 import { ClipMatchDialog, ClipMatchMenuItems, type ClipMatchSeed, type MatchClips } from "./ClipMatch";
 import { sameGuiDocument } from "../../../snapshotState";
 
-import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, setMarkDraft, singleSelectionFocus, clipIdsOfKind, clipRefs, hasClip, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
+import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextClipSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedClipId, selectionCount, selectionFromMarqueeClips, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, setMarkDraft, singleSelectionFocus, clipIdsOfKind, clipRefs, hasClip, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
 const SEQUENCE_FOLLOW = {
   edge: THEME_METRICS.sequenceFollowEdge,
@@ -129,7 +129,7 @@ const SEQUENCE_COLORS = {
   warning: THEME_COLORS.warning,
   markMarquee: THEME_COLORS.markMarquee,
   markMarqueeFill: THEME_COLORS.markMarqueeFill,
-  effectMarqueeFill: THEME_COLORS.effectMarqueeFill,
+  clipMarqueeFill: THEME_COLORS.clipMarqueeFill,
   sliceLine: THEME_COLORS.sequenceSliceLine,
   sliceGuide: THEME_COLORS.sequenceSliceGuide
 } as const;
@@ -143,7 +143,7 @@ type SequenceDragState =
   | { kind: "rowResize"; laneIndex: number; rowKind: SequenceRowKind; startY: number; initialHeight: number; active: boolean }
   | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
   | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
-  | { kind: "automationPoint"; clipId: number; index: number; active: boolean; inserted: boolean }
+  | { kind: "automationPoint"; automationClipId: number; index: number; active: boolean; inserted: boolean }
   | { kind: "mark"; collectionKey: string; index: number; startX: number; startY: number; active: boolean; originalTimeSeconds: number }
   | { kind: "marquee"; state: SequenceMarquee }
   | { kind: "playheadScrub" }
@@ -325,7 +325,7 @@ export function SequenceCanvas({
   const sharedBadgeAt = (x: number, y: number): SharedBadgeHover | null => {
     if (x < sharedBadgeX(left) || x >= left || y < top) return null;
     const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
-    if (row?.kind !== "effects" || (document.lanes[row.laneIndex]?.occurrences ?? 0) <= 1) return null;
+    if (row?.kind !== "clips" || (document.lanes[row.laneIndex]?.occurrences ?? 0) <= 1) return null;
     return { laneIndex: row.laneIndex, y: top + row.top - viewport.scrollY, height: row.height, scrollY: viewport.scrollY, left };
   };
   // The tooltip shows once the hover delay passes, until scrolling or resizing moves the badge.
@@ -389,7 +389,7 @@ export function SequenceCanvas({
       const zoomScale = isMac && event.ctrlKey ? SEQUENCE_CANVAS.pinchZoomScale : SEQUENCE_CANVAS.wheelZoomScale;
       if (zoom && event.shiftKey) {
         const scale = Math.exp(-zoomDelta * zoomScale);
-        const rowHeights = Object.fromEntries(Object.entries(completeRowHeights(current.rowHeights, document, settings)).map(([id, heights]) => [id, { effects: clamp(heights.effects * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx), automation: clamp(heights.automation * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx) }]));
+        const rowHeights = Object.fromEntries(Object.entries(completeRowHeights(current.rowHeights, document, settings)).map(([id, heights]) => [id, { clips: clamp(heights.clips * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx), automation: clamp(heights.automation * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx) }]));
         // Keep the content under the cursor fixed: same row, same fraction of its height.
         const previousRows = layoutRows(current.rowHeights, revealAutomation);
         const nextRows = layoutRows(rowHeights, revealAutomation);
@@ -565,7 +565,7 @@ export function SequenceCanvas({
     const content = { ...viewport, scrollXSeconds: 0, scrollY: 0 };
     const bounds = { width: left + document.durationSeconds * viewport.pxPerSecond, height: top + expandedTimelineHeight(rows) };
     return {
-      effects: buildSequenceClipLayout(document, groupDraft, content, left, top, bounds, rows),
+      clips: buildSequenceClipLayout(document, groupDraft, content, left, top, bounds, rows),
       automation: buildAutomationClipLayout(automationClipsForLayout, rows, content, left, top, bounds)
     };
   }, [automationClipsForLayout, clipMarqueeOpen, document, groupDraft, left, rows, top, viewport]);
@@ -588,7 +588,7 @@ export function SequenceCanvas({
         x: next.x + viewport.scrollXSeconds * viewport.pxPerSecond,
         y: next.y + viewport.scrollY
       };
-      selectedByBox = selectionFromMarqueeEffects(marqueeContent.effects, marqueeContent.automation, box);
+      selectedByBox = selectionFromMarqueeClips(marqueeContent.clips, marqueeContent.automation, box);
     }
     const merged = mergeSequenceSelection(sequenceSelectionRef.current, selectedByBox, next.shift, next.ctrl);
     updateSequenceSelection(merged);
@@ -618,22 +618,22 @@ export function SequenceCanvas({
     const toY = Math.max(slice.fromY, slice.toY);
     return visibleClips.filter((clip) =>
       clip.rect.y <= toY && clip.rect.y + clip.rect.height >= fromY
-      && clip.effect.startSeconds < slice.seconds && slice.seconds < clip.effect.startSeconds + clip.effect.durationSeconds);
+      && clip.clip.startSeconds < slice.seconds && slice.seconds < clip.clip.startSeconds + clip.clip.durationSeconds);
   }, [slice, visibleClips]);
-  const selectedEffectIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? clipIdsOfKind(sequenceSelection.clips, "effect") : []), [sequenceSelection]);
-  const activeAutomationTargetEffectIds = useMemo(() => {
+  const selectedClipIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? clipIdsOfKind(sequenceSelection.clips, "clip") : []), [sequenceSelection]);
+  const activeAutomationTargetClipIds = useMemo(() => {
+    const automationClipIds = new Set<number>();
+    if (selected?.type === "automationClip") automationClipIds.add(selected.id);
+    if (automationHover !== null) automationClipIds.add(automationHover.automationClipId);
     const clipIds = new Set<number>();
-    if (selected?.type === "automationClip") clipIds.add(selected.id);
-    if (automationHover !== null) clipIds.add(automationHover.clipId);
-    const effectIds = new Set<number>();
-    if (clipIds.size === 0) return effectIds;
-    for (const clip of document.automationClips) {
-      if (!clipIds.has(clip.id)) continue;
-      for (const binding of clip.bindings) {
-        if (binding.target.type === "effectParam") effectIds.add(binding.target.effectId);
+    if (automationClipIds.size === 0) return clipIds;
+    for (const automationClip of document.automationClips) {
+      if (!automationClipIds.has(automationClip.id)) continue;
+      for (const binding of automationClip.bindings) {
+        if (binding.target.type === "clipParam") clipIds.add(binding.target.clipId);
       }
     }
-    return effectIds;
+    return clipIds;
   }, [automationHover, document.automationClips, selected]);
   const selectedMarks = useMemo(
     () => markRefLookup(sequenceSelection?.type === "marks" ? sequenceSelection.marks : []),
@@ -678,7 +678,7 @@ export function SequenceCanvas({
       if (y > rect.height || y + row.height < top) return;
       ctx.fillStyle = index % 2 === 0 ? SEQUENCE_COLORS.page : SEQUENCE_COLORS.laneAlt;
       ctx.fillRect(left, y, timelineWidth, row.height);
-      if (row.kind === "effects" && selectedLaneIndex === row.laneIndex) {
+      if (row.kind === "clips" && selectedLaneIndex === row.laneIndex) {
         ctx.fillStyle = SEQUENCE_COLORS.laneSelected;
         ctx.fillRect(left, y, timelineWidth, row.height);
       }
@@ -689,16 +689,16 @@ export function SequenceCanvas({
       ctx.moveTo(0, y + row.height - THEME_METRICS.visualHairlineOffset);
       ctx.lineTo(rect.width, y + row.height - THEME_METRICS.visualHairlineOffset);
       ctx.stroke();
-      ctx.fillStyle = row.kind === "effects" ? SEQUENCE_COLORS.textMuted : SEQUENCE_COLORS.automation;
+      ctx.fillStyle = row.kind === "clips" ? SEQUENCE_COLORS.textMuted : SEQUENCE_COLORS.automation;
       const lane = document.lanes[row.laneIndex];
       if (lane === undefined) throw new Error("Timeline row has no lane.");
-      const label = row.kind === "effects" ? lane.label : "Automation";
+      const label = row.kind === "clips" ? lane.label : "Automation";
       const labelLayout = laneLabelLayout(lane);
       const labelY = y + row.height / 2;
-      if (row.kind === "effects" && lane.kind === "group") {
+      if (row.kind === "clips" && lane.kind === "group") {
         drawDisclosure(ctx, labelLayout.disclosureX, labelY, viewport.collapsedGroups.has(lane.target.fixture));
       }
-      const shared = row.kind === "effects" && lane.occurrences > 1;
+      const shared = row.kind === "clips" && lane.occurrences > 1;
       const badgeX = sharedBadgeX(left);
       ctx.fillText(fitCanvasLabel(ctx, label, (shared ? badgeX : left) - labelLayout.textX - THEME_METRICS.sequenceLabelX), labelLayout.textX, labelY + THEME_METRICS.sequenceLabelYOffset);
       // The same target under several groups; clicking the badge visits its next lane.
@@ -777,18 +777,18 @@ export function SequenceCanvas({
       if (clip.rect.x + clip.rect.width < left || clip.rect.x > rect.width || clip.rect.y + clip.rect.height < top || clip.rect.y > rect.height) {
         continue;
       }
-      const hoverResize = hover?.kind === "effect" && hover.effectId === clip.effect.id ? hover.resize : null;
+      const hoverResize = hover?.kind === "clip" && hover.clipId === clip.clip.id ? hover.resize : null;
       ctx.fillStyle = SEQUENCE_COLORS.textFaint;
       ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
-      const raster = clipRasters.raster(clip.effect.id);
-      const rasterError = clipRasters.failed(clip.effect.id);
+      const raster = clipRasters.raster(clip.clip.id);
+      const rasterError = clipRasters.failed(clip.clip.id);
       if (raster !== undefined) {
         drawClipRaster(ctx, raster, clip.rect);
       }
       if (rasterError) {
         drawClipRasterWarning(ctx, clip.rect);
       }
-      const automationTargeted = activeAutomationTargetEffectIds.has(clip.effect.id);
+      const automationTargeted = activeAutomationTargetClipIds.has(clip.clip.id);
       if (automationTargeted) {
         ctx.fillStyle = SEQUENCE_COLORS.accentSubtle;
         ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
@@ -797,7 +797,7 @@ export function SequenceCanvas({
         ctx.fillStyle = SEQUENCE_COLORS.overlay;
         ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
       }
-      const clipSelected = selectedEffectIds.has(clip.effect.id) || (selected?.type === "effect" && selected.id === clip.effect.id);
+      const clipSelected = selectedClipIds.has(clip.clip.id) || (selected?.type === "clip" && selected.id === clip.clip.id);
       ctx.strokeStyle = clipSelected ? SEQUENCE_COLORS.clipSelected : hoverResize !== null ? SEQUENCE_COLORS.clipHover : automationTargeted ? SEQUENCE_COLORS.accent : SEQUENCE_COLORS.clipBorder;
       ctx.lineWidth = clipSelected || hoverResize !== null || automationTargeted ? THEME_METRICS.visualLineWidthStrong : THEME_METRICS.visualLineWidth;
       ctx.strokeRect(clip.rect.x + THEME_METRICS.visualHairlineOffset, clip.rect.y + THEME_METRICS.visualHairlineOffset, Math.max(0, clip.rect.width - THEME_METRICS.visualLineWidth), Math.max(0, clip.rect.height - THEME_METRICS.visualLineWidth));
@@ -808,19 +808,19 @@ export function SequenceCanvas({
       }
     }
     const markXs = markTimes.map((time) => left + (time - scrollXSeconds) * viewport.pxPerSecond);
-    for (const clip of visibleAutomationClips) {
-      const selectedClip = sequenceSelection?.type === "clips" && hasClip(sequenceSelection.clips, "automation", clip.clip.id);
-      const hoverResize = automationHover?.clipId === clip.clip.id ? automationHover.resize : null;
+    for (const automationLayout of visibleAutomationClips) {
+      const selectedClip = sequenceSelection?.type === "clips" && hasClip(sequenceSelection.clips, "automation", automationLayout.clip.id);
+      const hoverResize = automationHover?.automationClipId === automationLayout.clip.id ? automationHover.resize : null;
       const choosingCandidate = automationClipChooser !== null;
-      const activePointIndex = drag.current?.kind === "automationPoint" && drag.current.clipId === clip.clip.id ? drag.current.index : null;
-      drawAutomationClip(ctx, clip, {
-        label: automationClipLabel(document, clip.clip),
+      const activePointIndex = drag.current?.kind === "automationPoint" && drag.current.automationClipId === automationLayout.clip.id ? drag.current.index : null;
+      drawAutomationClip(ctx, automationLayout, {
+        label: automationClipLabel(document, automationLayout.clip),
         selected: selectedClip,
         hovered: hoverResize !== null,
         choosing: choosingCandidate,
         resize: hoverResize ?? "none",
         activePointIndex,
-        guide: automationCurveDraft?.id === clip.clip.id ? automationCurveDraft.guide : null,
+        guide: automationCurveDraft?.id === automationLayout.clip.id ? automationCurveDraft.guide : null,
         markXs
       });
     }
@@ -867,7 +867,7 @@ export function SequenceCanvas({
       ctx.beginPath();
       ctx.rect(left, clipBox ? top : 0, rect.width - left, rect.height);
       ctx.clip();
-      ctx.fillStyle = marquee.mode === "marks" ? SEQUENCE_COLORS.markMarqueeFill : SEQUENCE_COLORS.effectMarqueeFill;
+      ctx.fillStyle = marquee.mode === "marks" ? SEQUENCE_COLORS.markMarqueeFill : SEQUENCE_COLORS.clipMarqueeFill;
       ctx.strokeStyle = marquee.mode === "marks" ? SEQUENCE_COLORS.markMarquee : SEQUENCE_COLORS.warning;
       ctx.lineWidth = THEME_METRICS.visualLineWidth;
       ctx.fillRect(box.x, box.y, box.width, box.height);
@@ -880,7 +880,7 @@ export function SequenceCanvas({
       ctx.fillRect(left - indicatorWidth / 2, 0, indicatorWidth, rect.height);
     }
 
-  }, [slice, sliceTargets, activeAutomationTargetEffectIds, stripResizeHover, gutterResizeHover, automationCurveDraft, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
+  }, [slice, sliceTargets, activeAutomationTargetClipIds, stripResizeHover, gutterResizeHover, automationCurveDraft, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedClipIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
 
   const seekTimeFromCanvasX = (x: number) =>
     clamp(Math.round((viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond) / SEQUENCE_CANVAS.scrubStepSeconds) * SEQUENCE_CANVAS.scrubStepSeconds, 0, document.durationSeconds);
@@ -935,13 +935,13 @@ export function SequenceCanvas({
     if (!visibleMarkCollectionKeys.has(key)) setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, key]));
     return key;
   };
-  const addEffectFromContextMenu = async (definition: SequenceEffectDefinition, menu: LaneContextMenu) => {
+  const addClipFromContextMenu = async (definition: SequenceEffectDefinition, menu: LaneContextMenu) => {
     const target = document.lanes[menu.laneIndex]?.target ?? document.lanes[0]?.target;
     if (target === undefined) return;
-    const scope: SequenceEffectScope = "wholeTarget";
+    const scope: SequenceClipScope = "wholeTarget";
     await runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "addEffect",
+        type: "addClip",
         initialColor: THEME_COLORS.white,
         effect: definition.effect,
         target,
@@ -985,13 +985,13 @@ export function SequenceCanvas({
       } })
     );
   };
-  const chooseAutomationClip = (clipId: number) => {
+  const chooseAutomationClip = (automationClipId: number) => {
     if (automationClipChooser === null) return;
     const chooser = automationClipChooser;
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "bindAutomationParam",
-        clipId,
+        automationClipId,
         target: chooser.target
       } })
     ).then(() => {
@@ -1004,18 +1004,18 @@ export function SequenceCanvas({
     updateSequenceSelection(result.selection);
   };
 
-  const splitEffects = async (effectIds: number[], timeSeconds: number) => {
-    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitEffects", ids: effectIds, timeSeconds } }));
+  const splitClips = async (clipIds: number[], timeSeconds: number) => {
+    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitClips", ids: clipIds, timeSeconds } }));
   };
 
-  const splitAutomationClip = async (clipId: number, timeSeconds: number) => {
-    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitAutomationClip", id: clipId, timeSeconds } }));
+  const splitAutomationClip = async (automationClipId: number, timeSeconds: number) => {
+    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitAutomationClip", id: automationClipId, timeSeconds } }));
   };
 
-  const commitAutomationCurve = (clipId: number, curve: AutomationCurvePoint[], origin: GuiDocumentRequest | null) => {
-    setAutomationCurveDraft({ id: clipId, curve, guide: { time: null, value: null } });
+  const commitAutomationCurve = (automationClipId: number, curve: AutomationCurvePoint[], origin: GuiDocumentRequest | null) => {
+    setAutomationCurveDraft({ id: automationClipId, curve, guide: { time: null, value: null } });
     void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "updateAutomationCurve", id: clipId, curve } }), origin
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "updateAutomationCurve", id: automationClipId, curve } }), origin
     ).finally(() => {
       setAutomationCurveDraft(null);
     });
@@ -1027,14 +1027,14 @@ export function SequenceCanvas({
     if (!snaps(event.altKey)) return delta;
     const clip = current.kind === "automation"
       ? document.automationClips.find((candidate) => candidate.id === current.id)
-      : document.effects.find((candidate) => candidate.id === current.id);
+      : document.clips.find((candidate) => candidate.id === current.id);
     if (clip === undefined) return delta;
     const end = clip.startSeconds + clip.durationSeconds;
     const edges = current.resize === "left" ? [clip.startSeconds] : current.resize === "right" ? [end] : [clip.startSeconds, end];
     const rowTarget = targetAtLane(document, current.resize === "none" ? destinationLane : current.laneIndex);
     const peers = current.kind === "automation"
       ? document.automationClips.filter((peer) => !hasClip(selection.clips, "automation", peer.id) && targetsEqual(peer.rowTarget, rowTarget))
-      : document.effects.filter((peer) => !hasClip(selection.clips, "effect", peer.id) && targetsEqual(peer.target, rowTarget));
+      : document.clips.filter((peer) => !hasClip(selection.clips, "clip", peer.id) && targetsEqual(peer.target, rowTarget));
     return roundToNanosecond(snapDeltaToTimes(edges, delta, [...markTimes, ...clipEdgeSnapTimes(peers)], viewport.pxPerSecond));
   };
 
@@ -1058,10 +1058,10 @@ export function SequenceCanvas({
     }
     setAutomationCurveDraft({ id: clip.id, curve: moveAutomationCurvePoint(clip.curve, index, point), guide });
   };
-  const retargetContextEffect = async (effectId: number, target: FixtureTarget) => {
-    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "retargetEffect", id: effectId, target } }));
+  const retargetContextClip = async (clipId: number, target: FixtureTarget) => {
+    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "retargetClip", id: clipId, target } }));
   };
-  const laneContextMenu = sequenceContextMenu?.kind === "blank" || sequenceContextMenu?.kind === "effect" || sequenceContextMenu?.kind === "automation" ? sequenceContextMenu : null;
+  const laneContextMenu = sequenceContextMenu?.kind === "blank" || sequenceContextMenu?.kind === "clip" || sequenceContextMenu?.kind === "automation" ? sequenceContextMenu : null;
   const markCollectionsForMenu = () => {
     if (activeMarkCollectionKey === null) return document.markCollections;
     return [
@@ -1123,8 +1123,8 @@ export function SequenceCanvas({
     });
   };
   const paste = () => {
-    const focused = document.effects.find((effect) => effect.id === selectedEffectId(selected));
-    const automation = selected?.type === "automationClip" ? document.automationClips.find((clip) => clip.id === selected.id) : undefined;
+    const focused = document.clips.find((clip) => clip.id === selectedClipId(selected));
+    const automation = selected?.type === "automationClip" ? document.automationClips.find((automationClip) => automationClip.id === selected.id) : undefined;
     const fallbackTarget = focused?.target ?? automation?.rowTarget;
     const lane = selectedLaneIndex ?? (fallbackTarget === undefined ? -1 : nearestLane(document, fallbackTarget, 0));
     const markTime = selectedMark === null ? undefined : document.markCollections.find((collection) => collection.key === selectedMark.collectionKey)?.marksSeconds[selectedMark.index];
@@ -1185,7 +1185,7 @@ export function SequenceCanvas({
     "edit.delete": { enabled: editable, run: deleteSelection },
     "edit.selectAll": {
       run: () => {
-        const all: NonNullable<SequenceSelection> = { type: "clips", clips: [...clipRefs("effect", document.effects.map((effect) => effect.id)), ...clipRefs("automation", document.automationClips.map((clip) => clip.id))] };
+        const all: NonNullable<SequenceSelection> = { type: "clips", clips: [...clipRefs("clip", document.clips.map((clip) => clip.id)), ...clipRefs("automation", document.automationClips.map((automationClip) => automationClip.id))] };
         updateSequenceSelection(selectionCount(all) > 0 ? all : null);
         setSelected(singleSelectionFocus(all));
       }
@@ -1255,16 +1255,16 @@ export function SequenceCanvas({
             kind: "automation",
             laneIndex: automationHit.laneIndex,
             startSeconds,
-            clipId: automationHit.clip.id
+            automationClipId: automationHit.clip.id
           });
           return;
         }
         const hit = hitSequence(visibleClips, x, y);
         if (hit !== null) {
-          setSelected({ type: "effect", id: hit.effect.id });
+          setSelected({ type: "clip", id: hit.clip.id });
           const active = sequenceSelectionRef.current;
-          updateSequenceSelection(active?.type === "clips" && hasClip(active.clips, "effect", hit.effect.id) ? active : { type: "clips", clips: [{ type: "effect", id: hit.effect.id }] });
-          setSequenceContextMenu({ kind: "effect", laneIndex: hit.laneIndex, startSeconds, effectId: hit.effect.id });
+          updateSequenceSelection(active?.type === "clips" && hasClip(active.clips, "clip", hit.clip.id) ? active : { type: "clips", clips: [{ type: "clip", id: hit.clip.id }] });
+          setSequenceContextMenu({ kind: "clip", laneIndex: hit.laneIndex, startSeconds, clipId: hit.clip.id });
           return;
         }
         setSelected(null);
@@ -1386,7 +1386,7 @@ export function SequenceCanvas({
               laneIndex: resizeHit.laneIndex,
               rowKind: resizeHit.rowKind,
               startY: y,
-              initialHeight: rowHeightAt(viewport.rowHeights, targetAtLane(document, resizeHit.laneIndex), resizeHit.rowKind, resizeHit.rowKind === "effects" ? initialSequenceLaneHeight(settings) : automationRowHeight),
+              initialHeight: rowHeightAt(viewport.rowHeights, targetAtLane(document, resizeHit.laneIndex), resizeHit.rowKind, resizeHit.rowKind === "clips" ? initialSequenceLaneHeight(settings) : automationRowHeight),
               active: false
             };
             setRowResizeHover({ laneIndex: resizeHit.laneIndex, rowKind: resizeHit.rowKind });
@@ -1396,10 +1396,10 @@ export function SequenceCanvas({
           const lane = document.lanes[laneIndex];
           if (lane === undefined) return;
           const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
-          if (row?.kind === "effects" && lane.occurrences > 1 && x >= sharedBadgeX(left)) {
+          if (row?.kind === "clips" && lane.occurrences > 1 && x >= sharedBadgeX(left)) {
             const copies = lanesForTarget(document, lane.target);
             const next = copies.find((copy) => copy > laneIndex) ?? copies[0] ?? laneIndex;
-            const nextRow = rows.find((candidate) => candidate.laneIndex === next && candidate.kind === "effects");
+            const nextRow = rows.find((candidate) => candidate.laneIndex === next && candidate.kind === "clips");
             setSelectedLaneIndex(next);
             if (nextRow !== undefined) {
               const maxScrollY = Math.max(0, expandedTimelineHeight(rows) - Math.max(1, canvasSize.height - top));
@@ -1407,7 +1407,7 @@ export function SequenceCanvas({
             }
             return;
           }
-          if (row?.kind === "effects" && lane.kind === "group" && x < laneLabelLayout(lane).textX) {
+          if (row?.kind === "clips" && lane.kind === "group" && x < laneLabelLayout(lane).textX) {
             const group = lane.target.fixture;
             setViewport((previous) => {
               const collapsedGroups = new Set(previous.collapsedGroups);
@@ -1416,9 +1416,9 @@ export function SequenceCanvas({
             });
             return;
           }
-          const rowSelection: NonNullable<SequenceSelection> = { type: "clips", clips: row?.kind === "effects"
-            ? clipRefs("effect", document.effects.filter((effect) => targetsEqual(effect.target, lane.target)).map((effect) => effect.id))
-            : row?.kind === "automation" ? clipRefs("automation", document.automationClips.filter((clip) => targetsEqual(clip.rowTarget, lane.target)).map((clip) => clip.id)) : [] };
+          const rowSelection: NonNullable<SequenceSelection> = { type: "clips", clips: row?.kind === "clips"
+            ? clipRefs("clip", document.clips.filter((clip) => targetsEqual(clip.target, lane.target)).map((clip) => clip.id))
+            : row?.kind === "automation" ? clipRefs("automation", document.automationClips.filter((automationClip) => targetsEqual(automationClip.rowTarget, lane.target)).map((automationClip) => automationClip.id)) : [] };
           setSelectedLaneIndex(laneIndex);
           updateSequenceSelection(selectionCount(rowSelection) > 0 ? rowSelection : null);
           setSelected(singleSelectionFocus(rowSelection));
@@ -1445,7 +1445,7 @@ export function SequenceCanvas({
             }
             drag.current = {
               kind: "automationPoint",
-              clipId: automationHit.clip.id,
+              automationClipId: automationHit.clip.id,
               index: pointHit ?? lineHit?.index ?? 0,
               active: false,
               inserted: lineHit !== null
@@ -1473,21 +1473,21 @@ export function SequenceCanvas({
         const hit = x >= left ? hitSequence(visibleClips, x, y) : null;
         if (hit !== null) {
           const activeSelection = sequenceSelectionRef.current;
-          const wasAlreadySelected = activeSelection?.type === "clips" && hasClip(activeSelection.clips, "effect", hit.effect.id);
+          const wasAlreadySelected = activeSelection?.type === "clips" && hasClip(activeSelection.clips, "clip", hit.clip.id);
           const nextSelection = wasAlreadySelected && !event.shiftKey && !event.ctrlKey && !event.metaKey
             ? activeSelection
-            : nextEffectSelection(activeSelection?.type === "clips" ? activeSelection : null, hit.effect.id, event.shiftKey, event.ctrlKey || event.metaKey);
+            : nextClipSelection(activeSelection?.type === "clips" ? activeSelection : null, hit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey);
           updateSequenceSelection(nextSelection);
-          setSelected(singleSelectionFocus(nextSelection) ?? { type: "effect", id: hit.effect.id });
+          setSelected(singleSelectionFocus(nextSelection) ?? { type: "clip", id: hit.clip.id });
           setSelectedLaneIndex(hit.laneIndex);
-          setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? hit.effect.startSeconds);
+          setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? hit.clip.startSeconds);
           drag.current = {
             kind: "sequence",
-            id: hit.effect.id,
+            id: hit.clip.id,
             startX: event.nativeEvent.offsetX,
             startY: event.nativeEvent.offsetY,
             active: false,
-            originalStartSeconds: hit.effect.startSeconds,
+            originalStartSeconds: hit.clip.startSeconds,
             laneIndex: hit.laneIndex,
             resize: hit.resize
           };
@@ -1605,7 +1605,7 @@ export function SequenceCanvas({
           return;
         }
         if (current?.kind === "automationPoint") {
-          const layout = visibleAutomationClips.find((candidate) => candidate.clip.id === current.clipId);
+          const layout = visibleAutomationClips.find((candidate) => candidate.clip.id === current.automationClipId);
           if (layout === undefined) return;
           dragAutomationPoint(layout, current.index, event.nativeEvent.offsetX, event.nativeEvent.offsetY, event);
           current.active = true;
@@ -1651,11 +1651,11 @@ export function SequenceCanvas({
           const markHit = inMarkRuler(y) && !choosingAutomation ? hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport) : null;
           const nextHover: SequenceHover =
             hit !== null
-              ? { kind: "effect", effectId: hit.effect.id, resize: hit.resize }
+              ? { kind: "clip", clipId: hit.clip.id, resize: hit.resize }
               : markHit !== null
                 ? { kind: "mark", collectionKey: markHit.collectionKey, index: markHit.index }
                 : null;
-          const nextAutomationHover: AutomationHover | null = automationHit === null ? null : { kind: "automation", clipId: automationHit.clip.id, resize: choosingAutomation ? "none" : automationHit.resize };
+          const nextAutomationHover: AutomationHover | null = automationHit === null ? null : { kind: "automation", automationClipId: automationHit.clip.id, resize: choosingAutomation ? "none" : automationHit.resize };
           setHover((previous) =>
             sequenceHoverEqual(previous, nextHover) ? previous : nextHover
           );
@@ -1670,7 +1670,7 @@ export function SequenceCanvas({
           setDragCursor("grabbing");
           const selection = sequenceSelectionRef.current;
           if (current.resize === "none" && selection?.type === "clips" && selection.clips.some((clip) => clip.type === "automation")) {
-            const sourceKind = current.kind === "automation" ? "automation" : "effects";
+            const sourceKind = current.kind === "automation" ? "automation" : "clips";
             const before = rows.find((row) => row.laneIndex === current.laneIndex && row.kind === sourceKind);
             const expanded = layoutRows(viewport.rowHeights, true);
             const after = expanded.find((row) => row.laneIndex === current.laneIndex && row.kind === sourceKind);
@@ -1686,7 +1686,7 @@ export function SequenceCanvas({
         const sourceLane = current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
         const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event, selection, destinationLane), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
-        setGroupDraft(gesture.effects);
+        setGroupDraft(gesture.clips);
         setAutomationDrafts(gesture.automation);
       }}
       onPointerUp={(event) => {
@@ -1728,9 +1728,9 @@ export function SequenceCanvas({
         }
         if (current?.kind === "marquee") return;
         if (current?.kind === "slice") {
-          const effectIds = sliceTargets.map((clip) => clip.effect.id);
+          const clipIds = sliceTargets.map((clip) => clip.clip.id);
           setSlice({ seconds: current.seconds, fromY: event.nativeEvent.offsetY, toY: event.nativeEvent.offsetY });
-          if (effectIds.length > 0) void splitEffects(effectIds, current.seconds);
+          if (clipIds.length > 0) void splitClips(clipIds, current.seconds);
           return;
         }
         if (current?.kind === "mark") {
@@ -1784,7 +1784,7 @@ export function SequenceCanvas({
           setSelected(singleSelectionFocus(result.selection));
           const laneDelta = gesture.edit.type === "moveClips" ? gesture.edit.laneDelta : 0;
           setSelectedLaneIndex(sourceLane + laneDelta);
-          const startSeconds = earliestStartSeconds([...gesture.effects, ...gesture.automation]);
+          const startSeconds = earliestStartSeconds([...gesture.clips, ...gesture.automation]);
           if (startSeconds !== null) setSelectedTimeSeconds(startSeconds);
         }).finally(clearDrafts);
       }}
@@ -1830,7 +1830,7 @@ export function SequenceCanvas({
                         tree={effectTree}
                         label={(definition) => definition.name}
                         itemKey={(definition) => `${definition.effect.path}:${definition.effect.effectName}`}
-                        onSelect={(definition) => void addEffectFromContextMenu(definition, laneContextMenu)}
+                        onSelect={(definition) => void addClipFromContextMenu(definition, laneContextMenu)}
                         empty="No effects"
                       />
                     </ContextMenu.SubContent>
@@ -1874,7 +1874,7 @@ export function SequenceCanvas({
                   Add Automation Clip
                 </ContextMenu.Item>
               )}
-              {(sequenceContextMenu.kind === "effect" || sequenceContextMenu.kind === "automation") && clipMatch !== null && (
+              {(sequenceContextMenu.kind === "clip" || sequenceContextMenu.kind === "automation") && clipMatch !== null && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
                   <ContextMenu.Sub>
@@ -1896,7 +1896,7 @@ export function SequenceCanvas({
                     </ContextMenu.Portal>
                   </ContextMenu.Sub>
                   <ClipArrangeMenus
-                    reference={sequenceContextMenu.kind === "effect" ? { type: "effect", id: sequenceContextMenu.effectId } : { type: "automation", id: sequenceContextMenu.clipId }}
+                    reference={sequenceContextMenu.kind === "clip" ? { type: "clip", id: sequenceContextMenu.clipId } : { type: "automation", id: sequenceContextMenu.automationClipId }}
                     canAlign={activeSelection !== null && selectionCount(activeSelection) > 1}
                     markCollections={markTimes.length === 0 ? [] : visibleMarkCollections.map((collection) => collection.key)}
                     onArrange={arrangeClips}
@@ -1904,12 +1904,12 @@ export function SequenceCanvas({
                   />
                 </>
               )}
-              {sequenceContextMenu.kind === "effect" && (
+              {sequenceContextMenu.kind === "clip" && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
                   <ContextMenu.Sub>
                     <ContextMenu.SubTrigger className="menu-item">
-                      Retarget Effect <span className="shortcut"><ArrowRight size={THEME_METRICS.iconSizeExtraSmall} aria-hidden="true" /></span>
+                      Retarget Clip <span className="shortcut"><ArrowRight size={THEME_METRICS.iconSizeExtraSmall} aria-hidden="true" /></span>
                     </ContextMenu.SubTrigger>
                     <ContextMenu.Portal container={overlayContainer}>
                       <ContextMenu.SubContent className="menu-content">
@@ -1917,7 +1917,7 @@ export function SequenceCanvas({
                           <ContextMenu.Item
                             key={lane.target.fixture}
                             className="menu-item"
-                            onSelect={() => void retargetContextEffect(sequenceContextMenu.effectId, lane.target)}
+                            onSelect={() => void retargetContextClip(sequenceContextMenu.clipId, lane.target)}
                           >
                             {lane.label}
                           </ContextMenu.Item>
@@ -1925,21 +1925,21 @@ export function SequenceCanvas({
                       </ContextMenu.SubContent>
                     </ContextMenu.Portal>
                   </ContextMenu.Sub>
-                  <ContextMenu.Item className="menu-item" onSelect={() => void splitEffects([sequenceContextMenu.effectId], sequenceContextMenu.startSeconds)}>
-                    <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Effect Here
+                  <ContextMenu.Item className="menu-item" onSelect={() => void splitClips([sequenceContextMenu.clipId], sequenceContextMenu.startSeconds)}>
+                    <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Clip Here
                   </ContextMenu.Item>
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "effect", id: sequenceContextMenu.effectId }] })}>
-                    <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Effect
+                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "clip", id: sequenceContextMenu.clipId }] })}>
+                    <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Clip
                   </ContextMenu.Item>
                 </>
               )}
               {sequenceContextMenu.kind === "automation" && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
-                  <ContextMenu.Item className="menu-item" onSelect={() => void splitAutomationClip(sequenceContextMenu.clipId, sequenceContextMenu.startSeconds)}>
+                  <ContextMenu.Item className="menu-item" onSelect={() => void splitAutomationClip(sequenceContextMenu.automationClipId, sequenceContextMenu.startSeconds)}>
                     <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Automation Clip Here
                   </ContextMenu.Item>
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "automation", id: sequenceContextMenu.clipId }] })}>
+                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "automation", id: sequenceContextMenu.automationClipId }] })}>
                     <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Automation Clip
                   </ContextMenu.Item>
                 </>
@@ -2197,10 +2197,10 @@ function automationClipLabel(document: SequenceGuiDocument, clip: SequenceAutoma
 }
 
 function automationTargetLabel(document: SequenceGuiDocument, target: SequenceAutomationTarget) {
-  if (target.type === "effectParam") {
-    const effect = document.effects.find((candidate) => candidate.id === target.effectId);
-    if (effect === undefined) throw new Error(`Automation target effect ${target.effectId} is missing`);
-    return `${effect.effect}: ${target.param}`;
+  if (target.type === "clipParam") {
+    const clip = document.clips.find((candidate) => candidate.id === target.clipId);
+    if (clip === undefined) throw new Error(`Automation target clip ${target.clipId} is missing`);
+    return `${clip.effect}: ${target.param}`;
   }
   const node = document.compositionGraph.nodes.find((candidate) => candidate.id === target.nodeId);
   if (node === undefined || node.kind.type !== "operator") {
@@ -2254,7 +2254,7 @@ function completeRowHeights(heights: SequenceRowHeightMap, document: SequenceGui
   const missing = document.lanes.filter((lane) => heights[lane.target.fixture] === undefined);
   if (missing.length === 0) return heights;
   const defaultHeight = initialSequenceLaneHeight(settings);
-  return { ...heights, ...Object.fromEntries(missing.map((lane) => [lane.target.fixture, { effects: defaultHeight, automation: automationLaneRowHeight(defaultHeight) }])) };
+  return { ...heights, ...Object.fromEntries(missing.map((lane) => [lane.target.fixture, { clips: defaultHeight, automation: automationLaneRowHeight(defaultHeight) }])) };
 }
 
 function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | undefined, document: SequenceGuiDocument, settings: AppSettings | null): SequenceViewport {

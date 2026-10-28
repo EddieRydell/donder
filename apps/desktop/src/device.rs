@@ -3,10 +3,10 @@ pub(crate) mod firmware;
 pub(crate) mod playback;
 pub(crate) mod provisioning;
 
-use donder_editor::dto::{
-    DeviceCapabilities, DeviceOutputCapabilities, DevicePlaybackMode, DeviceTransportStatus,
-    DonderDeviceNetworkRequest,
+use donder_device_protocol::{
+    Capabilities, LOADED, Mode, OutputCapabilities, TOKEN_HEADER, TransportStatus, path,
 };
+use donder_editor::dto::DonderDeviceNetworkRequest;
 use reqwest::{
     blocking::Client,
     header::{HeaderMap, HeaderValue},
@@ -29,7 +29,7 @@ pub(crate) fn claim(address: SocketAddr) -> Result<String, String> {
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|error| format!("Could not initialize device connection: {error}"))?
-        .post(format!("http://{address}/claim"))
+        .post(format!("http://{address}{}", path::CLAIM))
         .body(Vec::new())
         .send()
         .map_err(|error| format!("Could not contact device: {error}"))?;
@@ -69,7 +69,7 @@ impl DeviceClient {
         let mut value = HeaderValue::from_str(token).map_err(|_| "Invalid device token.")?;
         value.set_sensitive(true);
         let mut headers = HeaderMap::new();
-        headers.insert("x-donder-token", value);
+        headers.insert(TOKEN_HEADER, value);
         let client = Client::builder()
             .default_headers(headers)
             .redirect(reqwest::redirect::Policy::none())
@@ -89,6 +89,10 @@ impl DeviceClient {
         })
     }
 
+    fn url(&self, path: &str) -> String {
+        format!("http://{}{path}", self.address)
+    }
+
     fn response(&self, response: reqwest::blocking::Response) -> Result<String, String> {
         read_response(response)
     }
@@ -96,7 +100,7 @@ impl DeviceClient {
     pub(crate) fn rename(&self, name: &str) -> Result<(), String> {
         let response = self
             .client
-            .put(format!("http://{}/name", self.address))
+            .put(self.url(path::NAME))
             .body(name.to_string())
             .send()
             .map_err(|error| format!("Could not contact device: {error}"))?;
@@ -110,16 +114,12 @@ impl DeviceClient {
         network: Option<&DonderDeviceNetworkRequest>,
     ) -> Result<(), String> {
         let body = match network {
-            Some(network) => serde_json::to_vec(&serde_json::json!({
-                "ssid": network.ssid,
-                "password": network.password,
-            }))
-            .map_err(|error| error.to_string())?,
+            Some(network) => serde_json::to_vec(network).map_err(|error| error.to_string())?,
             None => Vec::new(),
         };
         let response = self
             .client
-            .put(format!("http://{}/network", self.address))
+            .put(self.url(path::NETWORK))
             .header("content-type", "application/json")
             .body(body)
             .send()
@@ -127,36 +127,29 @@ impl DeviceClient {
         self.response(response).map(|_| ())
     }
 
-    pub(crate) fn capabilities(&self) -> Result<DeviceCapabilities, String> {
+    pub(crate) fn capabilities(&self) -> Result<Capabilities, String> {
         let response = self
             .client
-            .get(format!("http://{}/capabilities", self.address))
+            .get(self.url(path::CAPABILITIES))
             .send()
             .map_err(|error| format!("Could not contact device: {error}"))?;
         serde_json::from_str(&self.response(response)?)
             .map_err(|error| format!("Device returned invalid capabilities: {error}"))
     }
 
-    pub(crate) fn transport(
-        &self,
-        mode: Option<DevicePlaybackMode>,
-    ) -> Result<DeviceTransportStatus, String> {
+    pub(crate) fn transport(&self, mode: Option<Mode>) -> Result<TransportStatus, String> {
         let request = match mode {
-            None => self
-                .client
-                .get(format!("http://{}/transport", self.address)),
+            None => self.client.get(self.url(path::TRANSPORT)),
             Some(mode) => {
-                let action = match mode {
-                    DevicePlaybackMode::Playing => "play",
-                    DevicePlaybackMode::Paused => "pause",
-                    DevicePlaybackMode::Stopped => "stop",
-                    DevicePlaybackMode::Ended => {
+                let command = match mode {
+                    Mode::Playing => path::PLAY,
+                    Mode::Paused => path::PAUSE,
+                    Mode::Stopped => path::STOP,
+                    Mode::Ended => {
                         return Err("Ended is a playback status, not a transport command.".into());
                     }
                 };
-                self.client
-                    .post(format!("http://{}/transport/{action}", self.address))
-                    .body(Vec::new())
+                self.client.post(self.url(command)).body(Vec::new())
             }
         };
         let response = request.send().map_err(|error| format!("Device transport request did not finish: {error}. Refresh device status before retrying."))?;
@@ -178,7 +171,7 @@ impl DeviceClient {
                 "Compiled sequence header is missing.".into(),
             ))?;
         let format = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
-        if capabilities.sequence_format != format {
+        if capabilities.image_format != format {
             return Err(UploadError::Rejected("Device firmware and Donder use different sequence formats. Rebuild the firmware and re-export together.".into()));
         }
         if bytes.len() - 16 > capabilities.max_payload_bytes as usize {
@@ -188,7 +181,7 @@ impl DeviceClient {
             )));
         }
         match capabilities.output {
-            DeviceOutputCapabilities::Ws281x { lanes, channels_per_lane, channel_multiple, max_frame_rate, .. } => {
+            OutputCapabilities::Ws281x { lanes, channels_per_lane, channel_multiple, max_frame_rate, .. } => {
                 if frame_rate > max_frame_rate {
                     return Err(UploadError::Rejected(format!("This sequence runs at {frame_rate} frames per second; this controller's outputs carry at most {max_frame_rate}. Lower the sequence's frame rate.")));
                 }
@@ -196,9 +189,9 @@ impl DeviceClient {
                     return Err(UploadError::Rejected(format!("Device accepts at most {lanes} outputs, each with at most {channels_per_lane} channels in multiples of {channel_multiple}. Adjust the selected controller ports in Display Setup.")));
                 }
             }
-            DeviceOutputCapabilities::EvaluationOnly => return Err(UploadError::Rejected("This firmware evaluates sequences but cannot drive lights. Install the output-enabled firmware before uploading from Donder.".into())),
+            OutputCapabilities::EvaluationOnly => return Err(UploadError::Rejected("This firmware evaluates sequences but cannot drive lights. Install the output-enabled firmware before uploading from Donder.".into())),
         }
-        let response = self.client.put(format!("http://{}/sequence", self.address))
+        let response = self.client.put(self.url(path::IMAGE))
             .header("content-type", "application/octet-stream").body(bytes).send()
             .map_err(|error| UploadError::Failed(format!("Upload did not finish: {error}. Check the device before retrying; it may have received the sequence.")))?;
         // The controller admits a show only if it fits; the same show is
@@ -212,7 +205,7 @@ impl DeviceClient {
             )));
         }
         let response = self.response(response).map_err(UploadError::Failed)?;
-        if !response.starts_with("LOADED ") {
+        if !response.starts_with(LOADED) {
             return Err(UploadError::Failed(
                 "Device did not acknowledge loading the sequence.".into(),
             ));
@@ -257,17 +250,17 @@ mod tests {
                 (
                     "POST",
                     "/transport/play",
-                    r#"{"playback":{"mode":"playing","positionMicros":0,"durationMicros":1000000,"archiveId":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"playing","positionMicros":0,"durationMicros":1000000,"imageId":0,"imageBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/pause",
-                    r#"{"playback":{"mode":"paused","positionMicros":500000,"durationMicros":1000000,"archiveId":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"paused","positionMicros":500000,"durationMicros":1000000,"imageId":0,"imageBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/stop",
-                    r#"{"playback":{"mode":"stopped","positionMicros":0,"durationMicros":1000000,"archiveId":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"stopped","positionMicros":0,"durationMicros":1000000,"imageId":0,"imageBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
             ] {
                 let (mut stream, _) = listener.accept().unwrap();
@@ -305,24 +298,24 @@ mod tests {
         let client = DeviceClient::new(address, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         assert!(client.transport(None).unwrap().playback.is_none());
         let playing = client
-            .transport(Some(DevicePlaybackMode::Playing))
+            .transport(Some(Mode::Playing))
             .unwrap()
             .playback
             .unwrap();
-        assert!(matches!(playing.mode, DevicePlaybackMode::Playing));
+        assert!(matches!(playing.mode, Mode::Playing));
         let paused = client
-            .transport(Some(DevicePlaybackMode::Paused))
+            .transport(Some(Mode::Paused))
             .unwrap()
             .playback
             .unwrap();
-        assert!(matches!(paused.mode, DevicePlaybackMode::Paused));
+        assert!(matches!(paused.mode, Mode::Paused));
         assert_eq!(paused.position_micros, 500_000);
         let stopped = client
-            .transport(Some(DevicePlaybackMode::Stopped))
+            .transport(Some(Mode::Stopped))
             .unwrap()
             .playback
             .unwrap();
-        assert!(matches!(stopped.mode, DevicePlaybackMode::Stopped));
+        assert!(matches!(stopped.mode, Mode::Stopped));
         assert_eq!(stopped.position_micros, 0);
         server.join().unwrap();
     }
@@ -334,7 +327,7 @@ mod tests {
             let address = listener.local_addr().unwrap();
             let server = thread::spawn(move || {
                 for path in if should_upload {
-                    vec!["/capabilities", "/sequence"]
+                    vec!["/capabilities", "/image"]
                 } else {
                     vec!["/capabilities"]
                 } {
@@ -366,7 +359,7 @@ mod tests {
                     let mut body = vec![0; length];
                     reader.read_exact(&mut body).unwrap();
                     let response = if path == "/capabilities" {
-                        r#"{"sequenceFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"maxFrameRate":158,"clockUdpPort":80}}"#
+                        r#"{"imageFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"maxFrameRate":158,"clockUdpPort":80}}"#
                     } else {
                         assert_eq!(&body[..4], &6u32.to_le_bytes());
                         "LOADED sequence"

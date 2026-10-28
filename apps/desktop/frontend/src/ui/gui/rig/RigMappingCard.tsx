@@ -1,9 +1,9 @@
 import { THEME_COLORS } from "../../../theme";
-import type { RigActionChoice, RigControlTarget, RigGuiDocument, RigInput, RigMapping, RigPlayedSource, RigPlayedValue, SequenceEffectParam } from "../../../types";
+import type { RigActionChoice, RigControlTarget, RigGuiDocument, RigInput, RigMapping, RigPlayedQuantity, RigPlayedValue, SequenceClipParam } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { DescriptionField } from "../DescriptionField";
 import { NameField } from "../sequence/NameField";
-import { RigEffectFields, RigInputPicker } from "./RigFields";
+import { RigClipFields, RigInputPicker } from "./RigFields";
 import { applyRigEdit, applyRigItemEdit } from "./rigEditing";
 
 type ActionKind = RigActionChoice["type"];
@@ -20,7 +20,7 @@ function inputControl(document: RigGuiDocument, input: RigInput): { kind: "butto
 }
 
 /** Whether an action can be played from the control: a dial only drives a parameter, and keys
- * only trigger effects and add marks. */
+ * only trigger clips and add marks. */
 function actionFits(kind: ActionKind, control: { kind: "button" | "dial" | "keys" } | null): boolean {
   if (control === null || control.kind === "button") return true;
   return control.kind === "dial" ? kind === "control" : kind !== "control";
@@ -28,10 +28,10 @@ function actionFits(kind: ActionKind, control: { kind: "button" | "dial" | "keys
 
 /** What a `Control` mapping can drive: voices and the other mappings' triggers. */
 function controlTargets(document: RigGuiDocument, mapping: RigMapping): { key: string; label: string; target: RigControlTarget; params: string[] }[] {
-  const choices: { key: string; label: string; target: RigControlTarget; params: SequenceEffectParam[] }[] = [
-    ...document.voices.map((voice) => ({ key: `voice:${voice.id}`, label: `Voice ${voice.name}`, target: { type: "voice" as const, voiceId: voice.id }, params: voice.effect.params })),
+  const choices: { key: string; label: string; target: RigControlTarget; params: SequenceClipParam[] }[] = [
+    ...document.voices.map((voice) => ({ key: `voice:${voice.id}`, label: `Voice ${voice.name}`, target: { type: "voice" as const, voiceId: voice.id }, params: voice.clip.params })),
     ...document.mappings.flatMap((other) => other.id === mapping.id || other.action.type !== "trigger" ? [] : [{
-      key: `trigger:${other.id}`, label: `Trigger ${other.name}`, target: { type: "trigger" as const, mappingId: other.id }, params: other.action.effect.params
+      key: `trigger:${other.id}`, label: `Trigger ${other.name}`, target: { type: "trigger" as const, mappingId: other.id }, params: other.action.clip.params
     }])
   ];
   return choices.map((choice) => ({ ...choice, params: choice.params.filter((param) => param.supportsAutomation).map((param) => param.name) }));
@@ -91,7 +91,7 @@ export function RigMappingCard({ document, mapping }: { document: RigGuiDocument
         const next = defaultAction(document, mapping, event.currentTarget.value as ActionKind);
         if (next !== null) void applyRigEdit({ type: "setMappingAction", id: mapping.id, action: next });
       }}>
-        <option value="trigger" disabled={!offered("trigger")}>Trigger an effect</option>
+        <option value="trigger" disabled={!offered("trigger")}>Trigger a clip</option>
         <option value="mark" disabled={!offered("mark")}>Add a live mark</option>
         <option value="control" disabled={!offered("control")}>Control a parameter</option>
       </select></label>
@@ -123,8 +123,8 @@ export function RigMappingCard({ document, mapping }: { document: RigGuiDocument
           if (action.voices.type === "stack" && count !== action.voices.count) void applyRigEdit({ type: "setTriggerVoices", mappingId: mapping.id, voices: { type: "stack", count } });
         }} /></label>}
       </div>
-      <RigEffectFields document={document} owner={{ type: "trigger", mappingId: mapping.id }} effect={action.effect} />
-      <PlayedValues mappingId={mapping.id} values={action.values} notes={control?.notes ?? false} params={action.effect.params.filter((param) => param.supportsAutomation).map((param) => param.name)} />
+      <RigClipFields document={document} owner={{ type: "trigger", mappingId: mapping.id }} clip={action.clip} />
+      <PlayedValues mappingId={mapping.id} values={action.values} notes={control?.notes ?? false} params={action.clip.params.filter((param) => param.supportsAutomation).map((param) => param.name)} />
     </>}
     {action.type === "mark" && <label>Live marks<select value={action.marks} onChange={(event) =>
       void applyRigEdit({ type: "setMappingAction", id: mapping.id, action: { type: "mark", marks: event.currentTarget.value } })}>
@@ -147,12 +147,12 @@ export function RigMappingCard({ document, mapping }: { document: RigGuiDocument
   </div>;
 }
 
-/** Every source but velocity needs an input that plays notes. */
-const PLAYED_SOURCES: { source: RigPlayedSource; label: string; needsNote: boolean }[] = [
-  { source: "velocity", label: "Velocity", needsNote: false },
-  { source: "pitch", label: "Pitch (place in the key range)", needsNote: true },
-  { source: "pitchClass", label: "Note name (C to B)", needsNote: true },
-  { source: "fifths", label: "Circle of fifths", needsNote: true }
+/** Every quantity but velocity needs an input that plays notes. */
+const PLAYED_QUANTITIES: { quantity: RigPlayedQuantity; label: string; needsNote: boolean }[] = [
+  { quantity: "velocity", label: "Velocity", needsNote: false },
+  { quantity: "pitch", label: "Pitch (place in the key range)", needsNote: true },
+  { quantity: "pitchClass", label: "Note name (C to B)", needsNote: true },
+  { quantity: "fifths", label: "Circle of fifths", needsNote: true }
 ];
 
 /** Parameters each press sets on the voice it starts, from how it was played. */
@@ -161,7 +161,7 @@ function PlayedValues({ mappingId, values, notes, params }: { mappingId: number;
   const free = params.find((param) => !values.some((value) => value.param === param));
   return <div className="setup-section">
     <h5>Played values</h5>
-    {values.length === 0 && <p className="object-overview-empty">Each press starts the effect as set. Add a played value to set a parameter from how hard or which note was played.</p>}
+    {values.length === 0 && <p className="object-overview-empty">Each press starts the clip as set. Add a played value to set a parameter from how hard or which note was played.</p>}
     {values.map((value, index) => <div key={value.param} className="inspector-inline-row">
       <label>Parameter<select value={value.param} onChange={(event) => {
         set(values.map((other, i) => i === index ? { ...other, param: event.currentTarget.value } : other));
@@ -170,10 +170,10 @@ function PlayedValues({ mappingId, values, notes, params }: { mappingId: number;
         {params.map((param) => <option key={param} value={param} disabled={param !== value.param && values.some((other) => other.param === param)}>{param}</option>)}
       </select></label>
       <label>From<select value={value.from} onChange={(event) => {
-        const from = PLAYED_SOURCES.find((choice) => choice.source === event.currentTarget.value)?.source;
+        const from = PLAYED_QUANTITIES.find((choice) => choice.quantity === event.currentTarget.value)?.quantity;
         if (from !== undefined) set(values.map((other, i) => i === index ? { ...other, from } : other));
       }}>
-        {PLAYED_SOURCES.map((choice) => <option key={choice.source} value={choice.source} disabled={choice.needsNote && !notes}>{choice.label}</option>)}
+        {PLAYED_QUANTITIES.map((choice) => <option key={choice.quantity} value={choice.quantity} disabled={choice.needsNote && !notes}>{choice.label}</option>)}
       </select></label>
       <button type="button" onClick={() => { set(values.filter((_, i) => i !== index)); }}>Remove</button>
     </div>)}

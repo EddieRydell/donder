@@ -22,13 +22,13 @@ export function reconcileGuiRequest(previous: GuiDocumentRequest | null, next: G
 export function applyGuiDocumentChange(document: GuiDocument | null, change: GuiDocumentChange): GuiDocument | null {
   if (change.type === "document") return change.document;
   if (document?.type !== "sequence") return null;
-  const effects = new Map(document.document.effects.map((effect) => [effect.id, effect]));
-  for (const effect of change.document.effects) effects.set(effect.id, effect);
+  const clips = new Map(document.document.clips.map((clip) => [clip.id, clip]));
+  for (const clip of change.document.clips) clips.set(clip.id, clip);
   const ordered = [];
-  for (const id of change.effectIds) {
-    const effect = effects.get(id);
-    if (effect === undefined) return null;
-    ordered.push(effect);
+  for (const id of change.clipIds) {
+    const clip = clips.get(id);
+    if (clip === undefined) return null;
+    ordered.push(clip);
   }
-  return { type: "sequence", document: { ...change.document, effects: ordered } };
+  return { type: "sequence", document: { ...change.document, clips: ordered } };
 }

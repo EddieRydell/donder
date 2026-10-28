@@ -77716,7 +77716,7 @@ Sequence ding_dong {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (80.0, 120.0) },
-      OutputNode { position: (895.17554, 133.90282) },
+      RootNode { position: (895.17554, 133.90282) },
       OperatorNode {
         name: hue_shift,
         operator: operators.HueShift,
@@ -77724,7 +77724,7 @@ Sequence ding_dong {
         position: (491.83456, 90.22718),
       },
     ],
-    edges: [Edge { from: default, to: hue_shift.source }, Edge { from: hue_shift, to: output }],
+    edges: [Edge { from: default, to: hue_shift.source }, Edge { from: hue_shift, to: root }],
   },
   automation: [
     AutomationClip {

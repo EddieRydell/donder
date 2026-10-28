@@ -1,4 +1,4 @@
-use donder_elaboration::{PrepareOutputs, PreparedShow, prepare};
+use donder_elaboration::{PreparedShow, Retain, prepare};
 use donder_model::DonderProject;
 use donder_model::GraphOperatorNode;
 use donder_model::{
@@ -112,7 +112,7 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
             node(1, operator(1, 0)),
             node(2, operator(2, 1)),
             node(3, operator(3, 2)),
-            node(4, CompositionGraphNodeKind::Output),
+            node(4, CompositionGraphNodeKind::Root),
         ],
         edges: vec![
             edge(0, 1, "source"),
@@ -123,7 +123,7 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
         ],
     };
     project.put(sequence.clone()).unwrap();
-    let shared = prepare(&project, &id, PrepareOutputs::All).unwrap();
+    let shared = prepare(&project, &id, Retain::All).unwrap();
     // The shared source stays a graph node. Duplicating it gives each consumer
     // a private source, which stays a boundary for the consumers' addressed
     // reads, while preserving the authored behavior.
@@ -140,7 +140,7 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
         .edges
         .extend([edge(0, 5, "source"), edge(5, 3, "source")]);
     project.put(sequence).unwrap();
-    let duplicated = prepare(&project, &id, PrepareOutputs::All).unwrap();
+    let duplicated = prepare(&project, &id, Retain::All).unwrap();
     let mut shared = shared.into_playback();
     let mut duplicated = duplicated.into_playback();
     for ticks in [
@@ -168,7 +168,7 @@ fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -
     let mut nodes = vec![
         node(0, layer(0)),
         node(1, layer(1)),
-        node(2, CompositionGraphNodeKind::Output),
+        node(2, CompositionGraphNodeKind::Root),
     ];
     let mut edges = vec![edge(0, 2, "input")];
     let mut previous = 1;
@@ -180,7 +180,7 @@ fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -
     edges.push(edge(previous, 2, "input"));
     sequence.composition_graph = SequenceCompositionGraph { nodes, edges };
     project.put(sequence).unwrap();
-    prepare(&project, &id, PrepareOutputs::All).unwrap()
+    prepare(&project, &id, Retain::All).unwrap()
 }
 
 /// The archive bytes, which record every prepared signal and program.
@@ -194,7 +194,7 @@ fn disable_layer(sequence: &mut Sequence) {
 
 fn empty_layer(sequence: &mut Sequence) {
     let layer = sequence.layers[1].id.clone();
-    sequence.effects.retain(|effect| effect.layer_id != layer);
+    sequence.clips.retain(|clip| clip.layer_id != layer);
 }
 
 #[test]
@@ -246,7 +246,7 @@ fn operators_that_light_black_inputs_are_prepared() {
 fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     use donder_model::validate_composition_graph;
     let (mut project, id) = layer_test();
-    let baseline = prepare(&project, &id, PrepareOutputs::All).unwrap();
+    let baseline = prepare(&project, &id, Retain::All).unwrap();
     let definitions = project.reusable::<donder_model::OperatorDefinition>();
     let make_node = |id, name| CompositionGraphNode {
         position: GraphNodePosition { x: 100.0, y: 100.0 },
@@ -261,7 +261,7 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     let output = graph
         .nodes
         .iter()
-        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
+        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
         .unwrap()
         .id
         .0;
@@ -279,7 +279,7 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         "unknown port accepted"
     );
     project.put(sequence.clone()).unwrap();
-    let disconnected = prepare(&project, &id, PrepareOutputs::All).unwrap();
+    let disconnected = prepare(&project, &id, Retain::All).unwrap();
     assert!(encoded(&baseline) == encoded(&disconnected));
     sequence
         .composition_graph

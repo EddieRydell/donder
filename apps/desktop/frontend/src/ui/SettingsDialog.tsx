@@ -138,9 +138,9 @@ export function SettingsDialog() {
                 min={16}
                 max={1024}
                 step={1}
-                value={draft.effectRaster.maxColumns}
+                value={draft.clipRaster.maxColumns}
                 onChange={(maxColumns) =>
-                  void update({ ...draft, effectRaster: { ...draft.effectRaster, maxColumns } })
+                  void update({ ...draft, clipRaster: { ...draft.clipRaster, maxColumns } })
                 }
               />
               <NumberInput
@@ -148,9 +148,9 @@ export function SettingsDialog() {
                 min={1}
                 max={200}
                 step={1}
-                value={draft.effectRaster.maxRows}
+                value={draft.clipRaster.maxRows}
                 onChange={(maxRows) =>
-                  void update({ ...draft, effectRaster: { ...draft.effectRaster, maxRows } })
+                  void update({ ...draft, clipRaster: { ...draft.clipRaster, maxRows } })
                 }
               />
               <NumberInput
@@ -158,9 +158,9 @@ export function SettingsDialog() {
                 min={1}
                 max={16}
                 step={1}
-                value={draft.effectRaster.minFrameStride}
+                value={draft.clipRaster.minFrameStride}
                 onChange={(minFrameStride) =>
-                  void update({ ...draft, effectRaster: { ...draft.effectRaster, minFrameStride } })
+                  void update({ ...draft, clipRaster: { ...draft.clipRaster, minFrameStride } })
                 }
               />
             </section>

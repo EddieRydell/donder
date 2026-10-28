@@ -112,7 +112,7 @@ impl DesktopState {
     pub fn audio_pause(&self) -> AppSnapshot {
         if self.device_playback.has_devices() {
             return self
-                .device_audio_hold(donder_editor::dto::DevicePlaybackMode::Paused, None, false)
+                .device_audio_hold(donder_device_protocol::Mode::Paused, None, false)
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).pause();
@@ -125,7 +125,7 @@ impl DesktopState {
         if self.device_playback.has_devices() {
             return self
                 .device_audio_hold(
-                    donder_editor::dto::DevicePlaybackMode::Stopped,
+                    donder_device_protocol::Mode::Stopped,
                     Some(self.audio_snapshot().home_seconds),
                     false,
                 )
@@ -140,11 +140,7 @@ impl DesktopState {
     pub fn audio_rewind_to_zero(&self) -> AppSnapshot {
         if self.device_playback.has_devices() {
             return self
-                .device_audio_hold(
-                    donder_editor::dto::DevicePlaybackMode::Paused,
-                    Some(0.0),
-                    true,
-                )
+                .device_audio_hold(donder_device_protocol::Mode::Paused, Some(0.0), true)
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).rewind_to_zero();
@@ -161,7 +157,7 @@ impl DesktopState {
             }
             return self
                 .device_audio_hold(
-                    donder_editor::dto::DevicePlaybackMode::Paused,
+                    donder_device_protocol::Mode::Paused,
                     Some(position_seconds.clamp(0.0, duration)),
                     true,
                 )
@@ -310,7 +306,7 @@ impl DesktopState {
         let Some(session) = self.project_session() else {
             return Ok(crate::preview::PreviewContent {
                 instances: Vec::new(),
-                archive: None,
+                image: None,
                 performance: None,
             });
         };
@@ -321,7 +317,7 @@ impl DesktopState {
             }
             return Ok(crate::preview::PreviewContent {
                 instances: geometry.instances,
-                archive: Some(performance.archive),
+                image: Some(performance.image),
                 performance: Some(performance.generation),
             });
         }
@@ -336,7 +332,7 @@ impl DesktopState {
 
         Ok(crate::preview::PreviewContent {
             instances: geometry.instances,
-            archive: sequence.map(|sequence| sequence.bytes),
+            image: sequence.map(|sequence| sequence.bytes),
             performance: None,
         })
     }

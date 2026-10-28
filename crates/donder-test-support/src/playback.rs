@@ -117,11 +117,11 @@ pub fn program(definition: &CompiledDefinition) -> BoundProgram {
     lower(&invoke(definition, &[]))
 }
 
-/// `layers` layers of `effect` over the whole eight-second sequence, mixed
+/// `layers` layers of `program` over the whole eight-second sequence, mixed
 /// and passed through `operators`.
 pub fn show(
     count: usize,
-    effect: &BoundProgram,
+    program: &BoundProgram,
     layers: usize,
     operators: &[BoundProgram],
 ) -> PreparedShow {
@@ -129,9 +129,8 @@ pub fn show(
     build(count, timing(8_000_000), |builder, target| {
         let layers: Vec<_> = (0..layers)
             .map(|_| {
-                let effect =
-                    builder.clip(None, effect, SampleTime::from_ticks(0), duration, target);
-                builder.layer(true, [effect])
+                let clip = builder.clip(None, program, SampleTime::from_ticks(0), duration, target);
+                builder.layer(true, [clip])
             })
             .collect();
         let mut signal = builder.mix(layers);

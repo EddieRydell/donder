@@ -7,7 +7,7 @@ mod editing;
 
 use std::collections::HashSet;
 
-use crate::fixture::{FixtureDefinitionId, FixtureGeometryError, FixtureSource, FixtureTransform};
+use crate::fixture::{FixtureDefinitionId, FixtureGeometryError, FixtureTransform, OwnedFixture};
 pub(crate) use crate::identity::LayoutId;
 use indexmap::IndexMap;
 
@@ -37,7 +37,7 @@ pub struct LayoutFixture {
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutFixtureKind {
     Fixture {
-        definition: FixtureSource,
+        definition: OwnedFixture,
         transform: FixtureTransform,
     },
     Group {
@@ -181,7 +181,7 @@ impl Layout {
                     return Ok(total);
                 };
                 let count = match definition {
-                    FixtureSource::Inline(value) => {
+                    OwnedFixture::Inline(value) => {
                         value
                             .validate_geometry()
                             .map_err(|error| LayoutError::InvalidFixture {
@@ -189,7 +189,7 @@ impl Layout {
                                 error,
                             })?
                     }
-                    FixtureSource::Reference(id) => counts
+                    OwnedFixture::Reference(id) => counts
                         .get(id)
                         .copied()
                         .ok_or(LayoutError::MissingDefinition(*id))?,
@@ -222,7 +222,7 @@ impl Layout {
             } = &fixture.kind
             {
                 match definition {
-                    FixtureSource::Inline(value) => {
+                    OwnedFixture::Inline(value) => {
                         value
                             .validate_geometry()
                             .map_err(|error| LayoutError::InvalidFixture {
@@ -230,10 +230,10 @@ impl Layout {
                                 error,
                             })?;
                     }
-                    FixtureSource::Reference(id) if !definitions.contains_key(id) => {
+                    OwnedFixture::Reference(id) if !definitions.contains_key(id) => {
                         return Err(LayoutError::MissingDefinition(*id));
                     }
-                    FixtureSource::Reference(_) => {}
+                    OwnedFixture::Reference(_) => {}
                 }
                 if !transform.is_valid() {
                     return Err(LayoutError::InvalidTransform(fixture.id));
@@ -312,4 +312,4 @@ impl crate::ownership::Identified for Layout {
     }
 }
 
-pub type LayoutSource = crate::ownership::ValueSource<Box<Layout>, LayoutId>;
+pub type OwnedLayout = crate::ownership::Owned<Box<Layout>, LayoutId>;

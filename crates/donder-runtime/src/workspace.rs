@@ -3,14 +3,14 @@
 //! scratch frames, the automation scratch and a rig's state. [`Layout`]
 //! counts every region once; [`Layout::size`] and [`carve`] walk them in the
 //! same order.
-use crate::image::{self, CrossingSegment, CurvePoint, NONE};
+use crate::format::{self, CrossingSegment, CurvePoint, NONE};
 use bytemuck::{Pod, Zeroable};
 use donder_runtime_types::{Color, SampleTime};
 
 use crate::arena::{Carve, Size};
 use crate::dsl::{Override, STRIP, Scratch, StripSlots, StripWorkspace, scratch_shape};
+use crate::image::Image;
 use crate::resources::{LiveTrack, ResourceSlot, WindowState};
-use crate::show::Show;
 
 /// The most frame buffers a show's nodes use at once.
 pub(crate) const MAX_BUFFERS: usize = 16;
@@ -21,18 +21,18 @@ pub(crate) const MAX_SCANS: usize = 8;
 /// The most marks a live collection keeps; older marks are dropped.
 pub const LIVE_MARK_CAPACITY: usize = 1024;
 /// A dormant voice starts at the end of time, so it is never active and
-/// sorts after every started effect of its layer.
+/// sorts after every started clip of its layer.
 pub(crate) const DORMANT: u32 = u32::MAX;
 
-/// An effect sample kept for duplicate fixture layouts.
+/// A clip color kept for duplicate fixture layouts.
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 #[repr(C)]
-pub(crate) struct CachedEffectSample {
+pub(crate) struct CachedClipColor {
     pub(crate) pixel_count: u32,
     pub(crate) color: Color,
 }
 
-/// An effect's start and duration in ticks; a rig's commands move them.
+/// A clip's start and duration in ticks; a rig's commands move them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Timing {
@@ -48,7 +48,7 @@ impl Timing {
     }
 }
 
-/// What a rig's commands change: effect timing, each layer's start order,
+/// What a rig's commands change: clip timing, each layer's start order,
 /// control values and live marks. Empty for a sequence, but for live marks.
 pub(crate) struct RigState<'w> {
     pub(crate) timing: &'w mut [Timing],
@@ -68,7 +68,7 @@ pub(crate) struct Workspace<'w> {
     pub(crate) strip: StripWorkspace<'w>,
     pub(crate) scratch: Scratch<'w>,
     pub(crate) gather: &'w mut [[u32; 2]],
-    pub(crate) effect_samples: &'w mut [CachedEffectSample],
+    pub(crate) clip_colors: &'w mut [CachedClipColor],
     pub(crate) rig: RigState<'w>,
     /// The frame the buffers last held, or [`NONE`], and whether they still
     /// hold it: a command since makes them stale.
@@ -88,13 +88,13 @@ pub struct Layout {
     scratch: [usize; 4],
     sample_count: usize,
     rig: bool,
-    effects: usize,
+    clips: usize,
     layer_order: usize,
     bindings: usize,
     collections: usize,
 }
 
-impl Show<'_> {
+impl Image<'_> {
     /// The playback buffer this show needs.
     pub fn layout(&self) -> Layout {
         Layout::of(*self)
@@ -102,35 +102,35 @@ impl Show<'_> {
 }
 
 impl Layout {
-    pub(crate) fn of(show: Show<'_>) -> Self {
-        let s = &show.s;
-        let meta = show.meta();
+    pub(crate) fn of(image: Image<'_>) -> Self {
+        let s = &image.s;
+        let meta = image.meta();
         let mut slots = StripSlots::default();
         let mut scans = 0;
         for program in 0..s.programs.len() {
-            let program = show.program(program as u32);
+            let program = image.program(program as u32);
             slots.include(program);
             scans = scans.max(program.scans());
         }
         let mut scratch = [0; 4];
-        let invocations = s
-            .effects
+        let params_refs = s
+            .clips
             .iter()
-            .map(|effect| (effect.automation, effect.params))
+            .map(|clip| (clip.automation, clip.params))
             .chain(
                 s.nodes
                     .iter()
-                    .filter(|node| node.kind == image::NODE_OPERATOR)
+                    .filter(|node| node.kind == format::NODE_OPERATOR)
                     .map(|node| (node.automation, node.params)),
             );
-        for (plan, params) in invocations {
-            for (total, need) in scratch.iter_mut().zip(scratch_shape(show, plan, params)) {
+        for (plan, params) in params_refs {
+            for (total, need) in scratch.iter_mut().zip(scratch_shape(image, plan, params)) {
                 *total = (*total).max(need);
             }
         }
-        let rig = show.is_rig();
+        let rig = image.is_rig();
         Self {
-            pixels: show.pixel_count(),
+            pixels: image.pixel_count(),
             output_bytes: s.outputs.iter().map(|output| output.width as usize).sum(),
             buffers: meta.buffers as usize,
             states: meta.states as usize,
@@ -138,16 +138,16 @@ impl Layout {
             slots,
             scratch,
             sample_count: s
-                .effects
+                .clips
                 .iter()
-                .map(|effect| s.targets[effect.target as usize].sample_count as usize)
+                .map(|clip| s.targets[clip.target as usize].sample_count as usize)
                 .max()
                 .unwrap_or(0),
             rig,
-            effects: if rig { s.effects.len() } else { 0 },
+            clips: if rig { s.clips.len() } else { 0 },
             layer_order: if rig { s.layer_order.len() } else { 0 },
             bindings: if rig { s.bindings.len() } else { 0 },
-            collections: s.collections.len(),
+            collections: meta.collections as usize,
         }
     }
 
@@ -166,8 +166,8 @@ impl Layout {
         self.slots.size(&mut size);
         scratch_size(&mut size, self.scratch);
         size.values::<[u32; 2]>(STRIP);
-        size.values::<CachedEffectSample>(self.sample_count);
-        size.values::<Timing>(self.effects);
+        size.values::<CachedClipColor>(self.sample_count);
+        size.values::<Timing>(self.clips);
         size.values::<u32>(self.layer_order);
         size.values::<u32>(self.layer_order);
         size.values::<Override>(self.bindings);
@@ -216,16 +216,16 @@ fn frames<'w, const N: usize>(
     Some(frames)
 }
 
-/// The workspace of `show` in `buffer`, which holds [`Layout::size`] bytes:
+/// The workspace of `image` in `buffer`, which holds [`Layout::size`] bytes:
 /// filled when `fresh`, or re-borrowed as an earlier carve of the same show
 /// left it.
 pub(crate) fn carve<'w>(
-    show: Show<'_>,
+    image: Image<'_>,
     layout: &Layout,
     buffer: &'w mut [u8],
     fresh: bool,
 ) -> Option<Workspace<'w>> {
-    let s = &show.s;
+    let s = &image.s;
     let pixels = layout.pixels;
     let mut arena = if fresh {
         Carve::new(buffer)
@@ -239,8 +239,8 @@ pub(crate) fn carve<'w>(
     let strip = layout.slots.carve(&mut arena)?;
     let scratch = carve_scratch(&mut arena, layout.scratch)?;
     let gather = arena.values(STRIP, [0, 0])?;
-    let effect_samples = arena.values(layout.sample_count, CachedEffectSample::default())?;
-    let timing = arena.values(layout.effects, Timing::default())?;
+    let clip_colors = arena.values(layout.sample_count, CachedClipColor::default())?;
+    let timing = arena.values(layout.clips, Timing::default())?;
     let layer_order = arena.values(layout.layer_order, 0)?;
     let layer_ends = arena.values(layout.layer_order, 0)?;
     let overrides = arena.values(layout.bindings, Override::default())?;
@@ -249,14 +249,14 @@ pub(crate) fn carve<'w>(
     let frame = <&mut [u32; 2]>::try_from(arena.values(2, NONE)?).ok()?;
     if fresh {
         if layout.rig {
-            for (timing, effect) in timing.iter_mut().zip(s.effects) {
+            for (timing, clip) in timing.iter_mut().zip(s.clips) {
                 *timing = Timing {
-                    start: effect.start,
-                    duration: effect.duration,
+                    start: clip.start,
+                    duration: clip.duration,
                 };
             }
             for voice in s.voices {
-                timing[voice.effect as usize].start = DORMANT;
+                timing[voice.clip as usize].start = DORMANT;
             }
             layer_order.copy_from_slice(s.layer_order);
             for layer in s.layers {
@@ -278,7 +278,7 @@ pub(crate) fn carve<'w>(
         strip,
         scratch,
         gather,
-        effect_samples,
+        clip_colors,
         rig: RigState {
             timing,
             layer_order,

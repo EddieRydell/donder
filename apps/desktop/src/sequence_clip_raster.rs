@@ -4,7 +4,7 @@
 //! resolution by one background worker, clips on screen first. A clip that is
 //! still the allocation of the previous project snapshot, in an unchanged
 //! context, keeps its raster, so an edit renders only the clips it changed.
-//! Effect evaluation remains in `donder-runtime`; scaling and drawing remain
+//! Clip evaluation remains in `donder-runtime`; scaling and drawing remain
 //! in the frontend.
 
 mod render;

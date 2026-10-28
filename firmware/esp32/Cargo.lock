@@ -472,10 +472,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "donder-device-protocol"
+version = "0.1.0"
+dependencies = [
+ "donder-runtime",
+ "serde",
+]
+
+[[package]]
 name = "donder-device-storage"
 version = "0.1.0"
 dependencies = [
  "crc32fast",
+ "donder-device-protocol",
  "donder-runtime",
  "littlefs2",
  "serde",
@@ -487,6 +496,7 @@ name = "donder-esp32"
 version = "0.1.0"
 dependencies = [
  "crc32fast",
+ "donder-device-protocol",
  "donder-device-storage",
  "donder-runtime",
  "donder-runtime-types",
@@ -509,7 +519,6 @@ dependencies = [
  "esp-storage",
  "heapless 0.9.3",
  "picoserve",
- "serde",
  "static_cell",
  "tinyrlibc",
 ]

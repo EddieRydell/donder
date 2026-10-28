@@ -1,29 +1,29 @@
-//! Sparse sampling of one authored clip from an already prepared show.
+//! Sparse evaluation of one authored clip from an already prepared image.
 //! Raster dimensions, scheduling, image storage, and caching belong to the host.
-use crate::image;
+use crate::format;
 use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
 use donder_runtime_types::{Color, SampleDuration, SampleTime, SampleTimeError};
 
 use crate::arena::{Carve, Size};
-use crate::dsl::{Invocation, NoSignals, StripSlots, invocation_params, scratch_shape};
-use crate::evaluation::{PixelSource, RunPixel, effect_sampler};
+use crate::dsl::{NoSignals, ParamsRef, StripSlots, params_at, scratch_shape};
+use crate::evaluation::{PixelSet, RunPixel, clip_evaluator};
+use crate::image::Image;
 use crate::resources::LiveView;
-use crate::show::Show;
 use crate::workspace::{Timing, carve_scratch, scratch_size};
 
 #[derive(Clone, Copy)]
-pub struct SequenceClip<'a> {
-    show: Show<'a>,
-    effect: usize,
+pub struct ImageClip<'a> {
+    image: Image<'a>,
+    index: usize,
 }
 
-impl<'a> SequenceClip<'a> {
-    pub(crate) fn new(show: Show<'a>, effect: usize) -> Self {
-        Self { show, effect }
+impl<'a> ImageClip<'a> {
+    pub(crate) fn new(image: Image<'a>, index: usize) -> Self {
+        Self { image, index }
     }
 
-    fn record(&self) -> &'a image::Effect {
-        &self.show.s.effects[self.effect]
+    fn record(&self) -> &'a format::Clip {
+        &self.image.s.clips[self.index]
     }
 
     /// Sample the center frame of a raster column inside the authored clip.
@@ -65,39 +65,39 @@ impl<'a> SequenceClip<'a> {
     }
 
     pub fn frame_rate(&self) -> u32 {
-        self.show.frame_rate()
+        self.image.frame_rate()
     }
 
     pub fn frame_count(&self) -> u32 {
-        self.show.frame_count()
+        self.image.frame_count()
     }
 
     pub fn target_pixel_count(&self) -> usize {
         crate::targets::TargetView::of(
-            self.show,
-            &self.show.s.targets[self.record().target as usize],
+            self.image,
+            &self.image.s.targets[self.record().target as usize],
         )
         .len()
     }
 
     /// Select evenly spaced cells while preserving their original sampling
     /// coordinates. Equal contexts share one VM sample.
-    pub fn sampler(&self, rows: usize) -> ClipSampler<'a> {
-        let show = self.show;
-        let effect = self.record();
-        let program = show.program(effect.program);
-        let target = crate::targets::TargetView::of(show, &show.s.targets[effect.target as usize]);
-        let spatial = program.flag(image::PROGRAM_USES_SPATIAL);
-        let sections = program.flag(image::PROGRAM_USES_SECTIONS);
+    pub fn raster(&self, rows: usize) -> ClipRaster<'a> {
+        let image = self.image;
+        let clip = self.record();
+        let program = image.program(clip.program);
+        let target = crate::targets::TargetView::of(image, &image.s.targets[clip.target as usize]);
+        let spatial = program.flag(format::PROGRAM_USES_SPATIAL);
+        let sections = program.flag(format::PROGRAM_USES_SECTIONS);
         let indices = evenly_sample_indices(target.len(), rows);
         let row_count = indices.len();
-        let mut groups = Vec::<SampleGroup>::new();
+        let mut groups = Vec::<RasterGroup>::new();
         let mut pixels = Vec::<RunPixel>::new();
         let mut group_by_context = BTreeMap::new();
         for (row, local) in indices.into_iter().enumerate() {
             let pixel = target.pixel(local);
             let geometry = if spatial {
-                target.spatial_context(local, &pixel, show)
+                target.spatial_context(local, &pixel, image)
             } else {
                 donder_runtime_types::SpatialContext {
                     position: [0.0; 2],
@@ -121,7 +121,7 @@ impl<'a> SequenceClip<'a> {
                 .map(f32::to_bits),
             );
             if let Some(&group) = group_by_context.get(&key) {
-                let group: &mut SampleGroup = &mut groups[group];
+                let group: &mut RasterGroup = &mut groups[group];
                 group.rows.push(row);
             } else {
                 group_by_context.insert(key, groups.len());
@@ -129,16 +129,16 @@ impl<'a> SequenceClip<'a> {
                     target_index: local,
                     pixel,
                 });
-                groups.push(SampleGroup { rows: vec![row] });
+                groups.push(RasterGroup { rows: vec![row] });
             }
         }
         let mut slots = StripSlots::default();
         slots.include(program);
         let mut size = Size::default();
         slots.size(&mut size);
-        let scratch = scratch_shape(show, effect.automation, effect.params);
+        let scratch = scratch_shape(image, clip.automation, clip.params);
         scratch_size(&mut size, scratch);
-        ClipSampler {
+        ClipRaster {
             clip: *self,
             output: vec![Color::BLACK; row_count],
             groups,
@@ -151,11 +151,11 @@ impl<'a> SequenceClip<'a> {
     }
 }
 
-/// Reusable sparse evaluator borrowing a show.
-pub struct ClipSampler<'a> {
-    clip: SequenceClip<'a>,
+/// Reusable sparse evaluator borrowing an image.
+pub struct ClipRaster<'a> {
+    clip: ImageClip<'a>,
     output: Vec<Color>,
-    groups: Vec<SampleGroup>,
+    groups: Vec<RasterGroup>,
     /// A pixel of each group.
     pixels: Vec<RunPixel>,
     slots: StripSlots,
@@ -167,17 +167,17 @@ pub struct ClipSampler<'a> {
 }
 
 /// Rows sharing one sampling context.
-struct SampleGroup {
+struct RasterGroup {
     rows: Vec<usize>,
 }
 
-impl ClipSampler<'_> {
+impl ClipRaster<'_> {
     pub fn evaluate(&mut self, time: SampleTime) -> &[Color] {
-        let show = self.clip.show;
-        let effect = self.clip.record();
+        let image = self.clip.image;
+        let clip = self.clip.record();
         let timing = Timing {
-            start: effect.start,
-            duration: effect.duration,
+            start: clip.start,
+            duration: clip.duration,
         };
         if !timing.is_active(time) {
             self.output.fill(Color::BLACK);
@@ -196,24 +196,23 @@ impl ClipSampler<'_> {
         ) else {
             unreachable!("the buffer holds the sampler's size")
         };
-        let params = invocation_params(
-            show,
+        let params = params_at(
+            image,
             &mut scratch,
-            Invocation {
-                params: effect.params,
-                plan: effect.automation,
-                origin: effect.start,
-                effect: self.clip.effect as u32,
+            ParamsRef {
+                params: clip.params,
+                plan: clip.automation,
+                origin: clip.start,
             },
             time,
             &[],
             LiveView::default(),
         );
-        let sampler = effect_sampler(show, effect, timing, time, 1, params);
+        let sampler = clip_evaluator(image, clip, timing, time, 1, params);
         let (groups, output) = (&self.groups, &mut self.output);
-        sampler.sample_pixels(
+        sampler.evaluate_pixels(
             groups.len(),
-            PixelSource::Listed(&self.pixels),
+            PixelSet::Listed(&self.pixels),
             &mut workspace,
             &mut NoSignals,
             |group, color| {

@@ -38,10 +38,10 @@ export const commands = {
 	undoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("undo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getGuiDocument: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiDocumentResult>("get_gui_document", { request }),
-	getSequenceEffectDetails: (request: GuiDocumentRequest, effectIds: number[]) => typedError<SequenceEffectDetailsResult, string>(__TAURI_INVOKE("get_sequence_effect_details", { request, effectIds })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,details:v.data.details.map(i=>({...i,params:i.params.map(i=>({...i,range:i.range==null?i.range:i.range}))}))}) } : v) as typeof v)),
+	getSequenceClipDetails: (request: GuiDocumentRequest, clipIds: number[]) => typedError<SequenceClipDetailsResult, string>(__TAURI_INVOKE("get_sequence_clip_details", { request, clipIds })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,details:v.data.details.map(i=>({...i,params:i.params.map(i=>({...i,range:i.range==null?i.range:i.range}))}))}) } : v) as typeof v)),
 	matchSequenceClips: (request: GuiDocumentRequest, query: SequenceClipMatchRequest) => typedError<SequenceSelection, string>(__TAURI_INVOKE("match_sequence_clips", { request, query: ({...query,params:query.params.map(i=>i)}) })),
 	sequenceExportOptions: (request: GuiDocumentRequest) => typedError<SequenceExportOptions, string>(__TAURI_INVOKE("sequence_export_options", { request })),
-	exportSequenceFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_sequence_file", { request, outputs })),
+	exportImageFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_image_file", { request, outputs })),
 	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
 	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, framesPerSecond: number, progress: Channel<VideoExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, framesPerSecond, progress })),
 	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),
@@ -111,7 +111,7 @@ export type AppSettings = {
 	sequenceSpectrogramFftSize?: number,
 	/**  Marks draw only in the Marks lane instead of also across the waveform and lanes. */
 	sequenceMarksLaneOnly?: boolean,
-	effectRaster: EffectRasterSettings,
+	clipRaster: ClipRasterSettings,
 	spatialSnap: SpatialSnapSettings,
 	/**  Commands whose keys differ from their defaults. */
 	keybindings?: KeyBinding[],
@@ -144,7 +144,7 @@ export type AppSnapshot = {
 
 export type AudioTransportSnapshot = {
 	state: AudioTransportState,
-	source: SequenceAudio | null,
+	audio: SequenceAudio | null,
 	generation: number,
 	positionSeconds: number,
 	startDelaySeconds: number,
@@ -160,10 +160,16 @@ export type AudioTransportState = "unloaded" | "playing" | "paused" | "stopped" 
 
 export type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
 
+export type ClipRasterSettings = {
+	maxColumns: number,
+	maxRows: number,
+	minFrameStride: number,
+};
+
 export type CommandId = AppCommandId | EditorCommandId;
 
 /**  Edits to the layers and composition graph that sequences and rigs share. */
-export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue };
+export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceParamValue };
 
 export type ControllerGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
@@ -298,12 +304,6 @@ export type EditorTab = {
 
 export type EditorViewMode = "text" | "gui";
 
-export type EffectRasterSettings = {
-	maxColumns: number,
-	maxRows: number,
-	minFrameStride: number,
-};
-
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
 
 export type FixtureGuiDocument = {
@@ -372,10 +372,10 @@ export type GuiDocumentChange =
 { type: "document"; document: GuiDocument } | 
 /**
  *  A sequence whose clips mostly did not change. `document` holds every
- *  field, but its `effects` only the changed and added clips; `effect_ids`
+ *  field, but its `clips` only the changed and added clips; `clip_ids`
  *  lists every clip in order.
  */
-{ type: "sequenceClips"; document: SequenceGuiDocument; effectIds: number[] };
+{ type: "sequenceClips"; document: SequenceGuiDocument; clipIds: number[] };
 
 /**
  *  An object a GUI editor opens: a declared object, or an object owned beneath
@@ -434,8 +434,6 @@ export type GuiFixtureHandle = {
 
 export type GuiFixtureShape = { type: "pixel" } | { type: "line"; length: number; count: number } | { type: "polyline"; points: Point3Meters[]; count: number } | { type: "arc"; radius: number; startDegrees: number; sweepDegrees: number; count: number; closed: boolean } | { type: "grid"; columns: number; rows: number; width: number; height: number; axis: GuiGridAxis; corner: GuiGridCorner; serpentine: boolean };
 
-export type GuiFixtureSource = { type: "inline"; elements: GuiFixtureElement[] } | { type: "reference"; source: GuiObjectRef };
-
 export type GuiGridAxis = "rows" | "columns";
 
 export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight";
@@ -484,7 +482,7 @@ export type GuiLayoutFixture = {
 	kind: GuiLayoutFixtureKind,
 };
 
-export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiFixtureSource; transform: Transform } | 
+export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiOwnedFixture; transform: Transform } | 
 /**  Members may belong to several groups. */
 { type: "group"; members: number[] };
 
@@ -496,7 +494,9 @@ export type GuiObjectRef = {
 	id: string,
 };
 
-export type GuiOwnershipEdit = { type: "useExisting"; source: GuiObjectRef } | { type: "makeIndependent" } | { type: "makeReusable"; name: string; storage: ReusableStorage };
+export type GuiOwnedFixture = { type: "inline"; elements: GuiFixtureElement[] } | { type: "reference"; object: GuiObjectRef };
+
+export type GuiOwnershipEdit = { type: "useExisting"; declaration: GuiObjectRef } | { type: "makeIndependent" } | { type: "makeReusable"; name: string; storage: ReusableStorage };
 
 export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
 
@@ -832,7 +832,7 @@ export type PreviewAppearance = {
 export type ProjectGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
-	availableSources: GuiObjectRef[],
+	availableDeclarations: GuiObjectRef[],
 	path: string,
 	objectKey: string,
 	setup: GuiObjectRef,
@@ -887,6 +887,27 @@ export type RigActionChoice =
  */
 { type: "trigger"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
 
+/**  A clip a rig plays: a clip without timing. */
+export type RigClip = {
+	layerId: number,
+	target: FixtureTarget,
+	targetLabel: string,
+	scope: SequenceClipScope,
+	effect: SequenceEffectReference,
+	effectName: string,
+	params: SequenceClipParam[],
+};
+
+export type RigClipEdit = { type: "layer"; layerId: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceClipScope } | 
+/**  Play another effect; its required parameters start from `initial_color`. */
+{ type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceParamValue };
+
+/**
+ *  A named item of a rig.
+ *  The clip of a voice or of a `Trigger` mapping.
+ */
+export type RigClipOwner = { type: "voice"; id: number } | { type: "trigger"; mappingId: number };
+
 export type RigControlRef = {
 	device: GuiObjectRef,
 	control: number,
@@ -896,27 +917,6 @@ export type RigControlRef = {
 export type RigControlTarget = { type: "voice"; voiceId: number } | 
 /**  Every voice of a `Trigger` mapping. */
 { type: "trigger"; mappingId: number };
-
-/**  An effect a rig plays: a clip without timing. */
-export type RigEffect = {
-	layerId: number,
-	target: FixtureTarget,
-	targetLabel: string,
-	scope: SequenceEffectScope,
-	effect: SequenceEffectReference,
-	effectName: string,
-	params: SequenceEffectParam[],
-};
-
-export type RigEffectEdit = { type: "layer"; layerId: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceEffectScope } | 
-/**  Play another effect; its required parameters start from `initial_color`. */
-{ type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceEffectParamValue };
-
-/**
- *  A named item of a rig.
- *  The effect of a voice or of a `Trigger` mapping.
- */
-export type RigEffectOwner = { type: "voice"; id: number } | { type: "trigger"; mappingId: number };
 
 export type RigGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::Description`. */
@@ -950,7 +950,7 @@ export type RigGuiDocument = {
 
 export type RigGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
 /**  The name becomes a unique `snake_case` name. */
-{ type: "addLiveMarks"; name: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigControlRef } | { type: "addMapping"; input: RigControlRef; action: RigActionChoice } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy } | { type: "setTriggerValues"; mappingId: number; values: RigPlayedValue[] };
+{ type: "addLiveMarks"; name: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigControlRef } | { type: "addMapping"; input: RigControlRef; action: RigActionChoice } | { type: "editClip"; owner: RigClipOwner; edit: RigClipEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy } | { type: "setTriggerValues"; mappingId: number; values: RigPlayedValue[] };
 
 /**  A control a switch or mapping reads, with the names the rig's text uses. */
 export type RigInput = {
@@ -972,7 +972,7 @@ export type RigInputDevice = {
 	buttons: RigInputControl[],
 	/**  Dials only drive `Control` mappings. */
 	dials: RigInputControl[],
-	/**  Keys only trigger effects and add marks. */
+	/**  Keys only trigger clips and add marks. */
 	keys: RigInputControl[],
 };
 
@@ -993,9 +993,9 @@ export type RigMapping = {
 	action: RigMappingAction,
 };
 
-export type RigMappingAction = { type: "trigger"; effect: RigEffect; length: RigTriggerLength; voices: RigVoicePolicy; values: RigPlayedValue[] } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
+export type RigMappingAction = { type: "trigger"; clip: RigClip; length: RigTriggerLength; voices: RigVoicePolicy; values: RigPlayedValue[] } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
 
-export type RigPlayedSource = 
+export type RigPlayedQuantity = 
 /**  How hard the note was struck; a computer key or pedal plays at 1. */
 "velocity" | 
 /**  The note's place in its key range. */
@@ -1008,7 +1008,7 @@ export type RigPlayedSource =
 /**  A parameter each press of a trigger sets on the voice it starts. */
 export type RigPlayedValue = {
 	param: string,
-	from: RigPlayedSource,
+	from: RigPlayedQuantity,
 };
 
 export type RigSwitch = {
@@ -1024,7 +1024,7 @@ export type RigVoice = {
 	id: number,
 	name: string,
 	description: string | null,
-	effect: RigEffect,
+	clip: RigClip,
 };
 
 export type RigVoicePolicy = { type: "retrigger" } | { type: "stack"; count: number } | { type: "mono" };
@@ -1071,7 +1071,7 @@ export type SequenceAutomationResize =
 /**  The content scales with the clip. */
 "stretch";
 
-export type SequenceAutomationTarget = { type: "effectParam"; effectId: number; param: string } | { type: "compositionNodeParam"; nodeId: string; param: string };
+export type SequenceAutomationTarget = { type: "clipParam"; clipId: number; param: string } | { type: "compositionNodeParam"; nodeId: string; param: string };
 
 /**  Beats and downbeats detected in a sequence's audio, in ascending seconds. */
 export type SequenceBeatDetection = {
@@ -1079,10 +1079,25 @@ export type SequenceBeatDetection = {
 	downbeatsSeconds: number[],
 };
 
+export type SequenceClip = {
+	index: number,
+	id: number,
+	/**  The clip's name, which automation bindings use. */
+	name: string,
+	description: string | null,
+	layerId: number,
+	startSeconds: number,
+	durationSeconds: number,
+	target: FixtureTarget,
+	targetLabel: string,
+	scope: SequenceClipScope,
+	effect: string,
+};
+
 /**
  *  How "Align" and "Arrange" retime selected clips. A reference clip keeps
  *  its timing; resized automation clips crop their curves. A row is one lane's
- *  effects or one lane's automation clips.
+ *  clips or one lane's automation clips.
  */
 export type SequenceClipArrangement = 
 /**  Starts move to the reference's start; ends stay. */
@@ -1133,9 +1148,26 @@ export type SequenceClipArrangement =
 /**  Clips keep their start and take the average length. */
 { type: "equalizeDurations" };
 
+export type SequenceClipCommonEdit = { type: "layer"; layerId: number } | { type: "scope"; scope: SequenceClipScope } | { type: "start"; startSeconds: number } | { type: "duration"; durationSeconds: number } | { type: "param"; name: string; value: SequenceParamValue };
+
+/**
+ *  What the inspector edits on one clip, fetched for the selected clips only:
+ *  a sequence document carries every clip's summary but no parameters.
+ */
+export type SequenceClipDetails = {
+	id: number,
+	effectReference: SequenceEffectReference,
+	params: SequenceClipParam[],
+};
+
+export type SequenceClipDetailsResult = {
+	projectRevision: number,
+	details: SequenceClipDetails[],
+};
+
 /**
  *  Which properties "Select Matching" compares between each seed clip and the
- *  other clips. Effect type applies only between effects.
+ *  other clips. Effect type applies only between clips.
  */
 export type SequenceClipMatch = {
 	effectType: boolean,
@@ -1148,13 +1180,26 @@ export type SequenceClipMatch = {
 
 /**
  *  "Select Matching": the clips matching any seed clip under `criteria` and
- *  every `params` entry the seed effect has.
+ *  every `params` entry the seed clip has.
  */
 export type SequenceClipMatchRequest = {
 	/**  The seed clips. */
 	clips: SequenceClipRef[],
 	criteria: SequenceClipMatch,
 	params: SequenceClipParamMatch[],
+};
+
+export type SequenceClipParam = {
+	supportsAutomation: boolean,
+	name: string,
+	/**  The script's description of the parameter. */
+	description: string | null,
+	kind: SequenceParamKind,
+	options: string[],
+	range: SequenceParamRange | null,
+	editable: boolean,
+	value: SequenceParamValue,
+	automation: SequenceParamAutomation | null,
 };
 
 /**
@@ -1172,7 +1217,7 @@ export type SequenceClipParamMatch = {
  *  the clip's on-screen size.
  */
 export type SequenceClipRaster = {
-	effectId: number,
+	clipId: number,
 	/**  Changes whenever the clip's raster is rendered again. */
 	revision: number,
 	columns: number,
@@ -1181,7 +1226,7 @@ export type SequenceClipRaster = {
 };
 
 export type SequenceClipRasterError = {
-	effectId: number,
+	clipId: number,
 	revision: number,
 	message: string,
 };
@@ -1191,7 +1236,7 @@ export type SequenceClipRasterError = {
  *  Every clip of the sequence gets a raster; visible clips render first.
  */
 export type SequenceClipRasterRequest = {
-	visibleEffectIds: number[],
+	visibleClipIds: number[],
 } & GuiDocumentRequest;
 
 export type SequenceClipRasterResponse = {
@@ -1208,8 +1253,10 @@ export type SequenceClipRasterResultBatch = {
 	pending: number,
 };
 
-/**  One clip of a sequence, effect or automation. */
-export type SequenceClipRef = { type: "effect"; id: number } | { type: "automation"; id: number };
+/**  A clip or an automation clip of a sequence. */
+export type SequenceClipRef = { type: "clip"; id: number } | { type: "automation"; id: number };
+
+export type SequenceClipScope = "perFixture" | "wholeTarget";
 
 /**  A time property matches within `tolerance_seconds` of the seed's. */
 export type SequenceClipTimeMatch = {
@@ -1238,29 +1285,12 @@ export type SequenceCurvePoint = {
 
 export type SequenceCurveValue = {
 	points: SequenceCurvePoint[],
-	source: SequenceLibrarySource,
+	link: SequenceLibraryLink,
 };
 
 export type SequenceDetachedAutomationBinding = {
 	target: SequenceAutomationTarget,
 };
-
-export type SequenceEffect = {
-	index: number,
-	id: number,
-	/**  The clip's name, which automation bindings use. */
-	name: string,
-	description: string | null,
-	layerId: number,
-	startSeconds: number,
-	durationSeconds: number,
-	target: FixtureTarget,
-	targetLabel: string,
-	scope: SequenceEffectScope,
-	effect: string,
-};
-
-export type SequenceEffectCommonEdit = { type: "layer"; layerId: number } | { type: "scope"; scope: SequenceEffectScope } | { type: "start"; startSeconds: number } | { type: "duration"; durationSeconds: number } | { type: "param"; name: string; value: SequenceEffectParamValue };
 
 export type SequenceEffectDefinition = {
 	name: string,
@@ -1276,49 +1306,13 @@ export type SequenceEffectDefinitionParam = {
 	name: string,
 	/**  The script's description of the parameter. */
 	description: string | null,
-	kind: SequenceEffectParamKind,
+	kind: SequenceParamKind,
 };
-
-/**
- *  What the inspector edits on one clip, fetched for the selected clips only:
- *  a sequence document carries every clip's summary but no parameters.
- */
-export type SequenceEffectDetails = {
-	id: number,
-	effectReference: SequenceEffectReference,
-	params: SequenceEffectParam[],
-};
-
-export type SequenceEffectDetailsResult = {
-	projectRevision: number,
-	details: SequenceEffectDetails[],
-};
-
-export type SequenceEffectParam = {
-	supportsAutomation: boolean,
-	name: string,
-	/**  The script's description of the parameter. */
-	description: string | null,
-	kind: SequenceEffectParamKind,
-	options: string[],
-	range: SequenceParamRange | null,
-	editable: boolean,
-	value: SequenceEffectParamValue,
-	automation: SequenceParamAutomation | null,
-};
-
-export type SequenceEffectParamKind = "int" | "float" | "bool" | "color" | "enum" | "curve" | "gradient" | "intArray" | "floatArray" | "boolArray" | "colorArray" | "curveArray" | "gradientArray" | "marks";
-
-export type SequenceEffectParamValue = { type: "int"; value: number } | { type: "float"; value: number } | { type: "bool"; value: boolean } | { type: "color"; value: string } | { type: "enum"; value: string } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | { type: "intArray"; values: number[] } | { type: "floatArray"; values: number[] } | { type: "boolArray"; values: boolean[] } | { type: "colorArray"; values: string[] } | { type: "curveArray"; values: SequenceCurveValue[] } | { type: "gradientArray"; values: SequenceGradientValue[] } | 
-/**  `None` is no collection: the parameter has no marks. */
-{ type: "marks"; key: string | null };
 
 export type SequenceEffectReference = {
 	path: string,
 	effectName: string,
 };
-
-export type SequenceEffectScope = "perFixture" | "wholeTarget";
 
 export type SequenceExportOptions = {
 	ports: SequenceExportPort[],
@@ -1355,7 +1349,7 @@ export type SequenceGradientStop = {
 
 export type SequenceGradientValue = {
 	stops: SequenceGradientStop[],
-	source: SequenceLibrarySource,
+	link: SequenceLibraryLink,
 };
 
 export type SequenceGraphEdge = {
@@ -1376,7 +1370,7 @@ export type SequenceGraphNode = {
 
 export type SequenceGraphNodeKind = { type: "layer"; layerId: number; layerName: string; layerColor: string; enabled: boolean } | { type: "operator"; 
 /**  The node's name, which edges and automation bindings use. */
-name: string; operator: SequenceGraphOperator; params: SequenceEffectParam[] } | { type: "output" };
+name: string; operator: SequenceGraphOperator; params: SequenceClipParam[] } | { type: "root" };
 
 export type SequenceGraphNodePosition = {
 	nodeId: string,
@@ -1420,18 +1414,18 @@ export type SequenceGuiDocument = {
 	curveLibrary: SequenceCurveLibraryItem[],
 	gradientLibrary: SequenceGradientLibraryItem[],
 	layers: SequenceLayer[],
-	effects: SequenceEffect[],
+	clips: SequenceClip[],
 	compositionGraph: SequenceCompositionGraph,
 	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } | { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | 
+export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } | { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addClip"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceClipScope; startSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | 
 /**
  *  Cut each clip at `time_seconds` into two back-to-back clips. The right
  *  half shares the left half's automation, so automation continues across
  *  the cut.
  */
-{ type: "splitEffects"; ids: number[]; timeSeconds: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
+{ type: "splitClips"; ids: number[]; timeSeconds: number } | { type: "retargetClip"; id: number; target: FixtureTarget } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "bindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; automationClipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; automationClipId: number; detachedIndex: number } | 
 /**
  *  Each name becomes a unique `snake_case` name; the edit reports the
  *  names made, in order.
@@ -1448,8 +1442,8 @@ export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } 
  *  target nearest this one.
  */
 anchorLane: number; laneDelta: number } | { type: "resizeClips"; clips: SequenceClipRef[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | 
-/**  Set a property of effect clips. */
-{ type: "editEffects"; clips: SequenceClipRef[]; edit: SequenceEffectCommonEdit } | 
+/**  Set a property of clips. */
+{ type: "editClips"; clips: SequenceClipRef[]; edit: SequenceClipCommonEdit } | 
 /**  Retime the clips together; the selection stays the same. */
 { type: "arrangeClips"; clips: SequenceClipRef[]; arrangement: SequenceClipArrangement } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
 
@@ -1480,10 +1474,10 @@ export type SequenceLayer = {
 	isDefault: boolean,
 };
 
-export type SequenceLibrarySource = { type: "inline" } | { type: "library"; path: string; objectKey: string; displayName: string };
+export type SequenceLibraryLink = { type: "inline" } | { type: "library"; path: string; objectKey: string; displayName: string };
 
 export type SequenceMarkCollection = {
-	/**  The collection's name, which effect parameters use. */
+	/**  The collection's name, which clip parameters use. */
 	key: string,
 	description: string | null,
 	color: string,
@@ -1498,14 +1492,20 @@ export type SequenceMarkRef = {
 };
 
 export type SequenceParamAutomation = {
-	clipId: number,
+	automationClipId: number,
 };
+
+export type SequenceParamKind = "int" | "float" | "bool" | "color" | "enum" | "curve" | "gradient" | "intArray" | "floatArray" | "boolArray" | "colorArray" | "curveArray" | "gradientArray" | "marks";
 
 /**  Inclusive declared range of an `int`, `float`, or `curve` param. */
 export type SequenceParamRange = {
 	min: number,
 	max: number,
 };
+
+export type SequenceParamValue = { type: "int"; value: number } | { type: "float"; value: number } | { type: "bool"; value: boolean } | { type: "color"; value: string } | { type: "enum"; value: string } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | { type: "intArray"; values: number[] } | { type: "floatArray"; values: number[] } | { type: "boolArray"; values: boolean[] } | { type: "colorArray"; values: string[] } | { type: "curveArray"; values: SequenceCurveValue[] } | { type: "gradientArray"; values: SequenceGradientValue[] } | 
+/**  `None` is no collection: the parameter has no marks. */
+{ type: "marks"; key: string | null };
 
 export type SequencePasteAnchor = {
 	/**  The timeline lane to paste at; a target may have several lanes. */
@@ -1524,7 +1524,7 @@ export type SetupController = {
 	ports: SetupControllerPort[],
 };
 
-export type SetupControllerConfig = { type: "e131"; sourceName: string; bindAddress: string; priority: number; destination: string | null } | { type: "artNet"; bindAddress: string; destination: string; broadcast: boolean } | { type: "donder"; device: string };
+export type SetupControllerConfig = { type: "e131"; senderName: string; bindAddress: string; priority: number; destination: string | null } | { type: "artNet"; bindAddress: string; destination: string; broadcast: boolean } | { type: "donder"; device: string };
 
 export type SetupControllerPort = {
 	id: number,
@@ -1537,7 +1537,7 @@ export type SetupControllerPort = {
 export type SetupGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
-	availableSources: GuiObjectRef[],
+	availableDeclarations: GuiObjectRef[],
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,

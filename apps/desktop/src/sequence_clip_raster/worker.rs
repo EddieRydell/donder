@@ -1,7 +1,7 @@
-use super::render::{RasterRenderFailure, RenderedRaster, render_effect_raster};
-use donder_editor::dto::EffectRasterSettings;
-use donder_elaboration::{PreparationCache, PrepareOutputs, prepare_cached};
-use donder_model::{EffectInst, SequenceId};
+use super::render::{RasterRenderFailure, RenderedRaster, render_clip_raster};
+use donder_editor::dto::ClipRasterSettings;
+use donder_elaboration::{PreparationCache, Retain, prepare_cached};
+use donder_model::{Clip, SequenceId};
 use donder_project_io::ProjectSession;
 use donder_runtime::PreparedShow;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,15 +14,15 @@ pub(super) struct RasterJob {
     generation: u64,
     project: Arc<ProjectSession>,
     sequence_id: SequenceId,
-    settings: EffectRasterSettings,
-    clips: Vec<(u32, Arc<EffectInst>)>,
+    settings: ClipRasterSettings,
+    clips: Vec<(u32, Arc<Clip>)>,
 }
 
 /// A finished clip. `clip` is the allocation it was rendered from, so the
 /// service can tell whether the clip changed while it rendered.
 pub(super) struct RasterOutcome {
-    pub(super) effect_id: u32,
-    pub(super) clip: Arc<EffectInst>,
+    pub(super) clip_id: u32,
+    pub(super) clip: Arc<Clip>,
     pub(super) result: Result<RenderedRaster, String>,
 }
 
@@ -53,8 +53,8 @@ impl RasterWorker {
         &self,
         project: Arc<ProjectSession>,
         sequence_id: SequenceId,
-        settings: EffectRasterSettings,
-        clips: Vec<(u32, Arc<EffectInst>)>,
+        settings: ClipRasterSettings,
+        clips: Vec<(u32, Arc<Clip>)>,
     ) {
         let generation = self.latest.fetch_add(1, Ordering::Relaxed) + 1;
         // A closed channel means the worker thread is gone; nothing renders.
@@ -98,7 +98,7 @@ fn run(
             let sequence = prepare_cached(
                 &job.project.project,
                 &job.sequence_id,
-                PrepareOutputs::All,
+                Retain::All,
                 &mut preparation,
             );
             prepared = Some((Arc::clone(&job.project), job.sequence_id, sequence));
@@ -106,18 +106,18 @@ fn run(
         let Some((_, _, Some(sequence))) = &prepared else {
             continue;
         };
-        for (effect_id, clip) in job.clips.drain(..) {
+        for (clip_id, clip) in job.clips.drain(..) {
             if !current() {
                 break;
             }
-            let result = match render_effect_raster(sequence, effect_id, &job.settings, &current) {
+            let result = match render_clip_raster(sequence, clip_id, &job.settings, &current) {
                 Ok(raster) => Ok(raster),
                 Err(RasterRenderFailure::Cancelled) => break,
                 Err(RasterRenderFailure::Error(message)) => Err(message),
             };
             if results
                 .send(RasterOutcome {
-                    effect_id,
+                    clip_id,
                     clip,
                     result,
                 })

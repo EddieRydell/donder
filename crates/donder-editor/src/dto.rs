@@ -24,19 +24,17 @@ pub use diagnostics::{Rotation3Degrees, Scale3};
 pub use donder_project_io::{IoDiagnostic, TextPosition, TextRange};
 pub use live::{
     GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits,
-    InputDeviceGuiDocument, ProjectGuiEdit, RigActionChoice, RigControlRef, RigControlTarget,
-    RigEffect, RigEffectEdit, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput,
-    RigInputControl, RigInputDevice, RigLiveMarks, RigMapping, RigMappingAction, RigPlayedSource,
-    RigPlayedValue, RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen,
-    SetupInputDevice,
+    InputDeviceGuiDocument, ProjectGuiEdit, RigActionChoice, RigClip, RigClipEdit, RigClipOwner,
+    RigControlRef, RigControlTarget, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl,
+    RigInputDevice, RigLiveMarks, RigMapping, RigMappingAction, RigPlayedQuantity, RigPlayedValue,
+    RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SetupInputDevice,
 };
 pub use output::{
-    ControllerOutputTest, DeviceCapabilities, DeviceFirmwareInfo, DeviceInstallProgress,
-    DeviceOutputCapabilities, DevicePlaybackMode, DevicePlaybackStatus, DeviceSerialPort,
-    DeviceTransportStatus, DonderDeviceClaim, DonderDeviceConnection, DonderDeviceNetwork,
-    DonderDeviceNetworkRequest, DonderDeviceStatus, LiveOutputControllerSnapshot,
-    LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState, Point3Meters,
-    SequenceExportOptions, SequenceExportPort, VideoExportProgress,
+    ControllerOutputTest, DeviceFirmwareInfo, DeviceInstallProgress, DeviceSerialPort,
+    DonderDeviceClaim, DonderDeviceConnection, DonderDeviceNetwork, DonderDeviceNetworkRequest,
+    DonderDeviceStatus, LiveOutputControllerSnapshot, LiveOutputControllerState,
+    LiveOutputSnapshot, LiveOutputState, Point3Meters, SequenceExportOptions, SequenceExportPort,
+    VideoExportProgress,
 };
 pub use patch::{
     GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,
@@ -48,20 +46,20 @@ pub use perform::{
 };
 pub use preview::{
     FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,
-    GuiFixtureHandle, GuiFixtureShape, GuiFixtureSource, GuiGridAxis, GuiGridCorner,
-    GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance,
+    GuiFixtureHandle, GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiLayoutFixture,
+    GuiLayoutFixtureKind, GuiOwnedFixture, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance,
     SpatialRenderPixel, SpatialRenderPlan,
 };
 pub use sequence::{
-    SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip, SequenceClipMatchRequest,
+    SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip, SequenceClip,
+    SequenceClipDetails, SequenceClipDetailsResult, SequenceClipMatchRequest, SequenceClipParam,
     SequenceClipParamMatch, SequenceClipRaster, SequenceClipRasterError, SequenceClipRasterRequest,
     SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceCompositionGraph,
-    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffect,
-    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectDetails,
-    SequenceEffectDetailsResult, SequenceEffectParam, SequenceGradientLibraryItem,
-    SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperatorDefinition,
-    SequenceGraphPortDefinition, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
-    SequenceLayer, SequenceMarkCollection, SequenceParamAutomation, SequenceParamRange,
+    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffectDefinition,
+    SequenceEffectDefinitionParam, SequenceGradientLibraryItem, SequenceGraphNode,
+    SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGraphPortDefinition,
+    SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection,
+    SequenceParamAutomation, SequenceParamRange,
 };
 pub use setup::{
     BufferExternalState, ControllerGuiDocument, CurveGuiDocument, GradientGuiDocument, GuiDocument,
@@ -83,8 +81,8 @@ pub use view_state::{
     SpatialGuideAxis, ViewStateUpdate,
 };
 pub use workspace::{
-    AppCommandId, AppSettings, CommandId, DocumentDescriptor, DocumentObjectDescriptor,
-    EditorBuffer, EditorCommandId, EditorTab, EditorViewMode, EffectRasterSettings, KeyBinding,
+    AppCommandId, AppSettings, ClipRasterSettings, CommandId, DocumentDescriptor,
+    DocumentObjectDescriptor, EditorBuffer, EditorCommandId, EditorTab, EditorViewMode, KeyBinding,
     NewSequenceRequest, NewSequenceResult, NewSequenceStorage, ObjectKind, ProjectSearchMatch,
     ProjectSearchMatchKind, ProjectSearchRequest, ProjectSearchResponse, SequenceClipMatch,
     SequenceClipTimeMatch, SequenceFollowMode, SequenceInitialZoomMode, Shortcut, SidebarView,
@@ -104,7 +102,7 @@ pub use workspace::{
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceAutomationTarget {
-    EffectParam { effect_id: u32, param: String },
+    ClipParam { clip_id: u32, param: String },
     CompositionNodeParam { node_id: String, param: String },
 }
 
@@ -125,11 +123,11 @@ pub enum SequenceGuiEdit {
         #[serde(rename = "import")]
         import_path: Option<String>,
     },
-    AddEffect {
+    AddClip {
         initial_color: String,
         effect: SequenceEffectReference,
         target: FixtureTarget,
-        scope: SequenceEffectScope,
+        scope: SequenceClipScope,
         start_seconds: f64,
     },
     ChangeEffectDefinition {
@@ -140,11 +138,11 @@ pub enum SequenceGuiEdit {
     /// Cut each clip at `time_seconds` into two back-to-back clips. The right
     /// half shares the left half's automation, so automation continues across
     /// the cut.
-    SplitEffects {
+    SplitClips {
         ids: Vec<u32>,
         time_seconds: f64,
     },
-    RetargetEffect {
+    RetargetClip {
         id: u32,
         target: FixtureTarget,
     },
@@ -165,20 +163,20 @@ pub enum SequenceGuiEdit {
         curve: Vec<SequenceCurvePoint>,
     },
     BindAutomationParam {
-        clip_id: u32,
+        automation_clip_id: u32,
         target: SequenceAutomationTarget,
     },
     UnbindAutomationParam {
-        clip_id: u32,
+        automation_clip_id: u32,
         target: SequenceAutomationTarget,
     },
     RebindDetachedAutomation {
-        clip_id: u32,
+        automation_clip_id: u32,
         detached_index: u32,
         target: SequenceAutomationTarget,
     },
     DiscardDetachedAutomation {
-        clip_id: u32,
+        automation_clip_id: u32,
         detached_index: u32,
     },
     /// Each name becomes a unique `snake_case` name; the edit reports the
@@ -226,10 +224,10 @@ pub enum SequenceGuiEdit {
         automation: SequenceAutomationResize,
         time_delta_seconds: f64,
     },
-    /// Set a property of effect clips.
-    EditEffects {
+    /// Set a property of clips.
+    EditClips {
         clips: Vec<SequenceClipRef>,
-        edit: SequenceEffectCommonEdit,
+        edit: SequenceClipCommonEdit,
     },
     /// Retime the clips together; the selection stays the same.
     ArrangeClips {
@@ -292,7 +290,7 @@ pub enum CompositionGuiEdit {
     UpdateGraphOperatorParam {
         node_id: String,
         name: String,
-        value: SequenceEffectParamValue,
+        value: SequenceParamValue,
     },
 }
 
@@ -336,12 +334,12 @@ pub enum SequenceSelection {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum SequenceEffectCommonEdit {
+pub enum SequenceClipCommonEdit {
     Layer {
         layer_id: u32,
     },
     Scope {
-        scope: SequenceEffectScope,
+        scope: SequenceClipScope,
     },
     Start {
         start_seconds: f64,
@@ -351,11 +349,11 @@ pub enum SequenceEffectCommonEdit {
     },
     Param {
         name: String,
-        value: SequenceEffectParamValue,
+        value: SequenceParamValue,
     },
 }
 
-/// One clip of a sequence, effect or automation.
+/// A clip or an automation clip of a sequence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -363,13 +361,13 @@ pub enum SequenceEffectCommonEdit {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceClipRef {
-    Effect { id: u32 },
+    Clip { id: u32 },
     Automation { id: u32 },
 }
 
 /// How "Align" and "Arrange" retime selected clips. A reference clip keeps
 /// its timing; resized automation clips crop their curves. A row is one lane's
-/// effects or one lane's automation clips.
+/// clips or one lane's automation clips.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -422,7 +420,7 @@ pub enum SequenceClipArrangement {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum SequenceEffectParamValue {
+pub enum SequenceParamValue {
     Int {
         value: f32,
     },
@@ -472,14 +470,14 @@ pub enum SequenceEffectParamValue {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceCurveValue {
     pub points: Vec<SequenceCurvePoint>,
-    pub source: SequenceLibrarySource,
+    pub link: SequenceLibraryLink,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGradientValue {
     pub stops: Vec<SequenceGradientStop>,
-    pub source: SequenceLibrarySource,
+    pub link: SequenceLibraryLink,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
@@ -488,7 +486,7 @@ pub struct SequenceGradientValue {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum SequenceLibrarySource {
+pub enum SequenceLibraryLink {
     Inline,
     Library {
         path: String,
@@ -523,7 +521,7 @@ pub struct SequenceGraphEdge {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum SequenceEffectParamKind {
+pub enum SequenceParamKind {
     Int,
     Float,
     Bool,
@@ -542,7 +540,7 @@ pub enum SequenceEffectParamKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum SequenceEffectScope {
+pub enum SequenceClipScope {
     PerFixture,
     WholeTarget,
 }

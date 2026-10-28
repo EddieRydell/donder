@@ -3,7 +3,7 @@ use crate::common;
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
-    CompositionProblem, EditError, EffectProblem, ParamProblem, ProjectValidationError,
+    ClipProblem, CompositionProblem, EditError, ParamProblem, ProjectValidationError,
     RegionProblem, SequenceValidationError, TimingProblem, ValidationProblem,
 };
 use donder_project_io::{
@@ -28,7 +28,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
         .project
         .reusable::<donder_model::Sequence>()
         .values()
-        .find(|sequence| !sequence.effects.is_empty())
+        .find(|sequence| !sequence.clips.is_empty())
         .unwrap()
         .clone();
     sequence.frame_rate = 1;
@@ -43,7 +43,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
     );
 
     sequence.duration = DonderDuration(Duration::from_micros(u32::MAX as u64));
-    let effect = std::sync::Arc::make_mut(&mut sequence.effects[0]);
+    let effect = std::sync::Arc::make_mut(&mut sequence.clips[0]);
     effect.start = DonderTime(Duration::from_nanos(500));
     effect.duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
     let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
@@ -51,7 +51,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
         matches!(
             error,
             SequenceValidationError::Clip {
-                problem: EffectProblem::Region(RegionProblem::EndBeyondAfterRounding),
+                problem: ClipProblem::Region(RegionProblem::EndBeyondAfterRounding),
                 ..
             }
         ),
@@ -139,8 +139,8 @@ fn edited_operator_parameters_validate_inline_resources() {
     use donder_model::{
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, GraphNodePosition,
     };
-    use donder_model::{EffectParamValue, GradientSource};
     use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
+    use donder_model::{OwnedGradient, ParamValue};
     use donder_runtime_types::Identifier;
     use donder_runtime_types::{Color, Gradient, GradientStop};
 
@@ -175,7 +175,7 @@ fn edited_operator_parameters_validate_inline_resources() {
     };
     operator.params.insert(
         Identifier::new("colors".into()).unwrap(),
-        EffectParamValue::Gradient(GradientSource::Inline(Gradient {
+        ParamValue::Gradient(OwnedGradient::Inline(Gradient {
             stops: vec![GradientStop {
                 position: f32::NAN,
                 color: Color::BLACK,

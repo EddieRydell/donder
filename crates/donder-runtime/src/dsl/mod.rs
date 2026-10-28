@@ -4,7 +4,6 @@ mod vm;
 #[cfg(feature = "host")]
 pub(crate) use vm::NoSignals;
 pub(crate) use vm::{
-    Bound, Invocation, OUTSIDE, Override, Pixels, RunContext, STRIP, ScanQuery, Scratch,
-    SourceWeights, Strip, StripSignals, StripSlots, StripWorkspace, invocation_params,
-    scratch_shape, set_value,
+    Bound, NeighborWeights, OUTSIDE, Override, ParamsRef, Pixels, RunContext, STRIP, ScanQuery,
+    Scratch, Strip, StripSignals, StripSlots, StripWorkspace, params_at, scratch_shape, set_value,
 };

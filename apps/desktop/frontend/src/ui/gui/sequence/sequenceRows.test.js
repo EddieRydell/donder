@@ -26,7 +26,7 @@ const heights = () => layout.restoreRowHeights(lanes, undefined, mainHeight);
 
 test("each target retains exactly two logical rows and hidden automation heights survive history and restart", () => {
   const sizes = heights();
-  sizes[10].effects = THEME_METRICS.sequenceMaxLaneHeight;
+  sizes[10].clips = THEME_METRICS.sequenceMaxLaneHeight;
   sizes[10].automation = THEME_METRICS.sequenceMinLaneHeight;
   const persisted = layout.persistRowHeights(sizes);
   const reordered = [lanes[1], lanes[0], lanes[2]];
@@ -58,27 +58,27 @@ test("multiple automation clips share one target row and draft movement does not
 });
 
 test("mixed selections preserve both row kinds and move or resize with one constrained delta", () => {
-  const effect = { id: 1, target: { fixture: 10 }, startSeconds: 1, durationSeconds: 4 };
+  const placed = { id: 1, target: { fixture: 10 }, startSeconds: 1, durationSeconds: 4 };
   const automation = clip(9, 20);
-  const document = { durationSeconds: 30, lanes, effects: [effect], automationClips: [automation], markCollections: [] };
-  let selected = selection.nextEffectSelection(null, effect.id, false, false);
+  const document = { durationSeconds: 30, lanes, clips: [placed], automationClips: [automation], markCollections: [] };
+  let selected = selection.nextClipSelection(null, placed.id, false, false);
   selected = selection.nextAutomationSelection(selected, automation.id, true, false);
-  assert.deepEqual(selected, { type: "clips", clips: [{ type: "effect", id: 1 }, { type: "automation", id: 9 }] });
-  assert.deepEqual(selection.nextEffectSelection(selected, 1, true, false), selected);
+  assert.deepEqual(selected, { type: "clips", clips: [{ type: "clip", id: 1 }, { type: "automation", id: 9 }] });
+  assert.deepEqual(selection.nextClipSelection(selected, 1, true, false), selected);
   const move = selection.clipSelectionGesture(document, selected, "none", 3, 0, 9);
   assert.equal(move.edit.laneDelta, 1);
   assert.equal(move.edit.anchorLane, 0);
-  assert.equal(move.effects[0].laneIndex, 1);
+  assert.equal(move.clips[0].laneIndex, 1);
   assert.equal(move.automation[0].rowTarget.fixture, 30);
-  assert.equal(move.effects[0].startSeconds, 4);
+  assert.equal(move.clips[0].startSeconds, 4);
   assert.equal(move.automation[0].startSeconds, 5);
   const resize = selection.clipSelectionGesture(document, selected, "right", 2, 0, 1);
-  assert.equal(resize.effects[0].durationSeconds, 6);
+  assert.equal(resize.clips[0].durationSeconds, 6);
   assert.equal(resize.automation[0].durationSeconds, 5);
   assert.equal(resize.automation[0].rowTarget.fixture, 20);
-  const surviving = selection.reconcileSequenceSelection({ ...document, effects: [] }, selected);
+  const surviving = selection.reconcileSequenceSelection({ ...document, clips: [] }, selected);
   assert.deepEqual(surviving, { type: "clips", clips: [{ type: "automation", id: 9 }] });
-  assert.equal(selection.reconcileSequenceSelection({ ...document, effects: [], automationClips: [] }, selected), null);
+  assert.equal(selection.reconcileSequenceSelection({ ...document, clips: [], automationClips: [] }, selected), null);
   assert.deepEqual(selection.selectionFromSingle({ type: "automationClip", id: 9 }), { type: "clips", clips: [{ type: "automation", id: 9 }] });
 });
 
@@ -91,21 +91,21 @@ test("a target shared by two groups draws its clips on both lanes and moves from
     { target: { fixture: 2 }, label: "2", kind: "group", depth: 0, occurrences: 1 },
     { target: { fixture: 10 }, label: "10", kind: "fixture", depth: 1, occurrences: 2 }
   ];
-  const effect = { id: 1, target: { fixture: 10 }, startSeconds: 1, durationSeconds: 4 };
-  const document = { durationSeconds: 30, lanes: shared, effects: [effect], automationClips: [], markCollections: [] };
+  const placed = { id: 1, target: { fixture: 10 }, startSeconds: 1, durationSeconds: 4 };
+  const document = { durationSeconds: 30, lanes: shared, clips: [placed], automationClips: [], markCollections: [] };
   const sizes = layout.restoreRowHeights(shared, undefined, mainHeight);
   const rows = layout.sequenceRowLayout(shared, [], sizes, mainHeight, automationHeight, false);
   const viewport = { scrollXSeconds: 0, scrollY: 0, pxPerSecond: THEME_METRICS.sequenceInitialPixelsPerSecond };
   const drawn = selection.buildSequenceClipLayout(document, [], viewport, 0, 0, { width: THEME_METRICS.sequenceMaxLaneHeight, height: THEME_METRICS.sequenceMaxLaneHeight }, rows);
   assert.deepEqual(drawn.map((clip) => clip.laneIndex).sort(), [1, 4]);
-  const both = selection.selectionFromMarqueeEffects(drawn, [], { startX: 0, startY: 0, x: 10000, y: 10000 });
-  assert.deepEqual(both.clips, [{ type: "effect", id: 1 }]);
-  const selected = { type: "clips", clips: [{ type: "effect", id: 1 }] };
+  const both = selection.selectionFromMarqueeClips(drawn, [], { startX: 0, startY: 0, x: 10000, y: 10000 });
+  assert.deepEqual(both.clips, [{ type: "clip", id: 1 }]);
+  const selected = { type: "clips", clips: [{ type: "clip", id: 1 }] };
   // Moving up from the second copy reaches group 2, not group 1.
   const up = selection.clipSelectionGesture(document, selected, "none", 0, 4, -1);
-  assert.equal(up.effects[0].laneIndex, 3);
+  assert.equal(up.clips[0].laneIndex, 3);
   assert.equal(up.edit.anchorLane, 4);
-  const draft = selection.buildSequenceClipLayout(document, up.effects, viewport, 0, 0, { width: THEME_METRICS.sequenceMaxLaneHeight, height: THEME_METRICS.sequenceMaxLaneHeight }, rows);
+  const draft = selection.buildSequenceClipLayout(document, up.clips, viewport, 0, 0, { width: THEME_METRICS.sequenceMaxLaneHeight, height: THEME_METRICS.sequenceMaxLaneHeight }, rows);
   assert.deepEqual(draft.map((clip) => clip.laneIndex), [3]);
   // Collapsing a group hides only the lanes under that copy.
   assert.deepEqual([...layout.collapsedLanes(shared, new Set([2]))], [4]);

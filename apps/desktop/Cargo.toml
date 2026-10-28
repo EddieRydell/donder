@@ -20,6 +20,7 @@ donder-model.workspace = true
 donder-runtime-types.workspace = true
 donder-output.workspace = true
 donder-audio-analysis.workspace = true
+donder-device-protocol.workspace = true
 fdk-aac.workspace = true
 openh264.workspace = true
 shiguredo_mp4.workspace = true

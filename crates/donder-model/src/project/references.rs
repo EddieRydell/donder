@@ -2,12 +2,12 @@
 //! link to an object written elsewhere; objects owned in place are not
 //! references of their owner.
 use super::{DonderProject, ProjectRoot};
-use crate::effect::{EffectInst, EffectParamValue};
+use crate::effect::{Clip, ParamValue};
 use crate::identity::ObjectId;
 use crate::layout::{Layout, LayoutFixtureKind};
-use crate::ownership::{MemberSource, ValueSource};
+use crate::ownership::{Owned, OwnedMember};
 use crate::patch::Patch;
-use crate::rig::{MappingAction, Rig, RigEffect};
+use crate::rig::{MappingAction, Rig, RigClip};
 use crate::sequence::{CompositionGraphNodeKind, Sequence, SequenceCompositionGraph};
 use crate::setup::Setup;
 
@@ -44,16 +44,16 @@ macro_rules! visit_write {
 /// when one of its references changes.
 macro_rules! clip_read {
     ($f:ident, $changed:ident, $owner:expr, $clip:expr) => {
-        super::read::effect($owner, &**$clip, $f, $changed)
+        super::read::clip($owner, &**$clip, $f, $changed)
     };
 }
 
 macro_rules! clip_write {
     ($f:ident, $changed:ident, $owner:expr, $clip:expr) => {{
         let mut moves = false;
-        super::read::effect($owner, &**$clip, $f, &mut moves);
+        super::read::clip($owner, &**$clip, $f, &mut moves);
         if moves {
-            super::write::effect($owner, std::sync::Arc::make_mut($clip), $f, $changed);
+            super::write::clip($owner, std::sync::Arc::make_mut($clip), $f, $changed);
         }
     }};
 }
@@ -64,35 +64,35 @@ macro_rules! walks {
         use super::*;
 
         pub(super) fn root(owner: ObjectId, root: & $($m)* ProjectRoot, f: &mut Visit<'_>, changed: &mut bool) {
-            if let ValueSource::Reference(id) = & $($m)* root.setup {
+            if let Owned::Reference(id) = & $($m)* root.setup {
                 $visit!(f, changed, owner, *id);
             }
             for source in & $($m)* root.sequences {
-                if let MemberSource::Reference(id) = source {
+                if let OwnedMember::Reference(id) = source {
                     $visit!(f, changed, owner, *id);
                 }
             }
             for source in & $($m)* root.rigs {
-                if let MemberSource::Reference(id) = source {
+                if let OwnedMember::Reference(id) = source {
                     $visit!(f, changed, owner, *id);
                 }
             }
         }
 
         pub(super) fn setup(owner: ObjectId, setup: & $($m)* Setup, f: &mut Visit<'_>, changed: &mut bool) {
-            if let ValueSource::Reference(id) = & $($m)* setup.layout {
+            if let Owned::Reference(id) = & $($m)* setup.layout {
                 $visit!(f, changed, owner, *id);
             }
-            if let ValueSource::Reference(id) = & $($m)* setup.patch {
+            if let Owned::Reference(id) = & $($m)* setup.patch {
                 $visit!(f, changed, owner, *id);
             }
             for source in & $($m)* setup.controllers {
-                if let MemberSource::Reference(id) = source {
+                if let OwnedMember::Reference(id) = source {
                     $visit!(f, changed, owner, *id);
                 }
             }
             for source in & $($m)* setup.input_devices {
-                if let MemberSource::Reference(id) = source {
+                if let OwnedMember::Reference(id) = source {
                     $visit!(f, changed, owner, *id);
                 }
             }
@@ -101,7 +101,7 @@ macro_rules! walks {
         pub(super) fn layout(owner: ObjectId, layout: & $($m)* Layout, f: &mut Visit<'_>, changed: &mut bool) {
             for fixture in & $($m)* layout.fixtures {
                 if let LayoutFixtureKind::Fixture {
-                    definition: ValueSource::Reference(id),
+                    definition: Owned::Reference(id),
                     ..
                 } = & $($m)* fixture.kind
                 {
@@ -118,7 +118,7 @@ macro_rules! walks {
         }
 
         pub(super) fn sequence(owner: ObjectId, sequence: & $($m)* Sequence, f: &mut Visit<'_>, changed: &mut bool) {
-            for clip in & $($m)* sequence.effects {
+            for clip in & $($m)* sequence.clips {
                 $clip!(f, changed, owner, clip);
             }
             for clip in & $($m)* sequence.automation_clips {
@@ -127,17 +127,17 @@ macro_rules! walks {
             graph(owner, & $($m)* sequence.composition_graph, f, changed);
         }
 
-        pub(super) fn effect(owner: ObjectId, effect: & $($m)* EffectInst, f: &mut Visit<'_>, changed: &mut bool) {
-            $visit!(f, changed, owner, effect.target.layout);
-            $visit!(f, changed, owner, effect.definition);
-            for value in (& $($m)* effect.param_overrides).values_mut_or_ref() {
+        pub(super) fn clip(owner: ObjectId, clip: & $($m)* Clip, f: &mut Visit<'_>, changed: &mut bool) {
+            $visit!(f, changed, owner, clip.target.layout);
+            $visit!(f, changed, owner, clip.definition);
+            for value in (& $($m)* clip.param_overrides).values_mut_or_ref() {
                 param(owner, value, f, changed);
             }
         }
 
         pub(super) fn rig(owner: ObjectId, rig: & $($m)* Rig, f: &mut Visit<'_>, changed: &mut bool) {
             for voice in & $($m)* rig.voices {
-                rig_effect(owner, & $($m)* voice.effect, f, changed);
+                rig_clip(owner, & $($m)* voice.clip, f, changed);
             }
             for switch in & $($m)* rig.switches {
                 $visit!(f, changed, owner, switch.input.device);
@@ -145,16 +145,16 @@ macro_rules! walks {
             for mapping in & $($m)* rig.mappings {
                 $visit!(f, changed, owner, mapping.input.device);
                 if let MappingAction::Trigger(trigger) = & $($m)* mapping.action {
-                    rig_effect(owner, & $($m)* trigger.effect, f, changed);
+                    rig_clip(owner, & $($m)* trigger.clip, f, changed);
                 }
             }
             graph(owner, & $($m)* rig.composition_graph, f, changed);
         }
 
-        fn rig_effect(owner: ObjectId, effect: & $($m)* RigEffect, f: &mut Visit<'_>, changed: &mut bool) {
-            $visit!(f, changed, owner, effect.target.layout);
-            $visit!(f, changed, owner, effect.definition);
-            for value in (& $($m)* effect.param_overrides).values_mut_or_ref() {
+        fn rig_clip(owner: ObjectId, clip: & $($m)* RigClip, f: &mut Visit<'_>, changed: &mut bool) {
+            $visit!(f, changed, owner, clip.target.layout);
+            $visit!(f, changed, owner, clip.definition);
+            for value in (& $($m)* clip.param_overrides).values_mut_or_ref() {
                 param(owner, value, f, changed);
             }
         }
@@ -171,27 +171,27 @@ macro_rules! walks {
         }
 
         /// A parameter value's curve and gradient references.
-        fn param(owner: ObjectId, value: & $($m)* EffectParamValue, f: &mut Visit<'_>, changed: &mut bool) {
+        fn param(owner: ObjectId, value: & $($m)* ParamValue, f: &mut Visit<'_>, changed: &mut bool) {
             match value {
-                EffectParamValue::Curve(ValueSource::Reference(id)) => {
+                ParamValue::Curve(Owned::Reference(id)) => {
                     $visit!(f, changed, owner, *id)
                 }
-                EffectParamValue::Gradient(ValueSource::Reference(id)) => {
+                ParamValue::Gradient(Owned::Reference(id)) => {
                     $visit!(f, changed, owner, *id)
                 }
-                EffectParamValue::Array(values) => {
+                ParamValue::Array(values) => {
                     for value in values {
                         param(owner, value, f, changed);
                     }
                 }
-                EffectParamValue::Int(_)
-                | EffectParamValue::Float(_)
-                | EffectParamValue::Bool(_)
-                | EffectParamValue::Color(_)
-                | EffectParamValue::Enum(_)
-                | EffectParamValue::Marks(_)
-                | EffectParamValue::Curve(ValueSource::Inline(_))
-                | EffectParamValue::Gradient(ValueSource::Inline(_)) => {}
+                ParamValue::Int(_)
+                | ParamValue::Float(_)
+                | ParamValue::Bool(_)
+                | ParamValue::Color(_)
+                | ParamValue::Enum(_)
+                | ParamValue::Marks(_)
+                | ParamValue::Curve(Owned::Inline(_))
+                | ParamValue::Gradient(Owned::Inline(_)) => {}
             }
         }
     };

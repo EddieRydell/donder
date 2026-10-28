@@ -13,16 +13,15 @@ pub(super) fn copy_sequence_selection(
             let mut copied = Vec::new();
             let mut skipped = 0u32;
             for id in ids {
-                let Some(effect) = sequence.effects.iter().find(|effect| effect.id.0 == *id) else {
+                let Some(clip) = sequence.clips.iter().find(|clip| clip.id.0 == *id) else {
                     skipped = skipped.saturating_add(1);
                     continue;
                 };
-                copied.push(ClipboardEffect {
-                    effect: (**effect).clone(),
-                    start_seconds: effect.start.as_seconds_f64(),
-                    lane_index: target_lane_index(session, &effect.target).ok_or_else(|| {
-                        GuiMutationError::Invalid("Effect row is missing.".into())
-                    })?,
+                copied.push(ClipboardClip {
+                    clip: (**clip).clone(),
+                    start_seconds: clip.start.as_seconds_f64(),
+                    lane_index: target_lane_index(session, &clip.target)
+                        .ok_or_else(|| GuiMutationError::Invalid("Clip row is missing.".into()))?,
                 });
             }
             let mut automation = Vec::new();
@@ -45,9 +44,9 @@ pub(super) fn copy_sequence_selection(
             let copied_count = (copied.len() + automation.len()) as u32;
             Ok((
                 (copied_count > 0).then_some(SequenceClipboard::Clips {
-                    effects: copied,
+                    clips: copied,
                     automation,
-                    source: *sequence_id,
+                    sequence: *sequence_id,
                     cut: false,
                 }),
                 copied_count,
@@ -62,14 +61,14 @@ pub(super) fn copy_sequence_selection(
             let mut copied = Vec::new();
             let mut skipped = 0u32;
             for mark in marks {
-                let Some(source) = sequence_mark(sequence, mark) else {
+                let Some(authored) = sequence_mark(sequence, mark) else {
                     skipped = skipped.saturating_add(1);
                     continue;
                 };
                 copied.push(ClipboardMark {
                     collection_key: mark.collection_key.clone(),
-                    time_seconds: source.time.as_seconds_f64(),
-                    label: source.label.clone(),
+                    time_seconds: authored.time.as_seconds_f64(),
+                    label: authored.label.clone(),
                 });
             }
             let copied_count = copied.len() as u32;
@@ -96,15 +95,13 @@ pub(super) fn delete_sequence_selection(
     match selection {
         SequenceSelection::Clips { clips } => {
             let (ids, automation_ids) = &split_clips(clips);
-            sequence
-                .effects
-                .retain(|effect| !ids.contains(&effect.id.0));
+            sequence.clips.retain(|clip| !ids.contains(&clip.id.0));
             sequence
                 .automation_clips
                 .retain(|clip| !automation_ids.contains(&clip.id.0));
             for clip in &mut sequence.automation_clips {
                 clip.remove_bindings(|target| {
-                    matches!(target, AutomationTarget::EffectParam { effect_id, .. } if ids.contains(&effect_id.0))
+                    matches!(target, AutomationTarget::ClipParam { clip_id, .. } if ids.contains(&clip_id.0))
                 });
             }
         }
@@ -148,9 +145,9 @@ pub(super) fn paste_sequence_clipboard(
         }
         match clipboard {
             SequenceClipboard::Clips {
-                effects,
+                clips,
                 automation,
-                source,
+                sequence: copied_from,
                 cut,
             } => {
                 let targets = lane_targets(session)
@@ -161,18 +158,18 @@ pub(super) fn paste_sequence_clipboard(
                 if anchor_lane >= targets.len() {
                     return Err(GuiMutationError::Invalid("Paste target is missing.".into()));
                 }
-                let min_start = effects
+                let min_start = clips
                     .iter()
-                    .map(|effect| effect.start_seconds)
+                    .map(|clip| clip.start_seconds)
                     .chain(
                         automation
                             .iter()
                             .map(|entry| entry.clip.start.as_seconds_f64()),
                     )
                     .fold(f64::INFINITY, f64::min);
-                let min_lane = effects
+                let min_lane = clips
                     .iter()
-                    .map(|effect| effect.lane_index)
+                    .map(|clip| clip.lane_index)
                     .chain(automation.iter().map(|entry| entry.lane_index))
                     .min()
                     .ok_or_else(|| GuiMutationError::Invalid("Clipboard is empty.".into()))?;
@@ -187,7 +184,7 @@ pub(super) fn paste_sequence_clipboard(
                         })
                 };
                 // Resolve every destination before mutation; never collapse distinct rows at the boundary.
-                let effect_targets = effects
+                let clip_targets = clips
                     .iter()
                     .map(|entry| destination(entry.lane_index))
                     .collect::<Result<Vec<_>, _>>()?;
@@ -203,32 +200,32 @@ pub(super) fn paste_sequence_clipboard(
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
                 let sequence = &mut draft;
                 let mut next_id = sequence
-                    .effects
+                    .clips
                     .iter()
-                    .map(|effect| effect.id.0)
+                    .map(|clip| clip.id.0)
                     .max()
                     .unwrap_or(0);
-                let mut effect_ids = Vec::new();
+                let mut clip_ids = Vec::new();
                 let mut id_map = BTreeMap::new();
-                for (entry, target) in effects.iter().zip(effect_targets) {
+                for (entry, target) in clips.iter().zip(clip_targets) {
                     next_id = next_id
                         .checked_add(1)
-                        .ok_or_else(|| GuiMutationError::Invalid("Effect IDs exhausted.".into()))?;
-                    let mut effect = entry.effect.clone();
-                    id_map.insert(effect.id.0, next_id);
-                    effect.id = EffectInstId(next_id);
-                    effect.name = donder_language::unique_name(effect.name.as_str(), |name| {
+                        .ok_or_else(|| GuiMutationError::Invalid("Clip IDs exhausted.".into()))?;
+                    let mut clip = entry.clip.clone();
+                    id_map.insert(clip.id.0, next_id);
+                    clip.id = ClipId(next_id);
+                    clip.name = donder_language::unique_name(clip.name.as_str(), |name| {
                         sequence
-                            .effects
+                            .clips
                             .iter()
                             .any(|other| other.name.as_str() == name)
                     });
-                    effect.start = super::checked_gui_time(
+                    clip.start = super::checked_gui_time(
                         anchor.time_seconds + entry.start_seconds - min_start,
                     )?;
-                    effect.target = target;
-                    sequence.effects.push(std::sync::Arc::new(effect));
-                    effect_ids.push(next_id);
+                    clip.target = target;
+                    sequence.clips.push(std::sync::Arc::new(clip));
+                    clip_ids.push(next_id);
                 }
                 let mut next_id = sequence
                     .automation_clips
@@ -251,13 +248,13 @@ pub(super) fn paste_sequence_clipboard(
                     // in the same sequence when no overlapping clip has claimed them since the cut.
                     let placed = clip.clone();
                     let remap = |target: &mut AutomationTarget| {
-                        if let AutomationTarget::EffectParam { effect_id, .. } = target
-                            && let Some(id) = id_map.get(&effect_id.0)
+                        if let AutomationTarget::ClipParam { clip_id, .. } = target
+                            && let Some(id) = id_map.get(&clip_id.0)
                         {
-                            effect_id.0 = *id;
+                            clip_id.0 = *id;
                             return true;
                         }
-                        *cut && source == sequence_id
+                        *cut && copied_from == sequence_id
                             && !sequence.automation_clips.iter().any(|other| {
                                 other.overlaps(&placed)
                                     && other.targets().any(|claimed| claimed == target)
@@ -272,9 +269,9 @@ pub(super) fn paste_sequence_clipboard(
                 }
                 Ok(GuiEditOutcome {
                     selection: Some(SequenceSelection::Clips {
-                        clips: clip_refs(&effect_ids, &automation_ids),
+                        clips: clip_refs(&clip_ids, &automation_ids),
                     }),
-                    copied_count: (effects.len() + automation.len()) as u32,
+                    copied_count: (clips.len() + automation.len()) as u32,
                     skipped_count: 0,
                     created: Vec::new(),
                 })
@@ -331,75 +328,75 @@ pub(super) fn paste_sequence_clipboard(
     Ok(result)
 }
 
-pub(super) fn edit_effect_selection(
+pub(super) fn edit_clip_selection(
     session: &mut ProjectSession,
     owner: &donder_project_io::DocumentId,
     sequence_id: &SequenceId,
-    effect_ids: &[u32],
-    edit: SequenceEffectCommonEdit,
+    clip_ids: &[u32],
+    edit: SequenceClipCommonEdit,
 ) -> Result<(), GuiMutationError> {
     let mut draft = session
         .project
         .get::<donder_model::Sequence>(*sequence_id)
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-    if effect_ids.is_empty() {
+    if clip_ids.is_empty() {
         return Err(GuiMutationError::Invalid(
-            "At least one effect must be selected.".into(),
+            "At least one clip must be selected.".into(),
         ));
     }
 
-    let param_edit = if let SequenceEffectCommonEdit::Param { name, value } = &edit {
+    let param_edit = if let SequenceClipCommonEdit::Param { name, value } = &edit {
         let name = identifier(name)?;
         let sequence = session
             .project
             .get::<donder_model::Sequence>(*sequence_id)
             .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-        for id in effect_ids {
-            let effect = sequence
-                .effects
+        for id in clip_ids {
+            let clip = sequence
+                .clips
                 .iter()
-                .find(|effect| effect.id.0 == *id)
-                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
+                .find(|clip| clip.id.0 == *id)
+                .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".into()))?;
             let definition = session
                 .project
-                .get::<donder_model::EffectDefinition>(effect.definition)
+                .get::<donder_model::EffectDefinition>(clip.definition)
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Effect definition was not found.".into())
                 })?;
             if !definition.params().iter().any(|param| param.name == name) {
                 return Err(GuiMutationError::Invalid(format!(
-                    "Effect {id} does not declare parameter `{}`.",
+                    "Clip {id} does not declare parameter `{}`.",
                     name.as_str()
                 )));
             }
             if sequence.automation_clips.iter().any(|clip| {
                 clip.bindings.iter().any(|binding| {
                     binding
-                        .effect_param()
-                        .is_some_and(|(effect_id, param)| effect_id.0 == *id && param == &name)
+                        .clip_param()
+                        .is_some_and(|(clip_id, param)| clip_id.0 == *id && param == &name)
                 })
             }) {
                 return Err(GuiMutationError::Invalid(format!(
-                    "Effect {id} parameter `{}` is automated.",
+                    "Clip {id} parameter `{}` is automated.",
                     name.as_str()
                 )));
             }
         }
-        let value = effect_param_value_from_gui(session, owner, value.clone())?;
+        let value = param_value_from_gui(session, owner, value.clone())?;
         let sequence = session
             .project
             .get::<donder_model::Sequence>(*sequence_id)
             .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-        for id in effect_ids {
-            let effect = sequence
-                .effects
+        for id in clip_ids {
+            let clip = sequence
+                .clips
                 .iter()
-                .find(|effect| effect.id.0 == *id)
-                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
+                .find(|clip| clip.id.0 == *id)
+                .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".into()))?;
             let definition = session
                 .project
-                .get::<donder_model::EffectDefinition>(effect.definition)
+                .get::<donder_model::EffectDefinition>(clip.definition)
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Effect definition was not found.".into())
                 })?;
@@ -407,12 +404,10 @@ pub(super) fn edit_effect_selection(
                 .params()
                 .iter()
                 .find(|param| param.name == name)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Effect parameter was not found.".into())
-                })?;
-            if !donder_model::effect_param_matches_type(&value, &declaration.ty) {
+                .ok_or_else(|| GuiMutationError::Invalid("Clip parameter was not found.".into()))?;
+            if !donder_model::param_matches_type(&value, &declaration.ty) {
                 return Err(GuiMutationError::Invalid(format!(
-                    "Effect {id} parameter `{}` cannot accept this value.",
+                    "Clip {id} parameter `{}` cannot accept this value.",
                     name.as_str()
                 )));
             }
@@ -424,47 +419,47 @@ pub(super) fn edit_effect_selection(
 
     let sequence = &mut draft;
     match edit {
-        SequenceEffectCommonEdit::Layer { layer_id } => {
+        SequenceClipCommonEdit::Layer { layer_id } => {
             if !sequence.layers.iter().any(|layer| layer.id.0 == layer_id) {
                 return Err(GuiMutationError::Invalid("Layer was not found.".into()));
             }
-            for id in effect_ids {
-                effect_mut(sequence, *id)?.layer_id = SequenceLayerId(layer_id);
+            for id in clip_ids {
+                clip_mut(sequence, *id)?.layer_id = SequenceLayerId(layer_id);
             }
         }
-        SequenceEffectCommonEdit::Scope { scope } => {
-            let scope = effect_scope(scope);
-            for id in effect_ids {
-                effect_mut(sequence, *id)?.scope = scope.clone();
+        SequenceClipCommonEdit::Scope { scope } => {
+            let scope = clip_scope(scope);
+            for id in clip_ids {
+                clip_mut(sequence, *id)?.scope = scope.clone();
             }
         }
-        SequenceEffectCommonEdit::Start { start_seconds } => {
+        SequenceClipCommonEdit::Start { start_seconds } => {
             if !start_seconds.is_finite() {
                 return Err(GuiMutationError::Invalid(
-                    "Effect start must be finite.".into(),
+                    "Clip start must be finite.".into(),
                 ));
             }
             let start = super::checked_gui_time(start_seconds.max(0.0))?;
-            for id in effect_ids {
-                effect_mut(sequence, *id)?.start = start.clone();
+            for id in clip_ids {
+                clip_mut(sequence, *id)?.start = start.clone();
             }
         }
-        SequenceEffectCommonEdit::Duration { duration_seconds } => {
+        SequenceClipCommonEdit::Duration { duration_seconds } => {
             if !duration_seconds.is_finite() {
                 return Err(GuiMutationError::Invalid(
-                    "Effect duration must be finite.".into(),
+                    "Clip duration must be finite.".into(),
                 ));
             }
             let duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
-            for id in effect_ids {
-                effect_mut(sequence, *id)?.duration = duration.clone();
+            for id in clip_ids {
+                clip_mut(sequence, *id)?.duration = duration.clone();
             }
         }
-        SequenceEffectCommonEdit::Param { .. } => {
+        SequenceClipCommonEdit::Param { .. } => {
             let (name, value) = param_edit
                 .ok_or_else(|| GuiMutationError::Invalid("Parameter edit is missing.".into()))?;
-            for id in effect_ids {
-                effect_mut(sequence, *id)?
+            for id in clip_ids {
+                clip_mut(sequence, *id)?
                     .param_overrides
                     .insert(name.clone(), value.clone());
             }
@@ -477,7 +472,7 @@ pub(super) fn edit_effect_selection(
 pub(super) fn move_clip_selection(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
-    effect_ids: &[u32],
+    clip_ids: &[u32],
     automation_ids: &[u32],
     time_delta_seconds: f64,
     anchor_lane: usize,
@@ -503,10 +498,10 @@ pub(super) fn move_clip_selection(
             })
     };
     let sequence = &mut draft;
-    for id in effect_ids {
-        let effect = effect_mut(sequence, *id)?;
-        effect.target = destination(&effect.target)?;
-        effect.start = shifted_start(&effect.start, time_delta_seconds)?;
+    for id in clip_ids {
+        let clip = clip_mut(sequence, *id)?;
+        clip.target = destination(&clip.target)?;
+        clip.start = shifted_start(&clip.start, time_delta_seconds)?;
     }
     for id in automation_ids {
         let clip = sequence
@@ -534,7 +529,7 @@ fn shifted_start(start: &DonderTime, delta: f64) -> Result<DonderTime, GuiMutati
 pub(super) fn resize_clip_selection(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
-    effect_ids: &[u32],
+    clip_ids: &[u32],
     automation_ids: &[u32],
     edge: SequenceResizeEdge,
     automation: SequenceAutomationResize,
@@ -564,9 +559,9 @@ pub(super) fn resize_clip_selection(
             Ok(())
         };
     let sequence = &mut draft;
-    for id in effect_ids {
-        let effect = effect_mut(sequence, *id)?;
-        resize(&mut effect.start, &mut effect.duration)?;
+    for id in clip_ids {
+        let clip = clip_mut(sequence, *id)?;
+        resize(&mut clip.start, &mut clip.duration)?;
     }
     for id in automation_ids {
         let clip = sequence
@@ -696,42 +691,40 @@ pub(super) fn target_for_lane(
 use std::collections::BTreeMap;
 
 use donder_language::{DonderDuration, DonderTime};
-use donder_model::EffectInstId;
+use donder_model::ClipId;
 use donder_model::FixtureTarget;
 use donder_model::{AutomationTarget, SequenceId, SequenceLayerId};
 use donder_project_io::ProjectSession;
 
-use super::model::{
-    effect_mut, effect_param_value_from_gui, effect_scope, identifier, mark_collection_mut,
-};
+use super::model::{clip_mut, clip_scope, identifier, mark_collection_mut, param_value_from_gui};
 use super::projection::active_layout;
 use super::{
-    ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiEditOutcome, GuiMutationError,
+    ClipboardAutomation, ClipboardClip, ClipboardMark, GuiEditOutcome, GuiMutationError,
     SequenceClipboard,
 };
 use crate::dto::{
-    SequenceAutomationResize, SequenceClipRef, SequenceEffectCommonEdit, SequenceMarkRef,
+    SequenceAutomationResize, SequenceClipCommonEdit, SequenceClipRef, SequenceMarkRef,
     SequencePasteAnchor, SequenceResizeEdge, SequenceSelection,
 };
 
-/// The effect and automation clip ids of `clips`, in order.
+/// The clip and automation clip ids of `clips`, in order.
 pub(super) fn split_clips(clips: &[SequenceClipRef]) -> (Vec<u32>, Vec<u32>) {
-    let mut effects = Vec::new();
+    let mut clip_ids = Vec::new();
     let mut automation = Vec::new();
     for clip in clips {
         match *clip {
-            SequenceClipRef::Effect { id } => effects.push(id),
+            SequenceClipRef::Clip { id } => clip_ids.push(id),
             SequenceClipRef::Automation { id } => automation.push(id),
         }
     }
-    (effects, automation)
+    (clip_ids, automation)
 }
 
-/// The effect clips, then the automation clips, as clip references.
-pub(super) fn clip_refs(effects: &[u32], automation: &[u32]) -> Vec<SequenceClipRef> {
-    effects
+/// The clips, then the automation clips, as clip references.
+pub(super) fn clip_refs(clip_ids: &[u32], automation: &[u32]) -> Vec<SequenceClipRef> {
+    clip_ids
         .iter()
-        .map(|&id| SequenceClipRef::Effect { id })
+        .map(|&id| SequenceClipRef::Clip { id })
         .chain(
             automation
                 .iter()

@@ -7,24 +7,22 @@ use crate::source::ProjectSession;
 use donder_language::Point3;
 use donder_language::compiler::ParamDecl;
 use donder_language::data::{DataValue, Spanned};
-use donder_language::data::{Meters, Name, NamedSource, Params, Path, Reference, Source};
+use donder_language::data::{Meters, Name, OwnedNamedRecord, OwnedRecord, Params, Path, Reference};
 use donder_model::ObjectKind;
+use donder_model::Owned;
 use donder_model::Patch;
 use donder_model::Setup;
-use donder_model::ValueSource;
 use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio};
 use donder_model::{
-    ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver, PlayedSource,
+    ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver, PlayedQuantity,
     SequenceCompositionGraph, SequenceLayer,
 };
-use donder_model::{
-    ControlTarget, MappingAction, Rig, RigEffect, TriggerLength, VoicePolicy, When,
-};
-use donder_model::{CurveSource, EffectParamValue, GradientSource};
-use donder_model::{FixtureDefinition, FixtureShape, FixtureSource, FixtureTransform};
+use donder_model::{ControlTarget, MappingAction, Rig, RigClip, TriggerLength, VoicePolicy, When};
+use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform, OwnedFixture};
 use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
-use donder_model::{MemberSource, ObjectId};
+use donder_model::{ObjectId, OwnedMember};
+use donder_model::{OwnedCurve, OwnedGradient, ParamValue};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::PixelEncoding;
 use donder_runtime_types::{Curve, Gradient};
@@ -174,15 +172,15 @@ impl Encoder<'_> {
     fn source<V, I, T>(
         &self,
         kind: ObjectKind,
-        source: &ValueSource<V, I>,
+        source: &Owned<V, I>,
         inline: impl FnOnce(&V) -> Result<T, ExportProjectError>,
-    ) -> Result<Source<T>, ExportProjectError>
+    ) -> Result<OwnedRecord<T>, ExportProjectError>
     where
         I: Into<ObjectId> + Copy,
     {
         Ok(match source {
-            ValueSource::Reference(id) => Source::Reference(self.object_reference(kind, *id)?),
-            ValueSource::Inline(value) => Source::Inline(inline(value)?),
+            Owned::Reference(id) => OwnedRecord::Reference(self.object_reference(kind, *id)?),
+            Owned::Inline(value) => OwnedRecord::Inline(inline(value)?),
         })
     }
 
@@ -190,20 +188,20 @@ impl Encoder<'_> {
     fn named_source<V, I, T>(
         &self,
         kind: ObjectKind,
-        source: &MemberSource<V, I>,
+        source: &OwnedMember<V, I>,
         inline: impl FnOnce(&V) -> Result<T, ExportProjectError>,
-    ) -> Result<NamedSource<T>, ExportProjectError>
+    ) -> Result<OwnedNamedRecord<T>, ExportProjectError>
     where
         I: Into<ObjectId> + Copy,
     {
         Ok(match source {
-            MemberSource::Reference(id) => {
-                NamedSource::Reference(self.object_reference(kind, *id)?)
+            OwnedMember::Reference(id) => {
+                OwnedNamedRecord::Reference(self.object_reference(kind, *id)?)
             }
-            MemberSource::Inline {
+            OwnedMember::Inline {
                 name: member,
                 value,
-            } => NamedSource::Inline(name(member), inline(value)?),
+            } => OwnedNamedRecord::Inline(name(member), inline(value)?),
         })
     }
 
@@ -302,11 +300,11 @@ impl Encoder<'_> {
                 name: name(&fixture.name),
                 description: fixture.description.clone(),
                 definition: match definition {
-                    FixtureSource::Reference(id) => Source::Reference(
+                    OwnedFixture::Reference(id) => OwnedRecord::Reference(
                         self.object_reference(ObjectKind::FixtureDefinition, *id)?,
                     ),
-                    FixtureSource::Inline(value) => {
-                        Source::Inline(fixture_definition_document(value))
+                    OwnedFixture::Inline(value) => {
+                        OwnedRecord::Inline(fixture_definition_document(value))
                     }
                 },
                 transform: transform_document(transform),
@@ -369,7 +367,7 @@ impl Encoder<'_> {
             .ok_or_else(|| self.error("", "a layer is missing"))
     }
 
-    /// A graph node's name: its operator's, its layer's, or `output`.
+    /// A graph node's name: its operator's, its layer's, or `root`.
     fn node_name(
         &self,
         layers: &[SequenceLayer],
@@ -384,7 +382,7 @@ impl Encoder<'_> {
         match &node.kind {
             CompositionGraphNodeKind::Layer { layer_id } => self.layer_name(layers, layer_id),
             CompositionGraphNodeKind::Operator(operator) => Ok(name(&operator.name)),
-            CompositionGraphNodeKind::Output => Ok(name(&donder_language::object_name("output"))),
+            CompositionGraphNodeKind::Root => Ok(name(&donder_language::object_name("root"))),
         }
     }
 
@@ -437,7 +435,7 @@ impl Encoder<'_> {
                                 position,
                             }
                         }
-                        CompositionGraphNodeKind::Output => types::Node::OutputNode { position },
+                        CompositionGraphNodeKind::Root => types::Node::RootNode { position },
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
@@ -451,7 +449,7 @@ impl Encoder<'_> {
                         .find(|node| node.id == edge.to)
                         .ok_or_else(|| self.error("", "an edge's node is missing"))?;
                     let mut segments = vec![self.node_name(layers, graph, &edge.to)?.0.value];
-                    if !matches!(to.kind, CompositionGraphNodeKind::Output) {
+                    if !matches!(to.kind, CompositionGraphNodeKind::Root) {
                         segments.push(
                             Identifier::new(edge.to_port.0.clone())
                                 .map_err(|_| self.error(&edge.to_port.0, "invalid input name"))?,
@@ -476,23 +474,23 @@ impl Encoder<'_> {
             .reusable::<donder_model::EffectDefinition>()
             .get(definition)
             .map(|definition| definition.params().to_vec())
-            .ok_or_else(|| self.error("", "the effect is missing"))
+            .ok_or_else(|| self.error("", "the effect definition is missing"))
     }
 
-    /// The parts of a rig effect, as a voice or trigger writes them.
-    fn rig_effect(
+    /// The parts of a rig clip, as a voice or trigger writes them.
+    fn rig_clip(
         &self,
         rig: &Rig,
-        effect: &RigEffect,
+        clip: &RigClip,
     ) -> Result<(Name, Reference, types::Scope, Reference, Params), ExportProjectError> {
-        let definition = &effect.definition;
+        let definition = &clip.definition;
         let declarations = self.effect_declarations(definition)?;
         Ok((
-            self.layer_name(&rig.layers, &effect.layer_id)?,
-            self.fixture_target(&effect.target)?,
-            scope_document(&effect.scope),
+            self.layer_name(&rig.layers, &clip.layer_id)?,
+            self.fixture_target(&clip.target)?,
+            scope_document(&clip.scope),
             self.object_reference(ObjectKind::EffectDefinition, *definition)?,
-            self.params(&declarations, &effect.param_overrides)?,
+            self.params(&declarations, &clip.param_overrides)?,
         ))
     }
 
@@ -551,8 +549,7 @@ impl Encoder<'_> {
                 .voices
                 .iter()
                 .map(|voice| {
-                    let (layer, target, scope, effect, params) =
-                        self.rig_effect(rig, &voice.effect)?;
+                    let (layer, target, scope, effect, params) = self.rig_clip(rig, &voice.clip)?;
                     Ok(types::Voice {
                         name: name(&voice.name),
                         description: voice.description.clone(),
@@ -595,7 +592,7 @@ impl Encoder<'_> {
                         action: match &mapping.action {
                             MappingAction::Trigger(trigger) => {
                                 let (layer, target, scope, effect, params) =
-                                    self.rig_effect(rig, &trigger.effect)?;
+                                    self.rig_clip(rig, &trigger.clip)?;
                                 types::MappingAction::Trigger {
                                     layer,
                                     target,
@@ -624,14 +621,18 @@ impl Encoder<'_> {
                                         .map(|value| types::PlayedValue {
                                             param: name(&value.param),
                                             from: match value.from {
-                                                PlayedSource::Velocity => {
-                                                    types::PlayedSource::Velocity
+                                                PlayedQuantity::Velocity => {
+                                                    types::PlayedQuantity::Velocity
                                                 }
-                                                PlayedSource::Pitch => types::PlayedSource::Pitch,
-                                                PlayedSource::PitchClass => {
-                                                    types::PlayedSource::PitchClass
+                                                PlayedQuantity::Pitch => {
+                                                    types::PlayedQuantity::Pitch
                                                 }
-                                                PlayedSource::Fifths => types::PlayedSource::Fifths,
+                                                PlayedQuantity::PitchClass => {
+                                                    types::PlayedQuantity::PitchClass
+                                                }
+                                                PlayedQuantity::Fifths => {
+                                                    types::PlayedQuantity::Fifths
+                                                }
                                             },
                                         })
                                         .collect(),
@@ -660,20 +661,20 @@ impl Encoder<'_> {
     pub(crate) fn clip(
         &self,
         sequence: &Sequence,
-        effect: &donder_model::EffectInst,
+        clip: &donder_model::Clip,
     ) -> Result<types::Clip, ExportProjectError> {
-        let definition = &effect.definition;
+        let definition = &clip.definition;
         let declarations = self.effect_declarations(definition)?;
         Ok(types::Clip {
-            name: name(&effect.name),
-            description: effect.description.clone(),
-            layer: self.layer_name(&sequence.layers, &effect.layer_id)?,
-            start: effect.start.0,
-            duration: effect.duration.0,
-            target: self.fixture_target(&effect.target)?,
-            scope: scope_document(&effect.scope),
+            name: name(&clip.name),
+            description: clip.description.clone(),
+            layer: self.layer_name(&sequence.layers, &clip.layer_id)?,
+            start: clip.start.0,
+            duration: clip.duration.0,
+            target: self.fixture_target(&clip.target)?,
+            scope: scope_document(&clip.scope),
             effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
-            params: self.params(&declarations, &effect.param_overrides)?,
+            params: self.params(&declarations, &clip.param_overrides)?,
         })
     }
 
@@ -688,12 +689,12 @@ impl Encoder<'_> {
         };
         let binding = |target: &AutomationTarget| -> Result<types::Binding, ExportProjectError> {
             Ok(match target {
-                AutomationTarget::EffectParam { effect_id, param } => types::Binding::ClipParam {
+                AutomationTarget::ClipParam { clip_id, param } => types::Binding::ClipParam {
                     clip: sequence
-                        .effects
+                        .clips
                         .iter()
-                        .find(|effect| &effect.id == effect_id)
-                        .map(|effect| name(&effect.name))
+                        .find(|clip| &clip.id == clip_id)
+                        .map(|clip| name(&clip.name))
                         .ok_or_else(|| self.error("", "an automated clip is missing"))?,
                     param: name(param),
                 },
@@ -775,7 +776,7 @@ impl Encoder<'_> {
     fn params(
         &self,
         declarations: &[ParamDecl],
-        values: &IndexMap<Identifier, EffectParamValue>,
+        values: &IndexMap<Identifier, ParamValue>,
     ) -> Result<Params, ExportProjectError> {
         if let Some(unknown) = values.keys().find(|key| {
             !declarations
@@ -802,27 +803,27 @@ impl Encoder<'_> {
         ))
     }
 
-    fn param_value(&self, value: &EffectParamValue) -> Result<DataValue, ExportProjectError> {
+    fn param_value(&self, value: &ParamValue) -> Result<DataValue, ExportProjectError> {
         use donder_language::data::Data;
         Ok(match value {
-            EffectParamValue::Int(value) => DataValue::Integer(i64::from(*value)),
-            EffectParamValue::Float(value) => DataValue::Float(*value),
-            EffectParamValue::Bool(value) => DataValue::Bool(*value),
-            EffectParamValue::Color(value) => DataValue::Color(*value),
-            EffectParamValue::Enum(option) => donder_language::data::variant(option.as_str()),
-            EffectParamValue::Marks(Some(key)) => Reference::new(vec![key.name.clone()]).encode(),
-            EffectParamValue::Marks(None) => DataValue::None,
-            EffectParamValue::Curve(CurveSource::Reference(id)) => {
+            ParamValue::Int(value) => DataValue::Integer(i64::from(*value)),
+            ParamValue::Float(value) => DataValue::Float(*value),
+            ParamValue::Bool(value) => DataValue::Bool(*value),
+            ParamValue::Color(value) => DataValue::Color(*value),
+            ParamValue::Enum(option) => donder_language::data::variant(option.as_str()),
+            ParamValue::Marks(Some(key)) => Reference::new(vec![key.name.clone()]).encode(),
+            ParamValue::Marks(None) => DataValue::None,
+            ParamValue::Curve(OwnedCurve::Reference(id)) => {
                 self.object_reference(ObjectKind::Curve, *id)?.encode()
             }
-            EffectParamValue::Curve(CurveSource::Inline(curve)) => curve_points(curve).encode(),
-            EffectParamValue::Gradient(GradientSource::Reference(id)) => {
+            ParamValue::Curve(OwnedCurve::Inline(curve)) => curve_points(curve).encode(),
+            ParamValue::Gradient(OwnedGradient::Reference(id)) => {
                 self.object_reference(ObjectKind::Gradient, *id)?.encode()
             }
-            EffectParamValue::Gradient(GradientSource::Inline(gradient)) => {
+            ParamValue::Gradient(OwnedGradient::Inline(gradient)) => {
                 gradient_stops(gradient).encode()
             }
-            EffectParamValue::Array(items) => DataValue::List(
+            ParamValue::Array(items) => DataValue::List(
                 items
                     .iter()
                     .map(|item| self.param_value(item).map(spanned))
@@ -832,10 +833,10 @@ impl Encoder<'_> {
     }
 }
 
-fn scope_document(scope: &donder_model::EffectScope) -> types::Scope {
+fn scope_document(scope: &donder_model::ClipScope) -> types::Scope {
     match scope {
-        donder_model::EffectScope::PerFixture => types::Scope::PerFixture,
-        donder_model::EffectScope::WholeTarget => types::Scope::WholeTarget,
+        donder_model::ClipScope::PerFixture => types::Scope::PerFixture,
+        donder_model::ClipScope::WholeTarget => types::Scope::WholeTarget,
     }
 }
 
@@ -904,7 +905,7 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
         description: controller.description.clone(),
         protocol: match &controller.protocol {
             ControllerProtocol::E131(config) => types::Protocol::E131 {
-                source_name: config.source_name.clone(),
+                sender_name: config.sender_name.clone(),
                 bind_address: config.bind_address.to_string(),
                 priority: config.priority,
                 mode: match config.mode {

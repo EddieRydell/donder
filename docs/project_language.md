@@ -169,13 +169,13 @@ is edited once for every user. An owned single value is a record
 named script declaration. Parameter values, clips, layers and groups are always
 owned.
 
-The editor's source actions move values between the two forms:
+The editor's ownership actions move values between the two forms:
 
 - **Make reusable** promotes an owned value to a declaration, in this document or
   a new one, and rebases references to its descendants.
 - **Make independent** copies a shared value into its owner, leaving the
   declaration unchanged.
-- **Use existing source** links a field to a declaration.
+- **Use existing declaration** links a field to a declaration.
 
 Linked curves and gradients follow their declaration; making one independent
 keeps its current value in the parameter. New sequences, fixtures and other
@@ -272,7 +272,7 @@ Setup main {
 Controller output_controller {
   description: none,
   protocol: E131 {
-    source_name: "Donder Thirty Output Controller",
+    sender_name: "Donder Thirty Output Controller",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.7.2" },
@@ -285,7 +285,7 @@ Controller output_controller {
   `input_devices: [input device]`.
 - `Controller`: `description`, `protocol`, `ports: [Port]`.
 - `protocol` is one of:
-  - `E131 { source_name, bind_address, priority, mode }` with `mode` either
+  - `E131 { sender_name, bind_address, priority, mode }` with `mode` either
     `Multicast` or `Unicast { destination }`;
   - `ArtNet { bind_address, destination, mode }` with socket addresses such as
     `"0.0.0.0:6454"` and `mode` either `Unicast` or `Broadcast`;
@@ -473,7 +473,7 @@ Sequence layer_test {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (566.45416, -474.141) },
-      OutputNode { position: (1393.0885, -375.6623) },
+      RootNode { position: (1393.0885, -375.6623) },
       LayerNode { layer: glow, position: (444.03857, -40.094635) },
       OperatorNode {
         name: afterglow,
@@ -483,9 +483,9 @@ Sequence layer_test {
       },
     ],
     edges: [
-      Edge { from: default, to: output },
+      Edge { from: default, to: root },
       Edge { from: glow, to: afterglow.input },
-      Edge { from: afterglow, to: output },
+      Edge { from: afterglow, to: root },
     ],
   },
   automation: [
@@ -524,10 +524,10 @@ Sequence layer_test {
   - `LayerNode { layer, position }`, named by its layer, which appears in at
     most one node;
   - `OperatorNode { name, operator, params, position }`;
-  - `OutputNode { position }`, named `output`, exactly one.
+  - `RootNode { position }`, named `root`, exactly one.
 
   Every node has one output, so an edge names only the input it reaches:
-  `to: afterglow.input` names an operator input and `to: output` the output
+  `to: afterglow.input` names an operator input and `to: root` the root
   node. `position` is the node's place on the graph canvas.
 - `AutomationClip`: `row` (the fixture or group whose automation row holds it),
   `start`, `duration`, `curve`, `bindings` and `detached`. A binding is
@@ -536,10 +536,10 @@ Sequence layer_test {
   a bound clip or node removes its bindings; a clip may be bound to nothing.
 
 Layers produce signals, operators combine and transform them, and the single
-output node is what plays. Nodes not connected to the output may remain while
-you edit, and are not prepared. An operator on the output path must have every
-input connected. Any input, the output's included, may have several sources:
-they combine by their channel-wise maximum, as the effects of a layer do.
+root node is what plays. Nodes not connected to the root may remain while
+you edit, and are not prepared. An operator on the root's path must have every
+input connected. Any input, the root's included, may have several edges:
+they combine by their channel-wise maximum, as the clips of a layer do.
 
 Every fixture or group has one clip row and one automation row. A member of
 several groups shows its rows under each, and every copy holds the same clips.
@@ -672,9 +672,9 @@ Rig jam {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (80.0, 120.0) },
-      OutputNode { position: (420.0, 120.0) },
+      RootNode { position: (420.0, 120.0) },
     ],
-    edges: [Edge { from: default, to: output }],
+    edges: [Edge { from: default, to: root }],
   },
 }
 ```
@@ -838,7 +838,7 @@ fields, value types, references and diagnostic ranges.
 
 - `donder_language::data` holds the syntax tree, the error-tolerant parser, the
   canonical printer and literal rules, and the schema traits (`Data`, `Record`,
-  `Source`, `NamedSource`, `Reference`, `Name`, `Params`, `Meters`, `Path`).
+  `OwnedRecord`, `OwnedNamedRecord`, `Reference`, `Name`, `Params`, `Meters`, `Path`).
 - `donder_project_io::document` declares the document types, decodes declarations
   and encodes typed state; `loader` resolves declarations into the typed project.
   Domain validation stays with the domain types, which both loading and the

@@ -2,14 +2,14 @@ use std::collections::BTreeSet;
 
 use camino::Utf8Path;
 use donder_language::{DonderDuration, DonderTime};
-use donder_model::EffectInst;
+use donder_model::Clip;
 use donder_model::SequenceId;
 use donder_project_io::SourceIdentity;
 use donder_project_io::{DocumentId, ProjectSession};
 
 use crate::dto::{
     GuiDocument, GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiObjectRef, IoDiagnostic,
-    SequenceEffectDetails, SequenceSelection,
+    SequenceClipDetails, SequenceSelection,
 };
 
 mod arrange;
@@ -44,18 +44,18 @@ use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};
 use selection::copy_sequence_selection;
 use selection::{
-    delete_sequence_selection, edit_effect_selection, move_clip_selection, move_mark_selection,
+    delete_sequence_selection, edit_clip_selection, move_clip_selection, move_mark_selection,
     paste_sequence_clipboard, resize_clip_selection,
 };
 use setup::{edit_setup, project_setup};
 
 pub use dispatch::{
-    ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiEditOutcome, SequenceClipboard,
+    ClipboardAutomation, ClipboardClip, ClipboardMark, GuiEditOutcome, SequenceClipboard,
     apply_edit, copy_selection,
 };
 pub use document::{
     GuiMutationError, blocked, project_gui_document, project_gui_document_change,
-    sequence_effect_details,
+    sequence_clip_details,
 };
 pub use document::{ResolvedGuiObject, affected_paths, gui_editor_order, resolve_request};
 

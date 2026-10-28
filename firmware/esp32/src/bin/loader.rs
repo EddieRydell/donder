@@ -29,6 +29,9 @@ use core::{
     fmt::Write as _,
     sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
+use donder_device_protocol::{Capabilities, LOADED, OutputCapabilities, TOKEN_HEADER, path};
+#[cfg(feature = "i2s-output")]
+use donder_device_protocol::{PlaybackStatus, TransportStatus, clock};
 #[cfg(feature = "i2s-output")]
 use donder_runtime::FrameTiming;
 use donder_runtime::{Layout, SequenceFrame, header_bytes};
@@ -100,10 +103,6 @@ static APP_CORE_EXECUTOR: StaticCell<esp_rtos::embassy::Executor> = StaticCell::
 mod transport;
 
 #[cfg(feature = "i2s-output")]
-#[path = "../control_protocol.rs"]
-mod control_protocol;
-
-#[cfg(feature = "i2s-output")]
 #[path = "../loader_control.rs"]
 mod loader_control;
 
@@ -116,9 +115,9 @@ fn local_micros() -> u64 {
 }
 
 /// A prepared sequence in RAM, freed when dropped.
-struct RamSequence(*mut [u32]);
+struct RamImage(*mut [u32]);
 
-impl RamSequence {
+impl RamImage {
     fn new(words: Box<[u32]>) -> Self {
         Self(Box::into_raw(words))
     }
@@ -131,7 +130,7 @@ impl RamSequence {
     }
 }
 
-impl Drop for RamSequence {
+impl Drop for RamImage {
     fn drop(&mut self) {
         // Safety: nothing borrows the copy once its owner drops it.
         drop(unsafe { Box::from_raw(self.0) });
@@ -140,29 +139,29 @@ impl Drop for RamSequence {
 
 /// A show playing from RAM. Its playback is laid out once in a
 /// heap buffer and kept between frames, so a frame does not lay it out again.
-struct LoadedShow {
+struct LoadedImage {
     playback: core::mem::ManuallyDrop<Box<donder_runtime::Playback<'static, 'static>>>,
     /// The playback's buffer, freed after the playback that borrows it.
     buffer: *mut [u32],
     /// The prepared sequence the playback reads, dropped after it.
-    _prepared: RamSequence,
+    _prepared: RamImage,
 }
 
 // Safety: the buffer is owned by this value alone and only reached through
 // its playback, which moves between cores with it.
-unsafe impl Send for LoadedShow {}
+unsafe impl Send for LoadedImage {}
 
-impl LoadedShow {
+impl LoadedImage {
     fn new(
-        sequence: donder_runtime::Show<'static>,
+        image: donder_runtime::Image<'static>,
         layout: &Layout,
-        prepared: RamSequence,
+        prepared: RamImage,
     ) -> Option<Self> {
         let buffer = Box::into_raw(vec![0u32; layout.words()].into_boxed_slice());
         // Safety: the buffer stays allocated until `drop`, which drops the
         // playback borrowing it first.
         let words: &'static mut [u32] = unsafe { &mut *buffer };
-        match donder_runtime::Playback::new(sequence, layout, words) {
+        match donder_runtime::Playback::new(image, layout, words) {
             Some(playback) => Some(Self {
                 playback: core::mem::ManuallyDrop::new(Box::new(playback)),
                 buffer,
@@ -176,8 +175,8 @@ impl LoadedShow {
         }
     }
 
-    fn sequence(&self) -> donder_runtime::Show<'static> {
-        self.playback.show()
+    fn view(&self) -> donder_runtime::Image<'static> {
+        self.playback.image()
     }
 
     fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
@@ -185,7 +184,7 @@ impl LoadedShow {
     }
 }
 
-impl Drop for LoadedShow {
+impl Drop for LoadedImage {
     fn drop(&mut self) {
         // Safety: the playback is dropped before the buffer it borrows, and
         // neither is used again.
@@ -197,13 +196,13 @@ impl Drop for LoadedShow {
 }
 
 struct Playback {
-    show: LoadedShow,
+    image: LoadedImage,
     #[cfg(feature = "i2s-output")]
     transport: transport::Transport,
     #[cfg(feature = "i2s-output")]
-    archive_id: u32,
+    image_id: u32,
     #[cfg(feature = "i2s-output")]
-    archive_bytes: u32,
+    image_bytes: u32,
 }
 
 #[cfg(feature = "i2s-output")]
@@ -211,13 +210,13 @@ impl Playback {
     fn render(&mut self, display_time: u64) -> Option<SequenceFrame<'_>> {
         let (mode, position) = self
             .transport
-            .sample(display_time, self.show.sequence().duration().as_ticks());
+            .sample(display_time, self.image.view().duration().as_ticks());
         if matches!(mode, transport::Mode::Stopped | transport::Mode::Ended) {
             return None;
         }
         // Scaled timing holds each grid frame; constant timing samples every latch exactly.
         let rate = self.transport.rate(display_time);
-        let frame_rate = self.show.sequence().frame_rate();
+        let frame_rate = self.image.view().frame_rate();
         let time = match rate.frame_timing() {
             FrameTiming::Scaled => {
                 let frame = rate.frame_at(position, frame_rate);
@@ -225,7 +224,7 @@ impl Playback {
             }
             FrameTiming::Constant => SampleTime::from_ticks(position),
         };
-        Some(self.show.evaluate(time))
+        Some(self.image.evaluate(time))
     }
 }
 type SharedPlayback = Mutex<CriticalSectionRawMutex, Option<Playback>>;
@@ -264,7 +263,7 @@ type ParallelOutput = I2sParallel<'static, Async>;
 
 /// What this controller can play, as it reports to hosts.
 struct Limits {
-    sequence_bytes: usize,
+    image_bytes: usize,
     pixels: usize,
     graph_nodes: usize,
     workspace_bytes: usize,
@@ -273,7 +272,7 @@ struct Limits {
 const LIMITS: Limits = Limits {
     // A playing show holds its prepared sequence and its playback buffer in
     // the heap beside the network; about 75 KiB of it is free for both.
-    sequence_bytes: 64 * 1024,
+    image_bytes: 64 * 1024,
     pixels: 1600,
     graph_nodes: 128,
     workspace_bytes: 64 * 1024,
@@ -372,10 +371,16 @@ impl RequestHandlerService<LoaderState> for LastPanic {
     ) -> Result<picoserve::ResponseSent, W::Error> {
         let connection = request.body_connection.finalize().await?;
         match last_panic() {
-            Some(message) => (StatusCode::OK, format_args!("{message}\n"))
-                .write_to(connection, response_writer)
-                .await,
-            None => (StatusCode::OK, "none\n").write_to(connection, response_writer).await,
+            Some(message) => {
+                (StatusCode::OK, format_args!("{message}\n"))
+                    .write_to(connection, response_writer)
+                    .await
+            }
+            None => {
+                (StatusCode::OK, "none\n")
+                    .write_to(connection, response_writer)
+                    .await
+            }
         }
     }
 }
@@ -402,34 +407,33 @@ fn load(
 ) -> Result<Playback, LoadError> {
     let free = esp_alloc::HEAP.free();
     println!("LOAD bytes={} heap_free={}", slot.length, free);
-    // The prepared sequence plays from RAM; it and the workspace must leave
+    // The prepared image plays from RAM; it and the workspace must leave
     // the network reserve free.
     if slot.length + NETWORK_HEAP_RESERVE > free {
         return Err(LoadError::Limit);
     }
-    let copy = RamSequence::new(storage.read_show(slot).map_err(|_| LoadError::Read)?);
+    let copy = RamImage::new(storage.read_image(slot).map_err(|_| LoadError::Read)?);
     let prepared = copy.bytes(slot.length);
     let workspace_bytes = LIMITS
         .workspace_bytes
         .min(esp_alloc::HEAP.free().saturating_sub(NETWORK_HEAP_RESERVE));
-    let sequence =
-        donder_runtime::Show::open(prepared).map_err(|_| LoadError::Version)?;
+    let image = donder_runtime::Image::open(prepared).map_err(|_| LoadError::Version)?;
     #[cfg(feature = "i2s-output")]
-    if sequence.outputs().is_empty()
-        || sequence.frame_rate() > MAX_FRAME_RATE
-        || sequence.outputs().len() > OUTPUT_LANES
-        || sequence
+    if image.outputs().is_empty()
+        || image.frame_rate() > MAX_FRAME_RATE
+        || image.outputs().len() > OUTPUT_LANES
+        || image
             .outputs()
             .iter()
             .any(|output| output.width as usize > OUTPUT_PIXELS * 3 || output.width % 3 != 0)
     {
         return Err(LoadError::Limit);
     }
-    let layout = sequence.layout();
+    let layout = image.layout();
     if layout.words() * 4 > workspace_bytes {
         return Err(LoadError::Limit);
     }
-    let show = LoadedShow::new(sequence, &layout, copy).ok_or(LoadError::Limit)?;
+    let loaded = LoadedImage::new(image, &layout, copy).ok_or(LoadError::Limit)?;
     println!(
         "LOAD workspace_bytes={} heap_free={}",
         layout.words() * 4,
@@ -437,10 +441,10 @@ fn load(
     );
     Ok(Playback {
         #[cfg(feature = "i2s-output")]
-        archive_id: u32::from_le_bytes(prepared[8..12].try_into().unwrap()),
+        image_id: u32::from_le_bytes(prepared[8..12].try_into().unwrap()),
         #[cfg(feature = "i2s-output")]
-        archive_bytes: prepared.len() as u32,
-        show,
+        image_bytes: prepared.len() as u32,
+        image: loaded,
         #[cfg(feature = "i2s-output")]
         transport: transport::Transport::new(),
     })
@@ -472,7 +476,7 @@ fn token_matches(supplied: &[u8]) -> bool {
 fn authorized(_: &LoaderState, request: &picoserve::request::RequestParts<'_>) -> bool {
     request
         .headers()
-        .get("x-donder-token")
+        .get(TOKEN_HEADER)
         .is_some_and(|supplied| token_matches(supplied.as_raw()))
 }
 
@@ -674,36 +678,6 @@ impl RequestHandlerService<LoaderState> for SetNetwork {
     }
 }
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Capabilities {
-    sequence_format: u32,
-    max_payload_bytes: usize,
-    max_pixels: usize,
-    max_graph_nodes: usize,
-    max_workspace_bytes: usize,
-    output: OutputCapabilities,
-}
-
-#[derive(serde::Serialize)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-enum OutputCapabilities {
-    #[cfg(feature = "i2s-output")]
-    Ws281x {
-        lanes: usize,
-        channels_per_lane: usize,
-        channel_multiple: usize,
-        max_frame_rate: u32,
-        clock_udp_port: u16,
-    },
-    #[cfg(not(feature = "i2s-output"))]
-    EvaluationOnly,
-}
-
 struct DeviceCapabilities;
 
 impl RequestHandlerService<LoaderState> for DeviceCapabilities {
@@ -726,15 +700,15 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
                 .await;
         }
         let capabilities = Capabilities {
-            sequence_format: donder_runtime::FORMAT_VERSION,
-            max_payload_bytes: LIMITS.sequence_bytes,
-            max_pixels: LIMITS.pixels,
-            max_graph_nodes: LIMITS.graph_nodes,
-            max_workspace_bytes: LIMITS.workspace_bytes,
+            image_format: donder_runtime::FORMAT_VERSION,
+            max_payload_bytes: LIMITS.image_bytes as u32,
+            max_pixels: LIMITS.pixels as u32,
+            max_graph_nodes: LIMITS.graph_nodes as u32,
+            max_workspace_bytes: LIMITS.workspace_bytes as u32,
             #[cfg(feature = "i2s-output")]
             output: OutputCapabilities::Ws281x {
-                lanes: OUTPUT_LANES,
-                channels_per_lane: OUTPUT_PIXELS * 3,
+                lanes: OUTPUT_LANES as u32,
+                channels_per_lane: (OUTPUT_PIXELS * 3) as u32,
                 channel_multiple: 3,
                 max_frame_rate: MAX_FRAME_RATE,
                 clock_udp_port: HTTP_PORT,
@@ -750,9 +724,9 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
     }
 }
 
-struct UploadSequence;
+struct UploadImage;
 
-impl RequestHandlerService<LoaderState> for UploadSequence {
+impl RequestHandlerService<LoaderState> for UploadImage {
     async fn call_request_handler_service<
         R: picoserve::io::Read,
         W: picoserve::response::ResponseWriter<Error = R::Error>,
@@ -779,10 +753,10 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         };
 
         let length = request.body_connection.content_length();
-        if !(header_bytes()..=LIMITS.sequence_bytes).contains(&length) {
+        if !(header_bytes()..=LIMITS.image_bytes).contains(&length) {
             return (
                 StatusCode::PAYLOAD_TOO_LARGE,
-                "Sequence exceeds device limits\n",
+                "Image exceeds device limits\n",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
@@ -812,7 +786,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
             Err(_) => {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Cannot stage sequence in flash\n",
+                    "Cannot stage image in flash\n",
                 )
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;
@@ -852,7 +826,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                 {
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        "Cannot write staged sequence\n",
+                        "Cannot write staged image\n",
                     )
                         .write_to(request.body_connection.finalize().await?, response_writer)
                         .await;
@@ -867,7 +841,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         let connection = request.body_connection.finalize().await?;
         drop(scratch);
         if offset != length {
-            return (StatusCode::BAD_REQUEST, "Incomplete sequence body\n")
+            return (StatusCode::BAD_REQUEST, "Incomplete image body\n")
                 .write_to(connection, response_writer)
                 .await;
         }
@@ -877,18 +851,18 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         let start = Instant::now();
         match load(&mut storage, slot) {
             Ok(playback) => {
-                let pixels = playback.show.sequence().pixel_count();
+                let pixels = playback.image.view().pixel_count();
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
                 if show_slots::commit(&mut storage.shows(), slot).is_err() {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Cannot commit sequence; playback stopped and previous saved show retained\n")
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Cannot commit image; playback stopped and previous saved image retained\n")
                         .write_to(connection, response_writer).await;
                 }
                 *state.playback.lock().await = Some(playback);
                 (
                     StatusCode::OK,
                     format_args!(
-                        "LOADED bytes={} pixels={} heap={} us={}\n",
+                        "{LOADED}bytes={} pixels={} heap={} us={}\n",
                         length, pixels, heap, elapsed
                     ),
                 )
@@ -898,14 +872,14 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
             Err(error) => {
                 let reason = match error {
                     LoadError::Limit => {
-                        "the show needs more memory, outputs or frames per second than this controller has"
+                        "the image needs more memory, outputs or frames per second than this controller has"
                     }
-                    LoadError::Version => "the show's format does not match this firmware",
-                    LoadError::Read => "the staged show could not be read back",
+                    LoadError::Version => "the image's format does not match this firmware",
+                    LoadError::Read => "the staged image could not be read back",
                 };
                 (
                     StatusCode::UNPROCESSABLE_ENTITY,
-                    format_args!("{reason}. Playback stopped; the previous saved show remains.\n"),
+                    format_args!("{reason}. Playback stopped; the previous saved image remains.\n"),
                 )
                     .write_to(connection, response_writer)
                     .await
@@ -963,9 +937,9 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
 
         let ticks = u32::from_le_bytes(ticks);
         let mut active = state.playback.lock().await;
-        let Some(Playback { show, .. }) = active.as_mut() else {
+        let Some(Playback { image, .. }) = active.as_mut() else {
             drop(active);
-            return (StatusCode::CONFLICT, "REJECT NoSequence\n")
+            return (StatusCode::CONFLICT, "REJECT NoImage\n")
                 .write_to(connection, response_writer)
                 .await;
         };
@@ -977,7 +951,7 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
             Relaxed,
         );
         let start = Instant::now();
-        let rendered = show.evaluate(SampleTime::from_ticks(ticks));
+        let rendered = image.evaluate(SampleTime::from_ticks(ticks));
         let elapsed = start.elapsed().as_micros();
         EVALUATION_TASK.store(0, Relaxed);
         let evaluation_allocations = EVALUATION_ALLOCATIONS.load(Relaxed) - evaluation_allocations;
@@ -999,37 +973,6 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
             .write_to(connection, response_writer)
             .await
     }
-}
-
-#[cfg(feature = "i2s-output")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PlaybackStatus {
-    mode: transport::Mode,
-    position_micros: u32,
-    duration_micros: u32,
-    archive_id: u32,
-    archive_bytes: u32,
-    pending_command: Option<u32>,
-    command_id: u32,
-}
-
-#[cfg(feature = "i2s-output")]
-impl serde::Serialize for transport::Mode {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(match self {
-            Self::Playing => "playing",
-            Self::Paused => "paused",
-            Self::Stopped => "stopped",
-            Self::Ended => "ended",
-        })
-    }
-}
-
-#[cfg(feature = "i2s-output")]
-#[derive(serde::Serialize)]
-struct TransportStatus {
-    playback: Option<PlaybackStatus>,
 }
 
 #[cfg(feature = "i2s-output")]
@@ -1066,7 +1009,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
         if let Some(mode) = self.0 {
             let Some(playback) = active.as_mut() else {
                 drop(active);
-                return (StatusCode::CONFLICT, "No sequence is loaded\n")
+                return (StatusCode::CONFLICT, "No image is loaded\n")
                     .write_to(connection, response_writer)
                     .await;
             };
@@ -1075,7 +1018,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             } else {
                 playback
                     .transport
-                    .sample(now, playback.show.sequence().duration().as_ticks())
+                    .sample(now, playback.image.view().duration().as_ticks())
                     .1
             };
             playback.transport.apply(
@@ -1090,15 +1033,15 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             playback: active.as_ref().map(|playback| PlaybackStatus {
                 mode: playback
                     .transport
-                    .sample(now, playback.show.sequence().duration().as_ticks())
+                    .sample(now, playback.image.view().duration().as_ticks())
                     .0,
                 position_micros: playback
                     .transport
-                    .sample(now, playback.show.sequence().duration().as_ticks())
+                    .sample(now, playback.image.view().duration().as_ticks())
                     .1,
-                duration_micros: playback.show.sequence().duration().as_ticks(),
-                archive_id: playback.archive_id,
-                archive_bytes: playback.archive_bytes,
+                duration_micros: playback.image.view().duration().as_ticks(),
+                image_id: playback.image_id,
+                image_bytes: playback.image_bytes,
                 pending_command: playback.transport.pending.map(|command| command.id),
                 command_id: playback.transport.command_id,
             }),
@@ -1121,34 +1064,27 @@ impl AppBuilder for WebApp {
 
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
         let router = picoserve::Router::new()
-            .route("/capabilities", get_service(DeviceCapabilities))
+            .route(path::CAPABILITIES, get_service(DeviceCapabilities))
             .route("/panic", get_service(LastPanic))
-            .route("/sequence", put_service(UploadSequence))
+            .route(path::IMAGE, put_service(UploadImage))
             .route("/frame", post_service(EvaluateFrame))
-            .route("/claim", post_service(Claim))
-            .route("/name", put_service(Rename))
-            .route("/network", put_service(SetNetwork));
+            .route(path::CLAIM, post_service(Claim))
+            .route(path::NAME, put_service(Rename))
+            .route(path::NETWORK, put_service(SetNetwork));
         #[cfg(feature = "i2s-output")]
         let router = router
+            .route(path::CONTROL, post_service(loader_control::Control))
+            .route(path::TRANSPORT, get_service(DeviceTransport(None)))
             .route(
-                "/clock",
-                get_service(loader_control::Control(loader_control::Endpoint::Clock)),
-            )
-            .route(
-                "/control",
-                post_service(loader_control::Control(loader_control::Endpoint::Command)),
-            )
-            .route("/transport", get_service(DeviceTransport(None)))
-            .route(
-                "/transport/play",
+                path::PLAY,
                 post_service(DeviceTransport(Some(transport::Mode::Playing))),
             )
             .route(
-                "/transport/pause",
+                path::PAUSE,
                 post_service(DeviceTransport(Some(transport::Mode::Paused))),
             )
             .route(
-                "/transport/stop",
+                path::STOP,
                 post_service(DeviceTransport(Some(transport::Mode::Stopped))),
             );
         router.with_state(self.state)
@@ -1217,22 +1153,24 @@ async fn clock_server(stack: embassy_net::Stack<'static>, boot_id: u32) -> ! {
     let mut tx = [0; 128];
     let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx, &mut tx_meta, &mut tx);
     socket.bind(HTTP_PORT).unwrap();
-    let mut request = [0; 44];
+    let mut request = [0; clock::Request::BYTES];
     loop {
         let Ok((length, remote)) = socket.recv_from(&mut request).await else {
             continue;
         };
         let received = local_micros();
-        if length != request.len() || &request[..4] != b"DCLK" || !token_matches(&request[4..36]) {
+        let Some(request) = clock::Request::decode(&request[..length])
+            .filter(|request| token_matches(&request.token))
+        else {
             continue;
-        }
-        let mut reply = [0; 32];
-        reply[..4].copy_from_slice(b"DCLK");
-        reply[4..12].copy_from_slice(&request[36..44]);
-        reply[12..16].copy_from_slice(&boot_id.to_le_bytes());
-        reply[16..24].copy_from_slice(&received.to_le_bytes());
-        reply[24..32].copy_from_slice(&local_micros().to_le_bytes());
-        if let Err(error) = socket.send_to(&reply, remote).await {
+        };
+        let reply = clock::Reply {
+            sent_micros: request.sent_micros,
+            boot_id,
+            received_micros: received,
+            replied_micros: local_micros(),
+        };
+        if let Err(error) = socket.send_to(&reply.encode(), remote).await {
             println!("Clock reply failed: {:?}", error);
         }
     }
@@ -1285,10 +1223,10 @@ async fn render_outputs(
         let mut current = playback.lock().await;
         let frame_rate = current
             .as_ref()
-            .map_or(IDLE_FRAME_RATE, |p| p.show.sequence().frame_rate());
+            .map_or(IDLE_FRAME_RATE, |p| p.image.view().frame_rate());
         let signature = current
             .as_ref()
-            .map(|p| (p.archive_id, p.archive_bytes, p.transport.generation));
+            .map(|p| (p.image_id, p.image_bytes, p.transport.generation));
         if signature != ready_signature {
             if let Some(p) = current.as_mut() {
                 let rendered = p.render(ready_display_time);
@@ -1327,7 +1265,7 @@ async fn render_outputs(
         let rendered = if let Some(playback) = active.as_mut() {
             playback
                 .transport
-                .refresh(master_now, playback.show.sequence().duration().as_ticks());
+                .refresh(master_now, playback.image.view().duration().as_ticks());
             playback.render(next_latch)
         } else {
             None
@@ -1339,7 +1277,7 @@ async fn render_outputs(
         encode_frame(rendered, spare_buffer.as_mut_slice());
         ready_signature = active
             .as_ref()
-            .map(|p| (p.archive_id, p.archive_bytes, p.transport.generation));
+            .map(|p| (p.image_id, p.image_bytes, p.transport.generation));
         ready_display_time = next_latch;
         drop(active);
         let encoding_us = u32::try_from(encoding_start.elapsed().as_micros()).unwrap();
@@ -1402,9 +1340,9 @@ async fn render_outputs(
 /// Load the newest saved show, stopped. This runs after the network has
 /// allocated its buffers, so releasing the show for an upload frees one
 /// contiguous region instead of gaps between network buffers.
-async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
+async fn restore_image(storage: &SharedStorage, playback: &SharedPlayback) {
     let Ok(_output_suspension) = storage::suspend_output().await else {
-        println!("DONDER rendering core did not release flash access; starting without a show");
+        println!("DONDER rendering core did not release flash access; starting without an image");
         return;
     };
     let mut storage = storage.lock().await;
@@ -1417,7 +1355,7 @@ async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
     // replaced then, not erased now.
     if restored.is_none() {
         println!(
-            "DONDER saved show is unreadable or invalid for this firmware; starting without it"
+            "DONDER saved image is unreadable or invalid for this firmware; starting without it"
         );
     }
     *playback.lock().await = restored;
@@ -1642,7 +1580,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         spawner.spawn(network::dhcp_server(stack, udp_pool).unwrap());
     }
     spawner.spawn(network::mdns_responder(stack, udp_pool, id, hostname, mode).unwrap());
-    restore_show(storage, playback).await;
+    restore_image(storage, playback).await;
     let app = picoserve::make_static!(
         AppRouter<WebApp>,
         WebApp {

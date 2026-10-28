@@ -347,16 +347,15 @@ impl<'a> Emitter<'a> {
                 select(bank, dst, condition, yes, no, code);
             }
             Op::Reduce(_) => self.reduce(node, code),
-            // A stencil emits its tap and its source.
+            // A stencil emits its tap and its neighbor.
             Op::Tap { .. } => {}
-            Op::Source => unreachable!("a stencil places its source"),
-            Op::ScanTap { .. } => self.scan(node, code),
-            Op::Previous | Op::Scan { .. } => unreachable!("lowering turns scans into scan taps"),
+            Op::Neighbor => unreachable!("a stencil or scan places its neighbor"),
+            Op::Scan { .. } => self.scan(node, code),
             Op::Items(_) => unreachable!("array literals are folded into picks"),
             Op::Pick { index, items } => self.pick(node, index, &items, code),
-            Op::Sample { input, pixel } => {
+            Op::Read { input, pixel } => {
                 let pixel = pixel.map(|index| self.operand(index));
-                code.push(Instruction::Sample {
+                code.push(Instruction::Read {
                     dst: self.destination(node),
                     input: input as u16,
                     pixel,
@@ -1020,8 +1019,8 @@ impl<'a> Emitter<'a> {
         });
     }
 
-    /// A neighborhood reduction: its header, the source block sampling the
-    /// input and computing the source weight, and the offset block.
+    /// A neighborhood reduction: its header, the weight block sampling the
+    /// input and computing the neighbor weight, and the offset block.
     fn stencil(&mut self, node: Node, code: &mut Vec<Instruction>) {
         let graph = self.graph;
         let Op::Reduce(id) = *graph.op(node) else {
@@ -1051,7 +1050,7 @@ impl<'a> Emitter<'a> {
         let pixel = pixel.map_or(one, |pixel| self.operand(pixel));
         let index = self.fresh(Bank::Int, false);
         self.values.insert(data.index, index);
-        let (mut source, weight) = self.source_block(input, weight, one);
+        let (mut weights, weight) = self.weight_block(input, weight, one);
         // A tabulated scale is read by offset from its table.
         let table =
             scale.and_then(|scale| self.tables.get(&scale).map(|&(table, _)| (scale, table)));
@@ -1065,7 +1064,7 @@ impl<'a> Emitter<'a> {
             Some((_, table)) => table,
             None => scale.map_or(one, |scale| self.operand(scale)),
         };
-        let (source_len, tap_len) = (self.length(&source), self.length(&taps));
+        let (weight_len, tap_len) = (self.length(&weights), self.length(&taps));
         code.push(Instruction::Stencil {
             reducer: match data.reducer {
                 ir::Reducer::Max => Reducer::Max,
@@ -1079,67 +1078,67 @@ impl<'a> Emitter<'a> {
             weight,
             scale,
             pixel,
-            source_len,
+            weight_len,
             tap_len,
         });
-        code.append(&mut source);
+        code.append(&mut weights);
         code.append(&mut taps);
     }
 
-    /// A source block: a sample of `input` at the current pixel, then the
+    /// A weight block: a sample of `input` at the current pixel, then the
     /// code computing `weight` (or `one`) from it.
-    fn source_block(
+    fn weight_block(
         &mut self,
         input: u32,
         weight: Option<Node>,
         one: Slot,
     ) -> (Vec<Instruction>, Slot) {
         let sample = self.fresh(Bank::Color, true);
-        let mut source = vec![Instruction::Sample {
+        let mut weights = vec![Instruction::Read {
             dst: sample,
             input: input as u16,
             pixel: SignalPixel::Current,
         }];
         let Some(weight) = weight else {
-            return (source, one);
+            return (weights, one);
         };
-        // The source runs over other pixels than the strip's, so its values
+        // The weight block runs over other pixels than the strip's, so its values
         // are this block's alone.
         let cone = self.source_cone(weight);
         for &node in &cone {
-            if matches!(self.graph.op(node), Op::Source) {
+            if matches!(self.graph.op(node), Op::Neighbor) {
                 self.values.insert(node, sample);
             } else if !self.absorbed.contains(&node) {
-                self.node(node, &mut source);
+                self.node(node, &mut weights);
             }
         }
         let slot = self.operand(weight);
         for node in cone {
             self.values.remove(&node);
         }
-        (source, slot)
+        (weights, slot)
     }
 
-    /// A scan: its instruction, then its source block.
+    /// A scan: its instruction, then its weight block.
     fn scan(&mut self, node: Node, code: &mut Vec<Instruction>) {
-        let Op::ScanTap {
+        let Op::Scan {
             direction,
             input,
             decay,
             weight,
         } = *self.graph.op(node)
         else {
-            unreachable!("scans are scan taps")
+            unreachable!("scans are scan nodes")
         };
         let one = self.float_constant(1.0);
         let decay = self.operand(decay);
-        let (mut source, weight) = self.source_block(input, weight, one);
+        let (mut weights, weight) = self.weight_block(input, weight, one);
         let cache = u8::try_from(self.scan_count).unwrap_or_else(|_| {
             self.fail(LowerError::Code);
             0
         });
         self.scan_count += 1;
-        let source_len = self.length(&source);
+        let weight_len = self.length(&weights);
         let dst = self.destination(node);
         code.push(Instruction::Scan {
             direction,
@@ -1147,9 +1146,9 @@ impl<'a> Emitter<'a> {
             decay,
             weight,
             cache,
-            source_len,
+            weight_len,
         });
-        code.append(&mut source);
+        code.append(&mut weights);
     }
 
     /// The tables `stage` fills, at the end of its block: for each output, a
@@ -1225,12 +1224,12 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    /// The source-stage nodes `weight` is computed from, operands first.
+    /// The neighbor-stage nodes `weight` is computed from, operands first.
     fn source_cone(&self, weight: Node) -> Vec<Node> {
         let mut cone = HashSet::new();
         let mut pending = vec![weight];
         while let Some(node) = pending.pop() {
-            if self.plan.stage(node) == Stage::Source && cone.insert(node) {
+            if self.plan.stage(node) == Stage::Neighbor && cone.insert(node) {
                 pending.extend(self.graph.op(node).operands());
             }
         }

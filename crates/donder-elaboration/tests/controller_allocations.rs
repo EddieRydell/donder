@@ -4,7 +4,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, PreparedShow, prepare};
+use donder_elaboration::{PreparedShow, Retain, prepare};
 use donder_project_io::check_project;
 use donder_runtime_types::sample_time_from_frame;
 
@@ -64,7 +64,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         .iter()
         .map(|source| source.id())
     {
-        let output = prepare(&session.project, sequence_id, PrepareOutputs::All)
+        let output = prepare(&session.project, sequence_id, Retain::All)
             .expect("starter output should prepare");
         let frames = [
             0,
@@ -87,7 +87,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         let mut selected = prepare(
             &session.project,
             sequence_id,
-            PrepareOutputs::Ports(&[(*controller, port)]),
+            Retain::Ports(&[(*controller, port)]),
         )
         .unwrap();
         let encoded = selected.encode();
@@ -138,7 +138,7 @@ fn prepared_controller_sampling_does_not_allocate() {
     .find(|operator| operator.name().as_str() == "Afterglow")
     .unwrap();
     support::append_operator(&mut project, &sequence_id, afterglow);
-    let output = prepare(&project, &sequence_id, PrepareOutputs::All).unwrap();
+    let output = prepare(&project, &sequence_id, Retain::All).unwrap();
     assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 0], "Afterglow");
 }
 

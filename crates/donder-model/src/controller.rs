@@ -52,7 +52,7 @@ impl DonderDeviceId {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct E131Config {
-    pub source_name: String,
+    pub sender_name: String,
     pub bind_address: IpAddr,
     pub priority: u8,
     pub mode: E131Mode,
@@ -96,7 +96,7 @@ pub enum ControllerPortAddress {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ControllerValidationError {
-    EmptySourceName,
+    EmptySenderName,
     InvalidPriority(u8),
     DuplicatePort(ControllerPortId),
     /// Port names are `snake_case` and unique within their controller.
@@ -125,8 +125,8 @@ pub enum ControllerValidationError {
 impl Controller {
     pub fn validate(&self) -> Result<(), ControllerValidationError> {
         if let ControllerProtocol::E131(config) = &self.protocol {
-            if config.source_name.trim().is_empty() {
-                return Err(ControllerValidationError::EmptySourceName);
+            if config.sender_name.trim().is_empty() {
+                return Err(ControllerValidationError::EmptySenderName);
             }
             if !(1..=200).contains(&config.priority) {
                 return Err(ControllerValidationError::InvalidPriority(config.priority));
@@ -201,4 +201,4 @@ impl crate::ownership::Identified for Controller {
     }
 }
 
-pub type ControllerSource = crate::ownership::MemberSource<Controller, ControllerId>;
+pub type OwnedController = crate::ownership::OwnedMember<Controller, ControllerId>;

@@ -4,8 +4,8 @@
 //! and the shapes the generated reference and the language server read.
 use donder_data_derive::Data;
 use donder_language::data::{
-    Data, DataValue, Decoder, Meters, Name, NamedSource, Params, Path, Reference, Schema, Source,
-    Spanned, spanned,
+    Data, DataValue, Decoder, Meters, Name, OwnedNamedRecord, OwnedRecord, Params, Path, Reference,
+    Schema, Spanned, spanned,
 };
 use donder_runtime_types::Color;
 use std::time::Duration;
@@ -14,18 +14,18 @@ use std::time::Duration;
 pub struct Project {
     pub format: u8,
     pub description: Option<String>,
-    pub setup: Source<Setup>,
-    pub sequences: Vec<NamedSource<Sequence>>,
-    pub rigs: Vec<NamedSource<Rig>>,
+    pub setup: OwnedRecord<Setup>,
+    pub sequences: Vec<OwnedNamedRecord<Sequence>>,
+    pub rigs: Vec<OwnedNamedRecord<Rig>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct Setup {
     pub description: Option<String>,
-    pub layout: Source<Layout>,
-    pub patch: Source<Patch>,
-    pub controllers: Vec<NamedSource<Controller>>,
-    pub input_devices: Vec<NamedSource<InputDevice>>,
+    pub layout: OwnedRecord<Layout>,
+    pub patch: OwnedRecord<Patch>,
+    pub controllers: Vec<OwnedNamedRecord<Controller>>,
+    pub input_devices: Vec<OwnedNamedRecord<InputDevice>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -38,7 +38,7 @@ pub struct Controller {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum Protocol {
     E131 {
-        source_name: String,
+        sender_name: String,
         bind_address: String,
         priority: u8,
         mode: E131Mode,
@@ -202,7 +202,7 @@ pub enum LayoutItem {
     Fixture {
         name: Name,
         description: Option<String>,
-        definition: Source<FixtureDefinition>,
+        definition: OwnedRecord<FixtureDefinition>,
         transform: Transform,
     },
 }
@@ -423,7 +423,7 @@ pub enum Node {
         position: (f32, f32),
     },
     /// Named `output`.
-    OutputNode { position: (f32, f32) },
+    RootNode { position: (f32, f32) },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -564,11 +564,11 @@ pub enum MappingAction {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct PlayedValue {
     pub param: Name,
-    pub from: PlayedSource,
+    pub from: PlayedQuantity,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum PlayedSource {
+pub enum PlayedQuantity {
     Velocity,
     Pitch,
     PitchClass,

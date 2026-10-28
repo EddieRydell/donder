@@ -14,7 +14,7 @@ export type AutomationDraft = {
   contentDurationSeconds: number;
 };
 
-export type AutomationHover = { kind: "automation"; clipId: number; resize: "left" | "right" | "none" };
+export type AutomationHover = { kind: "automation"; automationClipId: number; resize: "left" | "right" | "none" };
 
 export type AutomationCurvePoint = { time: number; value: number };
 
@@ -51,7 +51,7 @@ export type AutomationClipVisualState = {
   markXs: number[];
 };
 
-export type SequenceRowKind = "effects" | "automation";
+export type SequenceRowKind = "clips" | "automation";
 export type SequenceRowHeightMap = Record<number, Record<SequenceRowKind, number>>;
 
 export type SequenceRowLayout = {
@@ -73,17 +73,17 @@ export function automationLaneRowHeight(laneHeight: number): number {
 
 // The persisted suffix denotes row kind, never a visible row index.
 function persistedRowHeightKey(fixture: number, kind: SequenceRowKind): string {
-  return `${fixture}:row:${kind === "effects" ? 0 : 1}`;
+  return `${fixture}:row:${kind === "clips" ? 0 : 1}`;
 }
 
 export function persistRowHeights(heights: SequenceRowHeightMap): PersistedSequenceViewportState["rowHeights"] {
   return Object.fromEntries(Object.entries(heights).flatMap(([fixture, sizes]) =>
-    (["effects", "automation"] as const).map((kind) => [persistedRowHeightKey(Number(fixture), kind), sizes[kind]])));
+    (["clips", "automation"] as const).map((kind) => [persistedRowHeightKey(Number(fixture), kind), sizes[kind]])));
 }
 
 export function restoreRowHeights(lanes: SequenceLane[], persisted: PersistedSequenceViewportState["rowHeights"] | undefined, defaultHeight: number): SequenceRowHeightMap {
   return Object.fromEntries(lanes.map((lane) => [lane.target.fixture, {
-    effects: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "effects")] ?? defaultHeight, THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight),
+    clips: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "clips")] ?? defaultHeight, THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight),
     automation: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "automation")] ?? automationLaneRowHeight(defaultHeight), THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight)
   }]));
 }
@@ -97,9 +97,9 @@ export function sequenceRowLayout(lanes: SequenceLane[], clips: SequenceAutomati
   const rows: SequenceRowLayout[] = [];
   let top = 0;
   for (const [laneIndex, lane] of lanes.entries()) {
-    for (const kind of ["effects", "automation"] as const) {
-      const visible = kind === "effects" || revealAutomation || occupied.has(lane.target.fixture);
-      const height = visible ? rowHeightAt(rowHeights, lane.target, kind, kind === "effects" ? defaultMainRowHeight : defaultAutomationRowHeight) : 0;
+    for (const kind of ["clips", "automation"] as const) {
+      const visible = kind === "clips" || revealAutomation || occupied.has(lane.target.fixture);
+      const height = visible ? rowHeightAt(rowHeights, lane.target, kind, kind === "clips" ? defaultMainRowHeight : defaultAutomationRowHeight) : 0;
       rows.push({ laneIndex, target: lane.target, kind, top, height, bottom: top + height });
       top += height;
     }
@@ -164,10 +164,10 @@ export function buildAutomationClipLayout(clips: AutomationClipView[], rows: Seq
   return layouts;
 }
 
-/** Labels a target whose effect or operator no longer resolves, so it names only ids. */
+/** Labels a target whose clip or operator no longer resolves, so it names only ids. */
 export function detachedAutomationTargetLabel(target: SequenceAutomationTarget): string {
-  return target.type === "effectParam"
-    ? `Effect ${target.effectId}: ${target.param}`
+  return target.type === "clipParam"
+    ? `Clip ${target.clipId}: ${target.param}`
     : `Operator ${target.nodeId}: ${target.param}`;
 }
 
@@ -188,7 +188,7 @@ export function automationClipsWithDrafts(clips: SequenceAutomationClip[], draft
 export function automationHoverEqual(left: AutomationHover | null, right: AutomationHover | null) {
   if (left === right) return true;
   if (left === null || right === null) return false;
-  return left.clipId === right.clipId && left.resize === right.resize;
+  return left.automationClipId === right.automationClipId && left.resize === right.resize;
 }
 
 type ClipTiming = { id: number; startSeconds: number; durationSeconds: number };
@@ -243,7 +243,7 @@ export function hitTimelineClip<T extends { rect: AutomationClipLayout["rect"] }
     if (clip === undefined) continue;
     const { rect } = clip;
     if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
-      const resize: "left" | "right" | "none" = x - rect.x < THEME_METRICS.sequenceEffectResizeHitWidth ? "left" : rect.x + rect.width - x < THEME_METRICS.sequenceEffectResizeHitWidth ? "right" : "none";
+      const resize: "left" | "right" | "none" = x - rect.x < THEME_METRICS.sequenceClipResizeHitWidth ? "left" : rect.x + rect.width - x < THEME_METRICS.sequenceClipResizeHitWidth ? "right" : "none";
       return { ...clip, resize };
     }
   }

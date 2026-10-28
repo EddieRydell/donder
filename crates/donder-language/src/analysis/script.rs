@@ -193,7 +193,7 @@ fn semantic_tokens(
                         ScriptTarget::Context(_) => TokenClass::Context,
                         ScriptTarget::Method(_) => TokenClass::Function,
                     }
-                } else if member_word(&tokens, index, text) {
+                } else if member_word(&tokens, index, text) || CONTEXTUAL_KEYWORDS.contains(&text) {
                     TokenClass::Keyword
                 } else if type_words().any(|word| word == text) {
                     TokenClass::Type
@@ -231,6 +231,12 @@ fn semantic_tokens(
     result.sort_by_key(|token| token.span.start);
     result
 }
+
+/// The words of `around` and `scan`, which are keywords only where those
+/// constructs expect them; a name the source declares is never one.
+const CONTEXTUAL_KEYWORDS: [&str; 8] = [
+    "around", "extended", "mirrored", "as", "scan", "forward", "backward", "decay",
+];
 
 /// `param`, `input` and `sample` where a declaration's member starts.
 fn member_word(tokens: &[Token], index: usize, text: &str) -> bool {
@@ -355,16 +361,13 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
     // Names in scope: parameters, inputs and enum options of the declaration,
     // or a function's arguments, and `let`s and indexes of open blocks.
     let mut open = vec![Vec::new()];
-    let mut pending_index = None;
+    // Names the next block binds: a reduction index, a neighbor or a light.
+    let mut pending = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         let next = tokens.get(index + 1).copied();
         match token.kind {
             TokenKind::LeftBrace => {
-                let mut scope = Vec::new();
-                if let Some(name) = pending_index.take() {
-                    scope.push(name);
-                }
-                open.push(scope);
+                open.push(std::mem::take(&mut pending));
             }
             TokenKind::RightBrace => {
                 open.pop();
@@ -382,8 +385,17 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
             TokenKind::Keyword(Keyword::For)
                 if next.is_some_and(|next| next.kind == TokenKind::Identifier) =>
             {
-                pending_index =
-                    next.map(|next| (context.text(next), CompletionKind::Variable, "int"));
+                pending
+                    .extend(next.map(|next| (context.text(next), CompletionKind::Variable, "int")));
+            }
+            // `around input as neighbor { .. }` and `scan .. as light { .. }`.
+            TokenKind::Identifier
+                if context.text(*token) == "as"
+                    && next.is_some_and(|next| next.kind == TokenKind::Identifier) =>
+            {
+                pending.extend(
+                    next.map(|next| (context.text(next), CompletionKind::Variable, "color")),
+                );
             }
             TokenKind::Identifier
                 if matches!(context.text(*token), "param" | "input")
@@ -483,6 +495,14 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
                 )),
         );
     }
+    completions.push(
+        Completion::new("scan", CompletionKind::Snippet)
+            .detail("scan forward input decay d")
+            .documentation(
+                "A trail along each fixture: at each pixel, the trail so far times the decay plus the input's light, optionally weighted with `as light { light * weight }`.",
+            )
+            .insert("scan ${1|forward,backward|} ${2:input} decay ${3:decay}"),
+    );
     for keyword in [
         Keyword::Let,
         Keyword::Guard,

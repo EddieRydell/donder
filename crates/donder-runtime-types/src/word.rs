@@ -347,7 +347,7 @@ impl InstructionWord {
             I::Section { index, dst, width } => {
                 code.push(w(op::SECTION, u8::from(index)).slots(&[dst, width]).done());
             }
-            I::Sample { dst, input, pixel } => {
+            I::Read { dst, input, pixel } => {
                 let (kind, edges, index) = match pixel {
                     SignalPixel::Current => (PIXEL_CURRENT, 0, Slot::NONE),
                     SignalPixel::Local(index) => (PIXEL_LOCAL, 0, index),
@@ -406,13 +406,13 @@ impl InstructionWord {
                 weight,
                 scale,
                 pixel,
-                source_len,
+                weight_len,
                 tap_len,
             } => {
                 code.push(
                     w(op::STENCIL, both(reducer.to_wire(), edges.to_wire()))
                         .slots(&[acc, index, start, end])
-                        .half(6, source_len)
+                        .half(6, weight_len)
                         .done(),
                 );
                 code.push(
@@ -454,11 +454,11 @@ impl InstructionWord {
                 decay,
                 weight,
                 cache,
-                source_len,
+                weight_len,
             } => {
                 let mut word = w(op::SCAN, direction.to_wire())
                     .slots(&[dst, decay, weight])
-                    .half(6, source_len);
+                    .half(6, weight_len);
                 word.0[5] = cache;
                 code.push(word.done());
             }
@@ -604,7 +604,7 @@ impl InstructionWord {
                     PIXEL_LOCAL => SignalPixel::Local(index),
                     _ => SignalPixel::Shifted(index, word.high()),
                 };
-                I::Sample {
+                I::Read {
                     dst: s(2),
                     input: word.half(4),
                     pixel,
@@ -639,7 +639,7 @@ impl InstructionWord {
                     index: s(3),
                     start: s(4),
                     end: s(5),
-                    source_len: word.half(6),
+                    weight_len: word.half(6),
                     weight: next.slot(2),
                     scale: next.slot(3),
                     pixel: next.slot(4),
@@ -652,7 +652,7 @@ impl InstructionWord {
                 decay: s(3),
                 weight: s(4),
                 cache: word.0[5],
-                source_len: word.half(6),
+                weight_len: word.half(6),
             },
             op::TABULATE => I::Tabulate {
                 bank: word.low(),

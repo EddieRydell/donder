@@ -15,9 +15,9 @@ Sequence empty {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (80.0, 120.0) },
-      OutputNode { position: (720.0, 120.0) },
+      RootNode { position: (720.0, 120.0) },
     ],
-    edges: [Edge { from: default, to: output }],
+    edges: [Edge { from: default, to: root }],
   },
   automation: [],
 }

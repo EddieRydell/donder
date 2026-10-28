@@ -16,7 +16,7 @@ source ─► syntax (lexer, parser, AST)
 
 The IR is the center: a typed, hash-consed, pure dataflow graph whose
 dependencies stay visible until bytecode emission. Domains, reductions, signal
-samples, uses and purity are structural facts of the graph, not results of an
+reads, uses and purity are structural facts of the graph, not results of an
 analysis over instructions.
 
 ## Syntax and checking
@@ -79,8 +79,12 @@ so equal expressions share a node by construction.
 | `Unary`, `Binary`, `Ternary` | Scalar, color, resource, mark and section operations |
 | `Select` | Pure choice. `&&` and `\|\|` are selects too |
 | `Reduce` with `LoopIndex` | A reduction; its bounds, body, filter and default live in its loop |
-| `Sample` | An input signal of this frame, or the node's previous frame (`previous`), at the current pixel, a shift of it, or a pixel of its fixture |
+| `Read` | An input signal of this frame, or the node's previous frame (`previous`), at the current pixel, a shift of it, or a pixel of its fixture |
 | `Items`, `Pick` | An array literal, and its item at a clamped index |
+| `ParamIntegral` | A float parameter integrated over the definition's time. Only definitions hold it: whether it is a slot playback writes or `parameter * time` depends on the invocation's automation, so instantiation replaces it |
+| `Tap` | A stencil: an `around` reduction's contribution as checking forms it, its reduction's body |
+| `Scan` | A trail along each fixture: decay, input and weight |
+| `Neighbor` | The input pixel a tap's or scan's weight reads, at the pixel the weight is computed for |
 
 Each node records its type, its domain and the reductions whose index it reads,
 computed when it is built:
@@ -91,7 +95,7 @@ computed when it is built:
 | `TIME` | the query: `time`, `progress`, `frames_elapsed`, automated parameters |
 | `TARGET` | the target run: pixel count of mixed fixtures and target bounds |
 | `PIXEL` | the pixel |
-| `SIGNAL` | an upstream sample |
+| `SIGNAL` | an upstream read |
 
 A node's domain is the union of its operands' domains. A loop index has the
 domain of its bounds; a reduction has its parts' domains minus its own loop.
@@ -99,7 +103,7 @@ domain of its bounds; a reduction has its parts' domains minus its own loop.
 Construction folds (`ir/fold.rs`):
 - constants, by the host evaluator (`ir/eval.rs`), which uses the runtime's math
   from `crate::sampling`. Transcendental functions, context, sections and
-  samples are never evaluated on the host;
+  signal reads are never evaluated on the host;
 - identities that cannot hide a missing value: `x + 0`, `x * 1`, black under
   color max, add or scale, and choices with equal or constant arms;
 - black from a color multiplied by black, scaled by zero, or an `hsv` with zero
@@ -128,29 +132,27 @@ but whose result still varies at playback, is decided and only its taken arm is
 kept. A choice fixed as a whole is left for preparation to evaluate, so it does
 not multiply programs. Fixed reduction bounds become constants.
 
-A rig's invocations (`CompiledDefinition::invoke_live`) also name *live* marks
-parameters: collections that playback rebinds as marks arrive. They are `TIME`
-leaves like automated parameters, so nothing reads their contents or length at
-preparation; a reduction bounded by a live collection's length is rejected when
-the invocation is made. `Instance::lower` returns the program (a
-`Program`: bytecode and its signal input count), its parameter values and
-automation, and each live parameter's slot in it, unbound, and an instance with
-live parameters never fuses.
-A rig's controls are ordinary automation bindings whose value playback sets.
+`Instance::lower` returns the program (a `Program`: bytecode and its signal
+input count), its parameter values and automation, unbound. A rig's controls
+are ordinary automation bindings whose value playback sets, and so is a marks
+parameter that reads a live collection (`AutomationMapping::LiveMarks`):
+playback binds it to the collection's marks as they arrive. Like every
+automated parameter it is a `TIME` leaf, so nothing reads its contents or
+length at preparation; a reduction bounded by an automated parameter's length
+is rejected when the invocation is made.
 
 ## Global signal graph
 
 Preparation (`donder-elaboration/src/sequence/composition.rs`) builds one graph
-per sequence or rig selection from layers, operator instances and the output. Layers
+per sequence or rig selection from layers, operator instances and the root. Layers
 stay runtime nodes: the active clip set changes with time.
 
-1. **Black signals.** A disabled or empty layer is black. Sampling a black input
+1. **Black signals.** A disabled or empty layer is black. Reading a black input
    folds to black (`Instance::with_black_input`), and an operator that becomes
-   constant black is dropped from its consumers and the output.
+   constant black is dropped from its consumers and the root.
 2. **Fusion.** An operator consumed once is substituted into its consumer
-   (`Instance::fuse_input`) at its only sample site, on the current pixel, and
-   runs at the consumer's time. A site a scan reads, a program with live marks,
-   and a source or consumer that reads `previous` keep the boundary, since a
+   (`Instance::fuse_input`) at its only read site, on the current pixel, and
+   runs at the consumer's time. A scan's or stencil's input, and an upstream instance or consumer that reads `previous` keep the boundary, since a
    node's previous frame is its own. A fused program beyond the row or nesting
    limits keeps the boundary too.
 3. Every remaining instance is lowered, equal programs are interned, and only
@@ -170,7 +172,7 @@ instances still share one program.
 `lower::schedule` is global code motion over a region tree.
 
 - **Stages.** A node's domain decides its outermost stage: once per query, once
-  per target run, or per strip. Pixel context, section queries, samples and
+  per target run, or per strip. Pixel context, section queries, signal reads and
   reductions, and their users, run in the body; everything else that is fixed
   for a query or a target shape runs before the strips.
 - **Regions.** In the body, branch arms and reduction iterations are regions; a
@@ -179,7 +181,7 @@ instances still share one program.
   it does not read.
 - **Choices.** A select on a uniform condition branches whenever an arm has
   exclusive work, since only the taken arm runs. On a per-pixel condition, arms
-  with at most two exclusive nodes, and no reduction or sample, become a
+  with at most two exclusive nodes, and no reduction or signal read, become a
   branch-free choice; heavier arms branch and keep their work inside them.
 
 The plan (stages, regions, branches, uses) is independent of the bytecode;
@@ -198,7 +200,7 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
 - A color is three floats: a color operand names the first of three
   consecutive float slots, red, green and blue. Only instructions that produce
   or consume a whole color (`hsv`, recoloring, hue, saturation and intensity,
-  gradients, samples, stencils, scans and color array items) name one. Float
+  gradients, signal reads, stencils, scans and color array items) name one. Float
   arithmetic and mixes mark which operands are colors, read channel by
   channel while a float operand serves every channel, so `c * level` is one
   instruction; choices and copies take a color bank. A channel read is the
@@ -242,16 +244,19 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   neighbor is one with the reduction's edges.
 - An `around` reduction that reads its neighbor is a stencil. Checking proves
   its offsets span at most a strip (reaching at most half a strip each way when
-  extended or mirrored) and splits its contribution: the neighbor, scaled by
+  extended or mirrored) and forms its `Tap`, which every later rebuild copies
+  with its reduction. The contribution is flattened first (the scales and
+  guards around the neighbor, then each scale's products and quotients), so
+  grouping and order never decide acceptance, and split: the neighbor, scaled by
   factors and filtered by guards that each depend on one of the neighbor and
-  query values (a source weight), the offset and strip values (an offset
+  query values (a neighbor weight), the offset and strip values (an offset
   scale), or neither (a pixel factor); anything else is an error. Playback
-  reads the strip's neighborhood of the input once, computes the source weight
+  reads the strip's neighborhood of the input once, computes the neighbor weight
   once per neighbor rather than once per offset that reads it, runs the offset
   code once per offset, and accumulates every offset in one instruction. With
   skipped edges a neighbor counts where it is in the pixel's own fixture: the
   neighborhood and the strip are runs of consecutive fixture pixels, and each
-  offset combines whole runs without testing pixels. A failed source guard is
+  offset combines whole runs without testing pixels. A failed neighbor guard is
   a zero weight and contributes nothing. Factor products are reassociated,
   which may change rounding. A strip whose whole neighborhood is black skips
   the offsets. An `around` that ignores its neighbor is an ordinary reduction
@@ -270,12 +275,13 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   sums round differently from summing in order.
 - A filtered reduction with no code behind its filter combines under the
   filter instead of narrowing its selection every iteration.
-- A scan is one instruction with a source block, as a stencil's, computing the
-  light's weight. It runs forward or backward along each fixture. Playback
+- A scan is one instruction with a weight block, as a stencil's, computing the
+  light's weight. Checking forms the `Scan` from its `decay` and the flattened
+  scales and guards of its `as light` body. It runs forward or backward along each fixture. Playback
   computes the scan over the whole input frame the first time the program reads
   it in a frame, into a scan frame of its own (at most 8 per program); each
   strip copies its pixels from there.
-- A sample reads the whole frame its input already wrote this frame, or the
+- A read takes the whole frame its input already wrote this frame, or the
   node's state buffer for `previous`.
 - Every value starts in its own slot; liveness over the structured code then
   shares slots per bank and kind. A value read inside a reduction but defined

@@ -117,14 +117,14 @@ pub fn project_gui_document_change(
         )
     {
         let previous = previous
-            .effects
+            .clips
             .iter()
-            .map(|effect| (effect.id.0, effect))
+            .map(|clip| (clip.id.0, clip))
             .collect::<std::collections::HashMap<_, _>>();
-        let changed = |effect: &std::sync::Arc<EffectInst>| {
+        let changed = |clip: &std::sync::Arc<Clip>| {
             !previous
-                .get(&effect.id.0)
-                .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, effect))
+                .get(&clip.id.0)
+                .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, clip))
         };
         if let GuiDocument::Sequence { mut document } =
             super::projection::project_sequence_clips(after, &resolved, &changed)
@@ -132,7 +132,7 @@ pub fn project_gui_document_change(
             document.path.clone_from(&request.path);
             return GuiDocumentChange::SequenceClips {
                 document,
-                effect_ids: sequence.effects.iter().map(|effect| effect.id.0).collect(),
+                clip_ids: sequence.clips.iter().map(|clip| clip.id.0).collect(),
             };
         }
     }
@@ -141,17 +141,17 @@ pub fn project_gui_document_change(
     }
 }
 
-/// The inspector's view of `effect_ids` in a sequence request's document.
-pub fn sequence_effect_details(
+/// The inspector's view of `clip_ids` in a sequence request's document.
+pub fn sequence_clip_details(
     session: &ProjectSession,
     request: &GuiDocumentRequest,
-    effect_ids: &[u32],
-) -> Result<Vec<SequenceEffectDetails>, String> {
+    clip_ids: &[u32],
+) -> Result<Vec<SequenceClipDetails>, String> {
     let resolved = resolve_request(session, request)?;
     if resolved.kind != donder_model::ObjectKind::Sequence {
-        return Err("Effect details belong to sequence documents.".into());
+        return Err("Clip details belong to sequence documents.".into());
     }
-    super::projection::sequence_effect_details(session, &resolved, effect_ids)
+    super::projection::sequence_clip_details(session, &resolved, clip_ids)
 }
 
 pub fn affected_paths(
@@ -276,7 +276,7 @@ pub fn resolve_request(
                         matches!(
                             fixture.kind,
                             donder_model::LayoutFixtureKind::Fixture {
-                                definition: donder_model::FixtureSource::Inline(_),
+                                definition: donder_model::OwnedFixture::Inline(_),
                                 ..
                             }
                         )

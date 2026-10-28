@@ -12,7 +12,7 @@ import { NameField } from "../sequence/NameField";
 import { EffectDefinitionPicker } from "../sequence/definitionMenu";
 import { defaultMarkColor } from "../sequence/marks";
 import { LayerList } from "../sequence/sequenceLayers";
-import { RigEffectFields, RigInputPicker } from "./RigFields";
+import { RigClipFields, RigInputPicker } from "./RigFields";
 import { RigMappingCard } from "./RigMappingCard";
 import { applyRigEdit, applyRigItemEdit, firstInput, rigComposition } from "./rigEditing";
 
@@ -86,7 +86,7 @@ export function RigEditor({ document }: { document: RigGuiDocument }) {
               <button type="button" onClick={() => void applyRigItemEdit({ type: "delete", item })}>Delete voice</button>
             </div>
             <DescriptionField description={voice.description} onCommit={(description) => applyRigItemEdit({ type: "setDescription", item, description })} />
-            <RigEffectFields document={document} owner={item} effect={voice.effect} />
+            <RigClipFields document={document} owner={item} clip={voice.clip} />
           </div>;
         })}
       </section>

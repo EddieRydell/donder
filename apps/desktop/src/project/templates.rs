@@ -42,8 +42,8 @@ Project {project} {{
       layers: [Layer {{ name: default, description: none, color: {initial_color}, enabled: true }}],
       clips: [],
       graph: Graph {{
-        nodes: [LayerNode {{ layer: default, position: (80.0, 80.0) }}, OutputNode {{ position: (420.0, 80.0) }}],
-        edges: [Edge {{ from: default, to: output }}],
+        nodes: [LayerNode {{ layer: default, position: (80.0, 80.0) }}, RootNode {{ position: (420.0, 80.0) }}],
+        edges: [Edge {{ from: default, to: root }}],
       }},
       automation: [],
     }},
@@ -168,10 +168,10 @@ mod tests {
             ("Blur", &["input"][..]),
             ("HueShift", &["source"][..]),
         ];
-        // Chain every operator between the layer node and the output node.
+        // Chain every operator between the layer node and the root node.
         let mut nodes = vec![
             "LayerNode { layer: default, position: (80.0, 80.0) }".to_string(),
-            "OutputNode { position: (420.0, 80.0) }".to_string(),
+            "RootNode { position: (420.0, 80.0) }".to_string(),
         ];
         let mut edges = Vec::new();
         let mut previous = "default".to_string();
@@ -185,7 +185,7 @@ mod tests {
             }
             previous = node;
         }
-        edges.push(format!("Edge {{ from: {previous}, to: output }}"));
+        edges.push(format!("Edge {{ from: {previous}, to: root }}"));
         let start = template.find("graph: Graph {").unwrap();
         let end = template.find("automation: []").unwrap();
         let text = format!(

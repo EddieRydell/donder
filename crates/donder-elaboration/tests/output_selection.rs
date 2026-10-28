@@ -1,7 +1,7 @@
 mod support;
 
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{Retain, prepare};
 use donder_model::FixtureInstanceId;
 use donder_model::PixelSpan;
 use donder_model::SequenceId;
@@ -63,11 +63,11 @@ struct Reference {
 }
 
 fn prepare_reference(project: &DonderProject, id: &SequenceId) -> Reference {
-    let sequence = prepare(project, id, PrepareOutputs::All).unwrap();
+    let sequence = prepare(project, id, Retain::All).unwrap();
     let mut times = [9504, 8450, 0, 8494, 8398, 7150, 7151, 2000, 15000]
         .map(|frame| sample_time_from_frame(frame, sequence.frame_rate()).unwrap())
         .to_vec();
-    times.extend(sequence.effect_windows().flat_map(|(start, duration)| {
+    times.extend(sequence.clip_windows().flat_map(|(start, duration)| {
         [Some(start), start.checked_add_duration(duration)]
             .into_iter()
             .flatten()
@@ -101,7 +101,7 @@ fn compare(
     selected: &[(ControllerId, ControllerPortId)],
 ) -> PreparedShow {
     let full = &reference.sequence;
-    let fragment = prepare(project, id, PrepareOutputs::Ports(selected)).unwrap();
+    let fragment = prepare(project, id, Retain::Ports(selected)).unwrap();
     let mut workspace = fragment.clone().into_playback();
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
@@ -155,7 +155,7 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
             let fragment = compare(&project, id, &reference, std::slice::from_ref(port));
             assert_eq!(fragment.fixtures().len(), 1);
             assert_eq!(fragment.pixel_count(), 113);
-            assert!(fragment.effect_count() <= reference.sequence.effect_count());
+            assert!(fragment.clip_count() <= reference.sequence.clip_count());
         }
     }
 }
@@ -192,8 +192,8 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         .values()
         .cloned()
         .map(|mut sequence| {
-            for effect in &mut sequence.effects {
-                std::sync::Arc::make_mut(effect).scope = donder_model::EffectScope::WholeTarget;
+            for effect in &mut sequence.clips {
+                std::sync::Arc::make_mut(effect).scope = donder_model::ClipScope::WholeTarget;
             }
             for collection in &mut sequence.mark_collections {
                 collection.marks = [58_000_000, 59_000_000, 60_000_000]
@@ -261,7 +261,7 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
         .clone();
     setup
         .controllers
-        .push(donder_model::MemberSource::Reference(other_id));
+        .push(donder_model::OwnedMember::Reference(other_id));
     let mut patch = project
         .get::<donder_model::Patch>(*setup.patch.id())
         .unwrap()
@@ -310,20 +310,20 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
     sequence.automation_clips.clear();
     // Effects target the second port; the first must still receive inverted black.
     let second = project
-        .get::<donder_model::Layout>(sequence.effects[0].target.layout)
+        .get::<donder_model::Layout>(sequence.clips[0].target.layout)
         .unwrap()
         .iter_fixtures()
         .find(|fixture| fixture.name.as_str() == "output_02")
         .unwrap()
         .id;
-    for effect in &mut sequence.effects {
+    for effect in &mut sequence.clips {
         std::sync::Arc::make_mut(effect).target.fixture = second;
     }
     let output = sequence
         .composition_graph
         .nodes
         .iter()
-        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
+        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
         .unwrap()
         .id
         .clone();
@@ -366,7 +366,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
     project.put(sequence).unwrap();
     let reference = prepare_reference(&project, &id);
     let fragment = compare(&project, &id, &reference, &ports[0..1]);
-    assert!(fragment.effect_count() == 0);
+    assert!(fragment.clip_count() == 0);
     let mut workspace = fragment.into_playback();
     let frame = workspace.evaluate(SampleTime::from_ticks(0));
     let output = frame.outputs().next().unwrap();
@@ -377,9 +377,9 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
 fn empty_selection_prepares_an_empty_sequence() {
     let project = starter();
     let id = project.root().sequences[0].id();
-    let empty = prepare(&project, id, PrepareOutputs::Ports(&[])).unwrap();
+    let empty = prepare(&project, id, Retain::Ports(&[])).unwrap();
     assert!(empty.fixtures().is_empty());
-    assert!(empty.effect_count() == 0);
+    assert!(empty.clip_count() == 0);
     assert_eq!(empty.pixel_count(), 0);
     assert!(empty.outputs().is_empty());
 }

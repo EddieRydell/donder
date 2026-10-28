@@ -168,11 +168,11 @@ pub enum GuiDocumentChange {
     /// The whole document.
     Document { document: GuiDocument },
     /// A sequence whose clips mostly did not change. `document` holds every
-    /// field, but its `effects` only the changed and added clips; `effect_ids`
+    /// field, but its `clips` only the changed and added clips; `clip_ids`
     /// lists every clip in order.
     SequenceClips {
         document: SequenceGuiDocument,
-        effect_ids: Vec<u32>,
+        clip_ids: Vec<u32>,
     },
 }
 
@@ -223,7 +223,7 @@ pub struct GradientGuiDocument {
 pub struct ProjectGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub description: Option<String>,
-    pub available_sources: Vec<GuiObjectRef>,
+    pub available_declarations: Vec<GuiObjectRef>,
     pub path: String,
     pub object_key: String,
     pub setup: GuiObjectRef,
@@ -236,7 +236,7 @@ pub struct ProjectGuiDocument {
 pub struct SetupGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub description: Option<String>,
-    pub available_sources: Vec<GuiObjectRef>,
+    pub available_declarations: Vec<GuiObjectRef>,
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
@@ -318,7 +318,7 @@ pub enum SetupGuiEdit {
 )]
 pub enum SetupControllerConfig {
     E131 {
-        source_name: String,
+        sender_name: String,
         bind_address: String,
         priority: u8,
         destination: Option<String>,
@@ -338,7 +338,7 @@ impl From<&donder_model::ControllerProtocol> for SetupControllerConfig {
         use donder_model::{ArtNetMode, ControllerProtocol, E131Mode};
         match protocol {
             ControllerProtocol::E131(config) => Self::E131 {
-                source_name: config.source_name.clone(),
+                sender_name: config.sender_name.clone(),
                 bind_address: config.bind_address.to_string(),
                 priority: config.priority,
                 destination: match &config.mode {
@@ -449,7 +449,7 @@ pub enum OwnershipMember {
 )]
 pub enum GuiOwnershipEdit {
     UseExisting {
-        source: GuiObjectRef,
+        declaration: GuiObjectRef,
     },
     MakeIndependent,
     MakeReusable {

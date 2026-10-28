@@ -9,8 +9,8 @@ use donder_runtime_types::{Curve, Gradient};
 use indexmap::IndexMap;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EffectInst {
-    pub id: EffectInstId,
+pub struct Clip {
+    pub id: ClipId,
     /// Unique among the sequence's clips; automation bindings use it.
     pub name: Identifier,
     pub description: Option<String>,
@@ -18,22 +18,22 @@ pub struct EffectInst {
     pub start: DonderTime,
     pub duration: DonderDuration,
     pub target: FixtureTarget,
-    pub scope: EffectScope,
+    pub scope: ClipScope,
     pub definition: EffectDefinitionId,
-    pub param_overrides: IndexMap<Identifier, EffectParamValue>,
+    pub param_overrides: IndexMap<Identifier, ParamValue>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct EffectInstId(pub u32);
+pub struct ClipId(pub u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EffectScope {
+pub enum ClipScope {
     PerFixture,
     WholeTarget,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum EffectParamValue {
+pub enum ParamValue {
     Int(i32),
     Float(f32),
     Bool(bool),
@@ -41,12 +41,12 @@ pub enum EffectParamValue {
     Enum(Identifier),
     /// `None` is no collection: an empty set of marks, which never triggers.
     Marks(Option<MarkCollectionKey>),
-    Curve(CurveSource),
-    Gradient(GradientSource),
-    Array(Vec<EffectParamValue>),
+    Curve(OwnedCurve),
+    Gradient(OwnedGradient),
+    Array(Vec<ParamValue>),
 }
 
-impl EffectParamValue {
+impl ParamValue {
     /// Initial authored values must be valid resources inside the declared
     /// range, unlike the VM's empty storage defaults. Numbers start at zero
     /// held inside the range, and a curve rises across it. The caller supplies
@@ -75,7 +75,7 @@ impl EffectParamValue {
             Type::Float => Some(Self::Float(0.0_f32.clamp(min, max))),
             Type::Bool => Some(Self::Bool(false)),
             Type::Color => Some(Self::Color(color)),
-            Type::Curve => Some(Self::Curve(CurveSource::Inline(Curve {
+            Type::Curve => Some(Self::Curve(OwnedCurve::Inline(Curve {
                 points: vec![
                     donder_runtime_types::CurvePoint {
                         position: 0.0,
@@ -87,7 +87,7 @@ impl EffectParamValue {
                     },
                 ],
             }))),
-            Type::Gradient => Some(Self::Gradient(GradientSource::Inline(Gradient {
+            Type::Gradient => Some(Self::Gradient(OwnedGradient::Inline(Gradient {
                 stops: vec![donder_runtime_types::GradientStop {
                     position: 0.0,
                     color,
@@ -103,8 +103,8 @@ impl EffectParamValue {
     }
 }
 
-pub type CurveSource = crate::ownership::ValueSource<Curve, CurveId>;
-pub type GradientSource = crate::ownership::ValueSource<Gradient, GradientId>;
+pub type OwnedCurve = crate::ownership::Owned<Curve, CurveId>;
+pub type OwnedGradient = crate::ownership::Owned<Gradient, GradientId>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectDefinition {

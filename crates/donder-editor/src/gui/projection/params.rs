@@ -1,38 +1,35 @@
-pub(in crate::gui) fn effect_params(
+pub(in crate::gui) fn clip_params(
     session: &ProjectSession,
     sequence: &donder_model::Sequence,
-    effect: &donder_model::EffectInst,
-) -> Vec<SequenceEffectParam> {
+    clip: &donder_model::Clip,
+) -> Vec<SequenceClipParam> {
     invocation_params(
         session,
-        &effect.definition,
-        &effect.param_overrides,
+        &clip.definition,
+        &clip.param_overrides,
         |name, value| {
             param_automation(
                 sequence,
-                &AutomationTarget::EffectParam {
-                    effect_id: effect.id.clone(),
+                &AutomationTarget::ClipParam {
+                    clip_id: clip.id.clone(),
                     param: name.clone(),
                 },
-                &effect.start,
-                &effect.duration,
+                &clip.start,
+                &clip.duration,
                 value,
             )
         },
     )
 }
 
-/// An effect invocation's parameters: each declared parameter with its
+/// A clip invocation's parameters: each declared parameter with its
 /// override, else its default, and the automation `automation` finds for it.
 pub(in crate::gui) fn invocation_params(
     session: &ProjectSession,
     definition: &donder_model::EffectDefinitionId,
-    overrides: &indexmap::IndexMap<Identifier, EffectParamValue>,
-    mut automation: impl FnMut(
-        &Identifier,
-        &mut SequenceEffectParamValue,
-    ) -> Option<SequenceParamAutomation>,
-) -> Vec<SequenceEffectParam> {
+    overrides: &indexmap::IndexMap<Identifier, ParamValue>,
+    mut automation: impl FnMut(&Identifier, &mut SequenceParamValue) -> Option<SequenceParamAutomation>,
+) -> Vec<SequenceClipParam> {
     let Some(definition) = session
         .project
         .get::<donder_model::EffectDefinition>(*definition)
@@ -46,7 +43,7 @@ pub(in crate::gui) fn invocation_params(
             let kind = param_kind(&param.ty)?;
             let override_value = overrides.get(&param.name);
             let mut value = override_value
-                .map(|value| effect_param_value(session, value, &param.ty))
+                .map(|value| param_value_to_gui(session, value, &param.ty))
                 .or_else(|| {
                     param
                         .default
@@ -55,7 +52,7 @@ pub(in crate::gui) fn invocation_params(
                 })
                 .or_else(|| default_value_for_type(&param.ty))?;
             let automation = automation(&param.name, &mut value);
-            Some(SequenceEffectParam {
+            Some(SequenceClipParam {
                 supports_automation: param.supports_automation(),
                 name: param.name.as_str().to_string(),
                 description: param.description.clone(),
@@ -149,7 +146,7 @@ fn composition_graph_node(
                 operator: graph_operator_to_gui(session, &operator.operator),
                 params: graph_operator_params(session, sequence, &node.id, operator),
             },
-            CompositionGraphNodeKind::Output => SequenceGraphNodeKind::Output,
+            CompositionGraphNodeKind::Root => SequenceGraphNodeKind::Root,
         },
     }
 }
@@ -163,7 +160,7 @@ fn graph_operator_params(
     sequence: Option<&donder_model::Sequence>,
     node_id: &CompositionGraphNodeId,
     operator: &GraphOperatorNode,
-) -> Vec<SequenceEffectParam> {
+) -> Vec<SequenceClipParam> {
     let Some(definition) = session
         .project
         .get::<donder_model::OperatorDefinition>(operator.operator)
@@ -177,7 +174,7 @@ fn graph_operator_params(
             let kind = param_kind(&declaration.ty)?;
             let override_value = operator.params.get(&declaration.name);
             let mut value = override_value
-                .map(|value| effect_param_value(session, value, &declaration.ty))
+                .map(|value| param_value_to_gui(session, value, &declaration.ty))
                 .or_else(|| {
                     declaration
                         .default
@@ -196,7 +193,7 @@ fn graph_operator_params(
                     &mut value,
                 )
             });
-            Some(SequenceEffectParam {
+            Some(SequenceClipParam {
                 supports_automation: declaration.supports_automation(),
                 name: declaration.name.as_str().to_string(),
                 description: declaration.description.clone(),
@@ -264,7 +261,7 @@ fn graph_node_inputs(
             .flat_map(|definition| definition.inputs().iter())
             .map(graph_port_to_gui)
             .collect(),
-        CompositionGraphNodeKind::Output => vec![SequenceGraphPortDefinition {
+        CompositionGraphNodeKind::Root => vec![SequenceGraphPortDefinition {
             source_name: "input".to_string(),
             display_name: "Input".to_string(),
         }],
@@ -287,7 +284,7 @@ fn graph_node_outputs(
             .get::<donder_model::OperatorDefinition>(operator.operator)
             .map(|definition| vec![graph_port_to_gui(definition.output())])
             .unwrap_or_default(),
-        CompositionGraphNodeKind::Output => vec![],
+        CompositionGraphNodeKind::Root => vec![],
     }
 }
 
@@ -307,7 +304,7 @@ fn param_automation(
     target: &AutomationTarget,
     start: &donder_language::DonderTime,
     duration: &donder_language::DonderDuration,
-    value: &mut SequenceEffectParamValue,
+    value: &mut SequenceParamValue,
 ) -> Option<SequenceParamAutomation> {
     let envelope = sequence.automation_envelope(target)?;
     let clip = sequence.automation_clips.iter().find(|clip| {
@@ -315,15 +312,17 @@ fn param_automation(
             .iter()
             .any(|binding| &binding.target == target)
     })?;
-    if let SequenceEffectParamValue::Curve { value } = value {
+    if let SequenceParamValue::Curve { value } = value {
         value.points = curve_points(&envelope.curve_in_range(start, duration));
     }
-    Some(SequenceParamAutomation { clip_id: clip.id.0 })
+    Some(SequenceParamAutomation {
+        automation_clip_id: clip.id.0,
+    })
 }
 
 pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCurveLibraryItem> {
     let available =
-        donder_project_io::available_reusable_sources(session, &[donder_model::ObjectKind::Curve]);
+        donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Curve]);
     session
         .project
         .reusable::<donder_model::CurveDefinition>()
@@ -345,10 +344,8 @@ pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCur
 pub(in crate::gui) fn gradient_library(
     session: &ProjectSession,
 ) -> Vec<SequenceGradientLibraryItem> {
-    let available = donder_project_io::available_reusable_sources(
-        session,
-        &[donder_model::ObjectKind::Gradient],
-    );
+    let available =
+        donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Gradient]);
     session
         .project
         .reusable::<donder_model::GradientDefinition>()
@@ -367,24 +364,24 @@ pub(in crate::gui) fn gradient_library(
         .collect()
 }
 
-pub(in crate::gui) fn param_kind(ty: &Type) -> Option<SequenceEffectParamKind> {
+pub(in crate::gui) fn param_kind(ty: &Type) -> Option<SequenceParamKind> {
     Some(match ty {
-        Type::Int => SequenceEffectParamKind::Int,
-        Type::Float => SequenceEffectParamKind::Float,
-        Type::Bool => SequenceEffectParamKind::Bool,
-        Type::Color => SequenceEffectParamKind::Color,
-        Type::Enum(_) => SequenceEffectParamKind::Enum,
-        Type::Marks => SequenceEffectParamKind::Marks,
-        Type::Curve => SequenceEffectParamKind::Curve,
-        Type::Gradient => SequenceEffectParamKind::Gradient,
+        Type::Int => SequenceParamKind::Int,
+        Type::Float => SequenceParamKind::Float,
+        Type::Bool => SequenceParamKind::Bool,
+        Type::Color => SequenceParamKind::Color,
+        Type::Enum(_) => SequenceParamKind::Enum,
+        Type::Marks => SequenceParamKind::Marks,
+        Type::Curve => SequenceParamKind::Curve,
+        Type::Gradient => SequenceParamKind::Gradient,
         Type::Array(inner) => match inner.as_ref() {
-            Type::Int => SequenceEffectParamKind::IntArray,
-            Type::Float => SequenceEffectParamKind::FloatArray,
-            Type::Bool => SequenceEffectParamKind::BoolArray,
-            Type::Color => SequenceEffectParamKind::ColorArray,
-            Type::Curve => SequenceEffectParamKind::CurveArray,
-            Type::Gradient => SequenceEffectParamKind::GradientArray,
-            _ => SequenceEffectParamKind::FloatArray,
+            Type::Int => SequenceParamKind::IntArray,
+            Type::Float => SequenceParamKind::FloatArray,
+            Type::Bool => SequenceParamKind::BoolArray,
+            Type::Color => SequenceParamKind::ColorArray,
+            Type::Curve => SequenceParamKind::CurveArray,
+            Type::Gradient => SequenceParamKind::GradientArray,
+            _ => SequenceParamKind::FloatArray,
         },
         Type::Void => {
             return None;
@@ -415,94 +412,94 @@ fn param_options(ty: &Type) -> Vec<String> {
     }
 }
 
-pub(in crate::gui) fn effect_param_value(
+pub(in crate::gui) fn param_value_to_gui(
     session: &ProjectSession,
-    value: &EffectParamValue,
+    value: &ParamValue,
     ty: &Type,
-) -> SequenceEffectParamValue {
+) -> SequenceParamValue {
     match value {
-        EffectParamValue::Int(value) => SequenceEffectParamValue::Int {
+        ParamValue::Int(value) => SequenceParamValue::Int {
             value: *value as f32,
         },
-        EffectParamValue::Float(value) => SequenceEffectParamValue::Float { value: *value },
-        EffectParamValue::Bool(value) => SequenceEffectParamValue::Bool { value: *value },
-        EffectParamValue::Color(value) => SequenceEffectParamValue::Color {
+        ParamValue::Float(value) => SequenceParamValue::Float { value: *value },
+        ParamValue::Bool(value) => SequenceParamValue::Bool { value: *value },
+        ParamValue::Color(value) => SequenceParamValue::Color {
             value: value.to_hex(),
         },
-        EffectParamValue::Enum(value) => SequenceEffectParamValue::Enum {
+        ParamValue::Enum(value) => SequenceParamValue::Enum {
             value: value.as_str().to_string(),
         },
-        EffectParamValue::Marks(value) => SequenceEffectParamValue::Marks {
+        ParamValue::Marks(value) => SequenceParamValue::Marks {
             key: value
                 .as_ref()
                 .map(|collection| collection.name.as_str().to_string()),
         },
-        EffectParamValue::Curve(source) => SequenceEffectParamValue::Curve {
+        ParamValue::Curve(source) => SequenceParamValue::Curve {
             value: SequenceCurveValue {
                 points: curve_points(match source {
-                    CurveSource::Inline(curve) => curve,
-                    CurveSource::Reference(id) => {
+                    OwnedCurve::Inline(curve) => curve,
+                    OwnedCurve::Reference(id) => {
                         &session.project.reusable::<donder_model::CurveDefinition>()[id].curve
                     }
                 }),
-                source: match source {
-                    CurveSource::Inline(_) => SequenceLibrarySource::Inline,
-                    CurveSource::Reference(id) => {
-                        library_source(&crate::gui::model::declared_identity(session, *id))
+                link: match source {
+                    OwnedCurve::Inline(_) => SequenceLibraryLink::Inline,
+                    OwnedCurve::Reference(id) => {
+                        library_link(&crate::gui::model::declared_identity(session, *id))
                     }
                 },
             },
         },
-        EffectParamValue::Gradient(source) => SequenceEffectParamValue::Gradient {
+        ParamValue::Gradient(source) => SequenceParamValue::Gradient {
             value: SequenceGradientValue {
                 stops: gradient_stops(match source {
-                    GradientSource::Inline(gradient) => gradient,
-                    GradientSource::Reference(id) => {
+                    OwnedGradient::Inline(gradient) => gradient,
+                    OwnedGradient::Reference(id) => {
                         &session
                             .project
                             .reusable::<donder_model::GradientDefinition>()[id]
                             .gradient
                     }
                 }),
-                source: match source {
-                    GradientSource::Inline(_) => SequenceLibrarySource::Inline,
-                    GradientSource::Reference(id) => {
-                        library_source(&crate::gui::model::declared_identity(session, *id))
+                link: match source {
+                    OwnedGradient::Inline(_) => SequenceLibraryLink::Inline,
+                    OwnedGradient::Reference(id) => {
+                        library_link(&crate::gui::model::declared_identity(session, *id))
                     }
                 },
             },
         },
-        EffectParamValue::Array(values) => array_param_value(session, values, ty),
+        ParamValue::Array(values) => array_param_value(session, values, ty),
     }
 }
 
 pub(in crate::gui) fn default_param_value(
     value: &EffectValue,
     ty: &Type,
-) -> Option<SequenceEffectParamValue> {
+) -> Option<SequenceParamValue> {
     Some(match value {
-        EffectValue::Int(value) => SequenceEffectParamValue::Int {
+        EffectValue::Int(value) => SequenceParamValue::Int {
             value: *value as f32,
         },
-        EffectValue::Float(value) => SequenceEffectParamValue::Float { value: *value },
-        EffectValue::Bool(value) => SequenceEffectParamValue::Bool { value: *value },
-        EffectValue::Color(value) => SequenceEffectParamValue::Color {
+        EffectValue::Float(value) => SequenceParamValue::Float { value: *value },
+        EffectValue::Bool(value) => SequenceParamValue::Bool { value: *value },
+        EffectValue::Color(value) => SequenceParamValue::Color {
             value: value.to_hex(),
         },
-        EffectValue::Enum(value) => SequenceEffectParamValue::Enum {
+        EffectValue::Enum(value) => SequenceParamValue::Enum {
             value: value.as_str().to_string(),
         },
-        EffectValue::Marks(_) => SequenceEffectParamValue::Marks { key: None },
-        EffectValue::Curve(curve) => SequenceEffectParamValue::Curve {
+        EffectValue::Marks(_) => SequenceParamValue::Marks { key: None },
+        EffectValue::Curve(curve) => SequenceParamValue::Curve {
             value: SequenceCurveValue {
                 points: curve_points(curve),
-                source: SequenceLibrarySource::Inline,
+                link: SequenceLibraryLink::Inline,
             },
         },
-        EffectValue::Gradient(gradient) => SequenceEffectParamValue::Gradient {
+        EffectValue::Gradient(gradient) => SequenceParamValue::Gradient {
             value: SequenceGradientValue {
                 stops: gradient_stops(gradient),
-                source: SequenceLibrarySource::Inline,
+                link: SequenceLibraryLink::Inline,
             },
         },
         EffectValue::Array(values) => {
@@ -519,12 +516,12 @@ pub(in crate::gui) fn default_param_value(
     })
 }
 
-fn default_value_for_type(ty: &Type) -> Option<SequenceEffectParamValue> {
+fn default_value_for_type(ty: &Type) -> Option<SequenceParamValue> {
     default_param_value(&ty.default_value(), ty)
 }
 
-fn library_source(id: &donder_project_io::SourceIdentity) -> SequenceLibrarySource {
-    SequenceLibrarySource::Library {
+fn library_link(id: &donder_project_io::SourceIdentity) -> SequenceLibraryLink {
+    SequenceLibraryLink::Library {
         path: id.document().to_string(),
         object_key: id.object().to_string(),
         display_name: id.object().to_string(),
@@ -535,74 +532,74 @@ use crate::gui::model::{curve_points, gradient_stops};
 
 fn array_param_value(
     session: &ProjectSession,
-    values: &[EffectParamValue],
+    values: &[ParamValue],
     ty: &Type,
-) -> SequenceEffectParamValue {
+) -> SequenceParamValue {
     let Type::Array(inner) = ty else {
         unreachable!("validated array parameter type");
     };
     let converted = values
         .iter()
-        .map(|value| effect_param_value(session, value, inner))
+        .map(|value| param_value_to_gui(session, value, inner))
         .collect::<Vec<_>>();
     array_param_from_sequence_values(&converted, inner)
 }
 
 fn array_param_from_sequence_values(
-    values: &[SequenceEffectParamValue],
+    values: &[SequenceParamValue],
     inner: &Type,
-) -> SequenceEffectParamValue {
+) -> SequenceParamValue {
     match inner {
-        Type::Int => SequenceEffectParamValue::IntArray {
+        Type::Int => SequenceParamValue::IntArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
-                    SequenceEffectParamValue::Int { value } => Some(*value),
+                    SequenceParamValue::Int { value } => Some(*value),
                     _ => None,
                 })
                 .collect(),
         },
-        Type::Bool => SequenceEffectParamValue::BoolArray {
+        Type::Bool => SequenceParamValue::BoolArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
-                    SequenceEffectParamValue::Bool { value } => Some(*value),
+                    SequenceParamValue::Bool { value } => Some(*value),
                     _ => None,
                 })
                 .collect(),
         },
-        Type::Color => SequenceEffectParamValue::ColorArray {
+        Type::Color => SequenceParamValue::ColorArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
-                    SequenceEffectParamValue::Color { value } => Some(value.clone()),
+                    SequenceParamValue::Color { value } => Some(value.clone()),
                     _ => None,
                 })
                 .collect(),
         },
-        Type::Gradient => SequenceEffectParamValue::GradientArray {
+        Type::Gradient => SequenceParamValue::GradientArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
-                    SequenceEffectParamValue::Gradient { value } => Some(value.clone()),
+                    SequenceParamValue::Gradient { value } => Some(value.clone()),
                     _ => None,
                 })
                 .collect(),
         },
-        Type::Curve => SequenceEffectParamValue::CurveArray {
+        Type::Curve => SequenceParamValue::CurveArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
-                    SequenceEffectParamValue::Curve { value } => Some(value.clone()),
+                    SequenceParamValue::Curve { value } => Some(value.clone()),
                     _ => None,
                 })
                 .collect(),
         },
-        _ => SequenceEffectParamValue::FloatArray {
+        _ => SequenceParamValue::FloatArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
-                    SequenceEffectParamValue::Float { value } => Some(*value),
+                    SequenceParamValue::Float { value } => Some(*value),
                     _ => None,
                 })
                 .collect(),
@@ -613,17 +610,17 @@ use donder_language::compiler::{ParamDecl, ParamRange};
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
 };
-use donder_model::{CurveSource, EffectParamValue, GradientSource};
 use donder_model::{
     GraphOperatorNode, OperatorDefinition, OperatorDefinitionId, OperatorPortDefinition,
 };
+use donder_model::{OwnedCurve, OwnedGradient, ParamValue};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::{Identifier, Type, Value as EffectValue};
 
 use crate::dto::{
-    SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam,
-    SequenceEffectParamKind, SequenceEffectParamValue, SequenceGradientLibraryItem,
-    SequenceGradientValue, SequenceGraphEdge, SequenceGraphNode, SequenceGraphNodeKind,
-    SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceGraphPortDefinition,
-    SequenceLayer, SequenceLibrarySource, SequenceParamAutomation, SequenceParamRange,
+    SequenceClipParam, SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceCurveValue,
+    SequenceGradientLibraryItem, SequenceGradientValue, SequenceGraphEdge, SequenceGraphNode,
+    SequenceGraphNodeKind, SequenceGraphOperator, SequenceGraphOperatorDefinition,
+    SequenceGraphPortDefinition, SequenceLayer, SequenceLibraryLink, SequenceParamAutomation,
+    SequenceParamKind, SequenceParamRange, SequenceParamValue,
 };

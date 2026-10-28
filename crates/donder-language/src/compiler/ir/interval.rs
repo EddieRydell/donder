@@ -125,14 +125,12 @@ impl Analysis<'_> {
             Op::Context(Context::PixelIndex) => Interval::new(0.0, f64::INFINITY, false),
             Op::ParamIntegral(_)
             | Op::Context(_)
-            | Op::Sample { .. }
+            | Op::Read { .. }
             | Op::Reduce(_)
             | Op::Items(_)
-            | Op::Source
+            | Op::Neighbor
             | Op::Tap { .. }
-            | Op::Previous
-            | Op::Scan { .. }
-            | Op::ScanTap { .. } => Interval::ANY,
+            | Op::Scan { .. } => Interval::ANY,
             Op::Pick { items, .. } => {
                 let items = items.clone();
                 items

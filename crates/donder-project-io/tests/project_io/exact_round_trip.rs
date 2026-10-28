@@ -39,7 +39,7 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
         .map(|source| source.id())
         .find(|id| {
             !session.project.reusable::<donder_model::Sequence>()[*id]
-                .effects
+                .clips
                 .is_empty()
         })
         .copied()
@@ -59,9 +59,9 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
         .clone();
     sequence.layers[0].name =
         donder_language::object_name(&format!("{}_edited", sequence.layers[0].name.as_str()));
-    sequence.effects.reverse();
+    sequence.clips.reverse();
     let names = sequence
-        .effects
+        .clips
         .iter()
         .map(|effect| effect.name.clone())
         .collect::<Vec<_>>();
@@ -77,7 +77,7 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
             .project
             .get::<donder_model::Sequence>(sequence_id)
             .unwrap()
-            .effects
+            .clips
             .iter()
             .map(|effect| effect.name.clone())
             .collect::<Vec<_>>(),
@@ -116,7 +116,7 @@ fn missing_import_is_an_error_not_a_flattened_or_guessed_reference() {
         .map(|source| source.id())
         .find(|id| {
             !session.project.reusable::<donder_model::Sequence>()[*id]
-                .effects
+                .clips
                 .is_empty()
         })
         .copied()

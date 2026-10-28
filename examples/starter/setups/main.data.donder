@@ -13,7 +13,7 @@ Setup main {
 Controller output_controller {
   description: none,
   protocol: E131 {
-    source_name: "Donder Thirty Output Controller",
+    sender_name: "Donder Thirty Output Controller",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.7.2" },

@@ -47,7 +47,7 @@ pub struct SequenceGuiDocument {
     pub curve_library: Vec<SequenceCurveLibraryItem>,
     pub gradient_library: Vec<SequenceGradientLibraryItem>,
     pub layers: Vec<SequenceLayer>,
-    pub effects: Vec<SequenceEffect>,
+    pub clips: Vec<SequenceClip>,
     pub composition_graph: SequenceCompositionGraph,
     pub automation_clips: Vec<SequenceAutomationClip>,
 }
@@ -94,7 +94,7 @@ pub struct SequenceDetachedAutomationBinding {
 pub struct SequenceClipRasterRequest {
     #[serde(flatten)]
     pub document: GuiDocumentRequest,
-    pub visible_effect_ids: Vec<u32>,
+    pub visible_clip_ids: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -121,7 +121,7 @@ pub struct SequenceClipRasterResultBatch {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipRaster {
-    pub effect_id: u32,
+    pub clip_id: u32,
     /// Changes whenever the clip's raster is rendered again.
     pub revision: u32,
     pub columns: u32,
@@ -132,14 +132,14 @@ pub struct SequenceClipRaster {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipRasterError {
-    pub effect_id: u32,
+    pub clip_id: u32,
     pub revision: u32,
     pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceEffect {
+pub struct SequenceClip {
     pub index: u32,
     pub id: u32,
     /// The clip's name, which automation bindings use.
@@ -150,7 +150,7 @@ pub struct SequenceEffect {
     pub duration_seconds: f64,
     pub target: FixtureTarget,
     pub target_label: String,
-    pub scope: SequenceEffectScope,
+    pub scope: SequenceClipScope,
     pub effect: String,
 }
 
@@ -158,21 +158,21 @@ pub struct SequenceEffect {
 /// a sequence document carries every clip's summary but no parameters.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceEffectDetails {
+pub struct SequenceClipDetails {
     pub id: u32,
     pub effect_reference: SequenceEffectReference,
-    pub params: Vec<SequenceEffectParam>,
+    pub params: Vec<SequenceClipParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceEffectDetailsResult {
+pub struct SequenceClipDetailsResult {
     pub project_revision: u32,
-    pub details: Vec<SequenceEffectDetails>,
+    pub details: Vec<SequenceClipDetails>,
 }
 
 /// "Select Matching": the clips matching any seed clip under `criteria` and
-/// every `params` entry the seed effect has.
+/// every `params` entry the seed clip has.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipMatchRequest {
@@ -228,9 +228,9 @@ pub enum SequenceGraphNodeKind {
         /// The node's name, which edges and automation bindings use.
         name: String,
         operator: SequenceGraphOperator,
-        params: Vec<SequenceEffectParam>,
+        params: Vec<SequenceClipParam>,
     },
-    Output,
+    Root,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -255,23 +255,23 @@ pub struct SequenceGraphPortDefinition {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceEffectParam {
+pub struct SequenceClipParam {
     pub supports_automation: bool,
     pub name: String,
     /// The script's description of the parameter.
     pub description: Option<String>,
-    pub kind: SequenceEffectParamKind,
+    pub kind: SequenceParamKind,
     pub options: Vec<String>,
     pub range: Option<SequenceParamRange>,
     pub editable: bool,
-    pub value: SequenceEffectParamValue,
+    pub value: SequenceParamValue,
     pub automation: Option<SequenceParamAutomation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceParamAutomation {
-    pub clip_id: u32,
+    pub automation_clip_id: u32,
 }
 
 /// Inclusive declared range of an `int`, `float`, or `curve` param.
@@ -301,7 +301,7 @@ pub struct SequenceEffectDefinitionParam {
     pub name: String,
     /// The script's description of the parameter.
     pub description: Option<String>,
-    pub kind: SequenceEffectParamKind,
+    pub kind: SequenceParamKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -328,7 +328,7 @@ pub enum SequenceLaneKind {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceMarkCollection {
-    /// The collection's name, which effect parameters use.
+    /// The collection's name, which clip parameters use.
     pub key: String,
     pub description: Option<String>,
     pub color: String,

@@ -163,8 +163,8 @@ Sequence show {
     },
   ],
   graph: Graph {
-    nodes: [LayerNode { layer: main, position: (0.0, 0.0) }, OutputNode { position: (1.0, 0.0) }],
-    edges: [Edge { from: main, to: output }],
+    nodes: [LayerNode { layer: main, position: (0.0, 0.0) }, RootNode { position: (1.0, 0.0) }],
+    edges: [Edge { from: main, to: root }],
   },
   automation: [],
 }
@@ -250,8 +250,8 @@ fn parameter_values_are_typed_by_their_definitions() {
 fn graph_variants_cannot_carry_other_variants_fields() {
     assert_rejected(&[
         (
-            "OutputNode { position: (1.0, 0.0) }",
-            "OutputNode { params: {}, position: (1.0, 0.0) }",
+            "RootNode { position: (1.0, 0.0) }",
+            "RootNode { params: {}, position: (1.0, 0.0) }",
             "params",
         ),
         (
@@ -260,9 +260,9 @@ fn graph_variants_cannot_carry_other_variants_fields() {
             "operator",
         ),
         (
-            "edges: [Edge { from: main, to: output }]",
-            "edges: [Edge { from: main, to: output.input }]",
-            "output",
+            "edges: [Edge { from: main, to: root }]",
+            "edges: [Edge { from: main, to: root.input }]",
+            "root",
         ),
     ]);
 }

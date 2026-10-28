@@ -1,29 +1,28 @@
-//! Rigs: effects played live from input devices.
+//! Rigs: clips played live from input devices.
 use donder_model::{
-    CompositionGraphNodeKind, ControlRef, ControlTarget, EffectDefinitionId, EffectScope,
+    ClipScope, CompositionGraphNodeKind, ControlRef, ControlTarget, EffectDefinitionId,
     FixtureInstanceId, FixtureTarget as DomainFixtureTarget, InputControlKind, InputDevice,
     InputDeviceId, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, MarkCollectionKey,
-    PlayedSource, PlayedValue, Rig, RigId, RigMappingId, RigSwitchId, RigVoiceId, SequenceLayerId,
-    Switch, Trigger, TriggerLength, Voice, VoicePolicy, When,
+    PlayedQuantity, PlayedValue, Rig, RigId, RigMappingId, RigSwitchId, RigVoiceId,
+    SequenceLayerId, Switch, Trigger, TriggerLength, Voice, VoicePolicy, When,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 
 use super::model::{
-    effect_param_value_from_gui, effect_ref_from_gui, effect_scope, fresh_name, identifier,
-    object_address, object_id_from_gui, object_ref, parse_color, required_param_values, typed_name,
+    clip_scope, effect_ref_from_gui, fresh_name, identifier, object_address, object_id_from_gui,
+    object_ref, param_value_from_gui, parse_color, required_param_values, typed_name,
 };
 use super::projection::{
     active_layout, composition_graph, curve_library, effect_definitions, effect_ref_to_gui,
-    effect_target, effect_target_label, gradient_library, invocation_params, layers_to_gui,
-    layout_lanes,
+    gradient_library, invocation_params, layers_to_gui, layout_lanes, target_label, target_to_gui,
 };
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use crate::dto::{
-    FixtureTarget, GuiDocument, RigActionChoice, RigControlRef, RigControlTarget, RigEffectEdit,
-    RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl, RigInputDevice,
-    RigLiveMarks, RigMapping, RigMappingAction, RigPlayedSource, RigPlayedValue, RigSwitch,
-    RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SequenceEffectReference,
-    SequenceEffectScope,
+    FixtureTarget, GuiDocument, RigActionChoice, RigClipEdit, RigClipOwner, RigControlRef,
+    RigControlTarget, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl, RigInputDevice,
+    RigLiveMarks, RigMapping, RigMappingAction, RigPlayedQuantity, RigPlayedValue, RigSwitch,
+    RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SequenceClipScope,
+    SequenceEffectReference,
 };
 
 pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
@@ -72,7 +71,7 @@ pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject
                     id: voice.id.0,
                     name: voice.name.as_str().to_string(),
                     description: voice.description.clone(),
-                    effect: project_effect(session, &voice.effect),
+                    clip: project_clip(session, &voice.clip),
                 })
                 .collect(),
             switches: rig
@@ -100,30 +99,24 @@ pub(super) fn project_rig(session: &ProjectSession, resolved: &ResolvedGuiObject
     }
 }
 
-fn project_effect(
-    session: &ProjectSession,
-    effect: &donder_model::RigEffect,
-) -> crate::dto::RigEffect {
-    crate::dto::RigEffect {
-        layer_id: effect.layer_id.0,
-        target: effect_target(&effect.target),
-        target_label: effect_target_label(session, &effect.target),
-        scope: match effect.scope {
-            EffectScope::PerFixture => SequenceEffectScope::PerFixture,
-            EffectScope::WholeTarget => SequenceEffectScope::WholeTarget,
+fn project_clip(session: &ProjectSession, clip: &donder_model::RigClip) -> crate::dto::RigClip {
+    crate::dto::RigClip {
+        layer_id: clip.layer_id.0,
+        target: target_to_gui(&clip.target),
+        target_label: target_label(session, &clip.target),
+        scope: match clip.scope {
+            ClipScope::PerFixture => SequenceClipScope::PerFixture,
+            ClipScope::WholeTarget => SequenceClipScope::WholeTarget,
         },
-        effect: effect_ref_to_gui(session, &effect.definition),
+        effect: effect_ref_to_gui(session, &clip.definition),
         effect_name: session
             .project
-            .get::<donder_model::EffectDefinition>(effect.definition)
+            .get::<donder_model::EffectDefinition>(clip.definition)
             .map(|definition| definition.name().to_string())
             .unwrap_or_else(|| "Missing effect".to_string()),
-        params: invocation_params(
-            session,
-            &effect.definition,
-            &effect.param_overrides,
-            |_, _| None,
-        ),
+        params: invocation_params(session, &clip.definition, &clip.param_overrides, |_, _| {
+            None
+        }),
     }
 }
 
@@ -143,7 +136,7 @@ fn project_mapping(session: &ProjectSession, mapping: &Mapping) -> RigMapping {
         }),
         action: match &mapping.action {
             MappingAction::Trigger(trigger) => RigMappingAction::Trigger {
-                effect: project_effect(session, &trigger.effect),
+                clip: project_clip(session, &trigger.clip),
                 length: match &trigger.length {
                     TriggerLength::Fixed(duration) => RigTriggerLength::Fixed {
                         duration_seconds: duration.as_seconds_f64(),
@@ -164,10 +157,10 @@ fn project_mapping(session: &ProjectSession, mapping: &Mapping) -> RigMapping {
                     .map(|value| RigPlayedValue {
                         param: value.param.as_str().to_string(),
                         from: match value.from {
-                            PlayedSource::Velocity => RigPlayedSource::Velocity,
-                            PlayedSource::Pitch => RigPlayedSource::Pitch,
-                            PlayedSource::PitchClass => RigPlayedSource::PitchClass,
-                            PlayedSource::Fifths => RigPlayedSource::Fifths,
+                            PlayedQuantity::Velocity => RigPlayedQuantity::Velocity,
+                            PlayedQuantity::Pitch => RigPlayedQuantity::Pitch,
+                            PlayedQuantity::PitchClass => RigPlayedQuantity::PitchClass,
+                            PlayedQuantity::Fifths => RigPlayedQuantity::Fifths,
                         },
                     })
                     .collect(),
@@ -282,12 +275,14 @@ pub(super) fn edit_rig(
             effect,
             target,
         } => {
-            let effect = new_effect(session, owner, &draft, &initial_color, effect, target)?;
+            let clip = new_clip(session, owner, &draft, &initial_color, effect, target)?;
             let effect_name = session
                 .project
-                .get::<donder_model::EffectDefinition>(effect.definition)
+                .get::<donder_model::EffectDefinition>(clip.definition)
                 .map(|definition| definition.name().to_string())
-                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Effect definition was not found.".into())
+                })?;
             let name = fresh_name(&effect_name, |candidate| {
                 behavior_name_taken(&draft, candidate)
             });
@@ -295,7 +290,7 @@ pub(super) fn edit_rig(
                 id: RigVoiceId(next_id(draft.voices.iter().map(|voice| voice.id.0))),
                 name,
                 description: None,
-                effect,
+                clip,
             });
         }
         RigGuiEdit::AddSwitch { input } => {
@@ -328,11 +323,8 @@ pub(super) fn edit_rig(
                 action,
             });
         }
-        RigGuiEdit::EditEffect {
-            owner: effect,
-            edit,
-        } => {
-            edit_effect(session, owner, &mut draft, effect, edit)?;
+        RigGuiEdit::EditClip { owner: clip, edit } => {
+            edit_clip(session, owner, &mut draft, clip, edit)?;
         }
         RigGuiEdit::SetSwitchInput { id, input } => {
             switch_mut(&mut draft, id)?.input = control_from_gui(session, owner, &input)?;
@@ -384,10 +376,10 @@ pub(super) fn edit_rig(
                     Ok(PlayedValue {
                         param: identifier(&value.param)?,
                         from: match value.from {
-                            RigPlayedSource::Velocity => PlayedSource::Velocity,
-                            RigPlayedSource::Pitch => PlayedSource::Pitch,
-                            RigPlayedSource::PitchClass => PlayedSource::PitchClass,
-                            RigPlayedSource::Fifths => PlayedSource::Fifths,
+                            RigPlayedQuantity::Velocity => PlayedQuantity::Velocity,
+                            RigPlayedQuantity::Pitch => PlayedQuantity::Pitch,
+                            RigPlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
+                            RigPlayedQuantity::Fifths => PlayedQuantity::Fifths,
                         },
                     })
                 })
@@ -411,41 +403,41 @@ pub(super) fn edit_rig(
     Ok(created)
 }
 
-fn edit_effect(
+fn edit_clip(
     session: &mut ProjectSession,
     owner: &DocumentId,
     rig: &mut Rig,
-    effect: RigEffectOwner,
-    edit: RigEffectEdit,
+    clip: RigClipOwner,
+    edit: RigClipEdit,
 ) -> Result<(), GuiMutationError> {
     match edit {
-        RigEffectEdit::Layer { layer_id } => {
+        RigClipEdit::Layer { layer_id } => {
             if !rig.layers.iter().any(|layer| layer.id.0 == layer_id) {
                 return Err(GuiMutationError::Invalid("Layer was not found.".into()));
             }
-            effect_mut(rig, effect)?.layer_id = SequenceLayerId(layer_id);
+            clip_mut(rig, clip)?.layer_id = SequenceLayerId(layer_id);
         }
-        RigEffectEdit::Target { target } => {
-            effect_mut(rig, effect)?.target = target_from_gui(session, owner, target)?;
+        RigClipEdit::Target { target } => {
+            clip_mut(rig, clip)?.target = target_from_gui(session, owner, target)?;
         }
-        RigEffectEdit::Scope { scope } => effect_mut(rig, effect)?.scope = effect_scope(scope),
-        RigEffectEdit::Definition {
+        RigClipEdit::Scope { scope } => clip_mut(rig, clip)?.scope = clip_scope(scope),
+        RigClipEdit::Definition {
             initial_color,
             effect: reference,
         } => {
             let definition = effect_definition_from_gui(session, owner, reference)?;
             let params = required_param_values(session, &definition, parse_color(&initial_color)?)?;
             // Played values name the old effect's parameters.
-            if let RigEffectOwner::Trigger { mapping_id } = &effect {
+            if let RigClipOwner::Trigger { mapping_id } = &clip {
                 trigger_mut(rig, *mapping_id)?.values.clear();
             }
-            let effect = effect_mut(rig, effect)?;
-            effect.definition = definition;
-            effect.param_overrides = params;
+            let authored = clip_mut(rig, clip)?;
+            authored.definition = definition;
+            authored.param_overrides = params;
         }
-        RigEffectEdit::Param { name, value } => {
-            let value = effect_param_value_from_gui(session, owner, value)?;
-            effect_mut(rig, effect)?
+        RigClipEdit::Param { name, value } => {
+            let value = param_value_from_gui(session, owner, value)?;
+            clip_mut(rig, clip)?
                 .param_overrides
                 .insert(identifier(&name)?, value);
         }
@@ -465,7 +457,7 @@ fn action_from_gui(
             effect,
             target,
         } => MappingAction::Trigger(Box::new(Trigger {
-            effect: new_effect(session, owner, rig, &initial_color, effect, target)?,
+            clip: new_clip(session, owner, rig, &initial_color, effect, target)?,
             length: TriggerLength::Fixed(super::checked_gui_duration(1.0)?),
             voices: VoicePolicy::Retrigger,
             values: Vec::new(),
@@ -485,25 +477,25 @@ fn action_from_gui(
     })
 }
 
-/// A new effect on the rig's default layer, over the whole target.
-fn new_effect(
+/// A new clip on the rig's default layer, over the whole target.
+fn new_clip(
     session: &mut ProjectSession,
     owner: &DocumentId,
     rig: &Rig,
     initial_color: &str,
     effect: SequenceEffectReference,
     target: FixtureTarget,
-) -> Result<donder_model::RigEffect, GuiMutationError> {
+) -> Result<donder_model::RigClip, GuiMutationError> {
     let definition = effect_definition_from_gui(session, owner, effect)?;
     let param_overrides = required_param_values(session, &definition, parse_color(initial_color)?)?;
-    Ok(donder_model::RigEffect {
+    Ok(donder_model::RigClip {
         layer_id: rig
             .layers
             .first()
             .map(|layer| layer.id.clone())
             .ok_or_else(|| GuiMutationError::Invalid("The rig has no layer.".into()))?,
         target: target_from_gui(session, owner, target)?,
-        scope: EffectScope::WholeTarget,
+        scope: ClipScope::WholeTarget,
         definition,
         param_overrides,
     })
@@ -568,7 +560,7 @@ fn next_id(ids: impl Iterator<Item = u32>) -> u32 {
     ids.max().unwrap_or(0) + 1
 }
 
-/// Visit every marks parameter value in the rig's effects and operator nodes.
+/// Visit every marks parameter value in the rig's clips and operator nodes.
 pub(super) fn rig_mark_references_mut(
     rig: &mut Rig,
     mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
@@ -585,20 +577,20 @@ pub(super) fn rig_mark_references_mut(
     for value in operators {
         super::model::visit_marks(value, &mut visit);
     }
-    for effect in rig.effects_mut() {
-        for value in effect.param_overrides.values_mut() {
+    for clip in rig.clips_mut() {
+        for value in clip.param_overrides.values_mut() {
             super::model::visit_marks(value, &mut visit);
         }
     }
 }
 
-fn effect_mut(
+fn clip_mut(
     rig: &mut Rig,
-    owner: RigEffectOwner,
-) -> Result<&mut donder_model::RigEffect, GuiMutationError> {
+    owner: RigClipOwner,
+) -> Result<&mut donder_model::RigClip, GuiMutationError> {
     match owner {
-        RigEffectOwner::Voice { id } => Ok(&mut voice_mut(rig, id)?.effect),
-        RigEffectOwner::Trigger { mapping_id } => Ok(&mut trigger_mut(rig, mapping_id)?.effect),
+        RigClipOwner::Voice { id } => Ok(&mut voice_mut(rig, id)?.clip),
+        RigClipOwner::Trigger { mapping_id } => Ok(&mut trigger_mut(rig, mapping_id)?.clip),
     }
 }
 
@@ -637,7 +629,7 @@ fn trigger_mut(rig: &mut Rig, id: u32) -> Result<&mut Trigger, GuiMutationError>
     match &mut mapping_mut(rig, id)?.action {
         MappingAction::Trigger(trigger) => Ok(trigger),
         MappingAction::Mark(_) | MappingAction::Control { .. } => Err(GuiMutationError::Invalid(
-            "The mapping does not trigger an effect.".into(),
+            "The mapping does not trigger a clip.".into(),
         )),
     }
 }

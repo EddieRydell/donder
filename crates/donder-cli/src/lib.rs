@@ -200,9 +200,8 @@ fn export_fseq(
         }
         None => donder_output::FseqStep::nearest(sequence.frame_rate),
     };
-    let prepared =
-        donder_elaboration::prepare(project, id, donder_elaboration::PrepareOutputs::All)
-            .ok_or("The sequence cannot be played on the active setup.")?;
+    let prepared = donder_elaboration::prepare(project, id, donder_elaboration::Retain::All)
+        .ok_or("The sequence cannot be played on the active setup.")?;
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or("Project setup is missing.")?;

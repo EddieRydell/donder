@@ -175,13 +175,13 @@ operator Bloom {
   -- The glow spreads both ways with an exponential falloff, carried by scans,
   -- so its cost does not grow with the radius. It fades off fixture ends.
   sample {
-    let decay = exp(-2.302585 / radius);
-    let scale = strength * (1.0 - decay) / 2.0;
-    let forward = scan forward input as light, carried {
-      carried * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
+    let falloff = exp(-2.302585 / radius);
+    let scale = strength * (1.0 - falloff) / 2.0;
+    let forward = scan forward input decay falloff as light {
+      light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
     };
-    let backward = scan backward input as light, carried {
-      carried * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
+    let backward = scan backward input decay falloff as light {
+      light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
     };
     let glow = (forward + backward) * tint;
     if blend == Add {
@@ -205,8 +205,8 @@ operator Trail {
 
   -- Light builds up in floats and is rounded once, so faint tails keep fading.
   sample {
-    let forward = scan forward input as light, carried { carried * decay + light };
-    let backward = scan backward input as light, carried { carried * decay + light };
+    let forward = scan forward input decay decay;
+    let backward = scan backward input decay decay;
     if direction == Forward {
       forward
     } else if direction == Backward {

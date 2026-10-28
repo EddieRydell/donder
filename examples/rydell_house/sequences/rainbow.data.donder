@@ -26433,12 +26433,12 @@ Sequence rainbow {
         params: {},
         position: (400.0, 120.0),
       },
-      OutputNode { position: (600.0, 120.0) },
+      RootNode { position: (600.0, 120.0) },
     ],
     edges: [
       Edge { from: default_2, to: default_2_mix.high },
       Edge { from: default, to: default_2_mix.low },
-      Edge { from: default_2_mix, to: output },
+      Edge { from: default_2_mix, to: root },
     ],
   },
   automation: [

@@ -1027,7 +1027,7 @@ Sequence main {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (-175.95499, -41.818153) },
-      OutputNode { position: (904.14355, 15.452262) },
+      RootNode { position: (904.14355, 15.452262) },
       LayerNode { layer: hue_shift, position: (-347.04788, 268.4372) },
       OperatorNode {
         name: hue_shift_2,
@@ -1085,7 +1085,7 @@ Sequence main {
       Edge { from: freeze_frame, to: max_2.b },
       Edge { from: max, to: max_2.a },
       Edge { from: max_2, to: bloom.input },
-      Edge { from: bloom, to: output },
+      Edge { from: bloom, to: root },
     ],
   },
   automation: [

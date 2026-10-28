@@ -114,13 +114,13 @@ impl DesktopState {
         let prepared = donder_elaboration::prepare(
             &session.project,
             &id,
-            donder_elaboration::PrepareOutputs::Ports(&ports),
+            donder_elaboration::Retain::Ports(&ports),
         )
         .ok_or("The sequence or selected output is unavailable.")?;
         Ok((session, id, prepared))
     }
 
-    pub(crate) fn prepare_sequence_export(
+    pub(crate) fn prepare_image_export(
         &self,
         request: &GuiDocumentRequest,
         selected: &[u32],

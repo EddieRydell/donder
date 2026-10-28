@@ -236,7 +236,7 @@ operator Linger {
 
 An operator transforms other signals instead of drawing from nothing. It
 declares `input`s, which you connect in the sequence's composition graph. Using
-an input as a color samples the current pixel; `source.at(index)` samples
+an input as a color reads the current pixel; `source.at(index)` reads
 another pixel of the same fixture. `previous` is the operator's own output one
 frame earlier, and `frames_elapsed` counts the frames since, so this keeps
 `fade` of its last frame per frame. `max` of two colors keeps the brighter of

@@ -1,12 +1,12 @@
 //! Targets as an image stores them: runs of contiguous cells, or one record
 //! per pixel for irregular selections, with each pixel's original logical
 //! place. A pixel's fraction is computed from its place, as authoring does.
-use crate::image::{self, PixelRun};
+use crate::format::{self, PixelRun};
 use core::cell::Cell;
 use donder_runtime_types::SpatialContext;
 
+use crate::image::Image;
 use crate::sections::SectionsView;
-use crate::show::Show;
 
 /// A target pixel: its storage fixture and cell, and its index among the
 /// `pixel_count` pixels of its sampling scope.
@@ -42,7 +42,7 @@ fn run_pixel(run: &PixelRun, offset: usize) -> PreparedPixel {
 }
 
 #[inline(always)]
-fn indexed_pixel(pixel: &image::Pixel) -> PreparedPixel {
+fn indexed_pixel(pixel: &format::Pixel) -> PreparedPixel {
     PreparedPixel {
         fixture_index: pixel.fixture as usize,
         fixture_pixel_index: pixel.cell,
@@ -54,10 +54,10 @@ fn indexed_pixel(pixel: &image::Pixel) -> PreparedPixel {
 /// One target of a show.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct TargetView<'a> {
-    pub(crate) record: &'a image::Target,
+    pub(crate) record: &'a format::Target,
     runs: &'a [PixelRun],
-    pixels: &'a [image::Pixel],
-    spatial: &'a [image::SpatialRun],
+    pixels: &'a [format::Pixel],
+    spatial: &'a [format::SpatialRun],
     pub(crate) sections: SectionsView<'a>,
 }
 
@@ -74,11 +74,11 @@ pub(crate) struct Segment {
 }
 
 impl<'a> TargetView<'a> {
-    // Once per effect sample, so it stays in flash.
+    // Once per clip evaluation, so it stays in flash.
     #[inline(never)]
-    pub(crate) fn of(show: Show<'a>, record: &'a image::Target) -> Self {
-        let s = &show.s;
-        let (runs, pixels) = if record.kind == image::PIXELS_RUNS {
+    pub(crate) fn of(image: Image<'a>, record: &'a format::Target) -> Self {
+        let s = &image.s;
+        let (runs, pixels) = if record.kind == format::PIXELS_RUNS {
             (record.pixels.get(s.pixel_runs), &[][..])
         } else {
             (&[][..], record.pixels.get(s.pixels))
@@ -88,13 +88,13 @@ impl<'a> TargetView<'a> {
             runs,
             pixels,
             spatial: record.spatial.get(s.spatial_runs),
-            sections: SectionsView::of(show, record),
+            sections: SectionsView::of(image, record),
         }
     }
 
     #[inline]
     pub(crate) fn len(&self) -> usize {
-        if self.record.kind == image::PIXELS_RUNS {
+        if self.record.kind == format::PIXELS_RUNS {
             self.runs.last().map_or(0, |run| run.end as usize)
         } else {
             self.pixels.len()
@@ -115,7 +115,7 @@ impl<'a> TargetView<'a> {
 
     #[inline]
     pub(crate) fn pixel(&self, index: usize) -> PreparedPixel {
-        if self.record.kind != image::PIXELS_RUNS {
+        if self.record.kind != format::PIXELS_RUNS {
             return indexed_pixel(&self.pixels[index]);
         }
         if let [run] = self.runs {
@@ -127,7 +127,7 @@ impl<'a> TargetView<'a> {
 
     #[inline]
     pub(crate) fn segment_count(&self) -> usize {
-        if self.record.kind == image::PIXELS_RUNS {
+        if self.record.kind == format::PIXELS_RUNS {
             self.runs.len()
         } else {
             self.pixels.len()
@@ -136,7 +136,7 @@ impl<'a> TargetView<'a> {
 
     #[inline]
     pub(crate) fn segment(&self, index: usize) -> Segment {
-        if self.record.kind != image::PIXELS_RUNS {
+        if self.record.kind != format::PIXELS_RUNS {
             let pixel = &self.pixels[index];
             return Segment {
                 start: index,
@@ -183,13 +183,14 @@ impl<'a> TargetView<'a> {
         &self,
         index: usize,
         pixel: &PreparedPixel,
-        show: Show<'a>,
+        image: Image<'a>,
     ) -> SpatialContext {
         let run = &self.spatial[self
             .spatial
             .partition_point(|run| run.end as usize <= index)];
-        let fixture = &show.s.fixtures[pixel.fixture_index];
-        let position = &fixture.positions.get(show.s.positions)[pixel.fixture_pixel_index as usize];
+        let fixture = &image.s.fixtures[pixel.fixture_index];
+        let position =
+            &fixture.positions.get(image.s.positions)[pixel.fixture_pixel_index as usize];
         SpatialContext {
             position: [position.x, position.y],
             min: run.min,
@@ -208,7 +209,7 @@ impl TargetCursor<'_> {
     #[inline]
     pub(crate) fn pixel(&self, index: usize) -> PreparedPixel {
         let target = &self.target;
-        if target.record.kind != image::PIXELS_RUNS {
+        if target.record.kind != format::PIXELS_RUNS {
             return indexed_pixel(&target.pixels[index]);
         }
         let runs = target.runs;

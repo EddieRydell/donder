@@ -54,16 +54,16 @@ pub(super) fn register_sequence_audio_asset(
     Ok(id)
 }
 
-pub(super) fn effect_mut(
+pub(super) fn clip_mut(
     sequence: &mut donder_model::Sequence,
     id: u32,
-) -> Result<&mut EffectInst, GuiMutationError> {
+) -> Result<&mut Clip, GuiMutationError> {
     sequence
-        .effects
+        .clips
         .iter_mut()
-        .find(|effect| effect.id.0 == id)
+        .find(|clip| clip.id.0 == id)
         .map(std::sync::Arc::make_mut)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))
+        .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))
 }
 
 pub(super) fn parse_graph_node_id(value: &str) -> Result<CompositionGraphNodeId, GuiMutationError> {
@@ -165,14 +165,14 @@ pub(super) fn identifier(value: &str) -> Result<Identifier, GuiMutationError> {
         .map_err(|_| GuiMutationError::Invalid(format!("Invalid identifier `{value}`.")))
 }
 
-pub(super) fn effect_scope(scope: SequenceEffectScope) -> EffectScope {
+pub(super) fn clip_scope(scope: SequenceClipScope) -> ClipScope {
     match scope {
-        SequenceEffectScope::PerFixture => EffectScope::PerFixture,
-        SequenceEffectScope::WholeTarget => EffectScope::WholeTarget,
+        SequenceClipScope::PerFixture => ClipScope::PerFixture,
+        SequenceClipScope::WholeTarget => ClipScope::WholeTarget,
     }
 }
 
-pub(super) fn layout_target_to_effect_target(
+pub(super) fn layout_target_to_clip_target(
     layout: &LayoutId,
     target: FixtureTarget,
 ) -> DomainFixtureTarget {
@@ -195,21 +195,21 @@ pub(super) fn required_param_values(
     session: &ProjectSession,
     definition: &EffectDefinitionId,
     initial_color: Color,
-) -> Result<IndexMap<Identifier, EffectParamValue>, GuiMutationError> {
+) -> Result<IndexMap<Identifier, ParamValue>, GuiMutationError> {
     let effect = session
         .project
         .get::<donder_model::EffectDefinition>(*definition)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
+        .ok_or_else(|| GuiMutationError::Invalid("Effect definition was not found.".to_string()))?;
     effect
         .params()
         .iter()
         .filter(|param| param.default.is_none())
         .map(|param| {
-            EffectParamValue::initial_for_param(param, initial_color)
+            ParamValue::initial_for_param(param, initial_color)
                 .map(|value| (param.name.clone(), value))
                 .ok_or_else(|| {
                     GuiMutationError::Invalid(format!(
-                        "Effect parameter `{}` requires an explicit value.",
+                        "Clip parameter `{}` requires an explicit value.",
                         param.name.as_str()
                     ))
                 })
@@ -219,12 +219,12 @@ pub(super) fn required_param_values(
 
 /// Visit a parameter value's marks references, including a marks array's.
 pub(super) fn visit_marks(
-    value: &mut EffectParamValue,
+    value: &mut ParamValue,
     visit: &mut impl FnMut(&mut Option<MarkCollectionKey>),
 ) {
     match value {
-        EffectParamValue::Marks(reference) => visit(reference),
-        EffectParamValue::Array(values) => {
+        ParamValue::Marks(reference) => visit(reference),
+        ParamValue::Array(values) => {
             for value in values {
                 visit_marks(value, visit);
             }
@@ -233,82 +233,69 @@ pub(super) fn visit_marks(
     }
 }
 
-pub(crate) fn effect_param_value_from_gui(
+pub(crate) fn param_value_from_gui(
     session: &mut ProjectSession,
     owner: &DocumentId,
-    value: SequenceEffectParamValue,
-) -> Result<EffectParamValue, GuiMutationError> {
+    value: SequenceParamValue,
+) -> Result<ParamValue, GuiMutationError> {
     Ok(match value {
-        SequenceEffectParamValue::Int { value } => EffectParamValue::Int(value as i32),
-        SequenceEffectParamValue::Float { value } => EffectParamValue::Float(value),
-        SequenceEffectParamValue::Bool { value } => EffectParamValue::Bool(value),
-        SequenceEffectParamValue::Color { value } => EffectParamValue::Color(parse_color(&value)?),
-        SequenceEffectParamValue::Enum { value } => EffectParamValue::Enum(identifier(&value)?),
-        SequenceEffectParamValue::Marks { key } => EffectParamValue::Marks(
+        SequenceParamValue::Int { value } => ParamValue::Int(value as i32),
+        SequenceParamValue::Float { value } => ParamValue::Float(value),
+        SequenceParamValue::Bool { value } => ParamValue::Bool(value),
+        SequenceParamValue::Color { value } => ParamValue::Color(parse_color(&value)?),
+        SequenceParamValue::Enum { value } => ParamValue::Enum(identifier(&value)?),
+        SequenceParamValue::Marks { key } => ParamValue::Marks(
             key.map(|key| identifier(&key).map(|name| MarkCollectionKey { name }))
                 .transpose()?,
         ),
-        SequenceEffectParamValue::Curve { value } => EffectParamValue::Curve(
-            match library_identity(
-                session,
-                owner,
-                donder_model::ObjectKind::Curve,
-                value.source,
-            )? {
-                Some(id) => CurveSource::Reference(library_id(id)?),
-                None => CurveSource::Inline(curve_from_points(value.points)),
+        SequenceParamValue::Curve { value } => ParamValue::Curve(
+            match library_identity(session, owner, donder_model::ObjectKind::Curve, value.link)? {
+                Some(id) => OwnedCurve::Reference(library_id(id)?),
+                None => OwnedCurve::Inline(curve_from_points(value.points)),
             },
         ),
-        SequenceEffectParamValue::Gradient { value } => EffectParamValue::Gradient(
+        SequenceParamValue::Gradient { value } => ParamValue::Gradient(
             match library_identity(
                 session,
                 owner,
                 donder_model::ObjectKind::Gradient,
-                value.source,
+                value.link,
             )? {
-                Some(id) => GradientSource::Reference(library_id(id)?),
-                None => GradientSource::Inline(gradient_from_stops(value.stops)?),
+                Some(id) => OwnedGradient::Reference(library_id(id)?),
+                None => OwnedGradient::Inline(gradient_from_stops(value.stops)?),
             },
         ),
-        SequenceEffectParamValue::IntArray { values } => EffectParamValue::Array(
+        SequenceParamValue::IntArray { values } => ParamValue::Array(
             values
                 .into_iter()
-                .map(|value| EffectParamValue::Int(value as i32))
+                .map(|value| ParamValue::Int(value as i32))
                 .collect(),
         ),
-        SequenceEffectParamValue::FloatArray { values } => {
-            EffectParamValue::Array(values.into_iter().map(EffectParamValue::Float).collect())
+        SequenceParamValue::FloatArray { values } => {
+            ParamValue::Array(values.into_iter().map(ParamValue::Float).collect())
         }
-        SequenceEffectParamValue::BoolArray { values } => {
-            EffectParamValue::Array(values.into_iter().map(EffectParamValue::Bool).collect())
+        SequenceParamValue::BoolArray { values } => {
+            ParamValue::Array(values.into_iter().map(ParamValue::Bool).collect())
         }
-        SequenceEffectParamValue::ColorArray { values } => EffectParamValue::Array(
+        SequenceParamValue::ColorArray { values } => ParamValue::Array(
             values
                 .into_iter()
-                .map(|value| parse_color(&value).map(EffectParamValue::Color))
+                .map(|value| parse_color(&value).map(ParamValue::Color))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
-        SequenceEffectParamValue::CurveArray { values } => EffectParamValue::Array(
+        SequenceParamValue::CurveArray { values } => ParamValue::Array(
             values
                 .into_iter()
                 .map(|value| {
-                    effect_param_value_from_gui(
-                        session,
-                        owner,
-                        SequenceEffectParamValue::Curve { value },
-                    )
+                    param_value_from_gui(session, owner, SequenceParamValue::Curve { value })
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         ),
-        SequenceEffectParamValue::GradientArray { values } => EffectParamValue::Array(
+        SequenceParamValue::GradientArray { values } => ParamValue::Array(
             values
                 .into_iter()
                 .map(|value| {
-                    effect_param_value_from_gui(
-                        session,
-                        owner,
-                        SequenceEffectParamValue::Gradient { value },
-                    )
+                    param_value_from_gui(session, owner, SequenceParamValue::Gradient { value })
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         ),
@@ -319,11 +306,11 @@ fn library_identity(
     session: &mut ProjectSession,
     owner: &DocumentId,
     kind: donder_model::ObjectKind,
-    source: SequenceLibrarySource,
+    link: SequenceLibraryLink,
 ) -> Result<Option<ObjectId>, GuiMutationError> {
-    let SequenceLibrarySource::Library {
+    let SequenceLibraryLink::Library {
         path, object_key, ..
-    } = source
+    } = link
     else {
         return Ok(None);
     };
@@ -331,7 +318,7 @@ fn library_identity(
         .declared_id(&source_identity_from_gui(&path, &object_key))
         .filter(|id| id.kind() == kind)
         .ok_or_else(|| GuiMutationError::Invalid(format!("`{object_key}` was not found.")))?;
-    donder_project_io::link_reusable_source(session, owner, id)
+    donder_project_io::link_declaration(session, owner, id)
         .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     Ok(Some(id))
 }
@@ -344,14 +331,14 @@ pub(super) fn automation_binding_value_at(
     clip: &AutomationClip,
     mapping: &AutomationMapping,
     seconds: f64,
-) -> Result<EffectParamValue, GuiMutationError> {
+) -> Result<ParamValue, GuiMutationError> {
     automation_value_at(clip, mapping, seconds)
         .map(|value| match value {
-            AutomationValue::Int(value) => EffectParamValue::Int(value),
-            AutomationValue::Float(value) => EffectParamValue::Float(value),
-            AutomationValue::Bool(value) => EffectParamValue::Bool(value),
-            AutomationValue::Enum(value) => EffectParamValue::Enum(value.clone()),
-            AutomationValue::Curve(value) => EffectParamValue::Curve(CurveSource::Inline(value)),
+            AutomationValue::Int(value) => ParamValue::Int(value),
+            AutomationValue::Float(value) => ParamValue::Float(value),
+            AutomationValue::Bool(value) => ParamValue::Bool(value),
+            AutomationValue::Enum(value) => ParamValue::Enum(value.clone()),
+            AutomationValue::Curve(value) => ParamValue::Curve(OwnedCurve::Inline(value)),
         })
         .ok_or_else(|| {
             GuiMutationError::Invalid("Enum automation mapping has no values.".to_string())
@@ -468,9 +455,7 @@ use donder_model::{
     AssetId, AutomationClip, CompositionGraphNodeId, MarkCollection, MarkCollectionKey,
     automation_value_at,
 };
-use donder_model::{
-    CurveSource, EffectDefinitionId, EffectInst, EffectParamValue, EffectScope, GradientSource,
-};
+use donder_model::{Clip, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue};
 use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use donder_model::{ObjectId, OperatorDefinitionId};
 use donder_project_io::SourceIdentity;
@@ -482,9 +467,9 @@ use indexmap::IndexMap;
 
 use super::GuiMutationError;
 use crate::dto::{
-    FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceCurvePoint,
-    SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGradientStop,
-    SequenceGraphOperator, SequenceLibrarySource,
+    FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceClipScope, SequenceCurvePoint,
+    SequenceEffectReference, SequenceGradientStop, SequenceGraphOperator, SequenceLibraryLink,
+    SequenceParamValue,
 };
 
 pub(super) fn create_object_document(

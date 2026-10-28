@@ -1,7 +1,7 @@
 use crate::common;
 
 use camino::Utf8Path;
-use donder_model::{MemberSource, ValueSource};
+use donder_model::{Owned, OwnedMember};
 use donder_project_io::{OwnedObjectSlot, PROJECT_ROOT_FILE, check_project, save_project};
 
 const TRANSFORM: &str =
@@ -48,7 +48,7 @@ fn inline_fields() -> String {
       {CONTROLLER},
       Controller spare_8 {{
         description: none,
-        protocol: E131 {{ source_name: "Spare", bind_address: "0.0.0.0", priority: 100, mode: Multicast }},
+        protocol: E131 {{ sender_name: "Spare", bind_address: "0.0.0.0", priority: 100, mode: Multicast }},
         ports: [Port {{ name: port_1, address: Universe {{ universe: 2 }}, slots: 512 }}],
       }},
     ],
@@ -69,7 +69,7 @@ fn inline_fields() -> String {
 
 const CONTROLLER: &str = r#"Controller controller_3 {
         description: none,
-        protocol: E131 { source_name: "Test", bind_address: "0.0.0.0", priority: 100, mode: Multicast },
+        protocol: E131 { sender_name: "Test", bind_address: "0.0.0.0", priority: 100, mode: Multicast },
         ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 512 }],
       }"#;
 
@@ -81,7 +81,7 @@ const SEQUENCE: &str = r#"Sequence song_4 {
       marks: [],
       layers: [],
       clips: [],
-      graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+      graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
       automation: [],
     }"#;
 
@@ -102,7 +102,7 @@ const RIG: &str = r#"  rigs: [
           action: Mark { marks: beat },
         },
       ],
-      graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+      graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
     },
   ],
 "#;
@@ -147,7 +147,7 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
             .reusable::<donder_model::FixtureDefinition>()
             .is_empty()
     );
-    let ValueSource::Inline(mut setup) = session.project.root().setup.clone() else {
+    let Owned::Inline(mut setup) = session.project.root().setup.clone() else {
         panic!("expected ownership")
     };
     let address = *setup.controllers[0].id();
@@ -164,7 +164,7 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     let output = donder_elaboration::prepare(
         &session.project,
         session.project.root().sequences[0].id(),
-        donder_elaboration::PrepareOutputs::All,
+        donder_elaboration::Retain::All,
     )
     .unwrap();
     assert_eq!(output.outputs().len(), 2);
@@ -265,12 +265,12 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
             session.project.reusable::<donder_model::Controller>().len(),
             1
         );
-        let ValueSource::Inline(mut setup) = session.project.root().setup.clone() else {
+        let Owned::Inline(mut setup) = session.project.root().setup.clone() else {
             panic!("expected ownership")
         };
         assert!(matches!(
             setup.controllers.remove(1),
-            MemberSource::Reference(_)
+            OwnedMember::Reference(_)
         ));
         session.project.put(*setup).unwrap();
         save_project(&session).unwrap();
@@ -384,7 +384,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
         .id();
     assert!(rig.inputs().all(|input| &input.device == device));
     let owned = session.project.get::<donder_model::Setup>(setup).unwrap();
-    assert!(matches!(owned.patch, ValueSource::Inline(_)));
+    assert!(matches!(owned.patch, Owned::Inline(_)));
     let layout = *owned.layout.id();
     let site = common::site(
         &session.project,
@@ -494,7 +494,7 @@ fn independent_layout_copies_active_sequences_and_preserves_the_reusable_origina
     assert!(
         originals
             .values()
-            .any(|sequence| !sequence.effects.is_empty())
+            .any(|sequence| !sequence.clips.is_empty())
     );
     let site = common::site(&session.project, common::Slot::SetupLayout(setup));
     make_independent(&mut session.project, &site, &|id| {
@@ -517,13 +517,13 @@ fn independent_layout_copies_active_sequences_and_preserves_the_reusable_origina
             .project
             .get::<donder_model::Sequence>(*source.id())
             .unwrap();
-        for effect in &sequence.effects {
+        for effect in &sequence.clips {
             assert_eq!(&effect.target.layout, new_layout);
         }
         donder_elaboration::prepare(
             &session.project,
             &sequence.id,
-            donder_elaboration::PrepareOutputs::All,
+            donder_elaboration::Retain::All,
         )
         .unwrap();
     }
@@ -600,10 +600,10 @@ fn reusable_sequences_cannot_mix_targets_from_different_layouts() {
         .project
         .reusable::<donder_model::Sequence>()
         .values()
-        .find(|sequence| sequence.effects.len() > 1)
+        .find(|sequence| sequence.clips.len() > 1)
         .unwrap()
         .clone();
-    std::sync::Arc::make_mut(&mut sequence.effects[0])
+    std::sync::Arc::make_mut(&mut sequence.clips[0])
         .target
         .layout = new_layout;
     let error = session.project.put(sequence).unwrap_err();
@@ -613,7 +613,7 @@ fn reusable_sequences_cannot_mix_targets_from_different_layouts() {
             donder_model::EditError::Invalid(donder_model::ProjectValidationError {
                 problem: donder_model::ValidationProblem::Sequence(
                     donder_model::SequenceValidationError::Clip {
-                        problem: donder_model::EffectProblem::MixedLayouts,
+                        problem: donder_model::ClipProblem::MixedLayouts,
                         ..
                     }
                 ),
@@ -747,7 +747,7 @@ fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequence
     maintain_ownership_sources(&mut session).unwrap();
     let current = session.project.get::<donder_model::Setup>(setup).unwrap();
     assert_eq!(current.layout.id(), &replacement.id);
-    assert!(matches!(current.patch, ValueSource::Inline(_)));
+    assert!(matches!(current.patch, Owned::Inline(_)));
     let patch = session
         .project
         .get::<donder_model::Patch>(*current.patch.id())
@@ -784,14 +784,14 @@ fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequence
             .unwrap();
         assert!(
             value
-                .effects
+                .clips
                 .iter()
                 .all(|effect| effect.target.layout == replacement.id)
         );
         donder_elaboration::prepare(
             &session.project,
             sequence.id(),
-            donder_elaboration::PrepareOutputs::All,
+            donder_elaboration::Retain::All,
         )
         .unwrap();
     }

@@ -24,7 +24,7 @@ fixture may belong to several groups (`roofs` and `left_side` can both list
 `left_roof`). Every item must be in `root` or some group. A setup connects a layout, a patch,
 controllers and input devices (a keyboard whose keys are buttons). A sequence
 places clips of effects on layers over time, automates their parameters, and
-combines layers through operators into the output. A rig is played live instead:
+combines layers through operators into its root node. A rig is played live instead:
 its layers and graph are a sequence's, its scene voices play for the whole
 session, and its mappings turn button presses into triggered effects, live marks
 and parameter controls, optionally only while a switch is on or off.
@@ -98,8 +98,9 @@ An operator that blurs, glows or spreads light along a fixture reads its
 neighbors with `sum for offset in -radius..=radius around input as neighbor {
 neighbor * weight }`, as `Blur` and `Bloom` do, rather than computing pixel
 indices with `input.at(...)`. Trails and long glows that fade with distance use
-`scan forward input as light, carried { carried * decay + light }`, as `Trail`
-does, whose cost does not grow with the distance. Light that lingers over time
+`scan forward input decay d`, or `scan forward input decay d as light { light * w }`
+to weight the light each pixel adds, as `Trail` and `Bloom` do; their cost
+does not grow with the distance. Light that lingers over time
 reads the operator's own last frame, `previous`, faded by the frames since, as
 `Afterglow` does: `max(input, previous * pow(decay, frames_elapsed))`. Effects
 and operators see only the current frame and `previous`; nothing reads another

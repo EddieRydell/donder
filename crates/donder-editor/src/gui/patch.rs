@@ -38,7 +38,7 @@ pub(super) fn project_document(
         .objects::<donder_model::Layout>()
         .map(|layout| {
             let id = &layout.id;
-            // Routes target fixtures; groups are effect targets only.
+            // Routes target fixtures; groups are clip targets only.
             let fixtures = layout
                 .iter_fixtures()
                 .filter(|fixture| {

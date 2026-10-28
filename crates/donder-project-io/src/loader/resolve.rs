@@ -8,7 +8,9 @@ use std::sync::Arc;
 use crate::address::{DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
 use camino::Utf8PathBuf;
 use donder_language::compiler::{ParamDecl, TextSpan};
-use donder_language::data::{Data, Decoder, Meters, Name, NamedSource, Params, Reference, Source};
+use donder_language::data::{
+    Data, Decoder, Meters, Name, OwnedNamedRecord, OwnedRecord, Params, Reference,
+};
 use donder_language::data::{DataValue, Spanned};
 use donder_language::{
     Distance, DistanceSpan, DonderDuration, DonderTime, Point3, Rotation3, Scale3,
@@ -29,24 +31,23 @@ use donder_model::{
 };
 use donder_model::{
     ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDriver, KeyRange, OscAddress, PlayedSource, PlayedValue,
+    InputDevice, InputDeviceId, InputDriver, KeyRange, OscAddress, PlayedQuantity, PlayedValue,
 };
 use donder_model::{
-    ControlTarget, LiveMarks, Mapping, MappingAction, Rig, RigEffect, RigId, RigMappingId,
+    Clip, ClipId, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue,
+};
+use donder_model::{
+    ControlTarget, LiveMarks, Mapping, MappingAction, Rig, RigClip, RigId, RigMappingId,
     RigSwitchId, RigVoiceId, Switch, Trigger, TriggerLength, Voice, VoicePolicy, When,
 };
 use donder_model::{
-    CurveSource, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectScope,
-    GradientSource,
-};
-use donder_model::{
     FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
-    FixtureSource, FixtureTransform, GridAxis, GridCorner,
+    FixtureTransform, GridAxis, GridCorner, OwnedFixture,
 };
 use donder_model::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind, LayoutId,
 };
-use donder_model::{MemberSource, ValueSource};
+use donder_model::{Owned, OwnedMember};
 use donder_model::{Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan};
 use donder_model::{Setup, SetupId};
 use donder_runtime_types::PixelEncoding;
@@ -54,7 +55,7 @@ use donder_runtime_types::{Curve, CurvePoint, Gradient, GradientStop};
 use donder_runtime_types::{Identifier, Type};
 use indexmap::IndexMap;
 
-use super::locate::{Owned, owned};
+use super::locate::{Located, owned};
 use super::{DataDocument, Loader};
 use crate::diagnostics::LoadError;
 use crate::document::{Declaration, types};
@@ -69,7 +70,7 @@ pub(super) struct DomainResolver<'a> {
 /// Each layer of a sequence or rig by name, with its declaring name's span.
 type LayerIds = IndexMap<Identifier, (SequenceLayerId, TextSpan)>;
 
-/// Each graph node by name: its identity, whether it is the output, the name
+/// Each graph node by name: its identity, whether it is the root, the name
 /// it is declared by, and its operator.
 type NodeIds = IndexMap<
     Identifier,
@@ -164,16 +165,16 @@ impl DomainResolver<'_> {
         )
     }
 
-    // Sources: a declared object, resolved once, or one written in place.
+    // Owned records: a declared object, resolved once, or one written in place.
 
-    pub(super) fn setup_source(
+    pub(super) fn owned_setup(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        source: &Source<types::Setup>,
-    ) -> Result<donder_model::SetupSource, LoadError> {
-        match source {
-            Source::Reference(reference) => {
+        record: &OwnedRecord<types::Setup>,
+    ) -> Result<donder_model::OwnedSetup, LoadError> {
+        match record {
+            OwnedRecord::Reference(reference) => {
                 let ObjectId::Setup(id) =
                     self.loader
                         .resolve_reference(document, reference, ObjectKind::Setup)?
@@ -181,25 +182,23 @@ impl DomainResolver<'_> {
                     return Err(self.loader.unresolved(document, reference));
                 };
                 self.resolve_setup(&id)?;
-                Ok(ValueSource::Reference(id))
+                Ok(Owned::Reference(id))
             }
-            Source::Inline(setup) => {
+            OwnedRecord::Inline(setup) => {
                 let id = SetupId(self.loader.intern(owner.owned(OwnedObjectSlot::Setup)));
-                Ok(ValueSource::Inline(Box::new(
-                    self.setup(&id, document, setup)?,
-                )))
+                Ok(Owned::Inline(Box::new(self.setup(&id, document, setup)?)))
             }
         }
     }
 
-    fn layout_source(
+    fn owned_layout(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        source: &Source<types::Layout>,
-    ) -> Result<donder_model::LayoutSource, LoadError> {
-        match source {
-            Source::Reference(reference) => {
+        record: &OwnedRecord<types::Layout>,
+    ) -> Result<donder_model::OwnedLayout, LoadError> {
+        match record {
+            OwnedRecord::Reference(reference) => {
                 let ObjectId::Layout(id) =
                     self.loader
                         .resolve_reference(document, reference, ObjectKind::Layout)?
@@ -207,25 +206,23 @@ impl DomainResolver<'_> {
                     return Err(self.loader.unresolved(document, reference));
                 };
                 self.resolve_layout(&id)?;
-                Ok(ValueSource::Reference(id))
+                Ok(Owned::Reference(id))
             }
-            Source::Inline(layout) => {
+            OwnedRecord::Inline(layout) => {
                 let id = LayoutId(self.loader.intern(owner.owned(OwnedObjectSlot::Layout)));
-                Ok(ValueSource::Inline(Box::new(
-                    self.layout(&id, document, layout)?,
-                )))
+                Ok(Owned::Inline(Box::new(self.layout(&id, document, layout)?)))
             }
         }
     }
 
-    fn patch_source(
+    fn owned_patch(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        source: &Source<types::Patch>,
-    ) -> Result<donder_model::PatchSource, LoadError> {
-        match source {
-            Source::Reference(reference) => {
+        record: &OwnedRecord<types::Patch>,
+    ) -> Result<donder_model::OwnedPatch, LoadError> {
+        match record {
+            OwnedRecord::Reference(reference) => {
                 let ObjectId::Patch(id) =
                     self.loader
                         .resolve_reference(document, reference, ObjectKind::Patch)?
@@ -233,25 +230,23 @@ impl DomainResolver<'_> {
                     return Err(self.loader.unresolved(document, reference));
                 };
                 self.resolve_patch(&id)?;
-                Ok(ValueSource::Reference(id))
+                Ok(Owned::Reference(id))
             }
-            Source::Inline(patch) => {
+            OwnedRecord::Inline(patch) => {
                 let id = PatchId(self.loader.intern(owner.owned(OwnedObjectSlot::Patch)));
-                Ok(ValueSource::Inline(Box::new(
-                    self.patch(&id, document, patch)?,
-                )))
+                Ok(Owned::Inline(Box::new(self.patch(&id, document, patch)?)))
             }
         }
     }
 
-    fn controller_source(
+    fn owned_controller(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        source: &NamedSource<types::Controller>,
-    ) -> Result<donder_model::ControllerSource, LoadError> {
-        match source {
-            NamedSource::Reference(reference) => {
+        record: &OwnedNamedRecord<types::Controller>,
+    ) -> Result<donder_model::OwnedController, LoadError> {
+        match record {
+            OwnedNamedRecord::Reference(reference) => {
                 let ObjectId::Controller(id) =
                     self.loader
                         .resolve_reference(document, reference, ObjectKind::Controller)?
@@ -259,14 +254,14 @@ impl DomainResolver<'_> {
                     return Err(self.loader.unresolved(document, reference));
                 };
                 self.resolve_controller(&id)?;
-                Ok(MemberSource::Reference(id))
+                Ok(OwnedMember::Reference(id))
             }
-            NamedSource::Inline(member, controller) => {
+            OwnedNamedRecord::Inline(member, controller) => {
                 let id = ControllerId(
                     self.loader
                         .intern(owner.owned(OwnedObjectSlot::Controller(name(member)))),
                 );
-                Ok(MemberSource::Inline {
+                Ok(OwnedMember::Inline {
                     name: name(member),
                     value: Box::new(self.controller(&id, document, member.0.span, controller)?),
                 })
@@ -274,14 +269,14 @@ impl DomainResolver<'_> {
         }
     }
 
-    fn input_device_source(
+    fn owned_input_device(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        source: &NamedSource<types::InputDevice>,
-    ) -> Result<donder_model::InputDeviceSource, LoadError> {
-        match source {
-            NamedSource::Reference(reference) => {
+        record: &OwnedNamedRecord<types::InputDevice>,
+    ) -> Result<donder_model::OwnedInputDevice, LoadError> {
+        match record {
+            OwnedNamedRecord::Reference(reference) => {
                 let ObjectId::InputDevice(id) =
                     self.loader
                         .resolve_reference(document, reference, ObjectKind::InputDevice)?
@@ -289,14 +284,14 @@ impl DomainResolver<'_> {
                     return Err(self.loader.unresolved(document, reference));
                 };
                 self.resolve_input_device(&id)?;
-                Ok(MemberSource::Reference(id))
+                Ok(OwnedMember::Reference(id))
             }
-            NamedSource::Inline(member, device) => {
+            OwnedNamedRecord::Inline(member, device) => {
                 let id = InputDeviceId(
                     self.loader
                         .intern(owner.owned(OwnedObjectSlot::InputDevice(name(member)))),
                 );
-                Ok(MemberSource::Inline {
+                Ok(OwnedMember::Inline {
                     name: name(member),
                     value: Box::new(Self::input_device(&id, device)),
                 })
@@ -304,14 +299,14 @@ impl DomainResolver<'_> {
         }
     }
 
-    pub(super) fn rig_source(
+    pub(super) fn owned_rig(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        source: &NamedSource<types::Rig>,
-    ) -> Result<donder_model::RigSource, LoadError> {
-        match source {
-            NamedSource::Reference(reference) => {
+        record: &OwnedNamedRecord<types::Rig>,
+    ) -> Result<donder_model::OwnedRig, LoadError> {
+        match record {
+            OwnedNamedRecord::Reference(reference) => {
                 let ObjectId::Rig(id) =
                     self.loader
                         .resolve_reference(document, reference, ObjectKind::Rig)?
@@ -319,14 +314,14 @@ impl DomainResolver<'_> {
                     return Err(self.loader.unresolved(document, reference));
                 };
                 self.resolve_rig(&id)?;
-                Ok(MemberSource::Reference(id))
+                Ok(OwnedMember::Reference(id))
             }
-            NamedSource::Inline(member, rig) => {
+            OwnedNamedRecord::Inline(member, rig) => {
                 let id = RigId(
                     self.loader
                         .intern(owner.owned(OwnedObjectSlot::Rig(name(member)))),
                 );
-                Ok(MemberSource::Inline {
+                Ok(OwnedMember::Inline {
                     name: name(member),
                     value: Box::new(self.rig(&id, document, rig)?),
                 })
@@ -334,14 +329,14 @@ impl DomainResolver<'_> {
         }
     }
 
-    pub(super) fn sequence_source(
+    pub(super) fn owned_sequence(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        source: &NamedSource<types::Sequence>,
-    ) -> Result<donder_model::SequenceSource, LoadError> {
-        match source {
-            NamedSource::Reference(reference) => {
+        record: &OwnedNamedRecord<types::Sequence>,
+    ) -> Result<donder_model::OwnedSequence, LoadError> {
+        match record {
+            OwnedNamedRecord::Reference(reference) => {
                 let ObjectId::Sequence(id) =
                     self.loader
                         .resolve_reference(document, reference, ObjectKind::Sequence)?
@@ -349,14 +344,14 @@ impl DomainResolver<'_> {
                     return Err(self.loader.unresolved(document, reference));
                 };
                 self.resolve_sequence(&id)?;
-                Ok(MemberSource::Reference(id))
+                Ok(OwnedMember::Reference(id))
             }
-            NamedSource::Inline(member, sequence) => {
+            OwnedNamedRecord::Inline(member, sequence) => {
                 let id = SequenceId(
                     self.loader
                         .intern(owner.owned(OwnedObjectSlot::Sequence(name(member)))),
                 );
-                Ok(MemberSource::Inline {
+                Ok(OwnedMember::Inline {
                     name: name(member),
                     value: Box::new(self.sequence(&id, document, member.0.span, sequence)?),
                 })
@@ -491,7 +486,7 @@ impl DomainResolver<'_> {
     fn with_owned<R>(
         &self,
         identity: &ObjectAddress,
-        read: impl FnOnce(Owned<'_>) -> Option<R>,
+        read: impl FnOnce(Located<'_>) -> Option<R>,
     ) -> Option<R> {
         let root = identity.root_source();
         let data = self.loader.declaration(root).ok()?;
@@ -520,7 +515,7 @@ impl DomainResolver<'_> {
         let layout = LayoutId(self.loader.intern(address.clone()));
         let (index, item) = self
             .with_owned(&address, |owned| match owned {
-                Owned::Layout(layout) => fixture_index(&layout.items, &fixture.value),
+                Located::Layout(layout) => fixture_index(&layout.items, &fixture.value),
                 _ => None,
             })
             .ok_or_else(|| {
@@ -556,7 +551,7 @@ impl DomainResolver<'_> {
     ) -> Result<ControllerPortId, LoadError> {
         let address = self.loader.address(*controller);
         self.with_owned(&address, |owned| match owned {
-            Owned::Controller(controller) => controller
+            Located::Controller(controller) => controller
                 .ports
                 .iter()
                 .position(|candidate| candidate.name == *port)
@@ -592,18 +587,18 @@ impl DomainResolver<'_> {
         setup: &types::Setup,
     ) -> Result<Setup, LoadError> {
         let address = self.loader.address(*id);
-        let layout = self.layout_source(document, &address, &setup.layout)?;
+        let layout = self.owned_layout(document, &address, &setup.layout)?;
         let controllers = setup
             .controllers
             .iter()
-            .map(|source| self.controller_source(document, &address, source))
+            .map(|record| self.owned_controller(document, &address, record))
             .collect::<Result<_, _>>()?;
         let input_devices = setup
             .input_devices
             .iter()
-            .map(|source| self.input_device_source(document, &address, source))
+            .map(|record| self.owned_input_device(document, &address, record))
             .collect::<Result<_, _>>()?;
-        let patch = self.patch_source(document, &address, &setup.patch)?;
+        let patch = self.owned_patch(document, &address, &setup.patch)?;
         Ok(Setup {
             id: *id,
             description: setup.description.clone(),
@@ -699,7 +694,7 @@ impl DomainResolver<'_> {
         values: &[types::PlayedValue],
     ) -> Result<Vec<PlayedValue>, LoadError> {
         let definition = self.effect_definition(document, effect)?;
-        let declarations = self.effect_params(&definition);
+        let declarations = self.definition_params(&definition);
         Ok(values
             .iter()
             .map(|value| {
@@ -717,10 +712,10 @@ impl DomainResolver<'_> {
                 PlayedValue {
                     param: name(param),
                     from: match value.from {
-                        types::PlayedSource::Velocity => PlayedSource::Velocity,
-                        types::PlayedSource::Pitch => PlayedSource::Pitch,
-                        types::PlayedSource::PitchClass => PlayedSource::PitchClass,
-                        types::PlayedSource::Fifths => PlayedSource::Fifths,
+                        types::PlayedQuantity::Velocity => PlayedQuantity::Velocity,
+                        types::PlayedQuantity::Pitch => PlayedQuantity::Pitch,
+                        types::PlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
+                        types::PlayedQuantity::Fifths => PlayedQuantity::Fifths,
                     },
                 }
             })
@@ -762,7 +757,7 @@ impl DomainResolver<'_> {
         let device = InputDeviceId(self.loader.intern(address.clone()));
         let (index, span) = self
             .with_owned(&address, |owned| match owned {
-                Owned::InputDevice(device) => {
+                Located::InputDevice(device) => {
                     device
                         .controls
                         .iter()
@@ -820,12 +815,12 @@ impl DomainResolver<'_> {
         let socket = |text: &str, what: &str| parse(self, document, span, text, what);
         let protocol = match &controller.protocol {
             types::Protocol::E131 {
-                source_name,
+                sender_name,
                 bind_address,
                 priority,
                 mode,
             } => ControllerProtocol::E131(E131Config {
-                source_name: source_name.clone(),
+                sender_name: sender_name.clone(),
                 bind_address: address(bind_address, "an IP address")?,
                 priority: *priority,
                 mode: match mode {
@@ -966,7 +961,7 @@ impl DomainResolver<'_> {
                 description: description.clone(),
                 kind: LayoutFixtureKind::Fixture {
                     definition: match definition {
-                        Source::Reference(reference) => {
+                        OwnedRecord::Reference(reference) => {
                             let ObjectId::FixtureDefinition(definition) =
                                 self.loader.resolve_reference(
                                     document,
@@ -977,10 +972,10 @@ impl DomainResolver<'_> {
                                 return Err(self.loader.unresolved(document, reference));
                             };
                             self.resolve_fixture(&definition)?;
-                            FixtureSource::Reference(definition)
+                            OwnedFixture::Reference(definition)
                         }
-                        Source::Inline(definition) => {
-                            FixtureSource::Inline(self.fixture_definition(document, definition)?)
+                        OwnedRecord::Inline(definition) => {
+                            OwnedFixture::Inline(self.fixture_definition(document, definition)?)
                         }
                     },
                     transform: self.transform(document, fixture.0.span, transform)?,
@@ -1132,7 +1127,7 @@ impl DomainResolver<'_> {
                 // An owned address names a controller only if its owner declares one there.
                 if self
                     .with_owned(&address, |owned| {
-                        matches!(owned, Owned::Controller(_)).then_some(())
+                        matches!(owned, Located::Controller(_)).then_some(())
                     })
                     .is_none()
                 {
@@ -1224,7 +1219,7 @@ impl DomainResolver<'_> {
         Ok(id)
     }
 
-    /// A graph node by name: its identity, whether it is the output, and its
+    /// A graph node by name: its identity, whether it is the root, and its
     /// operator.
     fn node(
         &self,
@@ -1239,7 +1234,7 @@ impl DomainResolver<'_> {
         ),
         LoadError,
     > {
-        let (id, output, declared, operator) =
+        let (id, root, declared, operator) =
             node_ids.get(&node.value).cloned().ok_or_else(|| {
                 self.invalid(
                     document,
@@ -1250,7 +1245,7 @@ impl DomainResolver<'_> {
         if let Some(declared) = declared {
             self.link_local(document, node.span, declared);
         }
-        Ok((id, output, operator))
+        Ok((id, root, operator))
     }
 
     /// The composition graph of a sequence or rig, and its nodes by name.
@@ -1265,7 +1260,7 @@ impl DomainResolver<'_> {
         let mut nodes = Vec::with_capacity(graph.nodes.len());
         for (index, node) in graph.nodes.iter().enumerate() {
             let id = CompositionGraphNodeId(index as u32 + 1);
-            let (node_name, output, position, kind, declared, operator) = match node {
+            let (node_name, root, position, kind, declared, operator) = match node {
                 types::Node::LayerNode {
                     layer: node_layer,
                     position,
@@ -1316,18 +1311,18 @@ impl DomainResolver<'_> {
                         Some(definition),
                     )
                 }
-                types::Node::OutputNode { position } => (
-                    donder_language::object_name("output"),
+                types::Node::RootNode { position } => (
+                    donder_language::object_name("root"),
                     true,
                     position,
-                    CompositionGraphNodeKind::Output,
+                    CompositionGraphNodeKind::Root,
                     None,
                     None,
                 ),
             };
             node_ids
                 .entry(node_name)
-                .or_insert((id.clone(), output, declared, operator));
+                .or_insert((id.clone(), root, declared, operator));
             nodes.push(CompositionGraphNode {
                 id,
                 position: GraphNodePosition {
@@ -1371,7 +1366,7 @@ impl DomainResolver<'_> {
                             return Err(self.invalid(
                                 document,
                                 edge.to.span,
-                                "an edge to the output is `to: output`",
+                                "an edge to the root is `to: root`",
                             ));
                         }
                     },
@@ -1402,10 +1397,10 @@ impl DomainResolver<'_> {
         Ok(definition)
     }
 
-    fn scope(scope: &types::Scope) -> EffectScope {
+    fn scope(scope: &types::Scope) -> ClipScope {
         match scope {
-            types::Scope::PerFixture => EffectScope::PerFixture,
-            types::Scope::WholeTarget => EffectScope::WholeTarget,
+            types::Scope::PerFixture => ClipScope::PerFixture,
+            types::Scope::WholeTarget => ClipScope::WholeTarget,
         }
     }
 
@@ -1446,15 +1441,15 @@ impl DomainResolver<'_> {
             .collect::<Vec<_>>();
         let (layers, layer_ids) = Self::layers(&sequence.layers);
         let mut clip_ids = IndexMap::new();
-        let mut effects = Vec::with_capacity(sequence.clips.len());
+        let mut clips = Vec::with_capacity(sequence.clips.len());
         for (index, clip) in sequence.clips.iter().enumerate() {
-            let id = EffectInstId(index as u32 + 1);
+            let id = ClipId(index as u32 + 1);
             let definition = self.effect_definition(document, &clip.effect)?;
-            let params = self.effect_params(&definition);
+            let params = self.definition_params(&definition);
             clip_ids
                 .entry(name(&clip.name))
                 .or_insert((id.clone(), clip.name.0.span, definition));
-            effects.push(std::sync::Arc::new(EffectInst {
+            clips.push(std::sync::Arc::new(Clip {
                 id,
                 name: name(&clip.name),
                 description: clip.description.clone(),
@@ -1478,7 +1473,7 @@ impl DomainResolver<'_> {
         let binding = |binding: &types::Binding| -> Result<AutomationTarget, LoadError> {
             Ok(match binding {
                 types::Binding::ClipParam { clip, param } => {
-                    let (effect_id, span, effect) =
+                    let (clip_id, span, effect) =
                         clip_ids.get(&clip.0.value).cloned().ok_or_else(|| {
                             self.invalid(
                                 document,
@@ -1492,8 +1487,8 @@ impl DomainResolver<'_> {
                         param.0.span,
                         self.script(effect, ScriptMember::Param(param.as_str().to_string())),
                     );
-                    AutomationTarget::EffectParam {
-                        effect_id,
+                    AutomationTarget::ClipParam {
+                        clip_id,
                         param: name(param),
                     }
                 }
@@ -1550,18 +1545,18 @@ impl DomainResolver<'_> {
             audio,
             mark_collections,
             layers,
-            effects,
+            clips,
             composition_graph,
             automation_clips,
         })
     }
 
-    /// An effect of a rig: a clip without timing.
+    /// A rig clip: a sequence clip without timing.
     #[expect(
         clippy::too_many_arguments,
         reason = "the fields a voice and a trigger share"
     )]
-    fn rig_effect(
+    fn rig_clip(
         &self,
         document: &DocumentId,
         layer_ids: &LayerIds,
@@ -1571,10 +1566,10 @@ impl DomainResolver<'_> {
         scope: &types::Scope,
         effect: &Reference,
         params: &Params,
-    ) -> Result<RigEffect, LoadError> {
+    ) -> Result<RigClip, LoadError> {
         let definition = self.effect_definition(document, effect)?;
-        let declarations = self.effect_params(&definition);
-        Ok(RigEffect {
+        let declarations = self.definition_params(&definition);
+        Ok(RigClip {
             layer_id: self.layer(document, layer_ids, layer)?,
             target: self.fixture_target(document, target)?,
             scope: Self::scope(scope),
@@ -1603,7 +1598,7 @@ impl DomainResolver<'_> {
             IndexMap::<Identifier, (ControlTarget, TextSpan, Option<EffectDefinitionId>)>::new();
         let mut voices = Vec::with_capacity(rig.scene.len());
         for (voice, index) in rig.scene.iter().zip(1..) {
-            let effect = self.rig_effect(
+            let clip = self.rig_clip(
                 document,
                 &layer_ids,
                 &marks,
@@ -1616,13 +1611,13 @@ impl DomainResolver<'_> {
             controlled.entry(name(&voice.name)).or_insert((
                 ControlTarget::Voice(RigVoiceId(index)),
                 voice.name.0.span,
-                Some(effect.definition),
+                Some(clip.definition),
             ));
             voices.push(Voice {
                 id: RigVoiceId(index),
                 name: name(&voice.name),
                 description: voice.description.clone(),
-                effect,
+                clip,
             });
         }
         let mut switch_ids = IndexMap::new();
@@ -1676,7 +1671,7 @@ impl DomainResolver<'_> {
                     voices,
                     values,
                 } => MappingAction::Trigger(Box::new(Trigger {
-                    effect: self.rig_effect(
+                    clip: self.rig_clip(
                         document, &layer_ids, &marks, layer, target, scope, effect, params,
                     )?,
                     values: self.played_values(document, effect, values)?,
@@ -1711,7 +1706,7 @@ impl DomainResolver<'_> {
                     self.link_local(document, voice.0.span, span);
                     if let Some(definition) = definition
                         && self
-                            .effect_params(&definition)
+                            .definition_params(&definition)
                             .iter()
                             .any(|declaration| declaration.name == param.0.value)
                     {
@@ -1767,7 +1762,7 @@ impl DomainResolver<'_> {
         })
     }
 
-    fn effect_params(&self, definition: &EffectDefinitionId) -> Vec<ParamDecl> {
+    fn definition_params(&self, definition: &EffectDefinitionId) -> Vec<ParamDecl> {
         self.project
             .effects
             .get(definition)
@@ -1824,7 +1819,7 @@ impl DomainResolver<'_> {
         declarations: &[ParamDecl],
         marks: &[(Identifier, TextSpan)],
         params: &Params,
-    ) -> Result<IndexMap<Identifier, EffectParamValue>, LoadError> {
+    ) -> Result<IndexMap<Identifier, ParamValue>, LoadError> {
         let mut values = IndexMap::new();
         let mut previous = None;
         for (param, value) in &params.0 {
@@ -1873,19 +1868,19 @@ impl DomainResolver<'_> {
         ty: &Type,
         marks: &[(Identifier, TextSpan)],
         value: &Spanned<DataValue>,
-    ) -> Result<EffectParamValue, LoadError> {
+    ) -> Result<ParamValue, LoadError> {
         let reference = |segments: &[Spanned<Identifier>]| Reference {
             segments: segments.to_vec(),
             span: value.span,
         };
         Ok(match (ty, &value.value) {
-            (Type::Int, DataValue::Integer(integer)) => EffectParamValue::Int(
+            (Type::Int, DataValue::Integer(integer)) => ParamValue::Int(
                 i32::try_from(*integer)
                     .map_err(|_| self.invalid(document, value.span, "this int is out of range"))?,
             ),
-            (Type::Float, DataValue::Float(float)) => EffectParamValue::Float(*float),
-            (Type::Bool, DataValue::Bool(bool)) => EffectParamValue::Bool(*bool),
-            (Type::Color, DataValue::Color(color)) => EffectParamValue::Color(*color),
+            (Type::Float, DataValue::Float(float)) => ParamValue::Float(*float),
+            (Type::Bool, DataValue::Bool(bool)) => ParamValue::Bool(*bool),
+            (Type::Color, DataValue::Color(color)) => ParamValue::Color(*color),
             (Type::Enum(options), DataValue::Variant(option))
                 if options.contains(&option.value) =>
             {
@@ -1900,7 +1895,7 @@ impl DomainResolver<'_> {
                         },
                     ),
                 );
-                EffectParamValue::Enum(option.value.clone())
+                ParamValue::Enum(option.value.clone())
             }
             (Type::Marks, DataValue::Reference(segments))
                 if let [segment] = segments.as_slice()
@@ -1915,11 +1910,11 @@ impl DomainResolver<'_> {
                         span: *span,
                     },
                 );
-                EffectParamValue::Marks(Some(MarkCollectionKey {
+                ParamValue::Marks(Some(MarkCollectionKey {
                     name: segment.value.clone(),
                 }))
             }
-            (Type::Marks, DataValue::None) => EffectParamValue::Marks(None),
+            (Type::Marks, DataValue::None) => ParamValue::Marks(None),
             (Type::Curve, DataValue::Reference(segments)) => {
                 let ObjectId::Curve(curve) = self.loader.resolve_reference(
                     document,
@@ -1929,11 +1924,11 @@ impl DomainResolver<'_> {
                 else {
                     return Err(self.loader.unresolved(document, &reference(segments)));
                 };
-                EffectParamValue::Curve(CurveSource::Reference(curve))
+                ParamValue::Curve(OwnedCurve::Reference(curve))
             }
-            (Type::Curve, DataValue::List(_)) => EffectParamValue::Curve(CurveSource::Inline(
-                curve(&self.decode::<Vec<(f32, f32)>>(document, value)?),
-            )),
+            (Type::Curve, DataValue::List(_)) => ParamValue::Curve(OwnedCurve::Inline(curve(
+                &self.decode::<Vec<(f32, f32)>>(document, value)?,
+            ))),
             (Type::Gradient, DataValue::Reference(segments)) => {
                 let ObjectId::Gradient(gradient) = self.loader.resolve_reference(
                     document,
@@ -1943,14 +1938,12 @@ impl DomainResolver<'_> {
                 else {
                     return Err(self.loader.unresolved(document, &reference(segments)));
                 };
-                EffectParamValue::Gradient(GradientSource::Reference(gradient))
+                ParamValue::Gradient(OwnedGradient::Reference(gradient))
             }
-            (Type::Gradient, DataValue::List(_)) => EffectParamValue::Gradient(
-                GradientSource::Inline(gradient(
-                    &self.decode::<Vec<(f32, donder_runtime_types::Color)>>(document, value)?,
-                )),
-            ),
-            (Type::Array(item), DataValue::List(items)) => EffectParamValue::Array(
+            (Type::Gradient, DataValue::List(_)) => ParamValue::Gradient(OwnedGradient::Inline(
+                gradient(&self.decode::<Vec<(f32, donder_runtime_types::Color)>>(document, value)?),
+            )),
+            (Type::Array(item), DataValue::List(items)) => ParamValue::Array(
                 items
                     .iter()
                     .map(|value| self.param_value(document, param, item, marks, value))

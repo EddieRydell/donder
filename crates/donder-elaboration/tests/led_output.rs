@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{Retain, prepare};
 use donder_runtime_types::sample_time_from_frame;
 
 fn project() -> donder_project_io::ProjectSession {
@@ -63,7 +63,7 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
         .keys()
         .find(|id| session.declaration((**id).into()).unwrap().1.as_str() == "layer_test")
         .unwrap();
-    let output = prepare(project, sequence, PrepareOutputs::All).unwrap();
+    let output = prepare(project, sequence, Retain::All).unwrap();
     let mut workspace = output.clone().into_playback();
     let mut buffers: Vec<_> = output
         .outputs()

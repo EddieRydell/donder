@@ -83,7 +83,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
       draggable: editable, connectable: editable,
       data: {
         kind: node.kind.type,
-        label: node.kind.type === "layer" ? node.kind.layerName : node.kind.type === "output" ? "Output" : graphOperatorDefinition(graph.operatorCatalog, node.kind.operator).displayName,
+        label: node.kind.type === "layer" ? node.kind.layerName : node.kind.type === "root" ? "Root" : graphOperatorDefinition(graph.operatorCatalog, node.kind.operator).displayName,
         color: node.kind.type === "layer" ? node.kind.layerColor : null,
         enabled: node.kind.type !== "layer" || node.kind.enabled,
         minHeight, minWidth,
@@ -291,7 +291,7 @@ function GraphNodeView({ id, data, isConnectable }: NodeProps<GraphFlowNode>) {
     <NodeResizeControl position="bottom-right" minWidth={data.minWidth} minHeight={data.minHeight} className="graph-flow-resize-corner"
       onResizeEnd={(_, size) => { data.saveSize(id, size.width, size.height); }} />
     <div className="graph-flow-node-title">
-      {data.kind === "layer" ? <Layers /> : data.kind === "output" ? <Monitor /> : <SlidersHorizontal />}
+      {data.kind === "layer" ? <Layers /> : data.kind === "root" ? <Monitor /> : <SlidersHorizontal />}
       {data.color !== null && <span className="graph-flow-node-swatch" style={{ background: data.color }} />}
       <span title={data.label}>{data.label}{data.enabled ? "" : " (disabled)"}</span>
     </div>

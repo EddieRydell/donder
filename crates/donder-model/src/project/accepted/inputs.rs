@@ -1,8 +1,8 @@
 //! Playback invocations derived during the same admission transaction as
 //! authored state; they cannot be edited independently afterwards.
-use super::parameters::{EffectParamTiming, MarkSource, prepare_params};
+use super::parameters::{ClipTiming, MarkOrigin, prepare_params};
 use super::*;
-use crate::effect::EffectParamValue;
+use crate::effect::ParamValue;
 use crate::sequence::AutomationTarget;
 use crate::sequence::CompositionGraphNodeId;
 use crate::validation::{AdmissionProblem, Member, ProjectValidationError, ValidationProblem, at};
@@ -24,7 +24,7 @@ pub(in crate::project) struct ProjectInputs {
 #[derive(Debug)]
 pub(super) struct SequenceInputs {
     pub(super) timing: SequenceTiming,
-    pub(super) effects: Box<[std::sync::Arc<Invocation>]>,
+    pub(super) clips: Box<[std::sync::Arc<Invocation>]>,
     pub(super) operators: IndexMap<CompositionGraphNodeId, Invocation>,
 }
 
@@ -36,28 +36,28 @@ impl ProjectInputs {
         let mut sequences = IndexMap::new();
         for sequence in project.objects::<crate::Sequence>() {
             let reusable = reusable_effect_inputs(project, previous, sequence);
-            let mut effects = Vec::with_capacity(sequence.effects.len());
-            for effect in &sequence.effects {
+            let mut clips = Vec::with_capacity(sequence.clips.len());
+            for clip in &sequence.clips {
                 if let Some(invocation) =
-                    reusable.get(&effect.id).and_then(|(previous, invocation)| {
-                        std::sync::Arc::ptr_eq(previous, effect)
+                    reusable.get(&clip.id).and_then(|(previous, invocation)| {
+                        std::sync::Arc::ptr_eq(previous, clip)
                             .then(|| std::sync::Arc::clone(invocation))
                     })
                 {
-                    effects.push(invocation);
+                    clips.push(invocation);
                     continue;
                 }
-                let id = &effect.definition;
+                let id = &clip.definition;
                 let definition = &project.reusable::<crate::EffectDefinition>()[id];
                 let values = resolve(
                     project,
                     sequence,
                     definition.params(),
-                    &effect.param_overrides,
-                    EffectParamTiming {
-                        start: SampleTime::from_ticks(effect.start.as_micros_rounded() as u32),
+                    &clip.param_overrides,
+                    ClipTiming {
+                        start: SampleTime::from_ticks(clip.start.as_micros_rounded() as u32),
                         duration: SampleDuration::from_ticks(
-                            effect.duration.as_micros_rounded() as u32
+                            clip.duration.as_micros_rounded() as u32
                         ),
                     },
                 )
@@ -66,18 +66,18 @@ impl ProjectInputs {
                 let automation = super::automation::admit(
                     sequence,
                     definition.params(),
-                    |target| matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id),
+                    |target| matches!(target, AutomationTarget::ClipParam { clip_id, .. } if clip_id == &clip.id),
                 ).map_err(at(sequence.id))?;
                 let invocation =
                     compiled
                         .invoke(values.into_vec(), automation)
                         .map_err(|error| {
                             at(sequence.id)(invalid(AdmissionProblem::Binding(
-                                Member::Clip(effect.id.clone()),
+                                Member::Clip(clip.id.clone()),
                                 error,
                             )))
                         })?;
-                effects.push(std::sync::Arc::new(invocation));
+                clips.push(std::sync::Arc::new(invocation));
             }
             let mut operators = IndexMap::new();
             for node in &sequence.composition_graph.nodes {
@@ -91,7 +91,7 @@ impl ProjectInputs {
                     sequence,
                     definition.params(),
                     &operator.params,
-                    EffectParamTiming {
+                    ClipTiming {
                         start: SampleTime::from_ticks(0),
                         duration: SampleDuration::from_ticks(
                             sequence.duration.as_micros_rounded() as u32
@@ -120,7 +120,7 @@ impl ProjectInputs {
                 sequence.id,
                 SequenceInputs {
                     timing: admit_timing(sequence).map_err(at(sequence.id))?,
-                    effects: effects.into(),
+                    clips: clips.into(),
                     operators,
                 },
             );
@@ -140,9 +140,9 @@ fn admit_timing(sequence: &Sequence) -> Result<SequenceTiming, ValidationProblem
         let frame_count = NonZeroU32::new(u32::try_from(sequence.frame_count()).ok()?)?;
         let duration = NonZeroU32::new(u32::try_from(sequence.duration.as_micros_rounded()).ok()?)?;
         // Every clip plays for a while within the sequence.
-        for effect in &sequence.effects {
-            let start = u32::try_from(effect.start.as_micros_rounded()).ok()?;
-            let length = u32::try_from(effect.duration.as_micros_rounded()).ok()?;
+        for clip in &sequence.clips {
+            let start = u32::try_from(clip.start.as_micros_rounded()).ok()?;
+            let length = u32::try_from(clip.duration.as_micros_rounded()).ok()?;
             if length == 0 || start.checked_add(length)? > duration.get() {
                 return None;
             }
@@ -156,12 +156,12 @@ fn resolve(
     project: &DonderProject,
     sequence: &Sequence,
     declarations: &[ParamDecl],
-    overrides: &IndexMap<donder_runtime_types::Identifier, EffectParamValue>,
-    timing: EffectParamTiming,
+    overrides: &IndexMap<donder_runtime_types::Identifier, ParamValue>,
+    timing: ClipTiming,
 ) -> Result<Box<[Value]>, ValidationProblem> {
     resolve_values(
         project,
-        MarkSource::Authored(&sequence.mark_collections),
+        MarkOrigin::Authored(&sequence.mark_collections),
         declarations,
         overrides,
         timing,
@@ -171,10 +171,10 @@ fn resolve(
 /// Every declared parameter's value: its override, or its default.
 pub(super) fn resolve_values(
     project: &DonderProject,
-    marks: MarkSource<'_>,
+    marks: MarkOrigin<'_>,
     declarations: &[ParamDecl],
-    overrides: &IndexMap<donder_runtime_types::Identifier, EffectParamValue>,
-    timing: EffectParamTiming,
+    overrides: &IndexMap<donder_runtime_types::Identifier, ParamValue>,
+    timing: ClipTiming,
 ) -> Result<Box<[Value]>, ValidationProblem> {
     let values = prepare_params(project, marks, declarations, overrides, timing);
     declarations
@@ -197,9 +197,9 @@ fn reusable_effect_inputs<'a>(
     previous: Option<&'a DonderProject>,
     sequence: &Sequence,
 ) -> std::collections::HashMap<
-    &'a crate::effect::EffectInstId,
+    &'a crate::effect::ClipId,
     (
-        &'a std::sync::Arc<crate::effect::EffectInst>,
+        &'a std::sync::Arc<crate::effect::Clip>,
         &'a std::sync::Arc<Invocation>,
     ),
 > {
@@ -219,10 +219,10 @@ fn reusable_effect_inputs<'a>(
         return Default::default();
     }
     before
-        .effects
+        .clips
         .iter()
-        .zip(inputs.effects.iter())
-        .map(|(effect, invocation)| (&effect.id, (effect, invocation)))
+        .zip(inputs.clips.iter())
+        .map(|(clip, invocation)| (&clip.id, (clip, invocation)))
         .collect()
 }
 

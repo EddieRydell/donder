@@ -120,7 +120,7 @@ fn assert_matches_single_pixels(
 fn host_mark_fixtures_are_single_samples_and_seek_stably() {
     for pulse in [true, false] {
         let show = mark_workload::mark_show(200, pulse);
-        assert_eq!(show.clone().prepare().effect_count(), 1);
+        assert_eq!(show.clone().prepare().clip_count(), 1);
         let mut playback = show.prepare().into_playback();
         let mut repeated = None;
         let mut illuminated = false;
@@ -530,7 +530,7 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
     assert!(!invocation.program().bytecode.uses_pixel_context());
     for empty in [false, true] {
         let show = playback::build(200, playback::timing(8_000_000), |builder, target| {
-            let effect_target = if empty {
+            let clip_target = if empty {
                 builder.target(&TargetGeometry::new([], TargetScope::WholeTarget))
             } else {
                 target
@@ -540,7 +540,7 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
                 &invocation,
                 SampleTime::from_ticks(0),
                 SampleDuration::from_ticks(8_000_000),
-                effect_target,
+                clip_target,
             );
             let layer = builder.layer(true, [effect]);
             Some(layer)

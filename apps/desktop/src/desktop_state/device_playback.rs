@@ -2,9 +2,10 @@ use super::{DesktopState, lock_unpoisoned};
 use crate::audio::DeviceBoundary;
 use crate::device::DeviceClient;
 use crate::device::playback::{DevicePorts, WantedDevice};
+use donder_device_protocol::Mode;
 use donder_editor::dto::{
-    AppSnapshot, AudioTransportState, DevicePlaybackMode, DonderDeviceClaim,
-    DonderDeviceConnection, DonderDeviceNetworkRequest, DonderDeviceStatus,
+    AppSnapshot, AudioTransportState, DonderDeviceClaim, DonderDeviceConnection,
+    DonderDeviceNetworkRequest, DonderDeviceStatus,
 };
 use donder_model::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
 use donder_runtime::PlaybackRate;
@@ -234,9 +235,9 @@ impl DesktopState {
             );
         }
         client.transport(Some(if playing {
-            DevicePlaybackMode::Playing
+            Mode::Playing
         } else {
-            DevicePlaybackMode::Stopped
+            Mode::Stopped
         }))?;
         Ok(self.update_snapshot(|snapshot| {
             snapshot.status = if playing {
@@ -302,7 +303,7 @@ impl DesktopState {
                 let prepared = donder_elaboration::prepare(
                     &session.project,
                     &sequence,
-                    donder_elaboration::PrepareOutputs::Ports(ports),
+                    donder_elaboration::Retain::Ports(ports),
                 )
                 .ok_or("The sequence or a connected device output is unavailable.")?;
                 Ok((prepared.encode(), widths, frame_rate))
@@ -349,7 +350,7 @@ impl DesktopState {
         duration: u32,
     ) -> Result<AppSnapshot, String> {
         let schedule = self.device_playback.schedule(
-            DevicePlaybackMode::Playing,
+            Mode::Playing,
             seconds_to_micros(position)?,
             advancing,
             rate,
@@ -389,7 +390,7 @@ impl DesktopState {
                 self.device_audio_schedule_playing(start, None, rate, duration)?;
             }
             DeviceBoundary::Stop(home) => {
-                self.device_audio_hold_locked(DevicePlaybackMode::Stopped, Some(home), false)?;
+                self.device_audio_hold_locked(Mode::Stopped, Some(home), false)?;
             }
         }
         Ok(())
@@ -397,7 +398,7 @@ impl DesktopState {
 
     pub(super) fn device_audio_hold(
         &self,
-        mode: DevicePlaybackMode,
+        mode: Mode,
         position: Option<f64>,
         set_home: bool,
     ) -> Result<AppSnapshot, String> {
@@ -408,7 +409,7 @@ impl DesktopState {
     /// The caller holds the transport operation lock.
     fn device_audio_hold_locked(
         &self,
-        mode: DevicePlaybackMode,
+        mode: Mode,
         position: Option<f64>,
         set_home: bool,
     ) -> Result<AppSnapshot, String> {
@@ -426,14 +427,14 @@ impl DesktopState {
             seconds_to_micros(position)?,
             (position == audio.position_seconds
                 && matches!(audio.state, AudioTransportState::Playing)
-                && matches!(mode, DevicePlaybackMode::Paused)
+                && matches!(mode, Mode::Paused)
                 && !set_home)
                 .then_some(rate),
             rate,
             duration,
             observed_at,
         )?;
-        let state = if matches!(mode, DevicePlaybackMode::Stopped) {
+        let state = if matches!(mode, Mode::Stopped) {
             AudioTransportState::Stopped
         } else {
             AudioTransportState::Paused

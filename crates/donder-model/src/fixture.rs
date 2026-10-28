@@ -156,7 +156,7 @@ pub enum FixtureDefinitionError {
         element: FixtureElementId,
     },
 }
-pub type FixtureSource = crate::ownership::ValueSource<FixtureDefinition, FixtureDefinitionId>;
+pub type OwnedFixture = crate::ownership::Owned<FixtureDefinition, FixtureDefinitionId>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FixtureGeometryError {

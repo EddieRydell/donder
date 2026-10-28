@@ -1,7 +1,7 @@
 use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{FixtureStorage, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
-use donder_model::{FixtureDefinition, FixtureSource};
+use donder_model::{FixtureDefinition, OwnedFixture};
 use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::ProjectSession;
 
@@ -123,7 +123,7 @@ pub(super) fn edit_layout(
                 return Err(GuiMutationError::Invalid("Enter a fixture name.".into()));
             }
             let definition = match storage {
-                FixtureStorage::Inline => FixtureSource::Inline(FixtureDefinition {
+                FixtureStorage::Inline => OwnedFixture::Inline(FixtureDefinition {
                     description: None,
                     elements: Vec::new(),
                 }),
@@ -157,7 +157,7 @@ pub(super) fn edit_layout(
                         definition.into(),
                     )
                     .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-                    FixtureSource::Reference(definition)
+                    OwnedFixture::Reference(definition)
                 }
             };
             add_instance(session, &id, name, definition, parent, transform)?;
@@ -229,7 +229,7 @@ fn domain_fixture(
         .and_then(|current| current.fixture(FixtureInstanceId(fixture.id)))
         .and_then(|current| match &current.kind {
             LayoutFixtureKind::Fixture {
-                definition: FixtureSource::Inline(definition),
+                definition: OwnedFixture::Inline(definition),
                 ..
             } => definition.description.clone(),
             _ => None,
@@ -240,16 +240,16 @@ fn domain_fixture(
             transform,
         } => LayoutFixtureKind::Fixture {
             definition: match definition {
-                crate::dto::GuiFixtureSource::Inline { elements } => {
+                crate::dto::GuiOwnedFixture::Inline { elements } => {
                     let mut definition = super::fixture::domain_geometry(elements)?;
                     definition.description = owned_description;
-                    FixtureSource::Inline(definition)
+                    OwnedFixture::Inline(definition)
                 }
-                crate::dto::GuiFixtureSource::Reference { source } => {
+                crate::dto::GuiOwnedFixture::Reference { object } => {
                     let owner = super::model::object_address(session, *layout)
                         .document_id()
                         .clone();
-                    FixtureSource::Reference(reference_definition(session, &owner, source)?)
+                    OwnedFixture::Reference(reference_definition(session, &owner, object)?)
                 }
             },
             transform: checked_transform(transform)?,
@@ -270,7 +270,7 @@ fn add_instance(
     session: &mut ProjectSession,
     layout_id: &LayoutId,
     name: String,
-    definition: FixtureSource,
+    definition: OwnedFixture,
     parent: Option<u32>,
     transform: crate::dto::Transform,
 ) -> Result<(), GuiMutationError> {

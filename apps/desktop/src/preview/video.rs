@@ -81,9 +81,8 @@ pub(crate) fn export_video(
     let fps = video_timescale.get();
     let style = PreviewStyle::from_appearance(appearance)?;
     let geometry = PreviewGeometry::from_project(project)?;
-    let prepared =
-        donder_elaboration::prepare(project, sequence, donder_elaboration::PrepareOutputs::All)
-            .ok_or("The sequence cannot be played on the active setup.")?;
+    let prepared = donder_elaboration::prepare(project, sequence, donder_elaboration::Retain::All)
+        .ok_or("The sequence cannot be played on the active setup.")?;
     if !prepared
         .fixtures()
         .iter()

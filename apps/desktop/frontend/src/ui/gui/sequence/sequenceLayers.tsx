@@ -33,7 +33,7 @@ export function deletableGraphNodes(document: CompositionDocument, nodeIds: stri
   return document.compositionGraph.nodes.filter((node) => {
     if (!nodeIds.includes(node.id)) return false;
     if (node.kind.type === "operator") return true;
-    if (node.kind.type === "output") return false;
+    if (node.kind.type === "root") return false;
     const layerId = node.kind.layerId;
     return document.layers.some((layer) => layer.id === layerId && !layer.isDefault);
   });
@@ -74,7 +74,7 @@ type Deletion = {
   nodeIds: string[];
   edges: SequenceGraphEdge[];
   layerIds: number[];
-  effectCount: number;
+  clipCount: number;
   origin: GuiDocumentRequest;
 };
 
@@ -118,10 +118,10 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
     const defaultLayer = document.layers.find((layer) => layer.isDefault);
     const deletion: Deletion = {
       nodeIds: nodes.map((node) => node.id), edges, layerIds, origin,
-      effectCount: layerIds.reduce((count, layerId) => count + composition.layerUses(layerId), 0)
+      clipCount: layerIds.reduce((count, layerId) => count + composition.layerUses(layerId), 0)
     };
     setError(null);
-    if (deletion.effectCount === 0) {
+    if (deletion.clipCount === 0) {
       void commit(deletion, layerIds.length === 0 ? null : defaultLayer?.id ?? null);
     } else {
       const active = window.document.activeElement;
@@ -140,9 +140,9 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
         }
       }}>
         <Dialog.Title>Delete selected layers?</Dialog.Title>
-        <Dialog.Description>{pending?.effectCount} effects use these layers. Choose where to move them. Selected operators and connections will also be deleted.</Dialog.Description>
+        <Dialog.Description>{pending?.clipCount} clips use these layers. Choose where to move them. Selected operators and connections will also be deleted.</Dialog.Description>
         <fieldset className="graph-dialog-fields" disabled={!editable}>
-          <label>Move effects to<select value={destination ?? ""} onChange={(event) => { setDestination(Number(event.currentTarget.value)); }}>
+          <label>Move clips to<select value={destination ?? ""} onChange={(event) => { setDestination(Number(event.currentTarget.value)); }}>
             {document.layers.filter((layer) => pending?.layerIds.includes(layer.id) !== true).map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
           </select></label>
           {error !== null && <p role="alert">{error}</p>}

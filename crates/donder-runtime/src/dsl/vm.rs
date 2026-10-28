@@ -5,9 +5,9 @@ mod strip;
 mod workspace;
 
 pub(crate) use automation::{
-    Invocation, Override, Scratch, params as invocation_params, set_value, shape as scratch_shape,
+    Override, ParamsRef, Scratch, params as params_at, set_value, shape as scratch_shape,
 };
-pub(crate) use strip::{Bound, Pixels, STRIP, ScanQuery, SourceWeights, Strip, StripSignals};
+pub(crate) use strip::{Bound, NeighborWeights, Pixels, STRIP, ScanQuery, Strip, StripSignals};
 pub(crate) use workspace::{OUTSIDE, StripSlots, StripWorkspace};
 
 use donder_runtime_types::SampleDuration;

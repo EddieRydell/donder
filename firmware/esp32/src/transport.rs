@@ -1,14 +1,7 @@
 //! Show time follows a clock, never the number of completed render iterations.
 
+pub use donder_device_protocol::Mode;
 use donder_runtime::PlaybackRate;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
-    Playing,
-    Paused,
-    Stopped,
-    Ended,
-}
 
 #[derive(Clone, Copy)]
 pub struct Clock {

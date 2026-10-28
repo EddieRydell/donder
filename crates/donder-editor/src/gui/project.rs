@@ -35,7 +35,7 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
     GuiDocument::Project {
         document: ProjectGuiDocument {
             description: session.project.root().description.clone(),
-            available_sources: super::ownership::available_sources(
+            available_declarations: super::ownership::available_declarations(
                 session,
                 &[
                     donder_model::ObjectKind::Setup,

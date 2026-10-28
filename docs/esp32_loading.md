@@ -1,9 +1,9 @@
 # ESP32 controllers
 
-An ESP32 running the Donder loader plays prepared sequences from flash, either on
+An ESP32 running the Donder loader plays show images from flash, either on
 its own or in sync with the desktop editor. The loader runs `donder-runtime`, the
 same engine as the preview, not a second interpreter. The host does all loading,
-checking and preparation and sends a `.donderseq` image prepared for that
+checking and preparation and sends a `.donderimage` image prepared for that
 controller's output ports.
 
 Supported hardware is a classic ESP32 with 4 MB flash and a 40 MHz crystal,
@@ -33,8 +33,8 @@ the editor shows, never the access point's name. **Join network** saves a
 boot and falls back to its own access point if it cannot join within 20 seconds.
 
 Rebuild the bundled image with `pnpm firmware:build` and commit it whenever
-loader or archive code changes. The editor connects only to controllers that
-advertise its own `sequence_format`.
+loader or image code changes. The editor connects only to controllers that
+advertise its own `image_format`.
 
 ## Discovery
 
@@ -47,10 +47,10 @@ setup that it has claimed and that runs a matching format.
 ## Storage and upload
 
 The configuration record (name, optional station network and claim token) lives
-in LittleFS. Archives use two 128 KiB slots in a separate
+in LittleFS. Images use two 128 KiB slots in a separate
 256 KiB partition. An upload:
 1. blacks out output and releases the current show;
-2. streams the archive to the inactive slot;
+2. streams the image to the inactive slot;
 3. opens it directly from memory-mapped flash;
 4. commits the slot only after the show loads.
 
@@ -60,21 +60,21 @@ show that the current firmware rejects is left in place and the controller boots
 without one; the editor uploads a current show on its next Play.
 Concurrent uploads are rejected, and an explicit erase clears both partitions.
 
-The loader reads the show's prepared sequence from its flash slot into RAM
+The loader reads the show's image from its flash slot into RAM
 and plays it there, beside its playback buffer: reading it through the flash
 cache cost Stanford `main` about a quarter of each frame. The playback stays
-open while the show plays. The prepared sequence is trusted: the editor built
+open while the show plays. The image is trusted: the editor built
 it, so the loader checks only its format version. It rejects a show
 - of another format version;
-- whose prepared sequence and playback buffer together would leave less than
+- whose image and playback buffer together would leave less than
   10 KiB of heap for the network (the buffer's size is exact, from the show's
   layout; Wi-Fi keeps four static receive buffers to leave heap for shows), or
   whose playback buffer exceeds 64 KiB;
 - with more outputs, wider outputs or a higher frame rate than the board drives.
 
-`GET /capabilities` reports the controller's limits (64 KiB of prepared
-sequence, 1,600 pixels, 128 graph nodes, 64 KiB of playback buffer); about
-75 KiB of heap is free for a show's prepared sequence and playback buffer
+`GET /capabilities` reports the controller's limits (64 KiB of
+image, 1,600 pixels, 128 graph nodes, 64 KiB of playback buffer); about
+75 KiB of heap is free for a show's image and playback buffer
 together. The editor checks the size against it before it uploads.
 
 A panic restarts the controller. Its message survives the restart in RTC
@@ -85,15 +85,17 @@ A rejected show is answered with HTTP 422 and the reason. The
 editor does not send that show to the controller again until the show changes
 or the controller reconnects.
 
+The protocol's messages, paths and clock packets are defined once in
+`crates/donder-device-protocol`, which the editor and the firmware both use.
+
 HTTP endpoints:
 - unauthenticated `POST /claim`, which answers only an unclaimed controller;
-- `GET /capabilities`, `PUT /sequence` and `POST /frame`;
+- `GET /capabilities`, `PUT /image` and `POST /frame`;
 - `PUT /name` with a 1-32 byte UTF-8 name, and `PUT /network` with
   `{"ssid": ..., "password": ...}` or an empty body for the access point;
 - with output enabled, `GET /transport` and `POST /transport/play`, `/pause` or
   `/stop`;
-- authenticated `GET /clock` and JSON `POST /control` for clock sync, scheduling
-  and cancellation.
+- JSON `POST /control` for clock sync, scheduling and cancellation.
 
 TCP sockets disable Nagle.
 
@@ -107,7 +109,7 @@ controller's standalone show and synchronizes its clock.
 
 The editor's Play button then:
 1. prepares each connected controller's fragment;
-2. uploads it if its SHA-256 or the device's loaded archive changed (unchanged
+2. uploads it if its SHA-256 or the device's loaded image changed (unchanged
    project revisions reuse their compiled fragment);
 3. schedules a shared future start.
 
@@ -144,7 +146,7 @@ Clock synchronization:
   acknowledgment with at least 40 ms to spare. A failed setup cancels every
   command that may have been armed.
 - **Command checks.** Boot identity, clock-master identity, command order and
-  the archive's id and size are checked before a scheduled command is accepted.
+  the image's id and size are checked before a scheduled command is accepted.
   The id is the hash the editor writes into the image header; the controller
   only reports and compares it.
 - **Playback timing.** Frames follow elapsed show time, so a late evaluation

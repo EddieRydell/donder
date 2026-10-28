@@ -96082,14 +96082,14 @@ Sequence trans_siberian_mix {
         params: {},
         position: (486.49252, 111.268654),
       },
-      OutputNode { position: (894.2985, 147.94029) },
+      RootNode { position: (894.2985, 147.94029) },
     ],
     edges: [
       Edge { from: top, to: top_mix.high },
       Edge { from: fade_on_mix, to: top_mix.low },
       Edge { from: fade_on, to: fade_on_mix.dim },
       Edge { from: default, to: fade_on_mix.source },
-      Edge { from: top_mix, to: output },
+      Edge { from: top_mix, to: root },
     ],
   },
   automation: [

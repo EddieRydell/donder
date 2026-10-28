@@ -157,17 +157,17 @@ pub struct RigLiveMarks {
     pub color: String,
 }
 
-/// An effect a rig plays: a clip without timing.
+/// A clip a rig plays: a clip without timing.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigEffect {
+pub struct RigClip {
     pub layer_id: u32,
     pub target: FixtureTarget,
     pub target_label: String,
-    pub scope: SequenceEffectScope,
+    pub scope: SequenceClipScope,
     pub effect: SequenceEffectReference,
     pub effect_name: String,
-    pub params: Vec<SequenceEffectParam>,
+    pub params: Vec<SequenceClipParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -176,7 +176,7 @@ pub struct RigVoice {
     pub id: u32,
     pub name: String,
     pub description: Option<String>,
-    pub effect: RigEffect,
+    pub clip: RigClip,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -203,7 +203,7 @@ pub struct RigInputDevice {
     pub buttons: Vec<RigInputControl>,
     /// Dials only drive `Control` mappings.
     pub dials: Vec<RigInputControl>,
-    /// Keys only trigger effects and add marks.
+    /// Keys only trigger clips and add marks.
     pub keys: Vec<RigInputControl>,
 }
 
@@ -256,7 +256,7 @@ pub enum RigWhen {
 )]
 pub enum RigMappingAction {
     Trigger {
-        effect: RigEffect,
+        clip: RigClip,
         length: RigTriggerLength,
         voices: RigVoicePolicy,
         values: Vec<RigPlayedValue>,
@@ -275,12 +275,12 @@ pub enum RigMappingAction {
 #[serde(rename_all = "camelCase")]
 pub struct RigPlayedValue {
     pub param: String,
-    pub from: RigPlayedSource,
+    pub from: RigPlayedQuantity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum RigPlayedSource {
+pub enum RigPlayedQuantity {
     /// How hard the note was struck; a computer key or pedal plays at 1.
     Velocity,
     /// The note's place in its key range.
@@ -333,14 +333,14 @@ pub enum RigControlTarget {
 }
 
 /// A named item of a rig.
-/// The effect of a voice or of a `Trigger` mapping.
+/// The clip of a voice or of a `Trigger` mapping.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum RigEffectOwner {
+pub enum RigClipOwner {
     Voice { id: u32 },
     Trigger { mapping_id: u32 },
 }
@@ -351,7 +351,7 @@ pub enum RigEffectOwner {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum RigEffectEdit {
+pub enum RigClipEdit {
     Layer {
         layer_id: u32,
     },
@@ -359,7 +359,7 @@ pub enum RigEffectEdit {
         target: FixtureTarget,
     },
     Scope {
-        scope: SequenceEffectScope,
+        scope: SequenceClipScope,
     },
     /// Play another effect; its required parameters start from `initial_color`.
     Definition {
@@ -368,7 +368,7 @@ pub enum RigEffectEdit {
     },
     Param {
         name: String,
-        value: SequenceEffectParamValue,
+        value: SequenceParamValue,
     },
 }
 
@@ -426,9 +426,9 @@ pub enum RigGuiEdit {
         input: RigControlRef,
         action: RigActionChoice,
     },
-    EditEffect {
-        owner: RigEffectOwner,
-        edit: RigEffectEdit,
+    EditClip {
+        owner: RigClipOwner,
+        edit: RigClipEdit,
     },
     SetSwitchInput {
         id: u32,

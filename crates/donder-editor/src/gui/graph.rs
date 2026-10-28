@@ -3,15 +3,15 @@ use std::collections::BTreeSet;
 
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    EffectGraphEdge, EffectParamValue, GraphNodePosition, GraphOperatorNode, GraphPortId, Rig,
-    Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
+    EffectGraphEdge, GraphNodePosition, GraphOperatorNode, GraphPortId, ParamValue, Rig, Sequence,
+    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 use indexmap::IndexMap;
 
 use super::GuiMutationError;
 use super::model::{
-    effect_param_value_from_gui, fresh_name, graph_operator_from_gui, identifier, parse_color,
+    fresh_name, graph_operator_from_gui, identifier, param_value_from_gui, parse_color,
     parse_graph_node_id, typed_name,
 };
 use crate::dto::{CompositionGuiEdit, SequenceGraphEdge, SequenceGraphNodePosition};
@@ -42,9 +42,9 @@ impl Composition for Sequence {
         &mut self.composition_graph
     }
     fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
-        for effect in &mut self.effects {
-            if removed.contains(&effect.layer_id.0) {
-                std::sync::Arc::make_mut(effect).layer_id = destination.clone();
+        for clip in &mut self.clips {
+            if removed.contains(&clip.layer_id.0) {
+                std::sync::Arc::make_mut(clip).layer_id = destination.clone();
             }
         }
     }
@@ -71,9 +71,9 @@ impl Composition for Rig {
         &mut self.composition_graph
     }
     fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
-        for effect in self.effects_mut() {
-            if removed.contains(&effect.layer_id.0) {
-                effect.layer_id = destination.clone();
+        for clip in self.clips_mut() {
+            if removed.contains(&clip.layer_id.0) {
+                clip.layer_id = destination.clone();
             }
         }
     }
@@ -118,7 +118,7 @@ pub(super) fn edit_composition(
             let mut params = IndexMap::new();
             for declaration in definition.params() {
                 if declaration.default.is_none() {
-                    let value = EffectParamValue::initial_for_param(declaration, initial_color)
+                    let value = ParamValue::initial_for_param(declaration, initial_color)
                         .ok_or_else(|| {
                             GuiMutationError::Invalid(
                                 "A valid required operator parameter could not be created."
@@ -190,7 +190,7 @@ pub(super) fn edit_composition(
             name,
             value,
         } => {
-            let value = effect_param_value_from_gui(session, owner, value)?;
+            let value = param_value_from_gui(session, owner, value)?;
             let definitions = session
                 .project
                 .reusable::<donder_model::OperatorDefinition>()
@@ -270,10 +270,10 @@ fn next_node_id(composition: &impl Composition) -> u32 {
         + 1
 }
 
-/// Whether a name is used by a layer, graph node or the output node: they
+/// Whether a name is used by a layer, graph node or the root node: they
 /// share the graph's namespace.
 pub(super) fn name_taken(composition: &impl Composition, name: &str) -> bool {
-    name == "output"
+    name == "root"
         || composition
             .layers()
             .iter()
@@ -288,7 +288,7 @@ fn create_layer(
     name: String,
     color: String,
     position: Option<(f32, f32)>,
-    connect_to_output: bool,
+    connect_to_root: bool,
 ) -> Result<String, GuiMutationError> {
     let next_layer_id = composition
         .layers()
@@ -297,14 +297,14 @@ fn create_layer(
         .max()
         .unwrap_or(0)
         + 1;
-    let output_node_id = composition
+    let root_node_id = composition
         .graph()
         .nodes
         .iter()
-        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
+        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
         .map(|node| node.id.clone())
         .ok_or_else(|| {
-            GuiMutationError::Invalid("Composition graph output was not found.".to_string())
+            GuiMutationError::Invalid("Composition graph root was not found.".to_string())
         })?;
     let layer_node_id = CompositionGraphNodeId(next_node_id(composition));
     typed_name(&name)?;
@@ -326,11 +326,11 @@ fn create_layer(
             layer_id: SequenceLayerId(next_layer_id),
         },
     });
-    if connect_to_output {
+    if connect_to_root {
         graph.edges.push(EffectGraphEdge {
             from: layer_node_id,
             from_port: GraphPortId("output".to_string()),
-            to: output_node_id,
+            to: root_node_id,
             to_port: GraphPortId("input".to_string()),
         });
     }
@@ -420,7 +420,7 @@ fn delete_items(
     for id in &ids {
         let node = node_mut(composition, id)?;
         match &node.kind {
-            CompositionGraphNodeKind::Output => {
+            CompositionGraphNodeKind::Root => {
                 return Err(GuiMutationError::Invalid(
                     "Output node cannot be deleted.".into(),
                 ));
@@ -464,7 +464,7 @@ fn delete_items(
                     && composition.layers().iter().any(|layer| layer.id.0 == *id)
             })
             .ok_or_else(|| {
-                GuiMutationError::Invalid("Choose a surviving layer for the effects.".into())
+                GuiMutationError::Invalid("Choose a surviving layer for the clips.".into())
             })?;
         composition.move_layer_contents(&layer_ids, SequenceLayerId(destination));
         composition

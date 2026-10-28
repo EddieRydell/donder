@@ -1,7 +1,7 @@
 //! Invariant-preserving show construction. Checked authored inputs enter before
 //! `build`; graph references and storage addresses are issued only by its
 //! owner, which writes the image's sections.
-use crate::image::{self, NONE, Range, SectionsWriter};
+use crate::format::{self, NONE, Range, SectionsWriter};
 use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
 use donder_runtime_types::bytecode::{
@@ -27,7 +27,7 @@ macro_rules! handle {
         }
     )+};
 }
-handle!(TargetHandle, EffectHandle, SignalHandle, OutputHandle);
+handle!(TargetHandle, ClipHandle, SignalHandle, OutputHandle);
 
 struct Target {
     pixels: Vec<PreparedPixel>,
@@ -45,7 +45,7 @@ struct Output {
 
 struct Layer {
     enabled: bool,
-    effects: Vec<u32>,
+    clips: Vec<u32>,
 }
 
 struct Node {
@@ -63,7 +63,7 @@ struct Interner {
     curves: Vec<(Shared<Curve>, u32)>,
     gradients: Vec<(Shared<Gradient>, u32)>,
     tracks: Vec<(Shared<[u32]>, Range)>,
-    marks: Vec<image::Marks>,
+    marks: Vec<format::Marks>,
     arrays: Vec<(Range, u32)>,
 }
 
@@ -71,18 +71,19 @@ pub struct ShowBuilder<'id> {
     timing: SequenceTiming,
     w: SectionsWriter,
     interner: Interner,
-    fixtures: Vec<image::Fixture>,
+    fixtures: Vec<format::Fixture>,
     geometry: Vec<FixtureGeometry>,
     storage: Vec<usize>,
     pixel_count: usize,
     targets: Vec<Target>,
     programs: Vec<(Shared<Program>, u32)>,
-    clips: Vec<image::Clip>,
+    clip_index: Vec<format::ClipIndex>,
     layers: Vec<Layer>,
     nodes: Vec<Node>,
     outputs: Vec<Output>,
-    collections: Vec<Vec<image::Reader>>,
-    controls: Vec<Vec<image::ControlTarget>>,
+    /// Live mark collections so far.
+    collections: u32,
+    controls: Vec<Vec<format::ControlTarget>>,
     brand: PhantomData<fn(&'id ()) -> &'id ()>,
 }
 
@@ -110,8 +111,8 @@ fn shared<T: Copy + PartialEq>(section: &mut Vec<T>, known: &mut Vec<Range>, ite
     range
 }
 
-fn counts(banks: Banks) -> image::BankCounts {
-    image::BankCounts {
+fn counts(banks: Banks) -> format::BankCounts {
+    format::BankCounts {
         counts: [banks.floats, banks.ints, banks.bools, banks.resources],
     }
 }
@@ -163,11 +164,11 @@ impl ShowBuilder<'_> {
         let mut slopes = vec![0.0; source.len()];
         donder_runtime_types::sampling::curve_slopes(source, &mut slopes);
         let slopes = push(&mut w.curve_slopes, slopes);
-        let mut crossings = vec![image::CrossingSegment::default(); source.len()];
+        let mut crossings = vec![format::CrossingSegment::default(); source.len()];
         let (kind, len) = crate::resources::curve_crossings(source, &mut crossings);
         let crossings = push(&mut w.crossings, crossings[..len].iter().copied());
         let index = w.curves.len() as u32;
-        w.curves.push(image::Curve {
+        w.curves.push(format::Curve {
             points,
             areas,
             slopes,
@@ -190,7 +191,7 @@ impl ShowBuilder<'_> {
         let w = &mut self.w;
         // An empty gradient is black: one black stop, so playback never
         // meets an empty one.
-        let black = [image::GradientStop {
+        let black = [format::GradientStop {
             position: 0.0,
             color: donder_runtime_types::Color::BLACK,
             inverse: 0.0,
@@ -199,7 +200,7 @@ impl ShowBuilder<'_> {
             .stops
             .iter()
             .enumerate()
-            .map(|(index, stop)| image::GradientStop {
+            .map(|(index, stop)| format::GradientStop {
                 position: stop.position,
                 color: stop.color,
                 inverse: gradient.stops.get(index + 1).map_or(0.0, |next| {
@@ -218,7 +219,7 @@ impl ShowBuilder<'_> {
             .copied(),
         );
         let index = w.gradients.len() as u32;
-        w.gradients.push(image::Gradient { stops });
+        w.gradients.push(format::Gradient { stops });
         self.interner
             .gradients
             .push((Shared::clone(gradient), index));
@@ -241,7 +242,7 @@ impl ShowBuilder<'_> {
             }
         };
         let (first, end, origin) = marks.bounds();
-        let record = image::Marks {
+        let record = format::Marks {
             track: range,
             first,
             end,
@@ -261,7 +262,7 @@ impl ShowBuilder<'_> {
     }
 
     fn array(&mut self, items: &[Value], enums: &[Identifier]) -> u32 {
-        let values: Vec<image::Value> = items.iter().map(|item| self.value(item, enums)).collect();
+        let values: Vec<format::Value> = items.iter().map(|item| self.value(item, enums)).collect();
         if let Some((_, index)) = self
             .interner
             .arrays
@@ -272,37 +273,37 @@ impl ShowBuilder<'_> {
         }
         let range = push(&mut self.w.values, values);
         let index = self.w.arrays.len() as u32;
-        self.w.arrays.push(image::Array { items: range });
+        self.w.arrays.push(format::Array { items: range });
         self.interner.arrays.push((range, index));
         index
     }
 
-    fn value(&mut self, value: &Value, enums: &[Identifier]) -> image::Value {
+    fn value(&mut self, value: &Value, enums: &[Identifier]) -> format::Value {
         let (kind, word) = match value {
-            Value::Void => (image::VALUE_VOID, 0),
-            Value::Int(value) => (image::VALUE_INT, *value as u32),
-            Value::Float(value) => (image::VALUE_FLOAT, value.to_bits()),
-            Value::Bool(value) => (image::VALUE_BOOL, u32::from(*value)),
-            Value::Color(color) => (image::VALUE_COLOR, self.color(*color)),
-            Value::Enum(name) => (image::VALUE_ENUM, enum_index(enums, name)),
-            Value::Marks(marks) => (image::VALUE_MARKS, self.marks(marks)),
-            Value::Curve(curve) => (image::VALUE_CURVE, self.curve(curve)),
-            Value::Gradient(gradient) => (image::VALUE_GRADIENT, self.gradient(gradient)),
-            Value::Array(items) => (image::VALUE_ARRAY, self.array(items, enums)),
+            Value::Void => (format::VALUE_VOID, 0),
+            Value::Int(value) => (format::VALUE_INT, *value as u32),
+            Value::Float(value) => (format::VALUE_FLOAT, value.to_bits()),
+            Value::Bool(value) => (format::VALUE_BOOL, u32::from(*value)),
+            Value::Color(color) => (format::VALUE_COLOR, self.color(*color)),
+            Value::Enum(name) => (format::VALUE_ENUM, enum_index(enums, name)),
+            Value::Marks(marks) => (format::VALUE_MARKS, self.marks(marks)),
+            Value::Curve(curve) => (format::VALUE_CURVE, self.curve(curve)),
+            Value::Gradient(gradient) => (format::VALUE_GRADIENT, self.gradient(gradient)),
+            Value::Array(items) => (format::VALUE_ARRAY, self.array(items, enums)),
         };
-        image::Value { kind, word }
+        format::Value { kind, word }
     }
 
     /// A resource parameter's or constant's record.
-    fn resource(&mut self, value: &Value, enums: &[Identifier]) -> image::ResourceRef {
+    fn resource(&mut self, value: &Value, enums: &[Identifier]) -> format::ResourceRef {
         let (kind, index) = match value {
-            Value::Curve(curve) => (image::RESOURCE_CURVE, self.curve(curve)),
-            Value::Gradient(gradient) => (image::RESOURCE_GRADIENT, self.gradient(gradient)),
-            Value::Marks(marks) => (image::RESOURCE_MARKS, self.marks(marks)),
-            Value::Array(items) => (image::RESOURCE_ARRAY, self.array(items, enums)),
+            Value::Curve(curve) => (format::RESOURCE_CURVE, self.curve(curve)),
+            Value::Gradient(gradient) => (format::RESOURCE_GRADIENT, self.gradient(gradient)),
+            Value::Marks(marks) => (format::RESOURCE_MARKS, self.marks(marks)),
+            Value::Array(items) => (format::RESOURCE_ARRAY, self.array(items, enums)),
             _ => unreachable!("resource parameters hold resources"),
         };
-        image::ResourceRef { kind, index }
+        format::ResourceRef { kind, index }
     }
 
     /// `shared`'s index, written once for equal programs.
@@ -329,20 +330,20 @@ impl ShowBuilder<'_> {
         let resources = push(&mut self.w.program_resources, resources);
         let stencil = program.has_stencil();
         let flags = [
-            (program.uses_spatial_context(), image::PROGRAM_USES_SPATIAL),
-            (program.uses_sections(), image::PROGRAM_USES_SECTIONS),
-            (program.reads_target(), image::PROGRAM_READS_TARGET),
+            (program.uses_spatial_context(), format::PROGRAM_USES_SPATIAL),
+            (program.uses_sections(), format::PROGRAM_USES_SECTIONS),
+            (program.reads_target(), format::PROGRAM_READS_TARGET),
             (
                 program.uses_pixel_context(),
-                image::PROGRAM_USES_PIXEL_CONTEXT,
+                format::PROGRAM_USES_PIXEL_CONTEXT,
             ),
-            (stencil, image::PROGRAM_HAS_STENCIL),
-            (program.reads_state(), image::PROGRAM_READS_STATE),
+            (stencil, format::PROGRAM_HAS_STENCIL),
+            (program.reads_state(), format::PROGRAM_READS_STATE),
         ]
         .iter()
         .filter(|(set, _)| *set)
         .fold(0, |flags, (_, flag)| flags | flag);
-        self.w.programs.push(image::Program {
+        self.w.programs.push(format::Program {
             code,
             query_end: u32::from(program.query_end),
             target_end: u32::from(program.target_end),
@@ -387,7 +388,9 @@ impl ShowBuilder<'_> {
         }
         let words = push(&mut self.w.words, words);
         let resources = push(&mut self.w.resources, resources);
-        self.w.param_sets.push(image::ParamSet { words, resources });
+        self.w
+            .param_sets
+            .push(format::ParamSet { words, resources });
         (self.w.param_sets.len() - 1) as u32
     }
 
@@ -398,7 +401,7 @@ impl ShowBuilder<'_> {
             return NONE;
         }
         let mut records = Vec::with_capacity(bindings.len());
-        let mut windows: Vec<image::Window> = Vec::new();
+        let mut windows: Vec<format::Window> = Vec::new();
         for binding in bindings {
             let bank = u32::from(param_bank(
                 &program.params,
@@ -415,9 +418,9 @@ impl ShowBuilder<'_> {
                 ) => {
                     (min, max) = (low.to_bits(), high.to_bits());
                     let kind = if quantity == AutomatedQuantity::Integral {
-                        image::BINDING_FLOAT_INTEGRAL
+                        format::BINDING_FLOAT_INTEGRAL
                     } else {
-                        image::BINDING_FLOAT
+                        format::BINDING_FLOAT
                     };
                     (kind, bank)
                 }
@@ -432,16 +435,17 @@ impl ShowBuilder<'_> {
                     _,
                 ) => {
                     (min, max) = (*low as u32, *high as u32);
-                    (image::BINDING_INT, bank)
+                    (format::BINDING_INT, bank)
                 }
-                (AutomationMapping::Bool, _) => (image::BINDING_BOOL, bank),
+                (AutomationMapping::Bool, _) => (format::BINDING_BOOL, bank),
+                (AutomationMapping::LiveMarks, _) => (format::BINDING_LIVE_MARKS, bank),
                 (AutomationMapping::Enum { values }, _) => {
                     // Lowering names every option of a bound enum.
                     options = push(
                         &mut self.w.enum_options,
                         values.iter().map(|value| enum_index(&program.enums, value)),
                     );
-                    (image::BINDING_ENUM, bank)
+                    (format::BINDING_ENUM, bank)
                 }
                 (
                     AutomationMapping::Curve {
@@ -458,21 +462,26 @@ impl ShowBuilder<'_> {
                             index
                         }
                         None => {
-                            windows.push(image::Window {
+                            windows.push(format::Window {
                                 resource: bank,
                                 points,
                             });
                             windows.len() - 1
                         }
                     };
-                    (image::BINDING_CURVE, window as u32)
+                    (format::BINDING_CURVE, window as u32)
                 }
             };
-            records.push(image::Binding {
+            records.push(format::Binding {
                 parameter: u32::from(binding.param_index),
                 start: binding.start.as_ticks(),
                 duration: binding.duration.as_ticks(),
-                curve: self.curve(&binding.curve),
+                // A live marks binding's collection is set when the rig names it.
+                curve: if kind == format::BINDING_LIVE_MARKS {
+                    NONE
+                } else {
+                    self.curve(&binding.curve)
+                },
                 kind,
                 destination,
                 min,
@@ -484,7 +493,7 @@ impl ShowBuilder<'_> {
         let windows = push(&mut self.w.windows, windows);
         self.w
             .automation
-            .push(image::Automation { bindings, windows });
+            .push(format::Automation { bindings, windows });
         (self.w.automation.len() - 1) as u32
     }
 }
@@ -501,11 +510,11 @@ impl<'id> ShowBuilder<'id> {
             pixel_count: 0,
             targets: Vec::new(),
             programs: Vec::new(),
-            clips: Vec::new(),
+            clip_index: Vec::new(),
             layers: Vec::new(),
             nodes: Vec::new(),
             outputs: Vec::new(),
-            collections: Vec::new(),
+            collections: 0,
             controls: Vec::new(),
             brand: PhantomData,
         }
@@ -517,7 +526,7 @@ impl<'id> ShowBuilder<'id> {
         let pixel_count = geometry.cells().len();
         self.storage.push(self.fixtures.len());
         if geometry.retains_fixture() {
-            self.fixtures.push(image::Fixture {
+            self.fixtures.push(format::Fixture {
                 id: source_id,
                 pixel_count: pixel_count as u32,
                 offset: self.pixel_count as u32,
@@ -577,9 +586,9 @@ impl<'id> ShowBuilder<'id> {
         TargetHandle::new(self.targets.len() - 1)
     }
 
-    /// An effect: `program` on `target` for `duration` from `start`, within
+    /// A clip: `program` on `target` for `duration` from `start`, within
     /// the show. A sequence's clips carry their authored `id`; a rig's
-    /// effects have none.
+    /// clips have none.
     pub fn clip(
         &mut self,
         id: Option<u32>,
@@ -587,19 +596,19 @@ impl<'id> ShowBuilder<'id> {
         start: SampleTime,
         duration: SampleDuration,
         target: TargetHandle<'id>,
-    ) -> EffectHandle<'id> {
+    ) -> ClipHandle<'id> {
         assert!(
             start
                 .as_ticks()
                 .checked_add(duration.as_ticks())
                 .is_some_and(|end| end <= self.timing.duration().as_ticks()),
-            "an effect plays within its show"
+            "a clip plays within its image"
         );
         let bytecode = &program.program().bytecode;
         let index = self.program(program.program());
         let params = self.param_set(bytecode, program.params());
         let automation = self.automation(bytecode, program.automation());
-        self.w.effects.push(image::Effect {
+        self.w.clips.push(format::Clip {
             start: start.as_ticks(),
             duration: duration.as_ticks(),
             target: target.index as u32,
@@ -607,59 +616,53 @@ impl<'id> ShowBuilder<'id> {
             params,
             automation,
         });
-        let effect = self.w.effects.len() - 1;
+        let clip = self.w.clips.len() - 1;
         if let Some(id) = id {
-            self.clips.push(image::Clip {
+            self.clip_index.push(format::ClipIndex {
                 id,
-                effect: effect as u32,
+                clip: clip as u32,
             });
         }
-        EffectHandle::new(effect)
+        ClipHandle::new(clip)
     }
 
-    /// Make `effect` a rig voice that commands start, and that stops on a
+    /// Make `clip` a rig voice that commands start, and that stops on a
     /// command or `duration` after each start; returns its index in the
     /// rig's voices.
-    pub fn voice(&mut self, effect: EffectHandle<'id>, duration: Option<SampleDuration>) -> u16 {
-        self.w.voices.push(image::Voice {
-            effect: effect.index as u32,
+    pub fn voice(&mut self, clip: ClipHandle<'id>, duration: Option<SampleDuration>) -> u16 {
+        self.w.voices.push(format::Voice {
+            clip: clip.index as u32,
             duration: duration.map_or(NONE, SampleDuration::as_ticks),
         });
         (self.w.voices.len() - 1) as u16
     }
 
-    /// A live mark collection read by the given marks parameters of effects
-    /// (their program's parameter indices); returns its index.
-    pub fn live_marks(
-        &mut self,
-        readers: impl IntoIterator<Item = (EffectHandle<'id>, u16)>,
-    ) -> u16 {
-        let readers = readers
-            .into_iter()
-            .map(|(effect, param)| {
-                let index = self.w.effects[effect.index].program;
-                let (program, _) = self
-                    .programs
-                    .iter()
-                    .find(|(_, written)| *written == index)
-                    .unwrap_or_else(|| unreachable!("effects play written programs"));
-                image::Reader {
-                    effect: effect.index as u32,
-                    bank: u32::from(param_bank(&program.bytecode.params, usize::from(param))),
-                }
-            })
-            .collect();
-        self.collections.push(readers);
-        (self.collections.len() - 1) as u16
+    /// A live mark collection that the given live marks bindings of clips
+    /// (indices in each clip's bindings) read; returns its index.
+    pub fn live_marks(&mut self, targets: impl IntoIterator<Item = (ClipHandle<'id>, u16)>) -> u16 {
+        let collection = self.collections;
+        for (clip, binding) in targets {
+            let plan = self.w.clips[clip.index].automation;
+            let start = self.w.automation[plan as usize].bindings.start;
+            let record = &mut self.w.bindings[(start + u32::from(binding)) as usize];
+            assert_eq!(
+                record.kind,
+                format::BINDING_LIVE_MARKS,
+                "a collection binds live marks bindings"
+            );
+            record.curve = collection;
+        }
+        self.collections += 1;
+        collection as u16
     }
 
-    /// A control that sets the given automation bindings of effects (indices
-    /// in each effect's bindings); returns its index.
-    pub fn control(&mut self, targets: impl IntoIterator<Item = (EffectHandle<'id>, u16)>) -> u16 {
+    /// A control that sets the given automation bindings of clips (indices
+    /// in each clip's bindings); returns its index.
+    pub fn control(&mut self, targets: impl IntoIterator<Item = (ClipHandle<'id>, u16)>) -> u16 {
         let targets = targets
             .into_iter()
-            .map(|(effect, binding)| image::ControlTarget {
-                effect: effect.index as u32,
+            .map(|(clip, binding)| format::ControlTarget {
+                clip: clip.index as u32,
                 binding: u32::from(binding),
             })
             .collect();
@@ -682,7 +685,7 @@ impl<'id> ShowBuilder<'id> {
             .map(|index| input(index).index as u32)
             .collect();
         self.nodes.push(Node {
-            kind: image::NODE_OPERATOR,
+            kind: format::NODE_OPERATOR,
             layer: 0,
             program: index,
             params,
@@ -695,16 +698,13 @@ impl<'id> ShowBuilder<'id> {
     pub fn layer(
         &mut self,
         enabled: bool,
-        effects: impl IntoIterator<Item = EffectHandle<'id>>,
+        clips: impl IntoIterator<Item = ClipHandle<'id>>,
     ) -> SignalHandle<'id> {
-        let mut effects: Vec<u32> = effects
-            .into_iter()
-            .map(|effect| effect.index as u32)
-            .collect();
-        effects.sort_by_key(|&index| self.w.effects[index as usize].start);
-        self.layers.push(Layer { enabled, effects });
+        let mut clips: Vec<u32> = clips.into_iter().map(|clip| clip.index as u32).collect();
+        clips.sort_by_key(|&index| self.w.clips[index as usize].start);
+        self.layers.push(Layer { enabled, clips });
         self.nodes.push(Node {
-            kind: image::NODE_LAYER,
+            kind: format::NODE_LAYER,
             layer: (self.layers.len() - 1) as u32,
             program: 0,
             params: 0,
@@ -721,7 +721,7 @@ impl<'id> ShowBuilder<'id> {
         inputs: impl IntoIterator<Item = SignalHandle<'id>>,
     ) -> SignalHandle<'id> {
         self.nodes.push(Node {
-            kind: image::NODE_MIX,
+            kind: format::NODE_MIX,
             layer: 0,
             program: 0,
             params: 0,
@@ -761,7 +761,7 @@ impl<'id> ShowBuilder<'id> {
             match self.w.lookups.iter().position(|known| known.table == table) {
                 Some(index) => index as u32,
                 None => {
-                    self.w.lookups.push(image::Lookup { table });
+                    self.w.lookups.push(format::Lookup { table });
                     (self.w.lookups.len() - 1) as u32
                 }
             }
@@ -787,15 +787,15 @@ impl<'id> ShowBuilder<'id> {
                 indices.next();
                 end += 1;
             }
-            self.w.routes.push(image::Route {
+            self.w.routes.push(format::Route {
                 first: start as u32,
                 end: end as u32,
                 output: output.index as u32,
                 start_slot: start_slot as u32,
                 encoding: if rgbw {
-                    image::ENCODING_RGBW
+                    format::ENCODING_RGBW
                 } else {
-                    image::ENCODING_RGB
+                    format::ENCODING_RGB
                 },
                 order,
                 lookup,
@@ -814,18 +814,18 @@ impl<'id> ShowBuilder<'id> {
         ));
         let mut needs_spatial = vec![false; self.targets.len()];
         let mut needs_sections = vec![false; self.targets.len()];
-        for effect in &self.w.effects {
-            let flags = self.w.programs[effect.program as usize].flags;
-            needs_spatial[effect.target as usize] |= flags & image::PROGRAM_USES_SPATIAL != 0;
-            needs_sections[effect.target as usize] |= flags & image::PROGRAM_USES_SECTIONS != 0;
+        for clip in &self.w.clips {
+            let flags = self.w.programs[clip.program as usize].flags;
+            needs_spatial[clip.target as usize] |= flags & format::PROGRAM_USES_SPATIAL != 0;
+            needs_sections[clip.target as usize] |= flags & format::PROGRAM_USES_SECTIONS != 0;
         }
         for node in &self.nodes {
-            if node.kind != image::NODE_OPERATOR {
+            if node.kind != format::NODE_OPERATOR {
                 continue;
             }
             let flags = self.w.programs[node.program as usize].flags;
-            needs_spatial[full.index] |= flags & image::PROGRAM_USES_SPATIAL != 0;
-            needs_sections[full.index] |= flags & image::PROGRAM_USES_SECTIONS != 0;
+            needs_spatial[full.index] |= flags & format::PROGRAM_USES_SPATIAL != 0;
+            needs_sections[full.index] |= flags & format::PROGRAM_USES_SECTIONS != 0;
         }
         let mut fixture_spatial = vec![false; self.fixtures.len()];
         for (target, &spatial) in self.targets.iter().zip(&needs_spatial) {
@@ -843,18 +843,18 @@ impl<'id> ShowBuilder<'id> {
                     &mut w.positions,
                     geometry.cells().iter().map(|&cell| {
                         let [x, y] = geometry.positions()[cell as usize];
-                        image::Position { x, y }
+                        format::Position { x, y }
                     }),
                 );
             }
         }
         w.fixtures = core::mem::take(&mut self.fixtures);
-        // Only effects and the plan read targets; routes were resolved when
+        // Only clips and the plan read targets; routes were resolved when
         // they were added, so targets used only by routes are not written.
         let mut written = vec![NONE; self.targets.len()];
         written[full.index] = 0;
-        for effect in &w.effects {
-            written[effect.target as usize] = 0;
+        for clip in &w.clips {
+            written[clip.target as usize] = 0;
         }
         let (mut runs, mut indexed) = (Vec::new(), Vec::new());
         for (index, target) in self.targets.iter().enumerate() {
@@ -872,25 +872,25 @@ impl<'id> ShowBuilder<'id> {
             );
             w.targets.push(record);
         }
-        for effect in &mut w.effects {
-            effect.target = written[effect.target as usize];
+        for clip in &mut w.clips {
+            clip.target = written[clip.target as usize];
         }
         for layer in &self.layers {
-            let effects = push(&mut w.layer_order, layer.effects.iter().copied());
+            let clips = push(&mut w.layer_order, layer.clips.iter().copied());
             let mut latest = 0u32;
             let ends: Vec<u32> = layer
-                .effects
+                .clips
                 .iter()
-                .map(|&effect| {
-                    let effect = &w.effects[effect as usize];
-                    latest = latest.max(effect.start.saturating_add(effect.duration));
+                .map(|&clip| {
+                    let clip = &w.clips[clip as usize];
+                    latest = latest.max(clip.start.saturating_add(clip.duration));
                     latest
                 })
                 .collect();
             w.layer_ends.extend(ends);
-            w.layers.push(image::Layer {
+            w.layers.push(format::Layer {
                 enabled: u32::from(layer.enabled),
-                effects,
+                clips,
             });
         }
         // A mix holds every input until it runs; chained, each input joins
@@ -920,7 +920,7 @@ impl<'id> ShowBuilder<'id> {
             }
         }
         let reads_state =
-            |program: u32| w.programs[program as usize].flags & image::PROGRAM_READS_STATE != 0;
+            |program: u32| w.programs[program as usize].flags & format::PROGRAM_READS_STATE != 0;
         let (mut free, mut buffers, mut states) = (Vec::<u32>::new(), 0, 0);
         for (index, node) in self.nodes.iter().enumerate() {
             if !live[index] {
@@ -931,11 +931,11 @@ impl<'id> ShowBuilder<'id> {
                 buffers - 1
             });
             let stateful = match node.kind {
-                image::NODE_LAYER => self.layers[node.layer as usize]
-                    .effects
+                format::NODE_LAYER => self.layers[node.layer as usize]
+                    .clips
                     .iter()
-                    .any(|&effect| reads_state(w.effects[effect as usize].program)),
-                image::NODE_OPERATOR => reads_state(node.program),
+                    .any(|&clip| reads_state(w.clips[clip as usize].program)),
+                format::NODE_OPERATOR => reads_state(node.program),
                 _ => false,
             };
             let state = if stateful {
@@ -957,7 +957,7 @@ impl<'id> ShowBuilder<'id> {
                 &mut w.node_inputs,
                 node.inputs.iter().map(|&input| node_index[input as usize]),
             );
-            w.nodes.push(image::Node {
+            w.nodes.push(format::Node {
                 kind: node.kind,
                 layer: node.layer,
                 program: node.program,
@@ -988,7 +988,7 @@ impl<'id> ShowBuilder<'id> {
         );
         let mut offset = 0;
         for output in &self.outputs {
-            w.outputs.push(image::Output {
+            w.outputs.push(format::Output {
                 controller_index: output.controller_index,
                 port: output.port,
                 offset,
@@ -996,27 +996,24 @@ impl<'id> ShowBuilder<'id> {
             });
             offset += output.bytes as u32;
         }
-        for readers in &self.collections {
-            let readers = push(&mut w.readers, readers.iter().copied());
-            w.collections.push(image::Collection { readers });
-        }
         for targets in &self.controls {
             let targets = push(&mut w.control_targets, targets.iter().copied());
-            w.controls.push(image::Control { targets });
+            w.controls.push(format::Control { targets });
         }
-        self.clips.sort_unstable_by_key(|clip| clip.id);
-        w.clips = core::mem::take(&mut self.clips);
-        w.meta.push(image::Meta {
+        self.clip_index.sort_unstable_by_key(|entry| entry.id);
+        w.clip_index = core::mem::take(&mut self.clip_index);
+        w.meta.push(format::Meta {
             frame_rate: self.timing.frame_rate(),
             frame_count: self.timing.frame_count(),
             duration: self.timing.duration().as_ticks(),
             pixel_count: self.pixel_count as u32,
             plan_target: written[full.index],
-            output: root.map_or(NONE, |root| node_index[root]),
+            root: root.map_or(NONE, |root| node_index[root]),
             buffers,
             states,
+            collections: self.collections,
         });
-        w.finish(crate::show::FORMAT_VERSION)
+        w.finish(crate::image::FORMAT_VERSION)
     }
 }
 
@@ -1029,7 +1026,7 @@ fn write_target(
     target: &Target,
     spatial: bool,
     sections: bool,
-) -> image::Target {
+) -> format::Target {
     let pixels = &target.pixels;
     let mut runs = Vec::new();
     let mut start = 0;
@@ -1045,7 +1042,7 @@ fn write_target(
             }
         }
         let first = &pixels[start];
-        runs.push(image::PixelRun {
+        runs.push(format::PixelRun {
             end: index as u32,
             fixture: first.fixture_index as u32,
             first_cell: first.fixture_pixel_index,
@@ -1054,29 +1051,30 @@ fn write_target(
         });
         start = index;
     }
-    let (kind, range) =
-        if runs.len() * size_of::<image::PixelRun>() >= pixels.len() * size_of::<image::Pixel>() {
-            let indexed: Vec<_> = pixels
-                .iter()
-                .map(|pixel| image::Pixel {
-                    fixture: pixel.fixture_index as u32,
-                    cell: pixel.fixture_pixel_index,
-                    index: pixel.pixel_index as u32,
-                    count: pixel.pixel_count as u32,
-                })
-                .collect();
-            (
-                image::PIXELS_INDEXED,
-                shared(&mut w.pixels, known_pixels, &indexed),
-            )
-        } else {
-            (
-                image::PIXELS_RUNS,
-                shared(&mut w.pixel_runs, known_runs, &runs),
-            )
-        };
+    let (kind, range) = if runs.len() * size_of::<format::PixelRun>()
+        >= pixels.len() * size_of::<format::Pixel>()
+    {
+        let indexed: Vec<_> = pixels
+            .iter()
+            .map(|pixel| format::Pixel {
+                fixture: pixel.fixture_index as u32,
+                cell: pixel.fixture_pixel_index,
+                index: pixel.pixel_index as u32,
+                count: pixel.pixel_count as u32,
+            })
+            .collect();
+        (
+            format::PIXELS_INDEXED,
+            shared(&mut w.pixels, known_pixels, &indexed),
+        )
+    } else {
+        (
+            format::PIXELS_RUNS,
+            shared(&mut w.pixel_runs, known_runs, &runs),
+        )
+    };
     let spatial = if spatial {
-        let mut runs = Vec::<image::SpatialRun>::new();
+        let mut runs = Vec::<format::SpatialRun>::new();
         for (index, context) in target.spatial.iter().enumerate() {
             match runs.last_mut() {
                 Some(run)
@@ -1085,7 +1083,7 @@ fn write_target(
                 {
                     run.end = index as u32 + 1;
                 }
-                _ => runs.push(image::SpatialRun {
+                _ => runs.push(format::SpatialRun {
                     end: index as u32 + 1,
                     min: context.min,
                     max: context.max,
@@ -1107,9 +1105,9 @@ fn write_target(
     let (section_runs, section_kind, section_pixels) = if sections {
         write_sections(w, &target.selection, &target.source_pixels)
     } else {
-        (Range::EMPTY, image::PIXELS_RUNS, Range::EMPTY)
+        (Range::EMPTY, format::PIXELS_RUNS, Range::EMPTY)
     };
-    image::Target {
+    format::Target {
         kind,
         pixels: range,
         spatial,
@@ -1129,7 +1127,7 @@ fn write_sections(
     selection: &[(usize, u32)],
     pixels: &[(usize, u32)],
 ) -> (Range, u32, Range) {
-    let mut runs = Vec::<image::SectionRun>::new();
+    let mut runs = Vec::<format::SectionRun>::new();
     let mut addresses = alloc::collections::BTreeMap::new();
     for &(fixture, index) in selection {
         match runs.last_mut() {
@@ -1138,7 +1136,7 @@ fn write_sections(
             {
                 run.last = index;
             }
-            _ => runs.push(image::SectionRun {
+            _ => runs.push(format::SectionRun {
                 fixture: fixture as u32,
                 first: index,
                 last: index,
@@ -1146,13 +1144,13 @@ fn write_sections(
         }
         addresses.insert(
             (fixture, index),
-            image::SectionPixel {
+            format::SectionPixel {
                 run: (runs.len() - 1) as u32,
                 index,
             },
         );
     }
-    let mut spans = Vec::<image::SectionSpan>::new();
+    let mut spans = Vec::<format::SectionSpan>::new();
     for (index, pixel) in pixels.iter().enumerate() {
         let address = addresses[pixel];
         let start = if spans.len() > 1 {
@@ -1168,22 +1166,22 @@ fn write_sections(
             {
                 span.end = index as u32 + 1;
             }
-            _ => spans.push(image::SectionSpan {
+            _ => spans.push(format::SectionSpan {
                 end: index as u32 + 1,
                 first: address,
             }),
         }
     }
     let runs = push(&mut w.section_runs, runs);
-    if spans.len() * size_of::<image::SectionSpan>()
-        < pixels.len() * size_of::<image::SectionPixel>()
+    if spans.len() * size_of::<format::SectionSpan>()
+        < pixels.len() * size_of::<format::SectionPixel>()
     {
-        (runs, image::PIXELS_RUNS, push(&mut w.section_spans, spans))
+        (runs, format::PIXELS_RUNS, push(&mut w.section_spans, spans))
     } else {
         let places = pixels.iter().map(|pixel| addresses[pixel]);
         (
             runs,
-            image::PIXELS_INDEXED,
+            format::PIXELS_INDEXED,
             push(&mut w.section_pixels, places),
         )
     }
@@ -1195,7 +1193,7 @@ fn write_sections(
 fn chain_mixes(nodes: &mut Vec<Node>, root: usize) -> usize {
     let mut readers = vec![Vec::<usize>::new(); nodes.len()];
     for (index, node) in nodes.iter().enumerate() {
-        if node.kind == image::NODE_MIX {
+        if node.kind == format::NODE_MIX {
             for &input in &node.inputs {
                 if !readers[input as usize].contains(&index) {
                     readers[input as usize].push(index);
@@ -1204,7 +1202,7 @@ fn chain_mixes(nodes: &mut Vec<Node>, root: usize) -> usize {
         }
     }
     let mix = |inputs| Node {
-        kind: image::NODE_MIX,
+        kind: format::NODE_MIX,
         layer: 0,
         program: 0,
         params: 0,
@@ -1215,7 +1213,7 @@ fn chain_mixes(nodes: &mut Vec<Node>, root: usize) -> usize {
     let mut moved = vec![0u32; nodes.len()];
     let mut running = vec![None::<u32>; nodes.len()];
     for (index, node) in core::mem::take(nodes).into_iter().enumerate() {
-        moved[index] = if node.kind == image::NODE_MIX {
+        moved[index] = if node.kind == format::NODE_MIX {
             running[index].unwrap_or_else(|| {
                 chained.push(mix(Vec::new()));
                 (chained.len() - 1) as u32

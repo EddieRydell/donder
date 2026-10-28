@@ -59,9 +59,9 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   /** Groups that can list the target without containing themselves or listing it twice. */
   const destinations = target === null ? [] : layoutFixtures.filter((group) =>
     group.kind.type === "group" && !descendants(layout, target.id).includes(group.id) && !membersOf(group).includes(target.id));
-  const fixtureSource = (fixture: GuiLayoutFixture): GuiObjectRef => {
+  const fixtureDeclaration = (fixture: GuiLayoutFixture): GuiObjectRef => {
     if (fixture.kind.type !== "fixture") throw new Error("Select a fixture.");
-    if (fixture.kind.definition.type === "reference") return fixture.kind.definition.source;
+    if (fixture.kind.definition.type === "reference") return fixture.kind.definition.object;
     return { ...gui.document.sourceRef, kind: "fixture", ownedPath: [...gui.document.sourceRef.ownedPath, { type: "fixture", id: fixture.id }] };
   };
   const reportError = (error: unknown) => { setError(String(error)); };
@@ -90,7 +90,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
       const layout = result.change.type === "document" && result.change.document.type === "layout" ? result.change.document.document : null;
       const added = layout?.fixtures.find((item) => item.id === id) ?? null;
       if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
-      definitionToOpen = fixtureSource(added);
+      definitionToOpen = fixtureDeclaration(added);
     } else if (action.type === "rename") {
       await setLayout(updateItem(action.id, (item) => ({ ...item, name: name.trim(), description: description.trim() === "" ? null : description.trim() })), action.origin);
     } else {
@@ -109,7 +109,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
       id,
       name: definition.objectKey,
       description: null,
-      kind: { type: "fixture", definition: { type: "reference", source: definition }, transform: identityTransform(position) }
+      kind: { type: "fixture", definition: { type: "reference", object: definition }, transform: identityTransform(position) }
     });
     await setLayout(added.fixtures, request, added.root);
     setSelected(id);
@@ -161,7 +161,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
           <fieldset className="composition-controls" disabled={!editable}>
             <LayoutTree fixtures={layoutFixtures} root={root} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} enabled={editable} request={request} onError={reportError} />
             <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(reportError); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
-            {instance?.kind.type === "fixture" && <><Placement value={instance.kind.transform} onChange={changeTransform} /><OwnershipActions sources={gui.document.availableFixtures} key={instance.id} source={fixtureSource(instance)} fixture={instance.id} label={instance.name} /></>}
+            {instance?.kind.type === "fixture" && <><Placement value={instance.kind.transform} onChange={changeTransform} /><OwnershipActions declarations={gui.document.availableFixtures} key={instance.id} source={fixtureDeclaration(instance)} fixture={instance.id} label={instance.name} /></>}
           </fieldset>
         </aside>
       </ContextMenu.Trigger>
@@ -175,7 +175,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
             onAddGroup={() => { beginAdd("group"); }}
           />}
           {target?.kind.type === "fixture" && <ContextMenu.Item className="menu-item" onSelect={() => {
-            if (target.kind.type === "fixture") void navigateToGuiObject(fixtureSource(target)).catch(reportError);
+            if (target.kind.type === "fixture") void navigateToGuiObject(fixtureDeclaration(target)).catch(reportError);
           }}>Edit fixture</ContextMenu.Item>}
           {target !== null && <>
             <ContextMenu.Sub>
@@ -213,7 +213,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
                   <option value="sameFile">Reusable fixture in this file</option>
                   <option value="newFile">Reusable fixture in a new file</option>
                 </select></label>
-                <p>{storage === "inline" ? "Stored inside this fixture. Duplicating the fixture makes an independent copy; removing it removes its geometry." : storage === "sameFile" ? "Creates a reusable source in this file. Removing this placement keeps the source available." : "Creates a file in the fixtures folder, named after this fixture. The file stays available when you remove its placement."}</p>
+                <p>{storage === "inline" ? "Stored inside this fixture. Duplicating the fixture makes an independent copy; removing it removes its geometry." : storage === "sameFile" ? "Creates a reusable declaration in this file. Removing this placement keeps the declaration available." : "Creates a file in the fixtures folder, named after this fixture. The file stays available when you remove its placement."}</p>
               </details>}
               {error !== null && <p role="alert">{error}</p>}
               <div className="dialog-actions">

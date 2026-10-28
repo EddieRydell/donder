@@ -27,10 +27,10 @@ pub use donder_runtime::PreparedShow;
 pub use rig::{ArmedRig, arm};
 pub use sequence::PreparationCache;
 
-/// Which physical outputs to retain. Explicit lists preserve first-occurrence
+/// Which hardware outputs an image keeps. Explicit lists preserve first-occurrence
 /// order and treat repeated entries as a set. An empty list selects no outputs.
 #[derive(Clone, Copy, Debug)]
-pub enum PrepareOutputs<'a> {
+pub enum Retain<'a> {
     All,
     Controllers(&'a [ControllerId]),
     Ports(&'a [(ControllerId, ControllerPortId)]),
@@ -45,9 +45,9 @@ pub enum PrepareOutputs<'a> {
 pub fn prepare(
     project: &DonderProject,
     sequence: &SequenceId,
-    outputs: PrepareOutputs<'_>,
+    retain: Retain<'_>,
 ) -> Option<PreparedShow> {
-    prepare_cached(project, sequence, outputs, &mut PreparationCache::default())
+    prepare_cached(project, sequence, retain, &mut PreparationCache::default())
 }
 
 /// [`prepare`], reusing the clip programs `cache` holds from earlier
@@ -56,13 +56,13 @@ pub fn prepare(
 pub fn prepare_cached(
     project: &DonderProject,
     sequence: &SequenceId,
-    outputs: PrepareOutputs<'_>,
+    retain: Retain<'_>,
     cache: &mut PreparationCache,
 ) -> Option<PreparedShow> {
-    let selected = selection::resolve(project, sequence, outputs)?;
+    let selected = selection::resolve(project, sequence, retain)?;
     Some(sequence::prepare(
         selected,
-        !matches!(outputs, PrepareOutputs::All),
+        !matches!(retain, Retain::All),
         cache,
     ))
 }

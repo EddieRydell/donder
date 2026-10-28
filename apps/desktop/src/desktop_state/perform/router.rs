@@ -5,7 +5,7 @@
 
 use donder_elaboration::ArmedRig;
 use donder_model::{
-    ButtonInput, ControlRef, DonderProject, InputControlKind, MappingAction, PlayedSource, Rig,
+    ButtonInput, ControlRef, DonderProject, InputControlKind, MappingAction, PlayedQuantity, Rig,
     TriggerLength, VoicePolicy, When,
 };
 use donder_runtime_types::{RigCommand, RigEvent, SampleTime};
@@ -13,7 +13,7 @@ use donder_runtime_types::{RigCommand, RigEvent, SampleTime};
 /// A parameter each press sets on the voice it starts.
 #[derive(Clone, Debug, PartialEq)]
 struct RoutedValue {
-    source: PlayedSource,
+    source: PlayedQuantity,
     /// The control that sets it on each of the trigger's voices, in the
     /// order of its voices.
     controls: Box<[u16]>,
@@ -416,17 +416,17 @@ impl RigRouter {
 
 /// A played value, in `0..=1`, from how `touch` was played on an input that
 /// plays `notes`.
-fn played(source: PlayedSource, touch: &Touch, notes: RoutedNotes) -> f32 {
+fn played(source: PlayedQuantity, touch: &Touch, notes: RoutedNotes) -> f32 {
     let Some(note) = touch.note else {
         return match source {
-            PlayedSource::Velocity => touch.velocity,
+            PlayedQuantity::Velocity => touch.velocity,
             // Validation keeps note sources off inputs without notes.
-            PlayedSource::Pitch | PlayedSource::PitchClass | PlayedSource::Fifths => 0.0,
+            PlayedQuantity::Pitch | PlayedQuantity::PitchClass | PlayedQuantity::Fifths => 0.0,
         };
     };
     match source {
-        PlayedSource::Velocity => touch.velocity,
-        PlayedSource::Pitch => match notes {
+        PlayedQuantity::Velocity => touch.velocity,
+        PlayedQuantity::Pitch => match notes {
             RoutedNotes::Keys { low, high } if high > low => {
                 f32::from(note.saturating_sub(low)) / f32::from(high - low)
             }
@@ -434,8 +434,8 @@ fn played(source: PlayedSource, touch: &Touch, notes: RoutedNotes) -> f32 {
             RoutedNotes::Keys { .. } => 0.0,
             RoutedNotes::Note(_) | RoutedNotes::None => f32::from(note) / 127.0,
         },
-        PlayedSource::PitchClass => f32::from(note % 12) / 12.0,
-        PlayedSource::Fifths => f32::from((u16::from(note) * 7 % 12) as u8) / 12.0,
+        PlayedQuantity::PitchClass => f32::from(note % 12) / 12.0,
+        PlayedQuantity::Fifths => f32::from((u16::from(note) * 7 % 12) as u8) / 12.0,
     }
 }
 
@@ -506,7 +506,7 @@ fn trigger(
 mod tests {
     //! Arming the starter's jam rig, and routing its keyboard buttons.
     use super::*;
-    use donder_elaboration::{PreparationCache, PrepareOutputs, arm};
+    use donder_elaboration::{PreparationCache, Retain, arm};
     use donder_runtime_types::Color;
 
     fn starter() -> DonderProject {
@@ -519,13 +519,7 @@ mod tests {
 
     fn armed(project: &DonderProject) -> (ArmedRig, RigRouter) {
         let rig = project.root().rigs.first().unwrap().id();
-        let armed = arm(
-            project,
-            rig,
-            PrepareOutputs::All,
-            &mut PreparationCache::default(),
-        )
-        .unwrap();
+        let armed = arm(project, rig, Retain::All, &mut PreparationCache::default()).unwrap();
         let router = RigRouter::new(
             project,
             project.get::<donder_model::Rig>(*rig).unwrap(),
@@ -562,9 +556,9 @@ mod tests {
         let project = starter();
         let (armed, router) = armed(&project);
         // flash (1) + burst (stack of 4) + wash (1).
-        assert_eq!(armed.prepared.show().voice_count(), 6);
-        assert_eq!(armed.prepared.show().collection_count(), 1);
-        assert_eq!(armed.prepared.show().control_count(), 1);
+        assert_eq!(armed.prepared.image().voice_count(), 6);
+        assert_eq!(armed.prepared.image().collection_count(), 1);
+        assert_eq!(armed.prepared.image().control_count(), 1);
         // kick, swell, boost, tap and the shift switch.
         assert_eq!(router.inputs().len(), 5);
     }

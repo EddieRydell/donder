@@ -1,4 +1,4 @@
-import type { SequenceGuiDocument, SequenceEffect, SequenceAutomationResize, SequenceClipRef, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
+import type { SequenceGuiDocument, SequenceClip, SequenceAutomationResize, SequenceClipRef, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
 
 import { clamp, type GuiFocus } from "../shared";
 
@@ -18,15 +18,15 @@ export type MarkRefLookup = Map<string, Set<number>>;
 
 export type SequenceContextMenu =
   | { kind: "blank"; laneIndex: number; startSeconds: number }
-  | { kind: "effect"; laneIndex: number; startSeconds: number; effectId: number }
-  | { kind: "automation"; laneIndex: number; startSeconds: number; clipId: number }
+  | { kind: "clip"; laneIndex: number; startSeconds: number; clipId: number }
+  | { kind: "automation"; laneIndex: number; startSeconds: number; automationClipId: number }
   // Mark menus open from the mark ruler, which belongs to no lane.
   | { kind: "markRuler"; startSeconds: number }
   | { kind: "mark"; startSeconds: number; collectionKey: string; index: number };
 
 export type SequenceHover =
   | null
-  | { kind: "effect"; effectId: number; resize: "left" | "right" | "none" }
+  | { kind: "clip"; clipId: number; resize: "left" | "right" | "none" }
   | { kind: "mark"; collectionKey: string; index: number };
 
 /**
@@ -38,10 +38,10 @@ export type SequenceMarquee = { mode: "clips" | "marks" | "span";anchorSeconds: 
 /** A box between two corners in one coordinate space. */
 export type MarqueeBox = { startX: number; startY: number; x: number; y: number };
 
-export const MIN_EFFECT_DURATION_SECONDS = 0.000000001;
+export const MIN_CLIP_DURATION_SECONDS = 0.000000001;
 
 const SEQUENCE_HIT_RADII = {
-  effectResizeHandlePx: THEME_METRICS.sequenceEffectResizeHitWidth,
+  clipResizeHandlePx: THEME_METRICS.sequenceClipResizeHitWidth,
   markPx: THEME_METRICS.sequenceMarkHitRadius
 } as const;
 
@@ -59,7 +59,7 @@ export type SequenceViewport = {
 };
 
 export type SequenceClipLayout = {
-  effect: SequenceEffect;
+  clip: SequenceClip;
   laneIndex: number;
   rect: { x: number; y: number; width: number; height: number };
 };
@@ -69,14 +69,14 @@ export type SequenceClipLayoutBounds = {
   height: number;
 };
 
-type SequenceClip = {
-  effect: SequenceEffect;
+type LaneClip = {
+  clip: SequenceClip;
   laneIndex: number;
 };
 
 
 export type SequenceHit = {
-  effect: SequenceEffect;
+  clip: SequenceClip;
   laneIndex: number;
   resize: "left" | "right" | "none";
 };
@@ -100,7 +100,7 @@ export function buildSequenceClipLayout(
   const visibleRows = new Map<number, SequenceRowLayout>();
   for (const row of rows) {
     const rowTop = top + row.top - viewport.scrollY;
-    if (row.kind === "effects" && row.height > 0 && rowTop + row.height >= top && rowTop <= bounds.height) visibleRows.set(row.laneIndex, row);
+    if (row.kind === "clips" && row.height > 0 && rowTop + row.height >= top && rowTop <= bounds.height) visibleRows.set(row.laneIndex, row);
   }
   const lanesByTarget = new Map<number, number[]>();
   document.lanes.forEach((lane, index) => {
@@ -113,35 +113,35 @@ export function buildSequenceClipLayout(
   const visibleStartSeconds = viewport.scrollXSeconds;
   const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
   // A clip shows on every lane of its target, including a draft's destination target.
-  const byLane = new Map<number, SequenceClip[]>();
-  for (const original of document.effects) {
+  const byLane = new Map<number, LaneClip[]>();
+  for (const original of document.clips) {
     const activeDraft = draftById.get(original.id);
-    const effect = activeDraft === undefined ? original : effectFromDraft(document, original, activeDraft);
-    if (!effectIntersectsTimeRange(effect, visibleStartSeconds, visibleEndSeconds)) continue;
-    for (const laneIndex of lanesByTarget.get(effect.target.fixture) ?? []) {
+    const clip = activeDraft === undefined ? original : clipFromDraft(document, original, activeDraft);
+    if (!clipIntersectsTimeRange(clip, visibleStartSeconds, visibleEndSeconds)) continue;
+    for (const laneIndex of lanesByTarget.get(clip.target.fixture) ?? []) {
       const laneClips = byLane.get(laneIndex);
-      if (laneClips === undefined) byLane.set(laneIndex, [{ effect, laneIndex }]);
-      else laneClips.push({ effect, laneIndex });
+      if (laneClips === undefined) byLane.set(laneIndex, [{ clip, laneIndex }]);
+      else laneClips.push({ clip, laneIndex });
     }
   }
 
   const layouts: SequenceClipLayout[] = [];
   for (const [laneIndex, laneClips] of byLane) {
     const row = visibleRows.get(laneIndex);
-    if (row === undefined) throw new Error("Effect clip has no timeline row.");
-    const groups = groupOverlappingClips(laneClips, (clip) => clip.effect);
+    if (row === undefined) throw new Error("Clip has no timeline row.");
+    const groups = groupOverlappingClips(laneClips, (clip) => clip.clip);
     for (const group of groups) {
-      const assigned = assignOverlapSlots(group, (clip) => clip.effect);
+      const assigned = assignOverlapSlots(group, (clip) => clip.clip);
       const slotCount = Math.max(1, Math.max(...assigned.map((clip) => clip.slot)) + 1);
       const laneHeight = row.height;
       const slotHeight = laneHeight / slotCount;
       for (const clip of assigned) {
-        const startSeconds = clip.effect.startSeconds;
-        const endSeconds = startSeconds + clip.effect.durationSeconds;
+        const startSeconds = clip.clip.startSeconds;
+        const endSeconds = startSeconds + clip.clip.durationSeconds;
         const x = left + (startSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
         const width = Math.max(THEME_METRICS.sequenceClipMinWidth, (endSeconds - startSeconds) * viewport.pxPerSecond);
         layouts.push({
-          effect: clip.effect,
+          clip: clip.clip,
           laneIndex,
           rect: {
             x,
@@ -156,25 +156,25 @@ export function buildSequenceClipLayout(
   return layouts;
 }
 
-function effectFromDraft(
+function clipFromDraft(
   document: SequenceGuiDocument,
-  effect: SequenceEffect,
+  clip: SequenceClip,
   draft: SequenceDraft
-): SequenceEffect {
+): SequenceClip {
   const draftLane = document.lanes[draft.laneIndex];
   return {
-    ...effect,
+    ...clip,
     startSeconds: draft.startSeconds,
     durationSeconds: draft.durationSeconds,
-    target: draftLane?.target ?? effect.target,
-    targetLabel: draftLane?.label ?? effect.targetLabel
+    target: draftLane?.target ?? clip.target,
+    targetLabel: draftLane?.label ?? clip.targetLabel
   };
 }
 
-function effectIntersectsTimeRange(effect: SequenceEffect, startSeconds: number, endSeconds: number): boolean {
-  const effectStart = effect.startSeconds;
-  const effectEnd = effect.startSeconds + effect.durationSeconds;
-  return effectEnd >= startSeconds && effectStart <= endSeconds;
+function clipIntersectsTimeRange(clip: SequenceClip, startSeconds: number, endSeconds: number): boolean {
+  const clipStart = clip.startSeconds;
+  const clipEnd = clip.startSeconds + clip.durationSeconds;
+  return clipEnd >= startSeconds && clipStart <= endSeconds;
 }
 
 export function hitSequence(clips: SequenceClipLayout[], x: number, y: number): SequenceHit | null {
@@ -184,9 +184,9 @@ export function hitSequence(clips: SequenceClipLayout[], x: number, y: number): 
     const { rect } = clip;
     if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
       const resize: "left" | "right" | "none" =
-        x - rect.x < SEQUENCE_HIT_RADII.effectResizeHandlePx ? "left" : rect.x + rect.width - x < SEQUENCE_HIT_RADII.effectResizeHandlePx ? "right" : "none";
+        x - rect.x < SEQUENCE_HIT_RADII.clipResizeHandlePx ? "left" : rect.x + rect.width - x < SEQUENCE_HIT_RADII.clipResizeHandlePx ? "right" : "none";
       return {
-        effect: clip.effect,
+        clip: clip.clip,
         laneIndex: clip.laneIndex,
         resize
       };
@@ -223,20 +223,20 @@ export function hitSequenceMark(
 export function sequenceHoverEqual(left: SequenceHover, right: SequenceHover) {
   if (left === right) return true;
   if (left === null || right === null || left.kind !== right.kind) return false;
-  if (left.kind === "effect" && right.kind === "effect") {
-    return left.effectId === right.effectId && left.resize === right.resize;
+  if (left.kind === "clip" && right.kind === "clip") {
+    return left.clipId === right.clipId && left.resize === right.resize;
   }
   if (left.kind !== "mark" || right.kind !== "mark") return false;
   return left.collectionKey === right.collectionKey && left.index === right.index;
 }
 
-export function selectedEffectId(selected: GuiFocus): number | null {
-  return selected?.type === "effect" ? selected.id : null;
+export function selectedClipId(selected: GuiFocus): number | null {
+  return selected?.type === "clip" ? selected.id : null;
 }
 
 /** The ids of the clips of each kind. */
 export function clipIdSets(clips: SequenceClipRef[]): Record<SequenceClipKind, Set<number>> {
-  const sets = { effect: new Set<number>(), automation: new Set<number>() };
+  const sets = { clip: new Set<number>(), automation: new Set<number>() };
   for (const clip of clips) sets[clip.type].add(clip.id);
   return sets;
 }
@@ -258,8 +258,8 @@ export function reconcileSequenceSelection(document: SequenceGuiDocument | null,
   if (document === null || selection === null) return null;
   if (selection.type === "clips") {
     const existing = {
-      effect: new Set(document.effects.map((clip) => clip.id)),
-      automation: new Set(document.automationClips.map((clip) => clip.id))
+      clip: new Set(document.clips.map((clip) => clip.id)),
+      automation: new Set(document.automationClips.map((automationClip) => automationClip.id))
     };
     const clips = selection.clips.filter((clip) => existing[clip.type].has(clip.id));
     if (clips.length === 0) return null;
@@ -270,8 +270,8 @@ export function reconcileSequenceSelection(document: SequenceGuiDocument | null,
 }
 
 export function selectionFromSingle(selected: GuiFocus): SequenceSelection | null {
-  const effectId = selectedEffectId(selected);
-  if (effectId !== null) return { type: "clips", clips: [{ type: "effect", id: effectId }] };
+  const clipId = selectedClipId(selected);
+  if (clipId !== null) return { type: "clips", clips: [{ type: "clip", id: clipId }] };
   if (selected?.type === "automationClip") return { type: "clips", clips: [{ type: "automation", id: selected.id }] };
   if (selected?.type === "mark") return { type: "marks", marks: [{ collectionKey: selected.collectionKey, index: selected.index }] };
   return null;
@@ -281,7 +281,7 @@ export function singleSelectionFocus(selection: SequenceSelection | null): GuiFo
   if (selection?.type === "clips") {
     const clip = selection.clips[0];
     if (selection.clips.length !== 1 || clip === undefined) return null;
-    return clip.type === "automation" ? { type: "automationClip", id: clip.id } : { type: "effect", id: clip.id };
+    return clip.type === "automation" ? { type: "automationClip", id: clip.id } : { type: "clip", id: clip.id };
   }
   if (selection?.type === "marks" && selection.marks.length === 1) {
     const mark = selection.marks[0];
@@ -295,8 +295,8 @@ export function selectionCount(selection: SequenceSelection) {
 }
 
 export function selectionCompatibleWithFocusedItem(selection: SequenceSelection, selected: GuiFocus) {
-  const effectId = selectedEffectId(selected);
-  if (effectId !== null) return selection.type === "clips" && hasClip(selection.clips, "effect", effectId);
+  const clipId = selectedClipId(selected);
+  if (clipId !== null) return selection.type === "clips" && hasClip(selection.clips, "clip", clipId);
   if (selected?.type === "automationClip") return selection.type === "clips" && hasClip(selection.clips, "automation", selected.id);
   if (selected?.type === "mark") {
     const mark = { collectionKey: selected.collectionKey, index: selected.index };
@@ -305,8 +305,8 @@ export function selectionCompatibleWithFocusedItem(selection: SequenceSelection,
   return true;
 }
 
-export function nextEffectSelection(current: SequenceSelection | null, id: number, shift: boolean, ctrl: boolean): SequenceSelection {
-  return mergeSequenceSelection(current, { type: "clips", clips: [{ type: "effect", id }] }, shift, ctrl);
+export function nextClipSelection(current: SequenceSelection | null, id: number, shift: boolean, ctrl: boolean): SequenceSelection {
+  return mergeSequenceSelection(current, { type: "clips", clips: [{ type: "clip", id }] }, shift, ctrl);
 }
 
 export function nextAutomationSelection(current: SequenceSelection | null, id: number, shift: boolean, ctrl: boolean): SequenceSelection {
@@ -330,7 +330,7 @@ export function mergeSequenceSelection(current: SequenceSelection | null, next: 
       if (ctrl && ids.has(clip.id)) ids.delete(clip.id);
       else ids.add(clip.id);
     }
-    return { type: "clips", clips: [...clipRefs("effect", chosen.effect), ...clipRefs("automation", chosen.automation)] };
+    return { type: "clips", clips: [...clipRefs("clip", chosen.clip), ...clipRefs("automation", chosen.automation)] };
   }
   const marks = markRefLookup(current.type === "marks" ? current.marks : []);
   for (const mark of next.marks) {
@@ -350,12 +350,12 @@ function rectsIntersect(left: { x: number; y: number; width: number; height: num
   return left.x <= right.x + right.width && left.x + left.width >= right.x && left.y <= right.y + right.height && left.y + left.height >= right.y;
 }
 
-export function selectionFromMarqueeEffects(clips: SequenceClipLayout[], automation: AutomationClipLayout[], marquee: MarqueeBox): SequenceSelection {
+export function selectionFromMarqueeClips(clips: SequenceClipLayout[], automation: AutomationClipLayout[], marquee: MarqueeBox): SequenceSelection {
   const box = normalizedRect(marquee.startX, marquee.startY, marquee.x, marquee.y);
   // A clip drawn on several lanes is selected once.
   return { type: "clips", clips: [
-    ...clipRefs("effect", new Set(clips.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.effect.id))),
-    ...clipRefs("automation", new Set(automation.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.clip.id)))
+    ...clipRefs("clip", new Set(clips.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.clip.id))),
+    ...clipRefs("automation", new Set(automation.filter((layout) => rectsIntersect(box, layout.rect)).map((layout) => layout.clip.id)))
   ] };
 }
 
@@ -365,8 +365,8 @@ export function selectionFromTimeSpan(document: SequenceGuiDocument, startSecond
   const end = Math.max(startSeconds, endSeconds);
   const overlaps = (clip: { startSeconds: number; durationSeconds: number }) => clip.startSeconds < end && clip.startSeconds + clip.durationSeconds > start;
   return { type: "clips", clips: [
-    ...clipRefs("effect", document.effects.filter(overlaps).map((effect) => effect.id)),
-    ...clipRefs("automation", document.automationClips.filter(overlaps).map((clip) => clip.id))
+    ...clipRefs("clip", document.clips.filter(overlaps).map((clip) => clip.id)),
+    ...clipRefs("automation", document.automationClips.filter(overlaps).map((automationClip) => automationClip.id))
   ] };
 }
 
@@ -399,39 +399,39 @@ export function earliestStartSeconds(clips: Array<{ startSeconds: number }>): nu
 
 export function selectionStartSeconds(document: SequenceGuiDocument, selection: SequenceSelection | null): number | null {
   if (selection?.type !== "clips") return null;
-  const { effect: effectIds, automation: automationIds } = clipIdSets(selection.clips);
+  const { clip: clipIds, automation: automationIds } = clipIdSets(selection.clips);
   return earliestStartSeconds([
-    ...document.effects.filter((clip) => effectIds.has(clip.id)),
-    ...document.automationClips.filter((clip) => automationIds.has(clip.id))
+    ...document.clips.filter((clip) => clipIds.has(clip.id)),
+    ...document.automationClips.filter((automationClip) => automationIds.has(automationClip.id))
   ]);
 }
 
 export function clipSelectionGesture(document: SequenceGuiDocument, selection: Extract<SequenceSelection, { type: "clips" }>, edge: "none" | "left" | "right", requestedTimeDelta: number, anchorLane: number, requestedLaneDelta: number, automationResize: SequenceAutomationResize) {
-  const { effect: effectIds, automation: automationIds } = clipIdSets(selection.clips);
-  const clips = [
-    ...document.effects.filter((clip) => effectIds.has(clip.id)).map((clip) => ({ ...clip, rowTarget: clip.target, kind: "effects" as const })),
-    ...document.automationClips.filter((clip) => automationIds.has(clip.id)).map((clip) => ({ ...clip, kind: "automation" as const }))
+  const { clip: clipIds, automation: automationIds } = clipIdSets(selection.clips);
+  const moving = [
+    ...document.clips.filter((clip) => clipIds.has(clip.id)).map((clip) => ({ ...clip, rowTarget: clip.target, kind: "clips" as const })),
+    ...document.automationClips.filter((automationClip) => automationIds.has(automationClip.id)).map((automationClip) => ({ ...automationClip, kind: "automation" as const }))
   ];
   let minTime = -Infinity;
   let maxTime = Infinity;
   let minLane = -Infinity;
   let maxLane = Infinity;
-  for (const clip of clips) {
+  for (const clip of moving) {
     const lane = nearestLane(document, clip.rowTarget, anchorLane);
     if (lane < 0) throw new Error("Clip row target is missing.");
     minLane = Math.max(minLane, -lane);
     maxLane = Math.min(maxLane, document.lanes.length - 1 - lane);
-    minTime = Math.max(minTime, edge === "right" ? MIN_EFFECT_DURATION_SECONDS - clip.durationSeconds : -clip.startSeconds);
-    maxTime = Math.min(maxTime, edge === "left" ? clip.durationSeconds - MIN_EFFECT_DURATION_SECONDS : document.durationSeconds - clip.startSeconds - clip.durationSeconds);
+    minTime = Math.max(minTime, edge === "right" ? MIN_CLIP_DURATION_SECONDS - clip.durationSeconds : -clip.startSeconds);
+    maxTime = Math.min(maxTime, edge === "left" ? clip.durationSeconds - MIN_CLIP_DURATION_SECONDS : document.durationSeconds - clip.startSeconds - clip.durationSeconds);
   }
-  const timeDeltaSeconds = clips.length === 0 ? 0 : clamp(requestedTimeDelta, minTime, maxTime);
-  const laneDelta = edge === "none" && clips.length > 0 ? Math.trunc(clamp(requestedLaneDelta, minLane, maxLane)) : 0;
-  const effects: SequenceDraft[] = [];
+  const timeDeltaSeconds = moving.length === 0 ? 0 : clamp(requestedTimeDelta, minTime, maxTime);
+  const laneDelta = edge === "none" && moving.length > 0 ? Math.trunc(clamp(requestedLaneDelta, minLane, maxLane)) : 0;
+  const clips: SequenceDraft[] = [];
   const automation: AutomationDraft[] = [];
-  for (const clip of clips) {
+  for (const clip of moving) {
     const laneIndex = nearestLane(document, clip.rowTarget, anchorLane) + laneDelta;
     const timing = { id: clip.id, startSeconds: clip.startSeconds + (edge === "right" ? 0 : timeDeltaSeconds), durationSeconds: clip.durationSeconds + (edge === "none" ? 0 : edge === "left" ? -timeDeltaSeconds : timeDeltaSeconds) };
-    if (clip.kind === "effects") effects.push({ ...timing, laneIndex });
+    if (clip.kind === "clips") clips.push({ ...timing, laneIndex });
     else {
       const content = edge !== "none" && automationResize === "crop" ? clip : timing;
       automation.push({ ...timing, rowTarget: targetAtLane(document, laneIndex), contentStartSeconds: content.startSeconds, contentDurationSeconds: content.durationSeconds });
@@ -440,7 +440,7 @@ export function clipSelectionGesture(document: SequenceGuiDocument, selection: E
   const edit = edge === "none"
     ? { type: "moveClips" as const, clips: selection.clips, timeDeltaSeconds, anchorLane, laneDelta }
     : { type: "resizeClips" as const, clips: selection.clips, edge, automation: automationResize, timeDeltaSeconds };
-  return { effects, automation, edit, changed: timeDeltaSeconds !== 0 || laneDelta !== 0 };
+  return { clips, automation, edit, changed: timeDeltaSeconds !== 0 || laneDelta !== 0 };
 }
 
 export function constrainMarkDelta(document: SequenceGuiDocument, marks: SequenceMarkRef[], deltaSeconds: number) {

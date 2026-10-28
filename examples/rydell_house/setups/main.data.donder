@@ -34,7 +34,7 @@ Setup main {
 Controller nativity {
   description: "Vixen controller: Nativity",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.37" },
@@ -54,7 +54,7 @@ Controller nativity {
 Controller pauls_balls {
   description: "Vixen controller: PaulsBalls",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.64" },
@@ -125,7 +125,7 @@ Controller pauls_balls {
 Controller tiny_tree_loft {
   description: "Vixen controller: Tiny Tree Loft",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.129" },
@@ -136,7 +136,7 @@ Controller tiny_tree_loft {
 Controller front_door_1 {
   description: "Vixen controller: Front Door Advatek #1",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.130" },
@@ -154,7 +154,7 @@ Controller front_door_1 {
 Controller neighbor_trees {
   description: "Vixen controllers: Neighbor Trees, penguin",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.139" },
@@ -172,7 +172,7 @@ Controller neighbor_trees {
 Controller fran_roof_roofs {
   description: "Vixen controller: Fran Roof - Roofs",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.152" },
@@ -186,7 +186,7 @@ Controller fran_roof_roofs {
 Controller fran_roof_windows {
   description: "Vixen controller: Fran Roof - Windows",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.153" },
@@ -200,7 +200,7 @@ Controller fran_roof_windows {
 Controller megatree {
   description: "Vixen controllers: Megatree, Megatree Extra",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.159" },
@@ -222,7 +222,7 @@ Controller megatree {
 Controller peacock {
   description: "Vixen controllers: PeeCock Controller, Right Magnolia 5v",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.160" },
@@ -238,7 +238,7 @@ Controller peacock {
 Controller arch_tunnel {
   description: "Vixen controller: NewArchTunnel",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.161" },
@@ -274,7 +274,7 @@ Controller arch_tunnel {
 Controller right_pilaster_stairs {
   description: "Vixen controller: Right Pilaster Stairs",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.166" },
@@ -288,7 +288,7 @@ Controller right_pilaster_stairs {
 Controller garage {
   description: "Vixen controller: Garage",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.167" },
@@ -303,7 +303,7 @@ Controller garage {
 Controller left_meteors {
   description: "Vixen controllers: Left Magnolia Meteor, LeftMeteorsExtra",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.173" },
@@ -318,7 +318,7 @@ Controller left_meteors {
 Controller right_meteors {
   description: "Vixen controllers: Right Magnolia Meteor, RightMeteorsExtra",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.176" },
@@ -333,7 +333,7 @@ Controller right_meteors {
 Controller right_pilaster_bush_arch {
   description: "Vixen controller: Right Pilaster Bush Arch",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.183" },
@@ -350,7 +350,7 @@ Controller right_pilaster_bush_arch {
 Controller right_magnolia {
   description: "Vixen controller: Right Magnolia Rugged",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.184" },
@@ -365,7 +365,7 @@ Controller right_magnolia {
 Controller front_door_2 {
   description: "Vixen controllers: Front Door Advatek #2, Back Right Bushes Controller",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.186" },
@@ -386,7 +386,7 @@ Controller front_door_2 {
 Controller left_wall {
   description: "Vixen controller: Left Wall",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.192" },
@@ -401,7 +401,7 @@ Controller left_wall {
 Controller left_pilaster {
   description: "Vixen controller: Left Pilaster",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.198" },
@@ -416,7 +416,7 @@ Controller left_pilaster {
 Controller garage_door_matrix {
   description: "Vixen controller: Garage Door Matrix",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.199" },
@@ -427,7 +427,7 @@ Controller garage_door_matrix {
 Controller left_magnolia {
   description: "Vixen controllers: Left Magnolia, Mailbox Controller (Left Magnolia)",
   protocol: E131 {
-    source_name: "Donder",
+    sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.168.237" },

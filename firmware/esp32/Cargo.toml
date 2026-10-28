@@ -6,7 +6,7 @@ publish = false
 license = "MIT"
 
 [features]
-loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc", "dep:edge-dhcp", "dep:edge-mdns", "dep:edge-nal", "dep:edge-nal-embassy"]
+loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:donder-device-protocol", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc", "dep:edge-dhcp", "dep:edge-mdns", "dep:edge-nal", "dep:edge-nal-embassy"]
 i2s-output = ["loader", "donder-runtime/atomic"]
 dig-quad = ["i2s-output"]
 
@@ -23,7 +23,6 @@ resolver = "2"
 tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"], optional = true }
 donder-device-storage = { path = "crates/donder-device-storage", optional = true }
 esp-storage = { version = "0.10.0", features = ["esp32"], optional = true }
-serde = { version = "1.0.229", default-features = false, features = ["derive"], optional = true }
 esp-radio-rtos-driver = { version = "0.4.1", optional = true }
 esp-radio = { version = "1.0.0-beta.0", features = ["esp32", "wifi", "unstable"], optional = true }
 esp-rtos = { version = "0.4.0", features = ["esp32", "esp-radio", "embassy", "esp-alloc"], optional = true }
@@ -43,6 +42,7 @@ static_cell = { version = "2.1.1", optional = true }
 crc32fast = { version = "1.5.1", default-features = false }
 donder-runtime = { path = "../../crates/donder-runtime", default-features = false, features = ["iram"] }
 donder-runtime-types = { path = "../../crates/donder-runtime-types" }
+donder-device-protocol = { path = "../../crates/donder-device-protocol", optional = true }
 esp-hal = { version = "~1.2.0", features = ["esp32", "unstable"] }
 esp-alloc = { version = "0.11.0", features = ["esp32", "alloc-hooks"] }
 esp-println = { version = "0.18.0", default-features = false, features = ["esp32", "uart", "critical-section"] }

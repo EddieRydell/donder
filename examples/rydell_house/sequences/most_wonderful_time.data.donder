@@ -159655,7 +159655,7 @@ Sequence most_wonderful_time {
     nodes: [
       LayerNode { layer: default, position: (80.0, 60.0) },
       LayerNode { layer: intensity_overlay, position: (80.0, 180.0) },
-      OutputNode { position: (968.6583, 125.26818) },
+      RootNode { position: (968.6583, 125.26818) },
       OperatorNode {
         name: intensity_overlay_mix,
         operator: operators.Fade,
@@ -159666,7 +159666,7 @@ Sequence most_wonderful_time {
     edges: [
       Edge { from: default, to: intensity_overlay_mix.source },
       Edge { from: intensity_overlay, to: intensity_overlay_mix.dim },
-      Edge { from: intensity_overlay_mix, to: output },
+      Edge { from: intensity_overlay_mix, to: root },
     ],
   },
   automation: [

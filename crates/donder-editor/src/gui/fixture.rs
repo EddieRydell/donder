@@ -9,7 +9,7 @@ use crate::dto::{
 use donder_language::DistanceSpan;
 use donder_model::{
     FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
-    FixtureSource, FixtureTransform, GridAxis, GridCorner,
+    FixtureTransform, GridAxis, GridCorner, OwnedFixture,
 };
 use donder_project_io::ProjectSession;
 
@@ -56,7 +56,7 @@ pub(super) fn update_fixture_definition(
                 .fixture_mut(donder_model::FixtureInstanceId(*id))
                 .ok_or_else(|| GuiMutationError::Invalid("Fixture was not found.".into()))?;
             let donder_model::LayoutFixtureKind::Fixture {
-                definition: FixtureSource::Inline(value),
+                definition: OwnedFixture::Inline(value),
                 ..
             } = &mut placement.kind
             else {
@@ -450,7 +450,7 @@ pub(super) fn reference_definition(
             "Fixture definition was not found.".into(),
         ));
     }
-    donder_project_io::link_reusable_source(session, owner, id.into())
+    donder_project_io::link_declaration(session, owner, id.into())
         .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(id)
 }
