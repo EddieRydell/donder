@@ -11,7 +11,7 @@ use donder_runtime_types::Color;
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Project {
+pub(crate) struct Project {
     pub format: u8,
     pub description: Option<String>,
     pub setup: OwnedRecord<Setup>,
@@ -20,7 +20,7 @@ pub struct Project {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Setup {
+pub(crate) struct Setup {
     pub description: Option<String>,
     pub layout: OwnedRecord<Layout>,
     pub patch: OwnedRecord<Patch>,
@@ -29,14 +29,14 @@ pub struct Setup {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Controller {
+pub(crate) struct Controller {
     pub description: Option<String>,
     pub protocol: Protocol,
     pub ports: Vec<Port>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum Protocol {
+pub(crate) enum Protocol {
     E131 {
         sender_name: String,
         bind_address: String,
@@ -54,47 +54,47 @@ pub enum Protocol {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum E131Mode {
+pub(crate) enum E131Mode {
     Multicast,
     Unicast { destination: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum ArtNetMode {
+pub(crate) enum ArtNetMode {
     Unicast,
     Broadcast,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Port {
+pub(crate) struct Port {
     pub name: Name,
     pub address: PortAddress,
     pub slots: u16,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum PortAddress {
+pub(crate) enum PortAddress {
     Universe { universe: u16 },
     ArtNetPort { port_address: u16 },
     Output { output: u8 },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct InputDevice {
+pub(crate) struct InputDevice {
     pub description: Option<String>,
     pub driver: InputDriver,
     pub controls: Vec<InputControl>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum InputDriver {
+pub(crate) enum InputDriver {
     Keyboard,
     Midi { port: Option<String> },
     Osc { port: u16 },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum InputControl {
+pub(crate) enum InputControl {
     Button {
         name: Name,
         description: Option<String>,
@@ -114,13 +114,13 @@ pub enum InputControl {
 
 /// MIDI notes from `low` through `high`.
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Notes {
+pub(crate) struct Notes {
     pub low: u8,
     pub high: u8,
 }
 
 impl InputControl {
-    pub fn name(&self) -> &Name {
+    pub(crate) fn name(&self) -> &Name {
         match self {
             Self::Button { name, .. } | Self::Dial { name, .. } | Self::Keys { name, .. } => name,
         }
@@ -128,7 +128,7 @@ impl InputControl {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum ButtonInput {
+pub(crate) enum ButtonInput {
     Key { code: KeyCode },
     Note { note: u8 },
     ControlChange { number: u8 },
@@ -136,7 +136,7 @@ pub enum ButtonInput {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum DialInput {
+pub(crate) enum DialInput {
     ControlChange { number: u8 },
     PitchBend,
     Address { path: String, low: f32, high: f32 },
@@ -144,7 +144,7 @@ pub enum DialInput {
 
 /// A key by its `KeyboardEvent.code` name; the names are the model's.
 #[derive(Clone, Debug, PartialEq)]
-pub struct KeyCode(pub donder_model::KeyCode);
+pub(crate) struct KeyCode(pub donder_model::KeyCode);
 
 impl Data for KeyCode {
     fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
@@ -182,7 +182,7 @@ impl Data for KeyCode {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Layout {
+pub(crate) struct Layout {
     pub description: Option<String>,
     /// Top-level members, by name, in display order.
     pub root: Vec<Name>,
@@ -191,7 +191,7 @@ pub struct Layout {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum LayoutItem {
+pub(crate) enum LayoutItem {
     /// Members are fixtures or groups of this layout; a member may belong to
     /// several groups.
     Group {
@@ -208,13 +208,13 @@ pub enum LayoutItem {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct FixtureDefinition {
+pub(crate) struct FixtureDefinition {
     pub description: Option<String>,
     pub shapes: Vec<Shape>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Shape {
+pub(crate) struct Shape {
     pub name: Name,
     pub diameter: Meters,
     pub reverse: bool,
@@ -224,14 +224,14 @@ pub struct Shape {
 
 /// Position in meters, rotation in degrees, and scale factors.
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Transform {
+pub(crate) struct Transform {
     pub position: (Meters, Meters, Meters),
     pub rotation: (f32, f32, f32),
     pub scale: (f32, f32, f32),
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum Geometry {
+pub(crate) enum Geometry {
     Pixel,
     Line {
         length: f32,
@@ -260,13 +260,13 @@ pub enum Geometry {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum GridAxis {
+pub(crate) enum GridAxis {
     Rows,
     Columns,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum GridCorner {
+pub(crate) enum GridCorner {
     BottomLeft,
     BottomRight,
     TopLeft,
@@ -274,13 +274,13 @@ pub enum GridCorner {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Patch {
+pub(crate) struct Patch {
     pub description: Option<String>,
     pub routes: Vec<Route>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Route {
+pub(crate) struct Route {
     /// A fixture or group: `layout.fixture`.
     #[refers(Fixture)]
     pub target: Reference,
@@ -296,19 +296,19 @@ pub struct Route {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct PixelSpan {
+pub(crate) struct PixelSpan {
     pub start: u32,
     pub count: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum Encoding {
+pub(crate) enum Encoding {
     Rgb { order: (u8, u8, u8) },
     Rgbw { order: (u8, u8, u8, u8) },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Sequence {
+pub(crate) struct Sequence {
     pub description: Option<String>,
     pub duration: Duration,
     pub frame_rate: u32,
@@ -321,7 +321,7 @@ pub struct Sequence {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct MarkCollection {
+pub(crate) struct MarkCollection {
     pub name: Name,
     pub description: Option<String>,
     pub color: Color,
@@ -330,7 +330,7 @@ pub struct MarkCollection {
 
 /// A mark: its time alone, `12.5s`, or with a label, `(12.5s, "chorus")`.
 #[derive(Clone, Debug, PartialEq)]
-pub struct MarkTime {
+pub(crate) struct MarkTime {
     pub time: Duration,
     pub label: Option<String>,
 }
@@ -366,7 +366,7 @@ impl Data for MarkTime {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Layer {
+pub(crate) struct Layer {
     pub name: Name,
     pub description: Option<String>,
     pub color: Color,
@@ -374,7 +374,7 @@ pub struct Layer {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Clip {
+pub(crate) struct Clip {
     pub name: Name,
     pub description: Option<String>,
     #[refers(Layer)]
@@ -392,13 +392,13 @@ pub struct Clip {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum Scope {
+pub(crate) enum Scope {
     PerFixture,
     WholeTarget,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Graph {
+pub(crate) struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
 }
@@ -408,7 +408,7 @@ pub struct Graph {
     clippy::enum_variant_names,
     reason = "variant names are the language's type names, and `Layer` names the layer record"
 )]
-pub enum Node {
+pub(crate) enum Node {
     /// Named by its layer.
     LayerNode {
         #[refers(Layer)]
@@ -427,7 +427,7 @@ pub enum Node {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Edge {
+pub(crate) struct Edge {
     /// A node, whose single output the edge carries.
     #[refers(Node)]
     pub from: Name,
@@ -437,7 +437,7 @@ pub struct Edge {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct AutomationClip {
+pub(crate) struct AutomationClip {
     /// The fixture or group whose automation row holds the clip.
     #[refers(Fixture)]
     pub row: Reference,
@@ -449,7 +449,7 @@ pub struct AutomationClip {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum Binding {
+pub(crate) enum Binding {
     ClipParam {
         #[refers(Clip)]
         clip: Name,
@@ -463,12 +463,12 @@ pub enum Binding {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Detached {
+pub(crate) struct Detached {
     pub binding: Binding,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Rig {
+pub(crate) struct Rig {
     pub description: Option<String>,
     pub frame_rate: u32,
     pub marks: Vec<LiveMarks>,
@@ -480,14 +480,14 @@ pub struct Rig {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct LiveMarks {
+pub(crate) struct LiveMarks {
     pub name: Name,
     pub description: Option<String>,
     pub color: Color,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Voice {
+pub(crate) struct Voice {
     pub name: Name,
     pub description: Option<String>,
     #[refers(Layer)]
@@ -502,7 +502,7 @@ pub struct Voice {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Switch {
+pub(crate) struct Switch {
     pub name: Name,
     pub description: Option<String>,
     /// A button of an input device: `device.control`.
@@ -511,7 +511,7 @@ pub struct Switch {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Mapping {
+pub(crate) struct Mapping {
     pub name: Name,
     pub description: Option<String>,
     /// A button of an input device: `device.control`.
@@ -522,7 +522,7 @@ pub struct Mapping {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum When {
+pub(crate) enum When {
     On {
         #[refers(Switch)]
         switch: Name,
@@ -534,7 +534,7 @@ pub enum When {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum MappingAction {
+pub(crate) enum MappingAction {
     Trigger {
         #[refers(Layer)]
         layer: Name,
@@ -562,13 +562,13 @@ pub enum MappingAction {
 
 /// A parameter each press sets on the voice it starts.
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct PlayedValue {
+pub(crate) struct PlayedValue {
     pub param: Name,
     pub from: PlayedQuantity,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum PlayedQuantity {
+pub(crate) enum PlayedQuantity {
     Velocity,
     Pitch,
     PitchClass,
@@ -576,27 +576,27 @@ pub enum PlayedQuantity {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum TriggerLength {
+pub(crate) enum TriggerLength {
     Fixed { duration: Duration },
     Held,
     Latched,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub enum VoicePolicy {
+pub(crate) enum VoicePolicy {
     Retrigger,
     Stack { count: u8 },
     Mono,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Curve {
+pub(crate) struct Curve {
     pub description: Option<String>,
     pub points: Vec<(f32, f32)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub struct Gradient {
+pub(crate) struct Gradient {
     pub description: Option<String>,
     pub stops: Vec<(f32, Color)>,
 }

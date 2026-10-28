@@ -3,7 +3,7 @@ use std::fs;
 
 /// A root document declaring `Project main` with a fresh project id and no
 /// rigs. `fields` are written after `description`; imports come first.
-pub fn root_document(imports: &str, fields: &str) -> String {
+pub(crate) fn root_document(imports: &str, fields: &str) -> String {
     let metadata = donder_project_io::ProjectMetadata::default();
     format!(
         "{imports}\nProject main {{\n  format: {},\n  description: none,\n{fields}  rigs: [],\n}}\n",
@@ -13,7 +13,7 @@ pub fn root_document(imports: &str, fields: &str) -> String {
 
 /// A project whose root imports a setup, its display and patch, and
 /// `sequence` as `sequence.data.donder`.
-pub fn write_imported_sequence_project(root: &Utf8Path, sequence: &str) {
+pub(crate) fn write_imported_sequence_project(root: &Utf8Path, sequence: &str) {
     fs::write(
         root.join(donder_project_io::PROJECT_ROOT_FILE),
         root_document(
@@ -28,7 +28,7 @@ pub fn write_imported_sequence_project(root: &Utf8Path, sequence: &str) {
     fs::write(root.join("sequence.data.donder"), sequence).unwrap();
 }
 
-pub const SETUP: &str = r#"import display from <display.data.donder>;
+pub(crate) const SETUP: &str = r#"import display from <display.data.donder>;
 import patches from <patch.data.donder>;
 
 Setup main {
@@ -40,7 +40,7 @@ Setup main {
 }
 "#;
 
-pub const DISPLAY: &str = r#"FixtureDefinition pixel {
+pub(crate) const DISPLAY: &str = r#"FixtureDefinition pixel {
   description: none,
   shapes: [
     Shape {
@@ -67,11 +67,11 @@ Layout main {
 }
 "#;
 
-pub const PATCH: &str = "Patch main { description: none, routes: [] }\n";
+pub(crate) const PATCH: &str = "Patch main { description: none, routes: [] }\n";
 
 /// A valid sequence named `main` with nothing in it. Tests derive invalid
 /// variants by replacing its text.
-pub const MINIMAL_SEQUENCE: &str = r#"Sequence main {
+pub(crate) const MINIMAL_SEQUENCE: &str = r#"Sequence main {
   description: none,
   duration: 1s,
   frame_rate: 60,
@@ -84,13 +84,13 @@ pub const MINIMAL_SEQUENCE: &str = r#"Sequence main {
 }
 "#;
 
-pub fn load_project(root: &Utf8Path) -> donder_project_io::ProjectSession {
+pub(crate) fn load_project(root: &Utf8Path) -> donder_project_io::ProjectSession {
     donder_project_io::check_project(root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap()
 }
 
-pub fn starter_root() -> Utf8PathBuf {
+pub(crate) fn starter_root() -> Utf8PathBuf {
     Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter")
 }
 
@@ -98,7 +98,7 @@ pub fn starter_root() -> Utf8PathBuf {
 /// loading it. Other files, including ignored local audio, are left out so tests
 /// do not depend on the checkout. Documents get LF line endings so tests can
 /// anchor on multi-line text regardless of how the checkout stores them.
-pub fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf) {
+pub(crate) fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf) {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path())
         .unwrap()
@@ -126,7 +126,7 @@ fn copy_tree(source: &Utf8Path, destination: &Utf8Path) {
 
 /// An ownership slot by its owner and position, as tests name them.
 #[derive(Clone, Copy)]
-pub enum Slot {
+pub(crate) enum Slot {
     ProjectSetup,
     ProjectSequence(usize),
     ProjectRig(usize),
@@ -147,7 +147,10 @@ pub enum Slot {
 }
 
 /// The site of the member `slot` holds in `project`.
-pub fn site(project: &donder_model::DonderProject, slot: Slot) -> donder_model::OwnershipSite {
+pub(crate) fn site(
+    project: &donder_model::DonderProject,
+    slot: Slot,
+) -> donder_model::OwnershipSite {
     use donder_model::{ObjectId, OwnershipSite};
     let root = project.root();
     let setup = |id| project.get::<donder_model::Setup>(id).unwrap();
@@ -172,7 +175,10 @@ pub fn site(project: &donder_model::DonderProject, slot: Slot) -> donder_model::
 
 /// The diagnostics a check gives the document at `path` when its text is
 /// `text`, in a directory with no project to load.
-pub fn document_diagnostics(path: &Utf8Path, text: &str) -> Vec<donder_project_io::IoDiagnostic> {
+pub(crate) fn document_diagnostics(
+    path: &Utf8Path,
+    text: &str,
+) -> Vec<donder_project_io::IoDiagnostic> {
     let overrides =
         donder_project_io::SourceOverrides::from([(path.to_path_buf(), text.to_string())]);
     let empty = tempfile::tempdir().unwrap();

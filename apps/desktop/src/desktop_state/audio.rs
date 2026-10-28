@@ -5,7 +5,7 @@ use donder_editor::dto::{
 };
 
 impl DesktopState {
-    pub fn load_sequence_audio(&self, request: GuiDocumentRequest) -> AppSnapshot {
+    pub(crate) fn load_sequence_audio(&self, request: GuiDocumentRequest) -> AppSnapshot {
         let _operation = lock_unpoisoned(&self.transport_operation);
         let _authoring = lock_unpoisoned(&self.authoring);
         if request.project_revision != self.snapshot().project_revision
@@ -68,7 +68,7 @@ impl DesktopState {
         })
     }
 
-    pub fn unload_audio(&self) -> AppSnapshot {
+    pub(crate) fn unload_audio(&self) -> AppSnapshot {
         let _operation = lock_unpoisoned(&self.transport_operation);
         let _authoring = lock_unpoisoned(&self.authoring);
         if let Err(error) = self
@@ -91,7 +91,7 @@ impl DesktopState {
         })
     }
 
-    pub fn audio_play(&self) -> AppSnapshot {
+    pub(crate) fn audio_play(&self) -> AppSnapshot {
         // A rig never plays on top of a sequence.
         if self.is_performing() {
             return self.update_snapshot(|snapshot| {
@@ -119,7 +119,7 @@ impl DesktopState {
         self.devices_live() && self.device_playback.has_devices()
     }
 
-    pub fn audio_pause(&self) -> AppSnapshot {
+    pub(crate) fn audio_pause(&self) -> AppSnapshot {
         if self.devices_driven() {
             return self
                 .device_audio_hold(donder_device_protocol::Mode::Paused, None, false)
@@ -131,7 +131,7 @@ impl DesktopState {
         })
     }
 
-    pub fn audio_stop(&self) -> AppSnapshot {
+    pub(crate) fn audio_stop(&self) -> AppSnapshot {
         if self.devices_driven() {
             return self
                 .device_audio_hold(
@@ -147,7 +147,7 @@ impl DesktopState {
         })
     }
 
-    pub fn audio_rewind_to_zero(&self) -> AppSnapshot {
+    pub(crate) fn audio_rewind_to_zero(&self) -> AppSnapshot {
         if self.devices_driven() {
             return self
                 .device_audio_hold(donder_device_protocol::Mode::Paused, Some(0.0), true)
@@ -159,7 +159,7 @@ impl DesktopState {
         })
     }
 
-    pub fn audio_seek(&self, position_seconds: f64) -> AppSnapshot {
+    pub(crate) fn audio_seek(&self, position_seconds: f64) -> AppSnapshot {
         if self.devices_driven() {
             let duration = self.audio_snapshot().duration_seconds;
             if !position_seconds.is_finite() {
@@ -179,7 +179,10 @@ impl DesktopState {
         })
     }
 
-    pub fn audio_set_playback_rate(&self, rate: donder_runtime::PlaybackRate) -> AppSnapshot {
+    pub(crate) fn audio_set_playback_rate(
+        &self,
+        rate: donder_runtime::PlaybackRate,
+    ) -> AppSnapshot {
         if self.devices_driven() {
             return self
                 .device_audio_set_rate(rate)
@@ -191,7 +194,10 @@ impl DesktopState {
         })
     }
 
-    pub fn audio_set_range(&self, range: Option<PlaybackRange>) -> Result<AppSnapshot, String> {
+    pub(crate) fn audio_set_range(
+        &self,
+        range: Option<PlaybackRange>,
+    ) -> Result<AppSnapshot, String> {
         let audio_transport = lock_unpoisoned(&self.audio).set_range(range)?;
         self.record_sequence_transport(&audio_transport);
         // The engine moved a stopped playhead to the range start; held devices follow it.
@@ -206,7 +212,7 @@ impl DesktopState {
         }))
     }
 
-    pub fn audio_set_looping(&self, looping: bool) -> AppSnapshot {
+    pub(crate) fn audio_set_looping(&self, looping: bool) -> AppSnapshot {
         let audio_transport = lock_unpoisoned(&self.audio).set_looping(looping);
         self.record_sequence_transport(&audio_transport);
         self.update_snapshot(|snapshot| {
@@ -270,7 +276,7 @@ impl DesktopState {
     }
 
     #[cfg(test)]
-    pub fn render_current_sequence_frame(
+    pub(crate) fn render_current_sequence_frame(
         &self,
     ) -> Result<crate::rendering::AudioClockRenderedFrame, crate::rendering::SequenceRenderError>
     {
@@ -281,7 +287,7 @@ impl DesktopState {
     }
 
     #[cfg(test)]
-    pub fn active_preview_render_identity(
+    pub(crate) fn active_preview_render_identity(
         &self,
     ) -> Result<crate::rendering::AudioClockRenderIdentity, crate::rendering::SequenceRenderError>
     {

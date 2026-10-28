@@ -10,7 +10,7 @@ use crate::document::Document;
 use crate::workspace::{Kind, Workspace};
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Target {
+pub(crate) enum Target {
     /// A name other documents may use: a data name, an import alias, or a
     /// script declaration or member.
     Link(LinkTarget),
@@ -24,7 +24,7 @@ pub enum Target {
 }
 
 /// A script symbol as a target, linked when the script is in the project.
-pub fn script_symbol_target(
+pub(crate) fn script_symbol_target(
     workspace: &Workspace,
     uri: &str,
     analysis: &ScriptAnalysis,
@@ -77,7 +77,7 @@ pub fn script_symbol_target(
 }
 
 /// The symbol a script target names in its script's analysis.
-pub fn script_member(
+pub(crate) fn script_member(
     analysis: &ScriptAnalysis,
     declaration: &str,
     member: &ScriptMember,
@@ -103,7 +103,7 @@ pub fn script_member(
 }
 
 /// The target named at `offset` in a document.
-pub fn target_at(
+pub(crate) fn target_at(
     workspace: &Workspace,
     uri: &str,
     text: &Document,
@@ -147,7 +147,7 @@ pub fn target_at(
 }
 
 /// Where a target is declared.
-pub fn definition(workspace: &Workspace, target: &Target) -> Option<(String, TextSpan)> {
+pub(crate) fn definition(workspace: &Workspace, target: &Target) -> Option<(String, TextSpan)> {
     match target {
         Target::Local { uri, span, .. } => Some((uri.clone(), *span)),
         Target::Link(LinkTarget::Data { document, span })
@@ -169,7 +169,7 @@ pub fn definition(workspace: &Workspace, target: &Target) -> Option<(String, Tex
 }
 
 /// The declaration and every use of a target.
-pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextSpan)> {
+pub(crate) fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextSpan)> {
     let mut found = Vec::new();
     match target {
         Target::Local { uri, span, .. } => {
@@ -224,7 +224,7 @@ pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextS
 }
 
 /// Whether `name` may replace the target's name.
-pub fn valid_name(target: &Target, name: &str) -> Result<(), String> {
+pub(crate) fn valid_name(target: &Target, name: &str) -> Result<(), String> {
     let kind = match target {
         Target::Link(LinkTarget::Data { .. } | LinkTarget::Import { .. }) => NameKind::Object,
         Target::Link(LinkTarget::Script { member, .. }) => match member {

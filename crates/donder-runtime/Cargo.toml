@@ -28,3 +28,6 @@ criterion.workspace = true
 [[bench]]
 name = "prepared_playback_bench"
 harness = false
+
+[lints]
+workspace = true

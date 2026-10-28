@@ -19,3 +19,6 @@ tempfile.workspace = true
 
 [dev-dependencies]
 donder-elaboration.workspace = true
+
+[lints]
+workspace = true

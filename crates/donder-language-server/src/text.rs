@@ -5,18 +5,18 @@ use donder_language::compiler::TextSpan;
 use lsp_types::{Position, Range};
 
 /// The byte offset of each line's start.
-pub struct LineIndex {
+pub(crate) struct LineIndex {
     starts: Vec<usize>,
 }
 
 impl LineIndex {
-    pub fn new(text: &str) -> Self {
+    pub(crate) fn new(text: &str) -> Self {
         let mut starts = vec![0];
         starts.extend(text.match_indices('\n').map(|(index, _)| index + 1));
         Self { starts }
     }
 
-    pub fn position(&self, text: &str, offset: usize) -> Position {
+    pub(crate) fn position(&self, text: &str, offset: usize) -> Position {
         let offset = offset.min(text.len());
         let line = self.starts.partition_point(|&start| start <= offset) - 1;
         let start = self.starts[line];
@@ -26,7 +26,7 @@ impl LineIndex {
         Position::new(line as u32, character as u32)
     }
 
-    pub fn offset(&self, text: &str, position: Position) -> usize {
+    pub(crate) fn offset(&self, text: &str, position: Position) -> usize {
         let Some(&start) = self.starts.get(position.line as usize) else {
             return text.len();
         };
@@ -45,7 +45,7 @@ impl LineIndex {
         start + line.len()
     }
 
-    pub fn range(&self, text: &str, span: TextSpan) -> Range {
+    pub(crate) fn range(&self, text: &str, span: TextSpan) -> Range {
         Range::new(
             self.position(text, span.start),
             self.position(text, span.end),
@@ -53,7 +53,7 @@ impl LineIndex {
     }
 
     /// A position counted in characters, as project diagnostics count them.
-    pub fn character_position(&self, text: &str, line: u32, characters: u32) -> Position {
+    pub(crate) fn character_position(&self, text: &str, line: u32, characters: u32) -> Position {
         let Some(&start) = self.starts.get(line as usize) else {
             return self.position(text, text.len());
         };

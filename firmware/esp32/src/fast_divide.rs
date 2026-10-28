@@ -4,7 +4,7 @@
 //! every f32 division; it is bit-identical, including NaN, infinity and subnormals.
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
-pub extern "C" fn __divsf3(_a: f32, _b: f32) -> f32 {
+pub(crate) extern "C" fn __divsf3(_a: f32, _b: f32) -> f32 {
     core::arch::naked_asm!(
         "entry a1, 16",
         "wfr f1, a2",

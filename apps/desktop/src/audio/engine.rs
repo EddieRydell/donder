@@ -88,7 +88,7 @@ impl AudioEngine {
         }
     }
 
-    pub fn empty_snapshot() -> AudioTransportSnapshot {
+    pub(crate) fn empty_snapshot() -> AudioTransportSnapshot {
         AudioTransportSnapshot {
             state: AudioTransportState::Unloaded,
             audio: None,
@@ -104,12 +104,12 @@ impl AudioEngine {
         }
     }
 
-    pub fn snapshot(&mut self) -> AudioTransportSnapshot {
+    pub(crate) fn snapshot(&mut self) -> AudioTransportSnapshot {
         self.observe_backend();
         self.current_snapshot()
     }
 
-    pub fn load_silent_sequence(&mut self, duration_seconds: f64) -> AudioTransportSnapshot {
+    pub(crate) fn load_silent_sequence(&mut self, duration_seconds: f64) -> AudioTransportSnapshot {
         self.observe_backend();
         if let Some(TransportClock::Silent {
             duration_seconds: current,
@@ -135,7 +135,7 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub fn load(&mut self, audio: Option<SequenceAudio>) -> AudioTransportSnapshot {
+    pub(crate) fn load(&mut self, audio: Option<SequenceAudio>) -> AudioTransportSnapshot {
         self.observe_backend();
         let Some(audio) = audio else {
             return self.unload();
@@ -197,7 +197,7 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub fn unload(&mut self) -> AudioTransportSnapshot {
+    pub(crate) fn unload(&mut self) -> AudioTransportSnapshot {
         self.observe_backend();
         if self.clock.is_none()
             && self.handle.is_none()
@@ -214,7 +214,7 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub fn play(&mut self) -> AudioTransportSnapshot {
+    pub(crate) fn play(&mut self) -> AudioTransportSnapshot {
         self.observe_backend();
         if self.clock.is_none() {
             return self.current_snapshot();
@@ -332,7 +332,7 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub fn pause(&mut self) -> AudioTransportSnapshot {
+    pub(crate) fn pause(&mut self) -> AudioTransportSnapshot {
         self.observe_backend();
         if !matches!(self.state, AudioTransportState::Playing) {
             return self.current_snapshot();
@@ -350,7 +350,7 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub fn stop(&mut self) -> AudioTransportSnapshot {
+    pub(crate) fn stop(&mut self) -> AudioTransportSnapshot {
         self.observe_backend();
         if self.clock.is_none() {
             return self.current_snapshot();
@@ -363,11 +363,11 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub fn rewind_to_zero(&mut self) -> AudioTransportSnapshot {
+    pub(crate) fn rewind_to_zero(&mut self) -> AudioTransportSnapshot {
         self.seek_to(0.0, AudioTransportState::Paused)
     }
 
-    pub fn seek(&mut self, position_seconds: f64) -> AudioTransportSnapshot {
+    pub(crate) fn seek(&mut self, position_seconds: f64) -> AudioTransportSnapshot {
         let position_seconds = self.clamp_position(position_seconds);
         self.seek_to(position_seconds, AudioTransportState::Paused)
     }
@@ -377,7 +377,7 @@ impl AudioEngine {
     }
 
     /// Keeps the current position; playing sources continue from it at the new rate.
-    pub fn set_playback_rate(&mut self, rate: PlaybackRate) -> AudioTransportSnapshot {
+    pub(crate) fn set_playback_rate(&mut self, rate: PlaybackRate) -> AudioTransportSnapshot {
         self.observe_backend();
         if self.rate == rate {
             return self.current_snapshot();
@@ -421,7 +421,7 @@ impl AudioEngine {
     }
 
     /// A new range becomes Home; a stopped or paused playhead moves to its start.
-    pub fn set_range(
+    pub(crate) fn set_range(
         &mut self,
         range: Option<PlaybackRange>,
     ) -> Result<AudioTransportSnapshot, String> {
@@ -442,7 +442,7 @@ impl AudioEngine {
         Ok(self.current_snapshot())
     }
 
-    pub fn set_looping(&mut self, looping: bool) -> AudioTransportSnapshot {
+    pub(crate) fn set_looping(&mut self, looping: bool) -> AudioTransportSnapshot {
         self.observe_backend();
         self.looping = looping;
         self.restart_bounded_stream();

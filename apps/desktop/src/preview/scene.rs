@@ -14,7 +14,7 @@ pub(crate) struct PreviewColor {
 }
 
 impl PreviewColor {
-    pub const fn opaque(rgb: [u8; 3]) -> Self {
+    pub(super) const fn opaque(rgb: [u8; 3]) -> Self {
         Self {
             rgba: [rgb[0], rgb[1], rgb[2], u8::MAX],
         }

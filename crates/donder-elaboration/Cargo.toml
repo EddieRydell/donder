@@ -23,3 +23,6 @@ donder-project-io.workspace = true
 [[bench]]
 name = "render_bench"
 harness = false
+
+[lints]
+workspace = true

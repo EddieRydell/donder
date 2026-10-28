@@ -6,7 +6,11 @@ use donder_model::{
 use donder_model::{DonderProject, ProjectEdit};
 use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
 
-pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: CompiledDefinition) {
+pub(crate) fn append_operator(
+    project: &mut DonderProject,
+    id: &SequenceId,
+    compiled: CompiledDefinition,
+) {
     let definition = OperatorDefinitionId(project.new_id());
     let input = compiled.inputs()[0].name.as_str().to_owned();
     let mut sequence = project.get::<donder_model::Sequence>(*id).unwrap().clone();

@@ -188,7 +188,7 @@ impl DesktopState {
         ))
     }
 
-    pub fn persistence(&self) -> &PersistenceService {
+    pub(crate) fn persistence(&self) -> &PersistenceService {
         &self.persistence
     }
 
@@ -196,7 +196,7 @@ impl DesktopState {
         self.preview_wake.clone()
     }
 
-    pub fn apply_persisted_settings(&self) -> AppSnapshot {
+    pub(crate) fn apply_persisted_settings(&self) -> AppSnapshot {
         let settings = sanitize_app_settings(self.persistence.settings());
         let workspace_layout = sanitize_workspace_layout(self.persistence.workspace_layout());
         self.update_snapshot(|snapshot| {
@@ -205,15 +205,15 @@ impl DesktopState {
         })
     }
 
-    pub fn snapshot(&self) -> AppSnapshot {
+    pub(crate) fn snapshot(&self) -> AppSnapshot {
         lock_unpoisoned(&self.workspace).snapshot()
     }
 
-    pub fn audio_snapshot(&self) -> AudioTransportSnapshot {
+    pub(crate) fn audio_snapshot(&self) -> AudioTransportSnapshot {
         lock_unpoisoned(&self.audio).snapshot()
     }
 
-    pub fn live_output_snapshot(&self) -> donder_editor::dto::LiveOutputSnapshot {
+    pub(crate) fn live_output_snapshot(&self) -> donder_editor::dto::LiveOutputSnapshot {
         self.resume_live_output_if_ready();
         let output = lock_unpoisoned(&self.live_output).snapshot();
         self.live_output_view(output)
@@ -253,7 +253,7 @@ impl DesktopState {
         audio_transport
     }
 
-    pub fn update_snapshot(&self, update: impl FnOnce(&mut AppSnapshot)) -> AppSnapshot {
+    pub(crate) fn update_snapshot(&self, update: impl FnOnce(&mut AppSnapshot)) -> AppSnapshot {
         let snapshot = {
             let mut workspace = lock_unpoisoned(&self.workspace);
             let mut snapshot = workspace.snapshot();
@@ -271,13 +271,13 @@ impl DesktopState {
         snapshot
     }
 
-    pub fn set_persistence_error(&self, message: String) -> AppSnapshot {
+    pub(crate) fn set_persistence_error(&self, message: String) -> AppSnapshot {
         self.update_snapshot(|snapshot| {
             snapshot.status = message;
         })
     }
 
-    pub fn update_app_settings(&self, settings: AppSettings) -> AppSnapshot {
+    pub(crate) fn update_app_settings(&self, settings: AppSettings) -> AppSnapshot {
         let _authoring = lock_unpoisoned(&self.authoring);
         self.update_app_settings_locked(settings)
     }
@@ -319,7 +319,7 @@ impl DesktopState {
         }
     }
 
-    pub fn set_render_error_if_changed(&self, message: String) {
+    pub(crate) fn set_render_error_if_changed(&self, message: String) {
         let current = lock_unpoisoned(&self.workspace).view.render_error.clone();
         if current.as_deref() != Some(message.as_str()) {
             self.update_snapshot(|snapshot| {
@@ -328,7 +328,7 @@ impl DesktopState {
         }
     }
 
-    pub fn clear_render_error_if_set(&self) {
+    pub(crate) fn clear_render_error_if_set(&self) {
         let current = lock_unpoisoned(&self.workspace).view.render_error.is_some();
         if current {
             self.update_snapshot(|snapshot| {
@@ -340,7 +340,7 @@ impl DesktopState {
     /// Live output streams frames to the setup's E1.31 and Art-Net controllers
     /// and drives its Donder controllers, which play uploaded shows on the
     /// editor's clock. A performance plays only on streamed controllers.
-    pub fn set_live_output_active(&self, active: bool) -> Result<AppSnapshot, String> {
+    pub(crate) fn set_live_output_active(&self, active: bool) -> Result<AppSnapshot, String> {
         let output = if active {
             let project = self.project_session().ok_or("No project is loaded.")?;
             let mut streamed = Vec::new();

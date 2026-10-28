@@ -8,11 +8,11 @@ use esp_hal::{
     peripherals::{GPIO1, GPIO3, GPIO4, GPIO16},
 };
 
-pub const OUTPUT_DESCRIPTION: &str = "gpio16,3,1,4";
+pub(crate) const OUTPUT_DESCRIPTION: &str = "gpio16,3,1,4";
 // Conservative commissioning limit until device power configuration exists.
-pub const MAX_CHANNEL_VALUE: u8 = 25;
+pub(crate) const MAX_CHANNEL_VALUE: u8 = 25;
 
-pub fn output_pins(
+pub(crate) fn output_pins(
     led1: GPIO16<'static>,
     led2: GPIO3<'static>,
     led3: GPIO1<'static>,

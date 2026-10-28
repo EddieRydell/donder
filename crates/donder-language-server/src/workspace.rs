@@ -16,13 +16,13 @@ use crate::document::Document;
 use crate::text::{file_uri, uri_path};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Kind {
+pub(crate) enum Kind {
     Data,
     Script,
     Other,
 }
 
-pub fn kind(uri: &str) -> Kind {
+pub(crate) fn kind(uri: &str) -> Kind {
     let path = uri.split(['?', '#']).next().unwrap_or(uri);
     if path.ends_with(donder_language::data::DATA_DOCUMENT_SUFFIX) {
         Kind::Data
@@ -81,7 +81,7 @@ impl ProjectCheck {
 }
 
 /// Who checks the project.
-pub enum Checker {
+pub(crate) enum Checker {
     /// The server, after edits, reusing what earlier checks read.
     Own(ProjectCheckCache),
     /// The host, which also supplies the documents the client has not opened.
@@ -95,7 +95,7 @@ impl Default for Checker {
 }
 
 #[derive(Default)]
-pub struct Workspace {
+pub(crate) struct Workspace {
     pub checker: Checker,
     pub root: Option<Utf8PathBuf>,
     /// Open documents by URI.
@@ -109,7 +109,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn with_checker(checker: Checker) -> Self {
+    pub(crate) fn with_checker(checker: Checker) -> Self {
         Self {
             checker,
             ..Self::default()
@@ -117,7 +117,7 @@ impl Workspace {
     }
 
     /// The project-relative path of a URI inside the project.
-    pub fn relative(&self, uri: &str) -> Option<Utf8PathBuf> {
+    pub(crate) fn relative(&self, uri: &str) -> Option<Utf8PathBuf> {
         let root = normalized(self.root.as_ref()?);
         let path = normalized(&uri_path(uri)?);
         let relative = path.strip_prefix(&root)?.strip_prefix('/')?;
@@ -126,7 +126,7 @@ impl Workspace {
 
     /// The URI of a project-relative path, as the client spelled it when the
     /// document is open.
-    pub fn uri(&self, relative: &Utf8Path) -> Option<String> {
+    pub(crate) fn uri(&self, relative: &Utf8Path) -> Option<String> {
         if let Some(uri) = self
             .open
             .keys()
@@ -137,17 +137,17 @@ impl Workspace {
         Some(file_uri(&self.root.as_ref()?.join(relative)))
     }
 
-    pub fn document_uri(&self, document: &DocumentId) -> Option<String> {
+    pub(crate) fn document_uri(&self, document: &DocumentId) -> Option<String> {
         self.uri(document.path())
     }
 
-    pub fn document_id(&self, uri: &str) -> Option<DocumentId> {
+    pub(crate) fn document_id(&self, uri: &str) -> Option<DocumentId> {
         self.check.as_ref()?;
         Some(DocumentId::new(self.relative(uri)?))
     }
 
     /// A document: the client's when open, otherwise the host's or the disk's.
-    pub fn document(&self, uri: &str) -> Option<Arc<Document>> {
+    pub(crate) fn document(&self, uri: &str) -> Option<Arc<Document>> {
         if let Some(document) = self.open.get(uri) {
             return Some(Arc::clone(document));
         }
@@ -168,19 +168,19 @@ impl Workspace {
         Some(document)
     }
 
-    pub fn project_document(&self, document: &DocumentId) -> Option<Arc<Document>> {
+    pub(crate) fn project_document(&self, document: &DocumentId) -> Option<Arc<Document>> {
         self.document(&self.document_uri(document)?)
     }
 
     /// Files may have changed outside the client.
-    pub fn files_changed(&mut self) {
+    pub(crate) fn files_changed(&mut self) {
         self.read.get_mut().clear();
         self.stale = true;
     }
 
     /// Take the latest check: the host's, or a new one of the open texts
     /// when edits made the last one stale. Returns whether it changed.
-    pub fn refresh(&mut self) -> bool {
+    pub(crate) fn refresh(&mut self) -> bool {
         let texts = matches!(self.checker, Checker::Own(_))
             .then(|| self.open_texts())
             .filter(|_| self.stale);
@@ -241,7 +241,7 @@ impl Workspace {
 
     /// The last check, when every open document still has the text it
     /// checked, so its index locates names in the current texts.
-    pub fn current_check(&self) -> Option<&ProjectCheck> {
+    pub(crate) fn current_check(&self) -> Option<&ProjectCheck> {
         let check = self.check.as_deref()?;
         self.open
             .iter()
@@ -256,7 +256,7 @@ impl Workspace {
     }
 
     /// The project's diagnostics, by URI.
-    pub fn project_diagnostics(&self) -> IndexMap<String, Vec<IoDiagnostic>> {
+    pub(crate) fn project_diagnostics(&self) -> IndexMap<String, Vec<IoDiagnostic>> {
         let mut grouped = IndexMap::<String, Vec<IoDiagnostic>>::new();
         if let Some(check) = &self.check {
             for diagnostic in &check.diagnostics {
@@ -269,13 +269,13 @@ impl Workspace {
     }
 
     /// Whether a URI belongs to the checked project.
-    pub fn in_project(&self, uri: &str) -> bool {
+    pub(crate) fn in_project(&self, uri: &str) -> bool {
         self.relative(uri).is_some()
     }
 
     /// The project root holding `path`: its nearest ancestor with a root
     /// document.
-    pub fn find_root(path: &Utf8Path) -> Option<Utf8PathBuf> {
+    pub(crate) fn find_root(path: &Utf8Path) -> Option<Utf8PathBuf> {
         path.ancestors()
             .skip(1)
             .find(|directory| directory.join(PROJECT_ROOT_FILE).is_file())

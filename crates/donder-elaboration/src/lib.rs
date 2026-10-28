@@ -3,7 +3,6 @@
 //! The active setup belongs to the project. Selection is the only optional part:
 //! the preparation implementation is private, and playback belongs to runtime.
 #![deny(unsafe_code)]
-#![deny(unreachable_pub)]
 #![cfg_attr(
     not(test),
     deny(

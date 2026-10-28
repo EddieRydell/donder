@@ -41,7 +41,7 @@ struct PreviewDrawing {
 }
 
 impl PreviewRenderer {
-    pub async fn new(
+    pub(super) async fn new(
         instance: &wgpu::Instance,
         surface: &wgpu::Surface<'_>,
         size: PreviewSize,

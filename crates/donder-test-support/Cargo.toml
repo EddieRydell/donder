@@ -12,3 +12,6 @@ donder-language.workspace = true
 donder-runtime-types.workspace = true
 donder-runtime.workspace = true
 indexmap.workspace = true
+
+[lints]
+workspace = true

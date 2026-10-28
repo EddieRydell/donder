@@ -16,7 +16,7 @@ fn within(span: TextSpan, offset: usize) -> bool {
 }
 
 /// The canonical text, when the document parses without errors.
-pub fn format(document: &Document) -> Option<String> {
+pub(crate) fn format(document: &Document) -> Option<String> {
     let (tree, diagnostics) = document.parsed();
     diagnostics
         .is_empty()
@@ -42,7 +42,7 @@ fn named(ty: &str, name: &str, description: Option<&str>) -> String {
 }
 
 /// Markdown for the object whose name is at `span`.
-pub fn describe(document: &Document, span: TextSpan) -> Option<String> {
+pub(crate) fn describe(document: &Document, span: TextSpan) -> Option<String> {
     fn search(value: &Spanned<DataValue>, span: TextSpan) -> Option<String> {
         match &value.value {
             DataValue::Record(ty, fields) => {
@@ -125,7 +125,7 @@ pub fn describe(document: &Document, span: TextSpan) -> Option<String> {
     })
 }
 
-pub fn shape_text(shape: &Shape) -> String {
+pub(crate) fn shape_text(shape: &Shape) -> String {
     match shape {
         Shape::Integer => "integer".into(),
         Shape::Float => "float, like `1.0`".into(),
@@ -205,7 +205,7 @@ fn definition_text(schema: &Schema, ty: &str) -> Option<String> {
 }
 
 /// Hover on a field name or a type name.
-pub fn schema_hover(document: &Document, offset: usize) -> Option<String> {
+pub(crate) fn schema_hover(document: &Document, offset: usize) -> Option<String> {
     let schema = document_schema();
     let text = document.text();
     let tokens = document.stream();
@@ -629,7 +629,7 @@ fn definition_params(
     Some((script, symbol))
 }
 
-pub fn completions(
+pub(crate) fn completions(
     workspace: &Workspace,
     uri: &str,
     document: &Document,
@@ -895,7 +895,7 @@ pub fn completions(
 
 /// An outline entry: a name, its type, its name span, its whole span and
 /// its children.
-pub struct Outline {
+pub(crate) struct Outline {
     pub name: String,
     pub ty: String,
     pub span: TextSpan,
@@ -903,7 +903,7 @@ pub struct Outline {
     pub children: Vec<Outline>,
 }
 
-pub fn outline(document: &Document) -> Vec<Outline> {
+pub(crate) fn outline(document: &Document) -> Vec<Outline> {
     fn items(value: &Spanned<DataValue>) -> Vec<Outline> {
         match &value.value {
             DataValue::Record(ty, fields) => {

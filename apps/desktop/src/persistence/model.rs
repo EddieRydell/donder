@@ -9,16 +9,16 @@ use donder_editor::dto::{
 
 pub(crate) const VERSION: u32 = 2;
 
-pub use donder_editor::dto::{
+pub(crate) use donder_editor::dto::{
     PersistedEditorViewState, PersistedEditorViewStateUpdate, PersistedGraphViewState,
     PersistedGraphViewStateUpdate, PersistedPreviewWindowState, PersistedSequenceViewportState,
     PersistedSequenceViewportStateUpdate, PersistedSpatialViewState,
     PersistedSpatialViewStateUpdate, PersistedWindowState, ProjectRestoreState,
 };
 #[cfg(test)]
-pub use donder_editor::dto::{SpatialGuide, SpatialGuideAxis};
+pub(crate) use donder_editor::dto::{SpatialGuide, SpatialGuideAxis};
 #[derive(Debug, Clone)]
-pub struct ProjectSessionRestore {
+pub(crate) struct ProjectSessionRestore {
     pub session: PersistedProjectSession,
     pub stale_tabs: Vec<String>,
 }
@@ -73,7 +73,7 @@ impl Default for PersistedStore {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct PersistedProjectSession {
+pub(crate) struct PersistedProjectSession {
     pub tabs: Vec<String>,
     pub active_file: Option<String>,
     pub audio_position_seconds: f64,
@@ -90,7 +90,7 @@ pub struct PersistedProjectSession {
 /// A sequence's playback range and loop toggle, keyed like its viewport.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct PersistedSequenceTransport {
+pub(crate) struct PersistedSequenceTransport {
     pub range: Option<PlaybackRange>,
     pub looping: bool,
 }

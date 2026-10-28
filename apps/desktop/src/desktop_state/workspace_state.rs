@@ -44,7 +44,7 @@ pub(super) struct RenderTarget {
 }
 
 impl RenderTarget {
-    pub fn new(
+    pub(super) fn new(
         session: &donder_project_io::ProjectSession,
         setup: donder_model::SetupId,
         sequence: donder_model::SequenceId,
@@ -55,7 +55,7 @@ impl RenderTarget {
         })
     }
 
-    pub fn resolve(
+    pub(super) fn resolve(
         &self,
         session: &donder_project_io::ProjectSession,
     ) -> Option<(donder_model::SetupId, donder_model::SequenceId)> {
@@ -78,7 +78,7 @@ pub(super) struct WorkspaceState {
 }
 
 impl WorkspaceState {
-    pub fn new(snapshot: AppSnapshot) -> Self {
+    pub(super) fn new(snapshot: AppSnapshot) -> Self {
         Self {
             view: WorkspaceView::from_snapshot(snapshot),
             project: LoadedProject::Closed,
@@ -91,7 +91,7 @@ impl WorkspaceState {
         }
     }
 
-    pub fn snapshot(&self) -> AppSnapshot {
+    pub(super) fn snapshot(&self) -> AppSnapshot {
         let active = self
             .view
             .active_file
@@ -142,7 +142,7 @@ impl WorkspaceState {
 
     /// Adopt `snapshot`'s view state. Buffers belong to `documents`; a snapshot
     /// only names the open tabs.
-    pub fn apply_view(&mut self, snapshot: AppSnapshot) {
+    pub(super) fn apply_view(&mut self, snapshot: AppSnapshot) {
         self.tabs = snapshot
             .tabs
             .iter()

@@ -10,7 +10,7 @@ use donder_editor::dto::{
 };
 
 impl DesktopState {
-    pub fn resolve_gui_source(
+    pub(crate) fn resolve_gui_source(
         &self,
         path: &str,
         object_key: &str,
@@ -46,7 +46,7 @@ impl DesktopState {
     }
 
     /// The inspector's view of selected clips in the newest project snapshot.
-    pub fn get_sequence_clip_details(
+    pub(crate) fn get_sequence_clip_details(
         &self,
         request: GuiDocumentRequest,
         clip_ids: Vec<u32>,
@@ -62,7 +62,7 @@ impl DesktopState {
     }
 
     /// "Select Matching" against the newest project snapshot.
-    pub fn match_sequence_clips(
+    pub(crate) fn match_sequence_clips(
         &self,
         request: GuiDocumentRequest,
         query: donder_editor::dto::SequenceClipMatchRequest,
@@ -73,7 +73,7 @@ impl DesktopState {
         donder_editor::matching_sequence_clips(&project, &request, &query)
     }
 
-    pub fn get_gui_document(
+    pub(crate) fn get_gui_document(
         &self,
         request: GuiDocumentRequest,
     ) -> donder_editor::dto::GuiDocumentResult {
@@ -100,7 +100,7 @@ impl DesktopState {
     }
 
     /// Rasters always follow the newest accepted project snapshot.
-    pub fn request_sequence_clip_rasters(
+    pub(crate) fn request_sequence_clip_rasters(
         &self,
         request: donder_editor::dto::SequenceClipRasterRequest,
     ) -> donder_editor::dto::SequenceClipRasterResponse {
@@ -110,7 +110,7 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_clip_raster).request(settings, project, sequence_id, request)
     }
 
-    pub fn take_sequence_clip_raster_results(
+    pub(crate) fn take_sequence_clip_raster_results(
         &self,
         request: GuiDocumentRequest,
         since_revision: u32,
@@ -118,13 +118,13 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_clip_raster).take_results(request, since_revision)
     }
 
-    pub fn sequence_clip_raster_pixels(&self, token: &str) -> Option<Vec<u8>> {
+    pub(crate) fn sequence_clip_raster_pixels(&self, token: &str) -> Option<Vec<u8>> {
         lock_unpoisoned(&self.sequence_clip_raster).pixels_rgba_for_token(token)
     }
 
     /// Apply one GUI edit. The sequence clipboard changes only when the edit is
     /// accepted.
-    pub fn edit_gui_document(
+    pub(crate) fn edit_gui_document(
         &self,
         request: GuiDocumentRequest,
         edit: GuiEditCommand,
@@ -145,7 +145,7 @@ impl DesktopState {
 
     /// [`Self::edit_gui_document`] with the whole edited document.
     #[cfg(test)]
-    pub fn apply_gui_edit(
+    pub(crate) fn apply_gui_edit(
         &self,
         request: GuiDocumentRequest,
         edit: GuiEditCommand,
@@ -210,7 +210,7 @@ impl DesktopState {
         )
     }
 
-    pub fn finish_composition_graph_editing(&self) -> AppSnapshot {
+    pub(crate) fn finish_composition_graph_editing(&self) -> AppSnapshot {
         let _authoring = lock_unpoisoned(&self.authoring);
         self.render_refresh.invalidate_pending();
         let render_error = self
@@ -223,7 +223,7 @@ impl DesktopState {
     }
 
     /// Copy a sequence selection to the clipboard; the project does not change.
-    pub fn copy_sequence_selection(
+    pub(crate) fn copy_sequence_selection(
         &self,
         request: GuiDocumentRequest,
         selection: donder_editor::dto::SequenceSelection,
@@ -256,7 +256,7 @@ impl DesktopState {
         copied.unwrap_or_else(|error| self.gui_edit_error(error))
     }
 
-    pub fn undo_active_edit(&self) -> AppSnapshot {
+    pub(crate) fn undo_active_edit(&self) -> AppSnapshot {
         let _authoring = lock_unpoisoned(&self.authoring);
         let Some(entry) = lock_unpoisoned(&self.gui_history).peek_undo() else {
             return self.update_snapshot(|snapshot| {
@@ -287,7 +287,7 @@ impl DesktopState {
             })
     }
 
-    pub fn redo_active_edit(&self) -> AppSnapshot {
+    pub(crate) fn redo_active_edit(&self) -> AppSnapshot {
         let _authoring = lock_unpoisoned(&self.authoring);
         let Some(entry) = lock_unpoisoned(&self.gui_history).peek_redo() else {
             return self.update_snapshot(|snapshot| {
@@ -344,6 +344,6 @@ fn with_outcome(update: GuiEditUpdate, outcome: donder_editor::GuiEditOutcome) -
 /// A test's view of an edit: the whole edited document.
 #[cfg(test)]
 #[derive(Debug)]
-pub struct GuiEditResult {
+pub(crate) struct GuiEditResult {
     pub document: donder_editor::dto::GuiDocument,
 }
