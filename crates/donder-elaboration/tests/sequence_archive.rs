@@ -6,20 +6,19 @@ use donder_runtime_types::sample_time_from_frame;
 #[test]
 fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let project = donder_project_io::load_project(&path).unwrap().project;
-    let setup = &project.reusable_setups()[project.root().setup.id()];
+    let session =
+        donder_project_io::check_project(&path, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap();
+    let project = &session.project;
+    let setup = &project.reusable::<donder_model::Setup>()[project.root().setup.id()];
     let controller = setup.controllers[0].id();
-    let port = project.reusable_controllers()[controller].ports[0].id;
+    let port = project.reusable::<donder_model::Controller>()[controller].ports[0].id;
     for id in project.root().sequences.iter().map(|source| source.id()) {
-        let prepared = prepare(
-            &project,
-            id,
-            PrepareOutputs::Ports(&[(controller.clone(), port)]),
-        )
-        .unwrap();
+        let prepared = prepare(project, id, PrepareOutputs::Ports(&[(*controller, port)])).unwrap();
         let original = prepared;
         let bytes = original.encode();
-        let decoded = donder_runtime::PreparedSequence::decode(&bytes).unwrap();
+        let decoded = donder_runtime::PreparedShow::decode(&bytes).unwrap();
         assert_eq!(
             decoded.encode(),
             bytes,
@@ -29,7 +28,7 @@ fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
         let mut original_workspace = original.into_playback();
         let mut decoded_workspace = decoded.into_playback();
         let mut expected = original_workspace
-            .sequence()
+            .prepared()
             .outputs()
             .iter()
             .map(|port| vec![0; port.width as usize])
@@ -54,12 +53,12 @@ fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
         let mut version = bytes.clone();
         version[0..4].copy_from_slice(&999u32.to_le_bytes());
         assert!(matches!(
-            donder_runtime::PreparedSequence::decode(&version),
+            donder_runtime::PreparedShow::decode(&version),
             Err(LoadError::Version)
         ));
         println!(
             "{} archive bytes={}",
-            id.0.root_source().object(),
+            session.declaration((*id).into()).unwrap().1.as_str(),
             bytes.len()
         );
     }

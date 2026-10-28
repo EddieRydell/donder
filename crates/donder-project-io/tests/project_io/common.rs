@@ -6,8 +6,8 @@ use std::fs;
 pub fn root_document(imports: &str, fields: &str) -> String {
     let metadata = donder_project_io::ProjectMetadata::default();
     format!(
-        "{imports}\nProject main {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}  rigs: [],\n}}\n",
-        metadata.format_version, metadata.project_id
+        "{imports}\nProject main {{\n  format: {},\n  description: none,\n{fields}  rigs: [],\n}}\n",
+        metadata.format_version
     )
 }
 
@@ -85,7 +85,9 @@ pub const MINIMAL_SEQUENCE: &str = r#"Sequence main {
 "#;
 
 pub fn load_project(root: &Utf8Path) -> donder_project_io::ProjectSession {
-    donder_project_io::load_project(root).unwrap()
+    donder_project_io::check_project(root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap()
 }
 
 pub fn starter_root() -> Utf8PathBuf {
@@ -120,4 +122,64 @@ fn copy_tree(source: &Utf8Path, destination: &Utf8Path) {
             .unwrap();
         }
     }
+}
+
+/// An ownership slot by its owner and position, as tests name them.
+#[derive(Clone, Copy)]
+pub enum Slot {
+    ProjectSetup,
+    ProjectSequence(usize),
+    ProjectRig(usize),
+    SetupLayout(donder_model::SetupId),
+    SetupPatch(donder_model::SetupId),
+    SetupController {
+        setup: donder_model::SetupId,
+        index: usize,
+    },
+    SetupInputDevice {
+        setup: donder_model::SetupId,
+        index: usize,
+    },
+    LayoutFixture {
+        layout: donder_model::LayoutId,
+        fixture: donder_model::FixtureInstanceId,
+    },
+}
+
+/// The site of the member `slot` holds in `project`.
+pub fn site(project: &donder_model::DonderProject, slot: Slot) -> donder_model::OwnershipSite {
+    use donder_model::{ObjectId, OwnershipSite};
+    let root = project.root();
+    let setup = |id| project.get::<donder_model::Setup>(id).unwrap();
+    let (owner, member): (ObjectId, ObjectId) = match slot {
+        Slot::ProjectSetup => (root.id.into(), (*root.setup.id()).into()),
+        Slot::ProjectSequence(index) => (root.id.into(), (*root.sequences[index].id()).into()),
+        Slot::ProjectRig(index) => (root.id.into(), (*root.rigs[index].id()).into()),
+        Slot::SetupLayout(id) => (id.into(), (*setup(id).layout.id()).into()),
+        Slot::SetupPatch(id) => (id.into(), (*setup(id).patch.id()).into()),
+        Slot::SetupController { setup: id, index } => {
+            (id.into(), (*setup(id).controllers[index].id()).into())
+        }
+        Slot::SetupInputDevice { setup: id, index } => {
+            (id.into(), (*setup(id).input_devices[index].id()).into())
+        }
+        Slot::LayoutFixture { layout, fixture } => {
+            return OwnershipSite::Fixture { layout, fixture };
+        }
+    };
+    OwnershipSite::Member { owner, member }
+}
+
+/// The diagnostics a check gives the document at `path` when its text is
+/// `text`, in a directory with no project to load.
+pub fn document_diagnostics(path: &Utf8Path, text: &str) -> Vec<donder_project_io::IoDiagnostic> {
+    let overrides =
+        donder_project_io::SourceOverrides::from([(path.to_path_buf(), text.to_string())]);
+    let empty = tempfile::tempdir().unwrap();
+    let root = Utf8Path::from_path(empty.path()).unwrap();
+    donder_project_io::check_project(root, &overrides, &mut Default::default())
+        .diagnostics
+        .into_iter()
+        .filter(|diagnostic| diagnostic.path == path)
+        .collect()
 }

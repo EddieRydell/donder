@@ -3,7 +3,7 @@ use super::*;
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn set_preview_appearance(
-    appearance: donder_sequence_api::PreviewAppearance,
+    appearance: donder_editor::dto::PreviewAppearance,
     app: AppHandle,
     preview: State<'_, crate::preview::PreviewWindowService>,
     state: State<'_, DesktopState>,

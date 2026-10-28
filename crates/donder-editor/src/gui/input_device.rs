@@ -4,10 +4,10 @@ use donder_model::{
     InputDeviceId, InputDriver, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
     OscAddress,
 };
-use donder_project_io::{ProjectSession, SourceObjectKind};
+use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
-use donder_sequence_api::{
+use crate::dto::{
     GuiControlInput, GuiDocument, GuiInputControl, GuiInputControlKind, GuiInputDriver,
     GuiInputLimits, InputDeviceGuiDocument, SetupInputDevice,
 };
@@ -34,9 +34,10 @@ pub(super) fn project_input_device(
     device: &InputDevice,
 ) -> SetupInputDevice {
     SetupInputDevice {
-        name: id.0.declared_name().to_string(),
-        source_ref: super::patch::object_ref(&id.0, SourceObjectKind::InputDevice),
-        read_only: !session.source.is_project_owned(id.0.document_id()),
+        name: super::model::object_address(session, *id)
+            .declared_name()
+            .to_string(),
+        source_ref: super::model::object_ref(session, *id),
         driver: match &device.driver {
             InputDriver::Keyboard => GuiInputDriver::Keyboard,
             InputDriver::Midi { port } => GuiInputDriver::Midi { port: port.clone() },
@@ -166,8 +167,8 @@ pub(super) fn project_document(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let id = InputDeviceId(resolved.object_identity());
-    let Some(device) = session.project.input_device(&id) else {
+    let id = resolved.id::<InputDeviceId>();
+    let Some(device) = session.project.get::<donder_model::InputDevice>(id) else {
         return blocked("Input device was not found.", Vec::new());
     };
     GuiDocument::InputDevice {
@@ -188,18 +189,15 @@ pub(super) fn edit(
     driver: GuiInputDriver,
     controls: Vec<GuiInputControl>,
 ) -> Result<(), GuiMutationError> {
-    let id = InputDeviceId(resolved.object_identity());
+    let id = resolved.id::<InputDeviceId>();
     let description = session
         .project
-        .input_device(&id)
+        .get::<donder_model::InputDevice>(id)
         .ok_or_else(|| GuiMutationError::Invalid("Input device was not found.".into()))?
         .description
         .clone();
     let device = domain_input_device(id, description, driver, controls)?;
-    session
-        .project
-        .replace_input_device(&device.id.clone(), device)
-        .map_err(GuiMutationError::Invalid)
+    session.project.put(device).map_err(GuiMutationError::from)
 }
 
 pub(super) fn domain_input_device(

@@ -2,7 +2,7 @@ use crate::common;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::DonderDuration;
-use donder_project_io::{load_project, save_project};
+use donder_project_io::{check_project, save_project};
 use std::fs;
 use std::time::Duration;
 
@@ -58,7 +58,11 @@ fn audio_reference_cannot_escape_its_module() {
         &project_root,
         &common::MINIMAL_SEQUENCE.replace("audio: none", "audio: <../external.wav>"),
     );
-    assert!(load_project(&project_root).is_err());
+    assert!(
+        check_project(&project_root, &Default::default(), &mut Default::default())
+            .into_session()
+            .is_err()
+    );
 }
 
 #[test]
@@ -90,12 +94,11 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
     let loaded = load_local_project(&root);
     let identities = loaded
         .project
-        .definitions()
-        .effects
-        .definitions
+        .reusable::<donder_model::EffectDefinition>()
         .keys()
-        .filter(|id| id.0.object() == "Shared")
-        .map(|id| id.0.document().to_path_buf())
+        .filter_map(|id| loaded.declaration((*id).into()))
+        .filter(|(_, name)| name.as_str() == "Shared")
+        .map(|(document, _)| document.path().to_path_buf())
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         identities,
@@ -118,7 +121,7 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
 
     let color = session
         .project
-        .reusable_sequences()
+        .reusable::<donder_model::Sequence>()
         .values()
         .next()
         .unwrap()
@@ -132,29 +135,33 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
         color,
     )
     .unwrap();
-    let destination = session
+    let site = common::site(&session.project, common::Slot::ProjectSequence(index));
+    let destination = donder_model::make_reusable(&mut session.project, &site).unwrap();
+    let document = session
         .source
         .add_data_document(
             "sequences/nested/new.data.donder".into(),
-            vec![(
-                donder_project_io::SourceObjectKind::Sequence,
-                "nested_sequence".into(),
-            )],
+            vec![(destination, donder_language::object_name("nested_sequence"))],
         )
-        .unwrap()
-        .remove(0);
-    donder_model::make_reusable(
-        &mut session.project,
-        &donder_model::OwnershipSite::ProjectSequence(index),
-        destination,
-    )
-    .unwrap();
+        .unwrap();
     donder_project_io::maintain_ownership_sources(&mut session).unwrap();
-    let id = session.project.root().sequences[index].id().clone();
     save_project(&session).unwrap();
 
     let reloaded = load_local_project(&root);
-    assert!(reloaded.project.reusable_sequences().contains_key(&id));
+    // Ids are assigned per load, so the reloaded sequence is found by name.
+    let id = reloaded
+        .declared_id(&donder_project_io::SourceIdentity::from_document(
+            document.clone(),
+            "nested_sequence".into(),
+        ))
+        .and_then(|id| donder_model::SequenceId::try_from(id).ok())
+        .unwrap();
+    assert!(
+        reloaded
+            .project
+            .reusable::<donder_model::Sequence>()
+            .contains_key(&id)
+    );
     assert!(
         reloaded
             .project
@@ -163,5 +170,5 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
             .iter()
             .any(|source| source.id() == &id)
     );
-    assert!(root.join(id.0.document()).is_file());
+    assert!(root.join(document.path()).is_file());
 }

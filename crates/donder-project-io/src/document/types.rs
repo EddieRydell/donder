@@ -13,7 +13,6 @@ use std::time::Duration;
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct Project {
     pub format: u8,
-    pub id: String,
     pub description: Option<String>,
     pub setup: Source<Setup>,
     pub sequences: Vec<NamedSource<Sequence>>,
@@ -283,8 +282,10 @@ pub struct Patch {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct Route {
     /// A fixture or group: `layout.fixture`.
+    #[refers(Fixture)]
     pub target: Reference,
     pub pixels: Option<PixelSpan>,
+    #[refers(Declaration("Controller"))]
     pub controller: Reference,
     /// A port of `controller`.
     pub port: Name,
@@ -376,12 +377,15 @@ pub struct Layer {
 pub struct Clip {
     pub name: Name,
     pub description: Option<String>,
+    #[refers(Layer)]
     pub layer: Name,
     pub start: Duration,
     pub duration: Duration,
     /// A fixture or group: `layout.fixture`.
+    #[refers(Fixture)]
     pub target: Reference,
     pub scope: Scope,
+    #[refers(Effect)]
     pub effect: Reference,
     /// Overrides of the effect's parameters; the rest follow its defaults.
     pub params: Params,
@@ -406,9 +410,14 @@ pub struct Graph {
 )]
 pub enum Node {
     /// Named by its layer.
-    LayerNode { layer: Name, position: (f32, f32) },
+    LayerNode {
+        #[refers(Layer)]
+        layer: Name,
+        position: (f32, f32),
+    },
     OperatorNode {
         name: Name,
+        #[refers(Operator)]
         operator: Reference,
         params: Params,
         position: (f32, f32),
@@ -420,14 +429,17 @@ pub enum Node {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct Edge {
     /// A node, whose single output the edge carries.
+    #[refers(Node)]
     pub from: Name,
     /// `operator.input`, or `output`.
+    #[refers(Node)]
     pub to: Reference,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct AutomationClip {
     /// The fixture or group whose automation row holds the clip.
+    #[refers(Fixture)]
     pub row: Reference,
     pub start: Duration,
     pub duration: Duration,
@@ -438,19 +450,21 @@ pub struct AutomationClip {
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum Binding {
-    ClipParam { clip: Name, param: Name },
-    NodeParam { node: Name, param: Name },
+    ClipParam {
+        #[refers(Clip)]
+        clip: Name,
+        param: Name,
+    },
+    NodeParam {
+        #[refers(Node)]
+        node: Name,
+        param: Name,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct Detached {
     pub binding: Binding,
-    pub reason: DetachReason,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub enum DetachReason {
-    DefinitionChanged,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -476,10 +490,13 @@ pub struct LiveMarks {
 pub struct Voice {
     pub name: Name,
     pub description: Option<String>,
+    #[refers(Layer)]
     pub layer: Name,
     /// A fixture or group: `layout.fixture`.
+    #[refers(Fixture)]
     pub target: Reference,
     pub scope: Scope,
+    #[refers(Effect)]
     pub effect: Reference,
     pub params: Params,
 }
@@ -489,6 +506,7 @@ pub struct Switch {
     pub name: Name,
     pub description: Option<String>,
     /// A button of an input device: `device.control`.
+    #[refers(Control)]
     pub input: Reference,
 }
 
@@ -497,6 +515,7 @@ pub struct Mapping {
     pub name: Name,
     pub description: Option<String>,
     /// A button of an input device: `device.control`.
+    #[refers(Control)]
     pub input: Reference,
     pub when: Option<When>,
     pub action: MappingAction,
@@ -504,16 +523,25 @@ pub struct Mapping {
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum When {
-    On { switch: Name },
-    Off { switch: Name },
+    On {
+        #[refers(Switch)]
+        switch: Name,
+    },
+    Off {
+        #[refers(Switch)]
+        switch: Name,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum MappingAction {
     Trigger {
+        #[refers(Layer)]
         layer: Name,
+        #[refers(Fixture)]
         target: Reference,
         scope: Scope,
+        #[refers(Effect)]
         effect: Reference,
         params: Params,
         length: TriggerLength,
@@ -521,10 +549,12 @@ pub enum MappingAction {
         values: Vec<PlayedValue>,
     },
     Mark {
+        #[refers(Marks)]
         marks: Name,
     },
     /// `voice` names a scene voice or a `Trigger` mapping.
     Control {
+        #[refers(Voice)]
         voice: Name,
         param: Name,
     },

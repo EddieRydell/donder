@@ -1,5 +1,5 @@
 use super::DesktopState;
-use donder_sequence_api::{GuiDocumentRequest, SequenceBeatDetection};
+use donder_editor::dto::{GuiDocumentRequest, SequenceBeatDetection};
 
 impl DesktopState {
     /// Detect beats and downbeats in the open sequence's audio. This reads the

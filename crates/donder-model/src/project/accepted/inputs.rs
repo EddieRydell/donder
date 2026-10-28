@@ -2,15 +2,14 @@
 //! authored state; they cannot be edited independently afterwards.
 use super::parameters::{EffectParamTiming, MarkSource, prepare_params};
 use super::*;
-use crate::effect::{EffectImplementation, EffectParamValue, EffectRef};
-use crate::operator::OperatorImplementation;
+use crate::effect::EffectParamValue;
 use crate::sequence::AutomationTarget;
 use crate::sequence::CompositionGraphNodeId;
-use crate::validation::ProjectValidationError;
+use crate::validation::{AdmissionProblem, Member, ProjectValidationError, ValidationProblem, at};
 use donder_language::compiler::{Invocation, ParamDecl};
+use donder_runtime_types::SequenceTiming;
 use donder_runtime_types::Value;
 use donder_runtime_types::{SampleDuration, SampleTime};
-use donder_runtime_types::{SequenceTiming, SequenceWindow};
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
 
@@ -35,7 +34,7 @@ impl ProjectInputs {
         previous: Option<&DonderProject>,
     ) -> Result<Self, ProjectValidationError> {
         let mut sequences = IndexMap::new();
-        for sequence in project.sequences() {
+        for sequence in project.objects::<crate::Sequence>() {
             let reusable = reusable_effect_inputs(project, previous, sequence);
             let mut effects = Vec::with_capacity(sequence.effects.len());
             for effect in &sequence.effects {
@@ -48,8 +47,8 @@ impl ProjectInputs {
                     effects.push(invocation);
                     continue;
                 }
-                let EffectRef::Custom(id) = &effect.definition;
-                let definition = &project.definitions().effects.definitions[id];
+                let id = &effect.definition;
+                let definition = &project.reusable::<crate::EffectDefinition>()[id];
                 let values = resolve(
                     project,
                     sequence,
@@ -61,16 +60,23 @@ impl ProjectInputs {
                             effect.duration.as_micros_rounded() as u32
                         ),
                     },
-                )?;
-                let EffectImplementation::Dsl(compiled) = definition.implementation();
+                )
+                .map_err(at(sequence.id))?;
+                let compiled = definition.compiled();
                 let automation = super::automation::admit(
                     sequence,
                     definition.params(),
                     |target| matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id),
-                )?;
-                let invocation = compiled
-                    .invoke(values.into_vec(), automation)
-                    .map_err(|error| invalid(error.message))?;
+                ).map_err(at(sequence.id))?;
+                let invocation =
+                    compiled
+                        .invoke(values.into_vec(), automation)
+                        .map_err(|error| {
+                            at(sequence.id)(invalid(AdmissionProblem::Binding(
+                                Member::Clip(effect.id.clone()),
+                                error,
+                            )))
+                        })?;
                 effects.push(std::sync::Arc::new(invocation));
             }
             let mut operators = IndexMap::new();
@@ -78,8 +84,8 @@ impl ProjectInputs {
                 let CompositionGraphNodeKind::Operator(operator) = &node.kind else {
                     continue;
                 };
-                let OperatorRef::Custom(id) = &operator.operator;
-                let definition = &project.definitions().operators.definitions[id];
+                let id = &operator.operator;
+                let definition = &project.reusable::<crate::OperatorDefinition>()[id];
                 let values = resolve(
                     project,
                     sequence,
@@ -91,22 +97,29 @@ impl ProjectInputs {
                             sequence.duration.as_micros_rounded() as u32
                         ),
                     },
-                )?;
-                let OperatorImplementation::Dsl(compiled) = definition.implementation();
+                )
+                .map_err(at(sequence.id))?;
+                let compiled = definition.compiled();
                 let automation = super::automation::admit(
                     sequence,
                     definition.params(),
                     |target| matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if node_id == &node.id),
-                )?;
-                let invocation = compiled
-                    .invoke(values.into_vec(), automation)
-                    .map_err(|error| invalid(error.message))?;
+                ).map_err(at(sequence.id))?;
+                let invocation =
+                    compiled
+                        .invoke(values.into_vec(), automation)
+                        .map_err(|error| {
+                            at(sequence.id)(invalid(AdmissionProblem::Binding(
+                                Member::Node(node.id.clone()),
+                                error,
+                            )))
+                        })?;
                 operators.insert(node.id.clone(), invocation);
             }
             sequences.insert(
-                sequence.id.clone(),
+                sequence.id,
                 SequenceInputs {
-                    timing: admit_timing(sequence)?,
+                    timing: admit_timing(sequence).map_err(at(sequence.id))?,
                     effects: effects.into(),
                     operators,
                 },
@@ -121,29 +134,22 @@ impl ProjectInputs {
     }
 }
 
-fn admit_timing(sequence: &Sequence) -> Result<SequenceTiming, ProjectValidationError> {
+fn admit_timing(sequence: &Sequence) -> Result<SequenceTiming, ValidationProblem> {
     let admit = || {
         let frame_rate = NonZeroU32::new(sequence.frame_rate)?;
         let frame_count = NonZeroU32::new(u32::try_from(sequence.frame_count()).ok()?)?;
         let duration = NonZeroU32::new(u32::try_from(sequence.duration.as_micros_rounded()).ok()?)?;
-        let windows = sequence
-            .effects
-            .iter()
-            .map(|effect| {
-                Some(SequenceWindow {
-                    start: SampleTime::from_ticks(
-                        u32::try_from(effect.start.as_micros_rounded()).ok()?,
-                    ),
-                    duration: NonZeroU32::new(
-                        u32::try_from(effect.duration.as_micros_rounded()).ok()?,
-                    )?,
-                })
-            })
-            .collect::<Option<Box<[_]>>>()?;
-        SequenceTiming::admit(frame_rate, frame_count, duration, windows)
+        // Every clip plays for a while within the sequence.
+        for effect in &sequence.effects {
+            let start = u32::try_from(effect.start.as_micros_rounded()).ok()?;
+            let length = u32::try_from(effect.duration.as_micros_rounded()).ok()?;
+            if length == 0 || start.checked_add(length)? > duration.get() {
+                return None;
+            }
+        }
+        Some(SequenceTiming::new(frame_rate, frame_count, duration))
     };
-    admit()
-        .ok_or_else(|| invalid("Sequence timing is not representable by the playback clock".into()))
+    admit().ok_or_else(|| invalid(AdmissionProblem::TimingUnrepresentable))
 }
 
 fn resolve(
@@ -152,7 +158,7 @@ fn resolve(
     declarations: &[ParamDecl],
     overrides: &IndexMap<donder_runtime_types::Identifier, EffectParamValue>,
     timing: EffectParamTiming,
-) -> Result<Box<[Value]>, ProjectValidationError> {
+) -> Result<Box<[Value]>, ValidationProblem> {
     resolve_values(
         project,
         MarkSource::Authored(&sequence.mark_collections),
@@ -169,7 +175,7 @@ pub(super) fn resolve_values(
     declarations: &[ParamDecl],
     overrides: &IndexMap<donder_runtime_types::Identifier, EffectParamValue>,
     timing: EffectParamTiming,
-) -> Result<Box<[Value]>, ProjectValidationError> {
+) -> Result<Box<[Value]>, ValidationProblem> {
     let values = prepare_params(project, marks, declarations, overrides, timing);
     declarations
         .iter()
@@ -177,7 +183,7 @@ pub(super) fn resolve_values(
             values
                 .get(&param.name)
                 .cloned()
-                .ok_or_else(|| invalid(format!("Missing parameter `{}`", param.name.as_str())))
+                .ok_or_else(|| invalid(AdmissionProblem::MissingParam(param.name.clone())))
         })
         .collect()
 }
@@ -201,12 +207,12 @@ fn reusable_effect_inputs<'a>(
         return Default::default();
     };
     let (Some(before), Some(inputs)) = (
-        previous.sequence(&sequence.id),
+        previous.get::<crate::Sequence>(sequence.id),
         previous.accepted_inputs.sequences.get(&sequence.id),
     ) else {
         return Default::default();
     };
-    if !project.definitions.same_allocation(&previous.definitions)
+    if !project.definitions_same_allocation(previous)
         || before.mark_collections != sequence.mark_collections
         || before.automation_clips != sequence.automation_clips
     {
@@ -220,6 +226,6 @@ fn reusable_effect_inputs<'a>(
         .collect()
 }
 
-pub(super) fn invalid(message: String) -> ProjectValidationError {
-    ProjectValidationError::InvalidRelationship(message)
+pub(super) fn invalid(problem: AdmissionProblem) -> ValidationProblem {
+    ValidationProblem::Admission(problem)
 }

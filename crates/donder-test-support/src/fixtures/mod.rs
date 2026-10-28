@@ -1,7 +1,7 @@
 //! The starter effect fixtures of the playback benchmarks.
 pub mod layered;
 
-use donder_language::compiler::{CompiledEffect, Invocation, compile_effects};
+use donder_language::compiler::Invocation;
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
 use donder_runtime_types::{Identifier, Value};
 use indexmap::IndexMap;
@@ -64,9 +64,13 @@ pub fn prepared_effect(
     source: &str,
     params: IndexMap<Identifier, Value>,
 ) -> Invocation {
-    sample_effect(effect_name, source)
-        .bind(&params)
-        .expect("valid params")
+    crate::playback::invoke(
+        &crate::playback::definition(source, effect_name),
+        &params
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.clone()))
+            .collect::<Vec<_>>(),
+    )
 }
 
 pub fn uniform_resources() -> Invocation {
@@ -82,14 +86,6 @@ pub fn uniform_resources() -> Invocation {
             ("colors", Value::Gradient(gradient())),
         ]),
     )
-}
-
-fn sample_effect(effect_name: &str, source: &str) -> CompiledEffect {
-    compile_effects(source)
-        .expect("effect source should compile")
-        .into_iter()
-        .find(|effect| effect.name().as_str() == effect_name)
-        .expect("compiled effect should exist")
 }
 
 fn scan_sweep_params() -> IndexMap<Identifier, Value> {

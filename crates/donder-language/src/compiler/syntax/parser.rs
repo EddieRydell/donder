@@ -278,7 +278,7 @@ impl Parser<'_> {
     fn type_expr(&mut self) -> Parsed<TypeExpr> {
         let name = self.name("a type")?;
         let kind = match name.name.as_str() {
-            "enum" => {
+            crate::compiler::builtins::ENUM_WORD => {
                 self.expect(TokenKind::LeftBrace, "`{`")?;
                 let mut options = vec![self.name("an enum option")?];
                 while self.eat(TokenKind::Comma) {
@@ -290,7 +290,7 @@ impl Parser<'_> {
                 self.expect(TokenKind::RightBrace, "`}`")?;
                 TypeKind::Enum(options)
             }
-            "array" => {
+            crate::compiler::builtins::ARRAY_WORD => {
                 self.expect(TokenKind::Less, "`<`")?;
                 self.nest()?;
                 let item = self.type_expr()?;

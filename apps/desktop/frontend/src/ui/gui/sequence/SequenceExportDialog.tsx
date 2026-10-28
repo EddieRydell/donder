@@ -44,9 +44,8 @@ export function SequenceExportDialog() {
     setOrigin(request); setOptions(null); setSelected([]); setCustomStep(false); setError(null); setSaved(null); setPending("options");
     try {
       const result = await commands.sequenceExportOptions(request);
-      if (result.status === "error") throw new Error(result.error);
-      setOptions(result.data);
-      setStepMillis(result.data.fseqStepMillis);
+      setOptions(result);
+      setStepMillis(result.fseqStepMillis);
     } catch (error: unknown) { setError(String(error)); }
     finally { setPending(null); }
   };
@@ -54,13 +53,11 @@ export function SequenceExportDialog() {
     if (origin === null || stale) return;
     setPending(format); setError(null); setSaved(null);
     try {
-      const result = format === "fseq"
+      setSaved(format === "fseq"
         ? await commands.exportFseqFile(origin, selected, stepMillis)
         : format === "mp4"
           ? await exportVideo(origin)
-          : await commands.exportSequenceFile(origin, selected);
-      if (result.status === "error") throw new Error(result.error);
-      setSaved(result.data);
+          : await commands.exportSequenceFile(origin, selected));
     } catch (error: unknown) { setError(String(error)); }
     finally { setPending(null); setVideoProgress(null); }
   };

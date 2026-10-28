@@ -1,15 +1,16 @@
 use super::DesktopState;
+use super::gui_editing::GuiEditResult;
 use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
-use donder_sequence_api::{
-    CompositionGuiEdit, DocumentViewId, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage,
-    FixtureTarget, GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiEditResult,
-    GuiFixtureElement, GuiFixtureShape, GuiFixtureSource, GuiInputControl, GuiInputControlKind,
-    GuiInputDriver, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep,
-    GuiOwnershipEdit, GuiOwnershipSlot, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument,
-    LayoutGuiEdit, NewSequenceRequest, NewSequenceStorage, ObjectKind, Point3Meters,
+use donder_editor::dto::{
+    CompositionGuiEdit, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, FixtureTarget,
+    GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiFixtureElement,
+    GuiFixtureShape, GuiFixtureSource, GuiInputControl, GuiInputControlKind, GuiInputDriver,
+    GuiItem, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnershipEdit,
+    GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument, LayoutGuiEdit, NewSequenceRequest,
+    NewSequenceStorage, ObjectKind, OwnedObjectSlot, OwnershipMember, Point3Meters,
     ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, RigActionChoice, RigControlRef,
-    RigGuiDocument, RigGuiEdit, RigItem, RigVoicePolicy, RigWhen, Rotation3Degrees, Scale3,
+    RigGuiDocument, RigGuiEdit, RigVoicePolicy, RigWhen, Rotation3Degrees, Scale3,
     SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge,
     SequenceGraphNodeKind, SequenceGraphOperator, SequenceGuiEdit, SetupControllerConfig,
     SetupControllerPort, SetupGuiDocument, SetupGuiEdit, Transform,
@@ -17,21 +18,23 @@ use donder_sequence_api::{
 
 pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditResult {
     let session = state.project_session().unwrap();
-    let layout = session
+    let layout = *session
         .project
-        .setup(session.project.root().setup.id())
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
         .unwrap()
         .layout
-        .id()
-        .clone();
-    state.open_file_path(layout.0.document().as_str());
+        .id();
+    state.open_file_path(address(state, layout).document().as_str());
     state.apply_gui_edit(
         GuiDocumentRequest {
-            owned_path: layout.0.owned_path().iter().map(Into::into).collect(),
+            owned_path: address(state, layout)
+                .owned_path()
+                .iter()
+                .map(Into::into)
+                .collect(),
             project_revision: state.snapshot().project_revision,
-            path: layout.0.document().to_string(),
-            view: DocumentViewId::Layout,
-            object_key: Some(layout.0.root_source().object().to_string()),
+            path: address(state, layout).document().to_string(),
+            object_key: address(state, layout).root_source().object().to_string(),
         },
         GuiEditCommand::Layout { edit },
     )
@@ -56,7 +59,7 @@ fn fixture_reference(layout: &LayoutGuiDocument, index: usize) -> GuiObjectRef {
             owner.kind = ObjectKind::Fixture;
             owner
                 .owned_path
-                .push(GuiOwnedStep::Fixture { id: fixture.id });
+                .push(OwnedObjectSlot::Fixture { id: fixture.id });
             owner
         }
     }
@@ -74,8 +77,7 @@ fn fixture_edit(
                 owned_path: reference.owned_path.clone(),
                 project_revision: state.snapshot().project_revision,
                 path: reference.path.clone(),
-                object_key: Some(reference.object_key.clone()),
-                view: DocumentViewId::Fixture,
+                object_key: reference.object_key.clone(),
             },
             GuiEditCommand::Fixture { edit },
         )
@@ -89,15 +91,18 @@ fn setup_edit(state: &DesktopState, edit: SetupGuiEdit) -> SetupGuiDocument {
 fn setup_command(state: &DesktopState, command: GuiEditCommand) -> SetupGuiDocument {
     let session = state.project_session().unwrap();
     let id = session.project.root().setup.id();
-    state.open_file_path(id.0.document().as_str());
+    state.open_file_path(address(state, *id).document().as_str());
     match state
         .apply_gui_edit(
             GuiDocumentRequest {
-                owned_path: id.0.owned_path().iter().map(Into::into).collect(),
+                owned_path: address(state, *id)
+                    .owned_path()
+                    .iter()
+                    .map(Into::into)
+                    .collect(),
                 project_revision: state.snapshot().project_revision,
-                path: id.0.document().to_string(),
-                object_key: Some(id.0.root_source().object().into()),
-                view: DocumentViewId::Setup,
+                path: address(state, *id).document().to_string(),
+                object_key: address(state, *id).root_source().object().into(),
             },
             command,
         )
@@ -110,7 +115,8 @@ fn setup_command(state: &DesktopState, command: GuiEditCommand) -> SetupGuiDocum
 
 fn project_edit(state: &DesktopState, edit: ProjectGuiEdit) -> ProjectGuiDocument {
     let session = state.project_session().unwrap();
-    let id = &session.project.root().id.0;
+    let id = address(state, session.project.root().id);
+    let id = id.root_source();
     state.open_file_path(id.document().as_str());
     match state
         .apply_gui_edit(
@@ -118,8 +124,7 @@ fn project_edit(state: &DesktopState, edit: ProjectGuiEdit) -> ProjectGuiDocumen
                 owned_path: Vec::new(),
                 project_revision: state.snapshot().project_revision,
                 path: id.document().to_string(),
-                object_key: Some(id.object().into()),
-                view: DocumentViewId::Project,
+                object_key: id.object().into(),
             },
             GuiEditCommand::Project { edit },
         )
@@ -214,8 +219,7 @@ Layout main {
         owned_path: Vec::new(),
         project_revision: state.snapshot().project_revision,
         path: "layouts/main.data.donder".into(),
-        object_key: Some("main".into()),
-        view: DocumentViewId::Layout,
+        object_key: "main".into(),
     };
     state.open_file_path("layouts/main.data.donder");
     let layout = layout_document(state.get_gui_document(layout_request()).document);
@@ -254,7 +258,10 @@ Layout main {
     );
     let accepted = state.project_session().unwrap();
     state.save_all().unwrap();
-    let reloaded = donder_project_io::load_project(&root).unwrap();
+    let reloaded =
+        donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap();
     assert_eq!(reloaded.project, accepted.project);
     assert_eq!(
         reloaded.source.documents.len(),
@@ -275,9 +282,7 @@ Layout main {
             .project_session()
             .unwrap()
             .project
-            .definitions()
-            .fixtures
-            .definitions
+            .reusable::<donder_model::FixtureDefinition>()
             .len(),
         1
     );
@@ -301,7 +306,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     let empty_layout = setup_command(
         &state,
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::Layout,
+            member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::MakeReusable {
                 name: "Empty stage".into(),
                 storage: ReusableStorage::SameFile,
@@ -312,14 +317,18 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     setup_command(
         &state,
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::Layout,
+            member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::MakeIndependent,
         },
     );
     let initial = state.project_session().unwrap();
-    let setup_id = initial.project.root().setup.id().clone();
-    let sequence_id = initial.project.root().sequences[0].id().clone();
-    let initial_color = initial.project.sequence(&sequence_id).unwrap().layers[0]
+    let setup_id = *initial.project.root().setup.id();
+    let sequence_id = *initial.project.root().sequences[0].id();
+    let initial_color = initial
+        .project
+        .get::<donder_model::Sequence>(sequence_id)
+        .unwrap()
+        .layers[0]
         .color
         .to_hex();
     let layout = layout_document(
@@ -451,8 +460,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             owned_path: setup.patch_ref.owned_path.clone(),
             project_revision: state.snapshot().project_revision,
             path: setup.patch_ref.path.clone(),
-            object_key: Some(setup.patch_ref.object_key.clone()),
-            view: DocumentViewId::Patch,
+            object_key: setup.patch_ref.object_key.clone(),
         },
         GuiEditCommand::Patch { routes },
     );
@@ -461,20 +469,22 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         "{:?}",
         result.document
     );
-    state.open_file_path(sequence_id.0.document().as_str());
+    state.open_file_path(address(&state, sequence_id).document().as_str());
     let result = state.apply_gui_edit(
         GuiDocumentRequest {
-            owned_path: sequence_id.0.owned_path().iter().map(Into::into).collect(),
+            owned_path: address(&state, sequence_id)
+                .owned_path()
+                .iter()
+                .map(Into::into)
+                .collect(),
             project_revision: state.snapshot().project_revision,
-            path: sequence_id.0.document().to_string(),
-            object_key: Some(sequence_id.0.root_source().object().into()),
-            view: DocumentViewId::Sequence,
+            path: address(&state, sequence_id).document().to_string(),
+            object_key: address(&state, sequence_id).root_source().object().into(),
         },
         GuiEditCommand::Sequence {
             edit: SequenceGuiEdit::AddEffect {
                 initial_color,
-                effect: SequenceEffectReference::Custom {
-                    module_id: initial.source.project_module_id().to_string(),
+                effect: SequenceEffectReference {
                     path: "effects/standard.donder".into(),
                     effect_name: "Pulse".into(),
                 },
@@ -490,17 +500,20 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         result.document
     );
     let before_invalid = state.project_session().unwrap();
-    state.open_file_path(setup_id.0.document().as_str());
+    state.open_file_path(address(&state, setup_id).document().as_str());
     let rejected_link = state.apply_gui_edit(
         GuiDocumentRequest {
-            owned_path: setup_id.0.owned_path().iter().map(Into::into).collect(),
+            owned_path: address(&state, setup_id)
+                .owned_path()
+                .iter()
+                .map(Into::into)
+                .collect(),
             project_revision: state.snapshot().project_revision,
-            path: setup_id.0.document().to_string(),
-            object_key: Some(setup_id.0.root_source().object().into()),
-            view: DocumentViewId::Setup,
+            path: address(&state, setup_id).document().to_string(),
+            object_key: address(&state, setup_id).root_source().object().into(),
         },
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::Layout,
+            member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::UseExisting {
                 source: empty_layout,
             },
@@ -557,7 +570,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     setup_command(
         &state,
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::Layout,
+            member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::MakeReusable {
                 name: "Original layout".into(),
                 storage: ReusableStorage::SameFile,
@@ -568,24 +581,38 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     setup_command(
         &state,
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::Layout,
+            member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::MakeIndependent,
         },
     );
     let final_session = state.project_session().unwrap();
-    let copied_layout = final_session.project.setup(&setup_id).unwrap().layout.id();
+    let copied_layout = final_session
+        .project
+        .get::<donder_model::Setup>(setup_id)
+        .unwrap()
+        .layout
+        .id();
     assert_ne!(
         *copied_layout,
-        *before_copy.project.setup(&setup_id).unwrap().layout.id()
-    );
-    assert_eq!(
-        final_session.project.definitions().fixtures,
-        before_copy.project.definitions().fixtures
+        *before_copy
+            .project
+            .get::<donder_model::Setup>(setup_id)
+            .unwrap()
+            .layout
+            .id()
     );
     assert_eq!(
         final_session
             .project
-            .sequence(final_session.project.root().sequences[0].id())
+            .reusable::<donder_model::FixtureDefinition>(),
+        before_copy
+            .project
+            .reusable::<donder_model::FixtureDefinition>()
+    );
+    assert_eq!(
+        final_session
+            .project
+            .get::<donder_model::Sequence>(*final_session.project.root().sequences[0].id())
             .unwrap()
             .effects[0]
             .target
@@ -669,28 +696,22 @@ Setup main {
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     let original = state.project_session().unwrap();
-    let setup_id = original.project.root().setup.id().clone();
-    state.open_file_path(setup_id.0.document().as_str());
+    let setup_id = *original.project.root().setup.id();
+    state.open_file_path(address(&state, setup_id).document().as_str());
     let request = || GuiDocumentRequest {
         owned_path: Vec::new(),
         project_revision: state.snapshot().project_revision,
-        path: setup_id.0.document().to_string(),
-        view: DocumentViewId::Setup,
-        object_key: Some(setup_id.0.root_source().object().to_string()),
+        path: address(&state, setup_id).document().to_string(),
+        object_key: address(&state, setup_id).root_source().object().to_string(),
     };
-    let GuiDocument::Setup { document } = state.get_gui_document(request()).document else {
+    let GuiDocument::Setup { document: _ } = state.get_gui_document(request()).document else {
         panic!("setup missing")
     };
-    assert!(!document.layout_read_only && !document.patch_read_only);
-    assert!(!document.controllers[0].read_only);
-    for slot in [
-        GuiOwnershipSlot::Controller { index: 0 },
-        GuiOwnershipSlot::Layout,
-    ] {
+    for slot in [Slot::Controller(0), Slot::Layout] {
         let result = state.apply_gui_edit(
             request(),
             GuiEditCommand::Ownership {
-                slot,
+                member: member(&state, slot),
                 edit: GuiOwnershipEdit::MakeIndependent,
             },
         );
@@ -701,16 +722,14 @@ Setup main {
         );
     }
     let copied = state.project_session().unwrap();
-    let GuiDocument::Setup { document } = state.get_gui_document(request()).document else {
+    let GuiDocument::Setup { document: _ } = state.get_gui_document(request()).document else {
         panic!("setup missing")
     };
-    assert!(!document.layout_read_only && !document.patch_read_only);
-    assert!(!document.controllers[0].read_only);
-    let copied_setup = &copied.project.reusable_setups()[&setup_id];
+    let copied_setup = &copied.project.reusable::<donder_model::Setup>()[&setup_id];
     assert_eq!(
         copied
             .project
-            .patch(copied_setup.patch.id())
+            .get::<donder_model::Patch>(*copied_setup.patch.id())
             .unwrap()
             .routes
             .len(),
@@ -719,15 +738,17 @@ Setup main {
     assert_eq!(
         copied
             .project
-            .layout(copied_setup.layout.id())
+            .get::<donder_model::Layout>(*copied_setup.layout.id())
             .unwrap()
             .iter_fixtures()
             .count(),
         31
     );
     assert_eq!(
-        copied.project.definitions().fixtures,
-        original.project.definitions().fixtures
+        copied.project.reusable::<donder_model::FixtureDefinition>(),
+        original
+            .project
+            .reusable::<donder_model::FixtureDefinition>()
     );
     let imported_request = GuiDocumentRequest {
         owned_path: Vec::new(),
@@ -738,14 +759,14 @@ Setup main {
         state.get_gui_document(imported_request).document,
         GuiDocument::Setup { .. }
     ));
-    let old_setup = &original.project.reusable_setups()[&setup_id];
+    let old_setup = &original.project.reusable::<donder_model::Setup>()[&setup_id];
     assert_eq!(
-        copied.project.reusable_layouts()[old_setup.layout.id()],
-        original.project.reusable_layouts()[old_setup.layout.id()]
+        copied.project.reusable::<donder_model::Layout>()[old_setup.layout.id()],
+        original.project.reusable::<donder_model::Layout>()[old_setup.layout.id()]
     );
     assert_eq!(
-        copied.project.reusable_patches()[old_setup.patch.id()],
-        original.project.reusable_patches()[old_setup.patch.id()]
+        copied.project.reusable::<donder_model::Patch>()[old_setup.patch.id()],
+        original.project.reusable::<donder_model::Patch>()[old_setup.patch.id()]
     );
     state.undo_active_edit();
     state.undo_active_edit();
@@ -754,18 +775,19 @@ Setup main {
     state.redo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *copied);
     let request = GuiDocumentRequest {
-        owned_path: copied_setup
-            .layout
-            .id()
-            .0
+        owned_path: address(&state, *copied_setup.layout.id())
             .owned_path()
             .iter()
             .map(Into::into)
             .collect(),
         project_revision: state.snapshot().project_revision,
-        path: copied_setup.layout.id().0.document().to_string(),
-        object_key: Some(copied_setup.layout.id().0.root_source().object().into()),
-        view: DocumentViewId::Layout,
+        path: address(&state, *copied_setup.layout.id())
+            .document()
+            .to_string(),
+        object_key: address(&state, *copied_setup.layout.id())
+            .root_source()
+            .object()
+            .into(),
     };
     let mut layout = layout_document(state.get_gui_document(request).document);
     layout.fixtures[0].name = "My outputs".into();
@@ -975,9 +997,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
                 .project_session()
                 .unwrap()
                 .project
-                .definitions()
-                .fixtures
-                .definitions
+                .reusable::<donder_model::FixtureDefinition>()
                 .len(),
             usize::from(!matches!(storage, FixtureStorage::Inline))
         );
@@ -995,7 +1015,10 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         assert!(removed.fixtures.is_empty());
         let after = state.project_session().unwrap();
         assert_eq!(
-            after.project.definitions().fixtures.definitions.len(),
+            after
+                .project
+                .reusable::<donder_model::FixtureDefinition>()
+                .len(),
             usize::from(!matches!(storage, FixtureStorage::Inline))
         );
         state.undo_active_edit();
@@ -1055,36 +1078,35 @@ fn inline_fixture_copies_have_independent_ownership() {
     setup_command(
         &state,
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::Layout,
+            member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::MakeReusable {
                 name: "Original layout".into(),
                 storage: ReusableStorage::NewFile,
             },
         },
     );
-    let original_layout = state
+    let original_layout = *state
         .project_session()
         .unwrap()
         .project
-        .setup(state.project_session().unwrap().project.root().setup.id())
+        .get::<donder_model::Setup>(*state.project_session().unwrap().project.root().setup.id())
         .unwrap()
         .layout
-        .id()
-        .clone();
+        .id();
     setup_command(
         &state,
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::Layout,
+            member: member(&state, Slot::Layout),
             edit: GuiOwnershipEdit::MakeIndependent,
         },
     );
     let copied = state.project_session().unwrap();
     let copied_layout = copied
         .project
-        .layout(
-            copied
+        .get::<donder_model::Layout>(
+            *copied
                 .project
-                .setup(copied.project.root().setup.id())
+                .get::<donder_model::Setup>(*copied.project.root().setup.id())
                 .unwrap()
                 .layout
                 .id(),
@@ -1093,16 +1115,18 @@ fn inline_fixture_copies_have_independent_ownership() {
     assert!(
         matches!(&copied_layout.fixtures[0].kind, donder_model::LayoutFixtureKind::Fixture {definition: donder_model::FixtureSource::Inline(value),..} if value.elements.len() == 1)
     );
-    state.open_file_path(original_layout.0.document().as_str());
+    state.open_file_path(address(&state, original_layout).document().as_str());
     layout_document(
         state
             .apply_gui_edit(
                 GuiDocumentRequest {
                     owned_path: Vec::new(),
                     project_revision: state.snapshot().project_revision,
-                    path: original_layout.0.document().to_string(),
-                    object_key: Some(original_layout.0.root_source().object().into()),
-                    view: DocumentViewId::Layout,
+                    path: address(&state, original_layout).document().to_string(),
+                    object_key: address(&state, original_layout)
+                        .root_source()
+                        .object()
+                        .into(),
                 },
                 GuiEditCommand::Layout {
                     edit: LayoutGuiEdit::SetFixtures {
@@ -1118,9 +1142,7 @@ fn inline_fixture_copies_have_independent_ownership() {
             .project_session()
             .unwrap()
             .project
-            .definitions()
-            .fixtures
-            .definitions
+            .reusable::<donder_model::FixtureDefinition>()
             .len(),
         0
     );
@@ -1139,9 +1161,7 @@ fn inline_fixture_copies_have_independent_ownership() {
             .project_session()
             .unwrap()
             .project
-            .definitions()
-            .fixtures
-            .definitions
+            .reusable::<donder_model::FixtureDefinition>()
             .is_empty()
     );
     state.save_all().unwrap();
@@ -1184,7 +1204,7 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     );
     assert_eq!(
         layout.source_ref.owned_path,
-        vec![GuiOwnedStep::Setup, GuiOwnedStep::Layout]
+        vec![OwnedObjectSlot::Setup, OwnedObjectSlot::Layout]
     );
     let fixture = fixture_reference(&layout, 0);
     let before = state.project_session().unwrap();
@@ -1207,15 +1227,23 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     assert_eq!(document.name, "owned_strip");
     assert_eq!(document.render_plan.pixels.len(), 1);
     let after = state.project_session().unwrap();
-    assert!(after.project.reusable_layouts().is_empty());
-    assert!(after.project.definitions().fixtures.definitions.is_empty());
+    assert!(after.project.reusable::<donder_model::Layout>().is_empty());
+    assert!(
+        after
+            .project
+            .reusable::<donder_model::FixtureDefinition>()
+            .is_empty()
+    );
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);
     state.redo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *after);
     // Use the desktop save barrier so this readback cannot race background autosave.
     state.save_all().unwrap();
-    let reloaded = donder_project_io::load_project(&root).unwrap();
+    let reloaded =
+        donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap();
     assert_eq!(reloaded.project, after.project);
 }
 #[test]
@@ -1293,42 +1321,35 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
             },
         );
         for slot in [
-            GuiOwnershipSlot::Fixture { id: 1 },
-            GuiOwnershipSlot::Controller { index: 0 },
-            GuiOwnershipSlot::InputDevice { index: 0 },
-            GuiOwnershipSlot::Layout,
-            GuiOwnershipSlot::Patch,
-            GuiOwnershipSlot::Sequence { index: 0 },
-            GuiOwnershipSlot::Rig { index: 0 },
-            GuiOwnershipSlot::Setup,
+            Slot::Fixture(1),
+            Slot::Controller(0),
+            Slot::InputDevice(0),
+            Slot::Layout,
+            Slot::Patch,
+            Slot::Sequence(0),
+            Slot::Rig(0),
+            Slot::Setup,
         ] {
             let session = state.project_session().unwrap();
             let setup = session
                 .project
-                .setup(session.project.root().setup.id())
+                .get::<donder_model::Setup>(*session.project.root().setup.id())
                 .unwrap();
-            let (owner, view) = match &slot {
-                GuiOwnershipSlot::Fixture { .. } => {
-                    (setup.layout.id().0.clone(), DocumentViewId::Layout)
+            let owner = match slot {
+                Slot::Fixture(..) => address(&state, *setup.layout.id()),
+                Slot::Controller(..) | Slot::InputDevice(..) | Slot::Layout | Slot::Patch => {
+                    address(&state, setup.id)
                 }
-                GuiOwnershipSlot::Controller { .. }
-                | GuiOwnershipSlot::InputDevice { .. }
-                | GuiOwnershipSlot::Layout
-                | GuiOwnershipSlot::Patch => (setup.id.0.clone(), DocumentViewId::Setup),
-                GuiOwnershipSlot::Sequence { .. }
-                | GuiOwnershipSlot::Rig { .. }
-                | GuiOwnershipSlot::Setup => (
-                    session.project.root().id.0.clone().into(),
-                    DocumentViewId::Project,
-                ),
+                Slot::Sequence(..) | Slot::Rig(..) | Slot::Setup => {
+                    address(&state, session.project.root().id)
+                }
             };
             state.open_file_path(owner.document().as_str());
             let request = || GuiDocumentRequest {
                 owned_path: owner.owned_path().iter().map(Into::into).collect(),
                 project_revision: state.snapshot().project_revision,
                 path: owner.document().to_string(),
-                object_key: Some(owner.root_source().object().into()),
-                view: view.clone(),
+                object_key: owner.root_source().object().into(),
             };
             for step in 0..4 {
                 let edit = match step {
@@ -1346,14 +1367,14 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                             other => panic!("Missing source choices: {other:?}"),
                         };
                         let kind = match slot {
-                            GuiOwnershipSlot::Setup => ObjectKind::Setup,
-                            GuiOwnershipSlot::Sequence { .. } => ObjectKind::Sequence,
-                            GuiOwnershipSlot::Layout => ObjectKind::Layout,
-                            GuiOwnershipSlot::Patch => ObjectKind::Patch,
-                            GuiOwnershipSlot::Controller { .. } => ObjectKind::Controller,
-                            GuiOwnershipSlot::InputDevice { .. } => ObjectKind::InputDevice,
-                            GuiOwnershipSlot::Rig { .. } => ObjectKind::Rig,
-                            GuiOwnershipSlot::Fixture { .. } => ObjectKind::Fixture,
+                            Slot::Setup => ObjectKind::Setup,
+                            Slot::Sequence(..) => ObjectKind::Sequence,
+                            Slot::Layout => ObjectKind::Layout,
+                            Slot::Patch => ObjectKind::Patch,
+                            Slot::Controller(..) => ObjectKind::Controller,
+                            Slot::InputDevice(..) => ObjectKind::InputDevice,
+                            Slot::Rig(..) => ObjectKind::Rig,
+                            Slot::Fixture(..) => ObjectKind::Fixture,
                         };
                         GuiOwnershipEdit::UseExisting {
                             source: sources
@@ -1368,7 +1389,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                 let result = state.apply_gui_edit(
                     request(),
                     GuiEditCommand::Ownership {
-                        slot: slot.clone(),
+                        member: member(&state, slot),
                         edit,
                     },
                 );
@@ -1392,22 +1413,44 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         let session = state.project_session().unwrap();
         let setup = session
             .project
-            .setup(session.project.root().setup.id())
+            .get::<donder_model::Setup>(*session.project.root().setup.id())
             .unwrap();
         assert_eq!(
-            session.project.layout(setup.layout.id()).unwrap().fixtures[0]
+            session
+                .project
+                .get::<donder_model::Layout>(*setup.layout.id())
+                .unwrap()
+                .fixtures[0]
                 .name
                 .as_str(),
             "my_strip"
         );
-        assert_eq!(session.project.definitions().fixtures.definitions.len(), 1);
-        assert_eq!(session.project.reusable_controllers().len(), 1);
-        assert_eq!(session.project.reusable_layouts().len(), 1);
-        assert_eq!(session.project.reusable_patches().len(), 1);
-        assert_eq!(session.project.reusable_sequences().len(), 1);
-        assert_eq!(session.project.reusable_input_devices().len(), 1);
-        assert_eq!(session.project.reusable_rigs().len(), 1);
-        assert_eq!(session.project.reusable_setups().len(), 1);
+        assert_eq!(
+            session
+                .project
+                .reusable::<donder_model::FixtureDefinition>()
+                .len(),
+            1
+        );
+        assert_eq!(
+            session.project.reusable::<donder_model::Controller>().len(),
+            1
+        );
+        assert_eq!(session.project.reusable::<donder_model::Layout>().len(), 1);
+        assert_eq!(session.project.reusable::<donder_model::Patch>().len(), 1);
+        assert_eq!(
+            session.project.reusable::<donder_model::Sequence>().len(),
+            1
+        );
+        assert_eq!(
+            session
+                .project
+                .reusable::<donder_model::InputDevice>()
+                .len(),
+            1
+        );
+        assert_eq!(session.project.reusable::<donder_model::Rig>().len(), 1);
+        assert_eq!(session.project.reusable::<donder_model::Setup>().len(), 1);
     }
 }
 
@@ -1422,8 +1465,12 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     let initial = state.project_session().unwrap();
-    let initial_id = initial.project.root().sequences[0].id().clone();
-    let color = initial.project.sequence(&initial_id).unwrap().layers[0]
+    let initial_id = *initial.project.root().sequences[0].id();
+    let color = initial
+        .project
+        .get::<donder_model::Sequence>(initial_id)
+        .unwrap()
+        .layers[0]
         .color
         .to_hex();
     state
@@ -1436,7 +1483,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             frame_rate: 60,
         })
         .unwrap();
-    let new_id = state
+    let new_id = *state
         .project_session()
         .unwrap()
         .project
@@ -1444,28 +1491,26 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         .sequences
         .last()
         .unwrap()
-        .id()
-        .clone();
+        .id();
     for id in [initial_id, new_id] {
-        state.open_file_path(id.0.document().as_str());
+        state.open_file_path(address(&state, id).document().as_str());
         let request = || GuiDocumentRequest {
-            owned_path: id.0.owned_path().iter().map(Into::into).collect(),
+            owned_path: address(&state, id)
+                .owned_path()
+                .iter()
+                .map(Into::into)
+                .collect(),
             project_revision: state.snapshot().project_revision,
-            path: id.0.document().to_string(),
-            view: DocumentViewId::Sequence,
-            object_key: Some(id.0.root_source().object().to_string()),
+            path: address(&state, id).document().to_string(),
+            object_key: address(&state, id).root_source().object().to_string(),
         };
         let GuiDocument::Sequence { document } = state.get_gui_document(request()).document else {
             panic!("sequence projection missing");
         };
         let hue_shift = document.composition_graph.operator_catalog.iter().find(|entry| {
-            matches!(&entry.operator, SequenceGraphOperator::Custom { object_key, .. } if object_key == "HueShift")
+            matches!(&entry.operator, SequenceGraphOperator { object_key, .. } if object_key == "HueShift")
         }).expect("new project catalog includes HueShift");
-        let SequenceGraphOperator::Custom {
-            module_id, path, ..
-        } = &hue_shift.operator;
-        assert_eq!(module_id, &id.0.module_id().to_string());
-        assert_eq!(path, "operators/standard.donder");
+        assert_eq!(hue_shift.operator.path, "operators/standard.donder");
         let edit = |edit| {
             state.apply_gui_edit(
                 request(),
@@ -1504,7 +1549,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
                 .project_session()
                 .unwrap()
                 .project
-                .sequence(&id)
+                .get::<donder_model::Sequence>(id)
                 .unwrap()
                 .composition_graph
                 .nodes
@@ -1555,7 +1600,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         let accepted = state.project_session().unwrap();
         state.save_all().unwrap();
         crate::desktop_foundation_tests::tests::assert_reloads(&root, &accepted);
-        let authored = std::fs::read_to_string(root.join(id.0.document())).unwrap();
+        let authored = std::fs::read_to_string(root.join(address(&state, id).document())).unwrap();
         assert!(authored.contains("operators/standard.donder"));
         assert!(authored.contains("operators.HueShift"));
         assert!(matches!(
@@ -1607,7 +1652,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         let before = state.project_session().unwrap();
         let color = before
             .project
-            .sequence(before.project.root().sequences[0].id())
+            .get::<donder_model::Sequence>(*before.project.root().sequences[0].id())
             .unwrap()
             .layers[0]
             .color
@@ -1629,12 +1674,15 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         );
         let source = after.project.root().sequences.last().unwrap();
         assert_eq!(
-            matches!(source, donder_model::ValueSource::Inline(_)),
+            matches!(source, donder_model::MemberSource::Inline { .. }),
             inline
         );
         assert_eq!(result.source.owned_path.is_empty(), !inline);
         assert_eq!(result.source.path != "project.data.donder", new_file);
-        let sequence = after.project.sequence(source.id()).unwrap();
+        let sequence = after
+            .project
+            .get::<donder_model::Sequence>(*source.id())
+            .unwrap();
         assert_eq!(sequence.duration.as_seconds_f64(), 30.0);
         assert_eq!(sequence.frame_rate, 40);
         state.undo_active_edit();
@@ -1647,7 +1695,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
     let before = state.project_session().unwrap();
     let color = before
         .project
-        .sequence(before.project.root().sequences[0].id())
+        .get::<donder_model::Sequence>(*before.project.root().sequences[0].id())
         .unwrap()
         .layers[0]
         .color
@@ -1717,16 +1765,19 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         let current = state.project_session().unwrap();
         let layout_id = current
             .project
-            .setup(current.project.root().setup.id())
+            .get::<donder_model::Setup>(*current.project.root().setup.id())
             .unwrap()
             .layout
             .id();
         let request = GuiDocumentRequest {
             project_revision: state.snapshot().project_revision,
-            path: layout_id.0.document().to_string(),
-            object_key: Some(layout_id.0.root_source().object().into()),
-            owned_path: layout_id.0.owned_path().iter().map(Into::into).collect(),
-            view: DocumentViewId::Layout,
+            path: address(&state, *layout_id).document().to_string(),
+            object_key: address(&state, *layout_id).root_source().object().into(),
+            owned_path: address(&state, *layout_id)
+                .owned_path()
+                .iter()
+                .map(Into::into)
+                .collect(),
         };
         let layout = layout_document(state.get_gui_document(request).document);
         edit_layout(
@@ -1774,8 +1825,8 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         assert!(matches!(definition, GuiFixtureSource::Inline { .. }));
         assert_eq!(placement.position.x_meters, 2.0);
         assert_eq!(
-            after.project.definitions().fixtures,
-            before.project.definitions().fixtures
+            after.project.reusable::<donder_model::FixtureDefinition>(),
+            before.project.reusable::<donder_model::FixtureDefinition>()
         );
         state.undo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *before);
@@ -1785,7 +1836,7 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         copied_source.kind = ObjectKind::Fixture;
         copied_source
             .owned_path
-            .push(GuiOwnedStep::Fixture { id: 4 });
+            .push(OwnedObjectSlot::Fixture { id: 4 });
         assert!(matches!(
             fixture_edit(
                 &state,
@@ -1796,12 +1847,22 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         ));
         let changed = state.project_session().unwrap();
         assert_eq!(
-            changed.project.layout(layout_id).unwrap().fixtures[0],
-            before.project.layout(layout_id).unwrap().fixtures[0]
+            changed
+                .project
+                .get::<donder_model::Layout>(*layout_id)
+                .unwrap()
+                .fixtures[0],
+            before
+                .project
+                .get::<donder_model::Layout>(*layout_id)
+                .unwrap()
+                .fixtures[0]
         );
         assert_eq!(
-            changed.project.definitions().fixtures,
-            before.project.definitions().fixtures
+            changed
+                .project
+                .reusable::<donder_model::FixtureDefinition>(),
+            before.project.reusable::<donder_model::FixtureDefinition>()
         );
         state.save_all().unwrap();
         crate::desktop_foundation_tests::tests::assert_reloads(&root, &changed);
@@ -1865,14 +1926,14 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
     let initial = state.project_session().unwrap();
     let layout_id = initial
         .project
-        .setup(initial.project.root().setup.id())
+        .get::<donder_model::Setup>(*initial.project.root().setup.id())
         .unwrap()
         .layout
         .id();
     let fixture_id = donder_model::FixtureInstanceId;
     let original_first = initial
         .project
-        .layout(layout_id)
+        .get::<donder_model::Layout>(*layout_id)
         .unwrap()
         .fixture(fixture_id(1))
         .unwrap()
@@ -1918,15 +1979,17 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
         assert_eq!(
             after
                 .project
-                .layout(layout_id)
+                .get::<donder_model::Layout>(*layout_id)
                 .unwrap()
                 .fixture(fixture_id(1))
                 .unwrap(),
             &original_first
         );
         assert_eq!(
-            after.project.definitions().fixtures,
-            initial.project.definitions().fixtures
+            after.project.reusable::<donder_model::FixtureDefinition>(),
+            initial
+                .project
+                .reusable::<donder_model::FixtureDefinition>()
         );
         state.undo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *before_session);
@@ -1934,7 +1997,10 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
         assert_eq!(*state.project_session().unwrap(), *after);
     }
     let current = state.project_session().unwrap();
-    let layout = current.project.layout(layout_id).unwrap();
+    let layout = current
+        .project
+        .get::<donder_model::Layout>(*layout_id)
+        .unwrap();
     assert_eq!(layout.root, [fixture_id(2), fixture_id(3)]);
     assert_eq!(
         layout.children(Some(fixture_id(3))).unwrap(),
@@ -1989,9 +2055,8 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
     let request = GuiDocumentRequest {
         project_revision: state.snapshot().project_revision,
         path: first_source.path,
-        object_key: Some(first_source.object_key),
+        object_key: first_source.object_key,
         owned_path: first_source.owned_path,
-        view: DocumentViewId::Fixture,
     };
     assert!(matches!(
         state.get_gui_document(request).document,
@@ -2105,8 +2170,8 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
     }
     let after = state.project_session().unwrap();
     assert_eq!(
-        after.project.definitions().fixtures,
-        before.project.definitions().fixtures
+        after.project.reusable::<donder_model::FixtureDefinition>(),
+        before.project.reusable::<donder_model::FixtureDefinition>()
     );
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);
@@ -2254,33 +2319,84 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
 fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
     let metadata = donder_project_io::ProjectMetadata::read(root).unwrap();
     let text = format!(
-        "{imports}\nProject show {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}\n  rigs: [],\n}}\n",
-        metadata.format_version, metadata.project_id
+        "{imports}\nProject show {{\n  format: {},\n  description: none,\n{fields}\n  rigs: [],\n}}\n",
+        metadata.format_version
     );
     std::fs::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
 }
 
+/// Where an object of the state's session is written.
+/// A slot of the active project, its setup or its layout.
+#[derive(Clone, Copy)]
+enum Slot {
+    Setup,
+    Sequence(usize),
+    Rig(usize),
+    Layout,
+    Patch,
+    Controller(usize),
+    InputDevice(usize),
+    Fixture(u32),
+}
+
+/// The member a slot of the active project holds, as the GUI names it.
+fn member(state: &DesktopState, slot: Slot) -> OwnershipMember {
+    let session = state.project_session().unwrap();
+    let root = session.project.root();
+    let setup = session
+        .project
+        .get::<donder_model::Setup>(*root.setup.id())
+        .unwrap();
+    let id: donder_model::ObjectId = match slot {
+        Slot::Setup => (*root.setup.id()).into(),
+        Slot::Sequence(index) => (*root.sequences[index].id()).into(),
+        Slot::Rig(index) => (*root.rigs[index].id()).into(),
+        Slot::Layout => (*setup.layout.id()).into(),
+        Slot::Patch => (*setup.patch.id()).into(),
+        Slot::Controller(index) => (*setup.controllers[index].id()).into(),
+        Slot::InputDevice(index) => (*setup.input_devices[index].id()).into(),
+        Slot::Fixture(id) => return OwnershipMember::Fixture { id },
+    };
+    let address = address(state, id);
+    OwnershipMember::Object {
+        source: GuiObjectRef {
+            owned_path: address.owned_path().iter().map(Into::into).collect(),
+            path: address.document().to_string(),
+            object_key: address.root_source().object().into(),
+            kind: id.kind().into(),
+            id: address.root_source().object().into(),
+        },
+    }
+}
+
+fn address(
+    state: &DesktopState,
+    id: impl Into<donder_model::ObjectId>,
+) -> donder_project_io::ObjectAddress {
+    state
+        .project_session()
+        .unwrap()
+        .address_of(id.into())
+        .unwrap()
+}
+
 fn object_request(
     state: &DesktopState,
-    identity: &donder_model::ObjectIdentity,
-    view: DocumentViewId,
+    id: impl Into<donder_model::ObjectId>,
 ) -> GuiDocumentRequest {
+    let identity = &address(state, id);
     state.open_file_path(identity.document().as_str());
     GuiDocumentRequest {
         owned_path: identity.owned_path().iter().map(Into::into).collect(),
         project_revision: state.snapshot().project_revision,
         path: identity.document().to_string(),
-        object_key: Some(identity.root_source().object().into()),
-        view,
+        object_key: identity.root_source().object().into(),
     }
 }
 
 fn rig_edit(state: &DesktopState, rig: &donder_model::RigId, edit: RigGuiEdit) -> RigGuiDocument {
     match state
-        .apply_gui_edit(
-            object_request(state, &rig.0, DocumentViewId::Rig),
-            GuiEditCommand::Rig { edit },
-        )
+        .apply_gui_edit(object_request(state, *rig), GuiEditCommand::Rig { edit })
         .document
     {
         GuiDocument::Rig { document } => document,
@@ -2290,11 +2406,8 @@ fn rig_edit(state: &DesktopState, rig: &donder_model::RigId, edit: RigGuiEdit) -
 
 fn setup_document(state: &DesktopState) -> SetupGuiDocument {
     let session = state.project_session().unwrap();
-    let id = session.project.root().setup.id().0.clone();
-    match state
-        .get_gui_document(object_request(state, &id, DocumentViewId::Setup))
-        .document
-    {
+    let id = *session.project.root().setup.id();
+    match state.get_gui_document(object_request(state, id)).document {
         GuiDocument::Setup { document } => document,
         other => panic!("setup projection missing: {other:?}"),
     }
@@ -2311,12 +2424,12 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     let session = state.project_session().unwrap();
     let setup = session
         .project
-        .setup(session.project.root().setup.id())
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
         .unwrap();
-    let keyboard = setup.input_devices[0].id().clone();
+    let keyboard = *setup.input_devices[0].id();
 
     // Renaming a control renames the reference every rig prints for it.
-    let request = object_request(&state, &keyboard.0, DocumentViewId::InputDevice);
+    let request = object_request(&state, keyboard);
     let GuiDocument::InputDevice { document } = state.get_gui_document(request.clone()).document
     else {
         panic!("input device projection missing");
@@ -2338,7 +2451,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     // Two controls cannot read one key.
     controls[1].input = controls[0].input.clone();
     let duplicate = state.apply_gui_edit(
-        object_request(&state, &keyboard.0, DocumentViewId::InputDevice),
+        object_request(&state, keyboard),
         GuiEditCommand::InputDevice {
             driver: GuiInputDriver::Keyboard,
             controls,
@@ -2348,7 +2461,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
 
     // The jam rig plays from the keyboard, so the setup keeps it.
     let detach = state.apply_gui_edit(
-        object_request(&state, &setup.id.0, DocumentViewId::Setup),
+        object_request(&state, setup.id),
         GuiEditCommand::Setup {
             edit: SetupGuiEdit::DetachInputDevice {
                 device: document.device.source_ref.clone(),
@@ -2377,7 +2490,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     setup_command(
         &state,
         GuiEditCommand::Ownership {
-            slot: GuiOwnershipSlot::InputDevice { index: 1 },
+            member: member(&state, Slot::InputDevice(1)),
             edit: GuiOwnershipEdit::MakeReusable {
                 name: "Pads".into(),
                 storage: ReusableStorage::NewFile,
@@ -2407,12 +2520,9 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
         },
     );
     assert_eq!(project.rigs.len(), 2);
-    let rig = state.project_session().unwrap().project.root().rigs[1]
-        .id()
-        .clone();
-    let GuiDocument::Rig { document } = state
-        .get_gui_document(object_request(&state, &rig.0, DocumentViewId::Rig))
-        .document
+    let rig = *state.project_session().unwrap().project.root().rigs[1].id();
+    let GuiDocument::Rig { document } =
+        state.get_gui_document(object_request(&state, rig)).document
     else {
         panic!("rig projection missing");
     };
@@ -2424,9 +2534,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     let effect = document
         .effect_definitions
         .iter()
-        .find(|definition| {
-            matches!(&definition.effect, SequenceEffectReference::Custom { effect_name, .. } if effect_name == "Pulse")
-        })
+        .find(|definition| definition.effect.effect_name == "Pulse")
         .unwrap()
         .effect
         .clone();
@@ -2466,11 +2574,10 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
         },
     );
     let mapping = document.mappings[0].id;
-    rig_edit(
-        &state,
-        &rig,
-        RigGuiEdit::Rename {
-            item: RigItem::Mapping { id: mapping },
+    state.apply_gui_edit(
+        object_request(&state, rig),
+        GuiEditCommand::Rename {
+            item: GuiItem::Mapping { id: mapping },
             name: "Flash".into(),
         },
     );
@@ -2504,7 +2611,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     assert_eq!(*state.project_session().unwrap(), *after);
     // A stack holds at most 16 voices.
     let rejected = state.apply_gui_edit(
-        object_request(&state, &rig.0, DocumentViewId::Rig),
+        object_request(&state, rig),
         GuiEditCommand::Rig {
             edit: RigGuiEdit::SetTriggerVoices {
                 mapping_id: mapping,

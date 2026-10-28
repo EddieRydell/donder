@@ -5,7 +5,7 @@ use super::*;
 pub(crate) fn sequence_export_options(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
-) -> Result<donder_sequence_api::SequenceExportOptions, String> {
+) -> Result<donder_editor::dto::SequenceExportOptions, String> {
     state.sequence_export_options(&request)
 }
 
@@ -51,9 +51,9 @@ pub(crate) async fn export_fseq_file(
 #[specta::specta]
 pub(crate) async fn export_video_file(
     request: GuiDocumentRequest,
-    appearance: donder_sequence_api::PreviewAppearance,
+    appearance: donder_editor::dto::PreviewAppearance,
     frames_per_second: u32,
-    progress: tauri::ipc::Channel<donder_sequence_api::VideoExportProgress>,
+    progress: tauri::ipc::Channel<donder_editor::dto::VideoExportProgress>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
     let state = state.inner().clone();
@@ -142,7 +142,7 @@ fn write_export_file(path: &camino::Utf8Path, bytes: &[u8]) -> Result<(), String
 pub(crate) fn get_gui_document(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
-) -> donder_sequence_api::GuiDocumentResult {
+) -> donder_editor::dto::GuiDocumentResult {
     state.get_gui_document(request)
 }
 
@@ -152,7 +152,7 @@ pub(crate) fn get_sequence_effect_details(
     request: GuiDocumentRequest,
     effect_ids: Vec<u32>,
     state: State<'_, DesktopState>,
-) -> Result<donder_sequence_api::SequenceEffectDetailsResult, String> {
+) -> Result<donder_editor::dto::SequenceEffectDetailsResult, String> {
     state.get_sequence_effect_details(request, effect_ids)
 }
 
@@ -160,9 +160,9 @@ pub(crate) fn get_sequence_effect_details(
 #[specta::specta]
 pub(crate) fn match_sequence_clips(
     request: GuiDocumentRequest,
-    query: donder_sequence_api::SequenceClipMatchRequest,
+    query: donder_editor::dto::SequenceClipMatchRequest,
     state: State<'_, DesktopState>,
-) -> Result<donder_sequence_api::SequenceSelection, String> {
+) -> Result<donder_editor::dto::SequenceSelection, String> {
     state.match_sequence_clips(request, query)
 }
 
@@ -203,52 +203,12 @@ pub(crate) fn finish_composition_graph_editing(state: State<'_, DesktopState>) -
 
 #[tauri::command(async)]
 #[specta::specta]
-pub(crate) fn rebind_detached_automation(
+pub(crate) fn copy_sequence_selection(
     request: GuiDocumentRequest,
-    clip_id: u32,
-    detached_index: u32,
-    target: SequenceAutomationTarget,
+    selection: SequenceSelection,
     state: State<'_, DesktopState>,
 ) -> GuiEditUpdate {
-    state.edit_gui_document(
-        request,
-        GuiEditCommand::Sequence {
-            edit: SequenceGuiEdit::RebindDetachedAutomation {
-                clip_id,
-                detached_index,
-                target,
-            },
-        },
-    )
-}
-
-#[tauri::command(async)]
-#[specta::specta]
-pub(crate) fn discard_detached_automation(
-    request: GuiDocumentRequest,
-    clip_id: u32,
-    detached_index: u32,
-    state: State<'_, DesktopState>,
-) -> GuiEditUpdate {
-    state.edit_gui_document(
-        request,
-        GuiEditCommand::Sequence {
-            edit: SequenceGuiEdit::DiscardDetachedAutomation {
-                clip_id,
-                detached_index,
-            },
-        },
-    )
-}
-
-#[tauri::command(async)]
-#[specta::specta]
-pub(crate) fn apply_sequence_selection_edit(
-    request: GuiDocumentRequest,
-    edit: SequenceSelectionEdit,
-    state: State<'_, DesktopState>,
-) -> SequenceSelectionEditResult {
-    state.apply_sequence_selection_edit(request, edit)
+    state.copy_sequence_selection(request, selection)
 }
 
 #[tauri::command]
@@ -261,12 +221,12 @@ pub(crate) fn choose_sequence_audio(
         .add_filter("Audio", &["mp3", "wav", "ogg", "flac"])
         .pick_file()
     else {
-        return GuiEditUpdate {
-            snapshot: state.snapshot(),
-            change: GuiDocumentChange::Document {
+        return crate::desktop_state::gui_update(
+            state.snapshot(),
+            GuiDocumentChange::Document {
                 document: state.get_gui_document(request).document,
             },
-        };
+        );
     };
     let snapshot = state.snapshot();
     let import_path = match super::import_external_audio(&snapshot, &path) {
@@ -275,25 +235,14 @@ pub(crate) fn choose_sequence_audio(
             let snapshot = state.update_snapshot(|snapshot| {
                 snapshot.status = message;
             });
-            return GuiEditUpdate {
+            return crate::desktop_state::gui_update(
                 snapshot,
-                change: GuiDocumentChange::Document {
+                GuiDocumentChange::Document {
                     document: state.get_gui_document(request).document,
                 },
-            };
+            );
         }
     };
-    if !matches!(request.view, DocumentViewId::Sequence) {
-        let snapshot = state.update_snapshot(|snapshot| {
-            snapshot.status = "Audio can only be associated with a sequence.".to_string();
-        });
-        return GuiEditUpdate {
-            snapshot,
-            change: GuiDocumentChange::Document {
-                document: state.get_gui_document(request).document,
-            },
-        };
-    }
     state.edit_gui_document(
         request,
         GuiEditCommand::Sequence {
@@ -346,7 +295,7 @@ pub(crate) async fn set_device_standalone(
 #[specta::specta]
 pub(crate) async fn set_device_network(
     id: String,
-    network: Option<donder_sequence_api::DonderDeviceNetworkRequest>,
+    network: Option<donder_editor::dto::DonderDeviceNetworkRequest>,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     let state = state.inner().clone();
@@ -358,7 +307,7 @@ pub(crate) async fn set_device_network(
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn device_serial_ports()
--> Result<Vec<donder_sequence_api::DeviceSerialPort>, String> {
+-> Result<Vec<donder_editor::dto::DeviceSerialPort>, String> {
     tauri::async_runtime::spawn_blocking(crate::device::provisioning::ports)
         .await
         .map_err(|error| error.to_string())?
@@ -366,7 +315,7 @@ pub(crate) async fn device_serial_ports()
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn device_firmware_info() -> Result<donder_sequence_api::DeviceFirmwareInfo, String> {
+pub(crate) fn device_firmware_info() -> Result<donder_editor::dto::DeviceFirmwareInfo, String> {
     crate::device::firmware::info()
 }
 
@@ -374,7 +323,7 @@ pub(crate) fn device_firmware_info() -> Result<donder_sequence_api::DeviceFirmwa
 #[specta::specta]
 pub(crate) async fn install_device_firmware(
     port: String,
-    progress: tauri::ipc::Channel<donder_sequence_api::DeviceInstallProgress>,
+    progress: tauri::ipc::Channel<donder_editor::dto::DeviceInstallProgress>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::device::firmware::install(&port, |state| {

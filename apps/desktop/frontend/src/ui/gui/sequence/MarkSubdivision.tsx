@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSequenceEditorHost } from "../../../editor/host";
-import type { SequenceEditorDocument } from "../../../editor/types";
-import { defaultMarkColor, nextCollectionKey, subdivisionTimes } from "./marks";
+import type { SequenceGuiDocument } from "../../../editor/types";
+import { defaultMarkColor, subdivisionTimes } from "./marks";
 
 const MIN_DIVISIONS = 2;
 const MAX_DIVISIONS = 32;
@@ -18,7 +18,7 @@ export function MarkSubdivision({
   setVisibleMarkCollectionKeys,
   clearMarkSelection
 }: {
-  document: SequenceEditorDocument;
+  document: SequenceGuiDocument;
   selectedSeconds: number[];
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
@@ -38,20 +38,19 @@ export function MarkSubdivision({
       (time) => !existing.some((mark) => Math.abs(mark - time) < DUPLICATE_MARK_SECONDS)
     );
     if (targetCollection === undefined) {
-      const key = nextCollectionKey(name, document.markCollections);
       void runGuiEditCommand((request) =>
-        commands.applySequenceGuiEdit(request, {
+        commands.applyGuiEdit(request, { type: "sequence", edit: {
           type: "createMarkCollections",
-          collections: [{ name: key, color: defaultMarkColor(document.markCollections.length), marksSeconds: timesSeconds }]
-        })
-      ).then(() => {
-        setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, key]));
+          collections: [{ name, color: defaultMarkColor(document.markCollections.length), marksSeconds: timesSeconds }]
+        } })
+      ).then(({ created }) => {
+        setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...created]));
       });
       return;
     }
     // Inserting marks renumbers the target collection, so the selection's indices would go stale.
     void runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, { type: "addMarks", collectionKey: targetCollection.key, timesSeconds })
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "addMarks", collectionKey: targetCollection.key, timesSeconds } })
     ).then(clearMarkSelection);
   };
 

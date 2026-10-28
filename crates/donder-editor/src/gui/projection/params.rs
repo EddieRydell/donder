@@ -26,14 +26,17 @@ pub(in crate::gui) fn effect_params(
 /// override, else its default, and the automation `automation` finds for it.
 pub(in crate::gui) fn invocation_params(
     session: &ProjectSession,
-    definition: &donder_model::EffectRef,
+    definition: &donder_model::EffectDefinitionId,
     overrides: &indexmap::IndexMap<Identifier, EffectParamValue>,
     mut automation: impl FnMut(
         &Identifier,
         &mut SequenceEffectParamValue,
     ) -> Option<SequenceParamAutomation>,
 ) -> Vec<SequenceEffectParam> {
-    let Some(definition) = session.project.definitions().effects.resolve(definition) else {
+    let Some(definition) = session
+        .project
+        .get::<donder_model::EffectDefinition>(*definition)
+    else {
         return Vec::new();
     };
     definition
@@ -79,14 +82,9 @@ pub(in crate::gui) fn composition_graph(
         id: 0,
         operator_catalog: session
             .project
-            .definitions()
-            .operators
-            .definitions
+            .reusable::<donder_model::OperatorDefinition>()
             .iter()
-            .filter(|(id, _)| session.source.is_project_owned(id.0.document_id()))
-            .map(|(id, definition)| {
-                graph_operator_definition_to_gui(OperatorRef::Custom(id.clone()), definition)
-            })
+            .map(|(id, definition)| graph_operator_definition_to_gui(session, *id, definition))
             .collect(),
         nodes: graph
             .nodes
@@ -148,7 +146,7 @@ fn composition_graph_node(
             }
             CompositionGraphNodeKind::Operator(operator) => SequenceGraphNodeKind::Operator {
                 name: operator.name.as_str().to_string(),
-                operator: graph_operator_to_gui(&operator.operator),
+                operator: graph_operator_to_gui(session, &operator.operator),
                 params: graph_operator_params(session, sequence, &node.id, operator),
             },
             CompositionGraphNodeKind::Output => SequenceGraphNodeKind::Output,
@@ -168,9 +166,7 @@ fn graph_operator_params(
 ) -> Vec<SequenceEffectParam> {
     let Some(definition) = session
         .project
-        .definitions()
-        .operators
-        .resolve(&operator.operator)
+        .get::<donder_model::OperatorDefinition>(operator.operator)
     else {
         return Vec::new();
     };
@@ -216,13 +212,14 @@ fn graph_operator_params(
 }
 
 pub(in crate::gui) fn graph_operator_definition_to_gui(
-    operator: OperatorRef,
+    session: &ProjectSession,
+    operator: OperatorDefinitionId,
     definition: &OperatorDefinition,
 ) -> SequenceGraphOperatorDefinition {
     SequenceGraphOperatorDefinition {
-        operator: graph_operator_to_gui(&operator),
-        source_name: definition.source_name.clone(),
-        display_name: definition.display_name.clone(),
+        operator: graph_operator_to_gui(session, &operator),
+        source_name: definition.name().to_string(),
+        display_name: definition.name().to_string(),
         description: definition.description().map(str::to_string),
         inputs: definition.inputs().iter().map(graph_port_to_gui).collect(),
         outputs: vec![graph_port_to_gui(definition.output())],
@@ -233,11 +230,11 @@ pub(in crate::gui) fn graph_operator_definition_to_gui(
 /// The parameters a definition declares, as the inspector lists them.
 pub(in crate::gui) fn definition_params_to_gui(
     params: &[donder_language::compiler::ParamDecl],
-) -> Vec<donder_sequence_api::SequenceEffectDefinitionParam> {
+) -> Vec<crate::dto::SequenceEffectDefinitionParam> {
     params
         .iter()
         .filter_map(|param| {
-            Some(donder_sequence_api::SequenceEffectDefinitionParam {
+            Some(crate::dto::SequenceEffectDefinitionParam {
                 supports_automation: param.supports_automation(),
                 name: param.name.as_str().to_string(),
                 description: param.description.clone(),
@@ -262,9 +259,7 @@ fn graph_node_inputs(
         CompositionGraphNodeKind::Layer { .. } => vec![],
         CompositionGraphNodeKind::Operator(operator) => session
             .project
-            .definitions()
-            .operators
-            .resolve(&operator.operator)
+            .get::<donder_model::OperatorDefinition>(operator.operator)
             .into_iter()
             .flat_map(|definition| definition.inputs().iter())
             .map(graph_port_to_gui)
@@ -289,22 +284,21 @@ fn graph_node_outputs(
         }
         CompositionGraphNodeKind::Operator(operator) => session
             .project
-            .definitions()
-            .operators
-            .resolve(&operator.operator)
+            .get::<donder_model::OperatorDefinition>(operator.operator)
             .map(|definition| vec![graph_port_to_gui(definition.output())])
             .unwrap_or_default(),
         CompositionGraphNodeKind::Output => vec![],
     }
 }
 
-fn graph_operator_to_gui(operator: &OperatorRef) -> SequenceGraphOperator {
-    match operator {
-        OperatorRef::Custom(id) => SequenceGraphOperator::Custom {
-            module_id: id.0.module_id().to_string(),
-            path: id.0.document().to_string(),
-            object_key: id.0.object().to_string(),
-        },
+fn graph_operator_to_gui(
+    session: &ProjectSession,
+    id: &OperatorDefinitionId,
+) -> SequenceGraphOperator {
+    let identity = crate::gui::model::declared_identity(session, *id);
+    SequenceGraphOperator {
+        path: identity.document().to_string(),
+        object_key: identity.object().to_string(),
     }
 }
 
@@ -327,27 +321,22 @@ fn param_automation(
     Some(SequenceParamAutomation { clip_id: clip.id.0 })
 }
 
-pub(in crate::gui) fn curve_library(
-    session: &ProjectSession,
-    owner: &donder_model::DocumentId,
-) -> Vec<SequenceCurveLibraryItem> {
-    let available = donder_project_io::available_reusable_sources(
-        session,
-        owner,
-        &[donder_project_io::SourceObjectKind::Curve],
-    );
+pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCurveLibraryItem> {
+    let available =
+        donder_project_io::available_reusable_sources(session, &[donder_model::ObjectKind::Curve]);
     session
         .project
-        .definitions()
-        .curves
-        .definitions
+        .reusable::<donder_model::CurveDefinition>()
         .iter()
-        .filter(|(id, _)| available.iter().any(|(_, source)| &id.0 == source))
-        .map(|(id, definition)| SequenceCurveLibraryItem {
-            module_id: id.0.module_id().to_string(),
-            path: id.0.document().to_string(),
-            object_key: id.0.object().to_string(),
-            display_name: id.0.object().to_string(),
+        .filter(|(id, _)| available.contains(&(**id).into()))
+        .map(|(id, definition)| {
+            let identity = crate::gui::model::declared_identity(session, *id);
+            (identity, definition)
+        })
+        .map(|(identity, definition)| SequenceCurveLibraryItem {
+            path: identity.document().to_string(),
+            object_key: identity.object().to_string(),
+            display_name: identity.object().to_string(),
             points: curve_points(&definition.curve),
         })
         .collect()
@@ -355,25 +344,24 @@ pub(in crate::gui) fn curve_library(
 
 pub(in crate::gui) fn gradient_library(
     session: &ProjectSession,
-    owner: &donder_model::DocumentId,
 ) -> Vec<SequenceGradientLibraryItem> {
     let available = donder_project_io::available_reusable_sources(
         session,
-        owner,
-        &[donder_project_io::SourceObjectKind::Gradient],
+        &[donder_model::ObjectKind::Gradient],
     );
     session
         .project
-        .definitions()
-        .gradients
-        .definitions
+        .reusable::<donder_model::GradientDefinition>()
         .iter()
-        .filter(|(id, _)| available.iter().any(|(_, source)| &id.0 == source))
-        .map(|(id, definition)| SequenceGradientLibraryItem {
-            module_id: id.0.module_id().to_string(),
-            path: id.0.document().to_string(),
-            object_key: id.0.object().to_string(),
-            display_name: id.0.object().to_string(),
+        .filter(|(id, _)| available.contains(&(**id).into()))
+        .map(|(id, definition)| {
+            let identity = crate::gui::model::declared_identity(session, *id);
+            (identity, definition)
+        })
+        .map(|(identity, definition)| SequenceGradientLibraryItem {
+            path: identity.document().to_string(),
+            object_key: identity.object().to_string(),
+            display_name: identity.object().to_string(),
             stops: gradient_stops(&definition.gradient),
         })
         .collect()
@@ -398,7 +386,7 @@ pub(in crate::gui) fn param_kind(ty: &Type) -> Option<SequenceEffectParamKind> {
             Type::Gradient => SequenceEffectParamKind::GradientArray,
             _ => SequenceEffectParamKind::FloatArray,
         },
-        Type::Void | Type::Signal => {
+        Type::Void => {
             return None;
         }
     })
@@ -454,12 +442,14 @@ pub(in crate::gui) fn effect_param_value(
                 points: curve_points(match source {
                     CurveSource::Inline(curve) => curve,
                     CurveSource::Reference(id) => {
-                        &session.project.definitions().curves.definitions[id].curve
+                        &session.project.reusable::<donder_model::CurveDefinition>()[id].curve
                     }
                 }),
                 source: match source {
                     CurveSource::Inline(_) => SequenceLibrarySource::Inline,
-                    CurveSource::Reference(id) => library_source(&id.0),
+                    CurveSource::Reference(id) => {
+                        library_source(&crate::gui::model::declared_identity(session, *id))
+                    }
                 },
             },
         },
@@ -468,12 +458,17 @@ pub(in crate::gui) fn effect_param_value(
                 stops: gradient_stops(match source {
                     GradientSource::Inline(gradient) => gradient,
                     GradientSource::Reference(id) => {
-                        &session.project.definitions().gradients.definitions[id].gradient
+                        &session
+                            .project
+                            .reusable::<donder_model::GradientDefinition>()[id]
+                            .gradient
                     }
                 }),
                 source: match source {
                     GradientSource::Inline(_) => SequenceLibrarySource::Inline,
-                    GradientSource::Reference(id) => library_source(&id.0),
+                    GradientSource::Reference(id) => {
+                        library_source(&crate::gui::model::declared_identity(session, *id))
+                    }
                 },
             },
         },
@@ -528,9 +523,8 @@ fn default_value_for_type(ty: &Type) -> Option<SequenceEffectParamValue> {
     default_param_value(&ty.default_value(), ty)
 }
 
-fn library_source(id: &donder_model::SourceIdentity) -> SequenceLibrarySource {
+fn library_source(id: &donder_project_io::SourceIdentity) -> SequenceLibrarySource {
     SequenceLibrarySource::Library {
-        module_id: id.module_id().to_string(),
         path: id.document().to_string(),
         object_key: id.object().to_string(),
         display_name: id.object().to_string(),
@@ -620,11 +614,13 @@ use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
 };
 use donder_model::{CurveSource, EffectParamValue, GradientSource};
-use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorPortDefinition, OperatorRef};
+use donder_model::{
+    GraphOperatorNode, OperatorDefinition, OperatorDefinitionId, OperatorPortDefinition,
+};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::{Identifier, Type, Value as EffectValue};
 
-use donder_sequence_api::{
+use crate::dto::{
     SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam,
     SequenceEffectParamKind, SequenceEffectParamValue, SequenceGradientLibraryItem,
     SequenceGradientValue, SequenceGraphEdge, SequenceGraphNode, SequenceGraphNodeKind,

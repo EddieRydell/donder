@@ -114,28 +114,8 @@ export function committedMarkDrafts(collections: SequenceMarkCollection[], draft
   return next;
 }
 
-export function nextCollectionKey(name: string, collections: Pick<SequenceMarkCollection, "key">[]) {
-  const used = new Set(collections.map((collection) => collection.key));
-  const base = snakeCaseKey(name);
-  if (!used.has(base)) return base;
-  for (let suffix = 2; ; suffix += 1) {
-    const key = `${base}_${suffix}`;
-    if (!used.has(key)) return key;
-  }
-}
-
 export function defaultMarkColor(index: number) {
   return DEFAULT_MARK_COLORS[index % DEFAULT_MARK_COLORS.length] ?? THEME_COLORS.markBlue;
-}
-
-function snakeCaseKey(value: string) {
-  const key = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return /^[a-z]/.test(key) ? key : key.length > 0 ? `marks_${key}` : "marks";
 }
 
 /**

@@ -1,6 +1,3 @@
-mod archive;
-pub use archive::Microseconds;
-
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -191,18 +188,7 @@ pub fn sample_duration_seconds_f32(duration: SampleDuration) -> f32 {
 
 /// Light: red, green and blue, where 0 is off and 1 is full brightness.
 /// Values outside 0..1 and NaN pass through computation; output clamps them.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    bytemuck::Pod,
-    bytemuck::Zeroable,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Color {
     pub red: f32,
@@ -262,23 +248,12 @@ impl Color {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Curve {
     pub points: Vec<CurvePoint>,
 }
 
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    bytemuck::Pod,
-    bytemuck::Zeroable,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct CurvePoint {
     pub position: f32,
@@ -358,7 +333,7 @@ impl Curve {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Gradient {
     pub stops: Vec<GradientStop>,
 }
@@ -405,7 +380,7 @@ impl Gradient {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GradientStop {
     pub position: f32,
     pub color: Color,
@@ -415,7 +390,7 @@ pub struct GradientStop {
 /// from the window's origin. Every value bound to one collection shares its
 /// track, so a window costs a few words however many marks it holds.
 /// Indices mean "nth mark in time", and lookups binary-search the track.
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Marks {
     /// Mark times in ticks, ascending.
     track: crate::Shared<[u32]>,

@@ -24,7 +24,6 @@ import operators from <operators/standard.donder>;
 
 Project {project} {{
   format: {format},
-  id: "{id}",
   description: none,
   setup: Setup {{
     description: none,
@@ -53,7 +52,6 @@ Project {project} {{
 }}
 "#,
         format = config.format_version,
-        id = config.project_id,
     );
     let (document, diagnostics) = donder_language::data::parse(&root);
     if let Some(diagnostic) = diagnostics.first() {
@@ -199,15 +197,16 @@ mod tests {
             &template[end..]
         );
         fs::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
-        let session = donder_project_io::load_project(&root).unwrap();
+        let session =
+            donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
+                .into_session()
+                .unwrap();
         for (name, _) in operators {
             let definition = session
                 .project
-                .definitions()
-                .operators
-                .definitions
+                .reusable::<donder_model::OperatorDefinition>()
                 .values()
-                .find(|definition| definition.declaration_name == name)
+                .find(|definition| definition.name() == name)
                 .unwrap();
             if name == "HueShift" {
                 let shift = &definition.params()[0];
@@ -220,11 +219,11 @@ mod tests {
 
     #[test]
     fn stanford_standard_operators_include_canonical_definitions() {
-        let canonical = donder_language::compiler::compile_operators(include_str!(
+        let canonical = donder_language::compiler::compile_script(include_str!(
             "../../../../examples/starter/operators/standard.donder"
         ))
         .unwrap();
-        let stanford = donder_language::compiler::compile_operators(include_str!(
+        let stanford = donder_language::compiler::compile_script(include_str!(
             "../../../../examples/stanford_room/operators/standard.donder"
         ))
         .unwrap();

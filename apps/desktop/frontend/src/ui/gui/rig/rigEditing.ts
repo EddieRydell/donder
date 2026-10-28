@@ -2,10 +2,16 @@ import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import type { RigControlRef, RigEffectOwner, RigGuiDocument, RigGuiEdit, RigInputDevice } from "../../../types";
 import type { CompositionEditing } from "../sequence/composition";
+import type { GuiItemEdit } from "../shared";
 
 /** Apply an edit to the open rig; a rejected edit's error is shown and rethrown. */
 export async function applyRigEdit(edit: RigGuiEdit): Promise<void> {
-  await runGuiEditCommand((request) => commands.applyRigGuiEdit(request, edit));
+  await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "rig", edit }));
+}
+
+/** Rename, describe, color or delete one of the open rig's items. */
+export async function applyRigItemEdit(edit: GuiItemEdit): Promise<void> {
+  await runGuiEditCommand((request) => commands.applyGuiEdit(request, edit));
 }
 
 export function editRigEffect(owner: RigEffectOwner, edit: Extract<RigGuiEdit, { type: "editEffect" }>["edit"]) {
@@ -17,7 +23,8 @@ export function rigComposition(document: RigGuiDocument): CompositionEditing {
     document: { ...document, markCollections: document.liveMarks },
     layerUses: (layerId) => document.voices.filter((voice) => voice.effect.layerId === layerId).length
       + document.mappings.filter((mapping) => mapping.action.type === "trigger" && mapping.action.effect.layerId === layerId).length,
-    apply: (edit, origin) => runGuiEditCommand((request) => commands.applyRigGuiEdit(request, { type: "composition", edit }), origin),
+    apply: (edit, origin) => runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "rig", edit: { type: "composition", edit } }), origin),
+    applyItem: applyRigItemEdit,
     automation: null
   };
 }

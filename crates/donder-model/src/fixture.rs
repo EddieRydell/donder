@@ -1,13 +1,10 @@
 //! Reusable fixtures contain ordered shapes. Layouts own grouping and placement.
-use crate::identity::SourceIdentity;
+pub(crate) use crate::identity::FixtureDefinitionId;
 use donder_language::{DistanceSpan, Point3, Rotation3, Scale3};
-use indexmap::IndexMap;
+
 use std::collections::HashSet;
 
 pub(crate) const MAX_FIXTURE_PIXELS: u32 = 1_000_000;
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct FixtureDefinitionId(pub SourceIdentity);
 
 /// Stable within a definition; list order determines output order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -147,11 +144,6 @@ pub struct FixtureDefinition {
     pub elements: Vec<FixtureElement>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct FixtureDefinitions {
-    pub definitions: IndexMap<FixtureDefinitionId, FixtureDefinition>,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FixtureDefinitionError {
     TooManyPixels(FixtureDefinitionId),
@@ -204,18 +196,16 @@ impl FixtureDefinition {
 
     pub fn validate(&self, id: &FixtureDefinitionId) -> Result<u32, FixtureDefinitionError> {
         self.validate_geometry().map_err(|error| match error {
-            FixtureGeometryError::TooManyPixels => {
-                FixtureDefinitionError::TooManyPixels(id.clone())
-            }
+            FixtureGeometryError::TooManyPixels => FixtureDefinitionError::TooManyPixels(*id),
             FixtureGeometryError::DuplicateElement(element) => {
                 FixtureDefinitionError::DuplicateElement {
-                    definition: id.clone(),
+                    definition: *id,
                     element,
                 }
             }
             FixtureGeometryError::InvalidElement(element) => {
                 FixtureDefinitionError::InvalidElement {
-                    definition: id.clone(),
+                    definition: *id,
                     element,
                 }
             }
@@ -223,19 +213,13 @@ impl FixtureDefinition {
     }
 }
 
-impl FixtureDefinitions {
-    pub fn pixel_counts(
-        &self,
-    ) -> Result<IndexMap<FixtureDefinitionId, u32>, FixtureDefinitionError> {
-        self.definitions
-            .iter()
-            .map(|(id, definition)| definition.validate(id).map(|count| (id.clone(), count)))
-            .collect()
-    }
-    pub fn validate(&self) -> Result<(), FixtureDefinitionError> {
-        for (id, definition) in &self.definitions {
-            definition.validate(id)?;
-        }
-        Ok(())
-    }
+/// Each reusable definition's pixel count, or the first definition that is
+/// invalid.
+pub fn fixture_pixel_counts(
+    definitions: &indexmap::IndexMap<FixtureDefinitionId, FixtureDefinition>,
+) -> Result<indexmap::IndexMap<FixtureDefinitionId, u32>, FixtureDefinitionError> {
+    definitions
+        .iter()
+        .map(|(id, definition)| definition.validate(id).map(|count| (*id, count)))
+        .collect()
 }

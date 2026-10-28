@@ -2,13 +2,13 @@
 //! scratch copy the running program reads: words from its plan's bindings,
 //! curve windows into their own buffers. A rig's controls replace a binding's
 //! curve with a constant from when they are set.
+use crate::image::{self, CrossingSegment, CurvePoint, NONE};
 use crate::resources::{
     LiveView, ParamsView, ResourceList, ResourceSlot, SOURCE_LIVE, SOURCE_WINDOW, WindowState,
     curve_crossings,
 };
 use crate::show::Show;
 use bytemuck::{Pod, Zeroable};
-use donder_runtime_types::image::{self, CrossingSegment, CurvePoint, NONE};
 use donder_runtime_types::sampling::{
     curve_area, curve_prefix_areas, curve_slopes, sample_curve_points,
 };

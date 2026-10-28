@@ -4,9 +4,11 @@ use crate::common;
 
 use camino::Utf8PathBuf;
 use donder_model::{
-    ControlTarget, InputControlKind, MappingAction, TriggerLength, VoicePolicy, When,
+    ControlTarget, EditError, InputControlKind, InputProblem, MappingAction, MappingProblem,
+    Member, NameProblem, ProjectValidationError, RigValidationError, TriggerLength,
+    ValidationProblem, VoicePolicy, When,
 };
-use donder_project_io::{check_project_with_overrides, project_source_texts};
+use donder_project_io::{check_project, project_source_texts};
 
 const KEYBOARD: &str = "input_devices/keyboard.data.donder";
 const JAM: &str = "rigs/jam.data.donder";
@@ -16,11 +18,15 @@ const SETUP: &str = "setups/main.data.donder";
 fn starter_keyboard_and_jam_rig_load_typed() {
     let session = common::load_project(&common::starter_root());
     let project = &session.project;
-    let setup = project.setup(project.root().setup.id()).unwrap();
+    let setup = project
+        .get::<donder_model::Setup>(*project.root().setup.id())
+        .unwrap();
     let [device] = setup.input_devices.as_slice() else {
         panic!("the starter setup lists one input device");
     };
-    let device = project.input_device(device.id()).unwrap();
+    let device = project
+        .get::<donder_model::InputDevice>(*device.id())
+        .unwrap();
     assert_eq!(device.controls.len(), 5);
     assert!(
         device
@@ -31,7 +37,7 @@ fn starter_keyboard_and_jam_rig_load_typed() {
     let [rig] = project.root().rigs.as_slice() else {
         panic!("the starter project lists one rig");
     };
-    let rig = project.rig(rig.id()).unwrap();
+    let rig = project.get::<donder_model::Rig>(*rig.id()).unwrap();
     assert_eq!(rig.live_marks.len(), 1);
     assert_eq!(rig.voices.len(), 1);
     assert_eq!(rig.switches.len(), 1);
@@ -94,7 +100,7 @@ fn assert_rejected(edits: &[(&str, &str, &str, &str)]) {
         assert!(original[&path].contains(before), "{before}");
         let mut overrides = original.clone();
         overrides.insert(path.clone(), original[&path].replacen(before, after, 1));
-        let report = check_project_with_overrides(&root, &overrides);
+        let report = check_project(&root, &overrides, &mut Default::default());
         assert!(report.session.is_none(), "{after} was accepted");
         assert!(
             report
@@ -113,8 +119,9 @@ fn invalid_input_devices_are_rejected_at_the_control() {
     assert_rejected(&[
         (
             KEYBOARD,
-            "Button { name: swell,",
-            "Button { name: kick,",
+            "Button { name: shift,",
+            "Button { name: kick, description: none, input: Key { code: KeyQ } },
+    Button { name: shift,",
             "control `kick` is declared twice",
         ),
         (
@@ -157,19 +164,19 @@ fn invalid_rigs_are_rejected_at_the_reference() {
             JAM,
             "Stack { count: 4 }",
             "Stack { count: 17 }",
-            "mapping `burst` stacks 17 voices; a stack has 1 to 16",
+            "mapping `burst`: stacks 17 voices; a stack has 1 to 16",
         ),
         (
             JAM,
             "Stack { count: 4 }",
             "Stack { count: 0 }",
-            "mapping `burst` stacks 0 voices",
+            "mapping `burst`: stacks 0 voices",
         ),
         (
             JAM,
             "duration: 0.4s",
             "duration: 0s",
-            "mapping `flash` has a `Fixed` duration of zero",
+            "mapping `flash`: a `Fixed` duration must be positive",
         ),
         (
             JAM,
@@ -187,7 +194,7 @@ fn invalid_rigs_are_rejected_at_the_reference() {
             JAM,
             "voice: background",
             "voice: tap",
-            "`tap` is not a voice or a `Trigger` mapping",
+            "names neither a voice nor a `Trigger` mapping",
         ),
         (
             JAM,
@@ -205,13 +212,13 @@ fn invalid_rigs_are_rejected_at_the_reference() {
             JAM,
             "name: wash,",
             "name: background,",
-            "`background` names a voice or mapping already",
+            "voice or mapping `background` is declared twice",
         ),
         (
             SETUP,
             "input_devices: [devices.keyboard],",
             "input_devices: [],",
-            "`devices.keyboard` is not one of the project setup's `input_devices`",
+            "the input device is not in the project's setup",
         ),
     ]);
 }
@@ -221,20 +228,20 @@ fn rig_edits_are_validated_like_loading() {
     let mut session = common::load_project(&common::starter_root());
     let rig = session
         .project
-        .reusable_rigs()
+        .reusable::<donder_model::Rig>()
         .values()
         .next()
         .unwrap()
         .clone();
-    let rejected = |edit: &dyn Fn(&mut donder_model::Rig), expected: &str| {
+    let rejected = |edit: &dyn Fn(&mut donder_model::Rig),
+                    expected: &dyn Fn(&RigValidationError) -> bool| {
         let mut value = rig.clone();
         edit(&mut value);
-        let error = session
-            .project
-            .clone()
-            .replace_rig(&rig.id, value)
-            .unwrap_err();
-        assert!(error.contains(expected), "{error}");
+        let error = session.project.clone().put(value).unwrap_err();
+        assert!(
+            matches!(&error, EditError::Invalid(ProjectValidationError { problem: ValidationProblem::Rig(problem), .. }) if expected(problem)),
+            "{error:?}"
+        );
     };
     rejected(
         &|rig| {
@@ -243,7 +250,15 @@ fn rig_edits_are_validated_like_loading() {
             };
             trigger.voices = VoicePolicy::Stack { count: 0 };
         },
-        "a stack has 1 to 16",
+        &|problem| {
+            matches!(
+                problem,
+                RigValidationError::Mapping {
+                    problem: MappingProblem::StackSize(0),
+                    ..
+                }
+            )
+        },
     );
     rejected(
         &|rig| {
@@ -253,7 +268,15 @@ fn rig_edits_are_validated_like_loading() {
             trigger.length =
                 TriggerLength::Fixed(donder_language::DonderDuration(std::time::Duration::ZERO));
         },
-        "`Fixed` duration that is not positive",
+        &|problem| {
+            matches!(
+                problem,
+                RigValidationError::Mapping {
+                    problem: MappingProblem::NonPositiveFixedDuration,
+                    ..
+                }
+            )
+        },
     );
     rejected(
         &|rig| {
@@ -262,19 +285,50 @@ fn rig_edits_are_validated_like_loading() {
             };
             *param = donder_language::object_name("accent");
         },
-        "cannot be automated",
+        &|problem| {
+            matches!(
+                problem,
+                RigValidationError::Mapping {
+                    problem: MappingProblem::ControlNotAutomatable(_),
+                    ..
+                }
+            )
+        },
     );
     rejected(
         &|rig| rig.mappings[2].name = rig.voices[0].name.clone(),
-        "voice and mapping names must be unique",
+        &|problem| {
+            matches!(
+                problem,
+                RigValidationError::Name(NameProblem::Duplicate(Member::Mapping(_), _))
+            )
+        },
     );
     // A rig of the project reads only the input devices of the project's setup.
-    let setup_id = session.project.root().setup.id().clone();
-    let mut setup = session.project.setup(&setup_id).unwrap().clone();
+    let setup_id = *session.project.root().setup.id();
+    let mut setup = session
+        .project
+        .get::<donder_model::Setup>(setup_id)
+        .unwrap()
+        .clone();
     setup.input_devices.clear();
-    let error = session.project.replace_setup(&setup_id, setup).unwrap_err();
+    let error = session.project.put(setup).unwrap_err();
     assert!(
-        error.contains("an input device is not in the project's setup"),
-        "{error}"
+        matches!(
+            error,
+            EditError::Invalid(ProjectValidationError {
+                problem: ValidationProblem::Rig(
+                    RigValidationError::Switch {
+                        problem: InputProblem::NotInSetup,
+                        ..
+                    } | RigValidationError::Mapping {
+                        problem: MappingProblem::Input(InputProblem::NotInSetup),
+                        ..
+                    }
+                ),
+                ..
+            })
+        ),
+        "{error:?}"
     );
 }

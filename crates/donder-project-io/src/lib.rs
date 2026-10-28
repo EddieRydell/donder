@@ -10,6 +10,10 @@
     )
 )]
 
+mod address;
+pub use address::{
+    DeclaredObject, DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity, validation_message,
+};
 mod analysis;
 mod check_cache;
 pub use check_cache::ProjectCheckCache;
@@ -34,16 +38,15 @@ mod serialization;
 mod source;
 mod source_copy;
 
-pub use analysis::{ProjectRecovery, RecoveryDocument, RecoveryDocumentKind, RecoveryObject};
+pub use analysis::{ProjectRecovery, RecoveryDocument, RecoveryObject};
 pub use diagnostics::{
     IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoFix, IoRelatedLocation,
     ProjectCheckReport, TextPosition, TextRange,
 };
 pub use document::{DECLARATION_TYPE_NAMES, document_schema};
-pub use errors::{ExportProjectError, LoadProjectError};
+pub use errors::ExportProjectError;
 pub use imports::{
-    available_reusable_sources, ensure_document_can_reference_object,
-    ensure_document_can_reference_source, link_reusable_source,
+    available_reusable_sources, ensure_document_can_reference_object, link_reusable_source,
 };
 pub use inclusion::{Inclusion, include_document};
 pub use index::{Link, LinkTarget, ProjectIndex, ScriptMember};
@@ -53,14 +56,10 @@ pub use path_refactor::{
 pub use project_edit::{
     DocumentTextCache, export_project, save_project, source_document_text, source_document_texts,
 };
-pub use project_loading::{
-    ProjectLoadError, SourceOverrides, check_document_text, check_project, check_project_cached,
-    check_project_document_text, check_project_with_overrides, load_project, project_source_texts,
-};
+pub use project_loading::{SourceOverrides, check_project, project_source_texts};
 pub use serialization::{SourceTextWrite, write_source_texts};
 pub use source::{
-    ExportReport, ImportEdge, ImportSource, ProjectSession, ReferencedAsset, SaveReport,
-    SourceDocument, SourceDocumentFormat, SourceDocumentKind, SourceObjectId, SourceObjectKind,
-    SourceProject, source_document_format, source_file_list,
+    ExportReport, ImportEdge, ProjectSession, ReferencedAsset, SaveReport, SourceDocument,
+    SourceDocumentFormat, SourceProject, source_document_format,
 };
 pub use source_copy::export_editable_project;

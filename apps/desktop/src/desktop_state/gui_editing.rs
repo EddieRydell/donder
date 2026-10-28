@@ -1,27 +1,23 @@
 use std::sync::Arc;
 
 use donder_editor::GuiMutationError;
-use donder_model::SequenceId;
 use donder_project_io::ProjectSession;
 
 use super::{DesktopState, generated_source_texts, lock_unpoisoned};
 use crate::state_tasks::GuiHistoryEntry;
-use donder_sequence_api::{
+use donder_editor::dto::{
     AppSnapshot, GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate,
-    SequenceSelectionEdit, SequenceSelectionEditResult,
 };
 
 impl DesktopState {
     pub fn resolve_gui_source(
         &self,
-        module_id: &str,
         path: &str,
         object_key: &str,
     ) -> Result<GuiDocumentRequest, String> {
         let _authoring = self.settled_authoring();
         let session = self.project_session().ok_or("No project is loaded.")?;
-        let identity = donder_editor::source_identity_from_gui(module_id, path, object_key)
-            .map_err(|error| error.message().to_string())?;
+        let identity = donder_editor::source_identity_from_gui(path, object_key);
         let object = session
             .source
             .documents
@@ -30,11 +26,10 @@ impl DesktopState {
                 document
                     .objects()
                     .iter()
-                    .find(|object| object.id() == object_key)
+                    .find(|object| object.name().as_str() == object_key)
             })
             .ok_or("Source object was not found.")?;
-        let path = donder_editor::editor_path(&session, identity.document_id())
-            .ok_or("Source document has no file location.")?;
+        let path = identity.document().to_path_buf();
         let workspace = lock_unpoisoned(&self.workspace);
         // Camino compares equivalent Windows separators, while the frontend
         // uses the buffer's exact path string as its editor identity.
@@ -46,10 +41,7 @@ impl DesktopState {
             owned_path: Vec::new(),
             project_revision: workspace.view.project_revision,
             path,
-            object_key: Some(object_key.to_string()),
-            view: donder_sequence_api::ObjectKind::from(object.kind())
-                .document_view()
-                .unwrap_or(donder_sequence_api::DocumentViewId::Text),
+            object_key: object.name().as_str().to_string(),
         })
     }
 
@@ -58,12 +50,12 @@ impl DesktopState {
         &self,
         request: GuiDocumentRequest,
         effect_ids: Vec<u32>,
-    ) -> Result<donder_sequence_api::SequenceEffectDetailsResult, String> {
+    ) -> Result<donder_editor::dto::SequenceEffectDetailsResult, String> {
         let project_revision = self.snapshot().project_revision;
         let project = self
             .project_session()
             .ok_or("The current project source is not ready for GUI editing.")?;
-        Ok(donder_sequence_api::SequenceEffectDetailsResult {
+        Ok(donder_editor::dto::SequenceEffectDetailsResult {
             project_revision,
             details: donder_editor::sequence_effect_details(&project, &request, &effect_ids)?,
         })
@@ -73,8 +65,8 @@ impl DesktopState {
     pub fn match_sequence_clips(
         &self,
         request: GuiDocumentRequest,
-        query: donder_sequence_api::SequenceClipMatchRequest,
-    ) -> Result<donder_sequence_api::SequenceSelection, String> {
+        query: donder_editor::dto::SequenceClipMatchRequest,
+    ) -> Result<donder_editor::dto::SequenceSelection, String> {
         let project = self
             .project_session()
             .ok_or("The current project source is not ready for GUI editing.")?;
@@ -84,7 +76,7 @@ impl DesktopState {
     pub fn get_gui_document(
         &self,
         request: GuiDocumentRequest,
-    ) -> donder_sequence_api::GuiDocumentResult {
+    ) -> donder_editor::dto::GuiDocumentResult {
         let _authoring = lock_unpoisoned(&self.authoring);
         let revision = self.snapshot().project_revision;
         let document = if revision != request.project_revision {
@@ -100,7 +92,7 @@ impl DesktopState {
                 self.snapshot().diagnostics,
             )
         };
-        donder_sequence_api::GuiDocumentResult {
+        donder_editor::dto::GuiDocumentResult {
             request,
             project_revision: revision,
             document,
@@ -110,8 +102,8 @@ impl DesktopState {
     /// Rasters always follow the newest accepted project snapshot.
     pub fn request_sequence_clip_rasters(
         &self,
-        request: donder_sequence_api::SequenceClipRasterRequest,
-    ) -> donder_sequence_api::SequenceClipRasterResponse {
+        request: donder_editor::dto::SequenceClipRasterRequest,
+    ) -> donder_editor::dto::SequenceClipRasterResponse {
         let settings = self.snapshot().settings.effect_raster;
         let project = self.project_session();
         let sequence_id = self.resolve_sequence_id(&request.document);
@@ -122,7 +114,7 @@ impl DesktopState {
         &self,
         request: GuiDocumentRequest,
         since_revision: u32,
-    ) -> donder_sequence_api::SequenceClipRasterResultBatch {
+    ) -> donder_editor::dto::SequenceClipRasterResultBatch {
         lock_unpoisoned(&self.sequence_clip_raster).take_results(request, since_revision)
     }
 
@@ -130,15 +122,23 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_clip_raster).pixels_rgba_for_token(token)
     }
 
+    /// Apply one GUI edit. The sequence clipboard changes only when the edit is
+    /// accepted.
     pub fn edit_gui_document(
         &self,
         request: GuiDocumentRequest,
         edit: GuiEditCommand,
     ) -> GuiEditUpdate {
-        match self.mutate_gui_project(&request, |session| {
-            donder_editor::apply_edit(session, &request, edit)
+        let _authoring = lock_unpoisoned(&self.authoring);
+        let mut clipboard = lock_unpoisoned(&self.sequence_clipboard);
+        let mut candidate = clipboard.clone();
+        match self.mutate_gui_project_locked(&request, |session| {
+            donder_editor::apply_edit(session, &request, edit, &mut candidate)
         }) {
-            Ok((update, ())) => update,
+            Ok((update, outcome)) => {
+                *clipboard = candidate;
+                with_outcome(update, outcome)
+            }
             Err(error) => self.gui_edit_error(error),
         }
     }
@@ -149,7 +149,7 @@ impl DesktopState {
         &self,
         request: GuiDocumentRequest,
         edit: GuiEditCommand,
-    ) -> donder_sequence_api::GuiEditResult {
+    ) -> GuiEditResult {
         let update = self.edit_gui_document(request.clone(), edit);
         let document = match update.change {
             GuiDocumentChange::Document { document } => document,
@@ -161,19 +161,7 @@ impl DesktopState {
                 self.get_gui_document(request).document
             }
         };
-        donder_sequence_api::GuiEditResult {
-            snapshot: update.snapshot,
-            document,
-        }
-    }
-
-    fn mutate_gui_project<T>(
-        &self,
-        request: &GuiDocumentRequest,
-        mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
-    ) -> Result<(GuiEditUpdate, T), GuiMutationError> {
-        let _authoring = lock_unpoisoned(&self.authoring);
-        self.mutate_gui_project_locked(request, mutate)
+        GuiEditResult { document }
     }
 
     pub(super) fn mutate_gui_project_locked<T>(
@@ -191,7 +179,7 @@ impl DesktopState {
             .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
         let mut affected_paths = donder_editor::affected_paths(&before, request)?;
         let mut edited = (*before).clone();
-        let value = mutate(&mut edited)?;
+        let value = mutate(&mut edited).map_err(|error| error.named(&edited))?;
         affected_paths.extend(donder_editor::affected_paths(&edited, request)?);
         let generated_text = generated_source_texts(
             &edited,
@@ -210,16 +198,16 @@ impl DesktopState {
             affected_paths: affected_paths.clone(),
             status_path: request.path.clone(),
         });
-        Ok((GuiEditUpdate { snapshot, change }, value))
+        Ok((gui_update(snapshot, change), value))
     }
 
     fn gui_edit_error(&self, error: GuiMutationError) -> GuiEditUpdate {
-        GuiEditUpdate {
-            snapshot: self.snapshot(),
-            change: GuiDocumentChange::Document {
+        gui_update(
+            self.snapshot(),
+            GuiDocumentChange::Document {
                 document: donder_editor::blocked(error.message(), Vec::new()),
             },
-        }
+        )
     }
 
     pub fn finish_composition_graph_editing(&self) -> AppSnapshot {
@@ -234,91 +222,38 @@ impl DesktopState {
         })
     }
 
-    pub fn apply_sequence_selection_edit(
+    /// Copy a sequence selection to the clipboard; the project does not change.
+    pub fn copy_sequence_selection(
         &self,
         request: GuiDocumentRequest,
-        edit: SequenceSelectionEdit,
-    ) -> SequenceSelectionEditResult {
-        let outcome = if let SequenceSelectionEdit::Copy { selection } = edit {
-            self.copy_gui_selection(&request, selection)
-        } else {
-            let _authoring = lock_unpoisoned(&self.authoring);
-            let mut clipboard = lock_unpoisoned(&self.sequence_clipboard);
-            let mut candidate_clipboard = clipboard.clone();
-            let result = self.mutate_gui_project_locked(&request, |session| {
-                donder_editor::apply_sequence_selection_edit(
-                    session,
-                    &request,
-                    edit,
-                    &mut candidate_clipboard,
-                )
-            });
-            if result.is_ok() {
-                *clipboard = candidate_clipboard;
-            }
-            result
-        };
-        match outcome {
-            Ok((result, mutation)) => SequenceSelectionEditResult {
-                snapshot: result.snapshot,
-                change: result.change,
-                selection: mutation.selection,
-                copied_count: mutation.copied_count,
-                skipped_count: mutation.skipped_count,
-            },
-            Err(error) => {
-                let result = self.gui_edit_error(error);
-                SequenceSelectionEditResult {
-                    snapshot: result.snapshot,
-                    change: result.change,
-                    selection: None,
-                    copied_count: 0,
-                    skipped_count: 0,
-                }
-            }
-        }
-    }
-
-    fn copy_gui_selection(
-        &self,
-        request: &GuiDocumentRequest,
-        selection: donder_sequence_api::SequenceSelection,
-    ) -> Result<(GuiEditUpdate, donder_editor::SequenceSelectionMutation), GuiMutationError> {
+        selection: donder_editor::dto::SequenceSelection,
+    ) -> GuiEditUpdate {
         let _authoring = lock_unpoisoned(&self.authoring);
-        if self.snapshot().project_revision != request.project_revision {
-            return Err(GuiMutationError::Blocked(
-                "The project changed before copying".into(),
-            ));
-        }
-        if !matches!(request.view, donder_sequence_api::DocumentViewId::Sequence) {
-            return Err(GuiMutationError::Invalid(
-                "Copy requires a sequence GUI document.".to_string(),
-            ));
-        }
-        let snapshot = self.snapshot();
-        let project = self
-            .project_session()
-            .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
-        let resolved =
-            donder_editor::resolve_request(&project, request).map_err(GuiMutationError::Invalid)?;
-        donder_editor::ensure_owned_gui_document(&project, &resolved)?;
-        let (clipboard, copied_count, skipped_count) = donder_editor::copy_sequence_selection(
-            &project,
-            &SequenceId(resolved.object_identity()),
-            &selection,
-        )?;
-        *lock_unpoisoned(&self.sequence_clipboard) = clipboard;
-        Ok((
-            GuiEditUpdate {
-                snapshot,
-                change: donder_editor::project_gui_document_change(&project, &project, request),
-            },
-            donder_editor::SequenceSelectionMutation {
-                selection: Some(selection),
-                copied_count,
-                skipped_count,
-            },
-        ))
+        let copied = (|| {
+            if self.snapshot().project_revision != request.project_revision {
+                return Err(GuiMutationError::Blocked(
+                    "The project changed before copying".into(),
+                ));
+            }
+            let project = self
+                .project_session()
+                .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
+            let (clipboard, outcome) =
+                donder_editor::copy_selection(&project, &request, &selection)?;
+            *lock_unpoisoned(&self.sequence_clipboard) = clipboard;
+            let update = gui_update(
+                self.snapshot(),
+                donder_editor::project_gui_document_change(&project, &project, &request),
+            );
+            Ok(with_outcome(
+                update,
+                donder_editor::GuiEditOutcome {
+                    selection: Some(selection),
+                    ..outcome
+                },
+            ))
+        })();
+        copied.unwrap_or_else(|error| self.gui_edit_error(error))
     }
 
     pub fn undo_active_edit(&self) -> AppSnapshot {
@@ -382,4 +317,33 @@ impl DesktopState {
                 self.snapshot_with_error("gui.redo", &entry.status_path, &error)
             })
     }
+}
+
+/// An edit's update before its outcome is known.
+pub(crate) fn gui_update(snapshot: AppSnapshot, change: GuiDocumentChange) -> GuiEditUpdate {
+    GuiEditUpdate {
+        snapshot,
+        change,
+        selection: None,
+        copied_count: 0,
+        skipped_count: 0,
+        created: Vec::new(),
+    }
+}
+
+fn with_outcome(update: GuiEditUpdate, outcome: donder_editor::GuiEditOutcome) -> GuiEditUpdate {
+    GuiEditUpdate {
+        selection: outcome.selection,
+        copied_count: outcome.copied_count,
+        skipped_count: outcome.skipped_count,
+        created: outcome.created,
+        ..update
+    }
+}
+
+/// A test's view of an edit: the whole edited document.
+#[cfg(test)]
+#[derive(Debug)]
+pub struct GuiEditResult {
+    pub document: donder_editor::dto::GuiDocument,
 }

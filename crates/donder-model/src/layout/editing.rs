@@ -1,4 +1,5 @@
 use super::{FixtureInstanceId, Layout, LayoutFixtureKind};
+use crate::project::EditRejection;
 
 impl Layout {
     /// The groups listing an item, with `None` for the root.
@@ -17,18 +18,16 @@ impl Layout {
     fn members_mut(
         &mut self,
         parent: Option<FixtureInstanceId>,
-    ) -> Result<&mut Vec<FixtureInstanceId>, String> {
+    ) -> Result<&mut Vec<FixtureInstanceId>, EditRejection> {
         match parent {
             None => Ok(&mut self.root),
             Some(parent) => match &mut self
                 .fixture_mut(parent)
-                .ok_or("Destination group was not found.")?
+                .ok_or(EditRejection::MissingItem)?
                 .kind
             {
                 LayoutFixtureKind::Group { members } => Ok(members),
-                LayoutFixtureKind::Fixture { .. } => {
-                    Err("Items can only be placed in groups.".into())
-                }
+                LayoutFixtureKind::Fixture { .. } => Err(EditRejection::NotAGroup),
             },
         }
     }
@@ -42,19 +41,19 @@ impl Layout {
         from: Option<FixtureInstanceId>,
         to: Option<FixtureInstanceId>,
         before: Option<FixtureInstanceId>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EditRejection> {
         if !self
             .children(from)
             .is_some_and(|members| members.contains(&id))
         {
-            return Err("The item is not in the source group.".into());
+            return Err(EditRejection::NotInSourceGroup);
         }
         if from != to {
             self.check_insert(id, to, before)?;
         } else if before == Some(id) {
             return Ok(());
         } else if before.is_some_and(|before| !self.children(to).unwrap_or(&[]).contains(&before)) {
-            return Err("The insertion target is not in the destination group.".into());
+            return Err(EditRejection::InsertionTargetOutside);
         }
         self.members_mut(from)?.retain(|member| *member != id);
         self.insert(id, to, before)
@@ -66,7 +65,7 @@ impl Layout {
         id: FixtureInstanceId,
         to: Option<FixtureInstanceId>,
         before: Option<FixtureInstanceId>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EditRejection> {
         self.check_insert(id, to, before)?;
         self.insert(id, to, before)
     }
@@ -93,10 +92,10 @@ impl Layout {
         &mut self,
         id: FixtureInstanceId,
         from: Option<FixtureInstanceId>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EditRejection> {
         let members = self.members_mut(from)?;
         let Some(index) = members.iter().position(|member| *member == id) else {
-            return Err("The item is not in that group.".into());
+            return Err(EditRejection::NotInGroup);
         };
         members.remove(index);
         if self.parents(id).is_empty() {
@@ -107,10 +106,10 @@ impl Layout {
 
     /// Delete items everywhere. Members of a deleted group that no remaining
     /// group lists move to the root.
-    pub fn remove_items(&mut self, ids: &[FixtureInstanceId]) -> Result<(), String> {
+    pub fn remove_items(&mut self, ids: &[FixtureInstanceId]) -> Result<(), EditRejection> {
         let mut orphans = Vec::new();
         for &id in ids {
-            let fixture = self.fixture(id).ok_or("Fixture or group was not found.")?;
+            let fixture = self.fixture(id).ok_or(EditRejection::MissingItem)?;
             orphans.extend(fixture.members().iter().copied());
         }
         self.fixtures.retain(|fixture| !ids.contains(&fixture.id));
@@ -133,21 +132,19 @@ impl Layout {
         id: FixtureInstanceId,
         to: Option<FixtureInstanceId>,
         before: Option<FixtureInstanceId>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EditRejection> {
         if self.fixture(id).is_none() {
-            return Err("Fixture or group was not found.".into());
+            return Err(EditRejection::MissingItem);
         }
-        let destination = self
-            .children(to)
-            .ok_or("Items can only be placed in groups.")?;
+        let destination = self.children(to).ok_or(EditRejection::NotAGroup)?;
         if destination.contains(&id) {
-            return Err("The item is already in that group.".into());
+            return Err(EditRejection::AlreadyInGroup);
         }
         if to.is_some_and(|to| self.contains(id, to)) {
-            return Err("A group cannot contain itself or one of its groups.".into());
+            return Err(EditRejection::GroupInsideItself);
         }
         if before.is_some_and(|before| !destination.contains(&before)) {
-            return Err("The insertion target is not in the destination group.".into());
+            return Err(EditRejection::InsertionTargetOutside);
         }
         Ok(())
     }
@@ -157,13 +154,13 @@ impl Layout {
         id: FixtureInstanceId,
         to: Option<FixtureInstanceId>,
         before: Option<FixtureInstanceId>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EditRejection> {
         let destination = self.members_mut(to)?;
         let index = match before {
             Some(before) => destination
                 .iter()
                 .position(|member| *member == before)
-                .ok_or("The insertion target is not in the destination group.")?,
+                .ok_or(EditRejection::InsertionTargetOutside)?,
             None => destination.len(),
         };
         destination.insert(index, id);

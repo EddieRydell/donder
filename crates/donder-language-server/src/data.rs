@@ -3,7 +3,7 @@
 use donder_language::analysis::{Completion, CompletionKind, DataToken, DataTokenKind, SymbolKind};
 use donder_language::compiler::TextSpan;
 use donder_language::data::{DataField, DataValue, Spanned, is_pascal_case};
-use donder_language::data::{Definition, Fields, Schema, Shape};
+use donder_language::data::{Definition, Fields, Refers, Schema, Shape};
 use donder_project_io::{DECLARATION_TYPE_NAMES, LinkTarget, ScriptMember, document_schema};
 use donder_runtime_types::Type;
 
@@ -136,7 +136,7 @@ pub fn shape_text(shape: &Shape) -> String {
         Shape::Path => "path, like `<audio/song.mp3>`".into(),
         Shape::Bool => "`true` or `false`".into(),
         Shape::Name => "name".into(),
-        Shape::Reference => "reference".into(),
+        Shape::Reference(_) => "reference".into(),
         Shape::Params => "parameter values, `{ name: value }`".into(),
         Shape::Option(inner) => format!("{} or `none`", shape_text(inner)),
         Shape::List(item) => format!("list of {}", shape_text(item)),
@@ -366,53 +366,20 @@ fn frames(text: &str, tokens: &[DataToken]) -> Vec<Frame> {
     stack
 }
 
-/// What a reference field names, for completion.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Wanted {
-    Declaration(&'static str),
-    Effect,
-    Operator,
-    /// `layout.fixture`.
-    Fixture,
-    Layer,
-    Clip,
-    Node,
-    Marks,
-    /// `device.control`.
-    Control,
-    Switch,
-    /// A rig's voice or mapping.
-    Voice,
-}
-
-fn wanted(ty: &str, field: &str) -> Option<Wanted> {
-    Some(match (ty, field) {
-        ("Project", "setup") => Wanted::Declaration("Setup"),
-        ("Project", "sequences") => Wanted::Declaration("Sequence"),
-        ("Project", "rigs") => Wanted::Declaration("Rig"),
-        ("Setup", "input_devices") => Wanted::Declaration("InputDevice"),
-        ("Setup", "layout") => Wanted::Declaration("Layout"),
-        ("Setup", "patch") => Wanted::Declaration("Patch"),
-        ("Setup", "controllers") | ("Route", "controller") => Wanted::Declaration("Controller"),
-        ("Fixture", "definition") => Wanted::Declaration("FixtureDefinition"),
-        ("Route", "target")
-        | ("Clip", "target")
-        | ("AutomationClip", "row")
-        | ("Voice", "target")
-        | ("Trigger", "target") => Wanted::Fixture,
-        ("Clip", "effect") | ("Voice", "effect") | ("Trigger", "effect") => Wanted::Effect,
-        ("OperatorNode", "operator") => Wanted::Operator,
-        ("Clip", "layer") | ("LayerNode", "layer") | ("Voice", "layer") | ("Trigger", "layer") => {
-            Wanted::Layer
+/// What field `field` of record `ty` references, as the schema declares it.
+fn wanted(schema: &Schema, ty: &str, field: &str) -> Option<Refers> {
+    fn refers(shape: &Shape) -> Option<Refers> {
+        match shape {
+            Shape::Reference(refers) => Some(*refers),
+            Shape::Source(ty) | Shape::NamedSource(ty) => Some(Refers::Declaration(ty)),
+            Shape::Option(inner) | Shape::List(inner) => refers(inner),
+            _ => None,
         }
-        ("Switch", "input") | ("Mapping", "input") => Wanted::Control,
-        ("On", "switch") | ("Off", "switch") => Wanted::Switch,
-        ("Control", "voice") => Wanted::Voice,
-        ("Mark", "marks") => Wanted::Marks,
-        ("Edge", "from") | ("Edge", "to") | ("NodeParam", "node") => Wanted::Node,
-        ("ClipParam", "clip") => Wanted::Clip,
-        _ => return None,
-    })
+    }
+    let (_, shape) = fields(schema, ty)?
+        .iter()
+        .find(|(name, _)| *name == field)?;
+    refers(shape)
 }
 
 /// The declarations a document can name, as `name` or `alias.name`, with
@@ -632,7 +599,7 @@ fn shape_completions(schema: &Schema, shape: &Shape, references: &[String]) -> V
             .into_iter()
             .chain(record_completions(schema, ty, true))
             .collect(),
-        Shape::Reference | Shape::Name => reference_items(),
+        Shape::Reference(_) | Shape::Name => reference_items(),
         _ => Vec::new(),
     }
 }
@@ -690,15 +657,15 @@ pub fn completions(
         index -= 2;
     }
     let stack = frames(text, &tokens[..index]);
-    let names_for = |wanted: Wanted| -> Vec<String> {
+    let names_for = |wanted: Refers| -> Vec<String> {
         match wanted {
-            Wanted::Declaration(ty) => visible(workspace, document)
+            Refers::Declaration(ty) => visible(workspace, document)
                 .into_iter()
                 .filter(|(_, kind)| kind == ty)
                 .map(|(name, _)| name)
                 .collect(),
-            Wanted::Effect | Wanted::Operator => {
-                let ty = if wanted == Wanted::Effect {
+            Refers::Effect | Refers::Operator => {
+                let ty = if wanted == Refers::Effect {
                     "Effect"
                 } else {
                     "Operator"
@@ -709,30 +676,30 @@ pub fn completions(
                     .map(|(name, _)| name)
                     .collect()
             }
-            Wanted::Fixture => visible(workspace, document)
+            Refers::Fixture => visible(workspace, document)
                 .into_iter()
                 .filter(|(_, kind)| kind == "Layout")
                 .map(|(name, _)| format!("{name}."))
                 .collect(),
-            Wanted::Control => visible(workspace, document)
+            Refers::Control => visible(workspace, document)
                 .into_iter()
                 .filter(|(_, kind)| kind == "InputDevice")
                 .map(|(name, _)| format!("{name}."))
                 .collect(),
-            Wanted::Layer => local_names(document, "Layer", "name"),
-            Wanted::Clip => local_names(document, "Clip", "name"),
-            Wanted::Marks => {
+            Refers::Layer => local_names(document, "Layer", "name"),
+            Refers::Clip => local_names(document, "Clip", "name"),
+            Refers::Marks => {
                 let mut names = local_names(document, "MarkCollection", "name");
                 names.extend(local_names(document, "LiveMarks", "name"));
                 names
             }
-            Wanted::Switch => local_names(document, "Switch", "name"),
-            Wanted::Voice => {
+            Refers::Switch => local_names(document, "Switch", "name"),
+            Refers::Voice => {
                 let mut names = local_names(document, "Voice", "name");
                 names.extend(local_names(document, "Mapping", "name"));
                 names
             }
-            Wanted::Node => {
+            Refers::Node => {
                 let mut names = local_names(document, "OperatorNode", "name");
                 names.extend(local_names(document, "LayerNode", "layer"));
                 names.push("output".into());
@@ -751,13 +718,14 @@ pub fn completions(
     };
     if !prefix.is_empty() {
         // After a dot: a layout's fixtures, or an alias's declarations.
-        let members = field_owner
-            .as_ref()
-            .and_then(|(ty, field)| match wanted(ty, field) {
-                Some(Wanted::Fixture) => Some(Members::LAYOUT),
-                Some(Wanted::Control) => Some(Members::DEVICE),
-                _ => None,
-            });
+        let members =
+            field_owner
+                .as_ref()
+                .and_then(|(ty, field)| match wanted(&schema, ty, field) {
+                    Some(Refers::Fixture) => Some(Members::LAYOUT),
+                    Some(Refers::Control) => Some(Members::DEVICE),
+                    _ => None,
+                });
         if let Some(members) = members
             && !(prefix.len() == 1
                 && document
@@ -774,7 +742,7 @@ pub fn completions(
         let qualified = format!("{}.", prefix.join("."));
         let mut names = visible(workspace, document);
         if let Some((ty, field)) = &field_owner
-            && let Some(wanted) = wanted(ty, field)
+            && let Some(wanted) = wanted(&schema, ty, field)
         {
             let wanted_names = names_for(wanted);
             names.retain(|(name, _)| {
@@ -835,7 +803,9 @@ pub fn completions(
             else {
                 return Vec::new();
             };
-            let references = wanted(ty, field).map(names_for).unwrap_or_default();
+            let references = wanted(&schema, ty, field)
+                .map(names_for)
+                .unwrap_or_default();
             shape_completions(&schema, shape, &references)
         }
         Some(Frame::List { owner }) => {
@@ -847,7 +817,9 @@ pub fn completions(
             else {
                 return Vec::new();
             };
-            let references = wanted(ty, field).map(names_for).unwrap_or_default();
+            let references = wanted(&schema, ty, field)
+                .map(names_for)
+                .unwrap_or_default();
             shape_completions(&schema, shape, &references)
         }
         Some(Frame::Map {
@@ -898,7 +870,7 @@ pub fn completions(
                                 .collect();
                         }
                         Some(Type::Marks) => {
-                            return names_for(Wanted::Marks)
+                            return names_for(Refers::Marks)
                                 .into_iter()
                                 .map(|name| Completion::new(name, CompletionKind::Reference))
                                 .collect();

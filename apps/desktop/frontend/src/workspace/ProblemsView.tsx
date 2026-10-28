@@ -69,13 +69,14 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
                       </small>
                     </span>
                   </button>
-                  {diagnostic.inclusion !== null && (
+                  {diagnostic.fix !== null && "include" in diagnostic.fix && (
                     <button
                       type="button"
                       className="problem-fix"
                       onClick={() => {
-                        const inclusion = diagnostic.inclusion;
-                        if (inclusion === null) return;
+                        const fix = diagnostic.fix;
+                        if (fix === null || !("include" in fix)) return;
+                        const inclusion = fix.include;
                         void runSnapshotCommand(() => commands.includeDocument(snapshot.projectEpoch, inclusion));
                       }}
                     >

@@ -1,22 +1,22 @@
 use donder_test_support::fixtures;
 use donder_test_support::fixtures::layered;
-use donder_test_support::playback::{self, compile_effect};
+use donder_test_support::playback::{self, compile};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::Arc;
 
 use donder_language::compiler::{
-    CompiledEffect, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants, compile_effects,
-    compile_operators,
+    CompiledDefinition, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
+    compile_script,
 };
-use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
+use donder_runtime::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
+use donder_runtime_types::{BoundProgram, Type, Value};
 use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
 };
 use donder_runtime_types::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetScope,
+    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetGeometry, TargetScope,
 };
-use donder_runtime_types::{Identifier, SampleInvocation, Type, Value};
 
 struct CountingAllocator;
 
@@ -88,7 +88,7 @@ const SPREAD: [u32; 8] = [
 ];
 
 /// Evaluate `SPREAD` from the first frame: allocation calls, and whether any pixel lit.
-fn first_frames(sequence: PreparedSequence) -> (usize, bool) {
+fn first_frames(sequence: PreparedShow) -> (usize, bool) {
     let mut playback = sequence.into_playback();
     let mut lit = false;
     let count = allocations(|| {
@@ -106,52 +106,50 @@ fn first_frames(sequence: PreparedSequence) -> (usize, bool) {
 /// Two stacked 8x4 grids of `COUNT` pixels under one whole target, for
 /// effects that use layout space, sections and fixture-local addressing.
 fn grid(
-    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
-) -> PreparedSequence {
-    PreparedSequence::build(playback::timing(8_000_000), |builder| {
+    build: impl for<'id> FnOnce(&mut ShowBuilder<'id>, TargetHandle<'id>) -> Option<SignalHandle<'id>>,
+) -> PreparedShow {
+    PreparedShow::build(playback::timing(8_000_000), |builder| {
         let fixtures = [0, 1].map(|fixture| {
             let pixels = (0..32)
                 .map(|pixel| [(pixel % 8) as f32, (fixture * 4 + pixel / 8) as f32])
                 .collect();
-            builder.fixture(fixture, FixtureGeometry::admit(pixels).unwrap())
+            FixtureGeometry::admit(pixels).unwrap()
         });
-        let target = builder.target(fixtures, TargetScope::WholeTarget);
+        for (id, geometry) in fixtures.iter().enumerate() {
+            builder.fixture(id as u32, geometry.clone());
+        }
+        let target = builder.target(&TargetGeometry::new(
+            fixtures.iter().enumerate(),
+            TargetScope::WholeTarget,
+        ));
         let port = builder.port(0, 0);
         builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
         build(builder, target)
     })
 }
 
-fn single_effect(sample: &SampleInvocation) -> PreparedSequence {
+fn single_effect(sample: &BoundProgram) -> PreparedShow {
     grid(|builder, target| {
-        let effect = builder.sample(sample, builder.whole_sequence(), target);
+        let effect = builder.clip(
+            None,
+            sample,
+            SampleTime::from_ticks(0),
+            SampleDuration::from_ticks(8_000_000),
+            target,
+        );
         let layer = builder.layer(true, [effect]);
-        builder.output(Some(layer))
+        Some(layer)
     })
-}
-
-fn identifier(name: &str) -> Identifier {
-    Identifier::new(name.into()).unwrap()
 }
 
 /// `effect` with named values, defaults for the rest, and `automation`.
 fn invoke(
-    effect: &CompiledEffect,
+    effect: &CompiledDefinition,
     values: &[(&str, Value)],
     automation: Vec<PreparedAutomation>,
 ) -> Invocation {
-    let values: Vec<_> = values
-        .iter()
-        .map(|(name, value)| (identifier(name), value.clone()))
-        .collect();
-    let params = donder_language::compiler::bind_params(
-        effect.params(),
-        values.iter().map(|(name, value)| (name, value)),
-    )
-    .unwrap();
-    effect
-        .invoke(params.iter_values().collect(), automation.into())
-        .unwrap()
+    let values = playback::invoke(effect, values).params().values().to_vec();
+    effect.invoke(values, automation.into()).unwrap()
 }
 
 fn whole_sequence_automation(
@@ -182,11 +180,11 @@ const RAMP_SOURCE: &str = "effect Ramp { sample { rgb(pixel.fraction, progress, 
 
 #[test]
 fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
-    let invocation = playback::lower_sample(&fixtures::uniform_resources());
-    let sequence = playback::show(200, &invocation, 1);
+    let invocation = playback::lower(&fixtures::uniform_resources());
+    let sequence = playback::show(200, &invocation, 1, &[]);
     let duration = sequence.duration();
     let mut playback = sequence.into_playback();
-    let expected = playback::show(200, &invocation, 1)
+    let expected = playback::show(200, &invocation, 1, &[])
         .into_playback()
         .evaluate(playback::time(4))
         .colors()
@@ -215,7 +213,7 @@ fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
 
 #[test]
 fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Mode {
             param mode: enum { Short, MuchLongerOption } = Short;
             sample { if mode == MuchLongerOption { rgb(1.0, 0.0, 0.0) } else { rgb(0.0, 0.0, 0.0) } }
@@ -232,7 +230,7 @@ fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
                 .collect::<Vec<_>>(),
         ),
     );
-    let invocation = playback::lower_sample(&invoke(
+    let invocation = playback::lower(&invoke(
         &effect,
         &[],
         vec![PreparedAutomation {
@@ -240,7 +238,7 @@ fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
             ..automation
         }],
     ));
-    let mut playback = playback::show(2, &invocation, 1).into_playback();
+    let mut playback = playback::show(2, &invocation, 1, &[]).into_playback();
     // Warm the longest option, then verify actual rendered colors while seeking.
     playback.evaluate(SampleTime::from_ticks(250_000));
     let mut observed = [[Color::BLACK; 2]; 5];
@@ -265,13 +263,13 @@ fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
     }
 
     // A pixel-dependent index keeps the constant array at playback.
-    let effect = compile_effect(
+    let effect = compile(
         "effect Constants { sample {
             let values = [0.1, 0.2, 0.3, 0.4];
             rgb(values[pixel.index + 1], values[pixel.index + 2], values[pixel.index + 3])
         } }",
     );
-    let mut workspace = playback::show(1, &playback::sample(&effect), 1).into_playback();
+    let mut workspace = playback::show(1, &playback::program(&effect), 1, &[]).into_playback();
     let expected = workspace.evaluate(SampleTime::from_ticks(0)).colors()[0];
     assert_eq!(expected.to_bytes(), [51, 77, 102]);
     let mut sampled = Color::BLACK;
@@ -301,7 +299,7 @@ const REDUCTIONS_SOURCE: &str = "effect Reductions {
 
 #[test]
 fn reductions_do_not_allocate_at_any_iteration_count() {
-    let effect = compile_effect(REDUCTIONS_SOURCE);
+    let effect = compile(REDUCTIONS_SOURCE);
     let mut counts = Vec::new();
     // Fixed counts specialize the loop bounds; automation leaves them to playback.
     let cases = [2, 64, 9_999]
@@ -318,7 +316,7 @@ fn reductions_do_not_allocate_at_any_iteration_count() {
         )]);
     for invocation in cases {
         let mut workspace =
-            playback::show(1, &playback::lower_sample(&invocation), 1).into_playback();
+            playback::show(1, &playback::lower(&invocation), 1, &[]).into_playback();
         workspace.evaluate(SampleTime::from_ticks(2_000_000));
         let mut results = [Color::BLACK; 2];
         counts.push(allocations(|| {
@@ -338,8 +336,8 @@ fn reductions_do_not_allocate_at_any_iteration_count() {
 
 #[test]
 fn prepared_reductions_do_not_allocate_on_the_first_frame() {
-    let effect = compile_effect(REDUCTIONS_SOURCE);
-    let show = playback::show(200, &playback::sample(&effect), 4);
+    let effect = compile(REDUCTIONS_SOURCE);
+    let show = playback::show(200, &playback::program(&effect), 4, &[]);
     let mut workspace = show.into_playback();
     let mut buffers = [vec![0; 600]];
     let count = allocations(|| {
@@ -357,7 +355,7 @@ fn prepared_reductions_do_not_allocate_on_the_first_frame() {
 
 #[test]
 fn enum_choices_and_constant_loads_do_not_allocate() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect EnumChoices {
             param mode: enum { Short, MuchLongerOption } = Short;
             param late: enum { Short, MuchLongerOption } = MuchLongerOption;
@@ -381,7 +379,7 @@ fn enum_choices_and_constant_loads_do_not_allocate() {
             curve(&[(0.0, 0.0)]),
         )],
     );
-    let mut workspace = playback::show(1, &playback::lower_sample(&invocation), 1).into_playback();
+    let mut workspace = playback::show(1, &playback::lower(&invocation), 1, &[]).into_playback();
     workspace.evaluate(SampleTime::from_ticks(0));
     let mut reds = [0.0; 3];
     let count = allocations(|| {
@@ -395,16 +393,16 @@ fn enum_choices_and_constant_loads_do_not_allocate() {
 
 #[test]
 fn unautomated_effects_do_not_expand_the_evaluation_workspace() {
-    let invocation = playback::lower_sample(&fixtures::uniform_resources());
+    let invocation = playback::lower(&fixtures::uniform_resources());
     let mut expected_bytes = None;
     for count in [1, 16, 128] {
         let prepared = playback::build(200, playback::timing(8_000_000), |builder, target| {
-            let window = builder.whole_sequence();
+            let window = SampleDuration::from_ticks(8_000_000);
             let effects: Vec<_> = (0..count)
-                .map(|_| builder.sample(&invocation, window, target))
+                .map(|_| builder.clip(None, &invocation, SampleTime::from_ticks(0), window, target))
                 .collect();
             let layer = builder.layer(true, effects);
-            builder.output(Some(layer))
+            Some(layer)
         });
         LIVE_BYTES.set(0);
         let mut workspace = None;
@@ -435,30 +433,25 @@ fn unautomated_effects_do_not_expand_the_evaluation_workspace() {
 #[test]
 fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame() {
     // The benchmark's uniform resources, with the level curve automated.
-    let effect = compile_effect(
+    let effect = compile(
         "effect AutomatedResources { param shape: curve in 0.0..1.0; param colors: gradient; sample {
             colors[shape[progress]] * pixel.fraction
         } }",
     );
-    let values: Vec<_> = fixtures::uniform_resources()
-        .params()
-        .iter_values()
-        .collect();
+    let values = fixtures::uniform_resources().params().values().to_vec();
     let Value::Curve(shape) = &values[0] else {
         panic!("the first uniform resource is a curve");
     };
     let automation = whole_sequence_automation(&effect.params()[0], 0, Arc::clone(shape));
-    let invocation = playback::lower_sample(&effect.invoke(values, [automation].into()).unwrap());
+    let invocation = playback::lower(&effect.invoke(values, [automation].into()).unwrap());
     for recursive in [false, true] {
         let operators = if recursive {
-            let operator = compile_operators(playback::IDENTITY_SOURCE)
-                .unwrap()
-                .remove(0);
-            vec![playback::operator(&operator)]
+            let operator = compile_script(playback::IDENTITY_SOURCE).unwrap().remove(0);
+            vec![playback::program(&operator)]
         } else {
             vec![]
         };
-        let show = || playback::chain(200, &invocation, 1, &operators);
+        let show = || playback::show(200, &invocation, 1, &operators);
         let mut workspace = show().into_playback();
         let mut output = [vec![0; 600]];
         let mut expected = [vec![0; 600]];
@@ -487,7 +480,7 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
 
 #[test]
 fn dsl_curve_automation_releases_previous_sample_before_update() {
-    let pulse = compile_effects(include_str!(
+    let pulse = compile_script(include_str!(
         "../../../examples/starter/effects/standard.donder"
     ))
     .unwrap()
@@ -502,12 +495,12 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
         }],
     }));
     let automation = whole_sequence_automation(&pulse.params()[1], 1, Arc::clone(&shape));
-    let invocation = playback::lower_sample(&invoke(
+    let invocation = playback::lower(&invoke(
         &pulse,
         &[("gradient", gradient), ("pulse_shape", Value::Curve(shape))],
         vec![automation],
     ));
-    let show = || playback::show(2, &invocation, 1);
+    let show = || playback::show(2, &invocation, 1, &[]);
     let mut workspace = show().into_playback();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
@@ -536,22 +529,20 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
 
 #[test]
 fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
-    let sample = playback::sample(&compile_effect(RAMP_SOURCE));
-    let reference = playback::show(2, &sample, 1);
-    let identity = compile_operators(playback::IDENTITY_SOURCE)
-        .unwrap()
-        .remove(0);
-    let invert = compile_operators(include_str!(
+    let sample = playback::program(&compile(RAMP_SOURCE));
+    let reference = playback::show(2, &sample, 1, &[]);
+    let identity = compile_script(playback::IDENTITY_SOURCE).unwrap().remove(0);
+    let invert = compile_script(include_str!(
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
     .into_iter()
     .find(|operator| operator.name().as_str() == "Invert")
     .unwrap();
-    let identity = playback::operator(&identity);
-    let invert = playback::operator(&invert);
+    let identity = playback::program(&identity);
+    let invert = playback::program(&invert);
     let operators = [identity.clone(), invert, identity];
-    let mut workspace = playback::chain(2, &sample, 1, &operators).into_playback();
+    let mut workspace = playback::show(2, &sample, 1, &operators).into_playback();
     let mut reference_workspace = reference.into_playback();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
@@ -581,12 +572,12 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
 
 #[test]
 fn empty_curve_automation_preserves_missingness_without_allocating() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Empty { param shape: curve in 0.0..1.0; sample { rgb(shape[progress], 0.0, 0.0) } }",
     );
     let empty = curve(&[]);
     let automation = whole_sequence_automation(&effect.params()[0], 0, Arc::clone(&empty));
-    let invocation = playback::lower_sample(&invoke(
+    let invocation = playback::lower(&invoke(
         &effect,
         &[("shape", Value::Curve(empty))],
         vec![PreparedAutomation {
@@ -595,7 +586,7 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
             ..automation
         }],
     ));
-    let mut workspace = playback::show(2, &invocation, 1).into_playback();
+    let mut workspace = playback::show(2, &invocation, 1, &[]).into_playback();
     let mut buffers = [vec![0; 6]];
     let count = allocations(|| {
         for (snapshot, output) in buffers
@@ -720,7 +711,7 @@ fn library_effects_do_not_allocate_from_the_first_frame() {
     // general programs, with every automatable parameter automated.
     let mut effects = Vec::new();
     for source in STARTER_EFFECTS {
-        for effect in compile_effects(source).unwrap() {
+        for effect in compile_script(source).unwrap() {
             let values = authored_values(effect.params());
             let name = effect.name().as_str().to_owned();
             effects.push((
@@ -753,7 +744,7 @@ fn library_effects_do_not_allocate_from_the_first_frame() {
             ("placed", constants),
             ("unplaced", ProgramConstants::default()),
         ] {
-            let sample = invocation.instance(constants).sample();
+            let sample = playback::bind(&invocation.instance(constants));
             let (count, lit) = first_frames(single_effect(&sample));
             if count != 0 {
                 allocating.push(format!("{name} {placement}: {count}"));
@@ -775,19 +766,19 @@ enum Input {
 }
 
 /// Two layers under an operator graph, each node listing its inputs.
-fn operator_show(nodes: &[(Instance, Vec<Input>)]) -> PreparedSequence {
-    let first = playback::sample(&compile_effect(RAMP_SOURCE));
-    let second = playback::sample(&compile_effect(
+fn operator_show(nodes: &[(Instance, Vec<Input>)]) -> PreparedShow {
+    let first = playback::program(&compile(RAMP_SOURCE));
+    let second = playback::program(&compile(
         "effect Hues { sample { hsv(pixel.fraction + time * 0.25, 1.0, 1.0) } }",
     ));
     let lowered: Vec<_> = nodes
         .iter()
-        .map(|(instance, inputs)| (instance.operator(), inputs))
+        .map(|(instance, inputs)| (playback::bind(instance), inputs))
         .collect();
     grid(|builder, target| {
-        let window = builder.whole_sequence();
+        let window = SampleDuration::from_ticks(8_000_000);
         let [first, second] = [&first, &second].map(|sample| {
-            let effect = builder.sample(sample, window, target);
+            let effect = builder.clip(None, sample, SampleTime::from_ticks(0), window, target);
             builder.layer(true, [effect])
         });
         let mut signal = first;
@@ -797,7 +788,7 @@ fn operator_show(nodes: &[(Instance, Vec<Input>)]) -> PreparedSequence {
                 Input::Second => second,
             });
         }
-        builder.output(Some(signal))
+        Some(signal)
     })
 }
 
@@ -809,7 +800,7 @@ fn operators_do_not_allocate_from_the_first_frame() {
     };
     let mut operators: Vec<(String, [Instance; 2], Vec<Input>)> = Vec::new();
     for source in OPERATOR_LIBRARIES.into_iter().chain([ADDRESSED_SOURCE]) {
-        for operator in compile_operators(source).unwrap() {
+        for operator in compile_script(source).unwrap() {
             if operators
                 .iter()
                 .any(|(name, ..)| name == operator.name().as_str())

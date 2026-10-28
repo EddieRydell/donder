@@ -1,8 +1,8 @@
+use crate::common;
 use crate::common::starter_copy as starter;
 use camino::Utf8Path;
 use donder_project_io::{
-    PROJECT_ROOT_FILE, ProjectMetadata, check_project, export_editable_project, load_project,
-    plan_path_change,
+    PROJECT_ROOT_FILE, ProjectMetadata, check_project, export_editable_project, plan_path_change,
 };
 use std::fs;
 
@@ -15,7 +15,7 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
         .unwrap()
         .replace("audio: none", "audio: <audio/test.wav>");
     fs::write(&sequence, text).unwrap();
-    let missing = check_project(&root);
+    let missing = check_project(&root, &Default::default(), &mut Default::default());
     assert!(missing.session.is_none());
     assert!(!missing.recovery.documents.is_empty());
     fs::create_dir_all(root.join("audio")).unwrap();
@@ -24,7 +24,9 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
         b"asset bytes; decoding belongs to playback",
     )
     .unwrap();
-    let session = load_project(&root).unwrap();
+    let session = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap();
     assert_eq!(session.source.referenced_assets.len(), 1);
     assert_eq!(fs::read(root.join(PROJECT_ROOT_FILE)).unwrap(), config);
 }
@@ -33,7 +35,7 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
 fn unused_broken_download_does_not_invalidate_the_show() {
     let (_temp, root) = starter();
     fs::write(root.join("download.data.donder"), "Curve broken {\n").unwrap();
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.session.is_some(), "{:?}", report.diagnostics);
     assert!(
         report
@@ -42,18 +44,17 @@ fn unused_broken_download_does_not_invalidate_the_show() {
             .contains_key(Utf8Path::new("download.data.donder"))
     );
     assert!(
-        !donder_project_io::check_document_text(
-            Utf8Path::new("download.data.donder"),
-            "Curve broken {\n"
-        )
-        .is_empty()
+        !common::document_diagnostics(Utf8Path::new("download.data.donder"), "Curve broken {\n")
+            .is_empty()
     );
 }
 
 #[test]
 fn root_stays_fixed_and_copy_preserves_workspace_identity() {
     let (_temp, root) = starter();
-    let session = load_project(&root).unwrap();
+    let session = check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap();
     let metadata = ProjectMetadata::read(&root).unwrap();
     let error = plan_path_change(
         &session,
@@ -64,6 +65,12 @@ fn root_stays_fixed_and_copy_preserves_workspace_identity() {
     assert!(error.contains("must remain at the project root"));
     let destination = root.parent().unwrap().join("copy");
     export_editable_project(&session, &destination).unwrap();
-    assert_eq!(load_project(&destination).unwrap().project, session.project);
+    assert_eq!(
+        check_project(&destination, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap()
+            .project,
+        session.project
+    );
     assert_eq!(ProjectMetadata::read(&destination).unwrap(), metadata);
 }

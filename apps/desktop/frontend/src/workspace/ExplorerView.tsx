@@ -71,7 +71,7 @@ export function ExplorerView({
   const explorer = snapshot.workspaceExplorer;
 
   const saveExplorer = (next: WorkspaceExplorerState) => {
-    void runSnapshotCommand(() => commands.saveWorkspaceExplorerState(next));
+    void runSnapshotCommand(() => commands.saveViewState({ type: "workspaceExplorer", state: next }));
   };
   const beginCreate = (parent: string, directory: boolean) => {
     setInlineEdit({

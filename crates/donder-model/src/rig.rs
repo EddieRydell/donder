@@ -1,7 +1,7 @@
 //! A rig: effects played live from input devices instead of at authored
 //! times. Its layers and composition graph are a sequence's.
-use crate::effect::{EffectParamValue, EffectRef, EffectScope};
-use crate::identity::ObjectIdentity;
+use crate::effect::{EffectDefinitionId, EffectParamValue, EffectScope};
+pub(crate) use crate::identity::RigId;
 use crate::input_device::ControlRef;
 use crate::layout::FixtureTarget;
 use crate::sequence::{
@@ -10,9 +10,6 @@ use crate::sequence::{
 use donder_language::DonderDuration;
 use donder_runtime_types::{Color, Identifier};
 use indexmap::IndexMap;
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct RigId(pub ObjectIdentity);
 
 /// The most voices a `Stack` trigger plays at once.
 pub const MAX_STACKED_VOICES: u8 = 16;
@@ -46,7 +43,7 @@ pub struct RigEffect {
     pub layer_id: SequenceLayerId,
     pub target: FixtureTarget,
     pub scope: EffectScope,
-    pub definition: EffectRef,
+    pub definition: EffectDefinitionId,
     /// Marks parameters name the rig's live mark collections.
     pub param_overrides: IndexMap<Identifier, EffectParamValue>,
 }
@@ -162,6 +159,19 @@ pub enum TriggerLength {
     Latched,
 }
 
+impl TriggerLength {
+    /// How long a voice plays from each start; `None` until it is stopped.
+    /// Admission checked that a fixed length fits the playback clock.
+    pub fn duration(&self) -> Option<donder_runtime_types::SampleDuration> {
+        match self {
+            Self::Fixed(duration) => Some(donder_runtime_types::SampleDuration::from_ticks(
+                duration.as_micros_rounded() as u32,
+            )),
+            Self::Held | Self::Latched => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VoicePolicy {
     /// One voice, restarted by each press.
@@ -233,13 +243,6 @@ impl Rig {
             .map(|switch| &switch.input)
             .chain(self.mappings.iter().map(|mapping| &mapping.input))
     }
-
-    pub(crate) fn inputs_mut(&mut self) -> impl Iterator<Item = &mut ControlRef> {
-        self.switches
-            .iter_mut()
-            .map(|switch| &mut switch.input)
-            .chain(self.mappings.iter_mut().map(|mapping| &mut mapping.input))
-    }
 }
 
 impl crate::ownership::Identified for Rig {
@@ -249,10 +252,4 @@ impl crate::ownership::Identified for Rig {
     }
 }
 
-pub type RigSource = crate::ownership::ValueSource<Box<Rig>, RigId>;
-
-impl AsRef<ObjectIdentity> for RigId {
-    fn as_ref(&self) -> &ObjectIdentity {
-        &self.0
-    }
-}
+pub type RigSource = crate::ownership::MemberSource<Rig, RigId>;

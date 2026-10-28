@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 // once at its natural resolution, and this hook fetches each raster when its
 // revision changes and scales it into the clip's rectangle.
 
-import type { SequenceClipRaster, SequenceEditorDocument } from "../../../editor/types";
+import type { SequenceClipRaster, SequenceGuiDocument } from "../../../editor/types";
 import type { SequenceClipLayout } from "./sequenceSelection";
 
 type DecodedClipRaster = {
@@ -29,7 +29,7 @@ const CLIP_RASTER_POLL_MS = 100;
 const CLIP_RASTER_DECODE_FRAME_BUDGET_MS = 8;
 const CLIP_RASTER_DECODED_BYTE_BUDGET = 256 * 1024 * 1024;
 
-export function useSequenceClipRasters(document: SequenceEditorDocument, visibleClips: SequenceClipLayout[]): ClipRasterState {
+export function useSequenceClipRasters(document: SequenceGuiDocument, visibleClips: SequenceClipLayout[]): ClipRasterState {
   const host = useSequenceEditorHost();
   const { commands, store: useAppStore } = host;
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
@@ -59,7 +59,7 @@ export function useSequenceClipRasters(document: SequenceEditorDocument, visible
     if (projectRevision === null) return;
     const cache = rasterCache(documentKey);
     cache.visible = visibleKey === "" ? [] : visibleKey.split(",").map(Number);
-    const request = { ownedPath, projectRevision, path, view: "sequence" as const, objectKey };
+    const request = { ownedPath, projectRevision, path, objectKey };
     let cancelled = false;
     let pollTimeout: number | null = null;
     const publish = () => {

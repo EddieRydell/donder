@@ -3,9 +3,12 @@ use donder_elaboration::{PrepareOutputs, prepare};
 use donder_runtime_types::sample_time_from_frame;
 
 fn project() -> donder_project_io::ProjectSession {
-    donder_project_io::load_project(
+    donder_project_io::check_project(
         &Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter"),
+        &Default::default(),
+        &mut Default::default(),
     )
+    .into_session()
     .unwrap()
 }
 
@@ -14,36 +17,41 @@ fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
     use donder_model::{PixelRouteId, PixelSpan};
     use donder_runtime_types::PixelEncoding;
     let mut project = project().project;
-    let patch_id = project.reusable_setups()[project.root().setup.id()]
+    let patch_id = *project.reusable::<donder_model::Setup>()[project.root().setup.id()]
         .patch
-        .id()
+        .id();
+    let mut patch = project
+        .get::<donder_model::Patch>(patch_id)
+        .unwrap()
         .clone();
-    let mut patch = project.patch(&patch_id).unwrap().clone();
     patch.routes.truncate(1);
     patch.routes[0].pixels = Some(PixelSpan { start: 0, count: 1 });
     let mut second = patch.routes[0].clone();
     second.id = PixelRouteId(1000);
     second.start_slot = 2;
     patch.routes.push(second);
-    assert!(
-        project
-            .replace_patch(&patch_id, patch.clone())
-            .unwrap_err()
-            .to_string()
-            .contains("overlap")
-    );
+    assert!(matches!(
+        project.put(patch.clone()).unwrap_err(),
+        donder_model::EditError::Invalid(donder_model::ProjectValidationError {
+            problem: donder_model::ValidationProblem::Route {
+                problem: donder_model::RouteProblem::OutputsOverlap,
+                ..
+            },
+            ..
+        })
+    ));
     patch.routes[1].start_slot = 3;
-    project.replace_patch(&patch_id, patch.clone()).unwrap();
+    project.put(patch.clone()).unwrap();
     patch.routes[1].pixels = Some(PixelSpan {
         start: 113,
         count: 1,
     });
-    assert!(project.replace_patch(&patch_id, patch.clone()).is_err());
+    assert!(project.put(patch.clone()).is_err());
     patch.routes[1].pixels = Some(PixelSpan { start: 0, count: 0 });
-    assert!(project.replace_patch(&patch_id, patch.clone()).is_err());
+    assert!(project.put(patch.clone()).is_err());
     patch.routes[1].pixels = Some(PixelSpan { start: 0, count: 1 });
     patch.routes[1].encoding = PixelEncoding::Rgb { order: [0, 0, 2] };
-    assert!(project.replace_patch(&patch_id, patch).is_err());
+    assert!(project.put(patch).is_err());
 }
 
 #[test]
@@ -51,9 +59,9 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
     let session = project();
     let project = &session.project;
     let sequence = project
-        .reusable_sequences()
+        .reusable::<donder_model::Sequence>()
         .keys()
-        .find(|id| id.0.root_source().object() == "layer_test")
+        .find(|id| session.declaration((**id).into()).unwrap().1.as_str() == "layer_test")
         .unwrap();
     let output = prepare(project, sequence, PrepareOutputs::All).unwrap();
     let mut workspace = output.clone().into_playback();

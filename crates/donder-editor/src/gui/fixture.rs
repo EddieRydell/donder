@@ -1,18 +1,17 @@
 use super::{
     GuiMutationError,
-    model::{domain_point3_meters, rotation3_degrees, scale3, source_identity_from_gui},
+    model::{domain_point3_meters, rotation3_degrees, scale3},
+};
+use crate::dto::{
+    FixtureGuiEdit, GuiFixtureElement, GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiObjectRef,
+    ObjectKind, Point3Meters, Rotation3Degrees, Scale3, Transform,
 };
 use donder_language::DistanceSpan;
-use donder_model::SourceIdentity;
 use donder_model::{
     FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
     FixtureSource, FixtureTransform, GridAxis, GridCorner,
 };
-use donder_project_io::{ProjectSession, SourceObjectKind};
-use donder_sequence_api::{
-    FixtureGuiEdit, GuiFixtureElement, GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiObjectRef,
-    ObjectKind, Point3Meters, Rotation3Degrees, Scale3, Transform,
-};
+use donder_project_io::ProjectSession;
 
 pub(super) fn edit_fixture(
     session: &mut ProjectSession,
@@ -30,12 +29,10 @@ pub(super) fn update_fixture_definition(
 ) -> Result<(), GuiMutationError> {
     match resolved.owned_path.as_slice() {
         [] => {
-            let id = FixtureDefinitionId(resolved.identity.clone());
+            let id = resolved.id::<FixtureDefinitionId>();
             let mut fixture = session
                 .project
-                .definitions()
-                .fixtures
-                .definitions
+                .reusable::<donder_model::FixtureDefinition>()
                 .get(&id)
                 .cloned()
                 .ok_or_else(|| {
@@ -44,28 +41,15 @@ pub(super) fn update_fixture_definition(
             update(&mut fixture)?;
             session
                 .project
-                .apply_edits([donder_model::ProjectEdit::SetFixtureDefinition {
-                    id,
-                    value: fixture,
-                }])
-                .map_err(GuiMutationError::Invalid)
+                .apply_edits([donder_model::ProjectEdit::Put(
+                    donder_model::Object::FixtureDefinition(id, fixture),
+                )])
+                .map_err(GuiMutationError::from)
         }
-        [
-            parent @ ..,
-            donder_sequence_api::GuiOwnedStep::Fixture { id },
-        ] => {
-            let parent = parent.iter().fold(
-                donder_model::ObjectIdentity::from(resolved.identity.clone()),
-                |address, step| {
-                    address.owned(
-                        step.try_into()
-                            .unwrap_or_else(|_| unreachable!("projected owned paths are valid")),
-                    )
-                },
-            );
+        [.., crate::dto::OwnedObjectSlot::Fixture { id }] => {
             let mut layout = session
                 .project
-                .layout(&donder_model::LayoutId(parent))
+                .get::<donder_model::Layout>(resolved.id::<donder_model::LayoutId>())
                 .cloned()
                 .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
             let placement = layout
@@ -81,10 +65,7 @@ pub(super) fn update_fixture_definition(
                 ));
             };
             update(value)?;
-            session
-                .project
-                .replace_layout(&layout.id.clone(), layout)
-                .map_err(GuiMutationError::Invalid)
+            session.project.put(layout).map_err(GuiMutationError::from)
         }
         _ => Err(GuiMutationError::Invalid(
             "Unsupported owned fixture path.".into(),
@@ -450,7 +431,7 @@ fn move_handle(
 
 pub(super) fn reference_definition(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &donder_project_io::DocumentId,
     reference: GuiObjectRef,
 ) -> Result<FixtureDefinitionId, GuiMutationError> {
     if !reference.owned_path.is_empty() || !matches!(reference.kind, ObjectKind::Fixture) {
@@ -458,27 +439,19 @@ pub(super) fn reference_definition(
             "Choose a fixture definition.".into(),
         ));
     }
-    let identity =
-        source_identity_from_gui(&reference.module_id, &reference.path, &reference.object_key)?;
-    let id = FixtureDefinitionId(identity);
+    let id: FixtureDefinitionId =
+        super::model::declared_from_gui(session, &reference.path, &reference.object_key)?;
     if !session
         .project
-        .definitions()
-        .fixtures
-        .definitions
+        .reusable::<donder_model::FixtureDefinition>()
         .contains_key(&id)
     {
         return Err(GuiMutationError::Invalid(
             "Fixture definition was not found.".into(),
         ));
     }
-    donder_project_io::link_reusable_source(
-        session,
-        owner.document_id(),
-        SourceObjectKind::FixtureDefinition,
-        &id.0,
-    )
-    .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+    donder_project_io::link_reusable_source(session, owner, id.into())
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(id)
 }
 

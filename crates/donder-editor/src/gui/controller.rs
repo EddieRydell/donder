@@ -2,10 +2,10 @@ use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
     ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
 };
-use donder_project_io::{ProjectSession, SourceObjectKind};
+use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
-use donder_sequence_api::{
+use crate::dto::{
     ControllerGuiDocument, GuiDocument, SetupController, SetupControllerConfig, SetupControllerPort,
 };
 
@@ -20,8 +20,7 @@ pub(super) fn project_controller(
             ControllerProtocol::ArtNet(config) => format!("Art-Net {}", config.destination),
             ControllerProtocol::Donder(config) => format!("Donder {}", config.device.as_str()),
         },
-        source_ref: super::patch::object_ref(&id.0, SourceObjectKind::Controller),
-        read_only: !session.source.is_project_owned(id.0.document_id()),
+        source_ref: super::model::object_ref(session, *id),
         config: (&controller.protocol).into(),
         ports: controller
             .ports
@@ -44,8 +43,8 @@ pub(super) fn project_document(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let id = ControllerId(resolved.object_identity());
-    let Some(controller) = session.project.controller(&id) else {
+    let id = resolved.id::<ControllerId>();
+    let Some(controller) = session.project.get::<donder_model::Controller>(id) else {
         return blocked("Controller was not found.", Vec::new());
     };
     GuiDocument::Controller {
@@ -64,16 +63,16 @@ pub(super) fn edit(
     config: SetupControllerConfig,
     ports: Vec<SetupControllerPort>,
 ) -> Result<(), GuiMutationError> {
-    let id = ControllerId(resolved.object_identity());
+    let id = resolved.id::<ControllerId>();
     let description = session
         .project
-        .controller(&id)
+        .get::<donder_model::Controller>(id)
         .and_then(|controller| controller.description.clone());
     let controller = domain_controller(id, description, config, ports)?;
     session
         .project
-        .replace_controller(&controller.id.clone(), controller)
-        .map_err(GuiMutationError::Invalid)
+        .put(controller)
+        .map_err(GuiMutationError::from)
 }
 
 pub(super) fn domain_controller(

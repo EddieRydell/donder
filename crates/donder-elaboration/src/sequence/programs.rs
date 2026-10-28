@@ -1,8 +1,7 @@
 //! Lowering and interning. Instances of one definition usually lower to the
 //! same program with different bound values; playback keeps one copy.
 use donder_language::compiler::{Instance, Invocation, ProgramConstants};
-use donder_runtime_types::Shared;
-use donder_runtime_types::{OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram};
+use donder_runtime_types::{BoundProgram, Program, Shared};
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hasher};
 
@@ -12,14 +11,14 @@ use std::hash::{BuildHasher, Hasher};
 /// preparation did not use are dropped when it finishes.
 #[derive(Default)]
 pub struct PreparationCache {
-    samples: HashMap<u64, Vec<CachedSample>>,
+    clips: HashMap<u64, Vec<CachedClip>>,
     hasher: std::hash::RandomState,
 }
 
-struct CachedSample {
+struct CachedClip {
     invocation: Invocation,
     constants: ProgramConstants,
-    sample: SampleInvocation,
+    program: BoundProgram,
     /// The program's indices of the invocation's live marks parameters.
     live: Box<[u16]>,
     used: bool,
@@ -27,7 +26,7 @@ struct CachedSample {
 
 impl PreparationCache {
     fn finish(&mut self) {
-        self.samples.retain(|_, entries| {
+        self.clips.retain(|_, entries| {
             entries.retain_mut(|entry| std::mem::take(&mut entry.used));
             !entries.is_empty()
         });
@@ -35,8 +34,7 @@ impl PreparationCache {
 }
 
 pub(crate) struct Programs<'cache> {
-    samples: Vec<Shared<SampleProgram>>,
-    operators: Vec<Shared<OperatorProgram>>,
+    programs: Vec<Shared<Program>>,
     cache: &'cache mut PreparationCache,
 }
 
@@ -46,81 +44,73 @@ impl Drop for Programs<'_> {
     }
 }
 
-fn intern<T: PartialEq + Clone>(programs: &mut Vec<Shared<T>>, program: &Shared<T>) -> Shared<T> {
-    if let Some(existing) = programs
-        .iter()
-        .find(|existing| Shared::ptr_eq(existing, program))
-        .or_else(|| programs.iter().find(|existing| ***existing == **program))
-    {
-        return Shared::clone(existing);
-    }
-    programs.push(Shared::clone(program));
-    Shared::clone(program)
-}
-
 impl<'cache> Programs<'cache> {
     pub(crate) fn new(cache: &'cache mut PreparationCache) -> Self {
         Self {
-            samples: Vec::new(),
-            operators: Vec::new(),
+            programs: Vec::new(),
             cache,
         }
     }
 
-    /// The program of `invocation` with `constants`, lowered once per
-    /// distinct invocation.
-    pub(crate) fn sample(
-        &mut self,
-        invocation: &Invocation,
-        constants: ProgramConstants,
-    ) -> SampleInvocation {
-        self.sample_live(invocation, constants).0
+    /// One copy of each distinct program.
+    fn intern(&mut self, program: &Shared<Program>) -> Shared<Program> {
+        if let Some(existing) = self
+            .programs
+            .iter()
+            .find(|existing| Shared::ptr_eq(existing, program))
+            .or_else(|| {
+                self.programs
+                    .iter()
+                    .find(|existing| ***existing == **program)
+            })
+        {
+            return Shared::clone(existing);
+        }
+        self.programs.push(Shared::clone(program));
+        Shared::clone(program)
     }
 
-    /// [`Self::sample`], with the program's indices of the invocation's live
+    /// `instance` lowered and bound to its values, sharing an equal
+    /// program lowered before; with the program's indices of its live
     /// marks parameters, in invocation order.
-    pub(crate) fn sample_live(
+    pub(crate) fn lower(&mut self, instance: &Instance) -> (BoundProgram, Box<[u16]>) {
+        let lowered = instance.lower();
+        let program = self.intern(&Shared::new(lowered.program));
+        let bound = BoundProgram::bind(program, lowered.values, lowered.automation)
+            .unwrap_or_else(|_| unreachable!("lowered values match their program"));
+        (bound, lowered.live)
+    }
+
+    /// The program of `invocation` with `constants`, lowered once per
+    /// distinct invocation.
+    pub(crate) fn clip(
         &mut self,
         invocation: &Invocation,
         constants: ProgramConstants,
-    ) -> (SampleInvocation, Box<[u16]>) {
+    ) -> (BoundProgram, Box<[u16]>) {
         let mut hasher = self.cache.hasher.build_hasher();
         invocation.hash_same(&mut hasher);
         constants.hash_same(&mut hasher);
-        let entries = self.cache.samples.entry(hasher.finish()).or_default();
-        if let Some(entry) = entries
-            .iter_mut()
-            .find(|entry| entry.constants.same(&constants) && entry.invocation.same(invocation))
-        {
+        let key = hasher.finish();
+        if let Some(entry) = self.cache.clips.get_mut(&key).and_then(|entries| {
+            entries
+                .iter_mut()
+                .find(|entry| entry.constants.same(&constants) && entry.invocation.same(invocation))
+        }) {
             entry.used = true;
+            let (program, live) = (entry.program.clone(), entry.live.clone());
             // A program cached by an earlier preparation joins this one's bank.
-            intern(&mut self.samples, entry.sample.program());
-            return (entry.sample.clone(), entry.live.clone());
+            self.intern(program.program());
+            return (program, live);
         }
-        let (lowered, live) = invocation.instance(constants).sample_live();
-        let sample = SampleInvocation::bind(
-            intern(&mut self.samples, lowered.program()),
-            lowered.params().iter_values().collect(),
-        )
-        .and_then(|sample| sample.with_automation(lowered.automation().into()))
-        .unwrap_or_else(|_| unreachable!("interning keeps the program's schema"));
-        entries.push(CachedSample {
+        let (program, live) = self.lower(&invocation.instance(constants));
+        self.cache.clips.entry(key).or_default().push(CachedClip {
             invocation: invocation.clone(),
             constants,
-            sample: sample.clone(),
+            program: program.clone(),
             live: live.clone(),
             used: true,
         });
-        (sample, live)
-    }
-
-    pub(crate) fn operator(&mut self, instance: &Instance) -> OperatorInvocation {
-        let lowered = instance.operator();
-        OperatorInvocation::bind(
-            intern(&mut self.operators, lowered.program()),
-            lowered.params().iter_values().collect(),
-        )
-        .and_then(|invocation| invocation.with_automation(lowered.automation().into()))
-        .unwrap_or_else(|_| unreachable!("interning keeps the program's schema"))
+        (program, live)
     }
 }

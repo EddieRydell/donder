@@ -6,7 +6,7 @@ use super::{
     DesktopState, FsEntryKind, absolute_project_path, lock_unpoisoned, path_matches_or_is_child,
     valid_child_name, workspace_entries,
 };
-use donder_sequence_api::AppSnapshot;
+use donder_editor::dto::AppSnapshot;
 
 impl DesktopState {
     pub(super) fn create_fs_entry(

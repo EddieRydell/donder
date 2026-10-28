@@ -1,136 +1,131 @@
-use super::{Identified, ValueSource};
-use crate::identity::{ObjectIdentity, OwnedObjectSlot};
+use super::{Identified, MemberSource, ValueSource};
+use crate::identity::ObjectId;
 use crate::project::DonderProject;
-use crate::validation::ProjectValidationError;
+use crate::validation::{OwnershipProblem, ProjectValidationError, ValidationProblem, at};
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
-fn invalid(message: &str) -> ProjectValidationError {
-    ProjectValidationError::InvalidRelationship(message.into())
-}
+/// Every object id once: reusable values under their own ids, inline values
+/// under ids no other object uses.
+struct Ids(HashSet<ObjectId>);
 
-fn validate_named<T: Identified<Id = I>, I: AsRef<ObjectIdentity> + Eq>(
-    values: &IndexMap<I, T>,
-) -> Result<(), ProjectValidationError> {
-    for (id, value) in values {
-        if id.as_ref().source().is_none() || id != value.id() {
-            return Err(invalid(
-                "Reusable objects require matching named source identities.",
-            ));
+impl Ids {
+    fn insert(&mut self, id: impl Into<ObjectId>) -> Result<(), ValidationProblem> {
+        let id = id.into();
+        if self.0.insert(id) {
+            Ok(())
+        } else {
+            Err(ValidationProblem::Ownership(OwnershipProblem::DuplicateId(
+                id,
+            )))
         }
     }
-    Ok(())
-}
 
-enum ExpectedSlot {
-    Setup,
-    Layout,
-    Patch,
-    Controller,
-    InputDevice,
-    Sequence,
-    Rig,
-}
-
-impl ExpectedSlot {
-    fn matches(&self, actual: &OwnedObjectSlot) -> bool {
-        matches!(
-            (self, actual),
-            (Self::Setup, OwnedObjectSlot::Setup)
-                | (Self::Layout, OwnedObjectSlot::Layout)
-                | (Self::Patch, OwnedObjectSlot::Patch)
-                | (Self::Controller, OwnedObjectSlot::Controller(_))
-                | (Self::InputDevice, OwnedObjectSlot::InputDevice(_))
-                | (Self::Sequence, OwnedObjectSlot::Sequence(_))
-                | (Self::Rig, OwnedObjectSlot::Rig(_))
-        )
-    }
-}
-
-fn validate_source<T: Identified<Id = I>, I: AsRef<ObjectIdentity>>(
-    source: &ValueSource<Box<T>, I>,
-    owner: &ObjectIdentity,
-    expected: ExpectedSlot,
-    exists: impl FnOnce(&I) -> bool,
-) -> Result<(), ProjectValidationError> {
-    match source {
-        ValueSource::Inline(value) => {
-            let identity = value.id().as_ref();
-            let Some(slot) = identity.owned_path().last() else {
-                return Err(invalid("Inline objects require an ownership slot."));
-            };
-            if !expected.matches(slot) || identity != &owner.owned(slot.clone()) {
-                return Err(invalid("Inline object address does not match its owner."));
-            }
-        }
-        ValueSource::Reference(id) => {
-            if id.as_ref().source().is_none() {
-                return Err(invalid(
-                    "An owned object must be made reusable before linking it.",
+    fn store<T: Identified<Id = I>, I: Copy + Eq + Into<ObjectId>>(
+        &mut self,
+        values: &IndexMap<I, T>,
+    ) -> Result<(), ValidationProblem> {
+        for (id, value) in values {
+            if id != value.id() {
+                return Err(ValidationProblem::Ownership(
+                    OwnershipProblem::StoredUnderOtherId((*id).into()),
                 ));
             }
-            if !exists(id) {
-                return Err(invalid("Reusable object reference is missing."));
-            }
+            self.insert(*id)?;
+        }
+        Ok(())
+    }
+
+    fn value<T: Identified<Id = I>, I: Copy + Into<ObjectId>>(
+        &mut self,
+        source: &ValueSource<Box<T>, I>,
+        exists: impl FnOnce(&I) -> bool,
+    ) -> Result<(), ValidationProblem> {
+        match source {
+            ValueSource::Inline(value) => self.insert(*value.id()),
+            ValueSource::Reference(id) => reference(exists(id), *id),
+        }
+    }
+
+    fn member<T: Identified<Id = I>, I: Copy + Into<ObjectId>>(
+        &mut self,
+        source: &MemberSource<T, I>,
+        exists: impl FnOnce(&I) -> bool,
+    ) -> Result<(), ValidationProblem> {
+        match source {
+            MemberSource::Inline { value, .. } => self.insert(*value.id()),
+            MemberSource::Reference(id) => reference(exists(id), *id),
+        }
+    }
+}
+
+fn reference(exists: bool, id: impl Into<ObjectId>) -> Result<(), ValidationProblem> {
+    if exists {
+        Ok(())
+    } else {
+        Err(ValidationProblem::Ownership(
+            OwnershipProblem::MissingReference(id.into()),
+        ))
+    }
+}
+
+/// Members of one collection are distinct values with distinct names.
+fn distinct_members<T: Identified<Id = I>, I: Eq + std::hash::Hash>(
+    sources: &[MemberSource<T, I>],
+    problem: OwnershipProblem,
+) -> Result<(), ValidationProblem> {
+    let mut ids = HashSet::new();
+    let mut names = HashSet::new();
+    for source in sources {
+        if !ids.insert(source.id()) || source.name().is_some_and(|name| !names.insert(name)) {
+            return Err(ValidationProblem::Ownership(problem));
         }
     }
     Ok(())
 }
 
 pub(crate) fn validate_ownership(project: &DonderProject) -> Result<(), ProjectValidationError> {
-    validate_named(&project.setups)?;
-    validate_named(&project.layouts)?;
-    validate_named(&project.patches)?;
-    validate_named(&project.controllers)?;
-    validate_named(&project.input_devices)?;
-    validate_named(&project.sequences)?;
-    validate_named(&project.rigs)?;
-    let root = ObjectIdentity::from(project.root.id.0.clone());
-    validate_source(&project.root.setup, &root, ExpectedSlot::Setup, |id| {
-        project.setups.contains_key(id)
-    })?;
-    let mut sequences = HashSet::new();
+    let mut ids = Ids(HashSet::new());
+    ids.insert(project.root.id).map_err(at(project.root.id))?;
+    ids.store(&project.setups).map_err(at(project.root.id))?;
+    ids.store(&project.layouts).map_err(at(project.root.id))?;
+    ids.store(&project.patches).map_err(at(project.root.id))?;
+    ids.store(&project.controllers)
+        .map_err(at(project.root.id))?;
+    ids.store(&project.input_devices)
+        .map_err(at(project.root.id))?;
+    ids.store(&project.sequences).map_err(at(project.root.id))?;
+    ids.store(&project.rigs).map_err(at(project.root.id))?;
+    ids.value(&project.root.setup, |id| project.setups.contains_key(id))
+        .map_err(at(project.root.id))?;
+    distinct_members(&project.root.sequences, OwnershipProblem::DuplicateSequence)
+        .map_err(at(project.root.id))?;
     for source in &project.root.sequences {
-        validate_source(source, &root, ExpectedSlot::Sequence, |id| {
-            project.sequences.contains_key(id)
-        })?;
-        if !sequences.insert(source.id()) {
-            return Err(invalid("Sequence appears more than once in the project."));
-        }
+        ids.member(source, |id| project.sequences.contains_key(id))
+            .map_err(at(project.root.id))?;
     }
-    let mut rigs = HashSet::new();
+    distinct_members(&project.root.rigs, OwnershipProblem::DuplicateRig)
+        .map_err(at(project.root.id))?;
     for source in &project.root.rigs {
-        validate_source(source, &root, ExpectedSlot::Rig, |id| {
-            project.rigs.contains_key(id)
-        })?;
-        if !rigs.insert(source.id()) {
-            return Err(invalid("Rig appears more than once in the project."));
-        }
+        ids.member(source, |id| project.rigs.contains_key(id))
+            .map_err(at(project.root.id))?;
     }
-    for setup in project.setups() {
-        validate_source(&setup.layout, &setup.id.0, ExpectedSlot::Layout, |id| {
-            project.layouts.contains_key(id)
-        })?;
-        validate_source(&setup.patch, &setup.id.0, ExpectedSlot::Patch, |id| {
-            project.patches.contains_key(id)
-        })?;
-        let mut controllers = HashSet::new();
+    for setup in project.objects::<crate::Setup>() {
+        ids.value(&setup.layout, |id| project.layouts.contains_key(id))
+            .map_err(at(setup.id))?;
+        ids.value(&setup.patch, |id| project.patches.contains_key(id))
+            .map_err(at(setup.id))?;
+        distinct_members(&setup.controllers, OwnershipProblem::DuplicateController)
+            .map_err(at(setup.id))?;
         for source in &setup.controllers {
-            validate_source(source, &setup.id.0, ExpectedSlot::Controller, |id| {
-                project.controllers.contains_key(id)
-            })?;
-            if !controllers.insert(source.id()) {
-                return Err(invalid("Controller appears more than once in the setup."));
-            }
+            ids.member(source, |id| project.controllers.contains_key(id))
+                .map_err(at(setup.id))?;
         }
-        let mut devices = HashSet::new();
+        distinct_members(&setup.input_devices, OwnershipProblem::DuplicateInputDevice)
+            .map_err(at(setup.id))?;
         for source in &setup.input_devices {
-            validate_source(source, &setup.id.0, ExpectedSlot::InputDevice, |id| {
-                project.input_devices.contains_key(id)
-            })?;
-            if !devices.insert(source.id()) {
-                return Err(invalid("Input device appears more than once in the setup."));
-            }
+            ids.member(source, |id| project.input_devices.contains_key(id))
+                .map_err(at(setup.id))?;
         }
     }
     Ok(())

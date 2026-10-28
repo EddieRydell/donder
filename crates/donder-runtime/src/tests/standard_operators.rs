@@ -12,8 +12,8 @@ use super::evaluation::RuntimeError;
 use super::evaluation::SignalSampler;
 use super::evaluation::StripWorkspace;
 use crate::dsl::RunContext;
-use donder_language::compiler::CompiledOperator;
-use donder_language::compiler::compile_operators;
+use donder_language::compiler::CompiledDefinition;
+use donder_language::compiler::compile_script;
 use donder_runtime_types::Color;
 use donder_runtime_types::SampleDuration;
 use donder_runtime_types::Value;
@@ -32,15 +32,15 @@ impl<F: Fn(usize) -> Color> SignalSampler for Inputs<F> {
     }
 }
 
-fn library() -> Vec<CompiledOperator> {
-    compile_operators(include_str!(
+fn library() -> Vec<CompiledDefinition> {
+    compile_script(include_str!(
         "../../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
 }
 
 fn sample(
-    operators: &[CompiledOperator],
+    operators: &[CompiledDefinition],
     name: &str,
     frames_elapsed: u32,
     overrides: &[(&str, Value)],
@@ -50,9 +50,9 @@ fn sample(
         .iter()
         .find(|operator| operator.name().as_str() == name)
         .unwrap();
-    let invocation = playback::lower_operator(&bind(operator, overrides));
+    let invocation = playback::lower(&bind(operator, overrides));
     invocation
-        .evaluate(
+        .evaluate_signals(
             &PixelContext {
                 run: RunContext {
                     progress: 0.0,

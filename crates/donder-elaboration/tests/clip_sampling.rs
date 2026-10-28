@@ -6,16 +6,20 @@ use donder_runtime_types::SampleTime;
 #[test]
 fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let project = donder_project_io::load_project(&root).unwrap().project;
+    let project =
+        donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap()
+            .project;
     let mut sample_checked = false;
     for sequence in project
         .root()
         .sequences
         .iter()
-        .map(|source| project.sequence(source.id()).unwrap())
+        .map(|source| project.get::<donder_model::Sequence>(*source.id()).unwrap())
     {
         let prepared = prepare(&project, &sequence.id, PrepareOutputs::All).unwrap();
-        let decoded = donder_runtime::PreparedSequence::decode(&prepared.encode()).unwrap();
+        let decoded = donder_runtime::PreparedShow::decode(&prepared.encode()).unwrap();
         for authored in sequence.effects.iter().take(2) {
             sample_checked = true;
             // Prepare the authored clip alone through a plain layer/output graph.
@@ -68,14 +72,12 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
             reference
                 .automation_clips
                 .retain(|clip| !clip.bindings.is_empty());
-            reference_project
-                .replace_sequence(&sequence.id, reference)
-                .unwrap();
+            reference_project.put(reference).unwrap();
             let mut workspace = prepare(&reference_project, &sequence.id, PrepareOutputs::All)
                 .unwrap()
                 .into_playback();
             let fixtures = project
-                .layout(&authored.target.layout)
+                .get::<donder_model::Layout>(authored.target.layout)
                 .unwrap()
                 .members(authored.target.fixture)
                 .into_iter()

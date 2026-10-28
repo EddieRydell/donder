@@ -1,12 +1,10 @@
 //! LED output routing. Pixel ranges describe physical wiring, not effect targets.
+use crate::project::EditRejection;
 use donder_runtime_types::PixelEncoding;
 
 use crate::controller::{ControllerId, ControllerPortId};
-use crate::identity::ObjectIdentity;
+pub(crate) use crate::identity::PatchId;
 use crate::layout::FixtureTarget;
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct PatchId(pub ObjectIdentity);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct PixelRouteId(pub u32);
@@ -40,12 +38,12 @@ pub struct PixelRoute {
 }
 
 impl Patch {
-    pub fn remove_output(&mut self, id: PixelRouteId) -> Result<(), String> {
+    pub fn remove_output(&mut self, id: PixelRouteId) -> Result<(), EditRejection> {
         let index = self
             .routes
             .iter()
             .position(|route| route.id == id)
-            .ok_or("Output assignment was not found.")?;
+            .ok_or(EditRejection::MissingOutput)?;
         self.routes.remove(index);
         Ok(())
     }
@@ -59,9 +57,3 @@ impl crate::ownership::Identified for Patch {
 }
 
 pub type PatchSource = crate::ownership::ValueSource<Box<Patch>, PatchId>;
-
-impl AsRef<ObjectIdentity> for PatchId {
-    fn as_ref(&self) -> &ObjectIdentity {
-        &self.0
-    }
-}

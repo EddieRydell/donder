@@ -1,20 +1,18 @@
 pub(super) fn register_sequence_audio_asset(
     session: &mut ProjectSession,
-    document: &donder_model::DocumentId,
+    document: &DocumentId,
     import_path: &str,
 ) -> Result<AssetId, GuiMutationError> {
-    if let Some(asset) = session.source.referenced_assets.iter_mut().find(|asset| {
-        asset.module_id == document.module_id() && asset.relative_path.as_str() == import_path
-    }) {
+    if let Some(asset) = session
+        .source
+        .referenced_assets
+        .iter_mut()
+        .find(|asset| asset.relative_path.as_str() == import_path)
+    {
         asset.referenced_by.insert(document.clone());
         return Ok(asset.id.clone());
     }
 
-    if !session.source.is_project_owned(document) {
-        return Err(GuiMutationError::Invalid(
-            "Audio must belong to this project.".into(),
-        ));
-    }
     donder_project_io::validate_relative_path(import_path).map_err(GuiMutationError::Invalid)?;
     let selected_path = session.source.project_root().join(import_path);
     let absolute_path = fs::canonicalize(&selected_path)
@@ -28,9 +26,12 @@ pub(super) fn register_sequence_audio_asset(
         ));
     }
 
-    if let Some(asset) = session.source.referenced_assets.iter().find(|asset| {
-        asset.module_id == document.module_id() && asset.absolute_path == absolute_path
-    }) {
+    if let Some(asset) = session
+        .source
+        .referenced_assets
+        .iter()
+        .find(|asset| asset.absolute_path == absolute_path)
+    {
         return Ok(asset.id.clone());
     }
 
@@ -46,7 +47,6 @@ pub(super) fn register_sequence_audio_asset(
     let id = AssetId(next_id);
     session.source.referenced_assets.push(ReferencedAsset {
         id: id.clone(),
-        module_id: document.module_id(),
         relative_path,
         absolute_path,
         referenced_by: std::collections::BTreeSet::from([document.clone()]),
@@ -81,36 +81,42 @@ pub(super) fn parse_graph_node_id(value: &str) -> Result<CompositionGraphNodeId,
 pub(super) fn graph_operator_from_gui(
     session: &ProjectSession,
     operator: &SequenceGraphOperator,
-) -> Result<OperatorRef, GuiMutationError> {
-    Ok(match operator {
-        SequenceGraphOperator::Custom {
-            module_id,
-            path,
-            object_key,
-        } => {
-            let identity =
-                source_identity_from_gui(module_id, path, identifier(object_key)?.as_str())?;
-            if !session.source.is_project_owned(identity.document_id()) {
-                return Err(GuiMutationError::Invalid(
-                    "Operator source module was not found.".to_string(),
-                ));
-            }
-            OperatorRef::Custom(OperatorDefinitionId(identity))
-        }
-    })
+) -> Result<OperatorDefinitionId, GuiMutationError> {
+    declared_from_gui(
+        session,
+        &operator.path,
+        identifier(&operator.object_key)?.as_str(),
+    )
 }
 
-pub fn source_identity_from_gui(
-    module_id: &str,
+pub fn source_identity_from_gui(path: &str, object: &str) -> SourceIdentity {
+    SourceIdentity::from_document(
+        donder_project_io::DocumentId::new(Utf8PathBuf::from(path)),
+        object.to_string(),
+    )
+}
+
+/// The declared object a GUI path and key name, as the id its kind takes.
+pub(crate) fn declared_from_gui<I: TryFrom<ObjectId>>(
+    session: &ProjectSession,
     path: &str,
     object: &str,
-) -> Result<SourceIdentity, GuiMutationError> {
-    let module_id = uuid::Uuid::parse_str(module_id)
-        .map_err(|_| GuiMutationError::Invalid("Source module ID is invalid.".to_string()))?;
-    Ok(SourceIdentity::from_document(
-        donder_model::DocumentId::new(module_id, Utf8PathBuf::from(path)),
-        object.to_string(),
-    ))
+) -> Result<I, GuiMutationError> {
+    session
+        .declared_id(&source_identity_from_gui(path, object))
+        .and_then(|id| I::try_from(id).ok())
+        .ok_or_else(|| GuiMutationError::Invalid(format!("`{object}` was not found.")))
+}
+
+/// The object a GUI reference addresses, as the id its kind takes.
+pub(crate) fn object_id_from_gui<I: TryFrom<ObjectId>>(
+    session: &ProjectSession,
+    reference: &crate::dto::GuiObjectRef,
+) -> Result<I, GuiMutationError> {
+    session
+        .resolve_address(&object_identity_from_gui(reference)?)
+        .and_then(|id| I::try_from(id).ok())
+        .ok_or_else(|| GuiMutationError::Invalid("The referenced object was not found.".into()))
 }
 
 pub(super) fn mark_collection_mut<'a>(
@@ -171,7 +177,7 @@ pub(super) fn layout_target_to_effect_target(
     target: FixtureTarget,
 ) -> DomainFixtureTarget {
     DomainFixtureTarget {
-        layout: layout.clone(),
+        layout: *layout,
         fixture: FixtureInstanceId(target.fixture),
     }
 }
@@ -179,36 +185,20 @@ pub(super) fn layout_target_to_effect_target(
 pub(super) fn effect_ref_from_gui(
     session: &ProjectSession,
     reference: SequenceEffectReference,
-) -> Result<EffectRef, GuiMutationError> {
-    Ok(match reference {
-        SequenceEffectReference::Custom {
-            module_id,
-            path,
-            effect_name,
-        } => {
-            let identity = source_identity_from_gui(&module_id, &path, &effect_name)?;
-            if !session.source.is_project_owned(identity.document_id()) {
-                return Err(GuiMutationError::Invalid(
-                    "Effect source module was not found.".to_string(),
-                ));
-            }
-            EffectRef::Custom(EffectDefinitionId(identity))
-        }
-    })
+) -> Result<EffectDefinitionId, GuiMutationError> {
+    declared_from_gui(session, &reference.path, &reference.effect_name)
 }
 
 /// The values a new invocation of `definition` gives its parameters without
 /// defaults, starting colors at `initial_color`.
 pub(super) fn required_param_values(
     session: &ProjectSession,
-    definition: &EffectRef,
+    definition: &EffectDefinitionId,
     initial_color: Color,
 ) -> Result<IndexMap<Identifier, EffectParamValue>, GuiMutationError> {
     let effect = session
         .project
-        .definitions()
-        .effects
-        .resolve(definition)
+        .get::<donder_model::EffectDefinition>(*definition)
         .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
     effect
         .params()
@@ -245,7 +235,7 @@ pub(super) fn visit_marks(
 
 pub(crate) fn effect_param_value_from_gui(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
+    owner: &DocumentId,
     value: SequenceEffectParamValue,
 ) -> Result<EffectParamValue, GuiMutationError> {
     Ok(match value {
@@ -259,14 +249,24 @@ pub(crate) fn effect_param_value_from_gui(
                 .transpose()?,
         ),
         SequenceEffectParamValue::Curve { value } => EffectParamValue::Curve(
-            match library_identity(session, owner, SourceObjectKind::Curve, value.source)? {
-                Some(id) => CurveSource::Reference(CurveId(id)),
+            match library_identity(
+                session,
+                owner,
+                donder_model::ObjectKind::Curve,
+                value.source,
+            )? {
+                Some(id) => CurveSource::Reference(library_id(id)?),
                 None => CurveSource::Inline(curve_from_points(value.points)),
             },
         ),
         SequenceEffectParamValue::Gradient { value } => EffectParamValue::Gradient(
-            match library_identity(session, owner, SourceObjectKind::Gradient, value.source)? {
-                Some(id) => GradientSource::Reference(GradientId(id)),
+            match library_identity(
+                session,
+                owner,
+                donder_model::ObjectKind::Gradient,
+                value.source,
+            )? {
+                Some(id) => GradientSource::Reference(library_id(id)?),
                 None => GradientSource::Inline(gradient_from_stops(value.stops)?),
             },
         ),
@@ -317,23 +317,27 @@ pub(crate) fn effect_param_value_from_gui(
 
 fn library_identity(
     session: &mut ProjectSession,
-    owner: &SourceIdentity,
-    kind: SourceObjectKind,
+    owner: &DocumentId,
+    kind: donder_model::ObjectKind,
     source: SequenceLibrarySource,
-) -> Result<Option<SourceIdentity>, GuiMutationError> {
+) -> Result<Option<ObjectId>, GuiMutationError> {
     let SequenceLibrarySource::Library {
-        module_id,
-        path,
-        object_key,
-        ..
+        path, object_key, ..
     } = source
     else {
         return Ok(None);
     };
-    let id = source_identity_from_gui(&module_id, &path, &object_key)?;
-    donder_project_io::link_reusable_source(session, owner.document_id(), kind, &id)
+    let id = session
+        .declared_id(&source_identity_from_gui(&path, &object_key))
+        .filter(|id| id.kind() == kind)
+        .ok_or_else(|| GuiMutationError::Invalid(format!("`{object_key}` was not found.")))?;
+    donder_project_io::link_reusable_source(session, owner, id)
         .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     Ok(Some(id))
+}
+
+fn library_id<I: TryFrom<ObjectId>>(id: ObjectId) -> Result<I, GuiMutationError> {
+    I::try_from(id).map_err(|_| GuiMutationError::Invalid("Choose a library resource.".into()))
 }
 
 pub(super) fn automation_binding_value_at(
@@ -460,25 +464,24 @@ use std::fs;
 
 use camino::Utf8PathBuf;
 use donder_language::{Distance, Point3, Rotation3 as DomainRotation3, Scale3 as DomainScale3};
-use donder_model::SourceIdentity;
 use donder_model::{
     AssetId, AutomationClip, CompositionGraphNodeId, MarkCollection, MarkCollectionKey,
     automation_value_at,
 };
 use donder_model::{
-    CurveId, CurveSource, EffectDefinitionId, EffectInst, EffectParamValue, EffectRef, EffectScope,
-    GradientId, GradientSource,
+    CurveSource, EffectDefinitionId, EffectInst, EffectParamValue, EffectScope, GradientSource,
 };
 use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_model::{OperatorDefinitionId, OperatorRef};
-use donder_project_io::{ProjectSession, ReferencedAsset, SourceObjectKind};
+use donder_model::{ObjectId, OperatorDefinitionId};
+use donder_project_io::SourceIdentity;
+use donder_project_io::{DocumentId, ProjectSession, ReferencedAsset};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::{AutomationMapping, AutomationValue};
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
 use indexmap::IndexMap;
 
 use super::GuiMutationError;
-use donder_sequence_api::{
+use crate::dto::{
     FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceCurvePoint,
     SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGradientStop,
     SequenceGraphOperator, SequenceLibrarySource,
@@ -486,10 +489,25 @@ use donder_sequence_api::{
 
 pub(super) fn create_object_document(
     session: &mut ProjectSession,
-    kind: donder_project_io::SourceObjectKind,
+    id: ObjectId,
     name: &str,
-    directory: &str,
-) -> Result<donder_model::SourceIdentity, GuiMutationError> {
+) -> Result<donder_project_io::SourceIdentity, GuiMutationError> {
+    use donder_model::ObjectKind as Kind;
+    let directory = match id.kind() {
+        Kind::Project => "projects",
+        Kind::Setup => "setups",
+        Kind::Layout => "layouts",
+        Kind::Patch => "patches",
+        Kind::Controller => "controllers",
+        Kind::InputDevice => "input_devices",
+        Kind::Sequence => "sequences",
+        Kind::Rig => "rigs",
+        Kind::FixtureDefinition => "fixtures",
+        Kind::Curve => "curves",
+        Kind::Gradient => "gradients",
+        Kind::EffectDefinition => "effects",
+        Kind::OperatorDefinition => "operators",
+    };
     let key = donder_language::object_name(name).as_str().to_string();
     for index in 1_u32.. {
         let stem = if index == 1 {
@@ -507,13 +525,14 @@ pub(super) fn create_object_document(
         {
             continue;
         }
-        return session
+        let name = identifier(&stem)?;
+        let document = session
             .source
-            .add_data_document(path, vec![(kind, stem)])
-            .map_err(GuiMutationError::Invalid)?
-            .into_iter()
-            .next()
-            .ok_or_else(|| GuiMutationError::Invalid("New document has no object.".into()));
+            .add_data_document(path, vec![(id, name)])
+            .map_err(GuiMutationError::Invalid)?;
+        return Ok(donder_project_io::SourceIdentity::from_document(
+            document, stem,
+        ));
     }
     Err(GuiMutationError::Invalid(
         "No source document names remain.".into(),
@@ -521,14 +540,59 @@ pub(super) fn create_object_document(
 }
 
 pub(crate) fn object_identity_from_gui(
-    reference: &donder_sequence_api::GuiObjectRef,
-) -> Result<donder_model::ObjectIdentity, GuiMutationError> {
-    let root =
-        source_identity_from_gui(&reference.module_id, &reference.path, &reference.object_key)?;
+    reference: &crate::dto::GuiObjectRef,
+) -> Result<donder_project_io::ObjectAddress, GuiMutationError> {
+    let root = source_identity_from_gui(&reference.path, &reference.object_key);
     reference.owned_path.iter().try_fold(
         root.into(),
-        |address: donder_model::ObjectIdentity, step| {
+        |address: donder_project_io::ObjectAddress, step| {
             Ok(address.owned(step.try_into().map_err(GuiMutationError::Invalid)?))
         },
     )
+}
+
+/// Where an object of the session is written. Every object of an accepted
+/// session is declared or owned by a declared object.
+pub(crate) fn object_address(
+    session: &ProjectSession,
+    id: impl Into<ObjectId>,
+) -> donder_project_io::ObjectAddress {
+    session
+        .address_of(id.into())
+        .unwrap_or_else(|| unreachable!("every object of a session has an address"))
+}
+
+/// The GUI's reference to an object of the session.
+pub(crate) fn object_ref(
+    session: &ProjectSession,
+    id: impl Into<ObjectId>,
+) -> crate::dto::GuiObjectRef {
+    let id = id.into();
+    address_ref(&object_address(session, id), id.kind())
+}
+
+/// The GUI's reference to the object of `kind` at `address`.
+pub(crate) fn address_ref(
+    address: &donder_project_io::ObjectAddress,
+    kind: donder_model::ObjectKind,
+) -> crate::dto::GuiObjectRef {
+    let root = address.root_source();
+    crate::dto::GuiObjectRef {
+        owned_path: address.owned_path().iter().map(Into::into).collect(),
+        path: root.document().to_string(),
+        object_key: root.object().to_string(),
+        kind: crate::dto::ObjectKind::from(kind),
+        id: root.object().to_string(),
+    }
+}
+
+/// The document and name of a declared object of the session. Definitions
+/// and library resources are always declared.
+pub(crate) fn declared_identity(
+    session: &ProjectSession,
+    id: impl Into<ObjectId>,
+) -> SourceIdentity {
+    session
+        .source_identity(id.into())
+        .unwrap_or_else(|| unreachable!("definitions are declared"))
 }

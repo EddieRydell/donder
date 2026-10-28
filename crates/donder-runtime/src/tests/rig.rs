@@ -1,13 +1,14 @@
 //! Rig playback: commands start and stop voices, add live marks and set
 //! controls, and frames follow from the time and the commands applied.
+use super::evaluation::whole;
 use super::playback;
 use super::std;
-use crate::{PreparedRig, RigPlayback, VoiceLength};
+use crate::{PreparedShow, ShowPlayback};
 use donder_language::compiler::ProgramConstants;
 use donder_runtime_types::{
-    AutomatedQuantity, AutomationMapping, Color, Curve, CurvePoint, FixtureGeometry, Marks,
-    OutputEncoding, PreparedAutomation, RgbOrder, RigCommand, RigEvent, SampleDuration,
-    SampleInvocation, SampleTime, Shared, TargetScope, Value,
+    AutomatedQuantity, AutomationMapping, BoundProgram, Color, Curve, CurvePoint, FixtureGeometry,
+    Marks, OutputEncoding, PreparedAutomation, RgbOrder, RigCommand, RigEvent, SampleDuration,
+    SampleTime, Shared, TargetScope, Value,
 };
 use std::prelude::rust_2024::*;
 
@@ -25,46 +26,42 @@ fn event(seconds: f32, command: RigCommand) -> RigEvent {
     }
 }
 
-fn color(rig: &mut RigPlayback, seconds: f32) -> Color {
+fn color(rig: &mut ShowPlayback, seconds: f32) -> Color {
     rig.evaluate(at(seconds)).colors()[0]
 }
 
 /// A one-pixel rig whose layer holds `effects`, then `register` adds voices,
 /// collections and controls by effect.
 fn rig(
-    effects: &[SampleInvocation],
-    register: impl for<'id> FnOnce(&mut crate::SequenceBuilder<'id>, &[crate::EffectHandle<'id>]),
-) -> RigPlayback {
-    PreparedRig::build(playback::timing(SESSION), |builder| {
-        let fixture = builder.fixture(0, FixtureGeometry::admit(Box::new([[0.0, 0.0]])).unwrap());
-        let target = builder.target([fixture], TargetScope::WholeTarget);
+    effects: &[BoundProgram],
+    register: impl for<'id> FnOnce(&mut crate::ShowBuilder<'id>, &[crate::EffectHandle<'id>]),
+) -> ShowPlayback {
+    PreparedShow::build(playback::timing(SESSION), |builder| {
+        let geometry = FixtureGeometry::admit(Box::new([[0.0, 0.0]])).unwrap();
+        builder.fixture(0, geometry.clone());
+        let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
         builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Rgb), None);
-        let window = builder.whole_sequence();
+        let window = SampleDuration::from_ticks(SESSION);
         let handles: Vec<_> = effects
             .iter()
-            .map(|effect| builder.sample(effect, window, target))
+            .map(|effect| builder.clip(None, effect, SampleTime::from_ticks(0), window, target))
             .collect();
         register(builder, &handles);
         let layer = builder.layer(true, handles.iter().copied());
-        builder.output(Some(layer))
+        Some(layer)
     })
     .into_playback()
 }
 
-fn white() -> SampleInvocation {
-    playback::sample(&playback::compile_effect(
-        "effect White { sample { #ffffff } }",
-    ))
+fn white() -> BoundProgram {
+    playback::program(&playback::compile("effect White { sample { #ffffff } }"))
 }
 
 #[test]
 fn fixed_voice_plays_its_length_from_each_start() {
     let mut rig = rig(&[white()], |builder, effects| {
-        builder.voice(
-            effects[0],
-            VoiceLength::Fixed(SampleDuration::from_ticks(500_000)),
-        );
+        builder.voice(effects[0], Some(SampleDuration::from_ticks(500_000)));
     });
     assert_eq!(color(&mut rig, 0.5), Color::BLACK, "dormant before a start");
     rig.apply(event(1.0, RigCommand::Start { voice: 0 }));
@@ -76,18 +73,25 @@ fn fixed_voice_plays_its_length_from_each_start() {
 
 #[test]
 fn archived_rig_plays_like_the_prepared_one() {
-    let prepared = PreparedRig::build(playback::timing(SESSION), |builder| {
-        let fixture = builder.fixture(0, FixtureGeometry::admit(Box::new([[0.0, 0.0]])).unwrap());
-        let target = builder.target([fixture], TargetScope::WholeTarget);
+    let prepared = PreparedShow::build(playback::timing(SESSION), |builder| {
+        let geometry = FixtureGeometry::admit(Box::new([[0.0, 0.0]])).unwrap();
+        builder.fixture(0, geometry.clone());
+        let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
         builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Rgb), None);
-        let effect = builder.sample(&white(), builder.whole_sequence(), target);
-        builder.voice(effect, VoiceLength::Open);
+        let effect = builder.clip(
+            None,
+            &white(),
+            SampleTime::from_ticks(0),
+            SampleDuration::from_ticks(SESSION),
+            target,
+        );
+        builder.voice(effect, None);
         let layer = builder.layer(true, [effect]);
-        builder.output(Some(layer))
+        Some(layer)
     });
     let bytes = prepared.encode();
-    let mut rig = crate::PreparedRig::decode(&bytes).unwrap().into_playback();
+    let mut rig = crate::PreparedShow::decode(&bytes).unwrap().into_playback();
     rig.apply(event(1.0, RigCommand::Start { voice: 0 }));
     assert_eq!(color(&mut rig, 2.0), WHITE);
 }
@@ -95,7 +99,7 @@ fn archived_rig_plays_like_the_prepared_one() {
 #[test]
 fn open_voice_plays_until_stopped() {
     let mut rig = rig(&[white()], |builder, effects| {
-        builder.voice(effects[0], VoiceLength::Open);
+        builder.voice(effects[0], None);
     });
     rig.apply(event(1.0, RigCommand::Start { voice: 0 }));
     assert_eq!(color(&mut rig, 4.0), WHITE);
@@ -111,7 +115,7 @@ fn open_voice_plays_until_stopped() {
 
 #[test]
 fn live_marks_reach_a_running_effect() {
-    let effect = playback::compile_effect(
+    let effect = playback::compile(
         "effect Flash { param beats: marks; sample { \
          let age = time - mark_last(beats, time); \
          guard age >= 0.0 && age < 0.1; #ffffff } }",
@@ -123,9 +127,9 @@ fn live_marks_reach_a_running_effect() {
             Box::new([0]),
         )
         .unwrap();
-    let (sample, live) = invocation
-        .instance(ProgramConstants::default())
-        .sample_live();
+    let lowered = invocation.instance(ProgramConstants::default()).lower();
+    let live = lowered.live;
+    let sample = BoundProgram::bind(lowered.program, lowered.values, lowered.automation).unwrap();
     let mut rig = rig(&[sample], |builder, effects| {
         builder.live_marks([(effects[0], live[0])]);
     });
@@ -139,7 +143,7 @@ fn live_marks_reach_a_running_effect() {
 
 #[test]
 fn live_marks_reject_reductions_bounded_by_their_length() {
-    let effect = playback::compile_effect(
+    let effect = playback::compile(
         "effect Count { param beats: marks; sample { \
          let total = sum for i in 0..mark_count(beats) { 1.0 }; rgb(total, total, total) } }",
     );
@@ -171,13 +175,13 @@ fn control(param: u16) -> PreparedAutomation {
     }
 }
 
-fn controlled(source: &str) -> (SampleInvocation, Vec<u16>) {
-    let effect = playback::compile_effect(source);
+fn controlled(source: &str) -> (BoundProgram, Vec<u16>) {
+    let effect = playback::compile(source);
     let binding = control(0);
     let invocation = effect
         .invoke(vec![Value::Float(0.0)], Box::new([binding.clone()]))
         .unwrap();
-    let sample = invocation.instance(ProgramConstants::default()).sample();
+    let sample = playback::bind(&invocation.instance(ProgramConstants::default()));
     // The control sets every binding lowered from its own, integrals included.
     let bindings = sample
         .automation()

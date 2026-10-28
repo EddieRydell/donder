@@ -1,5 +1,5 @@
-use donder_runtime::PreparedSequence;
-use donder_sequence_api::EffectRasterSettings;
+use donder_editor::dto::EffectRasterSettings;
+use donder_runtime::PreparedShow;
 use std::sync::Arc;
 
 pub(super) struct RenderedRaster {
@@ -18,7 +18,7 @@ pub(super) enum RasterRenderFailure {
 /// `max_rows`. The resolution depends only on the clip, never on its size on
 /// screen.
 pub(super) fn render_effect_raster(
-    sequence: &PreparedSequence,
+    sequence: &PreparedShow,
     effect_id: u32,
     settings: &EffectRasterSettings,
     should_continue: &dyn Fn() -> bool,

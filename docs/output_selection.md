@@ -3,7 +3,7 @@
 Elaboration has one public preparation function, declared in its `lib.rs`:
 
 ```rust,ignore
-prepare(&DonderProject, &SequenceId, PrepareOutputs) -> Option<PreparedSequence>
+prepare(&DonderProject, &SequenceId, PrepareOutputs) -> Option<PreparedShow>
 ```
 
 The project supplies its active setup. `PrepareOutputs::All` retains every output
@@ -28,8 +28,8 @@ if let Some(sequence) = prepare(
 }
 ```
 
-`PreparedSequence` is owned by runtime and re-exported by elaboration. Its fields
-are private; elaboration assembles it through `PreparedSequence::build`, and callers
+`PreparedShow` is owned by runtime and re-exported by elaboration. Its fields
+are private; elaboration assembles it through `PreparedShow::build`, and callers
 inspect it through read-only accessors. Cloning preserves the accepted sequence;
 `effect_windows()` exposes only retained start/duration metadata.
 Neither operation exposes execution-plan or storage addresses.
@@ -41,7 +41,7 @@ timing and geometry before preparation.
 Elaboration resolves authored output selections and retained pixel domains before
 calling the runtime-owned builder. The builder assigns dense storage from those
 domains; per-frame evaluation has no device-selection branches, alternate executor,
-or fragment type. `SequencePlayback` owns the prepared
+or fragment type. `ShowPlayback` owns the prepared
 image and its playback buffer together. `evaluate` returns borrowed
 frame views directly, so the caller cannot mismatch a sequence and workspace.
 
@@ -64,7 +64,7 @@ modules are not alternate entry points. The boundaries have different contracts:
 | --- | --- | --- |
 | Project IO | Text and source ownership to an accepted `DonderProject` | Syntax, references, authored values and compiled definitions |
 | Project editing | A typed edit batch applied to an accepted project | Affected relationships and playback inputs; rejection leaves the accepted project unchanged |
-| Elaboration | Accepted project plus selection to `Option<PreparedSequence>` | Resolving the selection, not repeating text validation |
+| Elaboration | Accepted project plus selection to `Option<PreparedShow>` | Resolving the selection, not repeating text validation |
 | Runtime construction | Accepted inputs and builder-issued handles to a private sequence | Handles preserve graph/storage ownership |
 | Playback | Owned sequence plus sample time to borrowed frame views | No ordinary failure; scratch storage cannot be paired with another sequence |
 | Image opening | Image bytes to a borrowed `Show` | The format version only; the image is trusted |
@@ -121,7 +121,8 @@ therefore remain as signal dependencies. Packing still writes only selected
 ports; retained upstream pixels increase evaluation and memory costs.
 
 Effects targeting no retained pixels are removed, as are effects in disabled or
-unreachable layers. Referenced signal inputs remain connected, including temporal
+unreachable layers. A rig keeps such an effect's voices, so commands still
+address them, but plays them in no layer. Referenced signal inputs remain connected, including temporal
 operator inputs. An empty layer feeding an operator remains a valid input: an
 operator can produce a nonblack result from black. Retained programs, targets,
 automation slots, graph nodes, and frame/VM slots are compacted or replanned.

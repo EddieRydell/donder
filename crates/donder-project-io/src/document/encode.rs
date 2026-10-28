@@ -2,18 +2,18 @@
 //! encoding, and references are written relative to the document holding them.
 use super::types;
 use crate::ExportProjectError;
-use crate::source::{ProjectSession, SourceObjectKind};
+use crate::address::{DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
+use crate::source::ProjectSession;
 use donder_language::Point3;
 use donder_language::compiler::ParamDecl;
 use donder_language::data::{DataValue, Spanned};
 use donder_language::data::{Meters, Name, NamedSource, Params, Path, Reference, Source};
+use donder_model::ObjectKind;
 use donder_model::Patch;
 use donder_model::Setup;
 use donder_model::ValueSource;
 use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
-use donder_model::{
-    AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio,
-};
+use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio};
 use donder_model::{
     ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver, PlayedSource,
     SequenceCompositionGraph, SequenceLayer,
@@ -22,9 +22,9 @@ use donder_model::{
     ControlTarget, MappingAction, Rig, RigEffect, TriggerLength, VoicePolicy, When,
 };
 use donder_model::{CurveSource, EffectParamValue, GradientSource};
-use donder_model::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
 use donder_model::{FixtureDefinition, FixtureShape, FixtureSource, FixtureTransform};
 use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
+use donder_model::{MemberSource, ObjectId};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::PixelEncoding;
 use donder_runtime_types::{Curve, Gradient};
@@ -32,6 +32,8 @@ use indexmap::IndexMap;
 
 pub(crate) struct Encoder<'a> {
     pub(crate) session: &'a ProjectSession,
+    /// Every object's address, from [`ProjectSession::addresses`].
+    pub(crate) addresses: &'a std::collections::HashMap<ObjectId, ObjectAddress>,
     /// The document being written; references are relative to it.
     pub(crate) document: &'a DocumentId,
 }
@@ -72,7 +74,7 @@ impl Encoder<'_> {
     /// `name` or `alias.name` for a declared object.
     pub(crate) fn source_reference(
         &self,
-        kind: SourceObjectKind,
+        kind: ObjectKind,
         identity: &SourceIdentity,
     ) -> Result<Reference, ExportProjectError> {
         let text =
@@ -91,27 +93,24 @@ impl Encoder<'_> {
     /// reference followed by the owning fields, `show.setup.controllers.main`.
     pub(crate) fn object_reference(
         &self,
-        kind: SourceObjectKind,
-        identity: &ObjectIdentity,
+        kind: ObjectKind,
+        id: impl Into<ObjectId>,
     ) -> Result<Reference, ExportProjectError> {
+        let id = id.into();
+        let identity = self
+            .addresses
+            .get(&id)
+            .ok_or_else(|| self.error("", "the referenced object is missing"))?;
         if let Some(source) = identity.source() {
             return self.source_reference(kind, source);
         }
         let root = identity.root_source();
         let root_kind = self
             .session
-            .source
-            .documents
-            .get(root.document_id())
-            .and_then(|document| {
-                document
-                    .objects()
-                    .iter()
-                    .find(|object| object.id() == root.object())
-            })
-            .map(|object| object.kind().clone())
+            .declared_id(root)
+            .map(ObjectId::kind)
             .ok_or_else(|| self.error(root.object(), "the owner of this object is missing"))?;
-        let mut reference = self.source_reference(root_kind.clone(), root)?;
+        let mut reference = self.source_reference(root_kind, root)?;
         let mut resolved = root_kind;
         let segment = |text: &str| {
             Identifier::new(text.to_string())
@@ -119,8 +118,8 @@ impl Encoder<'_> {
                 .map_err(|_| self.error(text, "invalid reference segment"))
         };
         for slot in identity.owned_path() {
-            resolved = resolved
-                .owned_child_kind(slot)
+            resolved = slot
+                .child_kind(resolved)
                 .ok_or_else(|| self.error(root.object(), "invalid owned object address"))?;
             match slot {
                 OwnedObjectSlot::Setup => reference.segments.push(segment("setup")?),
@@ -150,7 +149,7 @@ impl Encoder<'_> {
                 }
             }
         }
-        if resolved != kind || !self.session.owned_object_exists(&kind, identity) {
+        if resolved != kind || id.kind() != kind {
             return Err(self.error(root.object(), "invalid owned object address"));
         }
         Ok(reference)
@@ -158,11 +157,11 @@ impl Encoder<'_> {
 
     /// `layout.fixture`: the layout's reference and the fixture or group name.
     fn fixture_target(&self, target: &FixtureTarget) -> Result<Reference, ExportProjectError> {
-        let mut reference = self.object_reference(SourceObjectKind::Layout, &target.layout.0)?;
+        let mut reference = self.object_reference(ObjectKind::Layout, target.layout)?;
         let fixture = self
             .session
             .project
-            .layout(&target.layout)
+            .get::<donder_model::Layout>(target.layout)
             .and_then(|layout| layout.fixture(target.fixture))
             .ok_or_else(|| self.error(&reference.text(), "the target fixture is missing"))?;
         reference.segments.push(Spanned::new(
@@ -174,17 +173,15 @@ impl Encoder<'_> {
 
     fn source<V, I, T>(
         &self,
-        kind: SourceObjectKind,
+        kind: ObjectKind,
         source: &ValueSource<V, I>,
         inline: impl FnOnce(&V) -> Result<T, ExportProjectError>,
     ) -> Result<Source<T>, ExportProjectError>
     where
-        I: AsRef<ObjectIdentity>,
+        I: Into<ObjectId> + Copy,
     {
         Ok(match source {
-            ValueSource::Reference(id) => {
-                Source::Reference(self.object_reference(kind, id.as_ref())?)
-            }
+            ValueSource::Reference(id) => Source::Reference(self.object_reference(kind, *id)?),
             ValueSource::Inline(value) => Source::Inline(inline(value)?),
         })
     }
@@ -192,30 +189,21 @@ impl Encoder<'_> {
     /// An owned collection member is named by its ownership slot.
     fn named_source<V, I, T>(
         &self,
-        kind: SourceObjectKind,
-        source: &ValueSource<Box<V>, I>,
-        identity: impl Fn(&V) -> &ObjectIdentity,
+        kind: ObjectKind,
+        source: &MemberSource<V, I>,
         inline: impl FnOnce(&V) -> Result<T, ExportProjectError>,
     ) -> Result<NamedSource<T>, ExportProjectError>
     where
-        I: AsRef<ObjectIdentity>,
+        I: Into<ObjectId> + Copy,
     {
         Ok(match source {
-            ValueSource::Reference(id) => {
-                NamedSource::Reference(self.object_reference(kind, id.as_ref())?)
+            MemberSource::Reference(id) => {
+                NamedSource::Reference(self.object_reference(kind, *id)?)
             }
-            ValueSource::Inline(value) => {
-                let member = match identity(value).owned_path().last() {
-                    Some(
-                        OwnedObjectSlot::Controller(member)
-                        | OwnedObjectSlot::InputDevice(member)
-                        | OwnedObjectSlot::Sequence(member)
-                        | OwnedObjectSlot::Rig(member),
-                    ) => member.clone(),
-                    _ => return Err(self.error("", "an owned member has no name")),
-                };
-                NamedSource::Inline(name(&member), inline(value)?)
-            }
+            MemberSource::Inline {
+                name: member,
+                value,
+            } => NamedSource::Inline(name(member), inline(value)?),
         })
     }
 
@@ -224,34 +212,21 @@ impl Encoder<'_> {
         let metadata = &self.session.source.workspace.metadata;
         Ok(types::Project {
             format: metadata.format_version,
-            id: metadata.project_id.to_string(),
             description: root.description.clone(),
-            setup: self.source(SourceObjectKind::Setup, &root.setup, |setup| {
-                self.setup(setup)
-            })?,
+            setup: self.source(ObjectKind::Setup, &root.setup, |setup| self.setup(setup))?,
             sequences: root
                 .sequences
                 .iter()
                 .map(|source| {
-                    self.named_source(
-                        SourceObjectKind::Sequence,
-                        source,
-                        |sequence| &sequence.id.0,
-                        |sequence| self.sequence(sequence),
-                    )
+                    self.named_source(ObjectKind::Sequence, source, |sequence| {
+                        self.sequence(sequence)
+                    })
                 })
                 .collect::<Result<_, _>>()?,
             rigs: root
                 .rigs
                 .iter()
-                .map(|source| {
-                    self.named_source(
-                        SourceObjectKind::Rig,
-                        source,
-                        |rig| &rig.id.0,
-                        |rig| self.rig(rig),
-                    )
-                })
+                .map(|source| self.named_source(ObjectKind::Rig, source, |rig| self.rig(rig)))
                 .collect::<Result<_, _>>()?,
         })
     }
@@ -259,34 +234,26 @@ impl Encoder<'_> {
     pub(crate) fn setup(&self, setup: &Setup) -> Result<types::Setup, ExportProjectError> {
         Ok(types::Setup {
             description: setup.description.clone(),
-            layout: self.source(SourceObjectKind::Layout, &setup.layout, |layout| {
+            layout: self.source(ObjectKind::Layout, &setup.layout, |layout| {
                 self.layout(layout)
             })?,
-            patch: self.source(SourceObjectKind::Patch, &setup.patch, |patch| {
-                self.patch(patch)
-            })?,
+            patch: self.source(ObjectKind::Patch, &setup.patch, |patch| self.patch(patch))?,
             controllers: setup
                 .controllers
                 .iter()
                 .map(|source| {
-                    self.named_source(
-                        SourceObjectKind::Controller,
-                        source,
-                        |controller| &controller.id.0,
-                        |controller| Ok(controller_document(controller)),
-                    )
+                    self.named_source(ObjectKind::Controller, source, |controller| {
+                        Ok(controller_document(controller))
+                    })
                 })
                 .collect::<Result<_, _>>()?,
             input_devices: setup
                 .input_devices
                 .iter()
                 .map(|source| {
-                    self.named_source(
-                        SourceObjectKind::InputDevice,
-                        source,
-                        |device| &device.id.0,
-                        |device| Ok(input_device_document(device)),
-                    )
+                    self.named_source(ObjectKind::InputDevice, source, |device| {
+                        Ok(input_device_document(device))
+                    })
                 })
                 .collect::<Result<_, _>>()?,
         })
@@ -336,7 +303,7 @@ impl Encoder<'_> {
                 description: fixture.description.clone(),
                 definition: match definition {
                     FixtureSource::Reference(id) => Source::Reference(
-                        self.source_reference(SourceObjectKind::FixtureDefinition, &id.0)?,
+                        self.object_reference(ObjectKind::FixtureDefinition, *id)?,
                     ),
                     FixtureSource::Inline(value) => {
                         Source::Inline(fixture_definition_document(value))
@@ -357,7 +324,7 @@ impl Encoder<'_> {
                     let controller = self
                         .session
                         .project
-                        .controller(&route.controller)
+                        .get::<donder_model::Controller>(route.controller)
                         .ok_or_else(|| self.error("", "a route's controller is missing"))?;
                     let port = controller
                         .ports
@@ -371,7 +338,7 @@ impl Encoder<'_> {
                             count: span.count,
                         }),
                         controller: self
-                            .object_reference(SourceObjectKind::Controller, &route.controller.0)?,
+                            .object_reference(ObjectKind::Controller, route.controller)?,
                         port: name(&port.name),
                         start_slot: route.start_slot,
                         encoding: match route.encoding {
@@ -452,23 +419,19 @@ impl Encoder<'_> {
                             position,
                         },
                         CompositionGraphNodeKind::Operator(operator) => {
-                            let donder_model::OperatorRef::Custom(definition) = &operator.operator;
+                            let definition = &operator.operator;
                             let declarations = self
                                 .session
                                 .project
-                                .definitions()
-                                .operators
-                                .definitions
+                                .reusable::<donder_model::OperatorDefinition>()
                                 .get(definition)
                                 .map(|definition| definition.params().to_vec())
-                                .ok_or_else(|| {
-                                    self.error(definition.0.object(), "the operator is missing")
-                                })?;
+                                .ok_or_else(|| self.error("", "the operator is missing"))?;
                             types::Node::OperatorNode {
                                 name: name(&operator.name),
-                                operator: self.source_reference(
-                                    SourceObjectKind::OperatorDefinition,
-                                    &definition.0,
+                                operator: self.object_reference(
+                                    ObjectKind::OperatorDefinition,
+                                    *definition,
                                 )?,
                                 params: self.params(&declarations, &operator.params)?,
                                 position,
@@ -510,12 +473,10 @@ impl Encoder<'_> {
     ) -> Result<Vec<ParamDecl>, ExportProjectError> {
         self.session
             .project
-            .definitions()
-            .effects
-            .definitions
+            .reusable::<donder_model::EffectDefinition>()
             .get(definition)
             .map(|definition| definition.params().to_vec())
-            .ok_or_else(|| self.error(definition.0.object(), "the effect is missing"))
+            .ok_or_else(|| self.error("", "the effect is missing"))
     }
 
     /// The parts of a rig effect, as a voice or trigger writes them.
@@ -524,25 +485,24 @@ impl Encoder<'_> {
         rig: &Rig,
         effect: &RigEffect,
     ) -> Result<(Name, Reference, types::Scope, Reference, Params), ExportProjectError> {
-        let donder_model::EffectRef::Custom(definition) = &effect.definition;
+        let definition = &effect.definition;
         let declarations = self.effect_declarations(definition)?;
         Ok((
             self.layer_name(&rig.layers, &effect.layer_id)?,
             self.fixture_target(&effect.target)?,
             scope_document(&effect.scope),
-            self.source_reference(SourceObjectKind::EffectDefinition, &definition.0)?,
+            self.object_reference(ObjectKind::EffectDefinition, *definition)?,
             self.params(&declarations, &effect.param_overrides)?,
         ))
     }
 
     /// `device.control`: a control's device reference and the control's name.
     fn control(&self, input: &ControlRef) -> Result<Reference, ExportProjectError> {
-        let mut reference =
-            self.object_reference(SourceObjectKind::InputDevice, &input.device.0)?;
+        let mut reference = self.object_reference(ObjectKind::InputDevice, input.device)?;
         let control = self
             .session
             .project
-            .input_device(&input.device)
+            .get::<donder_model::InputDevice>(input.device)
             .and_then(|device| device.control(input.control))
             .ok_or_else(|| self.error(&reference.text(), "the input control is missing"))?;
         reference.segments.push(Spanned::new(
@@ -702,7 +662,7 @@ impl Encoder<'_> {
         sequence: &Sequence,
         effect: &donder_model::EffectInst,
     ) -> Result<types::Clip, ExportProjectError> {
-        let donder_model::EffectRef::Custom(definition) = &effect.definition;
+        let definition = &effect.definition;
         let declarations = self.effect_declarations(definition)?;
         Ok(types::Clip {
             name: name(&effect.name),
@@ -712,7 +672,7 @@ impl Encoder<'_> {
             duration: effect.duration.0,
             target: self.fixture_target(&effect.target)?,
             scope: scope_document(&effect.scope),
-            effect: self.source_reference(SourceObjectKind::EffectDefinition, &definition.0)?,
+            effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
             params: self.params(&declarations, &effect.param_overrides)?,
         })
     }
@@ -802,11 +762,6 @@ impl Encoder<'_> {
                             .map(|detached| {
                                 Ok(types::Detached {
                                     binding: binding(&detached.target)?,
-                                    reason: match detached.reason {
-                                        AutomationDetachmentReason::DefinitionChanged => {
-                                            types::DetachReason::DefinitionChanged
-                                        }
-                                    },
                                 })
                             })
                             .collect::<Result<_, ExportProjectError>>()?,
@@ -857,13 +812,13 @@ impl Encoder<'_> {
             EffectParamValue::Enum(option) => donder_language::data::variant(option.as_str()),
             EffectParamValue::Marks(Some(key)) => Reference::new(vec![key.name.clone()]).encode(),
             EffectParamValue::Marks(None) => DataValue::None,
-            EffectParamValue::Curve(CurveSource::Reference(id)) => self
-                .source_reference(SourceObjectKind::Curve, &id.0)?
-                .encode(),
+            EffectParamValue::Curve(CurveSource::Reference(id)) => {
+                self.object_reference(ObjectKind::Curve, *id)?.encode()
+            }
             EffectParamValue::Curve(CurveSource::Inline(curve)) => curve_points(curve).encode(),
-            EffectParamValue::Gradient(GradientSource::Reference(id)) => self
-                .source_reference(SourceObjectKind::Gradient, &id.0)?
-                .encode(),
+            EffectParamValue::Gradient(GradientSource::Reference(id)) => {
+                self.object_reference(ObjectKind::Gradient, *id)?.encode()
+            }
             EffectParamValue::Gradient(GradientSource::Inline(gradient)) => {
                 gradient_stops(gradient).encode()
             }

@@ -6,11 +6,10 @@
 use super::inputs::{invalid, resolve_values};
 use super::parameters::{EffectParamTiming, MarkSource};
 use super::*;
-use crate::effect::{EffectImplementation, EffectParamValue, EffectRef};
-use crate::operator::OperatorImplementation;
+use crate::effect::EffectParamValue;
 use crate::rig::{ControlTarget, MappingAction, Rig, RigEffect, RigId, RigMappingId};
 use crate::sequence::{CompositionGraphNodeId, MarkCollectionKey};
-use crate::validation::ProjectValidationError;
+use crate::validation::{AdmissionProblem, Member, ProjectValidationError, ValidationProblem, at};
 use donder_runtime_types::{
     AutomatedQuantity, Curve, CurvePoint, PreparedAutomation, SampleDuration, SampleTime,
     SequenceTiming,
@@ -54,12 +53,12 @@ pub(super) fn admit(
     project: &DonderProject,
 ) -> Result<IndexMap<RigId, RigInputs>, ProjectValidationError> {
     project
-        .rigs()
-        .map(|rig| Ok((rig.id.clone(), admit_rig(project, rig)?)))
+        .objects::<crate::Rig>()
+        .map(|rig| Ok((rig.id, admit_rig(project, rig).map_err(at(rig.id))?)))
         .collect()
 }
 
-fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectValidationError> {
+fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ValidationProblem> {
     let bindings = rig
         .mappings
         .iter()
@@ -88,10 +87,7 @@ fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectVal
     for (target, binding, param) in bindings {
         let bound = controls.entry(target).or_default();
         if bound.iter().any(|(_, existing)| *existing == param) {
-            return Err(invalid(format!(
-                "Two controls or played values set parameter `{}` of the same voice",
-                param.as_str()
-            )));
+            return Err(invalid(AdmissionProblem::ControlSetTwice(param.clone())));
         }
         bound.push((binding, param));
     }
@@ -110,6 +106,10 @@ fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectVal
             admit_effect(
                 project,
                 effect,
+                match target {
+                    ControlTarget::Voice(voice) => Member::Voice(voice),
+                    ControlTarget::Trigger(mapping) => Member::Mapping(mapping),
+                },
                 controls.get(&target).map_or(&[][..], Vec::as_slice),
             )
         })
@@ -124,12 +124,12 @@ fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectVal
             .values()
             .any(|value| matches!(value, EffectParamValue::Marks(Some(_))))
         {
-            return Err(invalid(
-                "Operators in a rig cannot read live mark collections".into(),
-            ));
+            return Err(invalid(AdmissionProblem::LiveMarksInOperator(
+                node.id.clone(),
+            )));
         }
-        let OperatorRef::Custom(id) = &operator.operator;
-        let definition = &project.definitions().operators.definitions[id];
+        let id = &operator.operator;
+        let definition = &project.reusable::<crate::OperatorDefinition>()[id];
         let values = resolve_values(
             project,
             MarkSource::Live,
@@ -137,10 +137,15 @@ fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectVal
             &operator.params,
             session(),
         )?;
-        let OperatorImplementation::Dsl(compiled) = definition.implementation();
+        let compiled = definition.compiled();
         let invocation = compiled
             .invoke(values.into_vec(), Box::new([]))
-            .map_err(|error| invalid(error.message))?;
+            .map_err(|error| {
+                invalid(AdmissionProblem::Binding(
+                    Member::Node(node.id.clone()),
+                    error,
+                ))
+            })?;
         operators.insert(node.id.clone(), invocation);
     }
     Ok(RigInputs {
@@ -153,10 +158,11 @@ fn admit_rig(project: &DonderProject, rig: &Rig) -> Result<RigInputs, ProjectVal
 fn admit_effect(
     project: &DonderProject,
     effect: &RigEffect,
+    member: Member,
     controls: &[(RigBinding, &donder_runtime_types::Identifier)],
-) -> Result<RigEffectInputs, ProjectValidationError> {
-    let EffectRef::Custom(id) = &effect.definition;
-    let definition = &project.definitions().effects.definitions[id];
+) -> Result<RigEffectInputs, ValidationProblem> {
+    let id = &effect.definition;
+    let definition = &project.reusable::<crate::EffectDefinition>()[id];
     let params = definition.params();
     let values = resolve_values(
         project,
@@ -179,10 +185,10 @@ fn admit_effect(
             let index = params
                 .iter()
                 .position(|param| &param.name == *name)
-                .ok_or_else(|| invalid("Unknown control parameter".into()))?;
+                .ok_or_else(|| invalid(AdmissionProblem::UnknownControlParam((*name).clone())))?;
             let mapping = params[index]
                 .automation_mapping()
-                .ok_or_else(|| invalid("A control's parameter cannot be automated".into()))?;
+                .ok_or_else(|| invalid(AdmissionProblem::ControlNotAutomatable((*name).clone())))?;
             Ok(PreparedAutomation {
                 start: SampleTime::from_ticks(0),
                 duration: RIG_SESSION,
@@ -199,11 +205,11 @@ fn admit_effect(
                 param_index: param_index(index)?,
             })
         })
-        .collect::<Result<Box<[_]>, ProjectValidationError>>()?;
-    let EffectImplementation::Dsl(compiled) = definition.implementation();
+        .collect::<Result<Box<[_]>, ValidationProblem>>()?;
+    let compiled = definition.compiled();
     let invocation = compiled
         .invoke_live(values.into_vec(), automation, live_params.into())
-        .map_err(|error| invalid(error.message))?;
+        .map_err(|error| invalid(AdmissionProblem::Binding(member, error)))?;
     Ok(RigEffectInputs {
         invocation,
         live: live.into(),
@@ -211,8 +217,8 @@ fn admit_effect(
     })
 }
 
-fn param_index(index: usize) -> Result<u16, ProjectValidationError> {
-    u16::try_from(index).map_err(|_| invalid("Too many parameters".into()))
+fn param_index(index: usize) -> Result<u16, ValidationProblem> {
+    u16::try_from(index).map_err(|_| invalid(AdmissionProblem::TooManyParams))
 }
 
 fn session() -> EffectParamTiming {
@@ -222,7 +228,7 @@ fn session() -> EffectParamTiming {
     }
 }
 
-fn timing(rig: &Rig) -> Result<SequenceTiming, ProjectValidationError> {
+fn timing(rig: &Rig) -> Result<SequenceTiming, ValidationProblem> {
     let admit = || {
         let frame_rate = NonZeroU32::new(rig.frame_rate)?;
         let frame_count = NonZeroU32::new(
@@ -232,8 +238,7 @@ fn timing(rig: &Rig) -> Result<SequenceTiming, ProjectValidationError> {
             .ok()?,
         )?;
         let duration = NonZeroU32::new(RIG_SESSION.as_ticks())?;
-        SequenceTiming::admit(frame_rate, frame_count, duration, Box::new([]))
+        Some(SequenceTiming::new(frame_rate, frame_count, duration))
     };
-    admit()
-        .ok_or_else(|| invalid("Rig frame rate is not representable by the playback clock".into()))
+    admit().ok_or_else(|| invalid(AdmissionProblem::TimingUnrepresentable))
 }

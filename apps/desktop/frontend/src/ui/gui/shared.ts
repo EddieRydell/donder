@@ -1,11 +1,13 @@
 import { visibleGridStep, formatDistance } from "./composition/spatialSnapping";
 import type {
   SpatialUnit,
-  ActiveGuiDocument,
+  GuiDocument,
   AppSnapshot,
   GeometryRenderBounds,
   Point3Meters,
   SequenceAutomationTarget,
+  GuiEditCommand,
+  GuiItem,
   SequenceSelection as WireSequenceSelection
 } from "../../editor/types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../theme";
@@ -15,7 +17,10 @@ export type Point3 = { x: number; y: number; z: number };
 
 export type AudioTransportViewSnapshot = AppSnapshot["audioTransport"];
 
-export type ReadyGuiDocument = Exclude<ActiveGuiDocument, { type: "blocked" }>;
+export type ReadyGuiDocument = Exclude<GuiDocument, { type: "blocked" }>;
+
+/** A rename, description, color or deletion of one item of the open object. */
+export type GuiItemEdit = Extract<GuiEditCommand, { item: GuiItem }>;
 
 export type SequenceSelection = WireSequenceSelection | null;
 

@@ -6,9 +6,9 @@ use std::io::{Seek, SeekFrom, Write};
 use std::num::NonZeroU32;
 
 use camino::Utf8Path;
+use donder_editor::dto::{PreviewAppearance, VideoExportProgress};
 use donder_model::{DonderProject, SequenceId};
 use donder_runtime_types::sample_time_from_frame;
-use donder_sequence_api::{PreviewAppearance, VideoExportProgress};
 use fdk_aac::enc::{AudioObjectType, BitRate, ChannelMode, Encoder, EncoderParams, Transport};
 use openh264::OpenH264API;
 use openh264::encoder::{

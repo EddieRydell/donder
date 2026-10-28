@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use donder_model::ControllerId;
 use donder_output::ControllerPortFrame;
-use donder_runtime::{PreparedRig, RigPlayback};
+use donder_runtime::{PreparedShow, ShowPlayback};
 use donder_runtime_types::{RigEvent, SampleDuration, SampleTime};
 
 use super::sequence::controller_frames;
@@ -36,7 +36,7 @@ impl SessionClock {
 /// A rig played to controllers: its playback, the commands applied so far,
 /// and the frame last rendered.
 pub(crate) struct RigOutput {
-    playback: RigPlayback,
+    playback: ShowPlayback,
     controllers: Vec<ControllerId>,
     clock: SessionClock,
     /// Counts the event batches applied, so a frame reflects its commands.
@@ -53,7 +53,7 @@ struct RenderedRigFrame {
 impl RigOutput {
     /// `events` are the performance's commands so far, applied in order.
     pub(crate) fn new(
-        prepared: PreparedRig,
+        prepared: PreparedShow,
         events: &[RigEvent],
         controllers: Vec<ControllerId>,
         clock: SessionClock,
@@ -77,13 +77,14 @@ impl RigOutput {
     }
 
     pub(crate) fn frame_interval(&self) -> Duration {
-        Duration::from_secs(1) / self.playback.frame_rate()
+        Duration::from_secs(1) / self.playback.prepared().frame_rate()
     }
 
     /// The controller frames at the session's current time.
     pub(crate) fn render(&mut self) -> &[ControllerPortFrame] {
         let time = self.clock.now();
-        let frame = u64::from(time.as_ticks()) * u64::from(self.playback.frame_rate()) / 1_000_000;
+        let frame = u64::from(time.as_ticks()) * u64::from(self.playback.prepared().frame_rate())
+            / 1_000_000;
         let rendered = match self.rendered.take() {
             Some(rendered) if rendered.frame == frame && rendered.revision == self.revision => {
                 rendered

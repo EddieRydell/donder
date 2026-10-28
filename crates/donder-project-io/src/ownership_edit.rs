@@ -1,152 +1,67 @@
 //! Source/import bookkeeping after typed ownership edits. No serialization or reload.
-use crate::{ExportProjectError, ProjectSession, ensure_document_can_reference_object};
-use donder_model::{
-    CompositionGraphNodeKind, DocumentId, EffectParamValue, EffectRef, LayoutFixtureKind,
-    ObjectIdentity, OperatorRef, SequenceAudio, SequenceCompositionGraph, ValueSource,
-};
-use std::collections::{BTreeMap, BTreeSet};
+use crate::address::{DocumentId, ObjectAddress};
+use crate::imports::ensure_document_can_reference_address;
+use crate::{ExportProjectError, ProjectSession};
+use donder_model::{ObjectId, SequenceAudio};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Preserve the visibility of typed references after values change owners.
 /// The caller owns the candidate session and transaction boundary.
 pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), ExportProjectError> {
-    let mut references: BTreeMap<DocumentId, BTreeSet<ObjectIdentity>> = BTreeMap::new();
-    let project = &session.project;
-    let mut add = |from: &DocumentId, target: ObjectIdentity| {
-        if session.source.is_project_owned(from) {
-            references.entry(from.clone()).or_default().insert(target);
-        }
+    let addresses = session.addresses();
+    let address = |id: ObjectId| {
+        addresses
+            .get(&id)
+            .ok_or_else(|| ExportProjectError::InvalidReference {
+                path: crate::PROJECT_ROOT_FILE.into(),
+                reference: format!("{:?}", id.kind()),
+                message: "An object is missing from the source inventory.".into(),
+            })
     };
-    let owner = project.root().id.0.document_id();
-    add(owner, project.root().setup.id().0.clone());
-    for source in &project.root().sequences {
-        add(owner, source.id().0.clone());
+    // Each object and the objects it refers to.
+    let mut references: Vec<(ObjectId, ObjectId)> = Vec::new();
+    session
+        .project
+        .for_each_reference(&mut |from, target| references.push((from, target)));
+    let mut visible: BTreeMap<DocumentId, BTreeSet<ObjectAddress>> = BTreeMap::new();
+    for (from, target) in references {
+        visible
+            .entry(address(from)?.document_id().clone())
+            .or_default()
+            .insert(address(target)?.clone());
     }
-    for source in &project.root().rigs {
-        add(owner, source.id().0.clone());
-    }
-    for setup in project.setups() {
-        let owner = setup.id.0.document_id();
-        add(owner, setup.layout.id().0.clone());
-        add(owner, setup.patch.id().0.clone());
-        for source in &setup.controllers {
-            add(owner, source.id().0.clone());
-        }
-        for source in &setup.input_devices {
-            add(owner, source.id().0.clone());
-        }
-    }
-    for layout in project.layouts() {
-        for fixture in layout.iter_fixtures() {
-            if let LayoutFixtureKind::Fixture {
-                definition: ValueSource::Reference(id),
-                ..
-            } = &fixture.kind
-            {
-                add(layout.id.0.document_id(), id.0.clone().into());
-            }
-        }
-    }
-    for patch in project.patches() {
-        for route in &patch.routes {
-            add(patch.id.0.document_id(), route.target.layout.0.clone());
-            add(patch.id.0.document_id(), route.controller.0.clone());
-        }
-    }
-    for sequence in project.sequences() {
-        let owner = sequence.id.0.document_id();
-        for clip in &sequence.automation_clips {
-            add(owner, clip.row_target.layout.0.clone());
-        }
-        for effect in &sequence.effects {
-            add(owner, effect.target.layout.0.clone());
-            let EffectRef::Custom(id) = &effect.definition;
-            add(owner, id.0.clone().into());
-            for value in effect.param_overrides.values() {
-                param_references(value, &mut |id| add(owner, id));
-            }
-        }
-        graph_references(&sequence.composition_graph, &mut |id| add(owner, id));
-    }
-    for rig in project.rigs() {
-        let owner = rig.id.0.document_id();
-        for effect in rig.effects() {
-            add(owner, effect.target.layout.0.clone());
-            let EffectRef::Custom(id) = &effect.definition;
-            add(owner, id.0.clone().into());
-            for value in effect.param_overrides.values() {
-                param_references(value, &mut |id| add(owner, id));
-            }
-        }
-        for input in rig.inputs() {
-            add(owner, input.device.0.clone());
-        }
-        graph_references(&rig.composition_graph, &mut |id| add(owner, id));
-    }
-    for (from, targets) in references {
+    for (from, targets) in visible {
         for target in targets {
-            ensure_document_can_reference_object(session, &from, &target)?;
+            ensure_document_can_reference_address(session, &from, &target)?;
         }
     }
     // Asset identity is retained when a sequence moves or is copied; membership
     // records the documents that currently use it, rather than its old owners.
+    let documents: HashMap<_, _> = session
+        .project
+        .objects::<donder_model::Sequence>()
+        .map(|sequence| {
+            address(sequence.id.into()).map(|address| (sequence.id, address.document_id().clone()))
+        })
+        .collect::<Result<_, _>>()?;
     for asset in &mut session.source.referenced_assets {
         asset.referenced_by.clear();
     }
-    for sequence in session.project.sequences() {
+    for sequence in session.project.objects::<donder_model::Sequence>() {
         if let SequenceAudio::Asset(id) = &sequence.audio {
+            let document = &documents[&sequence.id];
             let asset = session
                 .source
                 .referenced_assets
                 .iter_mut()
                 .find(|asset| &asset.id == id)
                 .ok_or_else(|| ExportProjectError::InvalidReference {
-                    path: sequence.id.0.document().to_owned(),
+                    path: document.path().to_owned(),
                     reference: id.0.to_string(),
                     message: "Sequence audio asset is missing.".into(),
                 })?;
-            asset
-                .referenced_by
-                .insert(sequence.id.0.document_id().clone());
-            if asset.module_id != sequence.id.0.module_id() {
-                return Err(ExportProjectError::InvalidReference {
-                    path: sequence.id.0.document().to_owned(),
-                    reference: asset.relative_path.to_string(),
-                    message: "Audio source belongs to another project.".into(),
-                });
-            }
+            asset.referenced_by.insert(document.clone());
         }
     }
     Ok(())
-}
-
-fn graph_references(graph: &SequenceCompositionGraph, add: &mut impl FnMut(ObjectIdentity)) {
-    for node in &graph.nodes {
-        if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
-            let OperatorRef::Custom(id) = &operator.operator;
-            add(id.0.clone().into());
-            for value in operator.params.values() {
-                param_references(value, add);
-            }
-        }
-    }
-}
-
-fn param_references(value: &EffectParamValue, add: &mut impl FnMut(ObjectIdentity)) {
-    match value {
-        EffectParamValue::Curve(ValueSource::Reference(id)) => add(id.0.clone().into()),
-        EffectParamValue::Gradient(ValueSource::Reference(id)) => add(id.0.clone().into()),
-        EffectParamValue::Array(values) => {
-            for value in values {
-                param_references(value, add);
-            }
-        }
-        EffectParamValue::Int(_)
-        | EffectParamValue::Float(_)
-        | EffectParamValue::Bool(_)
-        | EffectParamValue::Color(_)
-        | EffectParamValue::Enum(_)
-        | EffectParamValue::Marks(_)
-        | EffectParamValue::Curve(ValueSource::Inline(_))
-        | EffectParamValue::Gradient(ValueSource::Inline(_)) => {}
-    }
 }

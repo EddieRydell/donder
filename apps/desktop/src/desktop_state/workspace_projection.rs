@@ -3,10 +3,11 @@ use std::fs;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use donder_project_io::{ProjectRecovery, ProjectSession};
-use donder_sequence_api::{
-    WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryRole, WorkspaceOperation,
+use donder_editor::dto::{
+    WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryPlainRole, WorkspaceEntryRole,
+    WorkspaceOperation,
 };
+use donder_project_io::{ProjectRecovery, ProjectSession};
 
 #[derive(Clone, Copy)]
 pub(crate) enum FsEntryKind {
@@ -69,9 +70,7 @@ pub(crate) fn workspace_entries(session: &ProjectSession) -> Vec<WorkspaceEntry>
     let mut paths = BTreeMap::new();
     collect_workspace_paths(session.source.project_root(), Utf8Path::new(""), &mut paths);
     for document in session.source.documents.keys() {
-        if session.source.is_project_owned(document) {
-            insert_path_with_parents(&mut paths, document.path());
-        }
+        insert_path_with_parents(&mut paths, document.path());
     }
     paths
         .into_iter()
@@ -94,7 +93,10 @@ pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<Work
                 .unwrap_or_else(|| path.to_string());
             let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
             let role = recovery_workspace_role(recovery, &path, kind);
-            let fixed = matches!(role, WorkspaceEntryRole::Entrypoint);
+            let fixed = matches!(
+                role,
+                WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint)
+            );
             WorkspaceEntry {
                 path: canonical_relative_path(&path).to_string(),
                 kind: match kind {
@@ -125,23 +127,27 @@ fn recovery_workspace_role(
     kind: FsEntryKind,
 ) -> WorkspaceEntryRole {
     if matches!(kind, FsEntryKind::Directory) {
-        return WorkspaceEntryRole::Directory;
+        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Directory);
     }
     if path == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
-        return WorkspaceEntryRole::Entrypoint;
+        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
     }
     let Some(document) = recovery.documents.get(path) else {
-        return WorkspaceEntryRole::File;
+        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File);
     };
-    match document.kind {
-        donder_project_io::RecoveryDocumentKind::Script => WorkspaceEntryRole::Effect,
-        donder_project_io::RecoveryDocumentKind::Other => WorkspaceEntryRole::File,
-        donder_project_io::RecoveryDocumentKind::Data => document
+    match document.format {
+        donder_project_io::SourceDocumentFormat::Script => {
+            WorkspaceEntryRole::Object(donder_editor::dto::ObjectKind::Effect)
+        }
+        donder_project_io::SourceDocumentFormat::Other => {
+            WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)
+        }
+        donder_project_io::SourceDocumentFormat::Data => document
             .objects
             .iter()
-            .map(|object| donder_sequence_api::workspace_role_for_source_object(&object.kind))
+            .map(|object| WorkspaceEntryRole::Object(object.kind.into()))
             .next()
-            .unwrap_or(WorkspaceEntryRole::File),
+            .unwrap_or(WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)),
     }
 }
 
@@ -156,7 +162,10 @@ fn workspace_entry(
         .unwrap_or_else(|| path.to_string());
     let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
     let role = workspace_role(session, &path, kind);
-    let fixed = matches!(role, WorkspaceEntryRole::Entrypoint);
+    let fixed = matches!(
+        role,
+        WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint)
+    );
     let structural = session.source.is_structural_workspace_path(&path);
     let operations = match kind {
         FsEntryKind::Directory => {
@@ -209,22 +218,26 @@ fn workspace_role(
     kind: FsEntryKind,
 ) -> WorkspaceEntryRole {
     if matches!(kind, FsEntryKind::Directory) {
-        return WorkspaceEntryRole::Directory;
+        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Directory);
     }
-    let module_id = session.source.project_module_id();
     if relative == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
-        return WorkspaceEntryRole::Entrypoint;
+        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
     }
-    let document_id = donder_model::DocumentId::new(module_id, relative.to_path_buf());
+    let document_id = donder_project_io::DocumentId::new(relative.to_path_buf());
     if let Some(document) = session.source.documents.get(&document_id) {
-        let fallback = match document.kind() {
-            donder_project_io::SourceDocumentKind::Script { .. } => WorkspaceEntryRole::Effect,
-            donder_project_io::SourceDocumentKind::Data => WorkspaceEntryRole::File,
+        let fallback = match document.format() {
+            donder_project_io::SourceDocumentFormat::Script => {
+                WorkspaceEntryRole::Object(donder_editor::dto::ObjectKind::Effect)
+            }
+            donder_project_io::SourceDocumentFormat::Data
+            | donder_project_io::SourceDocumentFormat::Other => {
+                WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)
+            }
         };
         return document
             .objects()
             .iter()
-            .map(|object| donder_sequence_api::workspace_role_for_source_object(object.kind()))
+            .map(|object| WorkspaceEntryRole::Object(object.kind().into()))
             .next()
             .unwrap_or(fallback);
     }
@@ -232,10 +245,10 @@ fn workspace_role(
         .source
         .referenced_assets
         .iter()
-        .any(|asset| asset.module_id == module_id && asset.relative_path == relative)
+        .any(|asset| asset.relative_path == relative)
     {
-        WorkspaceEntryRole::Asset
+        WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Asset)
     } else {
-        WorkspaceEntryRole::File
+        WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)
     }
 }

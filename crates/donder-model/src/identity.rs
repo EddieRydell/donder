@@ -1,158 +1,79 @@
-use camino::{Utf8Path, Utf8PathBuf};
-use uuid::Uuid;
+//! Session identities. Loading assigns every object a fresh opaque id; names,
+//! documents and addresses belong to project IO, never to the model.
 
-/// Stable identity of a Donder document inside a package module.
-///
-/// The physical package root is deliberately not part of this value. A
-/// resolved package can move in the cache or be updated without changing the
-/// identity used by domain objects and history.
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct DocumentId {
-    module_id: Uuid,
-    path: Utf8PathBuf,
-}
+macro_rules! object_ids {
+    ($($kind:ident($id:ident)),* $(,)?) => {
+        $(
+            #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+            pub struct $id(pub u32);
 
-impl DocumentId {
-    pub fn new(module_id: Uuid, path: Utf8PathBuf) -> Self {
-        Self { module_id, path }
-    }
+            impl From<$id> for ObjectId {
+                fn from(id: $id) -> Self {
+                    Self::$kind(id)
+                }
+            }
 
-    pub fn module_id(&self) -> Uuid {
-        self.module_id
-    }
+            impl TryFrom<ObjectId> for $id {
+                type Error = ObjectId;
+                fn try_from(id: ObjectId) -> Result<Self, ObjectId> {
+                    match id {
+                        ObjectId::$kind(id) => Ok(id),
+                        other => Err(other),
+                    }
+                }
+            }
+        )*
 
-    pub fn path(&self) -> &Utf8Path {
-        &self.path
-    }
-}
-
-/// Qualified identity for an object declared in a Donder source document.
-///
-/// Object keys are only unique inside their declaring document. Keeping both
-/// parts in the domain model prevents import aliases and same-named objects in
-/// different documents from collapsing into one global string namespace. Source
-/// loaders validate object keys before constructing domain IDs.
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct SourceIdentity {
-    document: DocumentId,
-    object: String,
-}
-
-impl SourceIdentity {
-    pub fn from_document(document: DocumentId, object: String) -> Self {
-        Self { document, object }
-    }
-
-    pub fn document(&self) -> &Utf8Path {
-        self.document.path()
-    }
-
-    pub fn document_id(&self) -> &DocumentId {
-        &self.document
-    }
-
-    pub fn module_id(&self) -> Uuid {
-        self.document.module_id()
-    }
-
-    pub fn object(&self) -> &str {
-        &self.object
-    }
-}
-
-/// A stable ownership slot. Collection members use their names or authored
-/// local IDs, never list positions, so reordering does not change addresses.
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum OwnedObjectSlot {
-    Setup,
-    Layout,
-    Patch,
-    /// An owned controller, input device, sequence or rig is named like a
-    /// declaration.
-    Controller(donder_runtime_types::Identifier),
-    InputDevice(donder_runtime_types::Identifier),
-    Sequence(donder_runtime_types::Identifier),
-    Rig(donder_runtime_types::Identifier),
-    Fixture(u32),
-}
-
-/// Address of a named object or an owned descendant of a named object.
-/// Owned descendants are not symbols and cannot be imported independently.
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct ObjectIdentity {
-    root: SourceIdentity,
-    owned_path: Vec<OwnedObjectSlot>,
-}
-
-impl From<SourceIdentity> for ObjectIdentity {
-    fn from(root: SourceIdentity) -> Self {
-        Self {
-            root,
-            owned_path: Vec::new(),
+        /// Any top-level object of a project. Ids are unique across kinds.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+        pub enum ObjectId {
+            $($kind($id),)*
         }
-    }
+
+        /// What kind of object an id names.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+        pub enum ObjectKind {
+            $($kind,)*
+        }
+
+        impl ObjectKind {
+            /// The id of this kind with number `raw`.
+            pub fn id(self, raw: u32) -> ObjectId {
+                match self {
+                    $(Self::$kind => ObjectId::$kind($id(raw)),)*
+                }
+            }
+        }
+
+        impl ObjectId {
+            pub fn kind(self) -> ObjectKind {
+                match self {
+                    $(Self::$kind(_) => ObjectKind::$kind,)*
+                }
+            }
+
+            /// The id's number, unique in its project.
+            pub fn raw(self) -> u32 {
+                match self {
+                    $(Self::$kind($id(raw)))|* => raw,
+                }
+            }
+        }
+    };
 }
 
-impl ObjectIdentity {
-    pub fn owned(&self, slot: OwnedObjectSlot) -> Self {
-        let mut child = self.clone();
-        child.owned_path.push(slot);
-        child
-    }
-
-    /// Move this address with its owner, preserving descendant slots.
-    pub fn rebase(&mut self, from: &Self, to: &Self) {
-        if self.root == from.root && self.owned_path.starts_with(&from.owned_path) {
-            let suffix = self.owned_path[from.owned_path.len()..].to_vec();
-            *self = to.clone();
-            self.owned_path.extend(suffix);
-        }
-    }
-
-    pub fn parent(&self) -> Option<Self> {
-        let mut parent = self.clone();
-        parent.owned_path.pop()?;
-        Some(parent)
-    }
-
-    pub fn root_source(&self) -> &SourceIdentity {
-        &self.root
-    }
-
-    pub fn source(&self) -> Option<&SourceIdentity> {
-        self.owned_path.is_empty().then_some(&self.root)
-    }
-
-    pub fn owned_path(&self) -> &[OwnedObjectSlot] {
-        &self.owned_path
-    }
-    /// The name a controller, input device, sequence or rig is declared or
-    /// stored under: its owned slot's name, else its source object's.
-    pub fn declared_name(&self) -> &str {
-        match self.owned_path.last() {
-            Some(
-                OwnedObjectSlot::Controller(name)
-                | OwnedObjectSlot::InputDevice(name)
-                | OwnedObjectSlot::Sequence(name)
-                | OwnedObjectSlot::Rig(name),
-            ) => name.as_str(),
-            _ => self.root.object(),
-        }
-    }
-    pub fn document(&self) -> &Utf8Path {
-        self.root.document()
-    }
-    pub fn document_id(&self) -> &DocumentId {
-        self.root.document_id()
-    }
-    pub fn module_id(&self) -> Uuid {
-        self.root.module_id()
-    }
-
-    pub fn with_root_source(&self, root: SourceIdentity) -> Self {
-        Self {
-            root,
-            owned_path: self.owned_path.clone(),
-        }
-    }
+object_ids! {
+    Project(ProjectId),
+    Setup(SetupId),
+    Layout(LayoutId),
+    Patch(PatchId),
+    Controller(ControllerId),
+    InputDevice(InputDeviceId),
+    Sequence(SequenceId),
+    Rig(RigId),
+    FixtureDefinition(FixtureDefinitionId),
+    Curve(CurveId),
+    Gradient(GradientId),
+    EffectDefinition(EffectDefinitionId),
+    OperatorDefinition(OperatorDefinitionId),
 }

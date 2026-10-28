@@ -3,7 +3,7 @@ use crate::common;
 use camino::Utf8Path;
 use donder_model::FixtureElementId;
 use donder_model::{FixtureInstanceId, LayoutFixtureKind};
-use donder_project_io::{export_project, load_project, save_project};
+use donder_project_io::{check_project, export_project, save_project};
 
 const ASSEMBLY: &str = r#"
 FixtureDefinition assembly {
@@ -36,18 +36,18 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     source.push_str(ASSEMBLY);
     std::fs::write(&fixture_path, source).unwrap();
     // The extra definition is indexed even though no layout uses it yet.
-    let mut loaded = load_project(root).unwrap();
+    let mut loaded = check_project(root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap();
     let (id, mut definition) = loaded
         .project
-        .definitions()
-        .fixtures
-        .definitions
+        .reusable::<donder_model::FixtureDefinition>()
         .iter()
-        .find(|(id, _)| id.0.object() == "assembly")
-        .map(|(id, definition)| (id.clone(), definition.clone()))
+        .find(|(id, _)| loaded.declaration((**id).into()).unwrap().1.as_str() == "assembly")
+        .map(|(id, definition)| (*id, definition.clone()))
         .unwrap();
     assert_eq!(
-        id.0.document(),
+        loaded.declaration(id.into()).unwrap().0.path(),
         Utf8Path::new("fixtures/vertical.data.donder")
     );
     assert_eq!(definition.elements[0].name.as_str(), "first");
@@ -58,21 +58,20 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     }
     loaded
         .project
-        .apply_edits([donder_model::ProjectEdit::SetFixtureDefinition {
-            id,
-            value: definition,
-        }])
+        .apply_edits([donder_model::ProjectEdit::Put(
+            donder_model::Object::FixtureDefinition(id, definition),
+        )])
         .unwrap();
     save_project(&loaded).unwrap();
-    let saved = load_project(root).unwrap();
+    let saved = check_project(root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap();
     assert_eq!(saved.project, loaded.project);
     let definition = saved
         .project
-        .definitions()
-        .fixtures
-        .definitions
+        .reusable::<donder_model::FixtureDefinition>()
         .iter()
-        .find(|(id, _)| id.0.object() == "assembly")
+        .find(|(id, _)| saved.declaration((**id).into()).unwrap().1.as_str() == "assembly")
         .unwrap()
         .1;
     assert_eq!(
@@ -83,7 +82,12 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
             .collect::<Vec<_>>(),
         ["second", "first"]
     );
-    let layout = saved.project.reusable_layouts().values().next().unwrap();
+    let layout = saved
+        .project
+        .reusable::<donder_model::Layout>()
+        .values()
+        .next()
+        .unwrap();
     assert!(matches!(
         layout.fixture(FixtureInstanceId(2)).unwrap().kind,
         LayoutFixtureKind::Fixture { .. }
@@ -96,12 +100,10 @@ fn all_shape_parameters_round_trip_in_authored_order() {
     let mut session = common::load_project(&common::starter_root());
     let (id, mut fixture) = session
         .project
-        .definitions()
-        .fixtures
-        .definitions
+        .reusable::<donder_model::FixtureDefinition>()
         .iter()
         .next()
-        .map(|(id, definition)| (id.clone(), definition.clone()))
+        .map(|(id, definition)| (*id, definition.clone()))
         .unwrap();
     let template = fixture.elements[0].clone();
     let shapes = vec![
@@ -159,10 +161,18 @@ fn all_shape_parameters_round_trip_in_authored_order() {
         .collect();
     session
         .project
-        .apply_edits([donder_model::ProjectEdit::SetFixtureDefinition { id, value: fixture }])
+        .apply_edits([donder_model::ProjectEdit::Put(
+            donder_model::Object::FixtureDefinition(id, fixture),
+        )])
         .unwrap();
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     export_project(&session, root).unwrap();
-    assert_eq!(load_project(root).unwrap().project, session.project);
+    assert_eq!(
+        check_project(root, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap()
+            .project,
+        session.project
+    );
 }

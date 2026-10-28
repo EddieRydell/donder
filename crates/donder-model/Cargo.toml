@@ -12,7 +12,6 @@ donder-language.workspace = true
 donder-runtime-types = { workspace = true, features = ["atomic"] }
 glam.workspace = true
 indexmap.workspace = true
-uuid.workspace = true
 
 [lints.rust]
 unnameable_types = "warn"

@@ -1,4 +1,4 @@
-use crate::*;
+use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -15,7 +15,6 @@ pub struct SequenceAudio {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceCurveLibraryItem {
-    pub module_id: String,
     pub path: String,
     pub object_key: String,
     pub display_name: String,
@@ -25,7 +24,6 @@ pub struct SequenceCurveLibraryItem {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGradientLibraryItem {
-    pub module_id: String,
     pub path: String,
     pub object_key: String,
     pub display_name: String,
@@ -87,13 +85,6 @@ pub struct SequenceAutomationBinding {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceDetachedAutomationBinding {
     pub target: SequenceAutomationTarget,
-    pub reason: SequenceAutomationDetachmentReason,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SequenceAutomationDetachmentReason {
-    DefinitionChanged,
 }
 
 /// The clips the editor shows, in the order their rasters should render.
@@ -161,7 +152,6 @@ pub struct SequenceEffect {
     pub target_label: String,
     pub scope: SequenceEffectScope,
     pub effect: String,
-    pub kind: SequenceTimelineClipKind,
 }
 
 /// What the inspector edits on one clip, fetched for the selected clips only:
@@ -186,8 +176,8 @@ pub struct SequenceEffectDetailsResult {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipMatchRequest {
-    pub effect_ids: Vec<u32>,
-    pub automation_ids: Vec<u32>,
+    /// The seed clips.
+    pub clips: Vec<SequenceClipRef>,
     pub criteria: SequenceClipMatch,
     pub params: Vec<SequenceClipParamMatch>,
 }
@@ -199,12 +189,6 @@ pub struct SequenceClipMatchRequest {
 pub struct SequenceClipParamMatch {
     pub name: String,
     pub tolerance: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SequenceTimelineClipKind {
-    Effect,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -351,14 +335,4 @@ pub struct SequenceMarkCollection {
     pub marks_seconds: Vec<f64>,
     /// Each mark's label, in the same order as `marks_seconds`.
     pub mark_labels: Vec<Option<String>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceSelectionEditResult {
-    pub snapshot: AppSnapshot,
-    pub change: GuiDocumentChange,
-    pub selection: Option<SequenceSelection>,
-    pub copied_count: u32,
-    pub skipped_count: u32,
 }

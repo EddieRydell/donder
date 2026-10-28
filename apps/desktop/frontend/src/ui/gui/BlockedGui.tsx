@@ -1,4 +1,4 @@
-import type { ProjectDiagnostic } from "../../types";
+import type { IoDiagnostic } from "../../types";
 import { FOCUS_SIDEBAR_EVENT } from "../../commandRegistry";
 import { navigateToText } from "../../workspace/navigation";
 
@@ -7,7 +7,7 @@ export function BlockedGui({
   diagnostics
 }: {
   reason: string;
-  diagnostics: ProjectDiagnostic[];
+  diagnostics: IoDiagnostic[];
 }) {
   const primaryDiagnostic = diagnostics[0];
   return (

@@ -118,7 +118,7 @@ function WorkspaceMain({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const updateWorkspaceLayout = useCallback((next: WorkspaceLayoutState, immediate = false) => {
     setWorkspaceLayout(next);
     scheduleViewStateSave("layout", async () => {
-      useAppStore.getState().setSnapshot(await commands.saveWorkspaceLayoutState(next));
+      useAppStore.getState().setSnapshot(await commands.saveViewState({ type: "workspaceLayout", state: next }));
     }, (error) => { useAppStore.getState().setError(String(error)); }, immediate);
   }, []);
 

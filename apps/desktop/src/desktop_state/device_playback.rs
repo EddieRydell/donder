@@ -2,12 +2,12 @@ use super::{DesktopState, lock_unpoisoned};
 use crate::audio::DeviceBoundary;
 use crate::device::DeviceClient;
 use crate::device::playback::{DevicePorts, WantedDevice};
-use donder_model::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
-use donder_runtime::PlaybackRate;
-use donder_sequence_api::{
+use donder_editor::dto::{
     AppSnapshot, AudioTransportState, DevicePlaybackMode, DonderDeviceClaim,
     DonderDeviceConnection, DonderDeviceNetworkRequest, DonderDeviceStatus,
 };
+use donder_model::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
+use donder_runtime::PlaybackRate;
 
 impl DesktopState {
     pub(super) fn schedule_device_reconcile(&self) {
@@ -156,13 +156,13 @@ impl DesktopState {
             return Vec::new();
         };
         let project = &session.project;
-        let Some(setup) = project.setup(project.root().setup.id()) else {
+        let Some(setup) = project.get::<donder_model::Setup>(*project.root().setup.id()) else {
             return Vec::new();
         };
         setup
             .controllers
             .iter()
-            .filter_map(|source| project.controller(source.id()))
+            .filter_map(|source| project.get::<donder_model::Controller>(*source.id()))
             .filter_map(|controller| {
                 let ControllerProtocol::Donder(config) = &controller.protocol else {
                     return None;
@@ -180,7 +180,7 @@ impl DesktopState {
                     config.device.clone(),
                     ports
                         .into_iter()
-                        .map(|(_, port)| (controller.id.clone(), port))
+                        .map(|(_, port)| (controller.id, port))
                         .collect(),
                 ))
             })
@@ -270,13 +270,14 @@ impl DesktopState {
         let session = self
             .project_session()
             .ok_or("Open a valid project before starting devices")?;
-        let (_, sequence) = lock_unpoisoned(&self.workspace)
+        let target = lock_unpoisoned(&self.workspace)
             .render_target
             .clone()
             .ok_or("Open a sequence before starting devices")?;
+        let (_, sequence) = target.resolve(&session).ok_or("Sequence is missing")?;
         let model = session
             .project
-            .sequence(&sequence)
+            .get::<donder_model::Sequence>(sequence)
             .ok_or("Sequence is missing")?;
         let frame_rate = model.frame_rate;
         let duration = donder_language::sample_duration_from_donder_duration(&model.duration)
@@ -285,7 +286,7 @@ impl DesktopState {
         self.device_playback.prepare(
             snapshot.project_epoch,
             snapshot.project_revision,
-            &sequence,
+            &target.sequence,
             |ports| {
                 let available = super::sequence_export::outputs(&session)?;
                 let widths = ports

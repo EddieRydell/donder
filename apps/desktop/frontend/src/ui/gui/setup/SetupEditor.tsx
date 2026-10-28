@@ -9,11 +9,11 @@ import { useState, type ReactNode } from "react";
 
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
-import type { SetupDocument } from "../../../types";
+import type { SetupGuiDocument } from "../../../types";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import { AvailableControllers, SetupControllerActions } from "./ControllerMembership";
 
-export function SetupEditor({ document }: { document: SetupDocument }) {
+export function SetupEditor({ document }: { document: SetupGuiDocument }) {
   return (
     <main className="project-overview">
       <header className="object-overview-header">
@@ -22,16 +22,16 @@ export function SetupEditor({ document }: { document: SetupDocument }) {
       </header>
       <section className="object-overview-group">
         <h3>Composition</h3>
-        <div className="object-overview-row-with-actions"><SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" reference={ownershipLabel(document.layoutRef)} detail="Fixture instances and groups" onOpen={() => void navigateToGuiObject(document.layoutRef)} /><OwnershipActions sources={document.availableSources} source={document.layoutRef} slot={{ type: "layout" }} label="Layout" /></div>
-        <div className="object-overview-row-with-actions"><SetupRow icon={<Cable aria-hidden="true" />} title="Patch" reference={ownershipLabel(document.patchRef)} detail="LED output routes" onOpen={() => void navigateToGuiObject(document.patchRef)} /><OwnershipActions sources={document.availableSources} source={document.patchRef} slot={{ type: "patch" }} label="Patch" /></div>
+        <div className="object-overview-row-with-actions"><SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" reference={ownershipLabel(document.layoutRef)} detail="Fixture instances and groups" onOpen={() => void navigateToGuiObject(document.layoutRef)} /><OwnershipActions sources={document.availableSources} source={document.layoutRef} label="Layout" /></div>
+        <div className="object-overview-row-with-actions"><SetupRow icon={<Cable aria-hidden="true" />} title="Patch" reference={ownershipLabel(document.patchRef)} detail="LED output routes" onOpen={() => void navigateToGuiObject(document.patchRef)} /><OwnershipActions sources={document.availableSources} source={document.patchRef} label="Patch" /></div>
       </section>
       <section className="object-overview-group">
-        <OverviewGroupHeader title="Controllers"><CreationDialog label="Add controller" title="New controller"><ControllerForm onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "addController", config, ports })); }} /><AvailableControllers document={document} /></CreationDialog></OverviewGroupHeader>
-        {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller, index) => <div className="object-overview-row-with-actions" key={guiObjectKey(controller.sourceRef)}><SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} reference={ownershipLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs${controller.readOnly ? " - Unavailable source" : ""}`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><OwnershipActions sources={document.availableSources} source={controller.sourceRef} slot={{ type: "controller", index }} label={controller.label}><SetupControllerActions controller={controller} patchReadOnly={document.patchReadOnly} /></OwnershipActions></div>)}
+        <OverviewGroupHeader title="Controllers"><CreationDialog label="Add controller" title="New controller"><ControllerForm onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "addController", config, ports } })); }} /><AvailableControllers document={document} /></CreationDialog></OverviewGroupHeader>
+        {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller) => <div className="object-overview-row-with-actions" key={guiObjectKey(controller.sourceRef)}><SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} reference={ownershipLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><OwnershipActions sources={document.availableSources} source={controller.sourceRef} label={controller.label}><SetupControllerActions controller={controller} /></OwnershipActions></div>)}
       </section>
       <section className="object-overview-group">
-        <OverviewGroupHeader title="Input devices"><CreationDialog label="Add input device" title="New input device"><InputDeviceForm keyCodes={document.keyCodes} limits={document.inputLimits} onSave={async (driver, controls) => { await runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "addInputDevice", driver, controls })); }} /><AvailableInputDevices document={document} /></CreationDialog></OverviewGroupHeader>
-        {document.inputDevices.length === 0 ? <p className="object-overview-empty">No input devices attached.</p> : document.inputDevices.map((device, index) => <div className="object-overview-row-with-actions" key={guiObjectKey(device.sourceRef)}><SetupRow icon={<Keyboard aria-hidden="true" />} title={device.name} reference={ownershipLabel(device.sourceRef)} detail={`${device.controls.length} controls${device.readOnly ? " - Unavailable source" : ""}`} onOpen={() => void navigateToGuiObject(device.sourceRef)} /><OwnershipActions sources={document.availableSources} source={device.sourceRef} slot={{ type: "inputDevice", index }} label={device.name}><SetupInputDeviceActions device={device} /></OwnershipActions></div>)}
+        <OverviewGroupHeader title="Input devices"><CreationDialog label="Add input device" title="New input device"><InputDeviceForm keyCodes={document.keyCodes} limits={document.inputLimits} onSave={async (driver, controls) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "addInputDevice", driver, controls } })); }} /><AvailableInputDevices document={document} /></CreationDialog></OverviewGroupHeader>
+        {document.inputDevices.length === 0 ? <p className="object-overview-empty">No input devices attached.</p> : document.inputDevices.map((device) => <div className="object-overview-row-with-actions" key={guiObjectKey(device.sourceRef)}><SetupRow icon={<Keyboard aria-hidden="true" />} title={device.name} reference={ownershipLabel(device.sourceRef)} detail={`${device.controls.length} controls`} onOpen={() => void navigateToGuiObject(device.sourceRef)} /><OwnershipActions sources={document.availableSources} source={device.sourceRef} label={device.name}><SetupInputDeviceActions device={device} /></OwnershipActions></div>)}
       </section>
     </main>
   );

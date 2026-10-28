@@ -3,10 +3,10 @@ use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::DonderProject;
 use donder_model::SequenceId;
-use donder_model::{CurveSource, EffectParamValue, EffectRef, EffectScope, GradientSource};
-use donder_project_io::load_project;
-use donder_runtime::PreparedSequence;
-use donder_runtime::SequencePlayback;
+use donder_model::{CurveSource, EffectParamValue, EffectScope, GradientSource};
+use donder_project_io::{ProjectSession, check_project};
+use donder_runtime::PreparedShow;
+use donder_runtime::ShowPlayback;
 use donder_runtime_types::Identifier;
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
@@ -40,9 +40,11 @@ impl MarkEffect {
     }
 }
 
-fn starter() -> DonderProject {
+fn starter() -> ProjectSession {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    load_project(&root).unwrap().project
+    check_project(&root, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap()
 }
 
 fn shape(start: f32, end: f32) -> EffectParamValue {
@@ -61,46 +63,49 @@ fn shape(start: f32, end: f32) -> EffectParamValue {
 }
 
 fn prepared(
-    project: &DonderProject,
+    project: &ProjectSession,
     effect: MarkEffect,
     marks_ms: &[u64],
     scope: EffectScope,
-) -> PreparedSequence {
+) -> PreparedShow {
     prepared_with_chase_position(project, effect, marks_ms, scope, shape(0.0, 1.0))
 }
 
 fn prepared_with_chase_position(
-    project: &DonderProject,
+    project: &ProjectSession,
     effect: MarkEffect,
     marks_ms: &[u64],
     scope: EffectScope,
     chase_position: EffectParamValue,
-) -> PreparedSequence {
+) -> PreparedShow {
     let (project, id) = configured_project(project, effect, marks_ms, scope, chase_position);
     prepare(&project, &id, PrepareOutputs::All).unwrap()
 }
 
 fn configured_project(
-    project: &DonderProject,
+    project: &ProjectSession,
     effect: MarkEffect,
     marks_ms: &[u64],
     scope: EffectScope,
     chase_position: EffectParamValue,
 ) -> (DonderProject, SequenceId) {
-    let mut project = project.clone();
+    let session = project;
+    let mut project = session.project.clone();
     let name = effect.name();
-    let definition = project
-        .definitions()
-        .effects
-        .definitions
+    let definition = *project
+        .reusable::<donder_model::EffectDefinition>()
         .iter()
-        .find(|(_, definition)| definition.source_name == name)
+        .find(|(_, definition)| definition.name() == name)
         .unwrap()
-        .0
-        .clone();
+        .0;
     let mut sequence = project
-        .sequences()
-        .find(|sequence| sequence.id.0.root_source().object() == "layer_test")
+        .objects::<donder_model::Sequence>()
+        .find(|sequence| {
+            session
+                .source
+                .declared_name(sequence.id.into())
+                .is_some_and(|name| name.as_str() == "layer_test")
+        })
         .unwrap()
         .clone();
     sequence.automation_clips.clear();
@@ -110,7 +115,7 @@ fn configured_project(
         .collect();
     let mut instance = (*sequence.effects[0]).clone();
     instance.layer_id = sequence.layers[0].id.clone();
-    instance.definition = EffectRef::Custom(definition);
+    instance.definition = definition;
     instance.scope = scope;
     instance.start = DonderTime(Duration::ZERO);
     instance.duration = DonderDuration(Duration::from_secs(4));
@@ -169,12 +174,12 @@ fn configured_project(
         MarkEffect::Pulse => {}
     }
     sequence.effects = vec![std::sync::Arc::new(instance)];
-    let id = sequence.id.clone();
-    project.replace_sequence(&id, sequence).unwrap();
+    let id = sequence.id;
+    project.put(sequence).unwrap();
     (project, id)
 }
 
-fn colors(playback: &mut SequencePlayback, milliseconds: u32) -> Vec<Color> {
+fn colors(playback: &mut ShowPlayback, milliseconds: u32) -> Vec<Color> {
     playback
         .evaluate(SampleTime::from_ticks(milliseconds * 1000))
         .colors()
@@ -191,12 +196,12 @@ fn assert_same_colors(actual: &[Color], expected: &[Color], context: &str) {
 // Independent reference: one ordinary effect placed at the mark's arrival time.
 // No mark query or mark-effect implementation is involved in this playback.
 fn single_pass_reference(
-    project: &DonderProject,
+    project: &ProjectSession,
     effect: MarkEffect,
     mark_ms: u64,
     scope: EffectScope,
     trajectory: EffectParamValue,
-) -> PreparedSequence {
+) -> PreparedShow {
     let (mut project, id) = configured_project(project, effect, &[mark_ms], scope, trajectory);
     let name = match effect {
         MarkEffect::Chase => "Chase",
@@ -204,18 +209,15 @@ fn single_pass_reference(
         MarkEffect::ImpactBurst => "ImpactBurst",
         MarkEffect::Pulse => "Pulse",
     };
-    let definition = project
-        .definitions()
-        .effects
-        .definitions
+    let definition = *project
+        .reusable::<donder_model::EffectDefinition>()
         .iter()
-        .find(|(_, definition)| definition.source_name == name)
+        .find(|(_, definition)| definition.name() == name)
         .unwrap()
-        .0
-        .clone();
-    let mut sequence = project.sequence(&id).unwrap().clone();
+        .0;
+    let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
     let instance = std::sync::Arc::make_mut(&mut sequence.effects[0]);
-    instance.definition = EffectRef::Custom(definition);
+    instance.definition = definition;
     instance.start = DonderTime(Duration::from_millis(mark_ms + 125));
     instance.duration = DonderDuration(Duration::from_secs(1));
     let params = &mut instance.param_overrides;
@@ -250,13 +252,13 @@ fn single_pass_reference(
             EffectParamValue::Float(45.0),
         );
     }
-    project.replace_sequence(&id, sequence).unwrap();
+    project.put(sequence).unwrap();
     prepare(&project, &id, PrepareOutputs::All).unwrap()
 }
 
 // MarkPulse shifts its cluster grid by a random offset per mark and lights each
 // cluster by chance. Mask ordinary Pulse output with the same seeded rule.
-fn selected_clusters(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bool> {
+fn selected_clusters(sequence: &PreparedShow, scope: &EffectScope) -> Vec<bool> {
     use donder_runtime_types::sampling::deterministic_random_seed;
     const WIDTH: f32 = 7.0;
     let mark_seed = 0.75 + 1000.0;

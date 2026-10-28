@@ -10,8 +10,8 @@ use std::time::Duration;
 fn bench_prepared_playback(c: &mut Criterion) {
     pin_benchmark_thread();
     let mut playbacks = fixtures::cases().map(|(name, source, params)| {
-        let invocation = playback::lower_sample(&fixtures::prepared_effect(name, source, params));
-        playback::show(512, &invocation, 1).into_playback()
+        let invocation = playback::lower(&fixtures::prepared_effect(name, source, params));
+        playback::show(512, &invocation, 1, &[]).into_playback()
     });
     // Two adjacent frames in turn, so every evaluation renders a frame rather
     // than returning the one it holds.

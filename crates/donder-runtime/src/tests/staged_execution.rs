@@ -2,8 +2,8 @@
 //! values fixed for an instance
 //! are computed before playback without changing what playback produces.
 use super::evaluation::{
-    SampleEvaluation, bind, chain, compile_effect, compile_operator, context, effect, operator,
-    runtime_effect, runtime_operator,
+    SampleEvaluation, bind, compile, context, effect, operator, runtime_effect, runtime_operator,
+    show,
 };
 use super::std;
 use std::prelude::rust_2024::*;
@@ -11,10 +11,9 @@ use std::prelude::rust_2024::*;
 use super::evaluation::{Single, StripWorkspace};
 use crate::dsl::bytecode::{CurveOp, FloatBinary, Instruction, instructions};
 use crate::dsl::{NoSignals, STRIP};
+use donder_runtime_types::{BoundProgram, SampleDuration, TargetGeometry, Value};
 use donder_runtime_types::{Color, SampleTime};
 use donder_runtime_types::{FixtureGeometry, SpatialContext, TargetScope};
-use donder_runtime_types::{OperatorInvocation, OperatorProgram};
-use donder_runtime_types::{SampleInvocation, Value};
 use donder_test_support::workload;
 
 use super::playback;
@@ -29,23 +28,13 @@ const SPATIAL: SpatialContext = SpatialContext {
 const COUNTS: [usize; 5] = [1, 7, STRIP, STRIP + 1, 2 * STRIP + 1];
 
 /// `operator` with its query and target blocks rerun for every strip.
-fn unstaged(operator: &OperatorInvocation) -> OperatorInvocation {
-    let program = (**operator.program()).clone();
-    let inputs = program.input_count();
-    let mut bytecode = program.into_bytecode();
-    workload::unstaged(&mut bytecode);
-    OperatorInvocation::bind(
-        OperatorProgram::new(bytecode, inputs),
-        operator.params().iter_values().collect(),
-    )
-    .unwrap()
-    .with_automation(operator.automation().into())
-    .unwrap()
+fn unstaged(operator: &BoundProgram) -> BoundProgram {
+    workload::edit(operator, workload::unstaged)
 }
 
 fn assert_same_playback(
-    actual: crate::PreparedSequence,
-    expected: crate::PreparedSequence,
+    actual: crate::PreparedShow,
+    expected: crate::PreparedShow,
     ticks: &[u32],
     what: &str,
 ) {
@@ -73,25 +62,35 @@ fn strips_preserve_local_and_subset_target_addressing() {
     let reference_operator = unstaged(&operator);
     // The second fixture fits one strip, or spans several.
     for right_count in [7, 2 * STRIP + 3] {
-        let build = |op: &OperatorInvocation| {
-            crate::PreparedSequence::build(playback::timing(4_000_000), |builder| {
-                let left = builder.fixture(
-                    0,
-                    FixtureGeometry::admit((0..3).map(|i| [i as f32, 0.0]).collect()).unwrap(),
-                );
-                let right = builder.fixture(
-                    1,
+        let build = |op: &BoundProgram| {
+            crate::PreparedShow::build(playback::timing(4_000_000), |builder| {
+                let left =
+                    FixtureGeometry::admit((0..3).map(|i| [i as f32, 0.0]).collect()).unwrap();
+                let right =
                     FixtureGeometry::admit((0..right_count).map(|i| [i as f32, 1.0]).collect())
-                        .unwrap(),
-                );
-                let full = builder.target([left, right], TargetScope::PerFixture);
-                let subset = builder.target([right], TargetScope::WholeTarget);
+                        .unwrap();
+                builder.fixture(0, left.clone());
+                builder.fixture(1, right.clone());
+                let full = builder.target(&TargetGeometry::new(
+                    [(0, &left), (1, &right)],
+                    TargetScope::PerFixture,
+                ));
+                let subset = builder.target(&TargetGeometry::new(
+                    [(1, &right)],
+                    TargetScope::WholeTarget,
+                ));
                 let port = builder.port(0, 0);
                 builder.route(port, full, OutputEncoding::Rgb(RgbOrder::Rgb), None);
-                let effect = builder.sample(&source, builder.whole_sequence(), subset);
+                let effect = builder.clip(
+                    None,
+                    &source,
+                    SampleTime::from_ticks(0),
+                    SampleDuration::from_ticks(4_000_000),
+                    subset,
+                );
                 let layer = builder.layer(true, [effect]);
                 let signal = builder.operator(op, |_| layer);
-                builder.output(Some(signal))
+                Some(signal)
             })
         };
         assert_same_playback(
@@ -106,7 +105,7 @@ fn strips_preserve_local_and_subset_target_addressing() {
 #[test]
 fn literal_colors_render_as_runtime_expressions() {
     let expression = "mix(invert(rgb(0.25, -0.2, 1.5)), hsv(0.4, 0.7, 0.8), amount) * amount";
-    let dynamic = compile_effect(&format!(
+    let dynamic = compile(&format!(
         "effect Color {{ param amount: float in -1.0..2.0 = 0.0; sample {{ {expression} }} }}"
     ));
     for (literal, amount) in [
@@ -115,14 +114,15 @@ fn literal_colors_render_as_runtime_expressions() {
         ("1.5", 1.5),
         ("0.0 / 0.0", f32::NAN),
     ] {
-        let folded = compile_effect(&format!(
+        let folded = compile(&format!(
             "effect Color {{ sample {{ let amount = {literal}; {expression} }} }}"
         ));
         let instance = bind(&folded, &[]).instance(Default::default());
-        let constant =
-            instance
-                .sample()
-                .evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default());
+        let constant = playback::bind(&instance).evaluate(
+            &context(8, 3, 0),
+            &SPATIAL,
+            &mut StripWorkspace::default(),
+        );
         let runtime = runtime_effect(&dynamic, &[], &[("amount", Value::Float(amount))]);
         assert_eq!(
             runtime
@@ -132,8 +132,7 @@ fn literal_colors_render_as_runtime_expressions() {
             "{literal}"
         );
         if !amount.is_nan() {
-            let prepared =
-                playback::lower_sample(&bind(&dynamic, &[("amount", Value::Float(amount))]));
+            let prepared = playback::lower(&bind(&dynamic, &[("amount", Value::Float(amount))]));
             assert_eq!(
                 prepared.evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default()),
                 constant,
@@ -143,7 +142,7 @@ fn literal_colors_render_as_runtime_expressions() {
     }
 }
 
-fn assert_same_pixels(actual: &SampleInvocation, expected: &SampleInvocation, what: &str) {
+fn assert_same_pixels(actual: &BoundProgram, expected: &BoundProgram, what: &str) {
     for pixel in [0, 1, 4, 31] {
         for frame in [0, 1, 17] {
             let context = context(32, pixel, frame);
@@ -156,8 +155,8 @@ fn assert_same_pixels(actual: &SampleInvocation, expected: &SampleInvocation, wh
     }
 }
 
-fn divides(invocation: &SampleInvocation) -> bool {
-    invocation.program().bytecode().instructions().any(|op| {
+fn divides(invocation: &BoundProgram) -> bool {
+    invocation.program().bytecode.instructions().any(|op| {
         matches!(
             op,
             Instruction::FloatBinary {
@@ -170,7 +169,7 @@ fn divides(invocation: &SampleInvocation) -> bool {
 
 #[test]
 fn prepared_values_share_programs_and_keep_runtime_inputs() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Prepared {
             param width: float in -1.0..2.0 = 0.3;
             param gain: float in 0.0..1.0 = 0.5;
@@ -180,7 +179,7 @@ fn prepared_values_share_programs_and_keep_runtime_inputs() {
             }
         }",
     );
-    let mut previous: Option<SampleInvocation> = None;
+    let mut previous: Option<BoundProgram> = None;
     for width in [-0.4, 0.0, 0.2, 2.0] {
         let fixed = [("width", Value::Float(width))];
         for gain in [0.0, 0.25, 1.3] {
@@ -206,17 +205,16 @@ fn prepared_values_share_programs_and_keep_runtime_inputs() {
 
 #[test]
 fn fixed_divisors_become_prepared_reciprocals_that_share_programs() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Divide { param divisor: float in -10.0..10.0 = 3.0; sample {
             let value = sum for i in 0..pixel.index % 4 { pixel.fraction / divisor };
             if pixel.index % 2 == 0 { rgb(value_or(value, 0.7), 0.0, 0.0) }
             else { rgb(value_or(pixel.fraction / divisor, 0.7), 0.0, 0.0) }
         } }",
     );
-    let mut previous: Option<SampleInvocation> = None;
+    let mut previous: Option<BoundProgram> = None;
     for divisor in [3.0, -7.0, 0.13, 10.0, 1.0e-38, 0.0, -0.0, f32::from_bits(1)] {
-        let prepared =
-            playback::lower_sample(&bind(&effect, &[("divisor", Value::Float(divisor))]));
+        let prepared = playback::lower(&bind(&effect, &[("divisor", Value::Float(divisor))]));
         let exact = runtime_effect(&effect, &[], &[("divisor", Value::Float(divisor))]);
         assert!(divides(&exact));
         let safe = divisor != 0.0 && (1.0 / divisor).is_normal();
@@ -228,8 +226,8 @@ fn fixed_divisors_become_prepared_reciprocals_that_share_programs() {
             previous = Some(prepared.clone());
         }
         for count in COUNTS {
-            let mut actual = chain(count, &prepared, 1, &[]).into_playback();
-            let mut expected = chain(count, &exact, 1, &[]).into_playback();
+            let mut actual = show(count, &prepared, 1, &[]).into_playback();
+            let mut expected = show(count, &exact, 1, &[]).into_playback();
             for ticks in [0, 1, 3_000_000, 7_999_999, 0] {
                 let time = SampleTime::from_ticks(ticks);
                 let actual = actual.evaluate(time);
@@ -258,7 +256,7 @@ fn divisors_left_to_playback_or_varying_per_pixel_keep_division() {
             rgb(value_or(pixel.fraction / current, 0.7), 0.0, 0.0)
         } }",
     ] {
-        let effect = compile_effect(source);
+        let effect = compile(source);
         for divisor in [0.0, 0.3, -2.0, f32::NAN, f32::INFINITY] {
             let runtime = runtime_effect(&effect, &[], &[("divisor", Value::Float(divisor))]);
             assert!(divides(&runtime));
@@ -279,10 +277,8 @@ fn divisors_left_to_playback_or_varying_per_pixel_keep_division() {
                     "divisor={divisor} pixel={pixel}"
                 );
                 if divisor.is_finite() {
-                    let fixed = playback::lower_sample(&bind(
-                        &effect,
-                        &[("divisor", Value::Float(divisor))],
-                    ));
+                    let fixed =
+                        playback::lower(&bind(&effect, &[("divisor", Value::Float(divisor))]));
                     if source.contains("current") {
                         assert!(divides(&fixed));
                     }
@@ -302,7 +298,7 @@ fn divisors_left_to_playback_or_varying_per_pixel_keep_division() {
 
 #[test]
 fn prepared_operators_match_runtime_parameters_across_choices_and_reductions() {
-    let operator = compile_operator(
+    let operator = compile(
         "operator Prepared {
             input source;
             param delay: float in 0.0..1.0 = 0.08;
@@ -316,18 +312,18 @@ fn prepared_operators_match_runtime_parameters_across_choices_and_reductions() {
             }
         }",
     );
-    let prepared = playback::lower_operator(&bind(&operator, &[]));
+    let prepared = playback::lower(&bind(&operator, &[]));
     let runtime = runtime_operator(
         &operator,
         &[],
         &[("delay", Value::Float(0.08)), ("gain", Value::Float(0.4))],
     );
-    assert!(prepared.program().bytecode().code.len() < runtime.program().bytecode().code.len());
+    assert!(prepared.program().bytecode.code.len() < runtime.program().bytecode.code.len());
     let source = effect("effect Source { sample { rgb(pixel.fraction, time * 0.1, progress) } }");
     for count in COUNTS {
         assert_same_playback(
-            chain(count, &source, 2, std::slice::from_ref(&runtime)),
-            chain(count, &source, 2, std::slice::from_ref(&prepared)),
+            show(count, &source, 2, std::slice::from_ref(&runtime)),
+            show(count, &source, 2, std::slice::from_ref(&prepared)),
             &[0, 1, 39_999, 40_000, 90_000, 3_083_333, 0, 7_999_999],
             &format!("count={count}"),
         );
@@ -336,7 +332,7 @@ fn prepared_operators_match_runtime_parameters_across_choices_and_reductions() {
 
 #[test]
 fn fixed_conditions_specialize_while_ordinary_settings_share_programs() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Choice {
             param mode: float in -1.0..1.0 = 1.0;
             param gain: float in 0.0..1.0 = 0.5;
@@ -346,15 +342,15 @@ fn fixed_conditions_specialize_while_ordinary_settings_share_programs() {
         }",
     );
     let prepare = |mode, gain| {
-        playback::lower_sample(&bind(
+        playback::lower(&bind(
             &effect,
             &[("mode", Value::Float(mode)), ("gain", Value::Float(gain))],
         ))
     };
     assert_eq!(prepare(1.0, 0.2).program(), prepare(1.0, 0.8).program());
     assert_ne!(prepare(1.0, 0.2).program(), prepare(-1.0, 0.2).program());
-    assert!(prepare(1.0, 0.2).program().bytecode().uses_pixel_context());
-    assert!(!prepare(-1.0, 0.2).program().bytecode().uses_pixel_context());
+    assert!(prepare(1.0, 0.2).program().bytecode.uses_pixel_context());
+    assert!(!prepare(-1.0, 0.2).program().bytecode.uses_pixel_context());
     for (mode, gain) in [(1.0, 0.2), (-1.0, 0.2), (0.0, 0.8)] {
         let reference = runtime_effect(
             &effect,
@@ -365,7 +361,7 @@ fn fixed_conditions_specialize_while_ordinary_settings_share_programs() {
     }
 
     // A choice fixed as a whole is computed, so it does not multiply programs.
-    let whole = compile_effect(
+    let whole = compile(
         "effect Whole {
             param mode: float in -1.0..1.0 = 1.0;
             param gain: float in 0.0..1.0 = 0.5;
@@ -374,7 +370,7 @@ fn fixed_conditions_specialize_while_ordinary_settings_share_programs() {
     );
     let programs: Vec<_> = [-1.0, 1.0]
         .map(|mode| {
-            playback::lower_sample(&bind(&whole, &[("mode", Value::Float(mode))]))
+            playback::lower(&bind(&whole, &[("mode", Value::Float(mode))]))
                 .program()
                 .clone()
         })
@@ -384,7 +380,7 @@ fn fixed_conditions_specialize_while_ordinary_settings_share_programs() {
 
 #[test]
 fn specialized_branches_keep_runtime_parameters() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Bound {
             param reverse: bool = true;
             param gain: float in 0.0..1.0 = 0.5;
@@ -410,7 +406,7 @@ fn specialized_branches_keep_runtime_parameters() {
 #[test]
 fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
     use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
-    let effect = compile_effect(
+    let effect = compile(
         "effect Samples {
             param shape: curve in -1.0..2.0;
             param colors: gradient;
@@ -448,7 +444,7 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
     };
     for shape in [&curve, &Curve { points: vec![] }] {
         for colors in [&gradient, &Gradient { stops: vec![] }] {
-            let invocation = playback::lower_sample(&bind(
+            let invocation = playback::lower(&bind(
                 &effect,
                 &[
                     ("shape", Value::Curve(shape.clone().into())),
@@ -457,7 +453,7 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
             ));
             // The samples at the query's progress run once per query; the
             // clamps by pixel bounds run per strip, so nothing is fused.
-            let bytecode = invocation.program().bytecode();
+            let bytecode = &invocation.program().bytecode;
             let query: Vec<_> = instructions(bytecode.query()).collect();
             assert!(query.iter().any(|op| matches!(
                 op,
@@ -479,7 +475,7 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
                 instructions(bytecode.body()).any(|op| matches!(op, Instruction::Clamp { .. }))
             );
             for count in COUNTS {
-                let mut playback = chain(count, &invocation, 1, &[]).into_playback();
+                let mut playback = show(count, &invocation, 1, &[]).into_playback();
                 for ticks in [0, 1, 3_000_000, 7_999_999, 0] {
                     let output = playback.evaluate(SampleTime::from_ticks(ticks));
                     for (pixel, &actual) in output.colors().iter().enumerate() {
@@ -522,7 +518,7 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
 #[test]
 fn target_blocks_rerun_when_the_target_shape_changes() {
     use donder_runtime_types::{Color, Gradient, GradientStop};
-    let effect = compile_effect(
+    let effect = compile(
         "effect Target { param colors: gradient; sample {
             guard pixel.index >= 0;
             colors[target.max_x * target.count / 9.0]
@@ -540,11 +536,11 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             },
         ],
     };
-    let invocation = playback::lower_sample(&bind(
+    let invocation = playback::lower(&bind(
         &effect,
         &[("colors", Value::Gradient(gradient.clone().into()))],
     ));
-    let bytecode = invocation.program().bytecode();
+    let bytecode = &invocation.program().bytecode;
     // The sample reads only the target, so it runs once per target shape;
     // the guard reads the pixel, so the result is a row.
     let target: Vec<_> = instructions(bytecode.target()).collect();
@@ -556,7 +552,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
     assert!(bytecode.uses_pixel_context());
     let mut workspace = StripWorkspace::default();
     let run = context(9, 0, 0).run;
-    Single::sample(&invocation).with_strip(&run, &mut workspace, |strip| {
+    Single::new(&invocation).with_strip(&run, &mut workspace, |strip| {
         for (pixel, pixel_count, max_x) in [
             (0, 9, 0.0),
             (1, 9, 0.25),
@@ -591,7 +587,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
 
 #[test]
 fn section_reciprocal_preserves_boundaries_and_missing_values() {
-    let effect = compile_effect(
+    let effect = compile(
         "effect Sections {
             param width: float in 0.0..20.0 = 4.0;
             sample { rgb(value_or(section_position(width), 0.75), 0.0, 0.0) }
@@ -601,7 +597,7 @@ fn section_reciprocal_preserves_boundaries_and_missing_values() {
         let runtime = runtime_effect(&effect, &[], &[("width", Value::Float(width))]);
         let fixed = (0.0..=20.0)
             .contains(&width)
-            .then(|| playback::lower_sample(&bind(&effect, &[("width", Value::Float(width))])));
+            .then(|| playback::lower(&bind(&effect, &[("width", Value::Float(width))])));
         for pixel in [0, 1, 3, 4, 7, 8, 14, 15, 19, 20, 57] {
             let normalized = width.max(1.0);
             let position =
@@ -629,7 +625,7 @@ fn previous_frames_persist_between_frames_and_step_once_after_a_seek() {
     // White for the first four frames at 120 frames per second, then black.
     let source = effect("effect Flash { sample { if time < 0.03 { #ffffff } else { #000000 } } }");
     let trail = operator("operator Trail { input source; sample { max(source, previous * 0.5) } }");
-    let mut playback = chain(3, &source, 1, &[trail]).into_playback();
+    let mut playback = show(3, &source, 1, &[trail]).into_playback();
     let white = Color::from_bytes([255, 255, 255]);
     let half = |color| crate::sampling::scale_color(color, 0.5);
     let mut expected = white;

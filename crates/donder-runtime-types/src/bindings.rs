@@ -54,9 +54,6 @@ impl BoundParams {
     pub fn values(&self) -> &[Value] {
         &self.values
     }
-    pub fn iter_values(&self) -> impl Iterator<Item = Value> + '_ {
-        self.values.iter().cloned()
-    }
 
     pub fn accepts_automation(&self, bindings: &[PreparedAutomation]) -> bool {
         bindings.iter().all(|binding| {

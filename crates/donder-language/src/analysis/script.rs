@@ -1,16 +1,16 @@
-//! Script analysis: names resolved over the syntax tree of every declaration
-//! that parses, with the checker's binding types; completion and signature
-//! help read tokens, so they work while the text does not parse.
+//! Script analysis: the names a check of every declaration that parses
+//! declares and resolves; completion and signature help read tokens, so they
+//! work while the text does not parse.
 use super::{
     Completion, CompletionKind, SemanticToken, Signature, SignatureHelp, Symbol, SymbolKind,
     TokenClass, contains,
 };
-use crate::compiler::builtins::{BUILTINS, Builtin, CONTEXT, ContextValue, builtin};
-use crate::compiler::check::resolve_type;
-use crate::compiler::syntax::ast::*;
+use crate::compiler::builtins::{
+    ARRAY_WORD, AT, BUILTINS, Builtin, CONTEXT, ContextValue, ENUM_WORD, Method, NAMED_TYPES,
+    REDUCERS, Reducer, builtin, type_text,
+};
 use crate::compiler::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_with_comments};
 use crate::compiler::{Diagnostic, TextSpan};
-use donder_runtime_types::{Identifier, Type};
 
 /// What a name refers to.
 #[derive(Clone, Copy, Debug)]
@@ -18,8 +18,8 @@ pub enum ScriptTarget {
     Symbol(usize),
     Builtin(&'static Builtin),
     Context(&'static ContextValue),
-    Reducer(&'static str),
-    Method(&'static str),
+    Reducer(&'static Reducer),
+    Method(&'static Method),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -80,14 +80,18 @@ impl ScriptAnalysis {
             ScriptTarget::Context(value) => {
                 format!(
                     "```donder\n{}: {}\n```\n\n{}",
-                    value.name, value.ty, value.summary
+                    value.name,
+                    type_text(&value.ty),
+                    value.summary
                 )
             }
-            ScriptTarget::Reducer(name) => format!(
-                "```donder\n{name} for i in start..end {{ body }}\n```\n\n{}",
-                reducer_summary(name)
+            ScriptTarget::Reducer(reducer) => format!(
+                "```donder\n{} for i in start..end {{ body }}\n```\n\n{}",
+                reducer.name, reducer.summary
             ),
-            ScriptTarget::Method(name) => method_documentation(name).to_string(),
+            ScriptTarget::Method(method) => {
+                format!("```donder\n{}\n```\n\n{}", method.signature, method.summary)
+            }
         }
     }
 }
@@ -96,7 +100,7 @@ fn builtin_documentation(builtin: &Builtin) -> String {
     let signatures = builtin
         .signatures
         .iter()
-        .map(|signature| signature_label(builtin.name, signature))
+        .map(|signature| signature.label(builtin.name))
         .collect::<Vec<_>>()
         .join("\n");
     let mut text = format!("```donder\n{signatures}\n```\n\n{}", builtin.summary);
@@ -110,475 +114,32 @@ fn builtin_documentation(builtin: &Builtin) -> String {
     text
 }
 
-fn signature_label(name: &str, signature: &crate::compiler::builtins::Signature) -> String {
-    format!(
-        "{name}({}) -> {}",
-        signature
-            .args
-            .iter()
-            .map(|(arg, ty)| format!("{arg}: {ty}"))
-            .collect::<Vec<_>>()
-            .join(", "),
-        signature.result
-    )
-}
-
-const REDUCERS: [(&str, &str); 7] = [
-    ("max", "The largest value of the body over the range."),
-    ("min", "The smallest value of the body over the range."),
-    ("sum", "The sum of the body over the range."),
-    ("any", "Whether the body holds for some index."),
-    ("all", "Whether the body holds for every index."),
-    (
-        "first",
-        "The body at the first index whose guards pass, or `else`.",
-    ),
-    (
-        "last",
-        "The body at the last index whose guards pass, or `else`.",
-    ),
-];
-
-fn reducer_summary(name: &str) -> &'static str {
-    REDUCERS
+/// The words that start a type: its names, `enum` and `array`.
+fn type_words() -> impl Iterator<Item = &'static str> {
+    NAMED_TYPES
         .iter()
-        .find(|(reducer, _)| *reducer == name)
-        .map_or("", |(_, summary)| summary)
+        .map(|(name, _)| *name)
+        .chain([ENUM_WORD, ARRAY_WORD])
 }
-
-const METHODS: [(&str, &str, &str); 1] = [(
-    "at",
-    "at(time: float) -> color\nat(time: float, pixel: int) -> color",
-    "The input at another time, at this pixel or another pixel of this fixture.",
-)];
-
-fn method_documentation(name: &str) -> String {
-    METHODS
-        .iter()
-        .find(|(method, ..)| *method == name)
-        .map_or_else(String::new, |(_, signature, summary)| {
-            format!("```donder\n{signature}\n```\n\n{summary}")
-        })
-}
-
-/// A type as scripts spell it.
-pub fn type_text(ty: &Type) -> String {
-    match ty {
-        Type::Void => "void".into(),
-        Type::Int => "int".into(),
-        Type::Float => "float".into(),
-        Type::Bool => "bool".into(),
-        Type::Color => "color".into(),
-        Type::Signal => "signal".into(),
-        Type::Marks => "marks".into(),
-        Type::Curve => "curve".into(),
-        Type::Gradient => "gradient".into(),
-        Type::Array(item) => format!("array<{}>", type_text(item)),
-        Type::Enum(options) => format!(
-            "enum {{ {} }}",
-            options
-                .iter()
-                .map(Identifier::as_str)
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    }
-}
-
-const TYPES: [&str; 9] = [
-    "int", "float", "bool", "color", "curve", "gradient", "marks", "enum", "array",
-];
 
 pub fn analyze_script(source: &str) -> ScriptAnalysis {
-    let diagnostics = match crate::compiler::compile_script(source) {
-        Ok(_) => Vec::new(),
-        Err(diagnostics) => diagnostics,
+    let (module, parse_diagnostics) = crate::compiler::syntax::parse_partial(source);
+    let (checked, names) = crate::compiler::check::check_recording(module, source, true);
+    // The same errors as compiling: syntax first, then checking, then lowering.
+    let diagnostics = if !parse_diagnostics.is_empty() {
+        parse_diagnostics
+    } else {
+        match checked {
+            Ok(definitions) => crate::compiler::lowering_diagnostics(&definitions),
+            Err(diagnostics) => diagnostics,
+        }
     };
-    let (module, _) = crate::compiler::syntax::parse_partial(source);
-    let mut bindings = Vec::new();
-    let _ = crate::compiler::check::check_recording(module.clone(), &mut bindings);
-    let mut walker = Walker {
-        source,
-        symbols: Vec::new(),
-        references: Vec::new(),
-        scopes: Vec::new(),
-        functions: Vec::new(),
-        options: Vec::new(),
-        bindings: &bindings,
-        parent: None,
-    };
-    walker.module(&module);
-    let tokens = semantic_tokens(source, &walker.symbols, &walker.references);
+    let tokens = semantic_tokens(source, &names.symbols, &names.references);
     ScriptAnalysis {
         diagnostics,
-        symbols: walker.symbols,
-        references: walker.references,
+        symbols: names.symbols,
+        references: names.references,
         tokens,
-    }
-}
-
-struct Walker<'a> {
-    source: &'a str,
-    symbols: Vec<Symbol>,
-    references: Vec<ScriptReference>,
-    scopes: Vec<(Identifier, usize)>,
-    functions: Vec<(Identifier, usize)>,
-    /// The current declaration's enum options.
-    options: Vec<(Identifier, usize)>,
-    bindings: &'a [(TextSpan, Type)],
-    parent: Option<usize>,
-}
-
-impl Walker<'_> {
-    fn text(&self, span: TextSpan) -> &str {
-        &self.source[span.start.min(self.source.len())..span.end.min(self.source.len())]
-    }
-
-    fn define(
-        &mut self,
-        name: &Name,
-        kind: SymbolKind,
-        extent: TextSpan,
-        detail: String,
-        description: Option<String>,
-        ty: Option<Type>,
-    ) -> usize {
-        self.symbols.push(Symbol {
-            name: name.name.as_str().to_string(),
-            kind,
-            span: name.span,
-            extent,
-            detail,
-            description,
-            ty,
-            parent: self.parent,
-        });
-        self.symbols.len() - 1
-    }
-
-    fn refer(&mut self, span: TextSpan, target: ScriptTarget) {
-        self.references.push(ScriptReference { span, target });
-    }
-
-    fn module(&mut self, module: &Module) {
-        for function in &module.functions {
-            let args = function
-                .args
-                .iter()
-                .map(|(name, ty)| format!("{}: {}", name.name.as_str(), self.text(ty.span)))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let detail = format!(
-                "fn {}({args}) -> {}",
-                function.name.name.as_str(),
-                self.text(function.result.span)
-            );
-            let symbol = self.define(
-                &function.name,
-                SymbolKind::Function,
-                function.span,
-                detail,
-                function.description.clone(),
-                None,
-            );
-            self.functions.push((function.name.name.clone(), symbol));
-        }
-        for (function, (_, symbol)) in module.functions.iter().zip(self.functions.clone()) {
-            self.parent = Some(symbol);
-            self.options.clear();
-            for (name, ty) in &function.args {
-                let detail = format!("{}: {}", name.name.as_str(), self.text(ty.span));
-                let argument = self.define(
-                    name,
-                    SymbolKind::Argument,
-                    name.span,
-                    detail,
-                    None,
-                    resolve_type(ty).ok(),
-                );
-                self.scopes.push((name.name.clone(), argument));
-            }
-            self.block(&function.body);
-            self.scopes.clear();
-        }
-        for declaration in &module.declarations {
-            self.declaration(declaration);
-        }
-        self.parent = None;
-    }
-
-    fn declaration(&mut self, declaration: &Declaration) {
-        self.parent = None;
-        let (kind, keyword) = match declaration.kind {
-            DeclarationKind::Effect => (SymbolKind::Effect, Keyword::Effect),
-            DeclarationKind::Operator => (SymbolKind::Operator, Keyword::Operator),
-        };
-        let symbol = self.define(
-            &declaration.name,
-            kind,
-            declaration.span,
-            format!("{} {}", keyword.text(), declaration.name.name.as_str()),
-            declaration.description.clone(),
-            None,
-        );
-        self.parent = Some(symbol);
-        self.options.clear();
-        for input in &declaration.inputs {
-            let input_symbol = self.define(
-                input,
-                SymbolKind::Input,
-                input.span,
-                format!("input {}", input.name.as_str()),
-                None,
-                None,
-            );
-            self.scopes.push((input.name.clone(), input_symbol));
-        }
-        for param in &declaration.params {
-            let end = param
-                .default
-                .as_ref()
-                .map(|literal| literal.span)
-                .or(param.range.as_ref().map(|(_, max)| max.span))
-                .unwrap_or(param.ty.span);
-            let detail = format!(
-                "param {}",
-                self.text(TextSpan {
-                    start: param.name.span.start,
-                    end: end.end,
-                })
-            );
-            let param_symbol = self.define(
-                &param.name,
-                SymbolKind::Param,
-                param.name.span.to(end),
-                detail,
-                param.description.clone(),
-                resolve_type(&param.ty).ok(),
-            );
-            self.scopes.push((param.name.name.clone(), param_symbol));
-            let parent = self.parent.replace(param_symbol);
-            let mut options = Vec::new();
-            if let TypeKind::Enum(names) = &param.ty.kind {
-                for option in names {
-                    let detail = format!(
-                        "{} (an option of `{}`)",
-                        option.name.as_str(),
-                        param.name.name.as_str()
-                    );
-                    let option_symbol = self.define(
-                        option,
-                        SymbolKind::EnumOption,
-                        option.span,
-                        detail,
-                        None,
-                        None,
-                    );
-                    options.push((option.name.clone(), option_symbol));
-                }
-            }
-            self.parent = parent;
-            if let Some(Literal {
-                kind: LiteralKind::Name(name),
-                span,
-            }) = &param.default
-                && let Some((_, option)) = options.iter().find(|(option, _)| option == name)
-            {
-                self.refer(*span, ScriptTarget::Symbol(*option));
-            }
-            self.options.extend(options);
-        }
-        if let Some(sample) = &declaration.sample {
-            self.block(sample);
-        }
-        self.scopes.clear();
-    }
-
-    fn block(&mut self, block: &Block) {
-        let depth = self.scopes.len();
-        for statement in &block.statements {
-            match statement {
-                Statement::Let { name, ty, value } => {
-                    self.expr(value);
-                    let (text, ty) = match ty {
-                        Some(ty) => (Some(self.text(ty.span).to_string()), resolve_type(ty).ok()),
-                        None => {
-                            let inferred = self
-                                .bindings
-                                .iter()
-                                .find(|(span, _)| *span == name.span)
-                                .map(|(_, ty)| ty.clone());
-                            (inferred.as_ref().map(type_text), inferred)
-                        }
-                    };
-                    let detail = match text {
-                        Some(text) => format!("let {}: {text}", name.name.as_str()),
-                        None => format!("let {}", name.name.as_str()),
-                    };
-                    let symbol = self.define(name, SymbolKind::Let, name.span, detail, None, ty);
-                    self.scopes.push((name.name.clone(), symbol));
-                }
-                Statement::Guard {
-                    condition,
-                    otherwise,
-                    ..
-                } => {
-                    self.expr(condition);
-                    if let Some(otherwise) = otherwise {
-                        self.expr(otherwise);
-                    }
-                }
-            }
-        }
-        self.expr(&block.result);
-        self.scopes.truncate(depth);
-    }
-
-    fn name(&mut self, name: &Identifier, span: TextSpan) {
-        if let Some((_, symbol)) = self.scopes.iter().rev().find(|(bound, _)| bound == name) {
-            self.refer(span, ScriptTarget::Symbol(*symbol));
-        } else if let Some((_, option)) = self.options.iter().find(|(option, _)| option == name) {
-            self.refer(span, ScriptTarget::Symbol(*option));
-        } else if let Some(value) = CONTEXT.iter().find(|value| value.name == name.as_str()) {
-            self.refer(span, ScriptTarget::Context(value));
-        }
-    }
-
-    fn expr(&mut self, expr: &Expr) {
-        match &expr.kind {
-            ExprKind::Literal(_) => {}
-            ExprKind::Name(name) => self.name(name, expr.span),
-            ExprKind::Field(target, field) => {
-                if let ExprKind::Name(scope) = &target.kind
-                    && let Some(value) = CONTEXT.iter().find(|value| {
-                        value.name.split_once('.') == Some((scope.as_str(), field.name.as_str()))
-                    })
-                {
-                    self.refer(target.span, ScriptTarget::Context(value));
-                    self.refer(field.span, ScriptTarget::Context(value));
-                } else {
-                    self.expr(target);
-                }
-            }
-            ExprKind::Call(name, args) => {
-                if let Some((_, function)) = self
-                    .functions
-                    .iter()
-                    .find(|(function, _)| *function == name.name)
-                {
-                    self.refer(name.span, ScriptTarget::Symbol(*function));
-                } else if let Some(builtin) = builtin(name.name.as_str()) {
-                    self.refer(name.span, ScriptTarget::Builtin(builtin));
-                }
-                for arg in args {
-                    self.expr(arg);
-                }
-            }
-            ExprKind::Method(target, method, args) => {
-                self.expr(target);
-                if let Some((name, ..)) = METHODS
-                    .iter()
-                    .find(|(name, ..)| *name == method.name.as_str())
-                {
-                    self.refer(method.span, ScriptTarget::Method(name));
-                }
-                for arg in args {
-                    self.expr(arg);
-                }
-            }
-            ExprKind::Index(target, index) => {
-                self.expr(target);
-                self.expr(index);
-            }
-            ExprKind::Unary(_, operand) => self.expr(operand),
-            ExprKind::Binary(_, left, right) => {
-                self.expr(left);
-                self.expr(right);
-            }
-            ExprKind::If(condition, then, otherwise) => {
-                self.expr(condition);
-                self.block(then);
-                self.expr(otherwise);
-            }
-            ExprKind::Array(items) => {
-                for item in items {
-                    self.expr(item);
-                }
-            }
-            ExprKind::Reduce(reduction) => {
-                let (name, _) = REDUCERS[reducer_index(reduction.reducer)];
-                self.refer(
-                    TextSpan {
-                        start: expr.span.start,
-                        end: expr.span.start + name.len(),
-                    },
-                    ScriptTarget::Reducer(name),
-                );
-                self.expr(&reduction.start);
-                self.expr(&reduction.end);
-                let depth = self.scopes.len();
-                if let Some(around) = &reduction.around {
-                    self.name(&around.input.name, around.input.span);
-                    if let Some(neighbor) = &around.neighbor {
-                        let detail = format!("{}: color", neighbor.name.as_str());
-                        let symbol = self.define(
-                            neighbor,
-                            SymbolKind::Let,
-                            neighbor.span,
-                            detail,
-                            None,
-                            Some(Type::Color),
-                        );
-                        self.scopes.push((neighbor.name.clone(), symbol));
-                    }
-                }
-                let index = self.define(
-                    &reduction.index,
-                    SymbolKind::Index,
-                    reduction.index.span,
-                    format!("{}: int", reduction.index.name.as_str()),
-                    None,
-                    Some(Type::Int),
-                );
-                self.scopes.push((reduction.index.name.clone(), index));
-                self.block(&reduction.body);
-                self.scopes.truncate(depth);
-                if let Some(otherwise) = &reduction.otherwise {
-                    self.block(otherwise);
-                }
-            }
-            ExprKind::Scan(scan) => {
-                self.name(&scan.input.name, scan.input.span);
-                let depth = self.scopes.len();
-                for name in [&scan.light, &scan.previous] {
-                    let detail = format!("{}: color", name.name.as_str());
-                    let symbol = self.define(
-                        name,
-                        SymbolKind::Let,
-                        name.span,
-                        detail,
-                        None,
-                        Some(Type::Color),
-                    );
-                    self.scopes.push((name.name.clone(), symbol));
-                }
-                self.block(&scan.body);
-                self.scopes.truncate(depth);
-            }
-            ExprKind::Block(block) => self.block(block),
-        }
-    }
-}
-
-fn reducer_index(reducer: ReducerKind) -> usize {
-    match reducer {
-        ReducerKind::Max => 0,
-        ReducerKind::Min => 1,
-        ReducerKind::Sum => 2,
-        ReducerKind::Any => 3,
-        ReducerKind::All => 4,
-        ReducerKind::First => 5,
-        ReducerKind::Last => 6,
     }
 }
 
@@ -634,7 +195,7 @@ fn semantic_tokens(
                     }
                 } else if member_word(&tokens, index, text) {
                     TokenClass::Keyword
-                } else if TYPES.contains(&text) {
+                } else if type_words().any(|word| word == text) {
                     TokenClass::Type
                 } else {
                     TokenClass::Variable
@@ -751,10 +312,10 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
         let fields = CONTEXT
             .iter()
             .filter_map(|value| {
-                let (owner, field) = value.name.split_once('.')?;
+                let (owner, field) = value.field()?;
                 (owner == scope).then(|| {
                     Completion::new(field, CompletionKind::Field)
-                        .detail(value.ty)
+                        .detail(type_text(&value.ty))
                         .documentation(value.summary)
                 })
             })
@@ -762,20 +323,16 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
         if !fields.is_empty() {
             return fields;
         }
-        return METHODS
-            .iter()
-            .map(|(name, signature, summary)| {
-                Completion::new(*name, CompletionKind::Function)
-                    .detail(*signature)
-                    .documentation(*summary)
-            })
-            .collect();
+        return vec![
+            Completion::new(AT.name, CompletionKind::Function)
+                .detail(AT.signature)
+                .documentation(AT.summary),
+        ];
     }
     // A type after `:` in a parameter, a `let` or an argument.
     if previous.is_some_and(|token| token.kind == TokenKind::Colon) {
-        return TYPES
-            .iter()
-            .map(|ty| Completion::new(*ty, CompletionKind::Type))
+        return type_words()
+            .map(|ty| Completion::new(ty, CompletionKind::Type))
             .collect();
     }
     let Some((keyword, tokens)) = context.enclosing() else {
@@ -897,27 +454,32 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
     for builtin in BUILTINS {
         completions.push(
             Completion::new(builtin.name, CompletionKind::Function)
-                .detail(signature_label(builtin.name, &builtin.signatures[0]))
+                .detail(builtin.signatures[0].label(builtin.name))
                 .documentation(builtin.summary),
         );
     }
-    for value in CONTEXT.iter().filter(|value| !value.name.contains('.')) {
+    for value in CONTEXT.iter().filter(|value| value.field().is_none()) {
         completions.push(
             Completion::new(value.name, CompletionKind::Variable)
-                .detail(value.ty)
+                .detail(type_text(&value.ty))
                 .documentation(value.summary),
         );
     }
-    for scope in ["pixel", "target"] {
-        completions.push(Completion::new(scope, CompletionKind::Variable).detail("context"));
+    let mut scopes = Vec::new();
+    for (scope, _) in CONTEXT.iter().filter_map(ContextValue::field) {
+        if !scopes.contains(&scope) {
+            scopes.push(scope);
+            completions.push(Completion::new(scope, CompletionKind::Variable).detail("context"));
+        }
     }
-    for (reducer, summary) in REDUCERS {
+    for reducer in REDUCERS {
+        let name = reducer.name;
         completions.push(
-            Completion::new(reducer, CompletionKind::Snippet)
-                .detail(format!("{reducer} for i in 0..n {{ ... }}"))
-                .documentation(summary)
+            Completion::new(name, CompletionKind::Snippet)
+                .detail(format!("{name} for i in 0..n {{ ... }}"))
+                .documentation(reducer.summary)
                 .insert(format!(
-                    "{reducer} for ${{1:i}} in ${{2:0}}..${{3:n}} {{ $0 }}"
+                    "{name} for ${{1:i}} in ${{2:0}}..${{3:n}} {{ $0 }}"
                 )),
         );
     }
@@ -957,11 +519,11 @@ pub fn script_signature(source: &str, offset: usize) -> Option<SignatureHelp> {
                         .signatures
                         .iter()
                         .map(|signature| Signature {
-                            label: signature_label(builtin.name, signature),
+                            label: signature.label(builtin.name),
                             parameters: signature
                                 .args
                                 .iter()
-                                .map(|(arg, ty)| format!("{arg}: {ty}"))
+                                .map(|(arg, ty)| format!("{arg}: {}", ty.text()))
                                 .collect(),
                             documentation: Some(builtin.summary.to_string()),
                         })

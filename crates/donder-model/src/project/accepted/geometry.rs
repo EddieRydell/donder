@@ -2,7 +2,7 @@
 //! rediscovered while preparing a selected sequence.
 use super::DonderProject;
 use crate::layout::{FixtureInstanceId, LayoutId};
-use crate::validation::ProjectValidationError;
+use crate::validation::{AdmissionProblem, ProjectValidationError, ValidationProblem, at};
 use donder_runtime_types::FixtureGeometry;
 use indexmap::IndexMap;
 use std::sync::Arc;
@@ -14,29 +14,31 @@ pub(super) fn admit(
     previous: Option<&DonderProject>,
 ) -> Result<IndexMap<LayoutId, LayoutGeometry>, ProjectValidationError> {
     let previous = previous.filter(|previous| {
-        let fixtures = &project.definitions().fixtures;
-        let previous_fixtures = &previous.definitions().fixtures;
+        let fixtures = project.reusable::<crate::FixtureDefinition>();
+        let previous_fixtures = previous.reusable::<crate::FixtureDefinition>();
         std::ptr::eq(fixtures, previous_fixtures) || fixtures == previous_fixtures
     });
     // Sequence-only edits need neither definition expansion nor transformed
     // coordinates. Prepare definitions lazily, once a layout needs new geometry.
     let mut definitions = None;
     project
-        .layouts()
+        .objects::<crate::Layout>()
         .map(|layout| {
             if let Some(previous) = previous
-                && previous.layout(&layout.id).is_some_and(|previous_layout| {
-                    std::ptr::eq(layout, previous_layout) || layout == previous_layout
-                })
+                && previous
+                    .get::<crate::Layout>(layout.id)
+                    .is_some_and(|previous_layout| {
+                        std::ptr::eq(layout, previous_layout) || layout == previous_layout
+                    })
             {
                 return Ok((
-                    layout.id.clone(),
+                    layout.id,
                     Arc::clone(&previous.accepted_inputs.layouts[&layout.id]),
                 ));
             }
             let definitions = definitions.get_or_insert_with(|| {
                 crate::geometry::PreparedFixtureDefinitions::prepare(
-                    &project.definitions().fixtures,
+                    project.reusable::<crate::FixtureDefinition>(),
                 )
             });
             let geometry = definitions.prepare_layout(layout);
@@ -52,16 +54,14 @@ pub(super) fn admit(
                             [point.x, point.y]
                         })
                         .collect();
-                    let geometry = FixtureGeometry::admit(positions).ok_or_else(|| {
-                        ProjectValidationError::InvalidRelationship(
-                            "Transformed fixture geometry is outside the playback coordinate range"
-                                .into(),
-                        )
-                    })?;
+                    let geometry = FixtureGeometry::admit(positions).ok_or(
+                        ValidationProblem::Admission(AdmissionProblem::GeometryOutOfRange),
+                    )?;
                     Ok((instance.id, geometry))
                 })
-                .collect::<Result<LayoutGeometry, ProjectValidationError>>()?;
-            Ok((layout.id.clone(), fixtures))
+                .collect::<Result<LayoutGeometry, ValidationProblem>>()
+                .map_err(at(layout.id))?;
+            Ok((layout.id, fixtures))
         })
         .collect()
 }

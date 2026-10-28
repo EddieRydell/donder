@@ -6,15 +6,11 @@ use super::{
     DesktopState, FsEntryKind, LoadedProject, absolute_project_path, absolute_root_path,
     descriptor_for_path, lock_unpoisoned, path_matches_or_is_child, valid_child_name,
 };
-use crate::persistence::{
-    PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate,
-    PersistedSequenceViewportStateUpdate, PersistedSpatialViewStateUpdate, ProjectRestoreState,
-};
+use crate::persistence::ProjectRestoreState;
 use crate::project::{new_project_files, write_new_project_files};
-use donder_sequence_api::{AppSnapshot, EditorViewMode, NewSequenceRequest};
-use donder_sequence_api::{
-    WorkspaceExplorerState, WorkspacePathChangeImpact, WorkspacePathChangePlan,
-    WorkspacePathChangeRequest,
+use donder_editor::dto::{AppSnapshot, EditorViewMode, NewSequenceRequest, ViewStateUpdate};
+use donder_editor::dto::{
+    WorkspacePathChangeImpact, WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
 
 impl DesktopState {
@@ -34,61 +30,40 @@ impl DesktopState {
         self.load_working_copy(root)
     }
 
-    pub fn save_editor_view_state(&self, update: PersistedEditorViewStateUpdate) -> AppSnapshot {
+    /// Keep one piece of view state: the workbench layout and explorer in the
+    /// snapshot, an editor's state with the open project.
+    pub fn save_view_state(&self, update: ViewStateUpdate) -> AppSnapshot {
         let snapshot = self.snapshot();
-        let Some(project_root) = snapshot.project_root.clone() else {
-            return snapshot;
-        };
-        match self.persistence.record_editor_state(&project_root, update) {
-            Ok(()) => snapshot,
-            Err(error) => {
-                self.set_persistence_error(format!("Editor state was not saved: {error}"))
+        let result = match (update, snapshot.project_root.as_deref()) {
+            (ViewStateUpdate::WorkspaceLayout(state), _) => {
+                return self.save_workspace_layout_state(state);
             }
-        }
-    }
-
-    pub fn save_sequence_viewport_state(
-        &self,
-        update: PersistedSequenceViewportStateUpdate,
-    ) -> AppSnapshot {
-        let snapshot = self.snapshot();
-        let Some(project_root) = snapshot.project_root.clone() else {
-            return snapshot;
-        };
-        match self
-            .persistence
-            .record_sequence_viewport(&project_root, update)
-        {
-            Ok(()) => snapshot,
-            Err(error) => {
-                self.set_persistence_error(format!("Sequence view state was not saved: {error}"))
+            (ViewStateUpdate::WorkspaceExplorer(state), _) => {
+                return self.update_snapshot(|snapshot| {
+                    snapshot.workspace_explorer = state;
+                });
             }
-        }
-    }
-
-    pub fn save_graph_view_state(&self, update: PersistedGraphViewStateUpdate) -> AppSnapshot {
-        let snapshot = self.snapshot();
-        let Some(project_root) = snapshot.project_root.as_deref() else {
-            return snapshot;
+            (_, None) => return snapshot,
+            (ViewStateUpdate::Editor(update), Some(root)) => self
+                .persistence
+                .record_editor_state(root, update)
+                .map_err(|error| format!("Editor state was not saved: {error}")),
+            (ViewStateUpdate::SequenceViewport(update), Some(root)) => self
+                .persistence
+                .record_sequence_viewport(root, update)
+                .map_err(|error| format!("Sequence view state was not saved: {error}")),
+            (ViewStateUpdate::Graph(update), Some(root)) => self
+                .persistence
+                .record_graph_view(root, update)
+                .map_err(|error| format!("Graph view state was not saved: {error}")),
+            (ViewStateUpdate::Spatial(update), Some(root)) => self
+                .persistence
+                .record_spatial_view(root, update)
+                .map_err(|error| format!("Spatial view state was not saved: {error}")),
         };
-        match self.persistence.record_graph_view(project_root, update) {
+        match result {
             Ok(()) => snapshot,
-            Err(error) => {
-                self.set_persistence_error(format!("Graph view state was not saved: {error}"))
-            }
-        }
-    }
-
-    pub fn save_spatial_view_state(&self, update: PersistedSpatialViewStateUpdate) -> AppSnapshot {
-        let snapshot = self.snapshot();
-        let Some(project_root) = snapshot.project_root.as_deref() else {
-            return snapshot;
-        };
-        match self.persistence.record_spatial_view(project_root, update) {
-            Ok(()) => snapshot,
-            Err(error) => {
-                self.set_persistence_error(format!("Spatial view state was not saved: {error}"))
-            }
+            Err(message) => self.set_persistence_error(message),
         }
     }
 
@@ -114,16 +89,12 @@ impl DesktopState {
         let source_document = project
             .as_ref()
             .and_then(|project| donder_editor::document_for_editor_path(project, &relative));
-        let read_only = match (&project, &source_document) {
-            (Some(project), Some(document)) => !project.source.is_project_owned(document),
-            _ => false,
-        };
         let known = lock_unpoisoned(&self.workspace)
             .documents
             .contains_key(&relative);
         if !known {
             let absolute = match (&project, &source_document) {
-                (Some(project), Some(document)) => project.source.absolute_path(document),
+                (Some(project), Some(document)) => Some(project.source.absolute_path(document)),
                 _ => absolute_root_path(&root, &relative),
             };
             let Some(absolute) = absolute else {
@@ -135,8 +106,7 @@ impl DesktopState {
                     return self.snapshot_with_error("file.open", path, &error.to_string());
                 }
             };
-            let mut document = super::workspace_state::WorkingDocument::new(&relative, text);
-            document.buffer.read_only = read_only;
+            let document = super::workspace_state::WorkingDocument::new(&relative, text);
             lock_unpoisoned(&self.workspace)
                 .documents
                 .insert(relative.clone(), document);
@@ -162,12 +132,6 @@ impl DesktopState {
                 .retain(|item| Utf8Path::new(item) != Utf8Path::new(&path));
             snapshot.workspace_explorer.recent_files.insert(0, path);
             snapshot.workspace_explorer.recent_files.truncate(20);
-        })
-    }
-
-    pub fn save_workspace_explorer_state(&self, state: WorkspaceExplorerState) -> AppSnapshot {
-        self.update_snapshot(|snapshot| {
-            snapshot.workspace_explorer = state;
         })
     }
 
@@ -303,11 +267,10 @@ impl DesktopState {
                 .map(|path| Utf8PathBuf::from(remap(path.as_str())))
                 .collect();
             workspace.view.active_file = workspace.view.active_file.as_deref().map(remap);
-            workspace.render_target = workspace.render_target.as_ref().map(|(setup, sequence)| {
-                (
-                    donder_model::SetupId(plan.remap_object_identity(&setup.0)),
-                    donder_model::SequenceId(plan.remap_object_identity(&sequence.0)),
-                )
+            // A move keeps every id; the target follows its objects to their new addresses.
+            workspace.render_target = workspace.render_target.as_ref().and_then(|target| {
+                let (setup, sequence) = target.resolve(&project)?;
+                super::workspace_state::RenderTarget::new(&candidate, setup, sequence)
             });
             workspace.view.project_revision += 1;
             workspace.view.state_revision += 1;
@@ -317,7 +280,7 @@ impl DesktopState {
             } else {
                 workspace.typed_revision = None;
                 workspace.project = LoadedProject::Invalid;
-                workspace.view.project_health = donder_sequence_api::ProjectHealth::Invalid;
+                workspace.view.project_health = donder_editor::dto::ProjectHealth::Invalid;
                 workspace.view.settings.editor_view_mode = EditorViewMode::Text;
             }
         }
@@ -410,7 +373,7 @@ impl DesktopState {
                 return self.update_snapshot(|snapshot| {
                     snapshot.settings.editor_view_mode = EditorViewMode::Text;
                     snapshot.workspace_layout.active_sidebar_view =
-                        donder_sequence_api::SidebarView::Problems;
+                        donder_editor::dto::SidebarView::Problems;
                     snapshot.workspace_layout.sidebar_collapsed = false;
                     snapshot.status = "Fix the project errors before entering GUI".into();
                 });
@@ -472,7 +435,13 @@ impl DesktopState {
             let Some(original_root) = self.project_root_path() else {
                 return self.snapshot_with_error("project.copy", parent_path, "No project is open");
             };
-            match donder_project_io::load_project(&original_root) {
+            match donder_project_io::check_project(
+                &original_root,
+                &Default::default(),
+                &mut Default::default(),
+            )
+            .into_session()
+            {
                 Ok(loaded) => std::sync::Arc::new(loaded),
                 Err(error) => {
                     return self.snapshot_with_error(
@@ -521,16 +490,17 @@ impl DesktopState {
     pub fn create_sequence(
         &self,
         request: NewSequenceRequest,
-    ) -> Result<donder_sequence_api::NewSequenceResult, String> {
+    ) -> Result<donder_editor::dto::NewSequenceResult, String> {
         let _authoring = self.settled_authoring();
         let project = self.project_session().ok_or("No project is loaded.")?;
-        let owner = &project.project.root().id.0;
-        let target = donder_sequence_api::GuiDocumentRequest {
+        let owner = project
+            .source_identity(project.project.root().id.into())
+            .ok_or("The project is missing from the source inventory.")?;
+        let target = donder_editor::dto::GuiDocumentRequest {
             owned_path: Vec::new(),
             project_revision: self.snapshot().project_revision,
             path: owner.document().to_string(),
-            object_key: Some(owner.object().to_string()),
-            view: donder_sequence_api::DocumentViewId::Project,
+            object_key: owner.object().to_string(),
         };
         let (result, source) = self
             .mutate_gui_project_locked(&target, |session| {
@@ -538,8 +508,8 @@ impl DesktopState {
                     .map_err(donder_editor::GuiMutationError::Invalid)?;
                 donder_editor::create_sequence(session, &owner, request)
             })
-            .map_err(|error| error.message().to_string())?;
-        Ok(donder_sequence_api::NewSequenceResult {
+            .map_err(|error| error.message())?;
+        Ok(donder_editor::dto::NewSequenceResult {
             snapshot: result.snapshot,
             source,
         })

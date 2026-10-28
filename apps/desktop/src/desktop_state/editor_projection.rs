@@ -1,9 +1,6 @@
 use camino::Utf8Path;
+use donder_editor::dto::{DocumentDescriptor, DocumentObjectDescriptor};
 use donder_project_io::{DocumentTextCache, ProjectSession, source_document_texts};
-use donder_sequence_api::{
-    DocumentDefaultObjectKey, DocumentDescriptor, DocumentObjectDescriptor, DocumentViewId,
-    ObjectKind,
-};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The canonical text of each project document at `paths`. `cache` keeps
@@ -40,50 +37,26 @@ pub(crate) fn descriptor_for_path(
 ) -> Option<DocumentDescriptor> {
     let document = donder_editor::document_for_editor_path(session, path)
         .and_then(|id| session.source.documents.get(&id));
-    let objects: Vec<_> = document
-        .into_iter()
-        .flat_map(|document| document.objects())
-        .map(|object| DocumentObjectDescriptor {
-            key: object.id().to_string(),
-            kind: ObjectKind::from(object.kind()),
-        })
-        .collect();
-    let mut default_object_keys: Vec<_> = objects
+    let descriptor = |object: &donder_project_io::DeclaredObject| DocumentObjectDescriptor {
+        key: object.name().as_str().to_string(),
+        kind: object.kind().into(),
+    };
+    let objects = document
+        .map(|document| document.objects())
+        .unwrap_or_default();
+    let mut gui_objects: Vec<_> = objects
         .iter()
         .filter_map(|object| {
-            object
-                .kind
-                .document_view()
-                .map(|view| DocumentDefaultObjectKey {
-                    view,
-                    object_key: object.key.clone(),
-                })
+            donder_editor::gui_editor_order(object.kind()).map(|order| (order, object))
         })
         .collect();
-    default_object_keys.sort_by_key(|object| match object.view {
-        DocumentViewId::Project => 0,
-        DocumentViewId::Sequence => 1,
-        DocumentViewId::Rig => 2,
-        DocumentViewId::Setup => 3,
-        DocumentViewId::Layout => 4,
-        DocumentViewId::Fixture => 5,
-        DocumentViewId::Patch => 6,
-        DocumentViewId::Controller => 7,
-        DocumentViewId::InputDevice => 8,
-        DocumentViewId::Curve => 9,
-        DocumentViewId::Gradient => 10,
-        DocumentViewId::Text => 11,
-    });
-    let mut available_views = vec![DocumentViewId::Text];
-    for object in &default_object_keys {
-        if !available_views.contains(&object.view) {
-            available_views.push(object.view.clone());
-        }
-    }
+    gui_objects.sort_by_key(|(order, _)| *order);
     Some(DocumentDescriptor {
         path: path.to_string(),
-        objects,
-        available_views,
-        default_object_keys,
+        objects: objects.iter().map(descriptor).collect(),
+        gui_objects: gui_objects
+            .into_iter()
+            .map(|(_, object)| descriptor(object))
+            .collect(),
     })
 }

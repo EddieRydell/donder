@@ -1,21 +1,15 @@
-use donder_language::compiler::{CompiledOperator, compile_operators};
-use donder_model::SourceIdentity;
+use donder_language::compiler::{CompiledDefinition, compile_script};
 use donder_model::{
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
     GraphNodePosition, GraphPortId, SequenceId,
 };
 use donder_model::{DonderProject, ProjectEdit};
-use donder_model::{
-    GraphOperatorNode, OperatorDefinitionId, OperatorRef, custom_operator_definition,
-};
+use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
 
-pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: CompiledOperator) {
-    let definition = OperatorDefinitionId(SourceIdentity::from_document(
-        id.0.root_source().document_id().clone(),
-        compiled.name().as_str().into(),
-    ));
+pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: CompiledDefinition) {
+    let definition = OperatorDefinitionId(project.new_id());
     let input = compiled.inputs()[0].name.as_str().to_owned();
-    let mut sequence = project.sequence(id).unwrap().clone();
+    let mut sequence = project.get::<donder_model::Sequence>(*id).unwrap().clone();
     let graph = &mut sequence.composition_graph;
     let output = graph
         .nodes
@@ -33,15 +27,12 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
     let expression = (1..count).fold("s0".to_owned(), |value, index| {
         format!("max({value}, s{index})")
     });
-    let mixer = compile_operators(&format!(
+    let mixer = compile_script(&format!(
         "operator TestMix {{ {declarations} sample {{ {expression} }} }}"
     ))
     .unwrap()
     .remove(0);
-    let mixer_id = OperatorDefinitionId(SourceIdentity::from_document(
-        id.0.root_source().document_id().clone(),
-        "TestMix".into(),
-    ));
+    let mixer_id = OperatorDefinitionId(project.new_id());
     // Preserve the existing output mix as the new operator's sole input.
     let mix = CompositionGraphNodeId(next);
     let operator = CompositionGraphNodeId(next + 1);
@@ -50,7 +41,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
             node.id = mix.clone();
             node.kind = CompositionGraphNodeKind::Operator(GraphOperatorNode {
                 name: donder_language::object_name("mix"),
-                operator: OperatorRef::Custom(mixer_id.clone()),
+                operator: mixer_id,
                 params: Default::default(),
             });
         }
@@ -70,7 +61,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
             position: GraphNodePosition { x: 0.0, y: 0.0 },
             kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
                 name: donder_language::object_name("operator"),
-                operator: OperatorRef::Custom(definition.clone()),
+                operator: definition,
                 params: Default::default(),
             }),
         },
@@ -96,18 +87,13 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
     ]);
     project
         .apply_edits([
-            ProjectEdit::SetOperatorDefinition {
-                id: mixer_id.clone(),
-                value: custom_operator_definition(mixer_id, mixer),
-            },
-            ProjectEdit::SetOperatorDefinition {
-                id: definition.clone(),
-                value: custom_operator_definition(definition, compiled),
-            },
-            ProjectEdit::ReplaceSequence {
-                id: id.clone(),
-                value: sequence,
-            },
+            ProjectEdit::Put(donder_model::Object::OperatorDefinition(
+                OperatorDefinition::new(mixer_id, mixer),
+            )),
+            ProjectEdit::Put(donder_model::Object::OperatorDefinition(
+                OperatorDefinition::new(definition, compiled),
+            )),
+            ProjectEdit::Put(sequence.into()),
         ])
         .unwrap();
 }

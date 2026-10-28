@@ -1,9 +1,10 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
 use super::{DeviceClient, UploadError};
 use crate::desktop_state::lock_unpoisoned;
-use donder_model::{ControllerId, ControllerPortId, DonderDeviceId, SequenceId};
+use donder_editor::dto::{DeviceOutputCapabilities, DevicePlaybackMode, PlaybackSpeed};
+use donder_model::{ControllerId, ControllerPortId, DonderDeviceId};
+use donder_project_io::ObjectAddress;
 use donder_runtime::PlaybackRate;
-use donder_sequence_api::{DeviceOutputCapabilities, DevicePlaybackMode, PlaybackSpeed};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -152,7 +153,8 @@ impl DeviceClient {
 
 struct Prepared {
     revision: u32,
-    sequence: SequenceId,
+    /// The prepared sequence's address, which outlives reloads.
+    sequence: ObjectAddress,
     bytes: Vec<u8>,
     widths: Vec<u16>,
     frame_rate: u32,
@@ -360,7 +362,7 @@ impl DevicePlaybackService {
     pub(crate) fn stop_for_source(
         &self,
         epoch: u32,
-        sequence: Option<&SequenceId>,
+        sequence: Option<&ObjectAddress>,
     ) -> Result<(), String> {
         let mut core = lock_unpoisoned(&self.shared.core);
         let changed = core.epoch != epoch
@@ -394,7 +396,7 @@ impl DevicePlaybackService {
         &self,
         epoch: u32,
         revision: u32,
-        sequence: &SequenceId,
+        sequence: &ObjectAddress,
         mut compile: impl FnMut(&DevicePorts) -> Result<(Vec<u8>, Vec<u16>, u32), String>,
     ) -> Result<(), String> {
         let mut core = lock_unpoisoned(&self.shared.core);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSequenceEditorHost } from "../../../editor/host";
-import type { SequenceEditorDocument, SequenceEffectDetails } from "../../../editor/types";
+import type { SequenceGuiDocument, SequenceEffectDetails } from "../../../editor/types";
 
 // A sequence document carries every clip's summary; the parameters the
 // inspector edits are fetched for the clips it shows.
@@ -9,7 +9,7 @@ type LoadedDetails = { key: string; details: Map<number, SequenceEffectDetails> 
 
 /** The details of `effectIds`, or `null` until they first arrive. After an
  *  edit the previous details stay until the new ones replace them. */
-export function useSequenceEffectDetails(document: SequenceEditorDocument, effectIds: number[]): Map<number, SequenceEffectDetails> | null {
+export function useSequenceEffectDetails(document: SequenceGuiDocument, effectIds: number[]): Map<number, SequenceEffectDetails> | null {
   const { commands, store: useAppStore } = useSequenceEditorHost();
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
   const setError = useAppStore((store) => store.setError);
@@ -23,7 +23,7 @@ export function useSequenceEffectDetails(document: SequenceEditorDocument, effec
     let cancelled = false;
     const ids = key.split(",").map(Number);
     commands
-      .getSequenceEffectDetails({ ownedPath, projectRevision, path, view: "sequence", objectKey }, ids)
+      .getSequenceEffectDetails({ ownedPath, projectRevision, path, objectKey }, ids)
       .then((result) => {
         if (!cancelled) setLoaded({ key, details: new Map(result.details.map((details) => [details.id, details])) });
       })

@@ -105,13 +105,12 @@ export function DefinitionMenuItems<T>({ menu, tree, label, itemKey, onSelect, e
 }
 
 export function effectReferencesEqual(left: SequenceEffectReference, right: SequenceEffectReference) {
-  return left.moduleId === right.moduleId
-    && left.path === right.path
+  return left.path === right.path
     && left.effectName === right.effectName;
 }
 
 export function effectReferenceKey(reference: SequenceEffectReference) {
-  return `${reference.moduleId}:${reference.path}:${reference.effectName}`;
+  return `${reference.path}:${reference.effectName}`;
 }
 
 /** A dropdown of the project's effects in their script folders. */

@@ -1,7 +1,7 @@
 //! Uniform parameter resources evaluated beside per-pixel work. Playback of
 //! prepared uniform effects is covered by the `prepared_uniform` integration
 //! tests.
-use super::evaluation::{SampleEvaluation, bind, compile_effect, context};
+use super::evaluation::{SampleEvaluation, bind, compile, context};
 use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
@@ -33,8 +33,8 @@ fn uniform_resource_samples_preserve_branches_and_empty_gradient_defaults() {
             true,
         ),
     ] {
-        let effect = compile_effect(source);
-        let result = playback::lower_sample(&bind(
+        let effect = compile(source);
+        let result = playback::lower(&bind(
             &effect,
             &[
                 ("colors", Value::Gradient(Gradient { stops: vec![] }.into())),

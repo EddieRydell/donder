@@ -3,7 +3,7 @@ use super::*;
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn update_document(
-    update: donder_sequence_api::DocumentUpdate,
+    update: donder_editor::dto::DocumentUpdate,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.update_document(update)
@@ -16,7 +16,7 @@ pub(crate) fn document_text(
     project_epoch: u32,
     path: String,
     state: State<'_, DesktopState>,
-) -> Result<donder_sequence_api::DocumentText, String> {
+) -> Result<donder_editor::dto::DocumentText, String> {
     state.document_text(project_epoch, &path)
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn language_server_send(
 #[specta::specta]
 pub(crate) fn apply_text_edits(
     project_epoch: u32,
-    edits: Vec<donder_sequence_api::DocumentTextEdits>,
+    edits: Vec<donder_editor::dto::DocumentTextEdits>,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.apply_text_edits(project_epoch, edits)
@@ -47,7 +47,7 @@ pub(crate) fn apply_text_edits(
 #[specta::specta]
 pub(crate) fn include_document(
     project_epoch: u32,
-    inclusion: donder_sequence_api::DocumentInclusion,
+    inclusion: donder_project_io::Inclusion,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.include_document(project_epoch, inclusion)
@@ -62,9 +62,9 @@ pub(crate) fn save_all(state: State<'_, DesktopState>) -> Result<AppSnapshot, St
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn request_transition(
-    request: donder_sequence_api::TransitionRequest,
+    request: donder_editor::dto::TransitionRequest,
     state: State<'_, DesktopState>,
-) -> Result<donder_sequence_api::TransitionResult, String> {
+) -> Result<donder_editor::dto::TransitionResult, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || state.request_transition(request))
         .await
@@ -85,7 +85,7 @@ pub(crate) fn resolve_external_conflict(
     epoch: u32,
     path: String,
     revision: u32,
-    decision: donder_sequence_api::ExternalConflictDecision,
+    decision: donder_editor::dto::ExternalConflictDecision,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.resolve_external_conflict(epoch, path, revision, decision)
@@ -125,12 +125,11 @@ pub(crate) fn open_file(path: String, state: State<'_, DesktopState>) -> AppSnap
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn resolve_gui_source(
-    module_id: String,
     path: String,
     object_key: String,
     state: State<'_, DesktopState>,
 ) -> Result<GuiDocumentRequest, String> {
-    state.resolve_gui_source(&module_id, &path, &object_key)
+    state.resolve_gui_source(&path, &object_key)
 }
 
 #[tauri::command(async)]
@@ -150,44 +149,17 @@ pub(crate) fn set_editor_view_mode(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn save_editor_view_state(
-    update: PersistedEditorViewStateUpdate,
+pub(crate) fn save_view_state(
+    update: ViewStateUpdate,
     state: State<'_, DesktopState>,
 ) -> AppSnapshot {
-    state.save_editor_view_state(update)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) fn save_sequence_viewport_state(
-    update: PersistedSequenceViewportStateUpdate,
-    state: State<'_, DesktopState>,
-) -> AppSnapshot {
-    state.save_sequence_viewport_state(update)
+    state.save_view_state(update)
 }
 
 #[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn undo_active_edit(state: State<'_, DesktopState>) -> AppSnapshot {
     state.undo_active_edit()
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) fn save_graph_view_state(
-    update: PersistedGraphViewStateUpdate,
-    state: State<'_, DesktopState>,
-) -> AppSnapshot {
-    state.save_graph_view_state(update)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) fn save_spatial_view_state(
-    update: PersistedSpatialViewStateUpdate,
-    state: State<'_, DesktopState>,
-) -> AppSnapshot {
-    state.save_spatial_view_state(update)
 }
 
 #[tauri::command(async)]

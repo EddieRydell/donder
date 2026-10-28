@@ -217,8 +217,7 @@ export async function runSnapshotCommand(command: () => Promise<AppSnapshot>) {
   }
 }
 
-export async function runGuiEditCommand<T extends GuiEditUpdate>(command: (request: GuiDocumentRequest) => Promise<T>, origin?: GuiDocumentRequest | null): Promise<T> {
-  if (useAppStore.getState().snapshot?.activeBuffer?.readOnly === true) throw new Error("This source is not editable in the current project.");
+export async function runGuiEditCommand(command: (request: GuiDocumentRequest) => Promise<GuiEditUpdate>, origin?: GuiDocumentRequest | null): Promise<GuiEditUpdate> {
   const { guiRequest: request, guiDocumentRevision, guiEditPending } = useAppStore.getState();
   if (request === null) throw new Error("GUI edit attempted without an active GUI document request.");
   if (guiDocumentRevision !== request.projectRevision) throw new Error("The current GUI document is still loading.");
@@ -284,36 +283,33 @@ function guiRequestForSnapshot(
   const descriptor = snapshot.activeDocumentDescriptor;
   const activePath = snapshot.activeFile;
   if (descriptor === null || activePath === null || effectiveEditorViewMode(snapshot) !== "gui") return null;
-  if (preferred?.path === activePath && preferred.ownedPath.length > 0 && descriptor.defaultObjectKeys.some((item) => item.objectKey === preferred.objectKey)) {
+  if (preferred?.path === activePath && preferred.ownedPath.length > 0 && descriptor.guiObjects.some((item) => item.key === preferred.objectKey)) {
     return { ...preferred, projectRevision: snapshot.projectRevision };
   }
   const preferredObject = preferred?.path === activePath
-    ? descriptor.defaultObjectKeys.find(
-        (item) => item.view === preferred.view && item.objectKey === preferred.objectKey
-      )
+    ? descriptor.guiObjects.find((item) => item.key === preferred.objectKey)
     : undefined;
   if (preferredObject !== undefined) {
     return {
       ownedPath: [],
       path: activePath,
-      view: preferredObject.view,
-      objectKey: preferredObject.objectKey,
+      objectKey: preferredObject.key,
       projectRevision: snapshot.projectRevision
     };
   }
-  const defaultObject = descriptor.defaultObjectKeys[0];
+  const defaultObject = descriptor.guiObjects[0];
   if (defaultObject === undefined) return null;
-  return { ownedPath: [], path: activePath, view: defaultObject.view, objectKey: defaultObject.objectKey, projectRevision: snapshot.projectRevision };
+  return { ownedPath: [], path: activePath, objectKey: defaultObject.key, projectRevision: snapshot.projectRevision };
 }
 
-export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey" | "view" | "ownedPath">, presentation: "tab" | "modal" = "tab"): void {
+export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey" | "ownedPath">, presentation: "tab" | "modal" = "tab"): void {
   const current = useAppStore.getState();
   const snapshot = current.snapshot;
   if (snapshot === null || snapshot.activeFile !== request.path) {
     throw new Error("The requested GUI object is not in the active document.");
   }
-  const target = snapshot.activeDocumentDescriptor?.defaultObjectKeys.find(
-    (item) => item.objectKey === request.objectKey
+  const target = snapshot.activeDocumentDescriptor?.guiObjects.find(
+    (item) => item.key === request.objectKey
   );
   if (target === undefined) throw new Error("The requested GUI object is unavailable.");
   if (current.guiRequest !== null && sameGuiDocument(current.guiRequest, { ...request, projectRevision: snapshot.projectRevision })) return;

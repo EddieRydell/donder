@@ -10,31 +10,31 @@
 use bytemuck::{Pod, Zeroable};
 
 /// No index: an absent optional reference.
-pub const NONE: u32 = u32::MAX;
+pub(crate) const NONE: u32 = u32::MAX;
 /// Every section starts on this alignment within the payload.
-pub const ALIGN: usize = 4;
+pub(crate) const ALIGN: usize = 4;
 
 /// One section's place in the payload: a byte offset and a record count.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct SectionEntry {
-    pub offset: u32,
-    pub count: u32,
+pub(crate) struct SectionEntry {
+    pub(crate) offset: u32,
+    pub(crate) count: u32,
 }
 
 /// The fixed part of an image header.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Header {
+pub(crate) struct Header {
     /// The format version; an image of another version is not read.
-    pub version: u32,
+    pub(crate) version: u32,
     /// Payload bytes after the header and section table.
-    pub payload: u32,
+    pub(crate) payload: u32,
     /// The image's identity, a hash of its table and payload: a controller
     /// reports it so a host can tell which show it holds. Playback never
     /// reads it.
-    pub id: u32,
-    pub reserved: u32,
+    pub(crate) id: u32,
+    pub(crate) reserved: u32,
 }
 
 /// Bytes of a header with its section table.
@@ -45,15 +45,15 @@ pub const fn header_bytes() -> usize {
 /// A half-open range of records in another section.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Range {
-    pub start: u32,
-    pub len: u32,
+pub(crate) struct Range {
+    pub(crate) start: u32,
+    pub(crate) len: u32,
 }
 
 impl Range {
-    pub const EMPTY: Self = Self { start: 0, len: 0 };
+    pub(crate) const EMPTY: Self = Self { start: 0, len: 0 };
 
-    pub fn get<T>(self, items: &[T]) -> &[T] {
+    pub(crate) fn get<T>(self, items: &[T]) -> &[T] {
         let start = self.start as usize;
         &items[start..start + self.len as usize]
     }
@@ -62,20 +62,20 @@ impl Range {
 /// Sequence-wide values.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Meta {
-    pub frame_rate: u32,
-    pub frame_count: u32,
+pub(crate) struct Meta {
+    pub(crate) frame_rate: u32,
+    pub(crate) frame_count: u32,
     /// Ticks.
-    pub duration: u32,
-    pub pixel_count: u32,
+    pub(crate) duration: u32,
+    pub(crate) pixel_count: u32,
     /// The target every frame and operator covers: every retained pixel.
-    pub plan_target: u32,
+    pub(crate) plan_target: u32,
     /// The node the output shows, or [`NONE`] for black.
-    pub output: u32,
+    pub(crate) output: u32,
     /// Frame buffers the nodes write, each one plan-target frame.
-    pub buffers: u32,
+    pub(crate) buffers: u32,
     /// State buffers: the previous frames of the nodes that read them.
-    pub states: u32,
+    pub(crate) states: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -87,356 +87,344 @@ pub struct Fixture {
     pub offset: u32,
     /// Layout positions of its retained cells, for spatial programs; empty
     /// when no program reads them.
-    pub positions: Range,
+    pub(crate) positions: Range,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Position {
-    pub x: f32,
-    pub y: f32,
+pub(crate) struct Position {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
 }
 
 /// How a target lists its pixels.
-pub const PIXELS_RUNS: u32 = 0;
-pub const PIXELS_INDEXED: u32 = 1;
+pub(crate) const PIXELS_RUNS: u32 = 0;
+pub(crate) const PIXELS_INDEXED: u32 = 1;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Target {
+pub(crate) struct Target {
     /// [`PIXELS_RUNS`] into the runs section or [`PIXELS_INDEXED`] into the
     /// pixels section.
-    pub kind: u32,
-    pub pixels: Range,
-    pub spatial: Range,
-    pub section_runs: Range,
+    pub(crate) kind: u32,
+    pub(crate) pixels: Range,
+    pub(crate) spatial: Range,
+    pub(crate) section_runs: Range,
     /// [`PIXELS_RUNS`] into section spans or [`PIXELS_INDEXED`] into
     /// section pixels; empty without section queries.
-    pub section_kind: u32,
-    pub section_pixels: Range,
+    pub(crate) section_kind: u32,
+    pub(crate) section_pixels: Range,
     /// Nonzero when sections count within each fixture.
-    pub per_fixture: u32,
+    pub(crate) per_fixture: u32,
     /// Distinct logical pixels shared by duplicate fixture layouts, or zero.
-    pub sample_count: u32,
+    pub(crate) sample_count: u32,
 }
 
 /// Consecutive target pixels with one fixture, count and contiguous cells.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct PixelRun {
+pub(crate) struct PixelRun {
     /// One past the run's last target index.
-    pub end: u32,
-    pub fixture: u32,
-    pub first_cell: u32,
-    pub first_index: u32,
-    pub count: u32,
+    pub(crate) end: u32,
+    pub(crate) fixture: u32,
+    pub(crate) first_cell: u32,
+    pub(crate) first_index: u32,
+    pub(crate) count: u32,
 }
 
 /// One target pixel: its storage fixture and cell, and its logical index
 /// within a scope of `count` pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Pixel {
-    pub fixture: u32,
-    pub cell: u32,
-    pub index: u32,
-    pub count: u32,
+pub(crate) struct Pixel {
+    pub(crate) fixture: u32,
+    pub(crate) cell: u32,
+    pub(crate) index: u32,
+    pub(crate) count: u32,
 }
 
 /// Consecutive pixels sharing their scope's bounds.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
-pub struct SpatialRun {
-    pub end: u32,
-    pub min: [f32; 2],
-    pub max: [f32; 2],
+pub(crate) struct SpatialRun {
+    pub(crate) end: u32,
+    pub(crate) min: [f32; 2],
+    pub(crate) max: [f32; 2],
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct SectionRun {
-    pub fixture: u32,
-    pub first: u32,
-    pub last: u32,
+pub(crate) struct SectionRun {
+    pub(crate) fixture: u32,
+    pub(crate) first: u32,
+    pub(crate) last: u32,
 }
 
 /// A pixel's place among a target's section runs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Pod, Zeroable)]
 #[repr(C)]
-pub struct SectionPixel {
-    pub run: u32,
-    pub index: u32,
+pub(crate) struct SectionPixel {
+    pub(crate) run: u32,
+    pub(crate) index: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct SectionSpan {
-    pub end: u32,
-    pub first: SectionPixel,
+pub(crate) struct SectionSpan {
+    pub(crate) end: u32,
+    pub(crate) first: SectionPixel,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Effect {
+pub(crate) struct Effect {
     /// Ticks.
-    pub start: u32,
-    pub duration: u32,
-    pub target: u32,
-    pub program: u32,
-    pub params: u32,
+    pub(crate) start: u32,
+    pub(crate) duration: u32,
+    pub(crate) target: u32,
+    pub(crate) program: u32,
+    pub(crate) params: u32,
     /// Its automation plan, or [`NONE`].
-    pub automation: u32,
+    pub(crate) automation: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Clip {
-    pub id: u32,
-    pub effect: u32,
+pub(crate) struct Clip {
+    pub(crate) id: u32,
+    pub(crate) effect: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Layer {
-    pub enabled: u32,
+pub(crate) struct Layer {
+    pub(crate) enabled: u32,
     /// Its effects, sorted by start, in the layer order section; the same
     /// range of the layer ends section holds, for each, the latest end of it
     /// and every effect before it.
-    pub effects: Range,
+    pub(crate) effects: Range,
 }
 
-pub const NODE_LAYER: u32 = 0;
-pub const NODE_OPERATOR: u32 = 1;
-pub const NODE_MIX: u32 = 2;
+pub(crate) const NODE_LAYER: u32 = 0;
+pub(crate) const NODE_OPERATOR: u32 = 1;
+pub(crate) const NODE_MIX: u32 = 2;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Node {
-    pub kind: u32,
+pub(crate) struct Node {
+    pub(crate) kind: u32,
     /// The layer of a layer node.
-    pub layer: u32,
-    pub program: u32,
-    pub params: u32,
+    pub(crate) layer: u32,
+    pub(crate) program: u32,
+    pub(crate) params: u32,
     /// Input nodes, in the node inputs section.
-    pub inputs: Range,
+    pub(crate) inputs: Range,
     /// Its automation plan, or [`NONE`].
-    pub automation: u32,
+    pub(crate) automation: u32,
     /// The frame buffer it writes.
-    pub buffer: u32,
+    pub(crate) buffer: u32,
     /// Its state buffer, which holds its previous frame, or [`NONE`]. A
     /// layer's clips read it as `previous`, as an operator does its own.
-    pub state: u32,
+    pub(crate) state: u32,
 }
 
 /// Program flags.
-pub const PROGRAM_OPERATOR: u32 = 1;
-pub const PROGRAM_USES_SPATIAL: u32 = 1 << 2;
-pub const PROGRAM_USES_SECTIONS: u32 = 1 << 3;
-pub const PROGRAM_READS_TARGET: u32 = 1 << 4;
-pub const PROGRAM_USES_PIXEL_CONTEXT: u32 = 1 << 5;
-pub const PROGRAM_HAS_STENCIL: u32 = 1 << 6;
+pub(crate) const PROGRAM_USES_SPATIAL: u32 = 1 << 2;
+pub(crate) const PROGRAM_USES_SECTIONS: u32 = 1 << 3;
+pub(crate) const PROGRAM_READS_TARGET: u32 = 1 << 4;
+pub(crate) const PROGRAM_USES_PIXEL_CONTEXT: u32 = 1 << 5;
+pub(crate) const PROGRAM_HAS_STENCIL: u32 = 1 << 6;
 /// The program reads `previous`.
-pub const PROGRAM_READS_STATE: u32 = 1 << 7;
+pub(crate) const PROGRAM_READS_STATE: u32 = 1 << 7;
 
 /// Slot counts per storage bank: floats, ints, bools, resources.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct BankCounts {
-    pub counts: [u16; 4],
+pub(crate) struct BankCounts {
+    pub(crate) counts: [u16; 4],
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Program {
-    pub code: Range,
-    pub query_end: u32,
-    pub target_end: u32,
-    pub result: u32,
-    pub depth: u32,
-    pub scalars: BankCounts,
-    pub rows: BankCounts,
-    /// The storage of each declared parameter, in the parameter section.
-    pub params: Range,
+pub(crate) struct Program {
+    pub(crate) code: Range,
+    pub(crate) query_end: u32,
+    pub(crate) target_end: u32,
+    pub(crate) result: u32,
+    pub(crate) depth: u32,
+    pub(crate) scalars: BankCounts,
+    pub(crate) rows: BankCounts,
     /// Constant resources, as indices into their kinds' sections, in the
     /// program resources section.
-    pub resources: Range,
+    pub(crate) resources: Range,
     /// Whole-frame scans, each with a scratch frame while the node runs.
-    pub scans: u32,
+    pub(crate) scans: u32,
     /// An operator's input count; zero for an effect.
-    pub inputs: u32,
-    pub flags: u32,
-}
-
-/// A declared parameter: its [`ParameterKind`](crate::bytecode::ParameterKind)
-/// as `to_wire` numbers it, and its word or resource bank.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub struct Param {
-    pub kind: u32,
-    pub bank: u32,
+    pub(crate) inputs: u32,
+    pub(crate) flags: u32,
 }
 
 /// Bound parameter values: words, and resource references.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct ParamSet {
-    pub words: Range,
-    pub resources: Range,
+pub(crate) struct ParamSet {
+    pub(crate) words: Range,
+    pub(crate) resources: Range,
 }
 
-pub const RESOURCE_CURVE: u32 = 0;
-pub const RESOURCE_GRADIENT: u32 = 1;
-pub const RESOURCE_MARKS: u32 = 2;
-pub const RESOURCE_ARRAY: u32 = 3;
+pub(crate) const RESOURCE_CURVE: u32 = 0;
+pub(crate) const RESOURCE_GRADIENT: u32 = 1;
+pub(crate) const RESOURCE_MARKS: u32 = 2;
+pub(crate) const RESOURCE_ARRAY: u32 = 3;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct ResourceRef {
-    pub kind: u32,
-    pub index: u32,
+pub(crate) struct ResourceRef {
+    pub(crate) kind: u32,
+    pub(crate) index: u32,
 }
 
 /// Whether a curve's segments only rise, only fall, or both.
-pub const CROSSINGS_INCREASING: u32 = 0;
-pub const CROSSINGS_DECREASING: u32 = 1;
-pub const CROSSINGS_MIXED: u32 = 2;
+pub(crate) const CROSSINGS_INCREASING: u32 = 0;
+pub(crate) const CROSSINGS_DECREASING: u32 = 1;
+pub(crate) const CROSSINGS_MIXED: u32 = 2;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Curve {
-    pub points: Range,
+pub(crate) struct Curve {
+    pub(crate) points: Range,
     /// Each point's area from the first, in the curve areas section.
-    pub areas: Range,
+    pub(crate) areas: Range,
     /// Each point's slope from the point before it, in the curve slopes
     /// section.
-    pub slopes: Range,
-    pub crossings_kind: u32,
-    pub crossings: Range,
+    pub(crate) slopes: Range,
+    pub(crate) crossings_kind: u32,
+    pub(crate) crossings: Range,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
-pub struct CrossingSegment {
-    pub position_bias: f32,
-    pub position_scale: f32,
-    pub min_value: f32,
-    pub max_value: f32,
+pub(crate) struct CrossingSegment {
+    pub(crate) position_bias: f32,
+    pub(crate) position_scale: f32,
+    pub(crate) min_value: f32,
+    pub(crate) max_value: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Gradient {
-    pub stops: Range,
+pub(crate) struct Gradient {
+    pub(crate) stops: Range,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
-pub struct GradientStop {
-    pub position: f32,
-    pub color: Color,
+pub(crate) struct GradientStop {
+    pub(crate) position: f32,
+    pub(crate) color: Color,
     /// One over the width of the span to the next stop; zero for the last.
-    pub inverse: f32,
+    pub(crate) inverse: f32,
 }
 
 /// A window of a mark track: ticks `first..end` of the track, measured from
 /// `origin`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Marks {
-    pub track: Range,
-    pub first: u32,
-    pub end: u32,
-    pub origin: u32,
+pub(crate) struct Marks {
+    pub(crate) track: Range,
+    pub(crate) first: u32,
+    pub(crate) end: u32,
+    pub(crate) origin: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Array {
-    pub items: Range,
+pub(crate) struct Array {
+    pub(crate) items: Range,
 }
 
-pub const VALUE_VOID: u32 = 0;
-pub const VALUE_INT: u32 = 1;
-pub const VALUE_FLOAT: u32 = 2;
-pub const VALUE_BOOL: u32 = 3;
-pub const VALUE_COLOR: u32 = 4;
+pub(crate) const VALUE_VOID: u32 = 0;
+pub(crate) const VALUE_INT: u32 = 1;
+pub(crate) const VALUE_FLOAT: u32 = 2;
+pub(crate) const VALUE_BOOL: u32 = 3;
+pub(crate) const VALUE_COLOR: u32 = 4;
 /// An enum option's index in its program's names.
-pub const VALUE_ENUM: u32 = 5;
-pub const VALUE_MARKS: u32 = 6;
-pub const VALUE_CURVE: u32 = 7;
-pub const VALUE_GRADIENT: u32 = 8;
-pub const VALUE_ARRAY: u32 = 9;
+pub(crate) const VALUE_ENUM: u32 = 5;
+pub(crate) const VALUE_MARKS: u32 = 6;
+pub(crate) const VALUE_CURVE: u32 = 7;
+pub(crate) const VALUE_GRADIENT: u32 = 8;
+pub(crate) const VALUE_ARRAY: u32 = 9;
 
 /// An array item: its kind and a word: a scalar's bits, or for a color or
 /// a resource its index.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Value {
-    pub kind: u32,
-    pub word: u32,
+pub(crate) struct Value {
+    pub(crate) kind: u32,
+    pub(crate) word: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Automation {
-    pub bindings: Range,
-    pub windows: Range,
+pub(crate) struct Automation {
+    pub(crate) bindings: Range,
+    pub(crate) windows: Range,
 }
 
 /// What an automation binding writes.
-pub const BINDING_FLOAT: u32 = 0;
-pub const BINDING_FLOAT_INTEGRAL: u32 = 1;
-pub const BINDING_INT: u32 = 2;
-pub const BINDING_BOOL: u32 = 3;
-pub const BINDING_ENUM: u32 = 4;
-pub const BINDING_CURVE: u32 = 5;
+pub(crate) const BINDING_FLOAT: u32 = 0;
+pub(crate) const BINDING_FLOAT_INTEGRAL: u32 = 1;
+pub(crate) const BINDING_INT: u32 = 2;
+pub(crate) const BINDING_BOOL: u32 = 3;
+pub(crate) const BINDING_ENUM: u32 = 4;
+pub(crate) const BINDING_CURVE: u32 = 5;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Binding {
-    pub parameter: u32,
-    pub start: u32,
-    pub duration: u32,
-    pub curve: u32,
-    pub kind: u32,
+pub(crate) struct Binding {
+    pub(crate) parameter: u32,
+    pub(crate) start: u32,
+    pub(crate) duration: u32,
+    pub(crate) curve: u32,
+    pub(crate) kind: u32,
     /// The word it writes, or for a curve its window.
-    pub destination: u32,
+    pub(crate) destination: u32,
     /// Float or int bounds, as bits.
-    pub min: u32,
-    pub max: u32,
+    pub(crate) min: u32,
+    pub(crate) max: u32,
     /// An enum's option indices, in the enum options section.
-    pub options: Range,
+    pub(crate) options: Range,
 }
 
 /// A curve resource that bindings rewrite, and the most points they write.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Window {
-    pub resource: u32,
-    pub points: u32,
+pub(crate) struct Window {
+    pub(crate) resource: u32,
+    pub(crate) points: u32,
 }
 
-pub const ENCODING_RGB: u32 = 0;
-pub const ENCODING_RGBW: u32 = 1;
+pub(crate) const ENCODING_RGB: u32 = 0;
+pub(crate) const ENCODING_RGBW: u32 = 1;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Route {
+pub(crate) struct Route {
     /// Plan-target pixels `first..end`.
-    pub first: u32,
-    pub end: u32,
-    pub output: u32,
-    pub start_slot: u32,
-    pub encoding: u32,
-    pub order: [u8; 4],
+    pub(crate) first: u32,
+    pub(crate) end: u32,
+    pub(crate) output: u32,
+    pub(crate) start_slot: u32,
+    pub(crate) encoding: u32,
+    pub(crate) order: [u8; 4],
     /// Its lookup table, or [`NONE`].
-    pub lookup: u32,
+    pub(crate) lookup: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Lookup {
-    pub table: [u8; 256],
+pub(crate) struct Lookup {
+    pub(crate) table: [u8; 256],
 }
 
 impl Default for Lookup {
@@ -460,53 +448,53 @@ pub struct Output {
 /// A voice of length [`NONE`] plays until stopped.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Voice {
-    pub effect: u32,
-    pub duration: u32,
+pub(crate) struct Voice {
+    pub(crate) effect: u32,
+    pub(crate) duration: u32,
 }
 
 /// A live mark collection: the marks parameters reading it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Collection {
-    pub readers: Range,
+pub(crate) struct Collection {
+    pub(crate) readers: Range,
 }
 
 /// An effect's parameter that reads a live collection.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Reader {
-    pub effect: u32,
+pub(crate) struct Reader {
+    pub(crate) effect: u32,
     /// Its resource bank.
-    pub bank: u32,
+    pub(crate) bank: u32,
 }
 
 /// A control: the automation bindings it sets.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct Control {
-    pub targets: Range,
+pub(crate) struct Control {
+    pub(crate) targets: Range,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub struct ControlTarget {
-    pub effect: u32,
-    pub binding: u32,
+pub(crate) struct ControlTarget {
+    pub(crate) effect: u32,
+    pub(crate) binding: u32,
 }
 
-pub use crate::values::{Color, CurvePoint};
-pub use crate::word::InstructionWord;
+pub(crate) use donder_runtime_types::InstructionWord;
+pub(crate) use donder_runtime_types::{Color, CurvePoint};
 
 macro_rules! sections {
     ($($name:ident: $ty:ty,)+) => {
         /// Every section of an image, borrowed from its payload.
         #[derive(Clone, Copy, Debug)]
-        pub struct Sections<'a> {
-            $(pub $name: &'a [$ty],)+
+        pub(crate) struct Sections<'a> {
+            $(pub(crate) $name: &'a [$ty],)+
         }
 
-        pub const SECTION_COUNT: usize = [$(stringify!($name)),+].len();
+        pub(crate) const SECTION_COUNT: usize = [$(stringify!($name)),+].len();
 
         impl<'a> Sections<'a> {
             /// Each section of `table`, borrowed from `payload`.
@@ -523,15 +511,17 @@ macro_rules! sections {
         }
 
         /// Sections being written: each a growing list of records.
+        #[cfg(feature = "host")]
         #[derive(Clone, Debug, Default)]
-        pub struct SectionsWriter {
-            $(pub $name: alloc::vec::Vec<$ty>,)+
+        pub(crate) struct SectionsWriter {
+            $(pub(crate) $name: alloc::vec::Vec<$ty>,)+
         }
 
+        #[cfg(feature = "host")]
         impl SectionsWriter {
             /// The image: its header, section table and payload, each section
             /// aligned to [`ALIGN`] bytes. The buffer is 4-byte aligned.
-            pub fn finish(&self, version: u32) -> alloc::boxed::Box<[u32]> {
+            pub(crate) fn finish(&self, version: u32) -> alloc::boxed::Box<[u32]> {
                 let mut table = alloc::vec::Vec::new();
                 let mut payload = alloc::vec::Vec::<u8>::new();
                 $(
@@ -573,7 +563,6 @@ sections! {
     node_inputs: u32,
     programs: Program,
     code: InstructionWord,
-    params: Param,
     program_resources: u32,
     param_sets: ParamSet,
     words: u32,
@@ -610,6 +599,7 @@ fn section<T: Pod>(payload: &[u8], entry: SectionEntry) -> &[T] {
 }
 
 /// A header, section table and payload in one 4-byte-aligned buffer.
+#[cfg(feature = "host")]
 fn frame(version: u32, table: &[SectionEntry], payload: &[u8]) -> alloc::boxed::Box<[u32]> {
     let table_bytes: &[u8] = bytemuck::cast_slice(table);
     // FNV-1a.
@@ -636,7 +626,7 @@ fn frame(version: u32, table: &[SectionEntry], payload: &[u8]) -> alloc::boxed::
 
 /// The image's length from its header: the header, section table and
 /// payload. Lets a receiver size the rest of a transfer.
-pub fn image_len(header: &[u8]) -> usize {
+pub(crate) fn image_len(header: &[u8]) -> usize {
     let header: Header = bytemuck::pod_read_unaligned(&header[..size_of::<Header>()]);
     header_bytes() + header.payload as usize
 }
@@ -644,11 +634,26 @@ pub fn image_len(header: &[u8]) -> usize {
 /// The image's sections, or `None` for an image of another format version.
 /// The image is trusted otherwise: only its producer writes it. `bytes` must
 /// be 4-byte aligned, as the writer's buffers and flash mappings are.
-pub fn open(bytes: &[u8], version: u32) -> Option<Sections<'_>> {
+pub(crate) fn open(bytes: &[u8], version: u32) -> Option<Sections<'_>> {
     let header: Header = bytemuck::pod_read_unaligned(&bytes[..size_of::<Header>()]);
     if header.version != version {
         return None;
     }
     let table = bytemuck::cast_slice(&bytes[size_of::<Header>()..header_bytes()]);
     Some(Sections::borrow(&bytes[header_bytes()..], table))
+}
+
+impl donder_runtime_types::sampling::Stop for GradientStop {
+    #[inline(always)]
+    fn position(&self) -> f32 {
+        self.position
+    }
+    #[inline(always)]
+    fn color(&self) -> Color {
+        self.color
+    }
+    #[inline(always)]
+    fn inverse(&self, _: &Self) -> f32 {
+        self.inverse
+    }
 }

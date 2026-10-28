@@ -18,8 +18,8 @@ pub use parser::parse;
 pub use printer::{ListSplice, list_item, print, print_spliced};
 pub use schema::{
     Data, Decoder, Definition, FieldReader, Fields, Meters, NO_SPAN, Name, NamedSource, Params,
-    Path, Record, Reference, Schema, Shape, Source, declaration, decode_record, field, record,
-    spanned, variant,
+    Path, Record, Reference, Refers, Schema, Shape, Source, declaration, decode_record, field,
+    record, spanned, variant,
 };
 pub use tree::{
     DataDeclaration, DataDocument, DataField, DataImport, DataValue, Spanned, is_pascal_case,

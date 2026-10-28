@@ -63,9 +63,9 @@ export function LayoutTree({ fixtures, root, pixels, selected, onSelect, enabled
     drop: (location, event) => {
       event.preventDefault(); event.stopPropagation();
       if (valid(location, event.altKey) && drag !== null) {
-        void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, event.altKey
+        void runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "layout", edit: event.altKey
           ? { type: "addMember", id: drag.id, to: location.parent, before: location.before }
-          : { type: "moveMember", id: drag.id, from: drag.from, to: location.parent, before: location.before }), drag.origin).catch(onError);
+          : { type: "moveMember", id: drag.id, from: drag.from, to: location.parent, before: location.before } }), drag.origin).catch(onError);
       }
       end();
     },

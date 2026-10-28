@@ -3,9 +3,7 @@ import type * as Wire from "./types";
 
 export type EditorSnapshot = Pick<Wire.AppSnapshot,
   "settings" | "projectRevision" | "audioTransport" | "liveOutput" | "activeBuffer">;
-export type EditorEditResult = { snapshot: EditorSnapshot; change: Wire.GuiDocumentChange };
-export type EditorSelectionResult = EditorEditResult & Pick<Wire.SequenceSelectionEditResult,
-  "selection" | "copiedCount" | "skippedCount">;
+export type EditorEditResult = Omit<Wire.GuiEditUpdate, "snapshot"> & { snapshot: EditorSnapshot };
 export type SequenceEditorState = {
   snapshot: EditorSnapshot | null;
   restoreState: Wire.ProjectRestoreState | null;
@@ -23,12 +21,9 @@ export type SequenceEditorStore = {
   getState: () => SequenceEditorState;
 };
 export type SequenceEditorCommands = {
-  applySequenceGuiEdit: (request: Wire.GuiDocumentRequest, edit: Wire.SequenceGuiEdit) => Promise<EditorEditResult>;
-  applySequenceSelectionEdit: (request: Wire.GuiDocumentRequest, edit: Wire.SequenceSelectionEdit) => Promise<EditorSelectionResult>;
-  rebindDetachedAutomation: (request: Wire.GuiDocumentRequest, clipId: number, detachedIndex: number, target: Wire.SequenceAutomationTarget) => Promise<EditorEditResult>;
-  discardDetachedAutomation: (request: Wire.GuiDocumentRequest, clipId: number, detachedIndex: number) => Promise<EditorEditResult>;
-  saveGraphViewState: (state: Wire.PersistedGraphViewStateUpdate) => Promise<EditorSnapshot>;
-  saveSequenceViewportState: (state: Wire.PersistedSequenceViewportStateUpdate) => Promise<EditorSnapshot>;
+  applyGuiEdit: (request: Wire.GuiDocumentRequest, edit: Wire.GuiEditCommand) => Promise<EditorEditResult>;
+  copySequenceSelection: (request: Wire.GuiDocumentRequest, selection: Wire.SequenceSelection) => Promise<EditorEditResult>;
+  saveViewState: (update: Wire.ViewStateUpdate) => Promise<EditorSnapshot>;
   getSequenceEffectDetails: (request: Wire.GuiDocumentRequest, effectIds: number[]) => Promise<Wire.SequenceEffectDetailsResult>;
   matchSequenceClips: (request: Wire.GuiDocumentRequest, query: Wire.SequenceClipMatchRequest) => Promise<Wire.SequenceSelection>;
   requestSequenceClipRasters: (request: Wire.SequenceClipRasterRequest) => Promise<Wire.SequenceClipRasterResponse>;
@@ -50,10 +45,10 @@ export type SequenceEditorCommands = {
 export type SequenceEditorHost = {
   commands: SequenceEditorCommands;
   store: SequenceEditorStore;
-  runGuiEditCommand: <T extends EditorEditResult>(command: (request: Wire.GuiDocumentRequest) => Promise<T>, origin?: Wire.GuiDocumentRequest | null) => Promise<T>;
+  runGuiEditCommand: (command: (request: Wire.GuiDocumentRequest) => Promise<EditorEditResult>, origin?: Wire.GuiDocumentRequest | null) => Promise<EditorEditResult>;
   runSnapshotCommand: (command: () => Promise<EditorSnapshot>) => Promise<EditorSnapshot>;
   resolveAssetUrl: (path: string, protocol?: string) => string;
-  navigateToGuiObject: (reference: Pick<Wire.GuiObjectRef, "moduleId" | "path" | "objectKey" | "ownedPath">) => Promise<void>;
+  navigateToGuiObject: (reference: Pick<Wire.GuiObjectRef, "path" | "objectKey" | "ownedPath">) => Promise<void>;
   capabilities: { audioFile: boolean; liveOutput: boolean; previewWindow: boolean; playbackSpeed: boolean };
   /** Present when the host can analyze a sequence's audio for beats. */
   detectSequenceBeats?: (request: Wire.GuiDocumentRequest) => Promise<Wire.SequenceBeatDetection>;

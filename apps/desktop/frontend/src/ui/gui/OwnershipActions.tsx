@@ -4,29 +4,30 @@ import { MoreHorizontal } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { commands } from "../../api";
 import { runGuiEditCommand, useAppStore } from "../../store";
-import type { GuiObjectRef, GuiOwnershipSlot, ReusableStorage } from "../../types";
+import type { GuiObjectRef, OwnershipMember, ReusableStorage } from "../../types";
 import { navigateToGuiObject } from "../../workspace/navigation";
 
 export function ownershipLabel(source: GuiObjectRef): string {
   return source.ownedPath.length > 0 ? "Stored here" : `Linked - ${source.path}`;
 }
 
-export function OwnershipActions({ source, sources, slot, label, children }: {
-  source: GuiObjectRef; sources: GuiObjectRef[]; slot: GuiOwnershipSlot; label: string; children?: ReactNode;
+/** Ownership actions for the member `source` of the open object; a layout fixture names its `fixture` id, since fixtures may link one definition. */
+export function OwnershipActions({ source, sources, fixture, label, children }: {
+  source: GuiObjectRef; sources: GuiObjectRef[]; fixture?: number; label: string; children?: ReactNode;
 }) {
+  const member: OwnershipMember = fixture === undefined ? { type: "object", source } : { type: "fixture", id: fixture };
   const [mode, setMode] = useState<"reusable" | "existing" | null>(null);
   const [selectedSource, setSelectedSource] = useState("");
   const [name, setName] = useState(label);
   const [storage, setStorage] = useState<ReusableStorage>("sameFile");
   const [error, setError] = useState<string | null>(null);
   const pending = useAppStore((state) => state.guiEditPending);
-  const readOnly = useAppStore((state) => state.snapshot?.activeBuffer?.readOnly ?? false);
   const ready = useAppStore((state) => state.guiRequest !== null && state.guiDocumentRevision === state.guiRequest.projectRevision);
   const owned = source.ownedPath.length > 0;
   const choices = sources.filter((candidate) => candidate.kind === source.kind && !sameGuiObject(candidate, source));
   const apply = async (edit: import("../../types").GuiOwnershipEdit) => {
     try {
-      await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "ownership", slot, edit }));
+      await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "ownership", member, edit }));
       setMode(null); setError(null);
     } catch (error) { setError(String(error)); }
   };
@@ -37,9 +38,9 @@ export function OwnershipActions({ source, sources, slot, label, children }: {
         <p className="param-source-description">{owned ? "Stored inside its parent, without a separate source." : "Linked to a reusable source. Editing the source affects every use."}</p>
         {!owned && <button type="button" onClick={() => void navigateToGuiObject(source)}>Open source</button>}
         {owned
-          ? <button type="button" disabled={pending || readOnly || !ready} onClick={() => { setName(label); setStorage("sameFile"); setError(null); setMode("reusable"); }}>Make reusable...</button>
-          : <button type="button" disabled={pending || readOnly || !ready} onClick={() => void apply({ type: "makeIndependent" })}>Make independent</button>}
-        <button type="button" disabled={pending || readOnly || !ready || choices.length === 0} onClick={() => { setSelectedSource(choices[0] === undefined ? "" : guiObjectKey(choices[0])); setError(null); setMode("existing"); }}>Use existing source...</button>
+          ? <button type="button" disabled={pending || !ready} onClick={() => { setName(label); setStorage("sameFile"); setError(null); setMode("reusable"); }}>Make reusable...</button>
+          : <button type="button" disabled={pending || !ready} onClick={() => void apply({ type: "makeIndependent" })}>Make independent</button>}
+        <button type="button" disabled={pending || !ready || choices.length === 0} onClick={() => { setSelectedSource(choices[0] === undefined ? "" : guiObjectKey(choices[0])); setError(null); setMode("existing"); }}>Use existing source...</button>
         {children}
         {error !== null && mode === null && <p role="alert">{error}</p>}
       </div>
@@ -52,7 +53,7 @@ export function OwnershipActions({ source, sources, slot, label, children }: {
             const source = choices.find((candidate) => guiObjectKey(candidate) === selectedSource);
             if (source !== undefined) void apply({ type: "useExisting", source });
           } else { void apply({ type: "makeReusable", name: name.trim(), storage }); } }}>
-          <fieldset className="composition-controls" disabled={pending || readOnly || !ready}>
+          <fieldset className="composition-controls" disabled={pending || !ready}>
             {mode === "existing" ? <label>Reusable source<select value={selectedSource} onChange={(event) => { setSelectedSource(event.target.value); }}>
               {choices.map((source) => <option key={guiObjectKey(source)} value={guiObjectKey(source)}>{source.objectKey} ({source.path})</option>)}
             </select></label> : <><label>Name<input required value={name} onChange={(event) => { setName(event.target.value); }} /></label>

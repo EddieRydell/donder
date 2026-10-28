@@ -1,17 +1,21 @@
+pub(crate) use ownership::ensure_document_can_reference_address;
 pub use ownership::{
     available_reusable_sources, ensure_document_can_reference_object, link_reusable_source,
 };
 mod ownership;
-use crate::loader::{Loader, ResolvedObject};
-use crate::source::{ImportEdge, ProjectSession, SourceObjectKind};
+use crate::address::{DocumentId, SourceIdentity};
+use crate::diagnostics::LoadError;
+use crate::loader::Loader;
+use crate::source::{ImportEdge, ProjectSession};
 use crate::{
     ExportProjectError, IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoRelatedLocation,
-    LoadProjectError, TextRange,
+    TextRange,
 };
 use donder_language::data::Reference;
 use donder_language::data::Spanned;
-use donder_language::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
-use donder_model::{DocumentId, SourceIdentity};
+use donder_language::{ImportAlias, ImportDeclaration, SourceReference};
+use donder_model::ObjectId;
+use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
 use indexmap::IndexMap;
 
@@ -25,10 +29,10 @@ pub(crate) struct ParsedImport {
 
 fn ensure_document_imports_target(
     session: &mut ProjectSession,
-    from_document: &donder_model::DocumentId,
-    kind: &SourceObjectKind,
+    from_document: &DocumentId,
+    kind: &ObjectKind,
     reference: &str,
-    target_document: donder_model::DocumentId,
+    target_document: DocumentId,
 ) -> Result<(), ExportProjectError> {
     let from_path = from_document.path();
     let document = session
@@ -40,7 +44,7 @@ fn ensure_document_imports_target(
             reference: reference.to_string(),
             message: "source document is missing from the source project".to_string(),
         })?;
-    if !matches!(document.kind, crate::source::SourceDocumentKind::Data) {
+    if document.format() != crate::SourceDocumentFormat::Data {
         return Err(ExportProjectError::InvalidReference {
             path: from_path.to_path_buf(),
             reference: reference.to_string(),
@@ -66,13 +70,6 @@ fn ensure_document_imports_target(
             .iter()
             .any(|import| import.declaration.alias.as_str() == candidate)
     });
-    if target_document.module_id() != from_document.module_id() {
-        return Err(ExportProjectError::InvalidReference {
-            path: from_path.to_path_buf(),
-            reference: reference.to_string(),
-            message: "referenced objects must belong to the same project".into(),
-        });
-    }
     document.imports.push(ImportEdge {
         declaration: ImportDeclaration {
             alias: ImportAlias::new(alias.as_str()).map_err(|message| {
@@ -82,19 +79,17 @@ fn ensure_document_imports_target(
                     message,
                 }
             })?,
-            source: ImportSource::LocalDocuments {
-                documents: vec![target_document.path().to_path_buf()],
-            },
+            documents: vec![target_document.path().to_path_buf()],
         },
         targets: vec![target_document],
     });
     Ok(())
 }
 
-pub fn ensure_document_can_reference_source(
+pub(crate) fn ensure_document_can_reference_source(
     session: &mut ProjectSession,
-    from_document: &donder_model::DocumentId,
-    kind: SourceObjectKind,
+    from_document: &DocumentId,
+    kind: ObjectKind,
     identity: &SourceIdentity,
 ) -> Result<(), ExportProjectError> {
     validate_reference_target(session, from_document, &kind, identity)?;
@@ -110,29 +105,28 @@ pub fn ensure_document_can_reference_source(
     )
 }
 
-pub(crate) fn canonical_reference_alias(kind: &SourceObjectKind) -> Option<&'static str> {
+pub(crate) fn canonical_reference_alias(kind: &ObjectKind) -> Option<&'static str> {
     match kind {
-        SourceObjectKind::EffectDefinition => Some("effects"),
-        SourceObjectKind::OperatorDefinition => Some("operators"),
-        SourceObjectKind::Curve => Some("curves"),
-        SourceObjectKind::Gradient => Some("gradients"),
-        SourceObjectKind::Sequence => Some("sequences"),
-        SourceObjectKind::Rig => Some("rigs"),
-        SourceObjectKind::Project => Some("projects"),
-        SourceObjectKind::Setup => Some("setups"),
-        SourceObjectKind::Controller => Some("controllers"),
-        SourceObjectKind::InputDevice => Some("devices"),
-        SourceObjectKind::Layout => Some("layouts"),
-        SourceObjectKind::Patch => Some("patches"),
-        SourceObjectKind::FixtureDefinition => Some("fixtures"),
-        SourceObjectKind::EffectInstance => None,
+        ObjectKind::EffectDefinition => Some("effects"),
+        ObjectKind::OperatorDefinition => Some("operators"),
+        ObjectKind::Curve => Some("curves"),
+        ObjectKind::Gradient => Some("gradients"),
+        ObjectKind::Sequence => Some("sequences"),
+        ObjectKind::Rig => Some("rigs"),
+        ObjectKind::Project => Some("projects"),
+        ObjectKind::Setup => Some("setups"),
+        ObjectKind::Controller => Some("controllers"),
+        ObjectKind::InputDevice => Some("devices"),
+        ObjectKind::Layout => Some("layouts"),
+        ObjectKind::Patch => Some("patches"),
+        ObjectKind::FixtureDefinition => Some("fixtures"),
     }
 }
 
 pub(crate) fn write_source_reference(
     session: &ProjectSession,
     from_document: &DocumentId,
-    kind: SourceObjectKind,
+    kind: ObjectKind,
     identity: &SourceIdentity,
 ) -> Result<String, ExportProjectError> {
     validate_reference_target(session, from_document, &kind, identity)?;
@@ -178,7 +172,7 @@ impl Loader {
         &self,
         document: &DocumentId,
         reference: &'r Reference,
-    ) -> Result<(ResolvedObject, &'r [Spanned<Identifier>]), LoadProjectError> {
+    ) -> Result<(ObjectId, &'r [Spanned<Identifier>]), LoadError> {
         let unresolved = || self.unresolved(document, reference);
         let segments = &reference.segments;
         let first = segments.first().ok_or_else(unresolved)?;
@@ -203,18 +197,18 @@ impl Loader {
                     },
                 );
             }
-            if let Some(target) = self.declared_target(object) {
+            if let Some(target) = self.declared_target(*object) {
                 self.link(document, name.span, target);
             }
-            return Ok((object.clone(), &segments[2..]));
+            return Ok((*object, &segments[2..]));
         }
         let object = scope
             .get(&SourceReference::Local(first.value.clone()))
             .ok_or_else(unresolved)?;
-        if let Some(target) = self.declared_target(object) {
+        if let Some(target) = self.declared_target(*object) {
             self.link(document, first.span, target);
         }
-        Ok((object.clone(), &segments[1..]))
+        Ok((*object, &segments[1..]))
     }
 
     /// A reference to exactly one declared object of `kind`.
@@ -222,20 +216,20 @@ impl Loader {
         &self,
         document: &DocumentId,
         reference: &Reference,
-        kind: SourceObjectKind,
-    ) -> Result<ResolvedObject, LoadProjectError> {
+        kind: ObjectKind,
+    ) -> Result<ObjectId, LoadError> {
         let (object, rest) = self.resolve_declared(document, reference)?;
         if !rest.is_empty() {
             return Err(self.unresolved(document, reference));
         }
-        if object.source_kind() != kind {
+        if object.kind() != kind {
             return Err(self.invalid(
                 document,
                 reference.span,
                 format!(
                     "`{}` is {}, not {}",
                     reference.text(),
-                    kind_name(&object.source_kind()),
+                    kind_name(&object.kind()),
                     kind_name(&kind)
                 ),
             ));
@@ -243,23 +237,19 @@ impl Loader {
         Ok(object)
     }
 
-    pub(crate) fn unresolved(
-        &self,
-        document: &DocumentId,
-        reference: &Reference,
-    ) -> LoadProjectError {
-        LoadProjectError::InvalidReference {
-            path: document.path().to_path_buf(),
-            range: self.range(document, reference.span),
-            reference: reference.text(),
-        }
+    pub(crate) fn unresolved(&self, document: &DocumentId, reference: &Reference) -> LoadError {
+        crate::diagnostics::invalid_reference(
+            document.path().to_path_buf(),
+            self.range(document, reference.span),
+            reference.text(),
+        )
     }
 
     pub(crate) fn load_imports(
         &mut self,
         document_id: &DocumentId,
         imports: &[ParsedImport],
-    ) -> Result<Vec<ImportEdge>, LoadProjectError> {
+    ) -> Result<Vec<ImportEdge>, LoadError> {
         self.import_locations
             .insert(document_id.clone(), imports.to_vec());
         let mut edges = Vec::with_capacity(imports.len());
@@ -278,7 +268,7 @@ impl Loader {
         Ok(edges)
     }
 
-    pub(crate) fn build_document_scopes(&mut self) -> Result<(), LoadProjectError> {
+    pub(crate) fn build_document_scopes(&mut self) -> Result<(), LoadError> {
         for (document_id, document) in &self.documents {
             let declarations = &self.import_locations[document_id];
             let mut aliases = IndexMap::new();
@@ -303,8 +293,7 @@ impl Loader {
                             document_id,
                             range,
                             format!(
-                                "document `{}:{}` is imported more than once; each target must have one alias",
-                                target.module_id(),
+                                "document `{}` is imported more than once; each target must have one alias",
                                 target.path()
                             ),
                             previous,
@@ -333,17 +322,19 @@ impl Loader {
                                 alias: edge.declaration.alias.clone(),
                                 name: name.clone(),
                             },
-                            object.clone(),
+                            *object,
                         ));
                     }
                 }
             }
             self.visible_objects
                 .get_mut(document_id)
-                .ok_or_else(|| LoadProjectError::InvalidDocument {
-                    path: document_id.path().to_path_buf(),
-                    range: None,
-                    message: "document inventory is missing".into(),
+                .ok_or_else(|| {
+                    crate::diagnostics::invalid_document(
+                        document_id.path().to_path_buf(),
+                        None,
+                        "document inventory is missing",
+                    )
                 })?
                 .extend(imported);
         }
@@ -352,42 +343,44 @@ impl Loader {
 
     pub(crate) fn resolve_import(
         &self,
-        importer: &donder_model::DocumentId,
+        importer: &DocumentId,
         import: &ParsedImport,
-    ) -> Result<Vec<donder_model::DocumentId>, LoadProjectError> {
-        match &import.declaration.source {
-            donder_language::ImportSource::LocalDocuments { documents } => documents
-                .iter()
-                .enumerate()
-                .map(|(index, path)| {
-                    crate::validate_document_path(path.as_str()).map_err(|message| {
-                        LoadProjectError::InvalidDocument {
-                            path: importer.path().to_path_buf(),
-                            range: target_range(import, index),
-                            message,
-                        }
-                    })?;
-                    let target = donder_model::DocumentId::new(importer.module_id(), path.clone());
-                    let absolute = self.absolute_document_path(&target)?;
-                    if !absolute.is_file() && !self.source_overrides.contains_key(&target) {
-                        return Err(LoadProjectError::InvalidDocument {
-                            path: importer.path().to_path_buf(),
-                            range: target_range(import, index),
-                            message: format!("local import target does not exist: {path}"),
-                        });
-                    }
-                    Ok(target)
-                })
-                .collect(),
-        }
+    ) -> Result<Vec<DocumentId>, LoadError> {
+        import
+            .declaration
+            .documents
+            .iter()
+            .enumerate()
+            .map(|(index, path)| {
+                crate::validate_document_path(path.as_str()).map_err(|message| {
+                    crate::diagnostics::invalid_document(
+                        importer.path().to_path_buf(),
+                        target_range(import, index),
+                        message,
+                    )
+                })?;
+                let target = DocumentId::new(path.clone());
+                self.absolute_document_path(&target)?;
+                if !self.texts.exists(target.path()) {
+                    return Err(crate::diagnostics::invalid_document(
+                        importer.path().to_path_buf(),
+                        target_range(import, index),
+                        format!("local import target does not exist: {path}"),
+                    ));
+                }
+                Ok(target)
+            })
+            .collect()
     }
 }
 
 fn target_range(import: &ParsedImport, index: usize) -> Option<TextRange> {
-    match import.declaration.source {
-        ImportSource::LocalDocuments { .. } => import.source_ranges.get(index).cloned().flatten(),
-    }
-    .or_else(|| import.range.clone())
+    import
+        .source_ranges
+        .get(index)
+        .cloned()
+        .flatten()
+        .or_else(|| import.range.clone())
 }
 
 fn import_collision(
@@ -396,30 +389,27 @@ fn import_collision(
     message: String,
     previous: Option<TextRange>,
     description: &str,
-) -> LoadProjectError {
-    LoadProjectError::InvalidImports {
+) -> LoadError {
+    vec![IoDiagnostic {
         path: document.path().to_path_buf(),
-        diagnostics: vec![IoDiagnostic {
+        range,
+        severity: IoDiagnosticSeverity::Error,
+        code: IoDiagnosticCode::DonderLoad,
+        message,
+        detail: None,
+        fix: None,
+        related: vec![IoRelatedLocation {
             path: document.path().to_path_buf(),
-            range,
-            severity: IoDiagnosticSeverity::Error,
-            code: IoDiagnosticCode::DonderLoad,
-            message,
-            detail: None,
-            fix: None,
-            related: vec![IoRelatedLocation {
-                path: document.path().to_path_buf(),
-                range: previous,
-                message: description.to_string(),
-            }],
+            range: previous,
+            message: description.to_string(),
         }],
-    }
+    }]
 }
 
 fn validate_reference_target(
     session: &ProjectSession,
     from_document: &DocumentId,
-    kind: &SourceObjectKind,
+    kind: &ObjectKind,
     identity: &SourceIdentity,
 ) -> Result<(), ExportProjectError> {
     session
@@ -430,7 +420,7 @@ fn validate_reference_target(
             document
                 .objects
                 .iter()
-                .find(|object| &object.kind == kind && object.id == identity.object())
+                .find(|object| &object.kind() == kind && object.name.as_str() == identity.object())
         })
         .ok_or_else(|| ExportProjectError::InvalidReference {
             path: from_document.path().to_path_buf(),
@@ -440,21 +430,20 @@ fn validate_reference_target(
     Ok(())
 }
 /// An object kind as diagnostics name it.
-pub(crate) fn kind_name(kind: &SourceObjectKind) -> &'static str {
+pub(crate) fn kind_name(kind: &ObjectKind) -> &'static str {
     match kind {
-        SourceObjectKind::Project => "a project",
-        SourceObjectKind::Setup => "a setup",
-        SourceObjectKind::Controller => "a controller",
-        SourceObjectKind::InputDevice => "an input device",
-        SourceObjectKind::Layout => "a layout",
-        SourceObjectKind::Patch => "a patch",
-        SourceObjectKind::FixtureDefinition => "a fixture definition",
-        SourceObjectKind::Curve => "a curve",
-        SourceObjectKind::Gradient => "a gradient",
-        SourceObjectKind::Sequence => "a sequence",
-        SourceObjectKind::Rig => "a rig",
-        SourceObjectKind::EffectDefinition => "an effect",
-        SourceObjectKind::OperatorDefinition => "an operator",
-        SourceObjectKind::EffectInstance => "a clip",
+        ObjectKind::Project => "a project",
+        ObjectKind::Setup => "a setup",
+        ObjectKind::Controller => "a controller",
+        ObjectKind::InputDevice => "an input device",
+        ObjectKind::Layout => "a layout",
+        ObjectKind::Patch => "a patch",
+        ObjectKind::FixtureDefinition => "a fixture definition",
+        ObjectKind::Curve => "a curve",
+        ObjectKind::Gradient => "a gradient",
+        ObjectKind::Sequence => "a sequence",
+        ObjectKind::Rig => "a rig",
+        ObjectKind::EffectDefinition => "an effect",
+        ObjectKind::OperatorDefinition => "an operator",
     }
 }

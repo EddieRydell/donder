@@ -156,16 +156,10 @@ pub(crate) enum ReducerKind {
 
 impl ReducerKind {
     pub(crate) fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "max" => Self::Max,
-            "min" => Self::Min,
-            "sum" => Self::Sum,
-            "any" => Self::Any,
-            "all" => Self::All,
-            "first" => Self::First,
-            "last" => Self::Last,
-            _ => return None,
-        })
+        crate::compiler::builtins::REDUCERS
+            .iter()
+            .find(|reducer| reducer.name == name)
+            .map(|reducer| reducer.kind)
     }
 }
 

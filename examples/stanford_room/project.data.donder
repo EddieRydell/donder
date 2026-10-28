@@ -7,7 +7,6 @@ import sequences_3 from <sequences/hidden_daggers.data.donder>;
 
 Project stanford_room {
   format: 1,
-  id: "0c6c3dda-8f24-40e8-9fb1-0b0336525108",
   description: none,
   setup: setups.main,
   sequences: [sequences.main, sequences_2.sequence_2, sequences_3.hidden_daggers],

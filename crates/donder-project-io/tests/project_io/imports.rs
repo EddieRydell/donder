@@ -2,10 +2,9 @@ use crate::common;
 
 use camino::Utf8PathBuf;
 use donder_language::ImportAlias;
-use donder_model::DocumentId;
 use donder_project_io::{
-    PROJECT_ROOT_FILE, SourceObjectKind, check_project, check_project_with_overrides,
-    ensure_document_can_reference_source, project_source_texts,
+    DocumentId, PROJECT_ROOT_FILE, check_project, ensure_document_can_reference_object,
+    project_source_texts,
 };
 
 fn root() -> Utf8PathBuf {
@@ -65,12 +64,10 @@ fn grouped_declarations_preserve_ordered_targets() {
         &format!("import {alias} from <{EFFECT}>, <{EXTRA}>;\n"),
         "effect Extra { sample { hsv(0.0, 1.0, 1.0) } }",
     );
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let session = report.session.unwrap();
-    let module = session.source.project_module_id();
-    let edge =
-        &session.source.documents[&DocumentId::new(module, PROJECT_ROOT_FILE.into())].imports()[0];
+    let edge = &session.source.documents[&DocumentId::new(PROJECT_ROOT_FILE.into())].imports()[0];
     assert_eq!(edge.alias(), alias);
     assert_eq!(
         edge.targets()
@@ -91,7 +88,11 @@ fn invalid_aliases_are_rejected() {
         &format!("import Fx from <{EFFECT}>;\n"),
         "effect Extra { sample { hsv(0.0, 1.0, 1.0) } }",
     );
-    assert!(check_project(&root).session.is_none());
+    assert!(
+        check_project(&root, &Default::default(), &mut Default::default())
+            .session
+            .is_none()
+    );
 }
 
 #[test]
@@ -118,7 +119,7 @@ fn grouped_collisions_report_both_source_occurrences() {
             &imports,
             "effect ImpactBurst { sample { hsv(0.0, 1.0, 1.0) } }",
         );
-        let report = check_project(&root);
+        let report = check_project(&root, &Default::default(), &mut Default::default());
         let diagnostic = report
             .diagnostics
             .iter()
@@ -141,7 +142,7 @@ fn missing_group_member_points_at_its_own_path_token() {
     let missing = "<effects/missing.donder>";
     *project = format!("import fx from <{EFFECT}>, {missing};\n{project}");
     let start = project.find(missing).unwrap() as u32;
-    let report = check_project_with_overrides(&root(), &sources);
+    let report = check_project(&root(), &sources, &mut Default::default());
     let diagnostic = report
         .diagnostics
         .iter()
@@ -164,7 +165,7 @@ fn imported_names_are_not_transitive_and_wrong_kinds_do_not_resolve() {
             .unwrap();
         assert!(project.contains("setup: setups.main"));
         *project = project.replace("setup: setups.main", &format!("setup: {reference}"));
-        let report = check_project_with_overrides(&root(), &sources);
+        let report = check_project(&root(), &sources, &mut Default::default());
         assert!(report.session.is_none(), "{reference}");
         assert!(
             report.diagnostics.iter().any(
@@ -202,7 +203,7 @@ fn local_imports_use_safe_document_paths() {
         "import fx from <../escape.donder>;\n",
         "effect Extra { sample { hsv(0.0, 1.0, 1.0) } }",
     );
-    let report = check_project(&root);
+    let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.session.is_none());
     assert!(
         report.diagnostics.iter().any(|diagnostic| diagnostic
@@ -233,57 +234,47 @@ fn mutual_data_imports_work_in_either_traversal_order() {
             .get_mut(&Utf8PathBuf::from(PROJECT_ROOT_FILE))
             .unwrap();
         *project = format!("import curves from <{first}>;\n{project}");
-        let report = check_project_with_overrides(&root(), &sources);
+        let report = check_project(&root(), &sources, &mut Default::default());
         assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     }
 }
 
 #[test]
 fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases() {
-    let mut session = donder_project_io::load_project(&root()).unwrap();
-    let module = session.source.project_module_id();
-    let from = DocumentId::new(module, "sequences/empty.data.donder".into());
+    let mut session =
+        donder_project_io::check_project(&root(), &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap();
+    let from = DocumentId::new("sequences/empty.data.donder".into());
     let own = session
         .project
-        .sequences()
-        .find(|sequence| sequence.id.0.document_id() == &from)
+        .objects::<donder_model::Sequence>()
+        .find(|sequence| session.declaration(sequence.id.into()).unwrap().0 == &from)
         .unwrap()
-        .id
-        .0
-        .root_source()
-        .clone();
+        .id;
     let count = session.source.documents[&from].imports().len();
-    ensure_document_can_reference_source(&mut session, &from, SourceObjectKind::Sequence, &own)
-        .unwrap();
+    ensure_document_can_reference_object(&mut session, &from, own.into()).unwrap();
     assert_eq!(session.source.documents[&from].imports().len(), count);
-    let definitions = &session.project.definitions().effects.definitions;
+    let definitions = session.project.reusable::<donder_model::EffectDefinition>();
     let existing = definitions
         .keys()
-        .find(|id| id.0.document().as_str() == "effects/standard.donder")
-        .unwrap()
-        .0
-        .clone();
+        .copied()
+        .find(|id| {
+            session.declaration((*id).into()).unwrap().0.path().as_str()
+                == "effects/standard.donder"
+        })
+        .unwrap();
     let another = definitions
         .keys()
-        .find(|id| id.0.document().as_str() == "effects/mark-impact-burst.donder")
-        .unwrap()
-        .0
-        .clone();
-    ensure_document_can_reference_source(
-        &mut session,
-        &from,
-        SourceObjectKind::EffectDefinition,
-        &existing,
-    )
-    .unwrap();
+        .copied()
+        .find(|id| {
+            session.declaration((*id).into()).unwrap().0.path().as_str()
+                == "effects/mark-impact-burst.donder"
+        })
+        .unwrap();
+    ensure_document_can_reference_object(&mut session, &from, existing.into()).unwrap();
     assert_eq!(session.source.documents[&from].imports().len(), count);
-    ensure_document_can_reference_source(
-        &mut session,
-        &from,
-        SourceObjectKind::EffectDefinition,
-        &another,
-    )
-    .unwrap();
+    ensure_document_can_reference_object(&mut session, &from, another.into()).unwrap();
     assert_eq!(
         session.source.documents[&from]
             .imports()
@@ -292,12 +283,6 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
             .alias(),
         "effects_2"
     );
-    ensure_document_can_reference_source(
-        &mut session,
-        &from,
-        SourceObjectKind::EffectDefinition,
-        &another,
-    )
-    .unwrap();
+    ensure_document_can_reference_object(&mut session, &from, another.into()).unwrap();
     assert_eq!(session.source.documents[&from].imports().len(), count + 1);
 }

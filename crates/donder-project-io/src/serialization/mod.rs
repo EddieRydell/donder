@@ -7,9 +7,6 @@ pub(super) fn write_source_documents(
     let mut cache = DocumentTextCache::default();
     let mut writes = std::collections::BTreeMap::new();
     for (id, document) in &session.source.documents {
-        if !session.source.is_project_owned(id) {
-            continue;
-        }
         let path = output_root.join(id.path());
         let expected = read_previous(&path)?;
         writes.insert(
@@ -119,123 +116,111 @@ pub(super) fn document_text(
     document: &SourceDocument,
     cache: &mut DocumentTextCache,
 ) -> Result<String, ExportProjectError> {
-    match &document.kind {
-        SourceDocumentKind::Data => {
-            crate::document::save::data_document_text(session, document_id, document, cache)
-        }
-        SourceDocumentKind::Script { source } => Ok(source.clone()),
+    match document.script_source() {
+        None => crate::document::save::data_document_text(session, document_id, document, cache),
+        Some(source) => Ok(source.to_string()),
     }
 }
 
+/// The inventory declares exactly the typed project's reusable objects, each
+/// under a name unique in its document.
 pub(super) fn validate_source_inventory(
     session: &ProjectSession,
 ) -> Result<(), ExportProjectError> {
     let project = &session.project;
-    let identities = std::iter::once((SourceObjectKind::Project, &project.root().id.0))
+    let mut typed: indexmap::IndexSet<ObjectId> = std::iter::once(project.root().id.into())
         .chain(
             project
-                .reusable_setups()
+                .reusable::<donder_model::Setup>()
                 .keys()
-                .map(|id| (SourceObjectKind::Setup, id.0.root_source())),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .reusable_controllers()
+                .reusable::<donder_model::Controller>()
                 .keys()
-                .map(|id| (SourceObjectKind::Controller, id.0.root_source())),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .reusable_input_devices()
+                .reusable::<donder_model::InputDevice>()
                 .keys()
-                .map(|id| (SourceObjectKind::InputDevice, id.0.root_source())),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .reusable_layouts()
+                .reusable::<donder_model::Layout>()
                 .keys()
-                .map(|id| (SourceObjectKind::Layout, id.0.root_source())),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .reusable_patches()
+                .reusable::<donder_model::Patch>()
                 .keys()
-                .map(|id| (SourceObjectKind::Patch, id.0.root_source())),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .reusable_sequences()
+                .reusable::<donder_model::Sequence>()
                 .keys()
-                .map(|id| (SourceObjectKind::Sequence, id.0.root_source())),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .reusable_rigs()
+                .reusable::<donder_model::Rig>()
                 .keys()
-                .map(|id| (SourceObjectKind::Rig, id.0.root_source())),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .definitions()
-                .fixtures
-                .definitions
+                .reusable::<donder_model::FixtureDefinition>()
                 .keys()
-                .map(|id| (SourceObjectKind::FixtureDefinition, &id.0)),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .definitions()
-                .curves
-                .definitions
+                .reusable::<donder_model::CurveDefinition>()
                 .keys()
-                .map(|id| (SourceObjectKind::Curve, &id.0)),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .definitions()
-                .gradients
-                .definitions
+                .reusable::<donder_model::GradientDefinition>()
                 .keys()
-                .map(|id| (SourceObjectKind::Gradient, &id.0)),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .definitions()
-                .effects
-                .definitions
+                .reusable::<donder_model::EffectDefinition>()
                 .keys()
-                .map(|id| (SourceObjectKind::EffectDefinition, &id.0)),
+                .map(|&id| id.into()),
         )
         .chain(
             project
-                .definitions()
-                .operators
-                .definitions
+                .reusable::<donder_model::OperatorDefinition>()
                 .keys()
-                .map(|id| (SourceObjectKind::OperatorDefinition, &id.0)),
-        );
-    let mut typed: indexmap::IndexSet<_> = identities
-        .map(|(kind, identity)| {
-            (
-                identity.document_id().clone(),
-                SourceObjectId {
-                    kind,
-                    id: identity.object().to_string(),
-                },
-            )
-        })
+                .map(|&id| id.into()),
+        )
         .collect();
     for (document_id, document) in &session.source.documents {
+        let mut names = std::collections::HashSet::new();
         for object in &document.objects {
-            if !typed.swap_remove(&(document_id.clone(), object.clone())) {
+            if !names.insert(&object.name) {
+                return Err(ExportProjectError::InvalidReference {
+                    path: document_id.path().to_path_buf(),
+                    reference: object.name.as_str().to_string(),
+                    message: "the document declares this name twice".to_string(),
+                });
+            }
+            if !typed.swap_remove(&object.id) {
                 return Err(missing_typed_object(document_id, object));
             }
         }
     }
-    if let Some((document, object)) = typed.first() {
+    if let Some(id) = typed.first() {
         return Err(ExportProjectError::InvalidReference {
-            path: document.path().to_path_buf(),
-            reference: object.id.clone(),
+            path: crate::PROJECT_ROOT_FILE.into(),
+            reference: format!("{:?}", id.kind()),
             message: "typed project object is missing from the source inventory".to_string(),
         });
     }
@@ -244,21 +229,21 @@ pub(super) fn validate_source_inventory(
 
 pub(crate) fn missing_typed_object(
     document: &DocumentId,
-    id: &SourceObjectId,
+    object: &DeclaredObject,
 ) -> ExportProjectError {
     ExportProjectError::InvalidReference {
         path: document.path().to_path_buf(),
-        reference: id.id.clone(),
+        reference: object.name.as_str().to_string(),
+
         message: "typed project object is missing".to_string(),
     }
 }
 
 use std::{fs, io};
 
+use crate::address::{DeclaredObject, DocumentId};
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_model::DocumentId;
+use donder_model::ObjectId;
 
 use crate::ExportProjectError;
-use crate::source::{
-    ProjectSession, SourceDocument, SourceDocumentKind, SourceObjectId, SourceObjectKind,
-};
+use crate::source::{ProjectSession, SourceDocument};

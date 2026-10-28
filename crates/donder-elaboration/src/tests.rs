@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_project_io::load_project;
+use donder_project_io::check_project;
 
 use crate::{PrepareOutputs, prepare};
 use donder_runtime::SequenceFrame;
@@ -10,7 +10,9 @@ fn example(name: &str) -> donder_project_io::ProjectSession {
         .join("../..")
         .join("examples")
         .join(name);
-    load_project(&path).unwrap_or_else(|error| panic!("failed to load {name}: {error}"))
+    check_project(&path, &Default::default(), &mut Default::default())
+        .into_session()
+        .unwrap_or_else(|error| panic!("failed to load {name}: {error:?}"))
 }
 
 #[test]
@@ -22,13 +24,20 @@ fn starter_prepares_and_produces_exact_controller_widths() {
     let frame = playback.evaluate(SampleTime::from_ticks(0));
     let setup = session
         .project
-        .reusable_setups()
+        .reusable::<donder_model::Setup>()
         .get(session.project.root().setup.id())
         .unwrap();
     let expected_ports = setup
         .controllers
         .iter()
-        .map(|id| session.project.controller(id.id()).unwrap().ports.len())
+        .map(|id| {
+            session
+                .project
+                .get::<donder_model::Controller>(*id.id())
+                .unwrap()
+                .ports
+                .len()
+        })
         .sum::<usize>();
     assert_eq!(frame.outputs().len(), expected_ports);
     for port_frame in frame.outputs() {
@@ -36,7 +45,7 @@ fn starter_prepares_and_produces_exact_controller_widths() {
         let slots = port_frame.bytes;
         let controller = session
             .project
-            .reusable_controllers()
+            .reusable::<donder_model::Controller>()
             .get(setup.controllers[output.controller_index as usize].id())
             .unwrap();
         let port = controller

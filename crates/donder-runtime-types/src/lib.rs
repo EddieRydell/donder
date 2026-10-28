@@ -28,12 +28,9 @@ pub use alloc::sync::Arc as Shared;
 mod automation;
 mod bindings;
 pub mod bytecode;
-pub mod image;
-mod invocation;
-mod operator;
 mod prepared;
+mod program;
 mod rig;
-mod sample;
 pub mod sampling;
 mod types;
 mod values;
@@ -45,19 +42,17 @@ pub use automation::{
 };
 pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
-pub use invocation::{OperatorInvocation, SampleInvocation};
-pub use operator::OperatorProgram;
 pub use prepared::{
     AutomatedQuantity, FixtureGeometry, OutputEncoding, PixelEncoding, PreparedAutomation,
-    RgbOrder, SequenceTiming, SequenceWindow, SpatialContext, TargetGeometry, TargetPixel,
-    TargetScope, WhitePosition,
+    RgbOrder, SequenceTiming, SpatialContext, TargetGeometry, TargetPixel, TargetScope,
+    WhitePosition,
 };
+pub use program::{BoundProgram, Program};
 pub use rig::{RigCommand, RigEvent};
-pub use sample::SampleProgram;
 pub use types::{Identifier, IdentifierError, Type, Value};
 pub use values::{
     Color, Curve, CurvePoint, CurveValidationError, Gradient, GradientStop,
-    GradientValidationError, MICROS_PER_SECOND, MarkWindow, Marks, Microseconds, SECONDS_PER_TICK,
+    GradientValidationError, MICROS_PER_SECOND, MarkWindow, Marks, SECONDS_PER_TICK,
     SampleDuration, SampleTime, SampleTimeError, mul_div, sample_duration_from_seconds_f32,
     sample_duration_seconds_f32, sample_time_from_frame, sample_time_from_seconds_f32,
     sample_time_seconds_f32, sample_time_with_seconds_offset,

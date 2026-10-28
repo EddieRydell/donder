@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use donder_project_io::ProjectSession;
 
+use super::workspace_state::RenderTarget;
 use super::{DesktopState, lock_unpoisoned};
 use crate::state_tasks::RenderRefreshPayload;
 
@@ -19,14 +20,18 @@ impl DesktopState {
     }
 
     pub(super) fn schedule_render_refresh(&self, project: Arc<ProjectSession>) {
-        let target = lock_unpoisoned(&self.workspace).render_target.clone();
-        let Some((setup_id, sequence_id)) = target else {
+        let Some(target) = lock_unpoisoned(&self.workspace).render_target.clone() else {
             return;
         };
-        if project.project.sequence(&sequence_id).is_none() {
+        let Some((setup_id, sequence_id)) = target.resolve(&project).filter(|(_, sequence)| {
+            project
+                .project
+                .get::<donder_model::Sequence>(*sequence)
+                .is_some()
+        }) else {
             self.unload_render_session();
             return;
-        }
+        };
         let snapshot = self.snapshot();
         let request = RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
@@ -43,11 +48,15 @@ impl DesktopState {
         project: Arc<ProjectSession>,
         sequence_id: donder_model::SequenceId,
     ) {
-        lock_unpoisoned(&self.workspace).render_target = Some((
-            project.project.root().setup.id().clone(),
-            sequence_id.clone(),
-        ));
-        if project.project.sequence(&sequence_id).is_none() {
+        let setup_id = *project.project.root().setup.id();
+        let target = RenderTarget::new(&project, setup_id, sequence_id);
+        let missing = target.is_none()
+            || project
+                .project
+                .get::<donder_model::Sequence>(sequence_id)
+                .is_none();
+        lock_unpoisoned(&self.workspace).render_target = target;
+        if missing {
             self.unload_render_session();
             return;
         }
@@ -55,7 +64,7 @@ impl DesktopState {
         let request = RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
-            setup_id: project.project.root().setup.id().clone(),
+            setup_id,
             project,
             sequence_id,
         };
@@ -81,12 +90,13 @@ impl DesktopState {
         let snapshot = self.snapshot();
         if snapshot.project_epoch != request.project_epoch
             || snapshot.project_revision != request.project_revision
-            || snapshot.project_health != donder_sequence_api::ProjectHealth::Ready
+            || snapshot.project_health != donder_editor::dto::ProjectHealth::Ready
         {
             return;
         }
-        if lock_unpoisoned(&self.workspace).render_target.as_ref()
-            != Some(&(request.setup_id, request.sequence_id))
+        let target = lock_unpoisoned(&self.workspace).render_target.clone();
+        if target.and_then(|target| target.resolve(&request.project))
+            != Some((request.setup_id, request.sequence_id))
         {
             return;
         }

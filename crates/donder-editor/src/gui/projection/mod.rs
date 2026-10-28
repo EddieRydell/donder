@@ -12,17 +12,17 @@ pub(super) fn sequence_effect_details(
     resolved: &ResolvedGuiObject,
     effect_ids: &[u32],
 ) -> Result<Vec<SequenceEffectDetails>, String> {
-    let id = SequenceId(resolved.object_identity());
+    let id = resolved.id::<SequenceId>();
     let sequence = session
         .project
-        .sequence(&id)
+        .get::<donder_model::Sequence>(id)
         .ok_or("Sequence is not available in the checked project model.")?;
     Ok(effect_ids
         .iter()
         .filter_map(|id| sequence.effects.iter().find(|effect| effect.id.0 == *id))
         .map(|effect| SequenceEffectDetails {
             id: effect.id.0,
-            effect_reference: effect_ref_to_gui(&effect.definition),
+            effect_reference: effect_ref_to_gui(session, &effect.definition),
             params: effect_params(session, sequence, effect),
         })
         .collect())
@@ -41,15 +41,11 @@ pub(super) fn project_sequence_clips(
     resolved: &ResolvedGuiObject,
     include: &dyn Fn(&std::sync::Arc<donder_model::EffectInst>) -> bool,
 ) -> GuiDocument {
-    let id = SequenceId(resolved.object_identity());
-    let Some(sequence) = session.project.sequence(&id) else {
+    let id = resolved.id::<SequenceId>();
+    let Some(sequence) = session.project.get::<donder_model::Sequence>(id) else {
         return blocked(
             "Sequence is not available in the checked project model.",
-            vec![gui_diagnostic(
-                resolved.identity.document().as_ref(),
-                "gui.sequence",
-                "Sequence is not available in the checked project model.",
-            )],
+            Vec::new(),
         );
     };
     let lanes = active_layout(session).map(layout_lanes).unwrap_or_default();
@@ -74,12 +70,9 @@ pub(super) fn project_sequence_clips(
             },
             effect: session
                 .project
-                .definitions()
-                .effects
-                .resolve(&effect.definition)
-                .map(|definition| definition.display_name.clone())
+                .get::<donder_model::EffectDefinition>(effect.definition)
+                .map(|definition| definition.name().to_string())
                 .unwrap_or_else(|| "Missing effect".to_string()),
-            kind: SequenceTimelineClipKind::Effect,
         })
         .collect();
     let composition_graph = composition_graph(
@@ -96,7 +89,7 @@ pub(super) fn project_sequence_clips(
             object_key: resolved.identity.object().to_string(),
             duration_seconds: sequence.duration.as_seconds_f64(),
             frame_rate: sequence.frame_rate as f32,
-            audio: sequence_audio(session, resolved.identity.document_id(), &sequence.audio),
+            audio: sequence_audio(session, &sequence.audio),
             mark_collections: sequence
                 .mark_collections
                 .iter()
@@ -118,8 +111,8 @@ pub(super) fn project_sequence_clips(
                 .collect(),
             lanes,
             effect_definitions: effect_definitions(session),
-            curve_library: curve_library(session, resolved.identity.document_id()),
-            gradient_library: gradient_library(session, resolved.identity.document_id()),
+            curve_library: curve_library(session),
+            gradient_library: gradient_library(session),
             layers: layers_to_gui(&sequence.layers),
             effects,
             composition_graph,
@@ -158,11 +151,6 @@ fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomation
                 .iter()
                 .map(|binding| SequenceDetachedAutomationBinding {
                     target: automation_target_to_gui(&binding.target),
-                    reason: match binding.reason {
-                        AutomationDetachmentReason::DefinitionChanged => {
-                            SequenceAutomationDetachmentReason::DefinitionChanged
-                        }
-                    },
                 })
                 .collect(),
         })
@@ -189,27 +177,28 @@ fn automation_target_to_gui(target: &AutomationTarget) -> SequenceAutomationTarg
 pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
     session
         .project
-        .setup(session.project.root().setup.id())
-        .and_then(|setup| session.project.layout(setup.layout.id()))
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
+        .and_then(|setup| {
+            session
+                .project
+                .get::<donder_model::Layout>(*setup.layout.id())
+        })
 }
 
 fn sequence_audio(
     session: &ProjectSession,
-    document: &donder_model::DocumentId,
     audio: &donder_model::SequenceAudio,
 ) -> Option<SequenceAudio> {
-    session
-        .audio_asset(document, audio)
-        .map(|asset| SequenceAudio {
-            import_path: asset.relative_path.to_string(),
-            resolved_path: asset.absolute_path.to_string(),
-            file_name: asset
-                .relative_path
-                .file_name()
-                .map(ToString::to_string)
-                .unwrap_or_else(|| asset.relative_path.to_string()),
-            exists: asset.absolute_path.is_file(),
-        })
+    session.audio_asset(audio).map(|asset| SequenceAudio {
+        import_path: asset.relative_path.to_string(),
+        resolved_path: asset.absolute_path.to_string(),
+        file_name: asset
+            .relative_path
+            .file_name()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| asset.relative_path.to_string()),
+        exists: asset.absolute_path.is_file(),
+    })
 }
 
 /// The timeline lanes: the layout root walked depth-first, with each item's
@@ -272,53 +261,56 @@ pub(super) fn effect_target_label(
 ) -> String {
     session
         .project
-        .layout(&target.layout)
+        .get::<donder_model::Layout>(target.layout)
         .and_then(|layout| layout.fixture(target.fixture))
         .map(|fixture| fixture.name.as_str().to_string())
         .unwrap_or_else(|| format!("Missing fixture {}", target.fixture.0))
 }
 
-pub(super) fn effect_ref_to_gui(reference: &EffectRef) -> SequenceEffectReference {
-    match reference {
-        EffectRef::Custom(id) => SequenceEffectReference::Custom {
-            module_id: id.0.module_id().to_string(),
-            path: id.0.document().to_string(),
-            effect_name: id.0.object().to_string(),
-        },
+pub(super) fn effect_ref_to_gui(
+    session: &ProjectSession,
+    id: &EffectDefinitionId,
+) -> SequenceEffectReference {
+    let identity = crate::gui::model::declared_identity(session, *id);
+    SequenceEffectReference {
+        path: identity.document().to_string(),
+        effect_name: identity.object().to_string(),
     }
 }
 
 pub(super) fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition> {
     session
         .project
-        .definitions()
-        .effects
-        .definitions
+        .reusable::<donder_model::EffectDefinition>()
         .iter()
         .map(|(id, definition)| {
-            let source = effect_ref_to_gui(&EffectRef::Custom(id.clone()));
+            let source = effect_ref_to_gui(session, id);
             SequenceEffectDefinition {
-                name: definition.display_name.clone(),
+                name: definition.name().to_string(),
                 description: definition.description().map(str::to_string),
                 effect: source,
-                import_path: Some(id.0.document().to_string()),
+                import_path: Some(
+                    crate::gui::model::declared_identity(session, *id)
+                        .document()
+                        .to_string(),
+                ),
                 params: params::definition_params_to_gui(definition.params()),
             }
         })
         .collect()
 }
-use donder_model::{AutomationDetachmentReason, AutomationTarget, SequenceId};
-use donder_model::{EffectRef, EffectScope};
+use donder_model::{AutomationTarget, SequenceId};
+use donder_model::{EffectDefinitionId, EffectScope};
 use donder_model::{FixtureTarget as DomainFixtureTarget, Layout};
 use donder_project_io::ProjectSession;
 
 mod spatial;
-use super::{ResolvedGuiObject, blocked, gui_diagnostic};
-use donder_sequence_api::{
+use super::{ResolvedGuiObject, blocked};
+use crate::dto::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCurvePoint,
-    SequenceDetachedAutomationBinding, SequenceEffect, SequenceEffectDefinition,
-    SequenceEffectDetails, SequenceEffectReference, SequenceEffectScope, SequenceGuiDocument,
-    SequenceLane, SequenceLaneKind, SequenceMarkCollection, SequenceTimelineClipKind,
+    SequenceAutomationTarget, SequenceCurvePoint, SequenceDetachedAutomationBinding,
+    SequenceEffect, SequenceEffectDefinition, SequenceEffectDetails, SequenceEffectReference,
+    SequenceEffectScope, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
+    SequenceMarkCollection,
 };
 pub(super) use spatial::{project_fixture, project_layout};

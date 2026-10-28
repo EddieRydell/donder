@@ -23,7 +23,6 @@ import trans_siberian_mix from <sequences/trans_siberian_mix.data.donder>;
 
 Project rydell_house {
   format: 1,
-  id: "9ef79b9b-78ce-4cc3-b2dc-ac76193daa05",
   description: none,
   setup: setups.main,
   sequences: [

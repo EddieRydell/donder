@@ -128,10 +128,7 @@ pub(crate) enum Context {
 
 impl Context {
     pub(crate) fn ty(self) -> Type {
-        match self {
-            Self::PixelIndex | Self::TargetCount | Self::FramesElapsed => Type::Int,
-            _ => Type::Float,
-        }
+        crate::compiler::builtins::context_type(self)
     }
 
     pub(crate) fn domain(self) -> Domain {

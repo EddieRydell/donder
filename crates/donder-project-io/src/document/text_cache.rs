@@ -55,7 +55,7 @@ impl DocumentTextCache {
     ) -> Result<Vec<Arc<str>>, ExportProjectError> {
         let cached = self
             .sequences
-            .entry(sequence.id.clone())
+            .entry(sequence.id)
             .or_insert_with(|| SequenceClips {
                 imports: Vec::new(),
                 layers: Vec::new(),

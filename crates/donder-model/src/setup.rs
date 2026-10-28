@@ -1,9 +1,6 @@
-use crate::identity::ObjectIdentity;
+pub(crate) use crate::identity::SetupId;
 
 pub(crate) mod authoring;
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct SetupId(pub ObjectIdentity);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Setup {
@@ -23,9 +20,3 @@ impl crate::ownership::Identified for Setup {
 }
 
 pub type SetupSource = crate::ownership::ValueSource<Box<Setup>, SetupId>;
-
-impl AsRef<ObjectIdentity> for SetupId {
-    fn as_ref(&self) -> &ObjectIdentity {
-        &self.0
-    }
-}

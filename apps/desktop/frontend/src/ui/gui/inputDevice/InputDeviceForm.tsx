@@ -177,7 +177,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     void onSave(driver, controls);
   }}>
     <h4>{device === undefined ? "Add an input device" : "Input device settings"}</h4>
-    <fieldset disabled={device?.readOnly === true}>
+    <fieldset>
       <label>Driver<select value={driver.type} onChange={(event) => {
         const type = event.target.value;
         const next: GuiInputDriver = type === "midi" ? { type: "midi", port: null }

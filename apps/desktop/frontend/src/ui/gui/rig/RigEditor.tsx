@@ -10,11 +10,11 @@ import { DescriptionField } from "../DescriptionField";
 import { GraphEditorModal } from "../sequence/GraphEditorModal";
 import { NameField } from "../sequence/NameField";
 import { EffectDefinitionPicker } from "../sequence/definitionMenu";
-import { defaultMarkColor, nextCollectionKey } from "../sequence/marks";
+import { defaultMarkColor } from "../sequence/marks";
 import { LayerList } from "../sequence/sequenceLayers";
 import { RigEffectFields, RigInputPicker } from "./RigFields";
 import { RigMappingCard } from "./RigMappingCard";
-import { applyRigEdit, firstInput, rigComposition } from "./rigEditing";
+import { applyRigEdit, applyRigItemEdit, firstInput, rigComposition } from "./rigEditing";
 
 export function RigEditor({ document }: { document: RigGuiDocument }) {
   const composition = useMemo(() => rigComposition(document), [document]);
@@ -55,18 +55,18 @@ export function RigEditor({ document }: { document: RigGuiDocument }) {
 
       <section className="setup-section">
         <div className="object-overview-group-header"><h3>Live marks</h3>
-          <button type="button" onClick={() => void applyRigEdit({ type: "addLiveMarks", name: nextCollectionKey("live_marks", document.liveMarks), color: defaultMarkColor(document.liveMarks.length) })}>Add live marks</button>
+          <button type="button" onClick={() => void applyRigEdit({ type: "addLiveMarks", name: "Live marks", color: defaultMarkColor(document.liveMarks.length) })}>Add live marks</button>
         </div>
         <p className="setup-section-intro">Each session starts them empty; mark mappings add to them, and marks parameters follow them.</p>
         {document.liveMarks.map((marks) => {
-          const item = { type: "liveMarks", key: marks.key } as const;
+          const item = { type: "markCollection", key: marks.key } as const;
           return <div className="rig-item" key={marks.key}>
             <div className="inspector-inline-row">
-              <ColorPicker value={marks.color} label={`${marks.key} color`} commit={(color) => applyRigEdit({ type: "setLiveMarksColor", key: marks.key, color })} />
-              <NameField name={marks.key} label="Name" commit={(name) => applyRigEdit({ type: "rename", item, name })} />
-              <button type="button" onClick={() => void applyRigEdit({ type: "delete", item })}>Delete</button>
+              <ColorPicker value={marks.color} label={`${marks.key} color`} commit={(color) => applyRigItemEdit({ type: "setColor", item, color })} />
+              <NameField name={marks.key} label="Name" commit={(name) => applyRigItemEdit({ type: "rename", item, name })} />
+              <button type="button" onClick={() => void applyRigItemEdit({ type: "delete", item })}>Delete</button>
             </div>
-            <DescriptionField description={marks.description} onCommit={(description) => applyRigEdit({ type: "setDescription", item, description })} />
+            <DescriptionField description={marks.description} onCommit={(description) => applyRigItemEdit({ type: "setDescription", item, description })} />
           </div>;
         })}
       </section>
@@ -82,10 +82,10 @@ export function RigEditor({ document }: { document: RigGuiDocument }) {
           const item = { type: "voice", id: voice.id } as const;
           return <div className="rig-item" key={voice.id}>
             <div className="inspector-inline-row">
-              <NameField name={voice.name} label="Name" commit={(name) => applyRigEdit({ type: "rename", item, name })} />
-              <button type="button" onClick={() => void applyRigEdit({ type: "delete", item })}>Delete voice</button>
+              <NameField name={voice.name} label="Name" commit={(name) => applyRigItemEdit({ type: "rename", item, name })} />
+              <button type="button" onClick={() => void applyRigItemEdit({ type: "delete", item })}>Delete voice</button>
             </div>
-            <DescriptionField description={voice.description} onCommit={(description) => applyRigEdit({ type: "setDescription", item, description })} />
+            <DescriptionField description={voice.description} onCommit={(description) => applyRigItemEdit({ type: "setDescription", item, description })} />
             <RigEffectFields document={document} owner={item} effect={voice.effect} />
           </div>;
         })}
@@ -100,10 +100,10 @@ export function RigEditor({ document }: { document: RigGuiDocument }) {
           const reference = { type: "switch", id: item.id } as const;
           return <div className="rig-item" key={item.id}>
             <div className="inspector-inline-row">
-              <NameField name={item.name} label="Name" commit={(name) => applyRigEdit({ type: "rename", item: reference, name })} />
-              <button type="button" onClick={() => void applyRigEdit({ type: "delete", item: reference })}>Delete switch</button>
+              <NameField name={item.name} label="Name" commit={(name) => applyRigItemEdit({ type: "rename", item: reference, name })} />
+              <button type="button" onClick={() => void applyRigItemEdit({ type: "delete", item: reference })}>Delete switch</button>
             </div>
-            <DescriptionField description={item.description} onCommit={(description) => applyRigEdit({ type: "setDescription", item: reference, description })} />
+            <DescriptionField description={item.description} onCommit={(description) => applyRigItemEdit({ type: "setDescription", item: reference, description })} />
             <RigInputPicker document={document} input={item.input} use="switch" onChange={(input) => void applyRigEdit({ type: "setSwitchInput", id: item.id, input })} />
           </div>;
         })}

@@ -1,7 +1,7 @@
-use donder_runtime::PlaybackRate;
-use donder_sequence_api::{
+use donder_editor::dto::{
     AudioTransportSnapshot, AudioTransportState, PlaybackRange, SequenceAudio,
 };
+use donder_runtime::PlaybackRate;
 use std::time::{Duration, Instant};
 
 use super::backend::{

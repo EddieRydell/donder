@@ -1,14 +1,14 @@
 use super::workspace_state::WorkingDocument;
 use super::{
-    DesktopState, LoadedProject, descriptor_for_path, lock_unpoisoned, project_diagnostics,
-    recovery_workspace_entries, workspace_entries,
+    DesktopState, LoadedProject, descriptor_for_path, lock_unpoisoned, recovery_workspace_entries,
+    workspace_entries,
 };
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::{ProjectCheckReport, ProjectSession};
-use donder_sequence_api::{
+use donder_editor::dto::{
     AppSnapshot, EditorViewMode, GuiDocument, GuiDocumentRequest, ProjectHealth, SequenceAudio,
     SidebarView,
 };
+use donder_project_io::{ProjectCheckReport, ProjectSession};
 use std::sync::Arc;
 
 impl DesktopState {
@@ -32,7 +32,7 @@ impl DesktopState {
             }
         };
         // Open from a single captured source input, including project configuration.
-        let report = donder_project_io::check_project_cached(
+        let report = donder_project_io::check_project(
             &root,
             &sources,
             &mut lock_unpoisoned(&self.check_cache),
@@ -110,7 +110,7 @@ impl DesktopState {
     }
 
     pub(super) fn apply_analysis(&self, report: ProjectCheckReport) {
-        let diagnostics = project_diagnostics(&report);
+        let diagnostics = report.diagnostics.clone();
         let session = report.session.map(Arc::new);
         let entries = session.as_ref().map_or_else(
             || recovery_workspace_entries(&report.recovery),
@@ -120,7 +120,7 @@ impl DesktopState {
             .documents
             .values()
             .any(|doc| {
-                doc.buffer.external_state != donder_sequence_api::BufferExternalState::Current
+                doc.buffer.external_state != donder_editor::dto::BufferExternalState::Current
             });
         let session = session.filter(|_| !conflicted);
         let active = self.snapshot().active_file;
@@ -131,13 +131,6 @@ impl DesktopState {
         });
         {
             let mut workspace = lock_unpoisoned(&self.workspace);
-            if let Some(session) = &session {
-                for (path, document) in &mut workspace.documents {
-                    if let Some(source) = donder_editor::document_for_editor_path(session, path) {
-                        document.buffer.read_only = !session.source.is_project_owned(&source);
-                    }
-                }
-            }
             workspace.typed_revision = session.as_ref().map(|_| workspace.view.project_revision);
             workspace.project = match &session {
                 Some(session) => LoadedProject::Ready(Arc::clone(session)),
@@ -177,7 +170,7 @@ impl DesktopState {
         if let Some(diagnostic) = snapshot.diagnostics.iter().find(|item| {
             matches!(
                 item.severity,
-                donder_sequence_api::DiagnosticSeverity::Error
+                donder_project_io::IoDiagnosticSeverity::Error
             )
         }) {
             let path = Utf8Path::new(&diagnostic.path);
@@ -227,14 +220,16 @@ impl DesktopState {
         &self,
         request: &GuiDocumentRequest,
     ) -> Option<donder_model::SequenceId> {
-        if request.project_revision != self.snapshot().project_revision
-            || request.view != donder_sequence_api::DocumentViewId::Sequence
-        {
+        if request.project_revision != self.snapshot().project_revision {
             return None;
         }
         let project = self.project_session()?;
         let resolved = donder_editor::resolve_request(&project, request).ok()?;
-        let id = donder_model::SequenceId(resolved.object_identity());
-        project.project.sequence(&id).is_some().then_some(id)
+        let id = donder_model::SequenceId::try_from(resolved.object).ok()?;
+        project
+            .project
+            .get::<donder_model::Sequence>(id)
+            .is_some()
+            .then_some(id)
     }
 }

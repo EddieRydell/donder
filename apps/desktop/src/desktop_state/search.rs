@@ -5,7 +5,7 @@ use std::fs;
 use ignore::WalkBuilder;
 
 use super::DesktopState;
-use donder_sequence_api::{
+use donder_editor::dto::{
     ProjectSearchMatch, ProjectSearchMatchKind, ProjectSearchRequest, ProjectSearchResponse,
 };
 

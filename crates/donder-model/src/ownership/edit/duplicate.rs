@@ -8,7 +8,7 @@ pub fn duplicate_layout_fixture(
     project: &mut DonderProject,
     layout_id: &LayoutId,
     fixture_id: FixtureInstanceId,
-) -> Result<FixtureInstanceId, String> {
+) -> Result<FixtureInstanceId, crate::EditError> {
     project.checked_edit(|project| duplicate_candidate(project, layout_id, fixture_id))
 }
 
@@ -22,19 +22,16 @@ struct Copier<'a> {
 
 impl Copier<'_> {
     // Every copied placement and group gets its own unique name.
-    fn own(&mut self, id: FixtureInstanceId) -> Result<FixtureInstanceId, String> {
+    fn own(&mut self, id: FixtureInstanceId) -> Result<FixtureInstanceId, EditRejection> {
         if let Some(copy) = self.copies.get(&id) {
             return Ok(copy.id);
         }
         let mut copy = self
             .layout
             .fixture(id)
-            .ok_or("Fixture was not found.")?
+            .ok_or(EditRejection::MissingItem)?
             .clone();
-        self.next = self
-            .next
-            .checked_add(1)
-            .ok_or("No fixture instance IDs remain.")?;
+        self.next = self.next.checked_add(1).ok_or(EditRejection::NoFreeIds)?;
         copy.id = FixtureInstanceId(self.next);
         copy.name = donder_language::unique_name(&format!("{}_copy", copy.name.as_str()), |name| {
             self.taken.iter().any(|taken| taken.as_str() == name)
@@ -45,11 +42,9 @@ impl Copier<'_> {
                 if let FixtureSource::Reference(id) = definition {
                     *definition = FixtureSource::Inline(
                         self.project
-                            .definitions
-                            .fixtures
-                            .definitions
+                            .reusable::<crate::FixtureDefinition>()
                             .get(id)
-                            .ok_or("Fixture source was not found.")?
+                            .ok_or(EditRejection::MissingItem)?
                             .clone(),
                     );
                 }
@@ -71,8 +66,10 @@ fn duplicate_candidate(
     project: &mut DonderProject,
     layout_id: &LayoutId,
     fixture_id: FixtureInstanceId,
-) -> Result<FixtureInstanceId, String> {
-    let layout = project.layout(layout_id).ok_or("Layout was not found.")?;
+) -> Result<FixtureInstanceId, EditRejection> {
+    let layout = project
+        .get::<crate::Layout>(*layout_id)
+        .ok_or(EditRejection::Missing(ObjectKind::Layout))?;
     let mut copier = Copier {
         project,
         layout,
@@ -90,14 +87,14 @@ fn duplicate_candidate(
     let id = copier.own(fixture_id)?;
     let copies = copier.copies;
     let layout = project
-        .layout_mut(layout_id)
-        .ok_or("Layout was not found.")?;
+        .find_mut::<crate::Layout>(*layout_id)
+        .ok_or(EditRejection::Missing(ObjectKind::Layout))?;
     for (original, copy) in copies {
         let index = layout
             .fixtures
             .iter()
             .position(|fixture| fixture.id == original)
-            .ok_or("Fixture was not found.")?;
+            .ok_or(EditRejection::MissingItem)?;
         layout.fixtures.insert(index + 1, copy);
     }
     layout.add_beside(id, fixture_id);

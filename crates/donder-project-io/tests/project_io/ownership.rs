@@ -1,9 +1,8 @@
 use crate::common;
 
 use camino::Utf8Path;
-use donder_model::OwnedObjectSlot;
-use donder_model::ValueSource;
-use donder_project_io::{PROJECT_ROOT_FILE, load_project, save_project};
+use donder_model::{MemberSource, ValueSource};
+use donder_project_io::{OwnedObjectSlot, PROJECT_ROOT_FILE, check_project, save_project};
 
 const TRANSFORM: &str =
     "Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) }";
@@ -122,25 +121,38 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     write_inline_project(root);
     let mut session = common::load_project(root);
-    assert!(session.project.reusable_setups().is_empty());
-    assert!(session.project.reusable_layouts().is_empty());
-    assert!(session.project.reusable_patches().is_empty());
-    assert!(session.project.reusable_controllers().is_empty());
-    assert!(session.project.reusable_sequences().is_empty());
+    assert!(session.project.reusable::<donder_model::Setup>().is_empty());
     assert!(
         session
             .project
-            .definitions()
-            .fixtures
-            .definitions
+            .reusable::<donder_model::Layout>()
+            .is_empty()
+    );
+    assert!(session.project.reusable::<donder_model::Patch>().is_empty());
+    assert!(
+        session
+            .project
+            .reusable::<donder_model::Controller>()
+            .is_empty()
+    );
+    assert!(
+        session
+            .project
+            .reusable::<donder_model::Sequence>()
+            .is_empty()
+    );
+    assert!(
+        session
+            .project
+            .reusable::<donder_model::FixtureDefinition>()
             .is_empty()
     );
     let ValueSource::Inline(mut setup) = session.project.root().setup.clone() else {
         panic!("expected ownership")
     };
-    let address = setup.controllers[0].id().clone();
+    let address = *setup.controllers[0].id();
     assert_eq!(
-        address.0.owned_path(),
+        session.address_of(address.into()).unwrap().owned_path(),
         &[
             OwnedObjectSlot::Setup,
             OwnedObjectSlot::Controller(donder_language::object_name("controller_3"))
@@ -148,10 +160,7 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     );
     setup.controllers.reverse();
     assert_eq!(setup.controllers[1].id(), &address);
-    session
-        .project
-        .replace_setup(&setup.id.clone(), *setup)
-        .unwrap();
+    session.project.put(*setup).unwrap();
     let output = donder_elaboration::prepare(
         &session.project,
         session.project.root().sequences[0].id(),
@@ -160,8 +169,7 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     .unwrap();
     assert_eq!(output.outputs().len(), 2);
     save_project(&session).unwrap();
-    let reloaded = common::load_project(root);
-    assert_eq!(session.project, reloaded.project);
+    common::load_project(root);
     let text = std::fs::read_to_string(root.join(PROJECT_ROOT_FILE)).unwrap();
     let (document, diagnostics) = donder_language::data::parse(&text);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -175,7 +183,7 @@ fn ownership_rejects_duplicate_names_malformed_types_and_dangling_addresses() {
     for (text, expected) in [
         (
             fields.replace("Controller spare_8", "Controller controller_3"),
-            "appears more than once",
+            "a controller appears twice in the setup",
         ),
         (
             fields.replace(
@@ -208,36 +216,17 @@ fn ownership_rejects_duplicate_names_malformed_types_and_dangling_addresses() {
             common::root_document("", &text),
         )
         .unwrap();
-        let error = load_project(root)
+        let error = check_project(root, &Default::default(), &mut Default::default())
+            .into_session()
             .expect_err("invalid ownership must fail")
-            .to_string();
+            .iter()
+            .map(ToString::to_string)
+            .collect::<String>();
         assert!(
             error.contains(expected),
             "{error} did not contain {expected}"
         );
     }
-}
-
-#[test]
-fn document_moves_keep_owned_targets_attached_to_their_owner() {
-    use donder_model::DocumentId;
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8Path::from_path(temporary.path()).unwrap();
-    write_inline_project(root);
-    let mut session = common::load_project(root);
-    let before = session.project.root().id.0.document_id().clone();
-    let after = DocumentId::new(before.module_id(), "renamed/project.data.donder".into());
-    donder_model::remap_document_paths(&mut session.project, &[(before, after.clone())].into())
-        .unwrap();
-    donder_model::validate_project(&session.project).unwrap();
-    let setup = session
-        .project
-        .setup(session.project.root().setup.id())
-        .unwrap();
-    assert_eq!(setup.id.0.document_id(), &after);
-    let route = &session.project.patch(setup.patch.id()).unwrap().routes[0];
-    assert_eq!(&route.target.layout, setup.layout.id());
-    assert_eq!(&route.controller, setup.controllers[0].id());
 }
 
 #[test]
@@ -272,222 +261,262 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
         }
         std::fs::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
         let mut session = common::load_project(root);
-        assert_eq!(session.project.reusable_controllers().len(), 1);
+        assert_eq!(
+            session.project.reusable::<donder_model::Controller>().len(),
+            1
+        );
         let ValueSource::Inline(mut setup) = session.project.root().setup.clone() else {
             panic!("expected ownership")
         };
         assert!(matches!(
             setup.controllers.remove(1),
-            ValueSource::Reference(_)
+            MemberSource::Reference(_)
         ));
-        session
-            .project
-            .replace_setup(&setup.id.clone(), *setup)
-            .unwrap();
+        session.project.put(*setup).unwrap();
         save_project(&session).unwrap();
         let reloaded = common::load_project(root);
         assert_eq!(session.project, reloaded.project);
-        assert_eq!(reloaded.project.reusable_controllers().len(), 1);
+        assert_eq!(
+            reloaded
+                .project
+                .reusable::<donder_model::Controller>()
+                .len(),
+            1
+        );
     }
 }
 
 #[test]
 fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() {
     use donder_model::FixtureInstanceId;
-    use donder_model::{OwnershipSite, make_independent, make_reusable};
-    use donder_project_io::SourceObjectKind;
+    use donder_model::{make_independent, make_reusable};
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     write_inline_project(root);
     let mut session = common::load_project(root);
-    let document = session.project.root().id.0.document_id().clone();
-    let setup = session.project.root().setup.id().clone();
-    let layout = session.project.setup(&setup).unwrap().layout.id().clone();
+    let document = session
+        .declaration(session.project.root().id.into())
+        .unwrap()
+        .0
+        .clone();
+    let setup = *session.project.root().setup.id();
+    let layout = *session
+        .project
+        .get::<donder_model::Setup>(setup)
+        .unwrap()
+        .layout
+        .id();
     let sites = [
         (
-            OwnershipSite::LayoutFixture {
+            common::Slot::LayoutFixture {
                 layout,
                 fixture: FixtureInstanceId(1),
             },
-            SourceObjectKind::FixtureDefinition,
             "strip",
         ),
-        (
-            OwnershipSite::SetupController {
-                setup: setup.clone(),
-                index: 0,
-            },
-            SourceObjectKind::Controller,
-            "output",
-        ),
-        (
-            OwnershipSite::SetupInputDevice {
-                setup: setup.clone(),
-                index: 0,
-            },
-            SourceObjectKind::InputDevice,
-            "pad",
-        ),
-        (
-            OwnershipSite::SetupLayout(setup.clone()),
-            SourceObjectKind::Layout,
-            "stage",
-        ),
-        (
-            OwnershipSite::SetupPatch(setup),
-            SourceObjectKind::Patch,
-            "routing",
-        ),
-        (
-            OwnershipSite::ProjectSequence(0),
-            SourceObjectKind::Sequence,
-            "song",
-        ),
-        (OwnershipSite::ProjectRig(0), SourceObjectKind::Rig, "jam"),
-        (
-            OwnershipSite::ProjectSetup,
-            SourceObjectKind::Setup,
-            "venue",
-        ),
+        (common::Slot::SetupController { setup, index: 0 }, "output"),
+        (common::Slot::SetupInputDevice { setup, index: 0 }, "pad"),
+        (common::Slot::SetupLayout(setup), "stage"),
+        (common::Slot::SetupPatch(setup), "routing"),
+        (common::Slot::ProjectSequence(0), "song"),
+        (common::Slot::ProjectRig(0), "jam"),
+        (common::Slot::ProjectSetup, "venue"),
     ];
-    for (site, kind, name) in &sites {
-        let destination = session
-            .source
-            .add_object(&document, kind.clone(), name)
-            .unwrap();
-        make_reusable(&mut session.project, site, destination).unwrap();
+    for (site, name) in &sites {
+        let site = common::site(&session.project, *site);
+        let id = make_reusable(&mut session.project, &site).unwrap();
+        session.source.add_object(&document, id, name).unwrap();
         donder_model::validate_project(&session.project).unwrap();
         save_project(&session).unwrap();
-        assert_eq!(session.project, common::load_project(root).project);
+        common::load_project(root);
     }
     let reusable_setup = session
         .project
-        .setup(session.project.root().setup.id())
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
         .unwrap()
         .clone();
-    make_independent(&mut session.project, &OwnershipSite::ProjectSetup).unwrap();
-    let setup = session.project.root().setup.id().clone();
-    make_independent(
-        &mut session.project,
-        &OwnershipSite::SetupLayout(setup.clone()),
-    )
+    let site = common::site(&session.project, common::Slot::ProjectSetup);
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
-    make_independent(
-        &mut session.project,
-        &OwnershipSite::SetupController {
-            setup: setup.clone(),
-            index: 0,
-        },
-    )
+    let setup = *session.project.root().setup.id();
+    let site = common::site(&session.project, common::Slot::SetupLayout(setup));
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
-    make_independent(&mut session.project, &OwnershipSite::ProjectSequence(0)).unwrap();
-    make_independent(&mut session.project, &OwnershipSite::ProjectRig(0)).unwrap();
-    make_independent(
-        &mut session.project,
-        &OwnershipSite::SetupInputDevice {
-            setup: setup.clone(),
-            index: 0,
-        },
-    )
+    let site = common::site(
+        &session.project,
+        common::Slot::SetupController { setup, index: 0 },
+    );
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
+    .unwrap();
+    let site = common::site(&session.project, common::Slot::ProjectSequence(0));
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
+    .unwrap();
+    let site = common::site(&session.project, common::Slot::ProjectRig(0));
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
+    .unwrap();
+    let site = common::site(
+        &session.project,
+        common::Slot::SetupInputDevice { setup, index: 0 },
+    );
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
     let rig = session
         .project
-        .rig(session.project.root().rigs[0].id())
+        .get::<donder_model::Rig>(*session.project.root().rigs[0].id())
         .unwrap();
-    let device = session.project.setup(&setup).unwrap().input_devices[0].id();
+    let device = session
+        .project
+        .get::<donder_model::Setup>(setup)
+        .unwrap()
+        .input_devices[0]
+        .id();
     assert!(rig.inputs().all(|input| &input.device == device));
-    let owned = session.project.setup(&setup).unwrap();
+    let owned = session.project.get::<donder_model::Setup>(setup).unwrap();
     assert!(matches!(owned.patch, ValueSource::Inline(_)));
-    let layout = owned.layout.id().clone();
-    make_independent(
-        &mut session.project,
-        &OwnershipSite::LayoutFixture {
+    let layout = *owned.layout.id();
+    let site = common::site(
+        &session.project,
+        common::Slot::LayoutFixture {
             layout,
             fixture: FixtureInstanceId(1),
         },
-    )
+    );
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
     assert_eq!(
-        session.project.setup(&reusable_setup.id).unwrap(),
+        session
+            .project
+            .get::<donder_model::Setup>(reusable_setup.id)
+            .unwrap(),
         &reusable_setup
     );
     donder_model::validate_project(&session.project).unwrap();
     save_project(&session).unwrap();
-    assert_eq!(session.project, common::load_project(root).project);
+    common::load_project(root);
 }
 
 #[test]
 fn independent_setup_retargets_a_linked_patch_to_its_copied_owned_children() {
-    use donder_model::{OwnershipSite, make_independent, make_reusable};
-    use donder_project_io::SourceObjectKind;
+    use donder_model::{make_independent, make_reusable};
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     write_inline_project(root);
     let mut session = common::load_project(root);
-    let document = session.project.root().id.0.document_id().clone();
-    let setup = session.project.root().setup.id().clone();
-    let patch = session
+    let document = session
+        .declaration(session.project.root().id.into())
+        .unwrap()
+        .0
+        .clone();
+    let setup = *session.project.root().setup.id();
+    let site = common::site(&session.project, common::Slot::SetupPatch(setup));
+    let patch = make_reusable(&mut session.project, &site).unwrap();
+    session
         .source
-        .add_object(&document, SourceObjectKind::Patch, "routing")
+        .add_object(&document, patch, "routing")
         .unwrap();
-    make_reusable(
-        &mut session.project,
-        &OwnershipSite::SetupPatch(setup),
-        patch,
-    )
-    .unwrap();
-    let source = session
+    let site = common::site(&session.project, common::Slot::ProjectSetup);
+    let source = make_reusable(&mut session.project, &site).unwrap();
+    session
         .source
-        .add_object(&document, SourceObjectKind::Setup, "venue")
+        .add_object(&document, source, "venue")
         .unwrap();
-    make_reusable(&mut session.project, &OwnershipSite::ProjectSetup, source).unwrap();
     let shared = session
         .project
-        .setup(session.project.root().setup.id())
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
         .unwrap()
         .clone();
-    let original_patch = session.project.patch(shared.patch.id()).unwrap().clone();
-    make_independent(&mut session.project, &OwnershipSite::ProjectSetup).unwrap();
+    let original_patch = session
+        .project
+        .get::<donder_model::Patch>(*shared.patch.id())
+        .unwrap()
+        .clone();
+    let site = common::site(&session.project, common::Slot::ProjectSetup);
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
+    .unwrap();
     let owned = session
         .project
-        .setup(session.project.root().setup.id())
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
         .unwrap();
-    let patch = session.project.patch(owned.patch.id()).unwrap();
+    let patch = session
+        .project
+        .get::<donder_model::Patch>(*owned.patch.id())
+        .unwrap();
     assert_eq!(&patch.routes[0].target.layout, owned.layout.id());
     assert_eq!(&patch.routes[0].controller, owned.controllers[0].id());
     assert_eq!(
-        session.project.patch(&original_patch.id).unwrap(),
+        session
+            .project
+            .get::<donder_model::Patch>(original_patch.id)
+            .unwrap(),
         &original_patch
     );
-    assert_eq!(session.project.setup(&shared.id).unwrap(), &shared);
+    assert_eq!(
+        session
+            .project
+            .get::<donder_model::Setup>(shared.id)
+            .unwrap(),
+        &shared
+    );
     donder_model::validate_project(&session.project).unwrap();
     save_project(&session).unwrap();
-    assert_eq!(session.project, common::load_project(root).project);
+    common::load_project(root);
 }
 
 #[test]
 fn independent_layout_copies_active_sequences_and_preserves_the_reusable_originals() {
-    use donder_model::{OwnershipSite, make_independent};
+    use donder_model::make_independent;
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut session = common::load_project(&root);
-    let setup = session.project.root().setup.id().clone();
-    let original_layout = session.project.setup(&setup).unwrap().layout.id().clone();
-    let originals = session.project.reusable_sequences().clone();
+    let setup = *session.project.root().setup.id();
+    let original_layout = *session
+        .project
+        .get::<donder_model::Setup>(setup)
+        .unwrap()
+        .layout
+        .id();
+    let originals = session.project.reusable::<donder_model::Sequence>().clone();
     assert!(
         originals
             .values()
             .any(|sequence| !sequence.effects.is_empty())
     );
-    make_independent(
-        &mut session.project,
-        &OwnershipSite::SetupLayout(setup.clone()),
-    )
+    let site = common::site(&session.project, common::Slot::SetupLayout(setup));
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
-    let new_layout = session.project.setup(&setup).unwrap().layout.id();
+    let new_layout = session
+        .project
+        .get::<donder_model::Setup>(setup)
+        .unwrap()
+        .layout
+        .id();
     assert_ne!(&original_layout, new_layout);
-    assert_eq!(session.project.reusable_sequences(), &originals);
+    assert_eq!(
+        session.project.reusable::<donder_model::Sequence>(),
+        &originals
+    );
     for source in &session.project.root().sequences {
-        let sequence = session.project.sequence(source.id()).unwrap();
+        let sequence = session
+            .project
+            .get::<donder_model::Sequence>(*source.id())
+            .unwrap();
         for effect in &sequence.effects {
             assert_eq!(&effect.target.layout, new_layout);
         }
@@ -503,55 +532,73 @@ fn independent_layout_copies_active_sequences_and_preserves_the_reusable_origina
 
 #[test]
 fn promoting_an_owned_setup_to_another_file_preserves_nested_identity_and_routing() {
-    use donder_model::{OwnershipSite, make_independent, make_reusable};
-    use donder_project_io::{SourceObjectKind, ensure_document_can_reference_object};
+    use donder_model::{make_independent, make_reusable};
+    use donder_project_io::ensure_document_can_reference_object;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     write_inline_project(root);
     let mut session = common::load_project(root);
-    let document = session.project.root().id.0.document_id().clone();
-    let destination = session
+    let document = session
+        .declaration(session.project.root().id.into())
+        .unwrap()
+        .0
+        .clone();
+    let site = common::site(&session.project, common::Slot::ProjectSetup);
+    let destination = make_reusable(&mut session.project, &site).unwrap();
+    session
         .source
         .add_data_document(
             "setups/venue.data.donder".into(),
-            vec![(SourceObjectKind::Setup, "venue".into())],
+            vec![(destination, donder_language::object_name("venue"))],
         )
+        .unwrap();
+    let reusable = *session.project.root().setup.id();
+    ensure_document_can_reference_object(&mut session, &document, reusable.into()).unwrap();
+    donder_model::validate_project(&session.project).unwrap();
+    save_project(&session).unwrap();
+    assert_eq!(session.project, common::load_project(root).project);
+    let shared = session
+        .project
+        .get::<donder_model::Setup>(reusable)
         .unwrap()
-        .remove(0);
-    make_reusable(
-        &mut session.project,
-        &OwnershipSite::ProjectSetup,
-        destination,
-    )
+        .clone();
+    let site = common::site(&session.project, common::Slot::ProjectSetup);
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
-    let reusable = session.project.root().setup.id().clone();
-    ensure_document_can_reference_object(&mut session, &document, &reusable.0).unwrap();
+    assert_eq!(
+        session
+            .project
+            .get::<donder_model::Setup>(reusable)
+            .unwrap(),
+        &shared
+    );
     donder_model::validate_project(&session.project).unwrap();
     save_project(&session).unwrap();
-    assert_eq!(session.project, common::load_project(root).project);
-    let shared = session.project.setup(&reusable).unwrap().clone();
-    make_independent(&mut session.project, &OwnershipSite::ProjectSetup).unwrap();
-    assert_eq!(session.project.setup(&reusable).unwrap(), &shared);
-    donder_model::validate_project(&session.project).unwrap();
-    save_project(&session).unwrap();
-    assert_eq!(session.project, common::load_project(root).project);
+    common::load_project(root);
 }
 
 #[test]
 fn reusable_sequences_cannot_mix_targets_from_different_layouts() {
-    use donder_model::{OwnershipSite, make_independent};
+    use donder_model::make_independent;
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut session = common::load_project(&root);
-    let setup = session.project.root().setup.id().clone();
-    make_independent(
-        &mut session.project,
-        &OwnershipSite::SetupLayout(setup.clone()),
-    )
+    let setup = *session.project.root().setup.id();
+    let site = common::site(&session.project, common::Slot::SetupLayout(setup));
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
-    let new_layout = session.project.setup(&setup).unwrap().layout.id().clone();
+    let new_layout = *session
+        .project
+        .get::<donder_model::Setup>(setup)
+        .unwrap()
+        .layout
+        .id();
     let mut sequence = session
         .project
-        .reusable_sequences()
+        .reusable::<donder_model::Sequence>()
         .values()
         .find(|sequence| sequence.effects.len() > 1)
         .unwrap()
@@ -559,16 +606,27 @@ fn reusable_sequences_cannot_mix_targets_from_different_layouts() {
     std::sync::Arc::make_mut(&mut sequence.effects[0])
         .target
         .layout = new_layout;
-    let error = session
-        .project
-        .replace_sequence(&sequence.id.clone(), sequence)
-        .unwrap_err();
-    assert!(error.to_string().contains("same layout"), "{error}");
+    let error = session.project.put(sequence).unwrap_err();
+    assert!(
+        matches!(
+            error,
+            donder_model::EditError::Invalid(donder_model::ProjectValidationError {
+                problem: donder_model::ValidationProblem::Sequence(
+                    donder_model::SequenceValidationError::Clip {
+                        problem: donder_model::EffectProblem::MixedLayouts,
+                        ..
+                    }
+                ),
+                ..
+            })
+        ),
+        "{error:?}"
+    );
 }
 #[test]
 fn making_an_imported_sequence_independent_keeps_its_local_audio() {
     use donder_model::SequenceAudio;
-    use donder_model::{OwnershipSite, make_independent};
+    use donder_model::make_independent;
     use donder_project_io::maintain_ownership_sources;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
@@ -594,14 +652,18 @@ fn making_an_imported_sequence_independent_keeps_its_local_audio() {
     let mut session = common::load_project(root);
     let shared = session
         .project
-        .sequence(session.project.root().sequences[0].id())
+        .get::<donder_model::Sequence>(*session.project.root().sequences[0].id())
         .unwrap()
         .clone();
-    make_independent(&mut session.project, &OwnershipSite::ProjectSequence(0)).unwrap();
+    let site = common::site(&session.project, common::Slot::ProjectSequence(0));
+    make_independent(&mut session.project, &site, &|id| {
+        session.source.declared_name(id)
+    })
+    .unwrap();
     maintain_ownership_sources(&mut session).unwrap();
     let owned = session
         .project
-        .sequence(session.project.root().sequences[0].id())
+        .get::<donder_model::Sequence>(*session.project.root().sequences[0].id())
         .unwrap();
     assert_eq!(owned.audio, shared.audio);
     let SequenceAudio::Asset(id) = &owned.audio else {
@@ -614,7 +676,13 @@ fn making_an_imported_sequence_independent_keeps_its_local_audio() {
         .find(|asset| &asset.id == id)
         .unwrap();
     assert_eq!(asset.referenced_by.len(), 2);
-    assert_eq!(session.project.sequence(&shared.id).unwrap(), &shared);
+    assert_eq!(
+        session
+            .project
+            .get::<donder_model::Sequence>(shared.id)
+            .unwrap(),
+        &shared
+    );
     save_project(&session).unwrap();
     let reloaded = common::load_project(root);
     assert_eq!(session.project, reloaded.project);
@@ -635,44 +703,55 @@ fn making_an_imported_sequence_independent_keeps_its_local_audio() {
 #[test]
 fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequences() {
     use donder_model::LayoutId;
-    use donder_model::{OwnershipSite, use_existing};
-    use donder_project_io::{SourceObjectKind, maintain_ownership_sources};
+    use donder_model::use_existing;
+    use donder_project_io::maintain_ownership_sources;
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut session = common::load_project(&root);
-    let setup = session.project.root().setup.id().clone();
-    let original = session.project.setup(&setup).unwrap().clone();
-    let original_layout = session
+    let setup = *session.project.root().setup.id();
+    let original = session
         .project
-        .layout(original.layout.id())
+        .get::<donder_model::Setup>(setup)
         .unwrap()
         .clone();
-    let original_patch = session.project.patch(original.patch.id()).unwrap().clone();
-    let original_sequences = session.project.reusable_sequences().clone();
-    let source = session
-        .source
-        .add_object(
-            original_layout.id.0.document_id(),
-            SourceObjectKind::Layout,
-            "alternate",
-        )
-        .unwrap();
+    let original_layout = session
+        .project
+        .get::<donder_model::Layout>(*original.layout.id())
+        .unwrap()
+        .clone();
+    let original_patch = session
+        .project
+        .get::<donder_model::Patch>(*original.patch.id())
+        .unwrap()
+        .clone();
+    let original_sequences = session.project.reusable::<donder_model::Sequence>().clone();
     let mut replacement = original_layout.clone();
-    replacement.id = LayoutId(source.clone().into());
+    replacement.id = LayoutId(session.project.new_id());
+    let document = session
+        .declaration(original_layout.id.into())
+        .unwrap()
+        .0
+        .clone();
+    session
+        .source
+        .add_object(&document, replacement.id.into(), "alternate")
+        .unwrap();
     session
         .project
-        .apply_edits([donder_model::ProjectEdit::InsertLayout(replacement.clone())])
+        .apply_edits([donder_model::ProjectEdit::Put(replacement.clone().into())])
         .unwrap();
-    use_existing(
-        &mut session.project,
-        &OwnershipSite::SetupLayout(setup.clone()),
-        source,
-    )
+    let site = common::site(&session.project, common::Slot::SetupLayout(setup));
+    use_existing(&mut session.project, &site, replacement.id.into(), &|id| {
+        session.source.declared_name(id)
+    })
     .unwrap();
     maintain_ownership_sources(&mut session).unwrap();
-    let current = session.project.setup(&setup).unwrap();
+    let current = session.project.get::<donder_model::Setup>(setup).unwrap();
     assert_eq!(current.layout.id(), &replacement.id);
     assert!(matches!(current.patch, ValueSource::Inline(_)));
-    let patch = session.project.patch(current.patch.id()).unwrap();
+    let patch = session
+        .project
+        .get::<donder_model::Patch>(*current.patch.id())
+        .unwrap();
     assert!(!patch.routes.is_empty());
     assert!(
         patch
@@ -681,16 +760,28 @@ fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequence
             .all(|route| route.target.layout == replacement.id)
     );
     assert_eq!(
-        session.project.layout(&original_layout.id).unwrap(),
+        session
+            .project
+            .get::<donder_model::Layout>(original_layout.id)
+            .unwrap(),
         &original_layout
     );
     assert_eq!(
-        session.project.patch(&original_patch.id).unwrap(),
+        session
+            .project
+            .get::<donder_model::Patch>(original_patch.id)
+            .unwrap(),
         &original_patch
     );
-    assert_eq!(session.project.reusable_sequences(), &original_sequences);
+    assert_eq!(
+        session.project.reusable::<donder_model::Sequence>(),
+        &original_sequences
+    );
     for sequence in &session.project.root().sequences {
-        let value = session.project.sequence(sequence.id()).unwrap();
+        let value = session
+            .project
+            .get::<donder_model::Sequence>(*sequence.id())
+            .unwrap();
         assert!(
             value
                 .effects

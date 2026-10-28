@@ -3,35 +3,25 @@
 //! one place in the global signal graph, where preparation may substitute
 //! constant inputs and fuse sources before lowering it to a program.
 use super::check::{self, Definition};
-use super::declarations::{check_ranges, resolve_params};
+use super::declarations::check_ranges;
 use super::instance::{self, ProgramConstants};
 use super::ir::Op;
 use super::ir::interval::{Bounds, interval};
-use super::lower::LowerError;
+use super::lower::{LowerError, Lowered};
 use super::syntax::ast::DeclarationKind;
 use super::{Diagnostic, OperatorInputDecl, ParamDecl, ParamRange};
 use donder_runtime_types::Color;
 use donder_runtime_types::PreparedAutomation;
 use donder_runtime_types::bytecode::SignalPixel;
-use donder_runtime_types::{
-    BindingError, BoundParams, Identifier, OperatorInvocation, OperatorProgram, SampleInvocation,
-    SampleProgram, Type, Value,
-};
+use donder_runtime_types::{BindingError, BoundParams, Identifier, Type, Value};
 use std::sync::Arc;
 
+/// A checked effect or operator declaration. An effect is an operator with
+/// no signal inputs.
 #[derive(Clone, Debug)]
-pub struct CompiledEffect(Arc<Definition>);
+pub struct CompiledDefinition(Arc<Definition>);
 
-#[derive(Clone, Debug)]
-pub struct CompiledOperator(Arc<Definition>);
-
-impl PartialEq for CompiledEffect {
-    fn eq(&self, other: &Self) -> bool {
-        same_definition(&self.0, &other.0)
-    }
-}
-
-impl PartialEq for CompiledOperator {
+impl PartialEq for CompiledDefinition {
     fn eq(&self, other: &Self) -> bool {
         same_definition(&self.0, &other.0)
     }
@@ -42,61 +32,26 @@ fn same_definition(a: &Arc<Definition>, b: &Arc<Definition>) -> bool {
         || (a.name == b.name && a.params == b.params && a.fingerprint == b.fingerprint)
 }
 
-/// The definitions of one script document, each kind in declaration order.
-#[derive(Clone, Debug, Default)]
-pub struct CompiledScript {
-    pub effects: Vec<CompiledEffect>,
-    pub operators: Vec<CompiledOperator>,
-}
-
-/// Compile a script document, which may declare effects and operators.
-pub fn compile_script(source: &str) -> Result<CompiledScript, Vec<Diagnostic>> {
-    let mut script = CompiledScript::default();
-    for definition in compile(source, None)? {
-        match definition.kind {
-            DeclarationKind::Effect => script.effects.push(CompiledEffect(definition)),
-            DeclarationKind::Operator => script.operators.push(CompiledOperator(definition)),
-        }
-    }
-    Ok(script)
-}
-
-/// Compile the effect declarations of one source.
-pub fn compile_effects(source: &str) -> Result<Vec<CompiledEffect>, Vec<Diagnostic>> {
-    Ok(compile(source, Some(DeclarationKind::Effect))?
-        .into_iter()
-        .map(CompiledEffect)
-        .collect())
-}
-
-/// Compile the operator declarations of one source.
-pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diagnostic>> {
-    Ok(compile(source, Some(DeclarationKind::Operator))?
-        .into_iter()
-        .map(CompiledOperator)
-        .collect())
-}
-
-fn compile(
-    source: &str,
-    kind: Option<DeclarationKind>,
-) -> Result<Vec<Arc<Definition>>, Vec<Diagnostic>> {
+/// Compile a script document's effect and operator declarations, in
+/// declaration order.
+pub fn compile_script(source: &str) -> Result<Vec<CompiledDefinition>, Vec<Diagnostic>> {
     let module = super::syntax::parse(source)?;
-    if let Some(kind) = kind
-        && let Some(declaration) = module
-            .declarations
-            .iter()
-            .find(|declaration| declaration.kind != kind)
-    {
-        let message = match kind {
-            DeclarationKind::Effect => "operator declarations belong in operator sources",
-            DeclarationKind::Operator => "effect declarations belong in effect sources",
-        };
-        return Err(vec![Diagnostic::new(declaration.name.span, message)]);
+    let definitions = check::check(module, source)?;
+    let diagnostics = lowering_diagnostics(&definitions);
+    if diagnostics.is_empty() {
+        Ok(definitions
+            .into_iter()
+            .map(|definition| CompiledDefinition(Arc::new(definition)))
+            .collect())
+    } else {
+        Err(diagnostics)
     }
-    let definitions = check::check(module)?;
+}
+
+/// The checked definitions too large to lower.
+pub(crate) fn lowering_diagnostics(definitions: &[Definition]) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    for definition in &definitions {
+    for definition in definitions {
         // The most general instance, with every parameter left to playback,
         // has the most code; specialization only removes work from it.
         let name = definition.name.as_str();
@@ -116,79 +71,62 @@ fn compile(
             diagnostics.push(Diagnostic::new(definition.span, message));
         }
     }
-    if diagnostics.is_empty() {
-        Ok(definitions.into_iter().map(Arc::new).collect())
-    } else {
-        Err(diagnostics)
+    diagnostics
+}
+
+impl CompiledDefinition {
+    pub fn kind(&self) -> DeclarationKind {
+        self.0.kind
     }
-}
 
-macro_rules! definition_api {
-    ($type:ident) => {
-        impl $type {
-            pub fn name(&self) -> &Identifier {
-                &self.0.name
-            }
+    pub fn name(&self) -> &Identifier {
+        &self.0.name
+    }
 
-            pub fn params(&self) -> &[ParamDecl] {
-                &self.0.params
-            }
+    pub fn params(&self) -> &[ParamDecl] {
+        &self.0.params
+    }
 
-            /// The declaration's description string, if it has one.
-            pub fn description(&self) -> Option<&str> {
-                self.0.description.as_deref()
-            }
-
-            /// A digest of the compiled behavior, for caches of rendered output.
-            pub fn fingerprint(&self) -> u64 {
-                self.0.fingerprint
-            }
-
-            /// Positional `values` respect every declared range and the
-            /// iteration limit of reductions bounded by parameter lengths.
-            pub fn check_values(&self, values: &[Value]) -> Result<(), BindingError> {
-                check_values(&self.0, values, &[])
-            }
-
-            /// Bind validated positional values and automation.
-            pub fn invoke(
-                &self,
-                values: Vec<Value>,
-                automation: Box<[PreparedAutomation]>,
-            ) -> Result<Invocation, BindingError> {
-                invoke(&self.0, values, automation, Box::new([]))
-            }
-
-            /// Bind values and automation, with `live` marks parameters that
-            /// playback rebinds as marks arrive. Their length is unknown, so
-            /// no reduction may be bounded by it.
-            pub fn invoke_live(
-                &self,
-                values: Vec<Value>,
-                automation: Box<[PreparedAutomation]>,
-                live: Box<[u16]>,
-            ) -> Result<Invocation, BindingError> {
-                invoke(&self.0, values, automation, live)
-            }
-
-            /// Bind values by name, with declared defaults for the rest.
-            pub fn bind<'p, P>(&self, params: P) -> Result<Invocation, BindingError>
-            where
-                P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
-            {
-                let values = resolve_params(&self.0.params, params)?;
-                self.invoke(values, Box::new([]))
-            }
-        }
-    };
-}
-
-definition_api!(CompiledEffect);
-definition_api!(CompiledOperator);
-
-impl CompiledOperator {
+    /// The signal inputs an operator declares; an effect has none.
     pub fn inputs(&self) -> &[OperatorInputDecl] {
         &self.0.inputs
+    }
+
+    /// The declaration's description string, if it has one.
+    pub fn description(&self) -> Option<&str> {
+        self.0.description.as_deref()
+    }
+
+    /// A digest of the compiled behavior, for caches of rendered output.
+    pub fn fingerprint(&self) -> u64 {
+        self.0.fingerprint
+    }
+
+    /// Positional `values` respect every declared range and the
+    /// iteration limit of reductions bounded by parameter lengths.
+    pub fn check_values(&self, values: &[Value]) -> Result<(), BindingError> {
+        check_values(&self.0, values, &[])
+    }
+
+    /// Bind validated positional values and automation.
+    pub fn invoke(
+        &self,
+        values: Vec<Value>,
+        automation: Box<[PreparedAutomation]>,
+    ) -> Result<Invocation, BindingError> {
+        invoke(&self.0, values, automation, Box::new([]))
+    }
+
+    /// Bind values and automation, with `live` marks parameters that
+    /// playback rebinds as marks arrive. Their length is unknown, so
+    /// no reduction may be bounded by it.
+    pub fn invoke_live(
+        &self,
+        values: Vec<Value>,
+        automation: Box<[PreparedAutomation]>,
+        live: Box<[u16]>,
+    ) -> Result<Invocation, BindingError> {
+        invoke(&self.0, values, automation, live)
     }
 }
 
@@ -411,33 +349,11 @@ impl Instance {
             .unwrap_or_else(|error| format!("lowering failed: {error:?}"))
     }
 
-    pub fn sample(&self) -> SampleInvocation {
-        self.sample_live().0
-    }
-
-    /// The program, and its parameter indices of the live marks parameters
-    /// in invocation order.
-    pub fn sample_live(&self) -> (SampleInvocation, Box<[u16]>) {
-        let lowered = self
-            .0
+    /// The program, its parameter values and automation, and its
+    /// parameter indices of the live marks parameters in invocation order.
+    pub fn lower(&self) -> Lowered {
+        self.0
             .lower()
-            .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"));
-        let program = SampleProgram::new(lowered.bytecode);
-        let invocation = SampleInvocation::bind(program, lowered.values)
-            .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
-            .unwrap_or_else(|_| unreachable!("lowered values match their program"));
-        (invocation, lowered.live.into())
-    }
-
-    pub fn operator(&self) -> OperatorInvocation {
-        let inputs = self.inputs();
-        let lowered = self
-            .0
-            .lower()
-            .unwrap_or_else(|error| unreachable!("fused operators fit their banks: {error:?}"));
-        let program = OperatorProgram::new(lowered.bytecode, inputs);
-        OperatorInvocation::bind(program, lowered.values)
-            .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
-            .unwrap_or_else(|_| unreachable!("lowered values match their program"))
+            .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"))
     }
 }

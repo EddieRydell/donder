@@ -11,24 +11,6 @@ pub(crate) fn update_app_settings(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn save_workspace_layout_state(
-    state_update: WorkspaceLayoutState,
-    state: State<'_, DesktopState>,
-) -> AppSnapshot {
-    state.save_workspace_layout_state(state_update)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) fn save_workspace_explorer_state(
-    state_update: WorkspaceExplorerState,
-    state: State<'_, DesktopState>,
-) -> AppSnapshot {
-    state.save_workspace_explorer_state(state_update)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub(crate) fn search_project(
     request: ProjectSearchRequest,
     state: State<'_, DesktopState>,

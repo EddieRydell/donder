@@ -4,8 +4,8 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
-use donder_project_io::load_project;
+use donder_elaboration::{PrepareOutputs, PreparedShow, prepare};
+use donder_project_io::check_project;
 use donder_runtime_types::sample_time_from_frame;
 
 struct CountingAllocator;
@@ -54,7 +54,9 @@ fn prepared_controller_sampling_does_not_allocate() {
     let project_path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("examples/starter");
-    let session = load_project(&project_path).expect("starter project should load");
+    let session = check_project(&project_path, &Default::default(), &mut Default::default())
+        .into_session()
+        .expect("starter project should load");
     for sequence_id in session
         .project
         .root()
@@ -72,21 +74,26 @@ fn prepared_controller_sampling_does_not_allocate() {
         assert_prepared_sampling_does_not_allocate(
             output.clone(),
             &frames,
-            sequence_id.0.root_source().object(),
+            session
+                .declaration((*sequence_id).into())
+                .unwrap()
+                .1
+                .as_str(),
         );
-        let setup = &session.project.reusable_setups()[session.project.root().setup.id()];
+        let setup =
+            &session.project.reusable::<donder_model::Setup>()[session.project.root().setup.id()];
         let controller = setup.controllers[0].id();
-        let port = session.project.reusable_controllers()[controller].ports[0].id;
+        let port = session.project.reusable::<donder_model::Controller>()[controller].ports[0].id;
         let mut selected = prepare(
             &session.project,
             sequence_id,
-            PrepareOutputs::Ports(&[(controller.clone(), port)]),
+            PrepareOutputs::Ports(&[(*controller, port)]),
         )
         .unwrap();
         let encoded = selected.encode();
-        selected = donder_runtime::PreparedSequence::decode(&encoded).unwrap();
+        selected = donder_runtime::PreparedShow::decode(&encoded).unwrap();
         assert_prepared_sampling_does_not_allocate(selected.clone(), &frames, "selected output");
-        let measure = |accepted: PreparedSequence| {
+        let measure = |accepted: PreparedShow| {
             let before = LIVE_BYTES.load(Ordering::Relaxed);
             let workspace = accepted.into_playback();
             let bytes = LIVE_BYTES.load(Ordering::Relaxed) - before;
@@ -98,22 +105,32 @@ fn prepared_controller_sampling_does_not_allocate() {
         assert!(selected_bytes < full_bytes);
         println!(
             "{} runtime workspace heap: {full_bytes} -> {selected_bytes} bytes",
-            sequence_id.0.root_source().object()
+            session
+                .declaration((*sequence_id).into())
+                .unwrap()
+                .1
+                .as_str()
         );
     }
 
     let mut project = session.project;
-    let sequence_id = project
+    let sequence_id = *project
         .root()
         .sequences
         .iter()
         .map(|source| source.id())
-        .find(|id| id.0.root_source().object() == "layer_test")
-        .expect("starter project should include layer_test")
-        .clone();
+        .find(|id| {
+            session
+                .source
+                .declared_name((**id).into())
+                .unwrap()
+                .as_str()
+                == "layer_test"
+        })
+        .expect("starter project should include layer_test");
     // A stateful operator through the same prepared controller path,
     // including seeks backward.
-    let afterglow = donder_language::compiler::compile_operators(include_str!(
+    let afterglow = donder_language::compiler::compile_script(include_str!(
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
@@ -125,11 +142,7 @@ fn prepared_controller_sampling_does_not_allocate() {
     assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 0], "Afterglow");
 }
 
-fn assert_prepared_sampling_does_not_allocate(
-    output: PreparedSequence,
-    frames: &[u32],
-    name: &str,
-) {
+fn assert_prepared_sampling_does_not_allocate(output: PreparedShow, frames: &[u32], name: &str) {
     let frame_rate = output.frame_rate();
     let mut workspace = output.into_playback();
     ALLOCATIONS.store(0, Ordering::Relaxed);

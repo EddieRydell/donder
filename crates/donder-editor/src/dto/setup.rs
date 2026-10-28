@@ -1,4 +1,4 @@
-use crate::*;
+use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -44,25 +44,25 @@ pub enum GuiDocument {
     },
     Blocked {
         reason: String,
-        diagnostics: Vec<ProjectDiagnostic>,
+        diagnostics: Vec<IoDiagnostic>,
     },
 }
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+/// An object a GUI editor opens: a declared object, or an object owned beneath
+/// one. The object's kind picks the editor.
 pub struct GuiDocumentRequest {
-    pub owned_path: Vec<GuiOwnedStep>,
+    pub owned_path: Vec<OwnedObjectSlot>,
     pub project_revision: u32,
     pub path: String,
-    pub view: DocumentViewId,
-    pub object_key: Option<String>,
+    pub object_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiObjectRef {
-    pub owned_path: Vec<GuiOwnedStep>,
-    pub module_id: String,
+    pub owned_path: Vec<OwnedObjectSlot>,
     pub path: String,
     pub object_key: String,
     pub kind: ObjectKind,
@@ -77,7 +77,7 @@ pub struct GuiObjectRef {
 )]
 pub enum GuiEditCommand {
     Ownership {
-        slot: GuiOwnershipSlot,
+        member: OwnershipMember,
         edit: GuiOwnershipEdit,
     },
     Patch {
@@ -115,17 +115,45 @@ pub enum GuiEditCommand {
     Project {
         edit: ProjectGuiEdit,
     },
-    /// Set the open object's description; empty text removes it.
-    Description {
+    /// The name becomes a `snake_case` name, which the edit reports; renaming
+    /// marks renames every parameter and mapping that names them.
+    Rename {
+        item: GuiItem,
+        name: String,
+    },
+    /// Empty text removes the description.
+    SetDescription {
+        item: GuiItem,
         description: Option<String>,
+    },
+    SetColor {
+        item: GuiItem,
+        color: String,
+    },
+    /// Parameters that named deleted marks keep working with no marks.
+    Delete {
+        item: GuiItem,
     },
 }
 
+/// A part of the open object a generic edit names: the object itself, or one
+/// of its clips, mark collections (a rig's live marks), layers, graph nodes or
+/// rig behaviors.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GuiEditResult {
-    pub snapshot: AppSnapshot,
-    pub document: GuiDocument,
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiItem {
+    Object,
+    Clip { id: u32 },
+    MarkCollection { key: String },
+    Layer { id: u32 },
+    GraphNode { node_id: String },
+    Voice { id: u32 },
+    Switch { id: u32 },
+    Mapping { id: u32 },
 }
 
 /// How an edit changed the open GUI document, relative to the document at the
@@ -153,6 +181,13 @@ pub enum GuiDocumentChange {
 pub struct GuiEditUpdate {
     pub snapshot: AppSnapshot,
     pub change: GuiDocumentChange,
+    /// The sequence selection a selection edit leaves; `None` clears it.
+    pub selection: Option<SequenceSelection>,
+    /// The items a copy, cut or paste took, and those it could not.
+    pub copied_count: u32,
+    pub skipped_count: u32,
+    /// The names or keys of the items the edit created, in order.
+    pub created: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -165,32 +200,8 @@ pub enum BufferExternalState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum DiagnosticSeverity {
-    Error,
-    Warning,
-}
-
-#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum DocumentViewId {
-    Text,
-    Project,
-    Setup,
-    Layout,
-    Fixture,
-    Patch,
-    Controller,
-    InputDevice,
-    Sequence,
-    Rig,
-    Curve,
-    Gradient,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct CurveGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub description: Option<String>,
     pub path: String,
     pub object_key: String,
@@ -200,7 +211,7 @@ pub struct CurveGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GradientGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub description: Option<String>,
     pub path: String,
     pub object_key: String,
@@ -210,7 +221,7 @@ pub struct GradientGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub description: Option<String>,
     pub available_sources: Vec<GuiObjectRef>,
     pub path: String,
@@ -223,7 +234,7 @@ pub struct ProjectGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub description: Option<String>,
     pub available_sources: Vec<GuiObjectRef>,
     pub path: String,
@@ -231,8 +242,6 @@ pub struct SetupGuiDocument {
     pub object_key: String,
     pub layout_ref: GuiObjectRef,
     pub patch_ref: GuiObjectRef,
-    pub layout_read_only: bool,
-    pub patch_read_only: bool,
     pub controllers: Vec<SetupController>,
     pub available_controllers: Vec<SetupController>,
     pub input_devices: Vec<SetupInputDevice>,
@@ -247,7 +256,6 @@ pub struct SetupGuiDocument {
 pub struct SetupController {
     pub label: String,
     pub source_ref: GuiObjectRef,
-    pub read_only: bool,
     pub config: SetupControllerConfig,
     pub ports: Vec<SetupControllerPort>,
 }
@@ -255,7 +263,7 @@ pub struct SetupController {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ControllerGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub description: Option<String>,
     pub path: String,
     pub object_key: String,
@@ -352,7 +360,8 @@ impl From<&donder_model::ControllerProtocol> for SetupControllerConfig {
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum GuiOwnedStep {
+/// A stable ownership slot: owned members are named, never addressed by position.
+pub enum OwnedObjectSlot {
     Setup,
     Layout,
     Patch,
@@ -374,46 +383,46 @@ pub enum GuiOwnedStep {
     },
 }
 
-impl From<&donder_model::OwnedObjectSlot> for GuiOwnedStep {
-    fn from(slot: &donder_model::OwnedObjectSlot) -> Self {
-        use donder_model::OwnedObjectSlot;
+impl From<&donder_project_io::OwnedObjectSlot> for OwnedObjectSlot {
+    fn from(slot: &donder_project_io::OwnedObjectSlot) -> Self {
+        use donder_project_io::OwnedObjectSlot as Slot;
         match slot {
-            OwnedObjectSlot::Setup => Self::Setup,
-            OwnedObjectSlot::Layout => Self::Layout,
-            OwnedObjectSlot::Patch => Self::Patch,
-            OwnedObjectSlot::Controller(name) => Self::Controller {
+            Slot::Setup => Self::Setup,
+            Slot::Layout => Self::Layout,
+            Slot::Patch => Self::Patch,
+            Slot::Controller(name) => Self::Controller {
                 name: name.as_str().to_string(),
             },
-            OwnedObjectSlot::InputDevice(name) => Self::InputDevice {
+            Slot::InputDevice(name) => Self::InputDevice {
                 name: name.as_str().to_string(),
             },
-            OwnedObjectSlot::Sequence(name) => Self::Sequence {
+            Slot::Sequence(name) => Self::Sequence {
                 name: name.as_str().to_string(),
             },
-            OwnedObjectSlot::Rig(name) => Self::Rig {
+            Slot::Rig(name) => Self::Rig {
                 name: name.as_str().to_string(),
             },
-            OwnedObjectSlot::Fixture(id) => Self::Fixture { id: *id },
+            Slot::Fixture(id) => Self::Fixture { id: *id },
         }
     }
 }
-impl TryFrom<&GuiOwnedStep> for donder_model::OwnedObjectSlot {
+impl TryFrom<&OwnedObjectSlot> for donder_project_io::OwnedObjectSlot {
     type Error = String;
 
-    fn try_from(slot: &GuiOwnedStep) -> Result<Self, String> {
+    fn try_from(slot: &OwnedObjectSlot) -> Result<Self, String> {
         let name = |name: &str| {
             donder_runtime_types::Identifier::new(name.to_string())
                 .map_err(|_| format!("`{name}` is not an object name."))
         };
         Ok(match slot {
-            GuiOwnedStep::Setup => Self::Setup,
-            GuiOwnedStep::Layout => Self::Layout,
-            GuiOwnedStep::Patch => Self::Patch,
-            GuiOwnedStep::Controller { name: text } => Self::Controller(name(text)?),
-            GuiOwnedStep::InputDevice { name: text } => Self::InputDevice(name(text)?),
-            GuiOwnedStep::Sequence { name: text } => Self::Sequence(name(text)?),
-            GuiOwnedStep::Rig { name: text } => Self::Rig(name(text)?),
-            GuiOwnedStep::Fixture { id } => Self::Fixture(*id),
+            OwnedObjectSlot::Setup => Self::Setup,
+            OwnedObjectSlot::Layout => Self::Layout,
+            OwnedObjectSlot::Patch => Self::Patch,
+            OwnedObjectSlot::Controller { name: text } => Self::Controller(name(text)?),
+            OwnedObjectSlot::InputDevice { name: text } => Self::InputDevice(name(text)?),
+            OwnedObjectSlot::Sequence { name: text } => Self::Sequence(name(text)?),
+            OwnedObjectSlot::Rig { name: text } => Self::Rig(name(text)?),
+            OwnedObjectSlot::Fixture { id } => Self::Fixture(*id),
         })
     }
 }
@@ -424,14 +433,11 @@ impl TryFrom<&GuiOwnedStep> for donder_model::OwnedObjectSlot {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum GuiOwnershipSlot {
-    Setup,
-    Sequence { index: u32 },
-    Rig { index: u32 },
-    Layout,
-    Patch,
-    Controller { index: u32 },
-    InputDevice { index: u32 },
+/// The member of the open object an ownership edit changes: the object a slot
+/// holds, owned or linked, or a layout's fixture, whose definition several
+/// fixtures may link.
+pub enum OwnershipMember {
+    Object { source: GuiObjectRef },
     Fixture { id: u32 },
 }
 

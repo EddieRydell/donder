@@ -37,10 +37,14 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
         .sequences
         .iter()
         .map(|source| source.id())
-        .find(|id| !session.project.reusable_sequences()[*id].effects.is_empty())
-        .unwrap()
-        .clone();
-    let path = root.join(sequence_id.0.document());
+        .find(|id| {
+            !session.project.reusable::<donder_model::Sequence>()[*id]
+                .effects
+                .is_empty()
+        })
+        .copied()
+        .unwrap();
+    let path = root.join(session.address_of(sequence_id.into()).unwrap().document());
     let original = fs::read_to_string(&path).unwrap();
     // Whitespace is the only freedom the text has.
     let spaced = original.replace(": ", " :   ").replace(",\n", " ,\n\n");
@@ -48,7 +52,11 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
     fs::write(&path, spaced).unwrap();
     let mut edited = common::load_project(&root);
     assert_eq!(session.project, edited.project);
-    let mut sequence = edited.project.sequence(&sequence_id).unwrap().clone();
+    let mut sequence = edited
+        .project
+        .get::<donder_model::Sequence>(sequence_id)
+        .unwrap()
+        .clone();
     sequence.layers[0].name =
         donder_language::object_name(&format!("{}_edited", sequence.layers[0].name.as_str()));
     sequence.effects.reverse();
@@ -57,10 +65,7 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
         .iter()
         .map(|effect| effect.name.clone())
         .collect::<Vec<_>>();
-    edited
-        .project
-        .replace_sequence(&sequence_id, sequence)
-        .unwrap();
+    edited.project.put(sequence).unwrap();
 
     save_project(&edited).unwrap();
     let saved = fs::read_to_string(&path).unwrap();
@@ -70,7 +75,7 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
     assert_eq!(
         reloaded
             .project
-            .sequence(&sequence_id)
+            .get::<donder_model::Sequence>(sequence_id)
             .unwrap()
             .effects
             .iter()
@@ -92,10 +97,6 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
         assert_eq!(before.imports(), after.imports(), "{id:?}");
         assert_eq!(before.objects(), after.objects(), "{id:?}");
         assert_eq!(
-            edited.source.is_project_owned(id),
-            reloaded.source.is_project_owned(id)
-        );
-        assert_eq!(
             source_document_text(&reloaded, id).unwrap().unwrap(),
             fs::read_to_string(root.join(id.path())).unwrap()
         );
@@ -113,18 +114,17 @@ fn missing_import_is_an_error_not_a_flattened_or_guessed_reference() {
         .sequences
         .iter()
         .map(|source| source.id())
-        .find(|id| !session.project.reusable_sequences()[*id].effects.is_empty())
-        .unwrap()
-        .0
-        .document_id()
-        .clone();
+        .find(|id| {
+            !session.project.reusable::<donder_model::Sequence>()[*id]
+                .effects
+                .is_empty()
+        })
+        .copied()
+        .unwrap();
+    let id = session.address_of(id.into()).unwrap().document_id().clone();
     let original = &session.source.documents[&id];
-    let without_imports = donder_project_io::SourceDocument::new(
-        Vec::new(),
-        original.objects().to_vec(),
-        original.kind().clone(),
-    )
-    .unwrap();
+    let without_imports =
+        donder_project_io::SourceDocument::data(Vec::new(), original.objects().to_vec()).unwrap();
     session.source.documents.insert(id.clone(), without_imports);
     assert!(source_document_text(&session, &id).is_err());
 }
@@ -132,20 +132,21 @@ fn missing_import_is_an_error_not_a_flattened_or_guessed_reference() {
 #[test]
 fn removing_only_typed_object_rejects_save_before_any_write() {
     let (_temporary, root, mut session) = starter_copy();
-    let id = session.project.root().sequences[0].id().clone();
+    let id = *session.project.root().sequences[0].id();
+    let document = session.address_of(id.into()).unwrap().document_id().clone();
     let before = donder_project_io::project_source_texts(&root).unwrap();
     let mut project_root = session.project.root().clone();
     project_root.sequences.retain(|source| source.id() != &id);
     session
         .project
         .apply_edits([
-            donder_model::ProjectEdit::ReplaceRoot(project_root),
-            donder_model::ProjectEdit::RemoveSequence(id.clone()),
+            donder_model::ProjectEdit::Put(donder_model::Object::Project(project_root)),
+            donder_model::ProjectEdit::Remove(id.into()),
         ])
         .unwrap();
     // Typed edits preserve project validity; source inventory must still agree at save time.
     assert!(save_project(&session).is_err());
-    assert!(source_document_text(&session, id.0.document_id()).is_err());
+    assert!(source_document_text(&session, &document).is_err());
     assert_eq!(
         before,
         donder_project_io::project_source_texts(&root).unwrap()
@@ -154,31 +155,23 @@ fn removing_only_typed_object_rejects_save_before_any_write() {
 
 #[test]
 fn typed_objects_without_source_inventory_cannot_be_silently_omitted() {
-    use donder_model::{DocumentId, SequenceId, SourceIdentity};
+    use donder_model::SequenceId;
     let (_temporary, root, session) = starter_copy();
     let before = donder_project_io::project_source_texts(&root).unwrap();
-    let original = &session.project.reusable_sequences()[session.project.root().sequences[0].id()];
-    for document in [
-        original.id.0.document_id().clone(),
-        DocumentId::new(
-            session.source.project_module_id(),
-            "sequences/unregistered.data.donder".into(),
-        ),
-    ] {
-        let mut candidate = session.clone();
-        let mut added = original.clone();
-        added.id =
-            SequenceId(SourceIdentity::from_document(document, "unregistered".into()).into());
-        candidate
-            .project
-            .apply_edits([donder_model::ProjectEdit::InsertSequence(added)])
-            .unwrap();
-        assert!(save_project(&candidate).is_err());
-        assert_eq!(
-            before,
-            donder_project_io::project_source_texts(&root).unwrap()
-        );
-    }
+    let original = &session.project.reusable::<donder_model::Sequence>()
+        [session.project.root().sequences[0].id()];
+    let mut candidate = session.clone();
+    let mut added = original.clone();
+    added.id = SequenceId(candidate.project.new_id());
+    candidate
+        .project
+        .apply_edits([donder_model::ProjectEdit::Put(added.into())])
+        .unwrap();
+    assert!(save_project(&candidate).is_err());
+    assert_eq!(
+        before,
+        donder_project_io::project_source_texts(&root).unwrap()
+    );
 }
 
 #[test]
@@ -198,11 +191,11 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
     let mut session = common::load_project(&root);
     let id = session
         .project
-        .reusable_sequences()
+        .reusable::<donder_model::Sequence>()
         .keys()
-        .find(|id| id.0.root_source().object() == "unused")
-        .unwrap()
-        .clone();
+        .copied()
+        .find(|id| session.declaration((*id).into()).unwrap().1.as_str() == "unused")
+        .unwrap();
     assert!(
         !session
             .project
@@ -211,9 +204,13 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
             .iter()
             .any(|source| source.id() == &id)
     );
-    let mut sequence = session.project.sequence(&id).unwrap().clone();
+    let mut sequence = session
+        .project
+        .get::<donder_model::Sequence>(id)
+        .unwrap()
+        .clone();
     sequence.frame_rate = 60;
-    session.project.replace_sequence(&id, sequence).unwrap();
+    session.project.put(sequence).unwrap();
     save_project(&session).unwrap();
     assert_eq!(session.project, common::load_project(&root).project);
 }

@@ -3,7 +3,7 @@ import { isMac } from "../../../platform";
 import { useEffect, useState } from "react";
 import { commands } from "../../../api";
 import { runSnapshotCommand, useAppStore } from "../../../store";
-import type { DeviceFirmwareInfo, DeviceInstallProgress, DeviceSerialPort, DonderDeviceStatus } from "../../../types";
+import type { DeviceFirmwareInfo, DeviceInstallProgress, DeviceSerialPort, DonderDeviceNetworkRequest, DonderDeviceStatus } from "../../../types";
 
 /** Live status and settings for the Donder controller a setup controller targets. */
 export function DonderDevicePanel({ deviceId }: { deviceId: string }) {
@@ -46,7 +46,7 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
       </form>
       <form onSubmit={(event) => {
         event.preventDefault();
-        run(() => runSnapshotCommand(() => commands.setDeviceNetwork(device.id, { ssid, password })).then(() => { setPassword(""); }));
+        run(() => runSnapshotCommand(() => commands.setDeviceNetwork(device.id, { ssid, password } satisfies DonderDeviceNetworkRequest)).then(() => { setPassword(""); }));
       }}>
         <p>The controller hosts its own Wi-Fi network until it joins another 2.4 GHz WPA2 network. It restarts to apply the change and falls back to its own network when it cannot join.</p>
         <label>Wi-Fi network name<input required value={ssid} onChange={(event) => { setSsid(event.target.value); }} autoComplete="off" /></label>
@@ -74,18 +74,14 @@ export function DeviceUsbTools() {
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const listPorts = () => commands.deviceSerialPorts().then((result) => {
-    if (result.status === "error") setError(result.error); else setPorts(result.data);
-  });
+  const listPorts = () => commands.deviceSerialPorts().then(setPorts).catch((listError: unknown) => { setError(String(listError)); });
   const refresh = () => {
     setPort(""); setInstallConfirmed(false); setEraseConfirmed(false);
     void listPorts();
   };
   useEffect(() => {
     void listPorts();
-    void commands.deviceFirmwareInfo().then((result) => {
-      if (result.status === "error") setError(result.error); else setFirmware(result.data);
-    });
+    void commands.deviceFirmwareInfo().then(setFirmware).catch((infoError: unknown) => { setError(String(infoError)); });
   }, []);
   const run = (message: string, command: () => Promise<void>) => {
     setPending(true); setError(null); setStatus(null); setInstallConfirmed(false); setEraseConfirmed(false);
@@ -108,8 +104,7 @@ export function DeviceUsbTools() {
         channel.onmessage = setProgress;
         setProgress({ stage: "connecting" });
         run("Firmware installed. The controller restarts and appears on the network.", async () => {
-          const result = await commands.installDeviceFirmware(port, channel);
-          if (result.status === "error") throw new Error(result.error);
+          await commands.installDeviceFirmware(port, channel);
         });
       }}>Install Donder firmware</button>
       {progress !== null && <p role="status">{progress.stage === "connecting" ? "Connecting to controller bootloader..."
@@ -118,8 +113,7 @@ export function DeviceUsbTools() {
       <label className="device-erase-confirmation"><input type="checkbox" checked={eraseConfirmed} onChange={(event) => { setEraseConfirmed(event.target.checked); }} />Factory reset the selected controller: erase its name, claim, Wi-Fi network and saved show.</label>
       <button type="button" disabled={port === "" || !eraseConfirmed} onClick={() => {
         run("Controller reset. It restarts with its own Wi-Fi network, unclaimed.", async () => {
-          const result = await commands.eraseDeviceSavedData(port);
-          if (result.status === "error") throw new Error(result.error);
+          await commands.eraseDeviceSavedData(port);
         });
       }}>Factory reset</button>
       {status !== null && <p role="status">{status}</p>}

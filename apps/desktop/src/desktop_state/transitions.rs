@@ -1,6 +1,6 @@
 use super::{DesktopState, LoadedProject, lock_unpoisoned};
 use camino::Utf8Path;
-use donder_sequence_api::{
+use donder_editor::dto::{
     BufferExternalState, DocumentSaveState, ProjectHealth, TransitionDecision, TransitionRequest,
     TransitionResult, WorkspaceTransition,
 };

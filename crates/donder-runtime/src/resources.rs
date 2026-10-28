@@ -1,11 +1,11 @@
 //! Bound parameters and the resources they hold, resolved against a show.
 //! A parameter set is the image's, or an automated or live-bound copy in the
 //! workspace whose curve windows and live marks are workspace buffers.
-use bytemuck::{Pod, Zeroable};
-use donder_runtime_types::image::{
+use crate::image::{
     self, CROSSINGS_DECREASING, CROSSINGS_INCREASING, CrossingSegment, CurvePoint, GradientStop,
     NONE, ResourceRef,
 };
+use bytemuck::{Pod, Zeroable};
 use donder_runtime_types::{MarkWindow, sampling};
 
 use crate::show::Show;

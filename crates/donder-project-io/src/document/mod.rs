@@ -6,10 +6,10 @@ pub(crate) mod save;
 pub(crate) mod text_cache;
 pub(crate) mod types;
 
-use crate::source::SourceObjectKind;
 use donder_language::compiler::{Diagnostic, TextSpan};
 use donder_language::data::{Data, Decoder, Record, Schema, declaration};
 use donder_language::data::{DataDeclaration, DataDocument, DataImport, Spanned};
+use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
 
 /// One top-level declaration of a data document.
@@ -29,19 +29,19 @@ pub(crate) enum Declaration {
 }
 
 impl Declaration {
-    pub(crate) fn kind(&self) -> SourceObjectKind {
+    pub(crate) fn kind(&self) -> ObjectKind {
         match self {
-            Self::Project(_) => SourceObjectKind::Project,
-            Self::Setup(_) => SourceObjectKind::Setup,
-            Self::Controller(_) => SourceObjectKind::Controller,
-            Self::InputDevice(_) => SourceObjectKind::InputDevice,
-            Self::Layout(_) => SourceObjectKind::Layout,
-            Self::Patch(_) => SourceObjectKind::Patch,
-            Self::FixtureDefinition(_) => SourceObjectKind::FixtureDefinition,
-            Self::Sequence(_) => SourceObjectKind::Sequence,
-            Self::Rig(_) => SourceObjectKind::Rig,
-            Self::Curve(_) => SourceObjectKind::Curve,
-            Self::Gradient(_) => SourceObjectKind::Gradient,
+            Self::Project(_) => ObjectKind::Project,
+            Self::Setup(_) => ObjectKind::Setup,
+            Self::Controller(_) => ObjectKind::Controller,
+            Self::InputDevice(_) => ObjectKind::InputDevice,
+            Self::Layout(_) => ObjectKind::Layout,
+            Self::Patch(_) => ObjectKind::Patch,
+            Self::FixtureDefinition(_) => ObjectKind::FixtureDefinition,
+            Self::Sequence(_) => ObjectKind::Sequence,
+            Self::Rig(_) => ObjectKind::Rig,
+            Self::Curve(_) => ObjectKind::Curve,
+            Self::Gradient(_) => ObjectKind::Gradient,
         }
     }
 

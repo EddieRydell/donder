@@ -3,8 +3,8 @@
 //! scratch frames, the automation scratch and a rig's state. [`Layout`]
 //! counts every region once; [`Layout::size`] and [`carve`] walk them in the
 //! same order.
+use crate::image::{self, CrossingSegment, CurvePoint, NONE};
 use bytemuck::{Pod, Zeroable};
-use donder_runtime_types::image::{self, CrossingSegment, CurvePoint, NONE};
 use donder_runtime_types::{Color, SampleTime};
 
 use crate::arena::{Carve, Size};

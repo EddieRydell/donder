@@ -3,19 +3,17 @@
 //! into strips and whatever mix of scalars and rows its program computes.
 use super::evaluation::{
     OperatorEvaluation, PixelContext, RuntimeError, SignalSampler, Single, StripWorkspace, bind,
-    compile_effect, lower_runtime_effect, marks, runtime_instance,
+    compile, lower_runtime, marks, runtime_instance,
 };
 use super::playback;
 use super::std;
 use crate::dsl::bytecode::{BytecodeProgram, ContextRead, Instruction, SignalPixel, instructions};
 use crate::dsl::{NoSignals, RunContext, STRIP, Strip, StripSignals};
-use donder_language::compiler::{
-    CompiledEffect, ParamDecl, ParamRange, compile_effects, compile_operators,
-};
+use donder_language::compiler::{CompiledDefinition, ParamDecl, ParamRange, compile_script};
 use donder_runtime_types::bytecode::listing;
+use donder_runtime_types::{BoundProgram, Type, Value};
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration};
-use donder_runtime_types::{SampleInvocation, Type, Value};
-use donder_runtime_types::{SampleProgram, SpatialContext};
+use donder_runtime_types::{Program, SpatialContext};
 use std::prelude::rust_2024::*;
 
 const DURATION: u32 = 8_000_000;
@@ -90,20 +88,20 @@ const TICKS: [u32; 5] = [0, 610_000, 3_020_000, 4_470_000, 7_999_999];
 /// A named program with its bound parameters.
 struct Bound {
     name: String,
-    invocation: SampleInvocation,
+    invocation: BoundProgram,
     single: Single,
 }
 
 impl Bound {
-    fn new(name: impl Into<String>, invocation: SampleInvocation) -> Self {
+    fn new(name: impl Into<String>, invocation: BoundProgram) -> Self {
         Self {
             name: name.into(),
-            single: Single::sample(&invocation),
+            single: Single::new(&invocation),
             invocation,
         }
     }
 
-    fn program(&self) -> &SampleProgram {
+    fn program(&self) -> &Program {
         self.invocation.program()
     }
 
@@ -167,7 +165,7 @@ impl Bound {
                 ),
                 &actual,
                 &expected,
-                self.program().bytecode(),
+                &self.program().bytecode,
             );
         }
         expected
@@ -332,10 +330,10 @@ fn starter_sources(directory: &str, extension: &str) -> Vec<String> {
         .collect()
 }
 
-fn starter_effects() -> Vec<CompiledEffect> {
+fn starter_effects() -> Vec<CompiledDefinition> {
     let effects: Vec<_> = starter_sources("effects", ".donder")
         .iter()
-        .flat_map(|source| compile_effects(source).unwrap())
+        .flat_map(|source| compile_script(source).unwrap())
         .collect();
     assert!(effects.len() >= 20, "{} starter effects", effects.len());
     effects
@@ -367,8 +365,8 @@ fn starter_effects_compute_each_pixel_of_a_strip_as_alone() {
         let fixed: Vec<_> = fixed.into_iter().map(|(value, _)| value).collect();
         let (instance, slots) = runtime_instance(&effect, &fixed, &runtime);
         for (how, invocation) in [
-            ("prepared", playback::lower_sample(&bind(&effect, &values))),
-            ("runtime", lower_runtime_effect(&instance, slots.clone())),
+            ("prepared", playback::lower(&bind(&effect, &values))),
+            ("runtime", lower_runtime(&instance, slots.clone())),
         ] {
             let bound = Bound::new(format!("{name} {how}"), invocation);
             for target in &targets {
@@ -389,8 +387,8 @@ fn starter_effects_compute_each_pixel_of_a_strip_as_alone() {
                 let mut slots = slots.clone();
                 slots[slot.unwrap()] = alternative;
                 for (how, invocation) in [
-                    ("prepared", playback::lower_sample(&bind(&effect, &values))),
-                    ("runtime", lower_runtime_effect(&instance, slots)),
+                    ("prepared", playback::lower(&bind(&effect, &values))),
+                    ("runtime", lower_runtime(&instance, slots)),
                 ] {
                     let bound = Bound::new(format!("{what} {how}"), invocation);
                     for ticks in [TICKS[1], TICKS[2]] {
@@ -402,23 +400,23 @@ fn starter_effects_compute_each_pixel_of_a_strip_as_alone() {
     }
 }
 
-fn has_branch(invocation: &SampleInvocation, row: bool) -> bool {
-    let body = invocation.program().bytecode().body();
+fn has_branch(invocation: &BoundProgram, row: bool) -> bool {
+    let body = invocation.program().bytecode.body();
     instructions(body).any(|instruction| match instruction {
         Instruction::Branch { condition, .. } => condition.is_scalar() != row,
         _ => false,
     })
 }
 
-fn has_row_branch(invocation: &SampleInvocation) -> bool {
+fn has_row_branch(invocation: &BoundProgram) -> bool {
     has_branch(invocation, true)
 }
 
-fn has_row_and_scalar_branches(invocation: &SampleInvocation) -> bool {
+fn has_row_and_scalar_branches(invocation: &BoundProgram) -> bool {
     has_branch(invocation, true) && has_branch(invocation, false)
 }
 
-fn any_program(_: &SampleInvocation) -> bool {
+fn any_program(_: &BoundProgram) -> bool {
     true
 }
 
@@ -426,14 +424,14 @@ fn any_program(_: &SampleInvocation) -> bool {
 /// computes each pixel as alone at every count and time.
 fn assert_program(
     source: &str,
-    check: fn(&SampleInvocation) -> bool,
+    check: fn(&BoundProgram) -> bool,
     workspaces: &mut Workspaces,
 ) -> Bound {
-    let invocation = playback::lower_sample(&bind(&compile_effect(source), &[]));
+    let invocation = playback::lower(&bind(&compile(source), &[]));
     assert!(
         check(&invocation),
         "{source}\n{}",
-        listing(invocation.program().bytecode())
+        listing(&invocation.program().bytecode)
     );
     let bound = Bound::new(source, invocation);
     for count in [1, 2, 7, 64, STRIP - 1, STRIP, STRIP + 1, 300] {
@@ -550,12 +548,12 @@ fn nested_branches_and_uniform_branches_inside_per_pixel_arms() {
         assert_eq!(*late, late_expected, "late pixel {index}");
     }
     // A condition on a parameter left to playback is uniform too.
-    let effect = compile_effect(source);
+    let effect = compile(source);
     for level in [0.125, 0.75] {
         let (instance, slots) = runtime_instance(&effect, &[], &[("level", Value::Float(level))]);
         let nested = Bound::new(
             format!("{source} level={level}"),
-            lower_runtime_effect(&instance, slots),
+            lower_runtime(&instance, slots),
         );
         assert!(has_row_and_scalar_branches(&nested.invocation));
         for count in [7, STRIP + 3] {
@@ -692,8 +690,8 @@ fn reductions_bound_each_pixel() {
 #[test]
 fn reduction_bounds_hold_through_every_iteration() {
     let mut workspaces = Workspaces::default();
-    let invocation = playback::lower_sample(&bind(
-        &compile_effect(
+    let invocation = playback::lower(&bind(
+        &compile(
             "effect Bounds { sample {
                 let i = pixel.index;
                 let highest = max for k in i % 3..6 { (k * 7) % 11 };
@@ -724,7 +722,7 @@ fn reduction_bounds_hold_through_every_iteration() {
                 latest as f32 / 16.0
             ),
             "pixel {index}\n{}",
-            listing(bound.program().bytecode())
+            listing(&bound.program().bytecode)
         );
     }
     bound.assert_strips(0, &target, &SPLITS, &mut workspaces);
@@ -900,11 +898,8 @@ fn a_new_target_shape_reinitializes_the_target_block() {
             rgb(target.count / 256.0, (target.max_x - target.min_x) / 4.0, target.min_y + 0.5)
         } }",
     ] {
-        let bound = Bound::new(
-            source,
-            playback::lower_sample(&bind(&compile_effect(source), &[])),
-        );
-        let program = bound.program().bytecode();
+        let bound = Bound::new(source, playback::lower(&bind(&compile(source), &[])));
+        let program = &bound.program().bytecode;
         let target_block: Vec<_> = instructions(program.target()).collect();
         assert!(
             target_block.iter().any(|instruction| matches!(
@@ -1082,14 +1077,14 @@ fn operator_samples_in_strips_match_lone_pixels() {
     );
     let operators: Vec<_> = sources
         .iter()
-        .flat_map(|source| compile_operators(source).unwrap())
+        .flat_map(|source| compile_script(source).unwrap())
         .collect();
     assert!(operators.len() >= 18, "{} operators", operators.len());
     let mut workspaces = Workspaces::default();
     for operator in &operators {
-        let invocation = playback::operator(operator);
-        let single = Single::operator(&invocation);
-        let program = invocation.program().bytecode();
+        let invocation = playback::program(operator);
+        let single = Single::new(&invocation);
+        let program = &invocation.program().bytecode;
         for count in COUNTS {
             let target = Target::new(count);
             for ticks in [0, 120_000, 3_020_000, 7_999_999] {
@@ -1114,7 +1109,12 @@ fn operator_samples_in_strips_match_lone_pixels() {
                             count,
                         };
                         invocation
-                            .evaluate(&context, &spatial, &mut signals, &mut workspaces.alone)
+                            .evaluate_signals(
+                                &context,
+                                &spatial,
+                                &mut signals,
+                                &mut workspaces.alone,
+                            )
                             .unwrap()
                     })
                     .collect();

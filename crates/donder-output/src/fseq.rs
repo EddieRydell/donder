@@ -6,7 +6,7 @@
 use core::fmt;
 use core::num::NonZeroU8;
 
-use donder_runtime::PreparedSequence;
+use donder_runtime::PreparedShow;
 use donder_runtime_types::SampleTime;
 
 const HEADER_BYTES: usize = 32;
@@ -72,7 +72,7 @@ impl fmt::Display for FseqError {
 /// Render every frame of `sequence` into an FSEQ v2 file. `media_file` names
 /// the audio FPP plays with the sequence.
 pub fn encode_fseq(
-    sequence: PreparedSequence,
+    sequence: PreparedShow,
     step: FseqStep,
     media_file: Option<&str>,
 ) -> Result<Vec<u8>, FseqError> {

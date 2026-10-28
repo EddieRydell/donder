@@ -6,8 +6,6 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 export const commands = {
 	getSnapshot: () => __TAURI_INVOKE<AppSnapshot>("get_snapshot").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	updateAppSettings: (settings: AppSettings) => __TAURI_INVOKE<AppSnapshot>("update_app_settings", { settings }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	saveWorkspaceLayoutState: (stateUpdate: WorkspaceLayoutState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_layout_state", { stateUpdate }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	saveWorkspaceExplorerState: (stateUpdate: WorkspaceExplorerState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_explorer_state", { stateUpdate }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	searchProject: (request: ProjectSearchRequest) => typedError<ProjectSearchResponse, string>(__TAURI_INVOKE("search_project", { request })),
 	planWorkspacePathChange: (request: WorkspacePathChangeRequest) => typedError<WorkspacePathChangePlan, string>(__TAURI_INVOKE("plan_workspace_path_change", { request })),
 	applyWorkspacePathChange: (request: WorkspacePathChangeRequest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_workspace_path_change", { request })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
@@ -16,7 +14,7 @@ export const commands = {
 	chooseNewProjectParentDirectory: () => __TAURI_INVOKE<string | null>("choose_new_project_parent_directory"),
 	createSequence: (request: NewSequenceRequest) => typedError<NewSequenceResult, string>(__TAURI_INVOKE("create_sequence", { request })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,snapshot:({...v.data.snapshot,audioTransport:({...v.data.snapshot.audioTransport,range:v.data.snapshot.audioTransport.range==null?v.data.snapshot.audioTransport.range:v.data.snapshot.audioTransport.range})})}) } : v) as typeof v)),
 	openFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("open_file", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	resolveGuiSource: (moduleId: string, path: string, objectKey: string) => typedError<GuiDocumentRequest, string>(__TAURI_INVOKE("resolve_gui_source", { moduleId, path, objectKey })),
+	resolveGuiSource: (path: string, objectKey: string) => typedError<GuiDocumentRequest, string>(__TAURI_INVOKE("resolve_gui_source", { path, objectKey })),
 	setActiveFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("set_active_file", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	updateDocument: (update: DocumentUpdate) => typedError<AppSnapshot, string>(__TAURI_INVOKE("update_document", { update })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	/**  An open document's working text and revision. */
@@ -29,17 +27,14 @@ export const commands = {
 	/**  Apply language-server edits, such as a rename, to project documents. */
 	applyTextEdits: (projectEpoch: number, edits: DocumentTextEdits[]) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_text_edits", { projectEpoch, edits })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	/**  Import an unreferenced document from the project root. */
-	includeDocument: (projectEpoch: number, inclusion: DocumentInclusion) => typedError<AppSnapshot, string>(__TAURI_INVOKE("include_document", { projectEpoch, inclusion })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	includeDocument: (projectEpoch: number, inclusion: Inclusion) => typedError<AppSnapshot, string>(__TAURI_INVOKE("include_document", { projectEpoch, inclusion })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	saveAll: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("save_all")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	requestTransition: (request: TransitionRequest) => typedError<TransitionResult, string>(__TAURI_INVOKE("request_transition", { request })),
 	completeClose: (epoch: number, revision: number) => typedError<null, string>(__TAURI_INVOKE("complete_close", { epoch, revision })),
 	reconcileExternalFiles: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("reconcile_external_files")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	resolveExternalConflict: (epoch: number, path: string, revision: number, decision: ExternalConflictDecision) => typedError<AppSnapshot, string>(__TAURI_INVOKE("resolve_external_conflict", { epoch, path, revision, decision })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setEditorViewMode: (mode: EditorViewMode) => __TAURI_INVOKE<AppSnapshot>("set_editor_view_mode", { mode }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	saveEditorViewState: (update: PersistedEditorViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_editor_view_state", { update }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	saveSequenceViewportState: (update: PersistedSequenceViewportStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_sequence_viewport_state", { update: ({...update,state:({...update.state,rowHeights:Object.fromEntries(Object.entries(update.state.rowHeights).map(([k,v])=>[k,v]))})}) }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	saveGraphViewState: (update: PersistedGraphViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_graph_view_state", { update: ({...update,state:({...update.state,viewport:update.state.viewport==null?update.state.viewport:update.state.viewport,nodeSizes:Object.fromEntries(Object.entries(update.state.nodeSizes).map(([k,v])=>[k,v]))})}) }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	saveSpatialViewState: (update: PersistedSpatialViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_spatial_view_state", { update: ({...update,state:({...update.state,guides:update.state.guides.map(i=>i)})}) }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	saveViewState: (update: ViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_view_state", { update }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	undoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("undo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getGuiDocument: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiDocumentResult>("get_gui_document", { request }),
@@ -64,9 +59,7 @@ export const commands = {
 	takeSequenceClipRasterResults: (request: GuiDocumentRequest, sinceRevision: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, sinceRevision }),
 	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditUpdate>("apply_gui_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	finishCompositionGraphEditing: () => __TAURI_INVOKE<AppSnapshot>("finish_composition_graph_editing").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	rebindDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number, target: SequenceAutomationTarget) => __TAURI_INVOKE<GuiEditUpdate>("rebind_detached_automation", { request, clipId, detachedIndex, target }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
-	discardDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number) => __TAURI_INVOKE<GuiEditUpdate>("discard_detached_automation", { request, clipId, detachedIndex }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
-	applySequenceSelectionEdit: (request: GuiDocumentRequest, edit: SequenceSelectionEdit) => __TAURI_INVOKE<SequenceSelectionEditResult>("apply_sequence_selection_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	copySequenceSelection: (request: GuiDocumentRequest, selection: SequenceSelection) => __TAURI_INVOKE<GuiEditUpdate>("copy_sequence_selection", { request, selection }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	chooseSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditUpdate>("choose_sequence_audio", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	createFile: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_file", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	createDirectory: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_directory", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
@@ -139,7 +132,7 @@ export type AppSnapshot = {
 	activeFile: string | null,
 	activeBuffer: EditorTab | null,
 	activeDocumentDescriptor: DocumentDescriptor | null,
-	diagnostics: ProjectDiagnostic[],
+	diagnostics: IoDiagnostic[],
 	status: string,
 	renderError: string | null,
 	previewError: string | null,
@@ -170,12 +163,10 @@ export type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
 export type CommandId = AppCommandId | EditorCommandId;
 
 /**  Edits to the layers and composition graph that sequences and rigs share. */
-export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | 
-/**  Empty text removes the description. */
-{ type: "setLayerDescription"; id: number; description: string | null } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue };
+export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue };
 
 export type ControllerGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
@@ -190,7 +181,7 @@ export type ControllerOutputTest = {
 };
 
 export type CurveGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
@@ -210,28 +201,11 @@ export type DeviceSerialPort = {
 	label: string,
 };
 
-export type DiagnosticSeverity = "error" | "warning";
-
-export type DocumentDefaultObjectKey = {
-	view: DocumentViewId,
-	objectKey: string,
-};
-
 export type DocumentDescriptor = {
 	path: string,
 	objects: DocumentObjectDescriptor[],
-	availableViews: DocumentViewId[],
-	defaultObjectKeys: DocumentDefaultObjectKey[],
-};
-
-/**  Importing an unreferenced document from the project root. */
-export type DocumentInclusion = {
-	document: string,
-	alias: string,
-	/**  Sequences the document declares, added to the project's sequences. */
-	sequences: string[],
-	/**  Rigs the document declares, added to the project's rigs. */
-	rigs: string[],
+	/**  The objects a GUI editor opens, in the order the editor offers them. */
+	guiObjects: DocumentObjectDescriptor[],
 };
 
 export type DocumentObjectDescriptor = {
@@ -279,8 +253,6 @@ export type DocumentUpdate = {
 	changes: DocumentTextEdit[][],
 };
 
-export type DocumentViewId = "text" | "project" | "setup" | "layout" | "fixture" | "patch" | "controller" | "inputDevice" | "sequence" | "rig" | "curve" | "gradient";
-
 export type DonderDeviceClaim = "unclaimed" | "claimed" | "claimedElsewhere";
 
 export type DonderDeviceConnection = 
@@ -318,7 +290,6 @@ export type EditorTab = {
 	name: string,
 	syntax: TextDocumentSyntax,
 	dirty: boolean,
-	readOnly: boolean,
 	documentRevision: number,
 	savedRevision: number,
 	saveState: DocumentSaveState,
@@ -363,7 +334,7 @@ export type GeometryRenderBounds = {
 };
 
 export type GradientGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
@@ -390,7 +361,7 @@ export type GuiControlInput =
 /**  An OSC address whose first argument runs from `low` to `high`. */
 { type: "addressRange"; path: string; low: number; high: number };
 
-export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "rig"; document: RigGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
+export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "rig"; document: RigGuiDocument } | { type: "blocked"; reason: string; diagnostics: IoDiagnostic[] };
 
 /**
  *  How an edit changed the open GUI document, relative to the document at the
@@ -406,12 +377,15 @@ export type GuiDocumentChange =
  */
 { type: "sequenceClips"; document: SequenceGuiDocument; effectIds: number[] };
 
+/**
+ *  An object a GUI editor opens: a declared object, or an object owned beneath
+ *  one. The object's kind picks the editor.
+ */
 export type GuiDocumentRequest = {
-	ownedPath: GuiOwnedStep[],
+	ownedPath: OwnedObjectSlot[],
 	projectRevision: number,
 	path: string,
-	view: DocumentViewId,
-	objectKey: string | null,
+	objectKey: string,
 };
 
 export type GuiDocumentResult = {
@@ -420,13 +394,27 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "rig"; edit: RigGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
-/**  Set the open object's description; empty text removes it. */
-{ type: "description"; description: string | null };
+export type GuiEditCommand = { type: "ownership"; member: OwnershipMember; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "rig"; edit: RigGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
+/**
+ *  The name becomes a `snake_case` name, which the edit reports; renaming
+ *  marks renames every parameter and mapping that names them.
+ */
+{ type: "rename"; item: GuiItem; name: string } | 
+/**  Empty text removes the description. */
+{ type: "setDescription"; item: GuiItem; description: string | null } | { type: "setColor"; item: GuiItem; color: string } | 
+/**  Parameters that named deleted marks keep working with no marks. */
+{ type: "delete"; item: GuiItem };
 
 export type GuiEditUpdate = {
 	snapshot: AppSnapshot,
 	change: GuiDocumentChange,
+	/**  The sequence selection a selection edit leaves; `None` clears it. */
+	selection: SequenceSelection | null,
+	/**  The items a copy, cut or paste took, and those it could not. */
+	copiedCount: number,
+	skippedCount: number,
+	/**  The names or keys of the items the edit created, in order. */
+	created: string[],
 };
 
 export type GuiFixtureElement = {
@@ -482,6 +470,13 @@ export type GuiInputLimits = {
 	maxControlChange: number,
 };
 
+/**
+ *  A part of the open object a generic edit names: the object itself, or one
+ *  of its clips, mark collections (a rig's live marks), layers, graph nodes or
+ *  rig behaviors.
+ */
+export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: string } | { type: "voice"; id: number } | { type: "switch"; id: number } | { type: "mapping"; id: number };
+
 export type GuiLayoutFixture = {
 	id: number,
 	name: string,
@@ -494,21 +489,14 @@ export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiFixtureSour
 { type: "group"; members: number[] };
 
 export type GuiObjectRef = {
-	ownedPath: GuiOwnedStep[],
-	moduleId: string,
+	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	kind: ObjectKind,
 	id: string,
 };
 
-export type GuiOwnedStep = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
-/**  Owned controllers, input devices, sequences and rigs are named. */
-{ type: "controller"; name: string } | { type: "inputDevice"; name: string } | { type: "sequence"; name: string } | { type: "rig"; name: string } | { type: "fixture"; id: number };
-
 export type GuiOwnershipEdit = { type: "useExisting"; source: GuiObjectRef } | { type: "makeIndependent" } | { type: "makeReusable"; name: string; storage: ReusableStorage };
-
-export type GuiOwnershipSlot = { type: "setup" } | { type: "sequence"; index: number } | { type: "rig"; index: number } | { type: "layout" } | { type: "patch" } | { type: "controller"; index: number } | { type: "inputDevice"; index: number } | { type: "fixture"; id: number };
 
 export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
 
@@ -530,6 +518,20 @@ export type GuiPixelSpan = {
 	count: number,
 };
 
+/**  Bringing an unreferenced document into the project from the root document. */
+export type Inclusion = {
+	document: string,
+	/**
+	 *  The root import that takes the document: an existing alias it extends
+	 *  without a name clash, or a new one.
+	 */
+	alias: string,
+	/**  The sequences the document declares, added to the project's `sequences`. */
+	sequences: string[],
+	/**  The rigs the document declares, added to the project's `rigs`. */
+	rigs: string[],
+};
+
 export type InputDeviceGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::Description`. */
 	description: string | null,
@@ -542,6 +544,36 @@ export type InputDeviceGuiDocument = {
 	 */
 	keyCodes: string[],
 	inputLimits: GuiInputLimits,
+};
+
+/**  A problem in a project document, as every editor shows it. */
+export type IoDiagnostic = {
+	path: string,
+	range: TextRange | null,
+	severity: IoDiagnosticSeverity,
+	code: IoDiagnosticCode,
+	message: string,
+	detail: string | null,
+	fix: IoFix | null,
+	related: IoRelatedLocation[],
+};
+
+/**  What kind of problem a diagnostic reports, spelled as editors show it. */
+export type IoDiagnosticCode = "donder.load" | "donder.reference" | "data.syntax" | "script.compile" | "io.read" | "donder.unreferenced";
+
+export type IoDiagnosticSeverity = "error" | "warning";
+
+/**  How to fix a diagnostic. */
+export type IoFix = 
+/**  Text that replaces the diagnostic's range. */
+({ replace: string }) & { include?: never } | 
+/**  Import the unreferenced document from the project root. */
+({ include: Inclusion }) & { replace?: never };
+
+export type IoRelatedLocation = {
+	path: string,
+	range: TextRange | null,
+	message: string,
 };
 
 /**  Keys chosen for a command in place of its defaults; an empty list leaves it unbound. */
@@ -612,6 +644,18 @@ export type NewSequenceResult = {
 export type NewSequenceStorage = { type: "inline" } | { type: "sameFile"; name: string } | { type: "newFile"; name: string };
 
 export type ObjectKind = "project" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "sequence" | "rig" | "curve" | "gradient" | "effect" | "operator";
+
+/**  A stable ownership slot: owned members are named, never addressed by position. */
+export type OwnedObjectSlot = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
+/**  Owned controllers, input devices, sequences and rigs are named. */
+{ type: "controller"; name: string } | { type: "inputDevice"; name: string } | { type: "sequence"; name: string } | { type: "rig"; name: string } | { type: "fixture"; id: number };
+
+/**
+ *  The member of the open object an ownership edit changes: the object a slot
+ *  holds, owned or linked, or a layout's fixture, whose definition several
+ *  fixtures may link.
+ */
+export type OwnershipMember = { type: "object"; source: GuiObjectRef } | { type: "fixture"; id: number };
 
 export type PatchFixtureTarget = {
 	id: number,
@@ -710,7 +754,7 @@ export type PersistedGraphViewState = {
 };
 
 export type PersistedGraphViewStateUpdate = {
-	ownedPath: GuiOwnedStep[],
+	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	state: PersistedGraphViewState,
@@ -737,7 +781,7 @@ export type PersistedSequenceViewportState = {
 };
 
 export type PersistedSequenceViewportStateUpdate = {
-	ownedPath: GuiOwnedStep[],
+	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	state: PersistedSequenceViewportState,
@@ -748,7 +792,7 @@ export type PersistedSpatialViewState = {
 };
 
 export type PersistedSpatialViewStateUpdate = {
-	ownedPath: GuiOwnedStep[],
+	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	state: PersistedSpatialViewState,
@@ -785,20 +829,8 @@ export type PreviewAppearance = {
 	minimumRadiusPixels: number,
 };
 
-export type ProjectDiagnostic = {
-	path: string,
-	range: TextRange | null,
-	severity: DiagnosticSeverity,
-	code: string,
-	message: string,
-	detail: string | null,
-	related: RelatedDiagnosticLocation[],
-	/**  The root import that brings an unreferenced document into the project. */
-	inclusion: DocumentInclusion | null,
-};
-
 export type ProjectGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
 	availableSources: GuiObjectRef[],
 	path: string,
@@ -845,12 +877,6 @@ export type ProjectSearchResponse = {
 	truncated: boolean,
 };
 
-export type RelatedDiagnosticLocation = {
-	path: string,
-	range: TextRange | null,
-	message: string,
-};
-
 export type ReusableStorage = "sameFile" | "newFile";
 
 /**  A mapping's action as the editor chooses it. */
@@ -886,7 +912,10 @@ export type RigEffectEdit = { type: "layer"; layerId: number } | { type: "target
 /**  Play another effect; its required parameters start from `initial_color`. */
 { type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceEffectParamValue };
 
-/**  The effect of a voice or of a `Trigger` mapping. */
+/**
+ *  A named item of a rig.
+ *  The effect of a voice or of a `Trigger` mapping.
+ */
 export type RigEffectOwner = { type: "voice"; id: number } | { type: "trigger"; mappingId: number };
 
 export type RigGuiDocument = {
@@ -921,13 +950,7 @@ export type RigGuiDocument = {
 
 export type RigGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
 /**  The name becomes a unique `snake_case` name. */
-{ type: "addLiveMarks"; name: string; color: string } | { type: "setLiveMarksColor"; key: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigControlRef } | { type: "addMapping"; input: RigControlRef; action: RigActionChoice } | 
-/**  Renaming live marks renames every reference to them. */
-{ type: "rename"; item: RigItem; name: string } | 
-/**  Empty text removes the description. */
-{ type: "setDescription"; item: RigItem; description: string | null } | 
-/**  Deleting live marks leaves the marks parameters that named them without marks. */
-{ type: "delete"; item: RigItem } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy } | { type: "setTriggerValues"; mappingId: number; values: RigPlayedValue[] };
+{ type: "addLiveMarks"; name: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigControlRef } | { type: "addMapping"; input: RigControlRef; action: RigActionChoice } | { type: "editEffect"; owner: RigEffectOwner; edit: RigEffectEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy } | { type: "setTriggerValues"; mappingId: number; values: RigPlayedValue[] };
 
 /**  A control a switch or mapping reads, with the names the rig's text uses. */
 export type RigInput = {
@@ -952,9 +975,6 @@ export type RigInputDevice = {
 	/**  Keys only trigger effects and add marks. */
 	keys: RigInputControl[],
 };
-
-/**  A named item of a rig. */
-export type RigItem = { type: "liveMarks"; key: string } | { type: "voice"; id: number } | { type: "switch"; id: number } | { type: "mapping"; id: number };
 
 export type RigLiveMarks = {
 	/**  The collection's name; marks parameters and `Mark` mappings refer to it. */
@@ -1044,8 +1064,6 @@ export type SequenceAutomationClip = {
 	detachedBindings: SequenceDetachedAutomationBinding[],
 };
 
-export type SequenceAutomationDetachmentReason = "definitionChanged";
-
 /**  How a resize treats an automation clip's curve. */
 export type SequenceAutomationResize = 
 /**  The edge moves over fixed content. */
@@ -1133,8 +1151,8 @@ export type SequenceClipMatch = {
  *  every `params` entry the seed effect has.
  */
 export type SequenceClipMatchRequest = {
-	effectIds: number[],
-	automationIds: number[],
+	/**  The seed clips. */
+	clips: SequenceClipRef[],
 	criteria: SequenceClipMatch,
 	params: SequenceClipParamMatch[],
 };
@@ -1207,7 +1225,6 @@ export type SequenceCompositionGraph = {
 };
 
 export type SequenceCurveLibraryItem = {
-	moduleId: string,
 	path: string,
 	objectKey: string,
 	displayName: string,
@@ -1224,12 +1241,8 @@ export type SequenceCurveValue = {
 	source: SequenceLibrarySource,
 };
 
-/**  A sequence item that carries a description. */
-export type SequenceDescribedItem = { type: "markCollection"; key: string } | { type: "clip"; id: number };
-
 export type SequenceDetachedAutomationBinding = {
 	target: SequenceAutomationTarget,
-	reason: SequenceAutomationDetachmentReason,
 };
 
 export type SequenceEffect = {
@@ -1245,7 +1258,6 @@ export type SequenceEffect = {
 	targetLabel: string,
 	scope: SequenceEffectScope,
 	effect: string,
-	kind: SequenceTimelineClipKind,
 };
 
 export type SequenceEffectCommonEdit = { type: "layer"; layerId: number } | { type: "scope"; scope: SequenceEffectScope } | { type: "start"; startSeconds: number } | { type: "duration"; durationSeconds: number } | { type: "param"; name: string; value: SequenceEffectParamValue };
@@ -1301,7 +1313,10 @@ export type SequenceEffectParamValue = { type: "int"; value: number } | { type: 
 /**  `None` is no collection: the parameter has no marks. */
 { type: "marks"; key: string | null };
 
-export type SequenceEffectReference = { type: "custom"; moduleId: string; path: string; effectName: string };
+export type SequenceEffectReference = {
+	path: string,
+	effectName: string,
+};
 
 export type SequenceEffectScope = "perFixture" | "wholeTarget";
 
@@ -1327,7 +1342,6 @@ export type SequenceFollowMode =
 "continuous";
 
 export type SequenceGradientLibraryItem = {
-	moduleId: string,
 	path: string,
 	objectKey: string,
 	displayName: string,
@@ -1370,7 +1384,10 @@ export type SequenceGraphNodePosition = {
 	y: number,
 };
 
-export type SequenceGraphOperator = { type: "custom"; moduleId: string; path: string; objectKey: string };
+export type SequenceGraphOperator = {
+	path: string,
+	objectKey: string,
+};
 
 export type SequenceGraphOperatorDefinition = {
 	operator: SequenceGraphOperator,
@@ -1408,19 +1425,33 @@ export type SequenceGuiDocument = {
 	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } | { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number } | { type: "renameClip"; id: number; name: string } | 
-/**  Set an item's description; empty text removes it. */
-{ type: "setItemDescription"; item: SequenceDescribedItem; description: string | null } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | 
+export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } | { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | 
 /**
  *  Cut each clip at `time_seconds` into two back-to-back clips. The right
  *  half shares the left half's automation, so automation continues across
  *  the cut.
  */
-{ type: "splitEffects"; ids: number[]; timeSeconds: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
-/**  Each name becomes a unique `snake_case` name. */
-{ type: "createMarkCollections"; collections: NewMarkCollection[] } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMarks"; collectionKey: string; timesSeconds: number[] } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number } | 
+{ type: "splitEffects"; ids: number[]; timeSeconds: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
+/**
+ *  Each name becomes a unique `snake_case` name; the edit reports the
+ *  names made, in order.
+ */
+{ type: "createMarkCollections"; collections: NewMarkCollection[] } | { type: "addMarks"; collectionKey: string; timesSeconds: number[] } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | 
 /**  Label a mark, or clear its label with `None` or a blank label. */
-{ type: "setMarkLabel"; collectionKey: string; index: number; label: string | null };
+{ type: "setMarkLabel"; collectionKey: string; index: number; label: string | null } | 
+/**  Remove the selection after copying it to the clipboard. */
+{ type: "cutSelection"; selection: SequenceSelection } | { type: "deleteSelection"; selection: SequenceSelection } | 
+/**  Paste the clipboard; the pasted items become the selection. */
+{ type: "paste"; anchor: SequencePasteAnchor } | { type: "moveClips"; clips: SequenceClipRef[]; timeDeltaSeconds: number; 
+/**
+ *  The lane the move started on. Each clip moves from the lane of its
+ *  target nearest this one.
+ */
+anchorLane: number; laneDelta: number } | { type: "resizeClips"; clips: SequenceClipRef[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | 
+/**  Set a property of effect clips. */
+{ type: "editEffects"; clips: SequenceClipRef[]; edit: SequenceEffectCommonEdit } | 
+/**  Retime the clips together; the selection stays the same. */
+{ type: "arrangeClips"; clips: SequenceClipRef[]; arrangement: SequenceClipArrangement } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
 
 export type SequenceInitialZoomMode = "fitToWidth" | "fixedPxPerSecond";
 
@@ -1449,7 +1480,7 @@ export type SequenceLayer = {
 	isDefault: boolean,
 };
 
-export type SequenceLibrarySource = { type: "inline" } | { type: "library"; moduleId: string; path: string; objectKey: string; displayName: string };
+export type SequenceLibrarySource = { type: "inline" } | { type: "library"; path: string; objectKey: string; displayName: string };
 
 export type SequenceMarkCollection = {
 	/**  The collection's name, which effect parameters use. */
@@ -1484,31 +1515,11 @@ export type SequencePasteAnchor = {
 
 export type SequenceResizeEdge = "left" | "right";
 
-export type SequenceSelection = { type: "clips"; effectIds: number[]; automationIds: number[] } | { type: "marks"; marks: SequenceMarkRef[] };
-
-export type SequenceSelectionEdit = { type: "copy"; selection: SequenceSelection } | { type: "cut"; selection: SequenceSelection } | { type: "delete"; selection: SequenceSelection } | { type: "paste"; anchor: SequencePasteAnchor } | { type: "moveClips"; effectIds: number[]; automationIds: number[]; timeDeltaSeconds: number; 
-/**
- *  The lane the move started on. Each clip moves from the lane of its
- *  target nearest this one.
- */
-anchorLane: number; laneDelta: number } | { type: "resizeClips"; effectIds: number[]; automationIds: number[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | { type: "editEffects"; effectIds: number[]; edit: SequenceEffectCommonEdit } | 
-/**  Retime the selected clips together; the selection stays the same. */
-{ type: "arrangeClips"; effectIds: number[]; automationIds: number[]; arrangement: SequenceClipArrangement } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
-
-export type SequenceSelectionEditResult = {
-	snapshot: AppSnapshot,
-	change: GuiDocumentChange,
-	selection: SequenceSelection | null,
-	copiedCount: number,
-	skippedCount: number,
-};
-
-export type SequenceTimelineClipKind = "effect";
+export type SequenceSelection = { type: "clips"; clips: SequenceClipRef[] } | { type: "marks"; marks: SequenceMarkRef[] };
 
 export type SetupController = {
 	label: string,
 	sourceRef: GuiObjectRef,
-	readOnly: boolean,
 	config: SetupControllerConfig,
 	ports: SetupControllerPort[],
 };
@@ -1524,7 +1535,7 @@ export type SetupControllerPort = {
 };
 
 export type SetupGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
 	availableSources: GuiObjectRef[],
 	path: string,
@@ -1532,8 +1543,6 @@ export type SetupGuiDocument = {
 	objectKey: string,
 	layoutRef: GuiObjectRef,
 	patchRef: GuiObjectRef,
-	layoutReadOnly: boolean,
-	patchReadOnly: boolean,
 	controllers: SetupController[],
 	availableControllers: SetupController[],
 	inputDevices: SetupInputDevice[],
@@ -1550,7 +1559,6 @@ export type SetupInputDevice = {
 	/**  The declared name, or the name the device is stored under. */
 	name: string,
 	sourceRef: GuiObjectRef,
-	readOnly: boolean,
 	driver: GuiInputDriver,
 	controls: GuiInputControl[],
 };
@@ -1630,6 +1638,9 @@ export type TransitionResult = { type: "applied"; snapshot: AppSnapshot; closeAp
 /**  Progress of a sequence video export, sent while it runs. */
 export type VideoExportProgress = { stage: "preparingAudio" } | { stage: "rendering"; completed: number; total: number } | { stage: "saving" };
 
+/**  One piece of view state the workbench or an editor keeps between sessions. */
+export type ViewStateUpdate = { type: "workspaceLayout"; state: WorkspaceLayoutState } | { type: "workspaceExplorer"; state: WorkspaceExplorerState } | { type: "editor"; state: PersistedEditorViewStateUpdate } | { type: "sequenceViewport"; state: PersistedSequenceViewportStateUpdate } | { type: "graph"; state: PersistedGraphViewStateUpdate } | { type: "spatial"; state: PersistedSpatialViewStateUpdate };
+
 export type WorkspaceEntry = {
 	path: string,
 	kind: WorkspaceEntryKind,
@@ -1642,7 +1653,13 @@ export type WorkspaceEntry = {
 
 export type WorkspaceEntryKind = "directory" | "file";
 
-export type WorkspaceEntryRole = "directory" | "project" | "entrypoint" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "curve" | "gradient" | "effect" | "operator" | "sequence" | "rig" | "asset" | "file";
+export type WorkspaceEntryPlainRole = "directory" | "entrypoint" | "asset" | "file";
+
+/**
+ *  What an explorer entry is: an object's document, by the kind of its first
+ *  object, or a plain entry.
+ */
+export type WorkspaceEntryRole = ObjectKind | WorkspaceEntryPlainRole;
 
 export type WorkspaceExplorerState = {
 	expandedPaths: string[],

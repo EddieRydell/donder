@@ -22,6 +22,7 @@ use crate::dsl::bytecode::{
     Bank, ColorComponent, CompareOp, ContextRead, CurveOp, Direction, Edges, FloatBinary, Input,
     Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource, SignalPixel, Slot, SlotKind,
 };
+use crate::image::{self, GradientStop, SectionPixel};
 use crate::resources::{CurveView, ParamsView};
 use crate::sampling::{
     clamp_array_index, color_hue, color_intensity, color_saturation, float_binary, float_unary,
@@ -31,7 +32,6 @@ use crate::sampling::{
 use crate::sections::{RunSections, SectionsView, single_section_query};
 use crate::show::{ProgramView, Show};
 use core::cell::Cell;
-use donder_runtime_types::image::{self, GradientStop, SectionPixel};
 use donder_runtime_types::{Color, InstructionWord, MarkWindow};
 
 pub(crate) use crate::dsl::bytecode::STRIP;

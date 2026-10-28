@@ -1,5 +1,5 @@
 //! Live input editors: input devices and the rigs that play from them.
-use crate::*;
+use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -32,7 +32,6 @@ pub struct SetupInputDevice {
     /// The declared name, or the name the device is stored under.
     pub name: String,
     pub source_ref: GuiObjectRef,
-    pub read_only: bool,
     pub driver: GuiInputDriver,
     pub controls: Vec<GuiInputControl>,
 }
@@ -334,19 +333,6 @@ pub enum RigControlTarget {
 }
 
 /// A named item of a rig.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigItem {
-    LiveMarks { key: String },
-    Voice { id: u32 },
-    Switch { id: u32 },
-    Mapping { id: u32 },
-}
-
 /// The effect of a voice or of a `Trigger` mapping.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
@@ -428,10 +414,6 @@ pub enum RigGuiEdit {
         name: String,
         color: String,
     },
-    SetLiveMarksColor {
-        key: String,
-        color: String,
-    },
     AddVoice {
         initial_color: String,
         effect: SequenceEffectReference,
@@ -443,20 +425,6 @@ pub enum RigGuiEdit {
     AddMapping {
         input: RigControlRef,
         action: RigActionChoice,
-    },
-    /// Renaming live marks renames every reference to them.
-    Rename {
-        item: RigItem,
-        name: String,
-    },
-    /// Empty text removes the description.
-    SetDescription {
-        item: RigItem,
-        description: Option<String>,
-    },
-    /// Deleting live marks leaves the marks parameters that named them without marks.
-    Delete {
-        item: RigItem,
     },
     EditEffect {
         owner: RigEffectOwner,

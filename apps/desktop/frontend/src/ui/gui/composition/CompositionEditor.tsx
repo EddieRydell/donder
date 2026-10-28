@@ -46,16 +46,15 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const revision = useAppStore((state) => state.guiDocumentRevision);
   const inline = useAppStore((state) => state.guiParents.length > 0);
   const pending = useAppStore((state) => state.guiEditPending);
-  const readOnly = useAppStore((state) => state.snapshot?.activeBuffer?.readOnly ?? false);
   const ready = request !== null && revision === request.projectRevision;
-  const editable = ready && !pending && !readOnly;
+  const editable = ready && !pending;
   const { fixtures: layoutFixtures, root } = gui.document;
   const layout = layoutIndex(layoutFixtures);
   const target = menuTarget !== null ? layout.get(menuTarget.id) ?? null : null;
   const targetParent = menuTarget?.parent ?? null;
   const instance = selected !== null ? layout.get(selected) ?? null : null;
   const setLayout = (fixtures: GuiLayoutFixture[], origin: GuiDocumentRequest | null, nextRoot = root) =>
-    runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "setFixtures", fixtures, root: nextRoot }), origin);
+    runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "layout", edit: { type: "setFixtures", fixtures, root: nextRoot } }), origin);
   const updateItem = (id: number, update: (item: GuiLayoutFixture) => GuiLayoutFixture) => layoutFixtures.map((item) => item.id === id ? update(item) : item);
   /** Groups that can list the target without containing themselves or listing it twice. */
   const destinations = target === null ? [] : layoutFixtures.filter((group) =>
@@ -85,9 +84,9 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     let definitionToOpen: GuiObjectRef | null = null;
     const id = nextLayoutId(layoutFixtures);
     if (action.type === "fixture") {
-      const result = await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, {
+      const result = await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "layout", edit: {
         type: "addDefinition", name: name.trim(), storage, parent: action.parent, transform: identityTransform(action.position)
-      }), action.origin);
+      } }), action.origin);
       const layout = result.change.type === "document" && result.change.document.type === "layout" ? result.change.document.document : null;
       const added = layout?.fixtures.find((item) => item.id === id) ?? null;
       if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
@@ -122,7 +121,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   };
   const repeat = (offsets: Point3Meters[]) => {
     const originalIds = new Set(items.map((item) => item.id));
-    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "repeatFixtures", ids: chosen.map((item) => item.id), offsets }), request)
+    void runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "layout", edit: { type: "repeatFixtures", ids: chosen.map((item) => item.id), offsets } }), request)
       .then((result) => {
         if (result.change.type === "document" && result.change.document.type === "layout") {
           const copies = layoutItems(result.change.document.document.fixtures, result.change.document.document.renderPlan);
@@ -134,11 +133,11 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const duplicate = () => { repeat([{ xMeters: 0, yMeters: 0, zMeters: 0 }]); };
   /** Delete the selection everywhere; members of a deleted group stay in the layout. */
   const remove = () => {
-    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "removeItems", ids: chosen.map((item) => item.id) }), request)
+    void runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "layout", edit: { type: "removeItems", ids: chosen.map((item) => item.id) } }), request)
       .then(() => { setSelection([]); setError(null); }).catch(reportError);
   };
   const membershipEdit = (edit: { type: "addMember"; id: number; to: number | null; before: null } | { type: "removeMember"; id: number; from: number | null }) => {
-    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, edit), request).then(() => { setError(null); }).catch(reportError);
+    void runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "layout", edit: edit }), request).then(() => { setError(null); }).catch(reportError);
   };
   const layoutMenu = {
     availableFixtures: gui.document.availableFixtures,
@@ -162,7 +161,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
           <fieldset className="composition-controls" disabled={!editable}>
             <LayoutTree fixtures={layoutFixtures} root={root} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} enabled={editable} request={request} onError={reportError} />
             <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(reportError); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
-            {instance?.kind.type === "fixture" && <><Placement value={instance.kind.transform} onChange={changeTransform} /><OwnershipActions sources={gui.document.availableFixtures} key={instance.id} source={fixtureSource(instance)} slot={{ type: "fixture", id: instance.id }} label={instance.name} /></>}
+            {instance?.kind.type === "fixture" && <><Placement value={instance.kind.transform} onChange={changeTransform} /><OwnershipActions sources={gui.document.availableFixtures} key={instance.id} source={fixtureSource(instance)} fixture={instance.id} label={instance.name} /></>}
           </fieldset>
         </aside>
       </ContextMenu.Trigger>

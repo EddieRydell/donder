@@ -1,24 +1,24 @@
 //! Operator fusion (`Instance::fuse_input`) and black inputs
 //! (`Instance::with_black_input`) keep what playback produces.
 use super::evaluation::{
-    OperatorEvaluation, SignalSampler, bind, build, chain, compile_operator, context, effect,
+    OperatorEvaluation, SignalSampler, bind, build, compile, context, effect, show,
 };
 use super::evaluation::{RuntimeError, StripWorkspace};
 use super::playback;
 use super::std;
-use donder_language::compiler::{CompiledOperator, Instance, ProgramConstants, compile_operators};
+use donder_language::compiler::{CompiledDefinition, Instance, ProgramConstants, compile_script};
 use donder_runtime_types::bytecode::{Instruction, SignalPixel};
-use donder_runtime_types::{Color, SampleTime};
-use donder_runtime_types::{OperatorInvocation, SampleInvocation, Value};
+use donder_runtime_types::{BoundProgram, Value};
+use donder_runtime_types::{Color, SampleDuration, SampleTime};
 use donder_runtime_types::{PreparedAutomation, SpatialContext};
 use std::prelude::rust_2024::*;
 
-fn instance(operator: &CompiledOperator, values: &[(&str, Value)]) -> Instance {
+fn instance(operator: &CompiledDefinition, values: &[(&str, Value)]) -> Instance {
     bind(operator, values).instance(ProgramConstants::default())
 }
 
-fn operators(source: &str) -> Vec<CompiledOperator> {
-    compile_operators(source).unwrap()
+fn operators(source: &str) -> Vec<CompiledDefinition> {
+    compile_script(source).unwrap()
 }
 
 const TICKS: [u32; 7] = [0, 1, 124_999, 125_000, 3_000_001, 7_999_999, 1];
@@ -26,13 +26,13 @@ const TICKS: [u32; 7] = [0, 1, 124_999, 125_000, 3_000_001, 7_999_999, 1];
 /// Playback of `source` through `chain`, and through `fused` alone.
 fn assert_fused_playback(
     count: usize,
-    source: &SampleInvocation,
-    operators: &[OperatorInvocation],
-    fused: &OperatorInvocation,
+    source: &BoundProgram,
+    operators: &[BoundProgram],
+    fused: &BoundProgram,
     what: &str,
 ) {
-    let mut original = chain(count, source, 1, operators).into_playback();
-    let mut composed = chain(count, source, 1, std::slice::from_ref(fused)).into_playback();
+    let mut original = show(count, source, 1, operators).into_playback();
+    let mut composed = show(count, source, 1, std::slice::from_ref(fused)).into_playback();
     for ticks in TICKS {
         let time = SampleTime::from_ticks(ticks);
         playback::assert_frames_close(
@@ -43,7 +43,7 @@ fn assert_fused_playback(
     }
 }
 
-fn gradient_source() -> SampleInvocation {
+fn gradient_source() -> BoundProgram {
     effect("effect Source { sample { rgb(0.8, pixel.fraction, progress) } }")
 }
 
@@ -83,7 +83,7 @@ fn fusion_samples_conditionally() {
     let caller = instance(&definitions[1], &[]);
     let fused = caller.fuse_input(1, &source).unwrap();
     assert_eq!(fused.inputs(), 3);
-    let fused = fused.operator();
+    let fused = playback::bind(&fused);
     for pixel in [0, 1] {
         for fail in [None, Some(0), Some(1), Some(2)] {
             let mut expected = vec![
@@ -100,7 +100,7 @@ fn fusion_samples_conditionally() {
                 calls: Vec::new(),
                 fail,
             };
-            let result = fused.evaluate(
+            let result = fused.evaluate_signals(
                 &context(2, pixel, 0),
                 &SpatialContext {
                     position: [0.0; 2],
@@ -136,8 +136,8 @@ fn fusing_a_black_source_folds_its_consumer() {
     let substituted = consumer.with_black_input(0);
     for folded in [&fused, &substituted] {
         assert_eq!(folded.constant_color(), Some(Color::BLACK));
-        let operator = folded.operator();
-        let bytecode = operator.program().bytecode();
+        let operator = playback::bind(folded);
+        let bytecode = &operator.program().bytecode;
         assert!(
             !bytecode
                 .instructions()
@@ -150,7 +150,7 @@ fn fusing_a_black_source_folds_its_consumer() {
     assert_eq!(substituted.inputs(), 0);
     let bright = effect("effect Bright { sample { #ffffff } }");
     assert!(
-        chain(9, &bright, 1, &[fused.operator()])
+        show(9, &bright, 1, &[playback::bind(&fused)])
             .into_playback()
             .evaluate(SampleTime::from_ticks(0))
             .colors()
@@ -161,7 +161,7 @@ fn fusing_a_black_source_folds_its_consumer() {
 
 #[test]
 fn black_inputs_fold_samples_and_shift_later_inputs() {
-    let library = compile_operators(include_str!(
+    let library = compile_script(include_str!(
         "../../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
@@ -171,7 +171,7 @@ fn black_inputs_fold_samples_and_shift_later_inputs() {
             .find(|operator| operator.name().as_str() == name)
             .unwrap()
     };
-    let identity = playback::operator(&compile_operator(playback::IDENTITY_SOURCE));
+    let identity = playback::program(&compile(playback::IDENTITY_SOURCE));
     let source = gradient_source();
     // The remaining input behaves like the operator's other input alone.
     for (name, black) in [("Max", 0), ("Max", 1), ("Add", 0), ("Add", 1)] {
@@ -182,7 +182,7 @@ fn black_inputs_fold_samples_and_shift_later_inputs() {
             9,
             &source,
             std::slice::from_ref(&identity),
-            &substituted.operator(),
+            &playback::bind(&substituted),
             &format!("{name} without input {black}"),
         );
     }
@@ -249,11 +249,21 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
             .fuse_input(1, &inner)
             .expect("one sample of the current pixel");
         assert_eq!(fused.inputs(), 3);
-        let (fused, inner, outer) = (fused.operator(), inner.operator(), outer.operator());
+        let (fused, inner, outer) = (
+            playback::bind(&fused),
+            playback::bind(&inner),
+            playback::bind(&outer),
+        );
         let show = |fuse| {
-            build(17, 8_000_000, |b, target| {
+            build(17, playback::timing(8_000_000), |b, target| {
                 let layers = colors.each_ref().map(|effect| {
-                    let sample = b.sample(effect, b.whole_sequence(), target);
+                    let sample = b.clip(
+                        None,
+                        effect,
+                        SampleTime::from_ticks(0),
+                        SampleDuration::from_ticks(8_000_000),
+                        target,
+                    );
                     b.layer(true, [sample])
                 });
                 let output = if fuse {
@@ -262,7 +272,7 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
                     let inner = b.operator(&inner, |input| layers[input]);
                     b.operator(&outer, |input| [layers[2], inner][input])
                 };
-                b.output(Some(output))
+                Some(output)
             })
         };
         let mut original = show(false).into_playback();
@@ -373,8 +383,8 @@ fn fusion_preserves_resource_parameters() {
     assert_fused_playback(
         17,
         &gradient_source(),
-        &[inner.operator(), outer.operator()],
-        &fused.operator(),
+        &[playback::bind(&inner), playback::bind(&outer)],
+        &playback::bind(&fused),
         "resources",
     );
 }
@@ -413,7 +423,7 @@ fn automated_sources_and_consumers_fuse_with_their_automation() {
             quantity: donder_runtime_types::AutomatedQuantity::Value,
         }]) as Box<[PreparedAutomation]>
     };
-    let automated = |operator: &CompiledOperator| {
+    let automated = |operator: &CompiledDefinition| {
         operator
             .invoke(vec![Value::Float(0.5)], automation())
             .unwrap()
@@ -427,20 +437,20 @@ fn automated_sources_and_consumers_fuse_with_their_automation() {
     assert_fused_playback(
         17,
         &source,
-        &[gain.operator(), scaled.operator()],
-        &fused.operator(),
+        &[playback::bind(&gain), playback::bind(&scaled)],
+        &playback::bind(&fused),
         "consumer automation",
     );
     // The source's automation is kept too.
     let consumer = instance(&definitions[0], &[("gain", Value::Float(0.4))]);
     let upstream = automated(&definitions[0]);
     let fused = consumer.fuse_input(0, &upstream).unwrap();
-    assert_eq!(fused.operator().automation().len(), 1);
+    assert_eq!(playback::bind(&fused).automation().len(), 1);
     assert_fused_playback(
         17,
         &source,
-        &[upstream.operator(), consumer.operator()],
-        &fused.operator(),
+        &[playback::bind(&upstream), playback::bind(&consumer)],
+        &playback::bind(&fused),
         "source automation",
     );
 }
@@ -448,7 +458,7 @@ fn automated_sources_and_consumers_fuse_with_their_automation() {
 #[test]
 fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
     let gain = instance(
-        &compile_operator("operator Gain { input source; sample { source * 0.5 } }"),
+        &compile("operator Gain { input source; sample { source * 0.5 } }"),
         &[],
     );
     for consumer in [
@@ -458,7 +468,7 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
         "max(source, previous)",
     ] {
         let consumer = instance(
-            &compile_operator(&format!(
+            &compile(&format!(
                 "operator Consumer {{ input source; sample {{ {consumer} }} }}"
             )),
             &[],
@@ -467,7 +477,7 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
     }
     // One sample site inside a reduction runs the source per iteration.
     let consumer = instance(
-        &compile_operator(
+        &compile(
             "operator Steps { input source; sample {
                 max for i in 0..3 { guard pixel.index >= i; source * (1.0 - i * 0.25) }
             } }",
@@ -478,8 +488,8 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
     assert_fused_playback(
         17,
         &gradient_source(),
-        &[gain.operator(), consumer.operator()],
-        &fused.operator(),
+        &[playback::bind(&gain), playback::bind(&consumer)],
+        &playback::bind(&fused),
         "reduction",
     );
 }

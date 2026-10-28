@@ -72,10 +72,10 @@ fn resolve_show<'a, S>(
     outputs: PrepareOutputs<'_>,
     targets_only: impl FnOnce(&donder_model::LayoutId) -> bool,
 ) -> Option<Selection<'a, S>> {
-    let setup = project.setup(project.root().setup.id())?;
-    let layout = project.layout(setup.layout.id())?;
+    let setup = project.get::<donder_model::Setup>(*project.root().setup.id())?;
+    let layout = project.get::<donder_model::Layout>(*setup.layout.id())?;
     let geometry = project.playback_geometry(&layout.id)?;
-    let patch = project.patch(setup.patch.id())?;
+    let patch = project.get::<donder_model::Patch>(*setup.patch.id())?;
     let encodings = project.playback_patch_encodings(&patch.id)?;
     if !targets_only(&layout.id) {
         return None;
@@ -87,7 +87,7 @@ fn resolve_show<'a, S>(
         .map(|(index, source)| {
             // Project admission proves every setup controller index fits u32.
             project
-                .controller(source.id())
+                .get::<donder_model::Controller>(*source.id())
                 .map(|controller| (index as u32, controller))
         })
         .collect::<Option<Vec<_>>>()?;
@@ -152,11 +152,13 @@ fn resolve_show<'a, S>(
 mod tests {
     use super::*;
     use donder_model::ControllerPortId;
-    use donder_model::SourceIdentity;
 
     fn starter() -> DonderProject {
         let path = camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-        donder_project_io::load_project(&path).unwrap().project
+        donder_project_io::check_project(&path, &Default::default(), &mut Default::default())
+            .into_session()
+            .unwrap()
+            .project
     }
 
     fn addresses(selection: &Selection<'_>) -> Vec<(u32, u32)> {
@@ -171,14 +173,16 @@ mod tests {
     fn controller_selection_preserves_requested_order_and_original_indices() {
         let project = starter();
         let sequence = project.root().sequences[0].id();
-        let setup = project.setup(project.root().setup.id()).unwrap();
+        let setup = project
+            .get::<donder_model::Setup>(*project.root().setup.id())
+            .unwrap();
         let mut controllers = setup
             .controllers
             .iter()
             .rev()
-            .map(|source| source.id().clone())
+            .map(|source| *source.id())
             .collect::<Vec<_>>();
-        controllers.push(controllers[0].clone());
+        controllers.push(controllers[0]);
         let selected = resolve(
             &project,
             sequence,
@@ -207,9 +211,9 @@ mod tests {
         let first = &all.ports[0];
         let last = all.ports.last().unwrap();
         let requested = [
-            (last.controller.clone(), last.port.id),
-            (first.controller.clone(), first.port.id),
-            (last.controller.clone(), last.port.id),
+            (*last.controller, last.port.id),
+            (*first.controller, first.port.id),
+            (*last.controller, last.port.id),
         ];
         let selected = resolve(&project, sequence, PrepareOutputs::Ports(&requested)).unwrap();
         assert_eq!(
@@ -219,7 +223,7 @@ mod tests {
                 (first.controller_index, first.port.id.0),
             ]
         );
-        let unknown = [(first.controller.clone(), ControllerPortId(u32::MAX))];
+        let unknown = [(*first.controller, ControllerPortId(u32::MAX))];
         assert!(resolve(&project, sequence, PrepareOutputs::Ports(&unknown)).is_none());
     }
 
@@ -227,20 +231,16 @@ mod tests {
     fn an_unknown_controller_is_not_silently_omitted() {
         let project = starter();
         let sequence = project.root().sequences[0].id();
-        let setup = project.setup(project.root().setup.id()).unwrap();
+        let setup = project
+            .get::<donder_model::Setup>(*project.root().setup.id())
+            .unwrap();
         let first = setup.controllers[0].id();
-        let missing = ControllerId(
-            SourceIdentity::from_document(
-                first.0.document_id().clone(),
-                "MissingController".into(),
-            )
-            .into(),
-        );
+        let missing = ControllerId(u32::MAX);
         assert!(
             resolve(
                 &project,
                 sequence,
-                PrepareOutputs::Controllers(&[first.clone(), missing])
+                PrepareOutputs::Controllers(&[*first, missing])
             )
             .is_none()
         );
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn empty_output_lists_are_valid_but_absent_sequences_are_not_selected() {
         let mut project = starter();
-        let sequence = project.root().sequences[0].id().clone();
+        let sequence = *project.root().sequences[0].id();
         for outputs in [PrepareOutputs::Controllers(&[]), PrepareOutputs::Ports(&[])] {
             assert!(
                 resolve(&project, &sequence, outputs)
@@ -261,12 +261,14 @@ mod tests {
         let mut root = project.root().clone();
         root.sequences.clear();
         let mut edits = project
-            .reusable_sequences()
+            .reusable::<donder_model::Sequence>()
             .keys()
             .cloned()
-            .map(donder_model::ProjectEdit::RemoveSequence)
+            .map(|id| donder_model::ProjectEdit::Remove(id.into()))
             .collect::<Vec<_>>();
-        edits.push(donder_model::ProjectEdit::ReplaceRoot(root));
+        edits.push(donder_model::ProjectEdit::Put(
+            donder_model::Object::Project(root),
+        ));
         project.apply_edits(edits).unwrap();
         assert!(resolve(&project, &sequence, PrepareOutputs::All).is_none());
     }

@@ -7,27 +7,16 @@ use alloc::boxed::Box;
 use core::num::NonZeroU32;
 pub use target::{TargetGeometry, TargetPixel};
 
-#[derive(Clone, Copy, Debug)]
-pub struct SequenceWindow {
-    pub start: SampleTime,
-    pub duration: NonZeroU32,
-}
-
-/// An accepted sequence clock and its authored effect intervals.
+/// An accepted show clock.
 /// Cache this at project admission so host construction cannot fail on timing.
 #[derive(Clone, Debug)]
 pub struct SequenceTiming {
     frame_rate: NonZeroU32,
     frame_count: u32,
     duration: NonZeroU32,
-    windows: Box<[SequenceWindow]>,
 }
 
 impl SequenceTiming {
-    pub fn windows(&self) -> &[SequenceWindow] {
-        &self.windows
-    }
-
     pub fn frame_rate(&self) -> u32 {
         self.frame_rate.get()
     }
@@ -38,24 +27,12 @@ impl SequenceTiming {
         SampleDuration::from_ticks(self.duration.get())
     }
 
-    pub fn admit(
-        frame_rate: NonZeroU32,
-        frame_count: NonZeroU32,
-        duration: NonZeroU32,
-        windows: Box<[SequenceWindow]>,
-    ) -> Option<Self> {
-        for window in &windows {
-            let end = window.start.as_ticks().checked_add(window.duration.get())?;
-            if end > duration.get() {
-                return None;
-            }
-        }
-        Some(Self {
+    pub fn new(frame_rate: NonZeroU32, frame_count: NonZeroU32, duration: NonZeroU32) -> Self {
+        Self {
             frame_rate,
             frame_count: frame_count.get(),
             duration,
-            windows,
-        })
+        }
     }
 }
 
@@ -111,7 +88,7 @@ impl FixtureGeometry {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PixelEncoding {
     Rgb { order: [u8; 3] },
     Rgbw { order: [u8; 4] },
@@ -240,18 +217,16 @@ impl OutputEncoding {
 }
 
 /// Layout-space position and the bounds of this sampling scope, in meters.
-#[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpatialContext {
     pub position: [f32; 2],
     pub min: [f32; 2],
     pub max: [f32; 2],
 }
 
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug)]
 pub struct PreparedAutomation {
-    #[rkyv(with = crate::Microseconds)]
     pub start: SampleTime,
-    #[rkyv(with = crate::Microseconds)]
     pub duration: SampleDuration,
     pub curve: Arc<Curve>,
     pub mapping: AutomationMapping,
@@ -261,7 +236,7 @@ pub struct PreparedAutomation {
 
 /// What an automated slot holds: the parameter's value, or that float value
 /// integrated over the definition's time.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AutomatedQuantity {
     Value,
     Integral,

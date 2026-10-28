@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useAppStore } from "../../../store";
-import type { SetupDocument, SetupGuiEdit } from "../../../types";
+import type { SetupGuiDocument, SetupGuiEdit } from "../../../types";
 import { DeviceUsbTools } from "./DonderDevicePanel";
 
 type ControllerConfig = Extract<SetupGuiEdit, { type: "addController" }>["config"];
-type ControllerPorts = SetupDocument["controllers"][number]["ports"];
+type ControllerPorts = SetupGuiDocument["controllers"][number]["ports"];
 
 function defaultConfig(type: ControllerConfig["type"], device: string): ControllerConfig {
   switch (type) {
@@ -23,7 +23,7 @@ function freshPortName(ports: ControllerPorts): string {
   }
 }
 
-export function ControllerForm({ controller, onSave }: { controller?: SetupDocument["controllers"][number]; onSave: (config: ControllerConfig, ports: ControllerPorts) => Promise<void> }) {
+export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDocument["controllers"][number]; onSave: (config: ControllerConfig, ports: ControllerPorts) => Promise<void> }) {
   const devices = useAppStore((state) => state.snapshot?.devices ?? []);
   const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? defaultConfig("e131", ""));
   const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [{ id: 1, name: "port_1", address: 1, slotCount: 512 }]);
@@ -34,7 +34,7 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupDocum
       void onSave(config, ports);
     }}>
       <h4>{controller === undefined ? "Add a controller" : "Controller settings"}</h4>
-      <fieldset disabled={controller?.readOnly === true}>
+      <fieldset>
         <label>Protocol<select value={config.type} onChange={(event) => {
           const type = event.target.value as ControllerConfig["type"];
           setConfig(defaultConfig(type, devices[0]?.id ?? ""));

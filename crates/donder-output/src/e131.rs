@@ -63,23 +63,22 @@ impl E131Sender {
     ) -> Result<(), OutputError> {
         let destination = self.destination();
         for frame in frames {
-            let (universe, expected) =
-                self.universes.get(&frame.port).copied().ok_or_else(|| {
-                    OutputError::MissingPort {
-                        controller: self.id.clone(),
-                        port: frame.port,
-                    }
-                })?;
+            let (universe, expected) = self.universes.get(&frame.port).copied().ok_or({
+                OutputError::MissingPort {
+                    controller: self.id,
+                    port: frame.port,
+                }
+            })?;
             if frame.slots.len() != expected {
                 return Err(OutputError::InvalidFrameLength {
-                    controller: self.id.clone(),
+                    controller: self.id,
                     expected,
                     actual: frame.slots.len(),
                 });
             }
-            let data = self.universe_data.get_mut(&frame.port).ok_or_else(|| {
+            let data = self.universe_data.get_mut(&frame.port).ok_or({
                 OutputError::MissingPort {
-                    controller: self.id.clone(),
+                    controller: self.id,
                     port: frame.port,
                 }
             })?;
@@ -102,7 +101,7 @@ impl E131Sender {
             .universes
             .iter()
             .map(|(port, (_, slots))| ControllerPortFrame {
-                controller: self.id.clone(),
+                controller: self.id,
                 port: *port,
                 slots: vec![0; *slots],
             })
@@ -171,7 +170,7 @@ impl E131Sender {
 
 fn socket_error(id: &ControllerId, error: impl std::fmt::Debug) -> OutputError {
     OutputError::Socket {
-        controller: id.clone(),
+        controller: *id,
         message: format!("{error:?}"),
     }
 }
@@ -182,9 +181,7 @@ mod tests {
     use std::time::Duration;
 
     use donder_model::{ControllerPort, ControllerPortAddress};
-    use donder_model::{DocumentId, SourceIdentity};
     use sacn::packet::{AcnRootLayerProtocol, E131RootLayerData};
-    use uuid::Uuid;
 
     use super::*;
 
@@ -194,13 +191,7 @@ mod tests {
         receiver
             .set_read_timeout(Some(Duration::from_secs(1)))
             .unwrap();
-        let id = ControllerId(
-            SourceIdentity::from_document(
-                DocumentId::new(Uuid::new_v4(), "controller.donder".into()),
-                "e131".to_string(),
-            )
-            .into(),
-        );
+        let id = ControllerId(0);
         let config = E131Config {
             source_name: "Donder test".to_string(),
             bind_address: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -215,7 +206,7 @@ mod tests {
             address: ControllerPortAddress::E131Universe(42),
             slot_count: 3,
         };
-        let mut sender = E131Sender::open(id.clone(), &config, &[port]).unwrap();
+        let mut sender = E131Sender::open(id, &config, &[port]).unwrap();
         let frame = ControllerPortFrame {
             controller: id,
             port: ControllerPortId(1),

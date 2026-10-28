@@ -1,6 +1,6 @@
 use super::DonderProject;
 use crate::effect::EffectInst;
-use crate::operator::{OperatorDefinition, OperatorRef};
+use crate::operator::OperatorDefinition;
 use crate::sequence::{CompositionGraphNode, CompositionGraphNodeKind, Sequence, SequenceId};
 mod automation;
 mod geometry;
@@ -62,14 +62,16 @@ impl DonderProject {
     }
 
     pub fn accepted_rig(&self, id: &RigId) -> Option<AcceptedRig<'_>> {
-        self.rig(id).map(|rig| AcceptedRig { project: self, rig })
+        self.get::<crate::Rig>(*id)
+            .map(|rig| AcceptedRig { project: self, rig })
     }
 
     pub fn accepted_sequence(&self, id: &SequenceId) -> Option<AcceptedSequence<'_>> {
-        self.sequence(id).map(|sequence| AcceptedSequence {
-            project: self,
-            sequence,
-        })
+        self.get::<crate::Sequence>(*id)
+            .map(|sequence| AcceptedSequence {
+                project: self,
+                sequence,
+            })
     }
 }
 
@@ -207,10 +209,10 @@ fn operator_inputs<'a>(
         let CompositionGraphNodeKind::Operator(operator) = &node.kind else {
             return None;
         };
-        let OperatorRef::Custom(id) = &operator.operator;
+        let id = &operator.operator;
         Some(AcceptedOperatorInputs {
             node,
-            definition: &project.definitions.operators.definitions[id],
+            definition: &project.reusable::<crate::OperatorDefinition>()[id],
             invocation: &invocations[&node.id],
         })
     })
@@ -223,6 +225,18 @@ impl<'a> AcceptedEffectInputs<'a> {
 
     pub fn instance(self) -> &'a EffectInst {
         self.instance
+    }
+
+    /// When the clip starts on the sequence clock; admission checked that it
+    /// plays within the sequence.
+    pub fn start(self) -> donder_runtime_types::SampleTime {
+        donder_runtime_types::SampleTime::from_ticks(self.instance.start.as_micros_rounded() as u32)
+    }
+
+    pub fn duration(self) -> donder_runtime_types::SampleDuration {
+        donder_runtime_types::SampleDuration::from_ticks(
+            self.instance.duration.as_micros_rounded() as u32
+        )
     }
 }
 

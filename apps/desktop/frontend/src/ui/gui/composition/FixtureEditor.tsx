@@ -30,8 +30,7 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   const request = useAppStore((state) => state.guiRequest);
   const revision = useAppStore((state) => state.guiDocumentRevision);
   const pending = useAppStore((state) => state.guiEditPending);
-  const readOnly = useAppStore((state) => state.snapshot?.activeBuffer?.readOnly ?? false);
-  const editable = request !== null && request.projectRevision === revision && !pending && !readOnly;
+  const editable = request !== null && request.projectRevision === revision && !pending;
   const elements = document.elements;
   const items = fixtureItems(elements, document.renderPlan);
   const chosen = selectedItems(items, selection);
@@ -39,7 +38,7 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   const element = elements[index];
   const report = (error: unknown) => { setError(String(error)); };
   const edit = async (edit: FixtureGuiEdit) => {
-    await runGuiEditCommand((current) => commands.applyFixtureGuiEdit(current, edit), request);
+    await runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "fixture", edit: edit }), request);
     setError(null);
   };
   const change = (elements: GuiFixtureElement[]) => { void edit({ type: "setElements", elements }).catch(report); };

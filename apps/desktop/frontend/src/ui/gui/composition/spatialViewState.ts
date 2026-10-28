@@ -14,7 +14,7 @@ export function useSpatialGuides(reference: GuiObjectRef) {
     setGuides(guides);
     useAppStore.getState().setRestoreState({ editorStates: restore?.editorStates ?? {}, sequenceViewports: restore?.sequenceViewports ?? {}, graphViews: restore?.graphViews ?? {}, spatialViews: { ...restore?.spatialViews, [key]: state } });
     scheduleViewStateSave(JSON.stringify(["spatial", key]), async () => {
-      const snapshot = await commands.saveSpatialViewState({ ...reference, state });
+      const snapshot = await commands.saveViewState({ type: "spatial", state: { ...reference, state } });
       useAppStore.getState().setSnapshot(snapshot, "command");
       setError(null);
     }, (error) => { setError(String(error)); });

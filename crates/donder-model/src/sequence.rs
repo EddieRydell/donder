@@ -1,5 +1,5 @@
 use crate::effect::{EffectInst, EffectInstId};
-use crate::identity::ObjectIdentity;
+pub(crate) use crate::identity::SequenceId;
 use crate::operator::GraphOperatorNode;
 use donder_language::{DonderDuration, DonderTime};
 use donder_runtime_types::Identifier;
@@ -7,9 +7,6 @@ use donder_runtime_types::sampling::sample_curve;
 use donder_runtime_types::{AutomationMapping, AutomationValue, automation_value_at_position};
 use donder_runtime_types::{Color, Curve, CurvePoint};
 use std::sync::Arc;
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct SequenceId(pub ObjectIdentity);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sequence {
@@ -228,17 +225,12 @@ impl AutomationClip {
             .retain(|binding| !matches(&binding.target));
     }
 
-    pub fn detach_bindings(
-        &mut self,
-        reason: AutomationDetachmentReason,
-        matches: impl Fn(&AutomationTarget) -> bool,
-    ) {
+    pub fn detach_bindings(&mut self, matches: impl Fn(&AutomationTarget) -> bool) {
         let mut retained = Vec::with_capacity(self.bindings.len());
         for binding in self.bindings.drain(..) {
             if matches(&binding.target) {
                 self.detached_bindings.push(DetachedAutomationBinding {
                     target: binding.target,
-                    reason: reason.clone(),
                 });
             } else {
                 retained.push(binding);
@@ -373,12 +365,6 @@ pub struct AutomationBinding {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetachedAutomationBinding {
     pub target: AutomationTarget,
-    pub reason: AutomationDetachmentReason,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AutomationDetachmentReason {
-    DefinitionChanged,
 }
 
 impl AutomationBinding {
@@ -440,10 +426,4 @@ impl crate::ownership::Identified for Sequence {
     }
 }
 
-pub type SequenceSource = crate::ownership::ValueSource<Box<Sequence>, SequenceId>;
-
-impl AsRef<ObjectIdentity> for SequenceId {
-    fn as_ref(&self) -> &ObjectIdentity {
-        &self.0
-    }
-}
+pub type SequenceSource = crate::ownership::MemberSource<Sequence, SequenceId>;

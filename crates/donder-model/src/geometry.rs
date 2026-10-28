@@ -6,8 +6,7 @@
 use std::sync::Arc;
 
 use crate::fixture::{
-    FixtureDefinition, FixtureDefinitionId, FixtureDefinitions, FixtureElementId, FixtureSource,
-    FixtureTransform,
+    FixtureDefinition, FixtureDefinitionId, FixtureElementId, FixtureSource, FixtureTransform,
 };
 use crate::layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixtureKind, LayoutId,
@@ -51,12 +50,11 @@ pub struct PreparedLayout {
 impl PreparedFixtureDefinitions {
     /// Expand definitions from an accepted project. Validation belongs to the
     /// authoring boundary; this pass only computes reusable pixel coordinates.
-    pub fn prepare(definitions: &FixtureDefinitions) -> Self {
+    pub fn prepare(definitions: &IndexMap<FixtureDefinitionId, FixtureDefinition>) -> Self {
         Self {
             definitions: definitions
-                .definitions
                 .iter()
-                .map(|(id, definition)| (id.clone(), prepare_geometry(definition).into()))
+                .map(|(id, definition)| (*id, prepare_geometry(definition).into()))
                 .collect(),
         }
     }
@@ -67,7 +65,7 @@ impl PreparedFixtureDefinitions {
 
     pub fn prepare_layout(&self, layout: &Layout) -> PreparedLayout {
         let mut prepared = PreparedLayout {
-            id: layout.id.clone(),
+            id: layout.id,
             instances: Vec::new(),
             targets: IndexMap::new(),
         };
@@ -116,7 +114,7 @@ impl PreparedLayout {
         target: &FixtureTarget,
     ) -> Result<impl Iterator<Item = &PreparedFixtureInstance>, LayoutError> {
         if target.layout != self.id {
-            return Err(LayoutError::WrongLayout(target.layout.clone()));
+            return Err(LayoutError::WrongLayout(target.layout));
         }
         let members = self
             .targets

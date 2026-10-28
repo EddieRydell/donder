@@ -1,10 +1,10 @@
 use super::worker::RasterWorker;
-use donder_model::{AutomationTarget, EffectInst, Sequence, SequenceId};
-use donder_project_io::ProjectSession;
-use donder_sequence_api::{
+use donder_editor::dto::{
     EffectRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,
     SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
 };
+use donder_model::{AutomationTarget, EffectInst, Sequence, SequenceId};
+use donder_project_io::ProjectSession;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ pub(crate) struct SequenceClipRasterService {
 /// The rasters of the sequence the editor shows.
 struct OpenSequence {
     path: String,
-    object_key: Option<String>,
+    object_key: String,
     sequence_id: SequenceId,
     project: Arc<ProjectSession>,
     settings: EffectRasterSettings,
@@ -77,7 +77,7 @@ impl SequenceClipRasterService {
             self.close();
             return SequenceClipRasterResponse { pending: 0 };
         };
-        let Some(sequence) = project.project.sequence(&sequence_id) else {
+        let Some(sequence) = project.project.get::<donder_model::Sequence>(sequence_id) else {
             self.close();
             return SequenceClipRasterResponse { pending: 0 };
         };
@@ -93,7 +93,7 @@ impl SequenceClipRasterService {
         let open = self.open.get_or_insert_with(|| OpenSequence {
             path: request.document.path.clone(),
             object_key: request.document.object_key.clone(),
-            sequence_id: sequence_id.clone(),
+            sequence_id,
             project: Arc::clone(&project),
             settings: settings.clone(),
             clips: HashMap::new(),
@@ -103,7 +103,7 @@ impl SequenceClipRasterService {
             tick: 0,
         });
         let previous = std::mem::replace(&mut open.project, Arc::clone(&project));
-        let previous_sequence = previous.project.sequence(&sequence_id);
+        let previous_sequence = previous.project.get::<donder_model::Sequence>(sequence_id);
         open.sync(
             &project,
             sequence,

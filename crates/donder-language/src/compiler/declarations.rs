@@ -1,7 +1,7 @@
 //! Authoring declarations and named parameter resolution.
 //! Playback programs receive positional, typed values rather than source names.
 use donder_runtime_types::AutomationMapping;
-use donder_runtime_types::{BindingError, BoundParams, Identifier, Type, Value};
+use donder_runtime_types::{BindingError, Identifier, Type, Value};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorInputDecl {
@@ -96,20 +96,6 @@ impl ParamDecl {
     }
 }
 
-/// Resolve authoring names/defaults and bind their validated positional values.
-pub fn bind_params<'p, P>(
-    declarations: &[ParamDecl],
-    params: P,
-) -> Result<BoundParams, BindingError>
-where
-    P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
-{
-    let values = resolve_params(declarations, params)?;
-    check_ranges(declarations, &values)?;
-    let types: Vec<_> = declarations.iter().map(|param| param.ty.clone()).collect();
-    BoundParams::bind_values(&types, values)
-}
-
 /// Every value of the declared type lies within its declared range.
 pub(super) fn check_ranges(
     declarations: &[ParamDecl],
@@ -126,38 +112,4 @@ pub(super) fn check_ranges(
         }
     }
     Ok(())
-}
-
-pub(super) fn resolve_params<'p, P>(
-    declarations: &[ParamDecl],
-    params: P,
-) -> Result<Vec<Value>, BindingError>
-where
-    P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
-{
-    if let Some(name) = params
-        .clone()
-        .into_iter()
-        .map(|(name, _)| name)
-        .find(|name| !declarations.iter().any(|param| param.name == **name))
-    {
-        return Err(BindingError {
-            message: format!("unknown parameter `{}`", name.as_str()),
-        });
-    }
-    declarations
-        .iter()
-        .map(|param| {
-            let value = params
-                .clone()
-                .into_iter()
-                .find(|(name, _)| **name == param.name)
-                .map(|(_, value)| value.clone())
-                .or_else(|| param.default.clone())
-                .ok_or_else(|| BindingError {
-                    message: format!("missing required parameter `{}`", param.name.as_str()),
-                })?;
-            Ok(value)
-        })
-        .collect()
 }

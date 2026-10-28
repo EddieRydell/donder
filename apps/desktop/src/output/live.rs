@@ -8,11 +8,11 @@ use indexmap::IndexMap;
 
 use crate::audio::AudioEngine;
 use crate::rendering::{RigOutput, SequenceRenderService};
-use donder_runtime_types::RigEvent;
-use donder_sequence_api::{
+use donder_editor::dto::{
     AudioTransportState, LiveOutputControllerSnapshot, LiveOutputControllerState,
     LiveOutputSnapshot, LiveOutputState,
 };
+use donder_runtime_types::RigEvent;
 
 const INITIAL_TICK_INTERVAL: Duration = Duration::from_millis(20);
 const HOLDING_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
@@ -136,7 +136,7 @@ impl LiveOutputService {
         frame: donder_output::ControllerPortFrame,
     ) -> LiveOutputSnapshot {
         self.start(
-            IndexMap::from([(id.clone(), controller)]),
+            IndexMap::from([(id, controller)]),
             vec![id],
             OutputSource::Test {
                 frames: vec![frame],
@@ -577,18 +577,11 @@ mod tests {
             ArtNetConfig, ArtNetMode, ControllerPort, ControllerPortAddress, ControllerPortId,
             ControllerProtocol,
         };
-        use donder_model::{DocumentId, SourceIdentity};
-        let id = ControllerId(
-            SourceIdentity::from_document(
-                DocumentId::new(uuid::Uuid::new_v4(), "controller.donder".into()),
-                "broken".into(),
-            )
-            .into(),
-        );
+        let id = ControllerId(0);
         // Invalid protocol address forces a codec failure before any network send.
         let controller = Controller {
             description: None,
-            id: id.clone(),
+            id,
             protocol: ControllerProtocol::ArtNet(ArtNetConfig {
                 bind_address: "127.0.0.1:0".parse().unwrap(),
                 destination: "127.0.0.1:6454".parse().unwrap(),
@@ -601,7 +594,7 @@ mod tests {
                 slot_count: 6,
             }],
         };
-        let controllers = IndexMap::from([(id.clone(), controller)]);
+        let controllers = IndexMap::from([(id, controller)]);
         let ids = vec![id];
         let transports = OutputTransports::open(&controllers, &ids).unwrap();
         let snapshot = preparing_snapshot(3, &controllers, &ids);
@@ -620,7 +613,7 @@ mod tests {
         let message = stopped.last_error.unwrap();
         assert!(message.contains("Original render failure."));
         assert!(message.contains("Could not send blackout or terminate output"));
-        assert!(message.contains("broken"));
+        assert!(message.contains("ControllerId(0)"));
         let repeated = stop_output(&mut active, &mut stop_error, 5, None);
         assert_eq!(repeated.state, LiveOutputState::Error);
         assert_eq!(repeated.generation, 5);

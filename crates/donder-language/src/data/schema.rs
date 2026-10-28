@@ -225,8 +225,8 @@ pub enum Shape {
     Bool,
     /// An object's own `snake_case` name.
     Name,
-    /// A reference to another object.
-    Reference,
+    /// A reference to another object, of what it names.
+    Reference(Refers),
     /// Parameter values, typed by a definition.
     Params,
     Option(Box<Shape>),
@@ -240,6 +240,28 @@ pub enum Shape {
     Source(&'static str),
     /// A reference, or a named object of the type written inline.
     NamedSource(&'static str),
+}
+
+/// What a reference names. A record field declares it with `#[refers(...)]`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Refers {
+    /// A declaration of this type.
+    Declaration(&'static str),
+    Effect,
+    Operator,
+    /// A fixture or group of a layout: `layout.fixture`.
+    Fixture,
+    /// A control of an input device: `device.control`.
+    Control,
+    /// A layer of the sequence or rig.
+    Layer,
+    Clip,
+    /// A graph node, or `output`.
+    Node,
+    Marks,
+    Switch,
+    /// A rig's voice or mapping.
+    Voice,
 }
 
 /// A record's fields, or a variant's, in order.
@@ -480,7 +502,7 @@ impl Data for Reference {
         DataValue::Reference(self.segments.clone())
     }
     fn shape(_: &mut Schema) -> Shape {
-        Shape::Reference
+        unreachable!("a reference field says what it refers to with `#[refers(...)]`")
     }
 }
 

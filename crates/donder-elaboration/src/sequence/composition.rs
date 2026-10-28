@@ -4,11 +4,11 @@
 //! folded into their consumers and an operator consumed once is fused into its
 //! consumer, so the boundary between them disappears from the prepared
 //! programs.
+use crate::stage::Parts;
 use donder_language::compiler::Instance;
-use donder_model::composition_graph_output_dependencies;
-use donder_model::{AcceptedOperatorInputs, SequenceCompositionGraph};
+use donder_model::CompositionGraphNodeId;
 use donder_model::{CompositionGraphNodeKind, SequenceLayerId};
-use donder_runtime::{SequenceBuilder, SequenceRoot, SignalHandle};
+use donder_runtime::{ShowBuilder, SignalHandle};
 use donder_runtime_types::Color;
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -25,25 +25,27 @@ enum Pending<'id> {
     Mix(Vec<usize>),
 }
 
-pub(crate) fn prepare<'id, 'a>(
-    builder: &mut SequenceBuilder<'id>,
-    graph: &SequenceCompositionGraph,
-    operators: impl Iterator<Item = AcceptedOperatorInputs<'a>>,
-    duration: donder_runtime_types::SampleDuration,
+/// The signal the show displays; none is black.
+pub(crate) fn prepare<'id>(
+    builder: &mut ShowBuilder<'id>,
+    parts: &Parts<'_>,
+    dependencies: &HashSet<CompositionGraphNodeId>,
     layers: &IndexMap<&SequenceLayerId, SignalHandle<'id>>,
     black: &HashSet<&SequenceLayerId>,
     programs: &mut super::programs::Programs,
-) -> SequenceRoot<'id> {
+) -> Option<SignalHandle<'id>> {
+    let graph = parts.graph;
     let indexes = graph
         .nodes
         .iter()
         .enumerate()
         .map(|(index, node)| (&node.id, index))
         .collect::<IndexMap<_, _>>();
-    let operators = operators
-        .map(|operator| (&operator.node().id, operator))
+    let operators = parts
+        .operators
+        .iter()
+        .map(|operator| (&operator.node().id, *operator))
         .collect::<IndexMap<_, _>>();
-    let dependencies = composition_graph_output_dependencies(graph);
     let mut incoming = vec![Vec::new(); graph.nodes.len()];
     let mut outgoing = vec![Vec::new(); graph.nodes.len()];
     let mut indegree = vec![0usize; graph.nodes.len()];
@@ -66,7 +68,7 @@ pub(crate) fn prepare<'id, 'a>(
         .collect::<Vec<_>>();
     let mut pending: Vec<Option<Pending<'id>>> = (0..graph.nodes.len()).map(|_| None).collect();
     let mut order = Vec::new();
-    let duration = donder_runtime_types::sample_duration_seconds_f32(duration);
+    let duration = donder_runtime_types::sample_duration_seconds_f32(parts.timing.duration());
     // Admission guarantees one output, connected operator ports and an acyclic graph.
     // Mixes follow the graph's nodes in `pending`.
     while let Some(index) = ready.pop() {
@@ -126,8 +128,8 @@ pub(crate) fn prepare<'id, 'a>(
                 signals.insert(index, signal);
             }
             Some(Pending::Operator { instance, inputs }) => {
-                let invocation = programs.operator(&instance);
-                let signal = builder.operator(&invocation, |input| signals[&inputs[input]]);
+                let (program, _) = programs.lower(&instance);
+                let signal = builder.operator(&program, |input| signals[&inputs[input]]);
                 signals.insert(index, signal);
             }
             Some(Pending::Mix(inputs)) => {
@@ -137,7 +139,7 @@ pub(crate) fn prepare<'id, 'a>(
             Some(Pending::Black) | None => {}
         }
     }
-    builder.output(output.and_then(|output| signals.get(&output).copied()))
+    output.and_then(|output| signals.get(&output).copied())
 }
 
 /// The one signal the `sources` into a port make: their maximum, without

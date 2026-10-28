@@ -13,7 +13,7 @@ use proc_macro2::TokenStream as Tokens;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, FieldsNamed, Ident, parse_macro_input};
 
-#[proc_macro_derive(Data)]
+#[proc_macro_derive(Data, attributes(refers))]
 pub fn derive_data(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let output = match &input.data {
@@ -84,7 +84,20 @@ fn field_shapes(fields: &FieldsNamed) -> Tokens {
             .unwrap_or_else(|| unreachable!("named"))
             .to_string();
         let ty = &field.ty;
-        quote!((#text, <#ty as #schema::Data>::shape(schema)))
+        // `#[refers(Layer)]`: the field references what `Refers::Layer` names.
+        match field
+            .attrs
+            .iter()
+            .find(|attr| attr.path().is_ident("refers"))
+        {
+            Some(attr) => {
+                let target = attr
+                    .parse_args::<Tokens>()
+                    .unwrap_or_else(|error| error.to_compile_error());
+                quote!((#text, #schema::Shape::Reference(#schema::Refers::#target)))
+            }
+            None => quote!((#text, <#ty as #schema::Data>::shape(schema))),
+        }
     });
     quote!(vec![#(#shapes),*])
 }
