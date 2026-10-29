@@ -8,9 +8,7 @@ license = "MIT"
 
 [dependencies]
 donder-runtime = { path = "../donder-runtime", default-features = false }
-# The firmware decodes with serde-json-core, without an allocator; serde's
-# `alloc` buffering derives the decoder of an internally tagged enum.
-serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"] }
+serde = { version = "1.0.229", default-features = false, features = ["derive"] }
 
 [lints]
 workspace = true

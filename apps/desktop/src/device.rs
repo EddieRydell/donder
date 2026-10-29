@@ -2,7 +2,7 @@ pub(crate) mod discovery;
 pub(crate) mod playback;
 pub(crate) mod provisioning;
 
-use donder_device_protocol::{LOADED, Mode, TOKEN_HEADER, TransportStatus, path};
+use donder_device_protocol::{Action, LOADED, TOKEN_HEADER, TransportStatus, path};
 use donder_editor::dto::DonderDeviceNetworkRequest;
 use reqwest::{
     blocking::Client,
@@ -124,17 +124,14 @@ impl DeviceClient {
         self.response(response).map(|_| ())
     }
 
-    pub(crate) fn transport(&self, mode: Option<Mode>) -> Result<TransportStatus, String> {
-        let request = match mode {
+    pub(crate) fn transport(&self, action: Option<Action>) -> Result<TransportStatus, String> {
+        let request = match action {
             None => self.client.get(self.url(path::TRANSPORT)),
-            Some(mode) => {
-                let command = match mode {
-                    Mode::Playing => path::PLAY,
-                    Mode::Paused => path::PAUSE,
-                    Mode::Stopped => path::STOP,
-                    Mode::Ended => {
-                        return Err("Ended is a playback status, not a transport command.".into());
-                    }
+            Some(action) => {
+                let command = match action {
+                    Action::Play => path::PLAY,
+                    Action::Pause => path::PAUSE,
+                    Action::Stop => path::STOP,
                 };
                 self.client.post(self.url(command)).body(Vec::new())
             }
@@ -169,6 +166,7 @@ impl DeviceClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use donder_device_protocol::Mode;
     use std::{
         io::{BufRead, BufReader, Write},
         net::TcpListener,
@@ -233,20 +231,20 @@ mod tests {
         let client = DeviceClient::new(address, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         assert!(client.transport(None).unwrap().playback.is_none());
         let playing = client
-            .transport(Some(Mode::Playing))
+            .transport(Some(Action::Play))
             .unwrap()
             .playback
             .unwrap();
         assert!(matches!(playing.mode, Mode::Playing));
         let paused = client
-            .transport(Some(Mode::Paused))
+            .transport(Some(Action::Pause))
             .unwrap()
             .playback
             .unwrap();
         assert!(matches!(paused.mode, Mode::Paused));
         assert_eq!(paused.position_micros, 500_000);
         let stopped = client
-            .transport(Some(Mode::Stopped))
+            .transport(Some(Action::Stop))
             .unwrap()
             .playback
             .unwrap();

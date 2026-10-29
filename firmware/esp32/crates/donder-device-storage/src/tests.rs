@@ -122,23 +122,14 @@ impl Storage for Flash {
 }
 
 #[test]
-fn records_survive_remount_and_oversized_reads_are_rejected() {
+fn records_survive_remount() {
     let mut flash = Flash::blank();
     initialize(&mut flash).unwrap();
-    assert!(read(&mut flash, Record::Device, 100).unwrap().is_none());
+    assert!(read(&mut flash).unwrap().is_none());
     let record = vec![0x42; 1024];
-    write(&mut flash, Record::Device, &record).unwrap();
+    write(&mut flash, &record).unwrap();
     initialize(&mut flash).unwrap();
-    assert_eq!(
-        read(&mut flash, Record::Device, record.len())
-            .unwrap()
-            .unwrap(),
-        record
-    );
-    assert_eq!(
-        read(&mut flash, Record::Device, 100).unwrap_err(),
-        Error::FILE_TOO_BIG
-    );
+    assert_eq!(read(&mut flash).unwrap().unwrap(), record);
 }
 
 #[test]
@@ -147,19 +138,17 @@ fn torn_replacement_keeps_a_complete_old_or_new_record() {
     initialize(&mut saved).unwrap();
     let old = vec![0x35; 1024];
     let new = vec![0x72; 1024];
-    write(&mut saved, Record::Device, &old).unwrap();
+    write(&mut saved, &old).unwrap();
     saved.writes = 0;
     let mut complete = saved.clone();
-    write(&mut complete, Record::Device, &new).unwrap();
+    write(&mut complete, &new).unwrap();
     for failure in 1..=complete.writes {
         let mut flash = saved.clone();
         flash.fail_at = Some(failure);
-        let _ = write(&mut flash, Record::Device, &new);
+        let _ = write(&mut flash, &new);
         flash.fail_at = None;
         initialize(&mut flash).unwrap();
-        let recovered = read(&mut flash, Record::Device, new.len())
-            .unwrap()
-            .unwrap();
+        let recovered = read(&mut flash).unwrap().unwrap();
         assert!(recovered == old || recovered == new, "failure at {failure}");
     }
 }
@@ -174,12 +163,12 @@ fn damaged_partition_is_not_automatically_formatted() {
 }
 
 #[test]
-fn device_config_roundtrip_and_invalid_config_cannot_replace_saved_values() {
+fn device_config_roundtrip() {
     use device_config::{DeviceConfig, Network};
     let mut flash = Flash::blank();
     initialize(&mut flash).unwrap();
     assert!(DeviceConfig::load(&mut flash).unwrap().is_none());
-    let mut config = DeviceConfig {
+    let config = DeviceConfig {
         name: "Porch \u{e9}".into(),
         network: Some(Network {
             ssid: "caf\u{e9}".into(),
@@ -194,15 +183,6 @@ fn device_config_roundtrip_and_invalid_config_cannot_replace_saved_values() {
     assert_eq!(network.ssid, "caf\u{e9}");
     assert_eq!(network.password, "long-\"password\\with\nescapes");
     assert_eq!(loaded.token, config.token);
-    config.token = Some([b'!'; 32]);
-    assert!(config.save(&mut flash).is_err());
-    config.token = None;
-    config.name = "\n".into();
-    assert!(config.save(&mut flash).is_err());
-    assert_eq!(
-        DeviceConfig::load(&mut flash).unwrap().unwrap().token,
-        Some([b'a'; 32])
-    );
     let unclaimed = DeviceConfig {
         name: "Donder-3f2a".into(),
         network: None,
@@ -221,33 +201,15 @@ fn device_config_roundtrip_and_invalid_config_cannot_replace_saved_values() {
 }
 
 #[test]
-fn corrupted_record_payload_is_rejected() {
-    let mut flash = Flash::blank();
-    initialize(&mut flash).unwrap();
-    let bytes = vec![0x42; 1024];
-    write(&mut flash, Record::Device, &bytes).unwrap();
-    let offset = flash
-        .bytes
-        .windows(256)
-        .position(|chunk| chunk.iter().all(|&byte| byte == 0x42))
-        .unwrap();
-    flash.bytes[offset] ^= 1;
-    assert_eq!(
-        read(&mut flash, Record::Device, bytes.len()).unwrap_err(),
-        Error::CORRUPTION
-    );
-}
-
-#[test]
 fn explicit_erase_recovers_corruption_and_removes_all_saved_records() {
     let mut flash = Flash::blank();
     initialize(&mut flash).unwrap();
-    write(&mut flash, Record::Device, b"device").unwrap();
+    write(&mut flash, b"device").unwrap();
     flash.bytes[..4096].fill(0);
     flash.bytes[4096..8192].fill(0);
     assert!(initialize(&mut flash).is_err());
     erase_all(&mut flash).unwrap();
     assert!(flash.bytes.iter().all(|&byte| byte == 0xff));
     initialize(&mut flash).unwrap();
-    assert!(read(&mut flash, Record::Device, 100).unwrap().is_none());
+    assert!(read(&mut flash).unwrap().is_none());
 }

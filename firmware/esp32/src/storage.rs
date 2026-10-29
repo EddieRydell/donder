@@ -53,7 +53,6 @@ pub(crate) fn flash_checkpoint() {
 }
 
 pub(crate) struct DeviceStorage {
-    flash: FlashStorage<'static>,
     offset: u32,
     show_offset: u32,
 }
@@ -78,10 +77,9 @@ impl DeviceStorage {
         };
         Ok(Self {
             offset: partition("donder", Self::BLOCK_COUNT * Self::BLOCK_SIZE)
-                .ok_or("Install the controller show with its Donder data partition")?,
+                .ok_or("Install the controller firmware with its Donder data partition")?,
             show_offset: partition("shows", donder_device_storage::show_slots::PARTITION_BYTES)
-                .ok_or("Install the controller show with its show partition")?,
-            flash,
+                .ok_or("Install the controller firmware with its show partition")?,
         })
     }
 
@@ -113,10 +111,7 @@ impl Storage for DeviceStorage {
         write_flash(address, bytes)
     }
     fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
-        let address = self.address(offset, length)?;
-        flash_critical(|| self.flash.erase(address, address + length as u32))
-            .map_err(|_| Error::IO)?;
-        Ok(length)
+        erase_flash(self.address(offset, length)?, length)
     }
 }
 
@@ -166,10 +161,7 @@ impl Storage for Shows<'_> {
         write_flash(address, bytes)
     }
     fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
-        let address = self.address(offset, length)?;
-        flash_critical(|| self.0.flash.erase(address, address + length as u32))
-            .map_err(|_| Error::IO)?;
-        Ok(length)
+        erase_flash(self.address(offset, length)?, length)
     }
 }
 
@@ -200,6 +192,21 @@ fn write_flash(address: u32, bytes: &[u8]) -> Result<usize, Error> {
     // Acquire the cross-core critical section before parking: a frozen core
     // must not own that lock, and the scheduler must not run while it is frozen.
     flash_critical(|| write_flash_parked(address, bytes))
+}
+
+/// Erase the 4 KiB sectors of `length` bytes from `address`, a sector boundary.
+fn erase_flash(address: u32, length: usize) -> Result<usize, Error> {
+    flash_critical(|| {
+        with_other_core_parked(|| {
+            // Safety: callers validated bounds; the other core is parked above.
+            unsafe { esp_storage::ll::spiflash_unlock() }.map_err(|_| Error::IO)?;
+            for sector in (address..address + length as u32).step_by(4096) {
+                unsafe { esp_storage::ll::spiflash_erase_sector(sector / 4096) }
+                    .map_err(|_| Error::IO)?;
+            }
+            Ok(length)
+        })
+    })
 }
 
 fn flash_critical<T>(operation: impl FnOnce() -> T) -> T {

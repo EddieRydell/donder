@@ -10,7 +10,6 @@ mod transport;
 mod protocol_tests;
 
 use alloc::vec::Vec;
-use littlefs2::io::{Read, Write};
 pub use littlefs2::{driver::Storage, io::Error};
 use littlefs2::{fs::Filesystem, path, path::Path};
 
@@ -19,18 +18,10 @@ pub mod show_slots;
 
 pub use littlefs2::consts;
 
-#[derive(Clone, Copy)]
-pub enum Record {
-    Device,
-}
-
-impl Record {
-    fn path(self) -> &'static Path {
-        match self {
-            Self::Device => path!("device"),
-        }
-    }
-}
+/// The device record's file; a fresh controller has none.
+const DEVICE: &Path = path!("device");
+/// The longest device record.
+const DEVICE_BYTES: usize = 1024;
 
 /// Format only a completely erased partition. Mount errors never erase data.
 pub fn initialize<S: Storage>(storage: &mut S) -> Result<(), Error> {
@@ -61,53 +52,18 @@ pub fn erase_all<S: Storage>(storage: &mut S) -> Result<(), Error> {
 #[cfg(test)]
 mod tests;
 
-pub fn read<S: Storage>(
-    storage: &mut S,
-    record: Record,
-    limit: usize,
-) -> Result<Option<Vec<u8>>, Error> {
-    Filesystem::mount_and_then(storage, |fs| {
-        let metadata = match fs.metadata(record.path()) {
-            Ok(metadata) => metadata,
-            Err(Error::NO_SUCH_ENTRY) => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let length = metadata.len().checked_sub(4).ok_or(Error::CORRUPTION)?;
-        if length > limit {
-            return Err(Error::FILE_TOO_BIG);
-        }
-        let mut bytes = Vec::new();
-        bytes
-            .try_reserve_exact(length)
-            .map_err(|_| Error::NO_MEMORY)?;
-        bytes.resize(length, 0);
-        fs.open_file_and_then(record.path(), |file| {
-            let mut checksum = [0; 4];
-            file.read_exact(&mut checksum)?;
-            let mut offset = 0;
-            while offset < length {
-                let read = file.read(&mut bytes[offset..])?;
-                if read == 0 {
-                    return Err(Error::IO);
-                }
-                offset += read;
-            }
-            if crc32fast::hash(&bytes) != u32::from_le_bytes(checksum) {
-                return Err(Error::CORRUPTION);
-            }
-            Ok(())
-        })?;
-        Ok(Some(bytes))
+fn read<S: Storage>(storage: &mut S) -> Result<Option<Vec<u8>>, Error> {
+    Filesystem::mount_and_then(storage, |fs| match fs.read::<DEVICE_BYTES>(DEVICE) {
+        Ok(bytes) => Ok(Some(bytes.to_vec())),
+        Err(Error::NO_SUCH_ENTRY) => Ok(None),
+        Err(error) => Err(error),
     })
 }
 
 /// littlefs commits the closed temporary file before atomically replacing the record.
-pub fn write<S: Storage>(storage: &mut S, record: Record, bytes: &[u8]) -> Result<(), Error> {
+fn write<S: Storage>(storage: &mut S, bytes: &[u8]) -> Result<(), Error> {
     Filesystem::mount_and_then(storage, |fs| {
-        fs.create_file_and_then(path!("pending"), |file| {
-            file.write_all(&crc32fast::hash(bytes).to_le_bytes())?;
-            file.write_all(bytes)
-        })?;
-        fs.rename(path!("pending"), record.path())
+        fs.write(path!("pending"), bytes)?;
+        fs.rename(path!("pending"), DEVICE)
     })
 }

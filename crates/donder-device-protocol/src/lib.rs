@@ -54,16 +54,17 @@ pub enum Command {
         rate_ppb: i32,
         valid_for_micros: u32,
     },
-    /// Enter `mode` at `position_micros` of the loaded show when the
+    /// Take `action` at `position_micros` of the loaded show when the
     /// editor's clock reaches `at_micros`.
     Schedule {
         boot_id: u32,
         clock_id: u32,
         command_id: u32,
         at_micros: u64,
-        mode: Mode,
+        action: Action,
         position_micros: u32,
-        speed: Speed,
+        #[serde(with = "WirePlaybackRate")]
+        rate: PlaybackRate,
         looping: bool,
         show_id: u32,
         show_bytes: u32,
@@ -73,7 +74,7 @@ pub enum Command {
     },
 }
 
-/// A controller's playback state. A command never asks for `Ended`.
+/// A controller's playback state. A show reaches `Ended` on its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
@@ -83,44 +84,54 @@ pub enum Mode {
     Ended,
 }
 
-/// A [`PlaybackRate`]; a zero speed has none.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Speed {
-    pub show_micros_per_second: u32,
-    pub frame_timing: SpeedFrameTiming,
-}
-
-/// A [`FrameTiming`].
+/// What a transport command asks for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SpeedFrameTiming {
-    Scaled,
-    Constant,
+pub enum Action {
+    Play,
+    Pause,
+    Stop,
 }
 
-impl From<PlaybackRate> for Speed {
-    fn from(rate: PlaybackRate) -> Self {
-        Self {
-            show_micros_per_second: rate.show_micros_per_second().get(),
-            frame_timing: match rate.frame_timing() {
-                FrameTiming::Scaled => SpeedFrameTiming::Scaled,
-                FrameTiming::Constant => SpeedFrameTiming::Constant,
-            },
+impl From<Action> for Mode {
+    fn from(action: Action) -> Self {
+        match action {
+            Action::Play => Self::Playing,
+            Action::Pause => Self::Paused,
+            Action::Stop => Self::Stopped,
         }
     }
 }
 
-impl Speed {
-    pub fn rate(self) -> Option<PlaybackRate> {
-        Some(PlaybackRate::new(
-            NonZeroU32::new(self.show_micros_per_second)?,
-            match self.frame_timing {
-                SpeedFrameTiming::Scaled => FrameTiming::Scaled,
-                SpeedFrameTiming::Constant => FrameTiming::Constant,
-            },
-        ))
+/// How a [`PlaybackRate`] travels; a zero speed does not decode.
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "PlaybackRate", rename_all = "camelCase", deny_unknown_fields)]
+struct WirePlaybackRate {
+    #[serde(getter = "show_micros_per_second")]
+    show_micros_per_second: NonZeroU32,
+    #[serde(getter = "frame_timing", with = "WireFrameTiming")]
+    frame_timing: FrameTiming,
+}
+
+fn show_micros_per_second(rate: &PlaybackRate) -> NonZeroU32 {
+    rate.show_micros_per_second()
+}
+
+fn frame_timing(rate: &PlaybackRate) -> FrameTiming {
+    rate.frame_timing()
+}
+
+impl From<WirePlaybackRate> for PlaybackRate {
+    fn from(rate: WirePlaybackRate) -> Self {
+        Self::new(rate.show_micros_per_second, rate.frame_timing)
     }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "FrameTiming", rename_all = "camelCase")]
+enum WireFrameTiming {
+    Scaled,
+    Constant,
 }
 
 /// The loaded show's playback, if a show is loaded.

@@ -122,7 +122,7 @@ impl DesktopState {
     pub(crate) fn audio_pause(&self) -> AppSnapshot {
         if self.devices_driven() {
             return self
-                .device_audio_hold(donder_device_protocol::Mode::Paused, None, false)
+                .device_audio_hold(donder_device_protocol::Action::Pause, None, false)
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).pause();
@@ -135,7 +135,7 @@ impl DesktopState {
         if self.devices_driven() {
             return self
                 .device_audio_hold(
-                    donder_device_protocol::Mode::Stopped,
+                    donder_device_protocol::Action::Stop,
                     Some(self.audio_snapshot().home_seconds),
                     false,
                 )
@@ -150,7 +150,7 @@ impl DesktopState {
     pub(crate) fn audio_rewind_to_zero(&self) -> AppSnapshot {
         if self.devices_driven() {
             return self
-                .device_audio_hold(donder_device_protocol::Mode::Paused, Some(0.0), true)
+                .device_audio_hold(donder_device_protocol::Action::Pause, Some(0.0), true)
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).rewind_to_zero();
@@ -167,7 +167,7 @@ impl DesktopState {
             }
             return self
                 .device_audio_hold(
-                    donder_device_protocol::Mode::Paused,
+                    donder_device_protocol::Action::Pause,
                     Some(position_seconds.clamp(0.0, duration)),
                     true,
                 )

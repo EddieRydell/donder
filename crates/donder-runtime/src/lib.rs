@@ -21,7 +21,7 @@ extern crate alloc;
 // implementation detail.
 pub use playback::{FixtureFrame, OutputFrame, SequenceFrame};
 pub use playback_rate::{FrameTiming, PlaybackRate};
-pub use show::{PreparedShow, ShowPlayback};
+pub use show::{PreparedShow, ShowBytes, ShowPlayback};
 pub use view::{FORMAT_VERSION, LoadError};
 
 pub use crate::format::{Fixture, Output};
