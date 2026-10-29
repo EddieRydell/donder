@@ -1,6 +1,6 @@
 //! The wire protocol between the editor and a Donder controller: HTTP paths
 //! and the token header, the JSON bodies of commands and replies, and the UDP
-//! clock exchange. The desktop and the firmware both read and write these
+//! clock exchange on the controller's HTTP port. The desktop and the firmware both read and write these
 //! types, so each message has one layout.
 #![no_std]
 
@@ -14,14 +14,13 @@ use serde::{Deserialize, Serialize};
 pub const TOKEN_HEADER: &str = "X-Donder-Token";
 
 /// HTTP paths. A claim replies with the token; a name or network change
-/// takes its value as the body; an image upload replies
+/// takes its value as the body; a show upload replies
 /// starting with [`LOADED`](super::LOADED).
 pub mod path {
     pub const CLAIM: &str = "/claim";
     pub const NAME: &str = "/name";
     pub const NETWORK: &str = "/network";
-    pub const CAPABILITIES: &str = "/capabilities";
-    pub const IMAGE: &str = "/image";
+    pub const SHOW: &str = "/show";
     /// A [`Command`](super::Command), replied to with [`OK`](super::OK).
     pub const CONTROL: &str = "/control";
     /// The [`TransportStatus`](super::TransportStatus), which the transport
@@ -35,7 +34,7 @@ pub mod path {
 /// The reply to an accepted [`Command`].
 pub const OK: &str = "OK";
 /// How the reply to an admitted upload starts.
-pub const LOADED: &str = "LOADED ";
+pub const LOADED: &str = "LOADED";
 
 /// A playback command on the editor's clock.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -66,8 +65,8 @@ pub enum Command {
         position_micros: u32,
         speed: Speed,
         looping: bool,
-        image_id: u32,
-        image_bytes: u32,
+        show_id: u32,
+        show_bytes: u32,
     },
     Cancel {
         command_id: u32,
@@ -124,39 +123,6 @@ impl Speed {
     }
 }
 
-/// What a controller's firmware accepts.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Capabilities {
-    /// The image format it reads.
-    pub image_format: u32,
-    pub max_payload_bytes: u32,
-    pub max_pixels: u32,
-    pub max_graph_nodes: u32,
-    pub max_workspace_bytes: u32,
-    pub output: OutputCapabilities,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum OutputCapabilities {
-    Ws281x {
-        lanes: u32,
-        channels_per_lane: u32,
-        channel_multiple: u32,
-        /// The fastest show frame rate the outputs carry.
-        max_frame_rate: u32,
-        /// The UDP port of the [`clock`] exchange.
-        clock_udp_port: u16,
-    },
-    /// Firmware that evaluates shows but drives no lights.
-    EvaluationOnly,
-}
-
 /// The loaded show's playback, if a show is loaded.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TransportStatus {
@@ -168,12 +134,9 @@ pub struct TransportStatus {
 pub struct PlaybackStatus {
     pub mode: Mode,
     pub position_micros: u32,
-    pub duration_micros: u32,
-    /// The loaded image's identity and length.
-    pub image_id: u32,
-    pub image_bytes: u32,
-    /// The scheduled command not yet due.
-    pub pending_command: Option<u32>,
+    /// The loaded show's identity and length.
+    pub show_id: u32,
+    pub show_bytes: u32,
     /// The last command accepted; a later one has a greater id.
     pub command_id: u32,
 }

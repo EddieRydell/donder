@@ -8,7 +8,6 @@ use esp_hal::{
     peripherals::{GPIO1, GPIO3, GPIO4, GPIO16},
 };
 
-pub(crate) const OUTPUT_DESCRIPTION: &str = "gpio16,3,1,4";
 // Conservative commissioning limit until device power configuration exists.
 pub(crate) const MAX_CHANNEL_VALUE: u8 = 25;
 

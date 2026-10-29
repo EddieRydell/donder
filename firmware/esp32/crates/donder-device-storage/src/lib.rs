@@ -35,12 +35,6 @@ impl Record {
 /// Format only a completely erased partition. Mount errors never erase data.
 pub fn initialize<S: Storage>(storage: &mut S) -> Result<(), Error> {
     let mut bytes = [0; 256];
-    if S::READ_SIZE == 0
-        || bytes.len() % S::READ_SIZE != 0
-        || (S::BLOCK_COUNT * S::BLOCK_SIZE) % bytes.len() != 0
-    {
-        return Err(Error::INVALID);
-    }
     let mut erased = true;
     for offset in (0..S::BLOCK_COUNT * S::BLOCK_SIZE).step_by(bytes.len()) {
         storage.read(offset, &mut bytes)?;

@@ -22,7 +22,7 @@ fn clock_command_decodes_with_the_embedded_parser() {
 
 #[test]
 fn scheduled_and_cancel_commands_decode_with_the_embedded_parser() {
-    let payload = br#"{"schedule":{"bootId":1,"clockId":2,"commandId":3,"atMicros":4294967400,"mode":"playing","positionMicros":1000000,"speed":{"showMicrosPerSecond":500000,"frameTiming":"constant"},"looping":false,"imageId":123,"imageBytes":11860}}"#;
+    let payload = br#"{"schedule":{"bootId":1,"clockId":2,"commandId":3,"atMicros":4294967400,"mode":"playing","positionMicros":1000000,"speed":{"showMicrosPerSecond":500000,"frameTiming":"constant"},"looping":false,"showId":123,"showBytes":11860}}"#;
     let (command, used) = serde_json_core::from_slice::<Command>(payload).unwrap();
     assert_eq!(used, payload.len());
     assert_eq!(
@@ -39,8 +39,8 @@ fn scheduled_and_cancel_commands_decode_with_the_embedded_parser() {
                 frame_timing: SpeedFrameTiming::Constant
             },
             looping: false,
-            image_id: 123,
-            image_bytes: 11860
+            show_id: 123,
+            show_bytes: 11860
         }
     );
     let (command, _) =

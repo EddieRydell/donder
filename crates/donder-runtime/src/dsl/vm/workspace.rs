@@ -4,7 +4,7 @@
 use super::strip::{Handle, Levels, Pixels, Range, STRIP, Store};
 use crate::arena::{Carve, Size};
 use crate::format::{self, SectionPixel};
-use crate::image::ProgramView;
+use crate::view::ProgramView;
 use core::cell::{Cell, RefCell};
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::Banks;

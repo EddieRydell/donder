@@ -179,9 +179,9 @@ impl PreviewHostApplication {
             PreviewCommand::ReplaceContent {
                 revision,
                 instances,
-                image,
+                show,
             } => self
-                .replace_content(revision, instances, image)
+                .replace_content(revision, instances, show)
                 .map(|()| CommandEffect::Redraw),
             PreviewCommand::RigEvents { events } => {
                 self.playback.apply_rig_events(&events);
@@ -238,10 +238,10 @@ impl PreviewHostApplication {
         &mut self,
         revision: u64,
         instances: Vec<[f32; 4]>,
-        image: Option<Vec<u8>>,
+        show: Option<Vec<u8>>,
     ) -> Result<(), String> {
         self.playback
-            .replace_content(image.as_deref(), instances.len())
+            .replace_content(show.as_deref(), instances.len())
             .map_err(|error| format!("Cannot load Preview content: {error:?}"))?;
         self.scene = PreviewScene::new(
             revision,

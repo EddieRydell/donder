@@ -11,20 +11,15 @@ pub(crate) fn sequence_export_options(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn export_image_file(
+pub(crate) async fn export_show_file(
     request: GuiDocumentRequest,
     outputs: Vec<u32>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = state.prepare_image_export(&request, &outputs)?;
-        save_export_file(
-            "Export show image",
-            "Donder show image",
-            "donderimage",
-            &bytes,
-        )
+        let bytes = state.prepare_show_export(&request, &outputs)?;
+        save_export_file("Export show", "Donder show", "dondershow", &bytes)
     })
     .await
     .map_err(|error| error.to_string())?

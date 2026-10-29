@@ -224,7 +224,7 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   combine every iteration branch-free and stop once every pixel has decided.
 - A program declares its parameters' types. An invocation binds them to two
   storages, each numbered in declaration order: one 32-bit word per float,
-  int, bool, color or enum parameter (a color's word indexes the image's
+  int, bool, color or enum parameter (a color's word indexes the show's
   colors), and one shared resource per curve,
   gradient, marks or array parameter. Equal resources bound anywhere in a
   sequence share one allocation; a marks value is a window of its

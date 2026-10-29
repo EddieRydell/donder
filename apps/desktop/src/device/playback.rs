@@ -1,10 +1,10 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
 use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
-use donder_device_protocol::{Command, Mode, OutputCapabilities, clock};
+use donder_device_protocol::{Command, Mode, clock};
 use donder_model::{ControllerId, ControllerPortId, DonderDeviceId};
 use donder_project_io::ObjectAddress;
-use donder_runtime::PlaybackRate;
+use donder_runtime::{PlaybackRate, PreparedShow};
 use std::{
     collections::{BTreeMap, hash_map::RandomState},
     hash::{BuildHasher, Hasher},
@@ -121,9 +121,8 @@ struct Prepared {
     /// The prepared sequence's address, which outlives reloads.
     sequence: ObjectAddress,
     bytes: Vec<u8>,
-    widths: Vec<u16>,
     frame_rate: u32,
-    /// The image's identity, which the controller reports for the show it holds.
+    /// The show's identity, which the controller reports for the show it holds.
     id: u32,
 }
 struct Binding {
@@ -173,22 +172,20 @@ impl Binding {
         &mut self,
         revision: u32,
         sequence: &ObjectAddress,
-        compile: &mut impl FnMut(&DevicePorts) -> Result<(Vec<u8>, Vec<u16>, u32), String>,
+        compile: &mut impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<(), String> {
         if self
             .prepared
             .as_ref()
             .is_none_or(|prepared| prepared.revision != revision || prepared.sequence != *sequence)
         {
-            let (bytes, widths, frame_rate) = compile(&self.ports)?;
-            let id = donder_runtime::image_id(&bytes);
+            let show = compile(&self.ports)?;
             self.prepared = Some(Prepared {
                 revision,
                 sequence: sequence.clone(),
-                bytes,
-                widths,
-                frame_rate,
-                id,
+                bytes: show.encode(),
+                frame_rate: show.frame_rate(),
+                id: show.id(),
             });
         }
         let prepared = self
@@ -197,15 +194,10 @@ impl Binding {
             .ok_or("Prepared sequence is missing")?;
         let status = self.client.transport(None)?;
         let matches = status.playback.as_ref().is_some_and(|playback| {
-            playback.image_bytes as usize == prepared.bytes.len()
-                && playback.image_id == prepared.id
+            playback.show_bytes as usize == prepared.bytes.len() && playback.show_id == prepared.id
         });
         if self.uploaded != Some(prepared.id) || !matches {
-            self.client.upload(
-                prepared.bytes.clone(),
-                &prepared.widths,
-                prepared.frame_rate,
-            )?;
+            self.client.upload(prepared.bytes.clone())?;
             self.uploaded = Some(prepared.id);
         }
         Ok(())
@@ -224,7 +216,7 @@ impl Binding {
             .prepared
             .as_ref()
             .ok_or("Prepare the current sequence before scheduling")?;
-        if status.image_id != prepared.id || status.image_bytes as usize != prepared.bytes.len() {
+        if status.show_id != prepared.id || status.show_bytes as usize != prepared.bytes.len() {
             return Err(
                 "Controller has a different show loaded; press Play to upload the current sequence"
                     .into(),
@@ -435,7 +427,7 @@ impl DevicePlaybackService {
         epoch: u32,
         revision: u32,
         sequence: &ObjectAddress,
-        mut compile: impl FnMut(&DevicePorts) -> Result<(Vec<u8>, Vec<u16>, u32), String>,
+        mut compile: impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<DeviceFailures, String> {
         let mut core = lock_unpoisoned(&self.shared.core);
         if core.epoch != epoch {
@@ -542,8 +534,8 @@ impl DevicePlaybackService {
                         position_micros: position,
                         speed: rate.into(),
                         looping: false,
-                        image_id: status.image_id,
-                        image_bytes: status.image_bytes,
+                        show_id: status.show_id,
+                        show_bytes: status.show_bytes,
                     });
                     if sent.is_err() {
                         // A lost reply may hide acceptance.
@@ -605,10 +597,6 @@ fn cancel(core: &Core, commands: &[(SocketAddr, u32)]) -> String {
 }
 fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
     let client = DeviceClient::new(device.address, &device.token)?;
-    let clock_udp_port = match client.capabilities()?.output {
-        OutputCapabilities::Ws281x { clock_udp_port, .. } if clock_udp_port > 0 => clock_udp_port,
-        _ => return Err("Device does not advertise a physical output clock".into()),
-    };
     let bind_address = if client.address.is_ipv4() {
         "0.0.0.0:0"
     } else {
@@ -617,7 +605,7 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
     let clock_socket =
         UdpSocket::bind(bind_address).map_err(|error| format!("Clock socket: {error}"))?;
     clock_socket
-        .connect(SocketAddr::new(client.address.ip(), clock_udp_port))
+        .connect(client.address)
         .map_err(|error| format!("Clock endpoint: {error}"))?;
     clock_socket
         .set_read_timeout(Some(Duration::from_secs(2)))

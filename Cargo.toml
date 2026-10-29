@@ -5,7 +5,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.98"
+rust-version = "1.99"
 version = "0.1.0"
 
 [workspace.lints.rust]
@@ -77,6 +77,7 @@ winit = "0.30.13"
 # times slower than the extra build time costs.
 [profile.dev]
 opt-level = 1
+debug = false
 
 [profile.dev.package."*"]
 opt-level = 2

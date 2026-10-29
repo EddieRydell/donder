@@ -67,7 +67,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         get_sequence_clip_details,
         match_sequence_clips,
         sequence_export_options,
-        export_image_file,
+        export_show_file,
         export_fseq_file,
         export_video_file,
         device_serial_ports,

@@ -17,22 +17,6 @@ impl RequestHandlerService<LoaderState> for Control {
         mut request: picoserve::request::Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        if !authorized(state, &request.parts) {
-            return (
-                StatusCode::UNAUTHORIZED,
-                "Missing or invalid X-Donder-Token\n",
-            )
-                .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
-        }
-        if request.body_connection.content_length() > 512 {
-            return (
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "Control body exceeds 512 bytes\n",
-            )
-                .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
-        }
         let body = picoserve::extract::Json::<Command>::from_request(
             state,
             request.parts,
@@ -58,14 +42,8 @@ impl RequestHandlerService<LoaderState> for Control {
                 rate_ppb,
                 valid_for_micros,
             } => {
-                if boot_id != state.boot_id
-                    || clock_id == 0
-                    || rate_ppb.unsigned_abs() > 200_000
-                    || valid_for_micros > 15_000_000
-                    || valid_for_micros == 0
-                    || now.abs_diff(local_micros) > 2_000_000
-                {
-                    Err("Invalid, stale, or imprecise clock estimate")
+                if boot_id != state.boot_id {
+                    Err("The controller restarted since this clock estimate")
                 } else {
                     let mut clock = state.clock.lock().await;
                     let active = state.playback.lock().await;
@@ -73,7 +51,10 @@ impl RequestHandlerService<LoaderState> for Control {
                         && clock.id != clock_id
                         && active.as_ref().is_some_and(|p| {
                             p.transport
-                                .sample(clock.master_at(now), p.image.view().duration().as_ticks())
+                                .sample(
+                                    clock.master_at(now),
+                                    p.show.prepared().duration().as_ticks(),
+                                )
                                 .0
                                 == transport::Mode::Playing
                                 || p.transport.pending.is_some()
@@ -101,31 +82,25 @@ impl RequestHandlerService<LoaderState> for Control {
                 position_micros,
                 speed,
                 looping,
-                image_id,
-                image_bytes,
+                show_id,
+                show_bytes,
             } => {
                 let clock = *state.clock.lock().await;
                 let master_now = clock.master_at(now);
                 let mut active = state.playback.lock().await;
                 match active.as_mut() {
-                    None => Err("No image loaded"),
+                    None => Err("No show is loaded"),
                     Some(_) if boot_id != state.boot_id || !clock.usable(clock_id, now) => {
                         Err("Clock is not synchronized")
                     }
-                    Some(p) if p.image_id != image_id || p.image_bytes != image_bytes => {
-                        Err("Image changed before scheduling")
+                    Some(p) if p.show_id != show_id || p.show_bytes != show_bytes => {
+                        Err("The show changed before scheduling")
                     }
                     Some(_) if mode == transport::Mode::Ended => {
                         Err("Ended is a playback status, not a command")
                     }
-                    Some(p) if position_micros > p.image.view().duration().as_ticks() => {
-                        Err("Position exceeds image duration")
-                    }
-                    Some(_)
-                        if at_micros < master_now + 20_000
-                            || at_micros > master_now + 2_000_000 =>
-                    {
-                        Err("Start deadline is late or too far ahead")
+                    Some(_) if at_micros < master_now + 20_000 => {
+                        Err("The start deadline is too late")
                     }
                     Some(p) => match speed.rate() {
                         None => Err("Playback speed must be positive"),

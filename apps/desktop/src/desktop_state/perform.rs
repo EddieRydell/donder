@@ -38,7 +38,7 @@ pub(crate) struct PerformService {
 /// What the Preview needs to play a performance.
 pub(crate) struct PreviewPerformance {
     pub(crate) generation: u32,
-    pub(crate) image: Vec<u8>,
+    pub(crate) show: Vec<u8>,
     /// Each fixture's id and pixel count, in prepared order.
     pub(crate) fixtures: Vec<(u32, usize)>,
 }
@@ -186,7 +186,7 @@ struct Performance {
     clock: SessionClock,
     prepared: PreparedShow,
     /// The prepared rig, encoded once for the Preview.
-    image: Vec<u8>,
+    show: Vec<u8>,
     fixtures: Vec<(u32, usize)>,
     router: RigRouter,
     /// Each router button's device and control names.
@@ -440,7 +440,7 @@ impl DesktopState {
                 generation,
                 rig: described,
                 clock: SessionClock::start(prepared.duration()),
-                image: prepared.encode(),
+                show: prepared.encode(),
                 fixtures: prepared
                     .fixtures()
                     .iter()
@@ -705,14 +705,14 @@ impl DesktopState {
             .map(|performance| performance.generation)
     }
 
-    /// The performance's image and fixtures, for the Preview.
+    /// The performance's show and fixtures, for the Preview.
     pub(crate) fn preview_performance(&self) -> Option<PreviewPerformance> {
         lock_unpoisoned(&self.perform)
             .performance
             .as_ref()
             .map(|performance| PreviewPerformance {
                 generation: performance.generation,
-                image: performance.image.clone(),
+                show: performance.show.clone(),
                 fixtures: performance.fixtures.clone(),
             })
     }

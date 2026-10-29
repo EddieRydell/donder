@@ -26,7 +26,7 @@ pub use donder_runtime::PreparedShow;
 pub use rig::{ArmedRig, arm};
 pub use sequence::PreparationCache;
 
-/// Which hardware outputs an image keeps. Explicit lists preserve first-occurrence
+/// Which hardware outputs a show keeps. Explicit lists preserve first-occurrence
 /// order and treat repeated entries as a set. An empty list selects no outputs.
 #[derive(Clone, Copy, Debug)]
 pub enum Retain<'a> {

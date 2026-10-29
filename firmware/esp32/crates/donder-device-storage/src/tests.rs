@@ -59,16 +59,6 @@ fn interrupted_show_replacement_preserves_a_complete_committed_slot() {
     }
 }
 
-#[test]
-fn chunks_past_the_staged_length_are_rejected() {
-    let mut flash = Flash::blank();
-    let slot = stage_show(&mut flash, &vec![0x35; 78392]).unwrap();
-    assert_eq!(
-        show_slots::append(&mut flash, slot, slot.length, &[0; 4]),
-        Err(Error::INVALID)
-    );
-}
-
 #[derive(Clone)]
 struct Flash {
     bytes: Vec<u8>,

@@ -6,14 +6,11 @@ publish = false
 license = "MIT"
 
 [features]
-loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:donder-device-protocol", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc", "dep:edge-dhcp", "dep:edge-mdns", "dep:edge-nal", "dep:edge-nal-embassy"]
-i2s-output = ["loader", "donder-runtime/atomic"]
-dig-quad = ["i2s-output"]
+dig-quad = []
 
 [[bin]]
 name = "loader"
 path = "src/bin/loader.rs"
-required-features = ["loader"]
 
 [workspace]
 resolver = "2"
@@ -24,31 +21,30 @@ unreachable_pub = "warn"
 
 [dependencies]
 # Supply only littlefs's two string routines absent from the ESP32 ROM bindings.
-tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"], optional = true }
-donder-device-storage = { path = "crates/donder-device-storage", optional = true }
-esp-storage = { version = "0.10.0", features = ["esp32"], optional = true }
-esp-radio-rtos-driver = { version = "0.4.1", optional = true }
-esp-radio = { version = "1.0.0-beta.0", features = ["esp32", "wifi", "unstable"], optional = true }
-esp-rtos = { version = "0.4.0", features = ["esp32", "esp-radio", "embassy", "esp-alloc"], optional = true }
-embassy-executor = { version = "0.10.0", optional = true }
-embassy-net = { version = "0.9.1", features = ["tcp", "udp", "dhcpv4", "medium-ethernet", "multicast"], optional = true }
+tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"] }
+donder-device-storage = { path = "crates/donder-device-storage" }
+esp-storage = { version = "0.10.0", features = ["esp32"] }
+esp-radio = { version = "1.0.0-beta.0", features = ["esp32", "wifi", "unstable"] }
+esp-rtos = { version = "0.4.0", features = ["esp32", "esp-radio", "embassy", "esp-alloc"] }
+embassy-executor = { version = "0.10.0" }
+embassy-net = { version = "0.9.1", features = ["tcp", "udp", "dhcpv4", "medium-ethernet", "multicast"] }
 # Access-point DHCP and mDNS discovery for the desktop editor.
-edge-dhcp = { version = "0.8.0", default-features = false, features = ["io"], optional = true }
-edge-mdns = { version = "0.8.0", default-features = false, features = ["io"], optional = true }
-edge-nal = { version = "0.7.0", optional = true }
-edge-nal-embassy = { version = "0.9.0", default-features = false, features = ["proto-ipv4", "udp", "medium-ethernet", "multicast"], optional = true }
-embassy-sync = { version = "0.8.0", optional = true }
-embassy-time = { version = "0.5.1", optional = true }
-embedded-io-async = { version = "0.7.0", optional = true }
-heapless = { version = "0.9.3", optional = true }
-picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "json"], optional = true }
-static_cell = { version = "2.1.1", optional = true }
+edge-dhcp = { version = "0.8.0", default-features = false, features = ["io"] }
+edge-mdns = { version = "0.8.0", default-features = false, features = ["io"] }
+edge-nal = { version = "0.7.0" }
+edge-nal-embassy = { version = "0.9.0", default-features = false, features = ["proto-ipv4", "udp", "medium-ethernet", "multicast"] }
+embassy-sync = { version = "0.8.0" }
+embassy-time = { version = "0.5.1" }
+embedded-io-async = { version = "0.7.0" }
+heapless = { version = "0.9.3" }
+picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "json"] }
+static_cell = { version = "2.1.1" }
 crc32fast = { version = "1.5.1", default-features = false }
-donder-runtime = { path = "../../crates/donder-runtime", default-features = false, features = ["iram"] }
+donder-runtime = { path = "../../crates/donder-runtime", default-features = false, features = ["atomic", "iram"] }
 donder-runtime-types = { path = "../../crates/donder-runtime-types" }
-donder-device-protocol = { path = "../../crates/donder-device-protocol", optional = true }
+donder-device-protocol = { path = "../../crates/donder-device-protocol" }
 esp-hal = { version = "~1.2.0", features = ["esp32", "unstable"] }
-esp-alloc = { version = "0.11.0", features = ["esp32", "alloc-hooks"] }
+esp-alloc = { version = "0.11.0", features = ["esp32"] }
 esp-println = { version = "0.18.0", default-features = false, features = ["esp32", "uart", "critical-section"] }
 esp-bootloader-esp-idf = { version = "0.6.0", features = ["esp32"] }
 

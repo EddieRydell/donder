@@ -13,24 +13,22 @@
     )
 )]
 
-#[cfg(feature = "host")]
 extern crate alloc;
 
-// This facade is the complete external API. The core plays a trusted image
-// in a caller's buffer without allocating; the host feature builds images and
-// owns them. Language values and executable definitions belong to
-// donder-language; the VM is an implementation detail.
-pub use image::{FORMAT_VERSION, Image, LoadError, header_bytes, image_id, image_len};
-pub use playback::{FixtureFrame, OutputFrame, Playback, SequenceFrame};
+// This facade is the complete external API. A prepared show owns its bytes and
+// plays it in a buffer it owns; the host feature builds shows. Language values
+// and executable definitions belong to donder-language; the VM is an
+// implementation detail.
+pub use playback::{FixtureFrame, OutputFrame, SequenceFrame};
 pub use playback_rate::{FrameTiming, PlaybackRate};
-pub use workspace::{LIVE_MARK_CAPACITY, Layout};
+pub use show::{PreparedShow, ShowPlayback};
+pub use view::{FORMAT_VERSION, LoadError};
 
 pub use crate::format::{Fixture, Output};
 
 #[cfg(feature = "host")]
 pub use host::{
-    ClipHandle, ClipRaster, ImageClip, OutputHandle, PreparedShow, ShowBuilder, ShowPlayback,
-    SignalHandle, TargetHandle,
+    ClipHandle, ClipRaster, OutputHandle, ShowBuilder, ShowClip, SignalHandle, TargetHandle,
 };
 
 use donder_runtime_types::sampling;
@@ -40,18 +38,19 @@ mod dsl;
 mod evaluation;
 #[cfg(feature = "host")]
 mod host;
-// The image format is written by the host builder; a player alone reads only
+// The show format is written by the host builder; a player alone reads only
 // part of it.
 #[cfg_attr(not(feature = "host"), allow(dead_code))]
 mod format;
-mod image;
 mod patch;
 mod playback;
 mod playback_rate;
 mod resources;
 mod scan;
 mod sections;
+mod show;
 mod targets;
+mod view;
 mod workspace;
 
 #[cfg(test)]

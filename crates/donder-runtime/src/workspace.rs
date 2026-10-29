@@ -9,8 +9,8 @@ use donder_runtime_types::{Color, SampleTime};
 
 use crate::arena::{Carve, Size};
 use crate::dsl::{Override, STRIP, Scratch, StripSlots, StripWorkspace, scratch_shape};
-use crate::image::Image;
 use crate::resources::{LiveTrack, ResourceSlot, WindowState};
+use crate::view::Show;
 
 /// The most frame buffers a show's nodes use at once.
 pub(crate) const MAX_BUFFERS: usize = 16;
@@ -19,7 +19,7 @@ pub(crate) const MAX_STATES: usize = 16;
 /// The most whole-frame scans one program runs.
 pub(crate) const MAX_SCANS: usize = 8;
 /// The most marks a live collection keeps; older marks are dropped.
-pub const LIVE_MARK_CAPACITY: usize = 1024;
+pub(crate) const LIVE_MARK_CAPACITY: usize = 1024;
 /// A dormant voice starts at the end of time, so it is never active and
 /// sorts after every started clip of its layer.
 pub(crate) const DORMANT: u32 = u32::MAX;
@@ -54,7 +54,7 @@ pub(crate) struct RigState<'w> {
     pub(crate) timing: &'w mut [Timing],
     pub(crate) layer_order: &'w mut [u32],
     pub(crate) layer_ends: &'w mut [u32],
-    /// One per automation binding of the image.
+    /// One per automation binding of the show.
     pub(crate) overrides: &'w mut [Override],
     pub(crate) live_tracks: &'w mut [LiveTrack],
     pub(crate) live_ticks: &'w mut [u32],
@@ -78,7 +78,7 @@ pub(crate) struct Workspace<'w> {
 /// A show's playback buffer: every region's count, derived from the show
 /// once.
 #[derive(Clone, Copy, Debug)]
-pub struct Layout {
+pub(crate) struct Layout {
     pixels: usize,
     output_bytes: usize,
     buffers: usize,
@@ -94,21 +94,14 @@ pub struct Layout {
     collections: usize,
 }
 
-impl Image<'_> {
-    /// The playback buffer this show needs.
-    pub fn layout(&self) -> Layout {
-        Layout::of(*self)
-    }
-}
-
 impl Layout {
-    pub(crate) fn of(image: Image<'_>) -> Self {
-        let s = &image.s;
-        let meta = image.meta();
+    pub(crate) fn of(show: Show<'_>) -> Self {
+        let s = &show.s;
+        let meta = show.meta();
         let mut slots = StripSlots::default();
         let mut scans = 0;
         for program in 0..s.programs.len() {
-            let program = image.program(program as u32);
+            let program = show.program(program as u32);
             slots.include(program);
             scans = scans.max(program.scans());
         }
@@ -124,13 +117,13 @@ impl Layout {
                     .map(|node| (node.automation, node.params)),
             );
         for (plan, params) in params_refs {
-            for (total, need) in scratch.iter_mut().zip(scratch_shape(image, plan, params)) {
+            for (total, need) in scratch.iter_mut().zip(scratch_shape(show, plan, params)) {
                 *total = (*total).max(need);
             }
         }
-        let rig = image.is_rig();
+        let rig = show.is_rig();
         Self {
-            pixels: image.pixel_count(),
+            pixels: show.pixel_count(),
             output_bytes: s.outputs.iter().map(|output| output.width as usize).sum(),
             buffers: meta.buffers as usize,
             states: meta.states as usize,
@@ -152,7 +145,7 @@ impl Layout {
     }
 
     /// 32-bit words of the buffer a playback of the show needs.
-    pub fn words(&self) -> usize {
+    pub(crate) fn words(&self) -> usize {
         self.size().div_ceil(4)
     }
 
@@ -216,16 +209,16 @@ fn frames<'w, const N: usize>(
     Some(frames)
 }
 
-/// The workspace of `image` in `buffer`, which holds [`Layout::size`] bytes:
+/// The workspace of `show` in `buffer`, which holds [`Layout::size`] bytes:
 /// filled when `fresh`, or re-borrowed as an earlier carve of the same show
 /// left it.
 pub(crate) fn carve<'w>(
-    image: Image<'_>,
+    show: Show<'_>,
     layout: &Layout,
     buffer: &'w mut [u8],
     fresh: bool,
 ) -> Option<Workspace<'w>> {
-    let s = &image.s;
+    let s = &show.s;
     let pixels = layout.pixels;
     let mut arena = if fresh {
         Carve::new(buffer)

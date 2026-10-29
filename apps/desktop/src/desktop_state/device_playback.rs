@@ -404,7 +404,6 @@ impl DesktopState {
             .project
             .get::<donder_model::Sequence>(sequence)
             .ok_or("Sequence is missing")?;
-        let frame_rate = model.frame_rate;
         let duration = donder_language::sample_duration_from_donder_duration(&model.duration)
             .map_err(|error| format!("Invalid sequence duration: {error:?}"))?
             .as_ticks();
@@ -413,24 +412,12 @@ impl DesktopState {
             snapshot.project_revision,
             &target.sequence,
             |ports| {
-                let available = super::sequence_export::outputs(&session)?;
-                let widths = ports
-                    .iter()
-                    .map(|(controller, port)| {
-                        available
-                            .iter()
-                            .find(|(id, output, _)| id == controller && output == port)
-                            .map(|(_, _, width)| *width)
-                            .ok_or("A connected device output was removed from the setup")
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let prepared = donder_elaboration::prepare(
+                donder_elaboration::prepare(
                     &session.project,
                     &sequence,
                     donder_elaboration::Retain::Ports(ports),
                 )
-                .ok_or("The sequence or a connected device output is unavailable.")?;
-                Ok((prepared.encode(), widths, frame_rate))
+                .ok_or_else(|| "The sequence or a connected device output is unavailable.".into())
             },
         )?;
         self.record_device_failures(failures);

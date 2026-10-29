@@ -29,18 +29,18 @@ repeated.
 
 ## Features and builds
 
-- `loader`: access point or station networking, mDNS discovery, claiming and
-  Wi-Fi upload.
-- `i2s-output`: adds continuous four-output WS281x playback on the second core,
-  on the reference-board pins. This is the default build.
-- `dig-quad`: the same, with QuinLED Dig-Quad pins and a 25/255 brightness cap.
+Every build has access point or station networking, mDNS discovery, claiming,
+Wi-Fi upload and continuous four-output WS281x playback on the second core, on
+the reference-board pins. The only feature is:
+
+- `dig-quad`: QuinLED Dig-Quad pins and a 25/255 brightness cap.
 
 From the repository root:
 
 ```powershell
 pnpm firmware:build                      # reference-board image in target/firmware/donder-esp32.bin
 pnpm firmware:build --board dig-quad     # Dig-Quad image, same path
-pnpm firmware:cargo build --release --features i2s-output --bin loader --locked
+pnpm firmware:cargo build --release --bin loader --locked
 ```
 
 `firmware:build` refuses an image that would overlap the data partitions.
@@ -60,20 +60,18 @@ playback through the editor or `POST /transport/play`. To check a build's
 frames against the host, export a fragment with checksums:
 
 ```powershell
-cargo run -p donder-elaboration --example export_image -- examples/starter firmware/esp32/target/loaded.donderimage
+cargo run -p donder-elaboration --example export_show -- examples/starter firmware/esp32/target/loaded.dondershow
 ```
 
-`PUT /image` loads the exported image, and `POST /frame` with a frame's tick
-as a 4-byte little-endian body replies `FRAME tick crc32 micros allocations
-global_allocations`; each tick and CRC must match a row of the `.checksums`
-file, with zero allocations. Never write tokens to logs.
+`PUT /show` loads the exported show, and `POST /frame` with a frame's tick
+as a 4-byte little-endian body replies `FRAME tick crc32 micros`, the CRC of
+the frame's output bytes and its evaluation time; each tick and CRC must match
+a row of the `.checksums` file. Never write tokens to logs.
 
-During playback the loader prints a `PLAYBACK` line per window on the serial
-port (not on the Dig-Quad, whose UART0 pins drive LEDs): missed frames and
-average and maximum evaluation, encoding, DMA-wait and total frame times. To
-measure a runtime change, upload a representative show such as
-`examples/stanford_room` and compare those lines. Keep captures under `target/`
-and summarize durable results in [performance](../../docs/performance.md).
+To measure a runtime change, upload a representative show such as
+`examples/stanford_room` and compare its `POST /frame` times. Keep captures
+under `target/` and summarize durable results in
+[performance](../../docs/performance.md).
 
 ## Implementation notes
 
@@ -82,15 +80,14 @@ and summarize durable results in [performance](../../docs/performance.md).
 - A flash mutation first waits for the renderer to acknowledge its IRAM
   checkpoint, then takes the cross-core critical section and parks that core.
   Parking the core in hardware without the checkpoint can freeze an outstanding
-  cache fill. Refreshing the show mapping flushes both caches while the other
-  core is parked, because a flush can disturb that core's fill even when it does
-  not read the show mapping.
+  cache fill. While the other core is parked, its cache is disabled for the
+  flash operation, then flushed and enabled again.
 - Upload blackout waits between completed DMA transfers in an interrupt-free IRAM
   loop.
 - Keep large flash buffers off the core-0 startup and network stack. Show
   restoration and upload persistence share it with filesystem and SDK calls.
-- The runtime `atomic` feature is enabled only for output builds, so the active
-  sequence and its workspace can cross cores.
+- The runtime `atomic` feature lets the active show and its workspace cross
+  cores.
 - The runtime's `iram` feature places the interpreter and graph evaluation in
   instruction RAM, and `pnpm firmware:build` fails if any of that code is left
   in flash (see
@@ -103,7 +100,7 @@ From the repository root:
 ```powershell
 pnpm storage:test
 cargo fmt --manifest-path firmware/esp32/Cargo.toml --check
-pnpm firmware:cargo clippy --release --features i2s-output --bin loader --locked -- -D warnings
+pnpm firmware:cargo clippy --release --bin loader --locked -- -D warnings
 pnpm firmware:cargo clippy --release --features dig-quad --bin loader --locked -- -D warnings
 ```
 

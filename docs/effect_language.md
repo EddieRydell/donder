@@ -374,7 +374,7 @@ fixture; a whole-target clip sections the target's fixtures in order.
   signals that read `previous`; a program runs at most 8 scans.
 
 Preparation and playback never report errors at frame time. Programs are
-checked once when they compile; a show image is trusted when it loads.
+checked once when they compile; a show is trusted when it loads.
 
 ## Standard library
 

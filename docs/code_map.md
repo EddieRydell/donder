@@ -49,7 +49,7 @@ binds values and automation (`Invocation`), `Invocation::instance` places it
 `donder_elaboration::prepare(project, sequence_id, retain)` (or
 `prepare_cached` with a `PreparationCache`) in
 `crates/donder-elaboration/src/lib.rs` returns a `PreparedShow` that owns the
-show's image; `arm` prepares a rig the same way (`rig.rs`).
+show's bytes; `arm` prepares a rig the same way (`rig.rs`).
 
 1. `selection::resolve` resolves the active setup, layout and the hardware
    outputs `retain` keeps.
@@ -65,18 +65,18 @@ show's image; `arm` prepares a rig the same way (`rig.rs`).
    - `composition::prepare` builds the signal graph from layers, operators and
      the root, folding black signals and fusing operators;
    - `prepare_routes` packs the root's frame into the outputs' bytes.
-3. `ShowBuilder::finish` writes the image; `PreparedShow::encode` gives its
-   bytes (`.donderimage`, the Preview's content, a controller upload).
+3. `ShowBuilder::finish` writes the show; `PreparedShow::encode` gives its
+   bytes (`.dondershow`, the Preview's content, a controller upload).
 
 ## Play it
 
 `PreparedShow::into_playback()` gives a `ShowPlayback`
-(`crates/donder-runtime/src/host/mod.rs`); `ShowPlayback::evaluate(time)`
-returns the frame's fixture colors and output bytes. Without the host feature,
-as on the ESP32, `Image::open(bytes)` borrows an image and
-`Playback::new(image, &layout, buffer)` plays it in a caller's buffer.
+(`crates/donder-runtime/src/show.rs`); `ShowPlayback::evaluate(time)`
+returns the frame's fixture colors and output bytes. The ESP32 plays shows
+the same way, reading one from flash with `PreparedShow::read`. Each call
+borrows the show's bytes (`view.rs`) and its buffer as a private `Playback`.
 
-1. `Playback::evaluate` (`playback.rs`) calls `run`, which finds the frame of
+1. `Playback::frame` (`playback.rs`) calls `run`, which finds the frame of
    `time` (`frame_at`) and returns at once when the buffers already hold it.
 2. `evaluation::frames::evaluate_frame` (`evaluation.rs`) runs every node in
    order: `evaluate_layer` max-composites the layer's active clips, each

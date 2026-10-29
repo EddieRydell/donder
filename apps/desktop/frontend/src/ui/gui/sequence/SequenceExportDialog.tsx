@@ -25,7 +25,7 @@ export function SequenceExportDialog() {
   const [selected, setSelected] = useState<number[]>([]);
   const [stepMillis, setStepMillis] = useState(0);
   const [customStep, setCustomStep] = useState(false);
-  const [pending, setPending] = useState<"options" | "donderimage" | "fseq" | "mp4" | null>(null);
+  const [pending, setPending] = useState<"options" | "dondershow" | "fseq" | "mp4" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [videoProgress, setVideoProgress] = useState<VideoExportProgress | null>(null);
@@ -49,7 +49,7 @@ export function SequenceExportDialog() {
     } catch (error: unknown) { setError(String(error)); }
     finally { setPending(null); }
   };
-  const save = async (format: "donderimage" | "fseq" | "mp4") => {
+  const save = async (format: "dondershow" | "fseq" | "mp4") => {
     if (origin === null || stale) return;
     setPending(format); setError(null); setSaved(null);
     try {
@@ -57,7 +57,7 @@ export function SequenceExportDialog() {
         ? await commands.exportFseqFile(origin, selected, stepMillis)
         : format === "mp4"
           ? await exportVideo(origin)
-          : await commands.exportImageFile(origin, selected));
+          : await commands.exportShowFile(origin, selected));
     } catch (error: unknown) { setError(String(error)); }
     finally { setPending(null); setVideoProgress(null); }
   };
@@ -74,7 +74,7 @@ export function SequenceExportDialog() {
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="dialog-content sequence-export-dialog">
           <Dialog.Title>Export sequence</Dialog.Title>
-          <Dialog.Description>Choose the outputs to include, in order. An FSEQ file packs their channels back to back for FPP and other players. A .donderimage file is the show image a Donder controller plays, with its outputs in the same order. Donder controllers in the setup receive the current sequence automatically when you press Play. An .mp4 video shows the Preview with the song, ready to share.</Dialog.Description>
+          <Dialog.Description>Choose the outputs to include, in order. An FSEQ file packs their channels back to back for FPP and other players. A .dondershow file is the show a Donder controller plays, with its outputs in the same order. Donder controllers in the setup receive the current sequence automatically when you press Play. An .mp4 video shows the Preview with the song, ready to share.</Dialog.Description>
           {stale && <p role="alert">The project changed. Close and reopen export to use the current sequence and outputs.</p>}
           {error !== null && <p role="alert">{error}</p>}
           {saved !== null && <p role="status">Saved {saved}</p>}
@@ -119,7 +119,7 @@ export function SequenceExportDialog() {
           <div className="dialog-actions">
             <button type="button" disabled={busy} onClick={() => { setOrigin(null); }}>Close</button>
             <button type="button" disabled={busy || stale} onClick={() => { void save("mp4"); }}>{pending === "mp4" ? "Exporting video…" : "Save .mp4 video"}</button>
-            <button type="button" disabled={busy || stale || selected.length === 0} onClick={() => { void save("donderimage"); }}>{pending === "donderimage" ? "Preparing…" : "Save .donderimage file"}</button>
+            <button type="button" disabled={busy || stale || selected.length === 0} onClick={() => { void save("dondershow"); }}>{pending === "dondershow" ? "Preparing…" : "Save .dondershow file"}</button>
             <button type="button" disabled={busy || stale || selected.length === 0 || !stepValid} onClick={() => { void save("fseq"); }}>{pending === "fseq" ? "Preparing…" : "Save .fseq file"}</button>
           </div>
         </Dialog.Content>

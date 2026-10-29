@@ -1,5 +1,5 @@
-//! Sparse evaluation of one authored clip from an already prepared image.
-//! Raster dimensions, scheduling, image storage, and caching belong to the host.
+//! Sparse evaluation of one authored clip from an already prepared show.
+//! Raster dimensions, scheduling, show storage, and caching belong to the host.
 use crate::format;
 use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
 use donder_runtime_types::{Color, SampleDuration, SampleTime, SampleTimeError};
@@ -7,23 +7,23 @@ use donder_runtime_types::{Color, SampleDuration, SampleTime, SampleTimeError};
 use crate::arena::{Carve, Size};
 use crate::dsl::{NoSignals, ParamsRef, StripSlots, params_at, scratch_shape};
 use crate::evaluation::{PixelSet, RunPixel, clip_evaluator};
-use crate::image::Image;
 use crate::resources::LiveView;
+use crate::view::Show;
 use crate::workspace::{Timing, carve_scratch, scratch_size};
 
 #[derive(Clone, Copy)]
-pub struct ImageClip<'a> {
-    image: Image<'a>,
+pub struct ShowClip<'a> {
+    show: Show<'a>,
     index: usize,
 }
 
-impl<'a> ImageClip<'a> {
-    pub(crate) fn new(image: Image<'a>, index: usize) -> Self {
-        Self { image, index }
+impl<'a> ShowClip<'a> {
+    pub(crate) fn new(show: Show<'a>, index: usize) -> Self {
+        Self { show, index }
     }
 
     fn record(&self) -> &'a format::Clip {
-        &self.image.s.clips[self.index]
+        &self.show.s.clips[self.index]
     }
 
     /// Sample the center frame of a raster column inside the authored clip.
@@ -65,17 +65,17 @@ impl<'a> ImageClip<'a> {
     }
 
     pub fn frame_rate(&self) -> u32 {
-        self.image.frame_rate()
+        self.show.frame_rate()
     }
 
     pub fn frame_count(&self) -> u32 {
-        self.image.frame_count()
+        self.show.frame_count()
     }
 
     pub fn target_pixel_count(&self) -> usize {
         crate::targets::TargetView::of(
-            self.image,
-            &self.image.s.targets[self.record().target as usize],
+            self.show,
+            &self.show.s.targets[self.record().target as usize],
         )
         .len()
     }
@@ -83,10 +83,10 @@ impl<'a> ImageClip<'a> {
     /// Select evenly spaced cells while preserving their original sampling
     /// coordinates. Equal contexts share one VM sample.
     pub fn raster(&self, rows: usize) -> ClipRaster<'a> {
-        let image = self.image;
+        let show = self.show;
         let clip = self.record();
-        let program = image.program(clip.program);
-        let target = crate::targets::TargetView::of(image, &image.s.targets[clip.target as usize]);
+        let program = show.program(clip.program);
+        let target = crate::targets::TargetView::of(show, &show.s.targets[clip.target as usize]);
         let spatial = program.flag(format::PROGRAM_USES_SPATIAL);
         let sections = program.flag(format::PROGRAM_USES_SECTIONS);
         let indices = evenly_sample_indices(target.len(), rows);
@@ -97,7 +97,7 @@ impl<'a> ImageClip<'a> {
         for (row, local) in indices.into_iter().enumerate() {
             let pixel = target.pixel(local);
             let geometry = if spatial {
-                target.spatial_context(local, &pixel, image)
+                target.spatial_context(local, &pixel, show)
             } else {
                 donder_runtime_types::SpatialContext {
                     position: [0.0; 2],
@@ -136,7 +136,7 @@ impl<'a> ImageClip<'a> {
         slots.include(program);
         let mut size = Size::default();
         slots.size(&mut size);
-        let scratch = scratch_shape(image, clip.automation, clip.params);
+        let scratch = scratch_shape(show, clip.automation, clip.params);
         scratch_size(&mut size, scratch);
         ClipRaster {
             clip: *self,
@@ -151,9 +151,9 @@ impl<'a> ImageClip<'a> {
     }
 }
 
-/// Reusable sparse evaluator borrowing an image.
+/// Reusable sparse evaluator borrowing a show.
 pub struct ClipRaster<'a> {
-    clip: ImageClip<'a>,
+    clip: ShowClip<'a>,
     output: Vec<Color>,
     groups: Vec<RasterGroup>,
     /// A pixel of each group.
@@ -173,7 +173,7 @@ struct RasterGroup {
 
 impl ClipRaster<'_> {
     pub fn evaluate(&mut self, time: SampleTime) -> &[Color] {
-        let image = self.clip.image;
+        let show = self.clip.show;
         let clip = self.clip.record();
         let timing = Timing {
             start: clip.start,
@@ -197,7 +197,7 @@ impl ClipRaster<'_> {
             unreachable!("the buffer holds the sampler's size")
         };
         let params = params_at(
-            image,
+            show,
             &mut scratch,
             ParamsRef {
                 params: clip.params,
@@ -208,7 +208,7 @@ impl ClipRaster<'_> {
             &[],
             LiveView::default(),
         );
-        let sampler = clip_evaluator(image, clip, timing, time, 1, params);
+        let sampler = clip_evaluator(show, clip, timing, time, 1, params);
         let (groups, output) = (&self.groups, &mut self.output);
         sampler.evaluate_pixels(
             groups.len(),
