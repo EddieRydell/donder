@@ -51,6 +51,10 @@ cd firmware/esp32
 espflash flash --port COM4 --baud 460800 --chip esp32 --non-interactive --flash-size 4mb --flash-mode dio --flash-freq 40mhz --partition-table partitions.csv --target-app-partition factory target/xtensa-esp32-none-elf/release/loader
 ```
 
+To factory reset a controller, flash it with its saved data erased: add
+`--erase-parts shows,donder` to the command above. That clears its name, claim,
+Wi-Fi network and saved show.
+
 ## Uploading and measuring
 
 The editor uploads each controller's show when Play is pressed (see

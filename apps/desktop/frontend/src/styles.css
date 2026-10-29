@@ -4062,21 +4062,6 @@ fieldset.sequence-layer-row {
   border: 0;
 }
 
-.device-form .device-erase-confirmation {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--donder-space-5);
-}
-
-.device-erase-confirmation input {
-  width: var(--donder-icon-size-sm);
-  height: var(--donder-icon-size-sm);
-  margin: var(--donder-space-0);
-  padding: var(--donder-space-0);
-  flex-shrink: 0;
-  accent-color: var(--donder-accent);
-}
-
 .sequence-export-ports {
   display: grid;
   gap: var(--donder-space-5);

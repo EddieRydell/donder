@@ -1,8 +1,7 @@
-import { isMac } from "../../../platform";
 import { useEffect, useState } from "react";
 import { commands } from "../../../api";
 import { runSnapshotCommand, useAppStore } from "../../../store";
-import type { DeviceSerialPort, DonderDeviceNetworkRequest, DonderDeviceStatus } from "../../../types";
+import type { DonderDeviceNetworkRequest, DonderDeviceStatus } from "../../../types";
 
 /** Live status and settings for the Donder controller a setup controller targets. */
 export function DonderDevicePanel({ deviceId }: { deviceId: string }) {
@@ -13,7 +12,6 @@ export function DonderDevicePanel({ deviceId }: { deviceId: string }) {
     {device === undefined
       ? <p>Controller {deviceId} is not on the network. Power it on, then connect this computer to its Wi-Fi network (Donder-{deviceId.slice(8)}) or to the network it joined.</p>
       : <DeviceSettings key={device.id} device={device} />}
-    <DeviceUsbTools />
   </section>;
 }
 
@@ -39,7 +37,7 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
       <p>Claim this controller so this computer can upload shows and control playback.</p>
       <button type="button" disabled={pending} onClick={() => { run(() => runSnapshotCommand(() => commands.claimDevice(device.id))); }}>Claim controller</button>
     </>}
-    {device.claim === "claimedElsewhere" && <p>Another computer claimed this controller. Factory reset it over USB to claim it here.</p>}
+    {device.claim === "claimedElsewhere" && <p>Another computer claimed this controller. Reinstall its firmware with saved data erased to claim it here.</p>}
     {device.claim === "claimed" && <fieldset disabled={pending}>
       <form onSubmit={(event) => { event.preventDefault(); run(() => runSnapshotCommand(() => commands.renameDevice(device.id, name))); }}>
         <label>Name<input required maxLength={32} value={name} onChange={(event) => { setName(event.target.value); }} /></label>
@@ -73,44 +71,3 @@ export function useDeviceWatch(active: boolean) {
   }, [active]);
 }
 
-/** Factory reset for a controller connected over USB. */
-export function DeviceUsbTools() {
-  const [ports, setPorts] = useState<DeviceSerialPort[]>([]);
-  const [port, setPort] = useState("");
-  const [eraseConfirmed, setEraseConfirmed] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const listPorts = () => commands.deviceSerialPorts().then(setPorts).catch((listError: unknown) => { setError(String(listError)); });
-  const refresh = () => {
-    setPort(""); setEraseConfirmed(false);
-    void listPorts();
-  };
-  useEffect(() => {
-    void listPorts();
-  }, []);
-  const run = (message: string, command: () => Promise<void>) => {
-    setPending(true); setError(null); setStatus(null); setEraseConfirmed(false);
-    void command().then(() => { setStatus(message); }).catch((commandError: unknown) => { setError(String(commandError)); })
-      .finally(() => { setPending(false); });
-  };
-  return <details className="setup-light-editor">
-    <summary>USB setup</summary>
-    <fieldset className="device-form" disabled={pending}>
-      <label>USB serial device<select value={port} onChange={(event) => { setPort(event.target.value); setEraseConfirmed(false); }}>
-        <option value="" disabled>Choose a device</option>
-        {ports.map((candidate) => <option key={candidate.path} value={candidate.path}>{candidate.label}</option>)}
-      </select></label>
-      <button type="button" onClick={refresh}>Refresh USB devices</button>
-      {ports.length === 0 && <p>No serial devices found. Connect the controller with a data-capable USB cable. Remove the Dig-Quad ESP32 module first.{isMac && " On macOS, boards with a CP210x USB chip may need the Silicon Labs driver."}</p>}
-      <label className="device-erase-confirmation"><input type="checkbox" checked={eraseConfirmed} onChange={(event) => { setEraseConfirmed(event.target.checked); }} />Factory reset the selected controller: erase its name, claim, Wi-Fi network and saved show.</label>
-      <button type="button" disabled={port === "" || !eraseConfirmed} onClick={() => {
-        run("Controller reset. It restarts with its own Wi-Fi network, unclaimed.", async () => {
-          await commands.eraseDeviceSavedData(port);
-        });
-      }}>Factory reset</button>
-      {status !== null && <p role="status">{status}</p>}
-      {error !== null && <p role="alert">{error}</p>}
-    </fieldset>
-  </details>;
-}

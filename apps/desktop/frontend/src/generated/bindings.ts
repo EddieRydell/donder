@@ -44,8 +44,6 @@ export const commands = {
 	exportShowFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_show_file", { request, outputs })),
 	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
 	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, framesPerSecond: number, progress: Channel<VideoExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, framesPerSecond, progress })),
-	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),
-	eraseDeviceSavedData: (port: string) => typedError<null, string>(__TAURI_INVOKE("erase_device_saved_data", { port })),
 	/**
 	 *  A view that lists Donder controllers opened (`true`) or closed (`false`);
 	 *  discovery runs while one is open.
@@ -195,11 +193,6 @@ export type CurveGuiDocument = {
 	path: string,
 	objectKey: string,
 	points: SequenceCurvePoint[],
-};
-
-export type DeviceSerialPort = {
-	path: string,
-	label: string,
 };
 
 export type DocumentDescriptor = {

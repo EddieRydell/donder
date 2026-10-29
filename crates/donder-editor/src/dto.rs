@@ -30,10 +30,10 @@ pub use live::{
     RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SetupInputDevice,
 };
 pub use output::{
-    ControllerOutputTest, DeviceSerialPort, DonderDeviceClaim, DonderDeviceConnection,
-    DonderDeviceNetwork, DonderDeviceNetworkRequest, DonderDeviceStatus,
-    LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
-    Point3Meters, SequenceExportOptions, SequenceExportPort, VideoExportProgress,
+    ControllerOutputTest, DonderDeviceClaim, DonderDeviceConnection, DonderDeviceNetwork,
+    DonderDeviceNetworkRequest, DonderDeviceStatus, LiveOutputControllerSnapshot,
+    LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState, Point3Meters,
+    SequenceExportOptions, SequenceExportPort, VideoExportProgress,
 };
 pub use patch::{
     GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,

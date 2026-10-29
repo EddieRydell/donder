@@ -23,30 +23,13 @@ const DEVICE: &Path = path!("device");
 /// The longest device record.
 const DEVICE_BYTES: usize = 1024;
 
-/// Format only a completely erased partition. Mount errors never erase data.
+/// Mount the partition, formatting it when it holds no usable filesystem; the
+/// editor recreates every record it holds.
 pub fn initialize<S: Storage>(storage: &mut S) -> Result<(), Error> {
-    let mut bytes = [0; 256];
-    let mut erased = true;
-    for offset in (0..S::BLOCK_COUNT * S::BLOCK_SIZE).step_by(bytes.len()) {
-        storage.read(offset, &mut bytes)?;
-        if bytes.iter().any(|&byte| byte != 0xff) {
-            erased = false;
-            break;
-        }
-    }
-    if erased {
+    if Filesystem::mount_and_then(storage, |_| Ok(())).is_err() {
         Filesystem::format(storage)?;
     }
     Filesystem::mount_and_then(storage, |_| Ok(()))
-}
-
-/// Explicitly discard all records, including damaged filesystems.
-/// The caller must obtain the operator's erase confirmation first.
-pub fn erase_all<S: Storage>(storage: &mut S) -> Result<(), Error> {
-    for offset in (0..S::BLOCK_COUNT * S::BLOCK_SIZE).step_by(S::BLOCK_SIZE) {
-        storage.erase(offset, S::BLOCK_SIZE)?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

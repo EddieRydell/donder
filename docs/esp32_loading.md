@@ -21,7 +21,9 @@ dual core and rated for 240 MHz, without flash encryption or secure boot.
 3. In Display Setup, add a **Donder controller**, choose the discovered device,
    and claim it. The first claim wins: the controller returns a token that the
    editor saves in its desktop settings, keyed by device ID. Every later request
-   uses it. A USB factory reset erases the claim.
+   uses it. To claim it from another computer, factory reset it by reinstalling
+   the firmware with its saved data erased (see the
+   [firmware README](../firmware/esp32/README.md)).
 4. Turn on live output in the sequence toolbar and press Play.
 
 The controller's ID is its factory MAC address. A rename changes only the name
@@ -60,8 +62,10 @@ A failed or interrupted upload leaves no show loaded, but the previous committed
 show stays saved. Reboot restores the newest committed slot, stopped. A saved
 show that the current firmware rejects is left in place and the controller boots
 without one; the editor uploads a current show on its next live Play.
-An upload or configuration change waits for one in progress, and an explicit
-erase clears both partitions.
+An upload or configuration change waits for one in progress. The `donder`
+partition is formatted at boot when it holds no usable filesystem, and a damaged
+device record is replaced by defaults, so damaged storage never stops a
+controller from starting.
 
 The loader plays the show from RAM, beside its playback buffer, as the
 `ShowBytes` an upload or a restore filled: reading it through the flash cache
@@ -189,10 +193,9 @@ transmits.
 - **QuinLED Dig-Quad v2/v3** (`pnpm firmware:build --board dig-quad`): LED1–LED4
   on GPIO16, GPIO3, GPIO1 and GPIO4. Confirm the module first, because other
   modules may swap GPIO1 and GPIO3.
-  - Unplug the ESP32 module from the Dig-Quad to flash firmware or factory
-    reset it over USB.
-  - UART0 is handed over to LED output one second after boot, so serial capture
-    is unavailable on this board.
+  - Unplug the ESP32 module from the Dig-Quad to flash firmware over USB.
+  - UART0 is handed over to LED output during boot, so serial capture is
+    unavailable on this board.
   - This build caps output at 25/255 of authored values as a brightness ceiling,
     not a current limit.
 

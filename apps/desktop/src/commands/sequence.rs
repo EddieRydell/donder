@@ -306,22 +306,3 @@ pub(crate) async fn set_device_network(
         .await
         .map_err(|error| error.to_string())?
 }
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn device_serial_ports()
--> Result<Vec<donder_editor::dto::DeviceSerialPort>, String> {
-    tauri::async_runtime::spawn_blocking(crate::device::provisioning::ports)
-        .await
-        .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn erase_device_saved_data(port: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::device::provisioning::erase_saved_data(&port)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}

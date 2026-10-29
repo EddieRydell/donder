@@ -16,7 +16,7 @@ mod fast_divide;
 #[path = "../storage.rs"]
 mod storage;
 use donder_device_storage::{device_config::DeviceConfig, show_slots};
-type SharedStorage = Mutex<CriticalSectionRawMutex, storage::DeviceStorage>;
+use storage::SharedStorage;
 
 #[path = "../ws281x_parallel.rs"]
 mod ws281x_parallel;
@@ -34,17 +34,11 @@ use donder_runtime_types::{SampleTime, sample_time_from_frame};
 use embassy_net::StackResources;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
-use embedded_io_async::{Read as _, Write as _};
+use embedded_io_async::Read as _;
 use esp_hal::{
     Async, dma::DmaTxBuf, gpio::NoPin, i2s::parallel::I2sParallel, system::Stack, time::Rate,
 };
-use esp_hal::{
-    clock::CpuClock,
-    rng::Rng,
-    time::Instant,
-    timer::timg::TimerGroup,
-    uart::{Config, Uart},
-};
+use esp_hal::{clock::CpuClock, rng::Rng, time::Instant, timer::timg::TimerGroup};
 static SERIAL_DIAGNOSTICS: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(true);
 
@@ -160,16 +154,6 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     esp_hal::system::software_reset()
 }
 
-async fn uart_reply(
-    uart: &mut esp_hal::uart::Uart<'_, esp_hal::Async>,
-    args: core::fmt::Arguments<'_>,
-) -> Result<(), ()> {
-    let mut line = heapless::String::<192>::new();
-    line.write_fmt(args).map_err(|_| ())?;
-    line.push('\n').map_err(|_| ())?;
-    uart.write_all(line.as_bytes()).await.map_err(|_| ())
-}
-
 /// Heap left for the network after a show loads. Wi-Fi allocates buffers on
 /// demand, and an allocation failure there freezes the controller.
 const NETWORK_HEAP_RESERVE: usize = 10 * 1024;
@@ -269,15 +253,14 @@ impl<S: RequestHandlerService<LoaderState>> RequestHandlerService<LoaderState> f
     }
 }
 
-/// Apply one change to the saved controller configuration. Flash writes park
-/// the rendering core, so output pauses briefly.
+/// Apply one change to the saved controller configuration. Output pauses
+/// while flash is used.
 async fn update_config(
     state: &LoaderState,
     change: impl FnOnce(&mut DeviceConfig),
 ) -> Result<(), &'static str> {
     let _upload = state.upload.lock().await;
-    let _output_suspension = storage::suspend_output().await;
-    let mut storage = state.storage.lock().await;
+    let mut storage = storage::access(state.storage).await;
     let mut config = DeviceConfig::load(&mut *storage)
         .map_err(|_| "Saved configuration is damaged\n")?
         .unwrap_or_else(network::default_config);
@@ -507,8 +490,7 @@ impl RequestHandlerService<LoaderState> for UploadShow {
             Err(embedded_io_async::ReadExactError::Other(error)) => return Err(error),
         }
         let connection = request.body_connection.finalize().await?;
-        let _output_suspension = storage::suspend_output().await;
-        let mut storage = state.storage.lock().await;
+        let mut storage = storage::access(state.storage).await;
         let Ok(slot) = show_slots::begin(&mut storage.shows(), length).and_then(|slot| {
             show_slots::append(&mut storage.shows(), slot, 0, bytes.as_mut_bytes())?;
             Ok(slot)
@@ -841,18 +823,19 @@ async fn render_outputs(
     let mut ready_signature = None;
     let mut ready_display_time = 0;
     loop {
-        if storage::flash_requested() {
-            encode_frame(None, ready_buffer.as_mut_slice());
-            let mut transfer = transmit(output, ready_buffer);
-            transfer.wait_for_done().await.unwrap();
-            (output, ready_buffer) = transfer.wait();
-            storage::flash_checkpoint();
+        storage::mark(1, 10);
+        if storage::pause_requested() {
+            storage::mark(1, 30);
+            storage::pause();
+            storage::mark(1, 31);
             ready_signature = None;
         }
         if let Some(wait) = next_transmit.checked_sub(local_micros()) {
             Timer::after_micros(wait).await;
         }
+        storage::mark(1, 11);
         let mut current = playback.lock().await;
+        storage::mark(1, 12);
         let frame_rate = current
             .as_ref()
             .map_or(IDLE_FRAME_RATE, |p| p.show.prepared().frame_rate());
@@ -863,10 +846,13 @@ async fn render_outputs(
             let rendered = current.as_mut().and_then(|p| p.render(ready_display_time));
             encode_frame(rendered, ready_buffer.as_mut_slice());
         }
+        storage::mark(1, 13);
         let mut transfer = transmit(output, ready_buffer);
         drop(current);
+        storage::mark(1, 14);
 
         let model = *clock.lock().await;
+        storage::mark(1, 15);
         let master_now = model.master_at(local_micros());
         // Frame numbers count periods of one clock and one rate.
         if (model.id, frame_rate) != (previous_clock, previous_rate) {
@@ -882,14 +868,18 @@ async fn render_outputs(
         next_transmit = model.local_at(next_latch.saturating_sub(data_micros));
         ready_frame = next_frame;
         let render_start = Instant::now();
+        storage::mark(1, 16);
         let mut active = playback.lock().await;
+        storage::mark(1, 17);
         let rendered = active.as_mut().and_then(|playback| {
             playback
                 .transport
                 .refresh(master_now, playback.show.prepared().duration().as_ticks());
             playback.render(next_latch)
         });
+        storage::mark(1, 18);
         encode_frame(rendered, spare_buffer.as_mut_slice());
+        storage::mark(1, 19);
         ready_signature = active
             .as_ref()
             .map(|p| (p.show_id, p.show_bytes, p.transport.generation));
@@ -897,7 +887,9 @@ async fn render_outputs(
         drop(active);
         render_budget = render_start.elapsed().as_micros() + 500;
 
+        storage::mark(1, 20);
         transfer.wait_for_done().await.unwrap();
+        storage::mark(1, 21);
         let (next_output, finished_buffer) = transfer.wait();
         output = next_output;
         ready_buffer = spare_buffer;
@@ -909,8 +901,7 @@ async fn render_outputs(
 /// allocated its buffers, so releasing the show for an upload frees one
 /// contiguous region instead of gaps between network buffers.
 async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
-    let _output_suspension = storage::suspend_output().await;
-    let mut storage = storage.lock().await;
+    let mut storage = storage::access(storage).await;
     let restored = match show_slots::latest(&mut storage.shows()) {
         Ok(Some(slot)) => allocate(slot.length)
             .and_then(|mut bytes| {
@@ -933,38 +924,9 @@ async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
     *playback.lock().await = restored;
 }
 
-async fn storage_error(uart: &mut Uart<'_, esp_hal::Async>, error: &'static str) -> ! {
-    loop {
-        let _ = uart_reply(uart, format_args!("DONDER ERROR {error}")).await;
-        let mut command = [0];
-        let _ = uart.read_exact(&mut command).await;
-        if command[0] == b'R' {
-            let _ = uart_reply(uart, format_args!("DONDER RESET UNAVAILABLE {error}")).await;
-        }
-    }
-}
-
-async fn erase_storage(
-    uart: &mut Uart<'_, esp_hal::Async>,
-    storage: &mut storage::DeviceStorage,
-) -> ! {
-    if donder_device_storage::erase_all(&mut storage.shows()).is_err()
-        || donder_device_storage::erase_all(storage).is_err()
-    {
-        storage_error(
-            uart,
-            "Storage erase failed; reset the controller and retry erasing saved data",
-        )
-        .await;
-    }
-    let _ = uart_reply(uart, format_args!("DONDER RESET COMPLETE")).await;
-    let _ = embedded_io_async::Write::flush(uart).await;
-    esp_hal::system::software_reset();
-}
-
 #[esp_rtos::main]
 async fn main(spawner: embassy_executor::Spawner) -> ! {
-    let mut p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
+    let p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
     // The heap holds the playing show's prepared sequence and playback
     // buffer beside the network's buffers; the rest of DRAM is the network
@@ -973,55 +935,23 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     esp_alloc::heap_allocator!(size: 62 * 1024);
     let timer = TimerGroup::new(p.TIMG0);
     esp_rtos::start(timer.timer0, p.FROM_CPU_INTR0);
+    let marks = unsafe { storage::MARKS };
+    esp_println::println!("BOOT reason={:?} marks={:?}", esp_hal::system::reset_reason(), marks);
+    for index in 0..4 {
+        storage::mark(index, 0);
+    }
+    let mut rtc = esp_hal::rtc_cntl::Rtc::new(p.RTC_TIMER);
+    rtc.rwdt.set_timeout(esp_hal::rtc_cntl::RwdtStage::Stage0, esp_hal::time::Duration::from_millis(8000));
+    rtc.rwdt.enable();
 
-    // USB serial is factory reset and diagnostics only. The host initiates the
-    // handshake, so a damaged boot log cannot be mistaken for a failed boot.
-    let mut uart = Uart::new(p.UART0.reborrow(), Config::default())
-        .unwrap()
-        .with_rx(p.GPIO3.reborrow())
-        .with_tx(p.GPIO1.reborrow())
-        .into_async();
-    let mut storage = match storage::DeviceStorage::new(p.FLASH) {
-        Ok(storage) => storage,
-        Err(error) => storage_error(&mut uart, error).await,
-    };
-    // A reset gives the USB host a short window to request a factory reset,
-    // before saved data is read, so it also recovers damaged storage.
-    let mut command = [0];
-    if matches!(
-        embassy_time::with_timeout(Duration::from_secs(1), uart.read_exact(&mut command)).await,
-        Ok(Ok(()))
-    ) && command[0] == b'R'
-    {
-        let _ = uart_reply(&mut uart, format_args!("DONDER RESET READY")).await;
-        // The host repeats R until it sees READY, then confirms with F.
-        loop {
-            match embassy_time::with_timeout(Duration::from_secs(2), uart.read_exact(&mut command))
-                .await
-            {
-                Ok(Ok(())) if command[0] == b'F' => erase_storage(&mut uart, &mut storage).await,
-                Ok(Ok(())) if command[0] == b'R' => {}
-                _ => break,
-            }
-        }
-    }
-    if donder_device_storage::initialize(&mut storage).is_err() {
-        storage_error(
-            &mut uart,
-            "Cannot mount Donder storage; erase saved data to recover",
-        )
-        .await;
-    }
-    let config = match DeviceConfig::load(&mut storage) {
-        Ok(saved) => saved.unwrap_or_else(network::default_config),
-        Err(_) => {
-            storage_error(
-                &mut uart,
-                "Saved configuration is damaged; erase saved data to recover",
-            )
-            .await
-        }
-    };
+    let mut storage =
+        storage::DeviceStorage::new(p.FLASH).unwrap_or_else(|error| panic!("{error}"));
+    donder_device_storage::initialize(&mut storage).expect("Donder storage cannot be formatted");
+    // A damaged record is replaced by the next claim or settings change.
+    let config = DeviceConfig::load(&mut storage)
+        .ok()
+        .flatten()
+        .unwrap_or_else(network::default_config);
     network::IDENTITY.lock(|identity| {
         let mut identity = identity.borrow_mut();
         identity.name = network::Name::try_from(config.name.as_str()).unwrap();
@@ -1037,12 +967,8 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     let clock: &'static SharedClock =
         picoserve::make_static!(SharedClock, Mutex::new(transport::Clock::new()));
 
-    embedded_io_async::Write::flush(&mut uart).await.unwrap();
     #[cfg(feature = "dig-quad")]
     SERIAL_DIAGNOSTICS.store(false, Relaxed);
-    // Disable the async UART interrupt before the LED peripheral takes its pins,
-    // while retaining UART0's clock for ROM routines that use its transmitter.
-    core::mem::forget(uart.into_blocking());
 
     // Start output before the network: joining a missing network must not
     // delay a restored show.
@@ -1133,7 +1059,10 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     );
 
     loop {
-        Timer::after_secs(60).await;
+        Timer::after_secs(1).await;
+        rtc.rwdt.feed();
+        let marks = unsafe { core::ptr::read_volatile(&raw const storage::MARKS) };
+        esp_println::println!("H {:?} free={}", marks, esp_alloc::HEAP.free());
     }
 }
 
