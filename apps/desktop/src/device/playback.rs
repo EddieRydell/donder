@@ -1,7 +1,7 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
 use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
-use donder_device_protocol::{Command, Mode, clock};
+use donder_device_protocol::{Action, Command, clock};
 use donder_model::{ControllerId, ControllerPortId, DonderDeviceId};
 use donder_project_io::ObjectAddress;
 use donder_runtime::{PlaybackRate, PreparedShow};
@@ -95,7 +95,7 @@ fn udp_clock_sample(
 impl DeviceClient {
     fn stop_loaded(&self) -> Result<(), String> {
         if self.transport(None)?.playback.is_some() {
-            self.transport(Some(Mode::Stopped))?;
+            self.transport(Some(Action::Stop))?;
         }
         Ok(())
     }
@@ -454,7 +454,7 @@ impl DevicePlaybackService {
     /// editor's alone.
     pub(crate) fn schedule(
         &self,
-        mode: Mode,
+        action: Action,
         position: u32,
         advancing: Option<PlaybackRate>,
         rate: PlaybackRate,
@@ -530,9 +530,9 @@ impl DevicePlaybackService {
                         clock_id,
                         command_id,
                         at_micros: at,
-                        mode,
+                        action,
                         position_micros: position,
-                        speed: rate.into(),
+                        rate,
                         looping: false,
                         show_id: status.show_id,
                         show_bytes: status.show_bytes,

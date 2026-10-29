@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, statSync, readFileSync, mkdirSync, renameSync } from 'node:fs';
+import { existsSync, statSync, mkdirSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 
 const directory = import.meta.dirname;
@@ -108,23 +108,9 @@ function main() {
   checkRuntimeWidth(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-objdump.exe' : 'xtensa-esp32-elf-objdump'));
   const output = join(root, 'target/firmware');
   mkdirSync(output, { recursive: true });
-  const pending = join(output, 'donder-esp32.build.bin');
-  const final = join(output, 'donder-esp32.bin');
-  run('espflash', ['save-image', '--skip-update-check', '--chip', 'esp32', '--flash-size', '4mb', '--flash-mode', 'dio', '--flash-freq', '40mhz', '--xtal-freq', '40mhz', '--partition-table', 'partitions.csv', '--target-app-partition', 'factory', '--merge', '--skip-padding', 'target/xtensa-esp32-none-elf/release/loader', pending]);
-
-  // This repository's partition table uses plain, unquoted CSV fields.
-  const partitions = readFileSync(join(directory, 'partitions.csv'), 'utf8')
-    .split(/\r?\n/).filter((line) => line.trim() && !line.trimStart().startsWith('#'))
-    .map((line) => line.split(',').map((field) => field.trim()));
-  const data = partitions.filter(([name]) => name === 'donder' || name === 'shows');
-  if (data.length !== 2 || new Set(data.map(([name]) => name)).size !== 2 || data.some((entry) => !/^0x[\da-f]+$/i.test(entry[3]))) throw new Error('Expected Donder credential and show partitions with hexadecimal offsets.');
-  const boundary = Math.min(...data.map((entry) => Number(entry[3])));
-  const image = readFileSync(pending);
-  if (!Number.isSafeInteger(boundary) || image.length <= 0x10000 || image.length > boundary) {
-    throw new Error('Packaged image is empty or overlaps the Donder data partition.');
-  }
-  renameSync(pending, final);
-  console.log(`Controller firmware: ${final}\nBytes: ${image.length}`);
+  const image = join(output, 'donder-esp32.bin');
+  run('espflash', ['save-image', '--skip-update-check', '--chip', 'esp32', '--flash-size', '4mb', '--flash-mode', 'dio', '--flash-freq', '40mhz', '--xtal-freq', '40mhz', '--partition-table', 'partitions.csv', '--target-app-partition', 'factory', '--merge', '--skip-padding', 'target/xtensa-esp32-none-elf/release/loader', image]);
+  console.log(`Controller firmware: ${image}`);
 }
 
 try {

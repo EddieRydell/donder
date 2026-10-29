@@ -21,15 +21,15 @@ type SharedStorage = Mutex<CriticalSectionRawMutex, storage::DeviceStorage>;
 #[path = "../ws281x_parallel.rs"]
 mod ws281x_parallel;
 
-use alloc::{boxed::Box, vec};
+use alloc::boxed::Box;
 use core::{
     fmt::Write as _,
     sync::atomic::{AtomicBool, Ordering::Relaxed},
 };
-use donder_device_protocol::{LOADED, PlaybackStatus, TOKEN_HEADER, TransportStatus, clock, path};
-use donder_runtime::{
-    FrameTiming, LoadError as ShowError, PreparedShow, SequenceFrame, ShowPlayback,
+use donder_device_protocol::{
+    Action, LOADED, PlaybackStatus, TOKEN_HEADER, TransportStatus, clock, path,
 };
+use donder_runtime::{FrameTiming, LoadError as ShowError, SequenceFrame, ShowBytes, ShowPlayback};
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 use embassy_net::StackResources;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -179,22 +179,22 @@ fn available_heap() -> usize {
     esp_alloc::HEAP.free().saturating_sub(NETWORK_HEAP_RESERVE)
 }
 
-#[inline(never)]
-fn load(
-    storage: &mut storage::DeviceStorage,
-    slot: show_slots::Slot,
-) -> Result<Playback, LoadError> {
-    // An allocation failure resets the controller, so a show is admitted only
-    // when its copy and then its playback buffer fit.
-    if slot.length > available_heap() {
+/// Room in RAM for a show of `len` bytes. An allocation failure resets the
+/// controller, so the show's copy and then its playback buffer must fit.
+fn allocate(len: usize) -> Result<ShowBytes, LoadError> {
+    if len > available_heap() {
         return Err(LoadError::Memory {
-            needed: slot.length,
+            needed: len,
             free: available_heap(),
         });
     }
-    let prepared = PreparedShow::read(slot.length, |bytes| {
-        storage.read_show(slot, bytes).map_err(|_| LoadError::Read)
-    })?;
+    Ok(ShowBytes::new(len))
+}
+
+/// Play `bytes`, a show of `len` bytes, when this controller can.
+#[inline(never)]
+fn admit(bytes: ShowBytes, len: usize) -> Result<Playback, LoadError> {
+    let prepared = bytes.open()?;
     if prepared.outputs().is_empty()
         || prepared.frame_rate() > MAX_FRAME_RATE
         || prepared.outputs().len() > OUTPUT_LANES
@@ -207,13 +207,13 @@ fn load(
     }
     if prepared.workspace_bytes() > available_heap() {
         return Err(LoadError::Memory {
-            needed: slot.length + prepared.workspace_bytes(),
-            free: slot.length + available_heap(),
+            needed: len + prepared.workspace_bytes(),
+            free: len + available_heap(),
         });
     }
     Ok(Playback {
         show_id: prepared.id(),
-        show_bytes: slot.length as u32,
+        show_bytes: len as u32,
         show: prepared.into_playback(),
         transport: transport::Transport::new(),
     })
@@ -275,9 +275,7 @@ async fn update_config(
     state: &LoaderState,
     change: impl FnOnce(&mut DeviceConfig),
 ) -> Result<(), &'static str> {
-    let Ok(_upload) = state.upload.try_lock() else {
-        return Err("Another upload or configuration change is in progress\n");
-    };
+    let _upload = state.upload.lock().await;
     let _output_suspension = storage::suspend_output().await;
     let mut storage = state.storage.lock().await;
     let mut config = DeviceConfig::load(&mut *storage)
@@ -462,11 +460,8 @@ impl RequestHandlerService<LoaderState> for UploadShow {
         mut request: picoserve::request::Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        let Ok(_upload) = state.upload.try_lock() else {
-            return (StatusCode::CONFLICT, "Another upload is in progress\n")
-                .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
-        };
+        // One show replaces another at a time: each needs the free heap.
+        let _upload = state.upload.lock().await;
         let length = request.body_connection.content_length();
         if length > show_slots::CAPACITY {
             return (
@@ -480,72 +475,54 @@ impl RequestHandlerService<LoaderState> for UploadShow {
                 .await;
         }
 
-        let _output_suspension = storage::suspend_output().await;
-        // Replacement stops playback immediately. Release the decoded show and
-        // workspace before staging or validating the candidate; the previous
-        // committed flash slot survives until the new show is admitted.
+        // Replacement stops playback immediately, releasing the show and its
+        // buffer for the new one; the previous committed flash slot survives
+        // until the new show is admitted.
         state.playback.lock().await.take();
-        let mut storage = state.storage.lock().await;
-        let slot = match show_slots::begin(&mut storage.shows(), length) {
-            Ok(slot) => slot,
-            Err(_) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Cannot stage the show in flash\n",
+        let mut bytes = match allocate(length) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return rejected(
+                    error,
+                    request.body_connection.finalize().await?,
+                    response_writer,
                 )
-                    .write_to(request.body_connection.finalize().await?, response_writer)
-                    .await;
+                .await;
             }
         };
-        let mut scratch = vec![0xff; 1024];
-        let mut reader = request
+        match request
             .body_connection
             .body()
             .reader()
-            .with_different_timeout(Duration::from_secs(15));
-        for offset in (0..length).step_by(scratch.len()) {
-            let count = scratch.len().min(length - offset);
-            scratch.fill(0xff);
-            match reader.read_exact(&mut scratch[..count]).await {
-                Ok(()) => {}
-                Err(embedded_io_async::ReadExactError::UnexpectedEof) => {
-                    return (StatusCode::BAD_REQUEST, "Incomplete show body\n")
-                        .write_to(request.body_connection.finalize().await?, response_writer)
-                        .await;
-                }
-                Err(embedded_io_async::ReadExactError::Other(error)) => return Err(error),
-            }
-            if show_slots::append(
-                &mut storage.shows(),
-                slot,
-                offset,
-                &scratch[..count.next_multiple_of(4)],
-            )
-            .is_err()
-            {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Cannot write the staged show\n",
-                )
+            .with_different_timeout(Duration::from_secs(15))
+            .read_exact(&mut bytes.as_mut_bytes()[..length])
+            .await
+        {
+            Ok(()) => {}
+            Err(embedded_io_async::ReadExactError::UnexpectedEof) => {
+                return (StatusCode::BAD_REQUEST, "Incomplete show body\n")
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;
             }
+            Err(embedded_io_async::ReadExactError::Other(error)) => return Err(error),
         }
-        drop(scratch);
         let connection = request.body_connection.finalize().await?;
-        let playback = match load(&mut storage, slot) {
+        let _output_suspension = storage::suspend_output().await;
+        let mut storage = state.storage.lock().await;
+        let Ok(slot) = show_slots::begin(&mut storage.shows(), length).and_then(|slot| {
+            show_slots::append(&mut storage.shows(), slot, 0, bytes.as_mut_bytes())?;
+            Ok(slot)
+        }) else {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Cannot save the show in flash\n",
+            )
+                .write_to(connection, response_writer)
+                .await;
+        };
+        let playback = match admit(bytes, length) {
             Ok(playback) => playback,
-            Err(error) => {
-                return (
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    format_args!(
-                        "{}. Playback stopped; the previous saved show remains.\n",
-                        Rejection(error)
-                    ),
-                )
-                    .write_to(connection, response_writer)
-                    .await;
-            }
+            Err(error) => return rejected(error, connection, response_writer).await,
         };
         if show_slots::commit(&mut storage.shows(), slot).is_err() {
             return (
@@ -560,6 +537,26 @@ impl RequestHandlerService<LoaderState> for UploadShow {
             .write_to(connection, response_writer)
             .await
     }
+}
+
+/// Refuse a show, saying why.
+async fn rejected<
+    R: picoserve::io::Read,
+    W: picoserve::response::ResponseWriter<Error = R::Error>,
+>(
+    error: LoadError,
+    connection: picoserve::response::Connection<'_, R>,
+    response_writer: W,
+) -> Result<picoserve::ResponseSent, W::Error> {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format_args!(
+            "{}. Playback stopped; the previous saved show remains.\n",
+            Rejection(error)
+        ),
+    )
+        .write_to(connection, response_writer)
+        .await
 }
 
 /// Why a show was refused, as the editor shows it.
@@ -632,7 +629,7 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
     }
 }
 
-struct DeviceTransport(Option<transport::Mode>);
+struct DeviceTransport(Option<Action>);
 
 impl RequestHandlerService<LoaderState> for DeviceTransport {
     async fn call_request_handler_service<
@@ -648,13 +645,14 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
         let connection = request.body_connection.finalize().await?;
         let now = state.clock.lock().await.master_at(local_micros());
         let mut active = state.playback.lock().await;
-        if let Some(mode) = self.0 {
+        if let Some(action) = self.0 {
             let Some(playback) = active.as_mut() else {
                 drop(active);
                 return (StatusCode::CONFLICT, "No show is loaded\n")
                     .write_to(connection, response_writer)
                     .await;
             };
+            let mode = transport::Mode::from(action);
             let position = if mode == transport::Mode::Stopped {
                 0
             } else {
@@ -702,7 +700,7 @@ impl AppBuilder for WebApp {
     type PathRouter = impl PathRouter;
 
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
-        let transport_route = |mode| Authorized(DeviceTransport(mode));
+        let transport_route = |action| Authorized(DeviceTransport(action));
         picoserve::Router::new()
             .route(path::CLAIM, post_service(Claim))
             .route(path::SHOW, put_service(Authorized(UploadShow)))
@@ -716,15 +714,15 @@ impl AppBuilder for WebApp {
             .route(path::TRANSPORT, get_service(transport_route(None)))
             .route(
                 path::PLAY,
-                post_service(transport_route(Some(transport::Mode::Playing))),
+                post_service(transport_route(Some(Action::Play))),
             )
             .route(
                 path::PAUSE,
-                post_service(transport_route(Some(transport::Mode::Paused))),
+                post_service(transport_route(Some(Action::Pause))),
             )
             .route(
                 path::STOP,
-                post_service(transport_route(Some(transport::Mode::Stopped))),
+                post_service(transport_route(Some(Action::Stop))),
             )
             .with_state(self.state)
     }
@@ -914,7 +912,14 @@ async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
     let _output_suspension = storage::suspend_output().await;
     let mut storage = storage.lock().await;
     let restored = match show_slots::latest(&mut storage.shows()) {
-        Ok(Some(slot)) => load(&mut storage, slot).ok(),
+        Ok(Some(slot)) => allocate(slot.length)
+            .and_then(|mut bytes| {
+                storage
+                    .read_show(slot, bytes.as_mut_bytes())
+                    .map_err(|_| LoadError::Read)?;
+                admit(bytes, slot.length)
+            })
+            .ok(),
         Ok(None) => return,
         Err(_) => None,
     };
@@ -957,32 +962,6 @@ async fn erase_storage(
     esp_hal::system::software_reset();
 }
 
-async fn recover_storage(
-    uart: &mut Uart<'_, esp_hal::Async>,
-    storage: &mut storage::DeviceStorage,
-    error: &'static str,
-) -> ! {
-    let mut erase_requested = false;
-    let _ = uart_reply(uart, format_args!("DONDER ERROR {error}")).await;
-    loop {
-        let mut command = [0];
-        if uart.read_exact(&mut command).await.is_err() {
-            continue;
-        }
-        match command[0] {
-            b'R' => {
-                erase_requested = true;
-                let _ = uart_reply(uart, format_args!("DONDER RESET READY")).await;
-            }
-            b'F' if erase_requested => erase_storage(uart, storage).await,
-            _ => {
-                erase_requested = false;
-                let _ = uart_reply(uart, format_args!("DONDER ERROR {error}")).await;
-            }
-        }
-    }
-}
-
 #[esp_rtos::main]
 async fn main(spawner: embassy_executor::Spawner) -> ! {
     let mut p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
@@ -1006,26 +985,8 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         Ok(storage) => storage,
         Err(error) => storage_error(&mut uart, error).await,
     };
-    if donder_device_storage::initialize(&mut storage).is_err() {
-        recover_storage(
-            &mut uart,
-            &mut storage,
-            "Cannot mount Donder storage; erase saved data to recover",
-        )
-        .await;
-    }
-    let config = match DeviceConfig::load(&mut storage) {
-        Ok(saved) => saved.unwrap_or_else(network::default_config),
-        Err(_) => {
-            recover_storage(
-                &mut uart,
-                &mut storage,
-                "Saved configuration is damaged; data was not erased",
-            )
-            .await
-        }
-    };
-    // A reset gives the USB host a short window to request a factory reset.
+    // A reset gives the USB host a short window to request a factory reset,
+    // before saved data is read, so it also recovers damaged storage.
     let mut command = [0];
     if matches!(
         embassy_time::with_timeout(Duration::from_secs(1), uart.read_exact(&mut command)).await,
@@ -1044,6 +1005,23 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             }
         }
     }
+    if donder_device_storage::initialize(&mut storage).is_err() {
+        storage_error(
+            &mut uart,
+            "Cannot mount Donder storage; erase saved data to recover",
+        )
+        .await;
+    }
+    let config = match DeviceConfig::load(&mut storage) {
+        Ok(saved) => saved.unwrap_or_else(network::default_config),
+        Err(_) => {
+            storage_error(
+                &mut uart,
+                "Saved configuration is damaged; erase saved data to recover",
+            )
+            .await
+        }
+    };
     network::IDENTITY.lock(|identity| {
         let mut identity = identity.borrow_mut();
         identity.name = network::Name::try_from(config.name.as_str()).unwrap();

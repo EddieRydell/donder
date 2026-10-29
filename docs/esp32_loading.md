@@ -50,20 +50,22 @@ in LittleFS. Shows use two 128 KiB slots in a separate
 256 KiB partition; a slot's first 4 KiB sector is its header, so a show may be
 up to 124 KiB (`show_slots::CAPACITY`). A longer upload is refused with HTTP
 422 and the show's size and that limit. An upload:
-1. blacks out output and releases the current show;
-2. erases only the sectors of the inactive slot the show needs and streams the show into them;
-3. loads it from that slot;
-4. commits the slot only after the show loads, and replies `LOADED`.
+1. releases the current show, so its memory is free;
+2. receives the show into RAM, if it fits beside the network reserve;
+3. writes it to the inactive slot, erasing only the sectors it needs;
+4. opens it and checks it against the controller;
+5. commits the slot only after the show loads, and replies `LOADED`.
 
 A failed or interrupted upload leaves no show loaded, but the previous committed
 show stays saved. Reboot restores the newest committed slot, stopped. A saved
 show that the current firmware rejects is left in place and the controller boots
 without one; the editor uploads a current show on its next live Play.
-Concurrent uploads are rejected, and an explicit erase clears both partitions.
+An upload or configuration change waits for one in progress, and an explicit
+erase clears both partitions.
 
-The loader reads the show from its flash slot into RAM once
-(`PreparedShow::read`) and plays it there, beside its playback buffer: reading it through the flash
-cache cost Stanford `main` about a quarter of each frame. The playback stays
+The loader plays the show from RAM, beside its playback buffer, as the
+`ShowBytes` an upload or a restore filled: reading it through the flash cache
+cost Stanford `main` about a quarter of each frame. The playback stays
 open while the show plays. The show is trusted: the editor built
 it, so the loader checks only its format version. It rejects a show
 - of another format version ("prepared for another firmware format");
@@ -75,7 +77,8 @@ it, so the loader checks only its format version. It rejects a show
   number of pixels), or a higher frame rate than the outputs carry; the reason
   names those limits.
 
-About 75 KiB of heap is free for a show and its playback buffer together. The
+With no show loaded, about 77 KiB of heap is free for a show and its playback
+buffer together. The
 editor does not check a show against the controller before it uploads.
 
 A panic prints `LOADER PANIC` and its message on the serial port (not on a

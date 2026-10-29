@@ -3,7 +3,7 @@ use crate::audio::DeviceBoundary;
 use crate::device::DeviceClient;
 use crate::device::discovery::{Advertised, Advertisements, DeviceDiscovery};
 use crate::device::playback::{DeviceFailures, DevicePorts, WantedDevice};
-use donder_device_protocol::Mode;
+use donder_device_protocol::Action;
 use donder_editor::dto::{
     AppSnapshot, AudioTransportState, DonderDeviceClaim, DonderDeviceConnection,
     DonderDeviceNetworkRequest, DonderDeviceStatus, LiveOutputControllerSnapshot,
@@ -358,11 +358,7 @@ impl DesktopState {
                 "The controller has no saved show. Press Play in a sequence to upload one.".into(),
             );
         }
-        client.transport(Some(if playing {
-            Mode::Playing
-        } else {
-            Mode::Stopped
-        }))?;
+        client.transport(Some(if playing { Action::Play } else { Action::Stop }))?;
         Ok(self.update_snapshot(|snapshot| {
             snapshot.status = if playing {
                 "Controller is looping its saved show.".into()
@@ -468,7 +464,7 @@ impl DesktopState {
         duration: u32,
     ) -> Result<AppSnapshot, String> {
         let mut schedule = self.device_playback.schedule(
-            Mode::Playing,
+            Action::Play,
             seconds_to_micros(position)?,
             advancing,
             rate,
@@ -516,7 +512,7 @@ impl DesktopState {
                 self.device_audio_schedule_playing(start, None, rate, duration)?;
             }
             DeviceBoundary::Stop(home) => {
-                self.device_audio_hold_locked(Mode::Stopped, Some(home), false)?;
+                self.device_audio_hold_locked(Action::Stop, Some(home), false)?;
             }
         }
         Ok(())
@@ -524,18 +520,18 @@ impl DesktopState {
 
     pub(super) fn device_audio_hold(
         &self,
-        mode: Mode,
+        action: Action,
         position: Option<f64>,
         set_home: bool,
     ) -> Result<AppSnapshot, String> {
         let _operation = lock_unpoisoned(&self.transport_operation);
-        self.device_audio_hold_locked(mode, position, set_home)
+        self.device_audio_hold_locked(action, position, set_home)
     }
 
     /// The caller holds the transport operation lock.
     fn device_audio_hold_locked(
         &self,
-        mode: Mode,
+        action: Action,
         position: Option<f64>,
         set_home: bool,
     ) -> Result<AppSnapshot, String> {
@@ -549,11 +545,11 @@ impl DesktopState {
         let position = position.unwrap_or(audio.position_seconds);
         let rate = lock_unpoisoned(&self.audio).playback_rate();
         let mut schedule = self.device_playback.schedule(
-            mode,
+            action,
             seconds_to_micros(position)?,
             (position == audio.position_seconds
                 && matches!(audio.state, AudioTransportState::Playing)
-                && matches!(mode, Mode::Paused)
+                && matches!(action, Action::Pause)
                 && !set_home)
                 .then_some(rate),
             rate,
@@ -561,7 +557,7 @@ impl DesktopState {
             observed_at,
         )?;
         self.record_device_failures(std::mem::take(&mut schedule.failures));
-        let state = if matches!(mode, Mode::Stopped) {
+        let state = if matches!(action, Action::Stop) {
             AudioTransportState::Stopped
         } else {
             AudioTransportState::Paused

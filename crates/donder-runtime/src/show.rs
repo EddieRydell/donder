@@ -9,6 +9,41 @@ use crate::playback::{OutputFrame, Playback, SequenceFrame};
 use crate::view::{LoadError, Show};
 use crate::workspace::Layout;
 
+/// An encoded show's bytes in memory, allocated once and filled in place by
+/// whatever reads them, then opened as a [`PreparedShow`].
+pub struct ShowBytes {
+    words: Shared<[u32]>,
+    len: usize,
+}
+
+impl ShowBytes {
+    /// Room for an encoded show of `len` bytes.
+    pub fn new(len: usize) -> Self {
+        Self {
+            words: core::iter::repeat_n(0, len.div_ceil(4)).collect(),
+            len,
+        }
+    }
+
+    /// The bytes to fill, in whole 4-byte words.
+    pub fn as_mut_bytes(&mut self) -> &mut [u8] {
+        let Some(words) = Shared::get_mut(&mut self.words) else {
+            unreachable!("the words have one owner until they open")
+        };
+        bytemuck::cast_slice_mut(words)
+    }
+
+    /// The show these bytes encode.
+    pub fn open(self) -> Result<PreparedShow, LoadError> {
+        let bytes: &[u8] = bytemuck::cast_slice(&self.words);
+        let layout = Layout::of(Show::open(&bytes[..self.len])?);
+        Ok(PreparedShow {
+            words: self.words,
+            layout,
+        })
+    }
+}
+
 /// A show in memory: a sequence's, or a rig's, whose voices start and
 /// stop on commands rather than at authored times. Authoring, elaboration,
 /// networking and pin timing are external.
@@ -26,28 +61,11 @@ impl PreparedShow {
         Self { words, layout }
     }
 
-    /// Read an encoded show of `len` bytes into memory once: `fill` writes
-    /// its bytes in place, into whole 4-byte words.
-    pub fn read<E: From<LoadError>>(
-        len: usize,
-        fill: impl FnOnce(&mut [u8]) -> Result<(), E>,
-    ) -> Result<Self, E> {
-        let mut words: Shared<[u32]> = core::iter::repeat_n(0, len.div_ceil(4)).collect();
-        let Some(buffer) = Shared::get_mut(&mut words) else {
-            unreachable!("a new allocation has one owner")
-        };
-        fill(bytemuck::cast_slice_mut(buffer))?;
-        let bytes: &[u8] = bytemuck::cast_slice(&words);
-        let layout = Layout::of(Show::open(&bytes[..len])?);
-        Ok(Self { words, layout })
-    }
-
     /// Keep a copy of an encoded show of this format.
     pub fn decode(bytes: &[u8]) -> Result<Self, LoadError> {
-        Self::read(bytes.len(), |buffer| {
-            buffer[..bytes.len()].copy_from_slice(bytes);
-            Ok(())
-        })
+        let mut copy = ShowBytes::new(bytes.len());
+        copy.as_mut_bytes()[..bytes.len()].copy_from_slice(bytes);
+        copy.open()
     }
 
     /// The show's bytes, as [`Self::decode`] and the firmware accept them.

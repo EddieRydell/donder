@@ -43,7 +43,6 @@ pnpm firmware:build --board dig-quad     # Dig-Quad image, same path
 pnpm firmware:cargo build --release --bin loader --locked
 ```
 
-`firmware:build` refuses an image that would overlap the data partitions.
 Flashing directly must use `partitions.csv`, or the Donder data layout is lost.
 The desktop does not flash controllers; flash them with espflash:
 

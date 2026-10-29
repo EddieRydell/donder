@@ -78,9 +78,9 @@ impl RequestHandlerService<LoaderState> for Control {
                 clock_id,
                 command_id,
                 at_micros,
-                mode,
+                action,
                 position_micros,
-                speed,
+                rate,
                 looping,
                 show_id,
                 show_bytes,
@@ -96,29 +96,23 @@ impl RequestHandlerService<LoaderState> for Control {
                     Some(p) if p.show_id != show_id || p.show_bytes != show_bytes => {
                         Err("The show changed before scheduling")
                     }
-                    Some(_) if mode == transport::Mode::Ended => {
-                        Err("Ended is a playback status, not a command")
-                    }
                     Some(_) if at_micros < master_now + 20_000 => {
                         Err("The start deadline is too late")
                     }
-                    Some(p) => match speed.rate() {
-                        None => Err("Playback speed must be positive"),
-                        Some(rate) => {
-                            if p.transport.schedule(transport::Scheduled {
-                                id: command_id,
-                                at: at_micros,
-                                mode,
-                                position: position_micros,
-                                looping,
-                                rate,
-                            }) {
-                                Ok(())
-                            } else {
-                                Err("Stale transport command")
-                            }
+                    Some(p) => {
+                        if p.transport.schedule(transport::Scheduled {
+                            id: command_id,
+                            at: at_micros,
+                            mode: action.into(),
+                            position: position_micros,
+                            looping,
+                            rate,
+                        }) {
+                            Ok(())
+                        } else {
+                            Err("Stale transport command")
                         }
-                    },
+                    }
                 }
             }
             Command::Cancel { command_id } => {
