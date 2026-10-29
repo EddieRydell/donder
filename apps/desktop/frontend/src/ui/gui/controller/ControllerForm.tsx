@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAppStore } from "../../../store";
 import type { SetupGuiDocument, SetupGuiEdit } from "../../../types";
-import { DeviceUsbTools, useDeviceWatch } from "./DonderDevicePanel";
+import { useDeviceWatch } from "./DonderDevicePanel";
 
 type ControllerConfig = Extract<SetupGuiEdit, { type: "addController" }>["config"];
 type ControllerPorts = SetupGuiDocument["controllers"][number]["ports"];
@@ -76,6 +76,5 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDo
         <button type="submit">{controller === undefined ? "Add controller" : "Apply controller settings"}</button>
       </fieldset>
     </form>
-    {controller === undefined && config.type === "donder" && <DeviceUsbTools />}
   </>;
 }

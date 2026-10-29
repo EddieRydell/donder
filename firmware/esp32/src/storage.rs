@@ -1,70 +1,101 @@
+use core::{
+    ops::{Deref, DerefMut},
+    sync::atomic::{
+        AtomicBool,
+        Ordering::{Acquire, Release},
+    },
+};
 use donder_device_storage::{Error, Storage, consts};
+use embassy_sync::{
+    blocking_mutex::raw::CriticalSectionRawMutex,
+    mutex::{Mutex, MutexGuard},
+};
 use esp_bootloader_esp_idf::partitions::{PARTITION_TABLE_MAX_LEN, read_partition_table};
 use esp_storage::{Flash, FlashStorage};
 
-static FLASH_REQUESTED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
-static FLASH_READY: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+// On the ESP32 neither core may run code or read data from flash while flash
+// is read, written or erased, so the rendering core waits in RAM for each
+// storage access.
+static PAUSE_REQUESTED: AtomicBool = AtomicBool::new(false);
+static PAUSED: AtomicBool = AtomicBool::new(false);
 
-/// The rendering core waits in an IRAM loop until this is dropped.
-pub(crate) struct OutputSuspension;
+pub(crate) type SharedStorage = Mutex<CriticalSectionRawMutex, DeviceStorage>;
 
-impl Drop for OutputSuspension {
+#[esp_hal::ram(unstable(rtc_slow, persistent))]
+#[unsafe(export_name = "DONDER_FLASH_MARKS")]
+pub(crate) static mut MARKS: [u32; 4] = [0; 4];
+#[inline(always)]
+pub(crate) fn mark(index: usize, value: u32) {
+    unsafe { core::ptr::write_volatile((&raw mut MARKS).cast::<u32>().add(index), value) }
+}
+
+/// Storage, usable while the rendering core waits in RAM.
+pub(crate) struct Access<'a>(MutexGuard<'a, CriticalSectionRawMutex, DeviceStorage>);
+
+/// Pause the rendering core, then lend the storage.
+pub(crate) async fn access(storage: &SharedStorage) -> Access<'_> {
+    let guard = storage.lock().await;
+    // The previous access ends only once the rendering core has left its wait.
+    while PAUSED.load(Acquire) {
+        embassy_time::Timer::after_micros(100).await;
+    }
+    mark(0, 7);
+    PAUSE_REQUESTED.store(true, Release);
+    while !PAUSED.load(Acquire) {
+        embassy_time::Timer::after_micros(100).await;
+    }
+    mark(0, 8);
+    Access(guard)
+}
+
+impl Drop for Access<'_> {
     fn drop(&mut self) {
-        FLASH_REQUESTED.store(false, core::sync::atomic::Ordering::Release);
+        PAUSE_REQUESTED.store(false, Release);
     }
 }
 
-/// Keep the rendering core in an interrupt-free IRAM loop while flash is used.
-/// Hardware parking alone can freeze an outstanding cache fill indefinitely.
-pub(crate) async fn suspend_output() -> OutputSuspension {
-    use core::sync::atomic::Ordering::{Acquire, Release};
-    // A previous suspension must finish its exit before a new request can
-    // trust the acknowledgment for this one.
-    while FLASH_READY.load(Acquire) {
-        embassy_time::Timer::after_micros(100).await;
+impl Deref for Access<'_> {
+    type Target = DeviceStorage;
+    fn deref(&self) -> &DeviceStorage {
+        &self.0
     }
-    FLASH_REQUESTED.store(true, Release);
-    while !FLASH_READY.load(Acquire) {
-        embassy_time::Timer::after_micros(100).await;
-    }
-    OutputSuspension
 }
 
-pub(crate) fn flash_requested() -> bool {
-    FLASH_REQUESTED.load(core::sync::atomic::Ordering::Acquire)
+impl DerefMut for Access<'_> {
+    fn deref_mut(&mut self) -> &mut DeviceStorage {
+        &mut self.0
+    }
 }
 
+/// Called by the rendering core between frames, holding no locks.
+pub(crate) fn pause_requested() -> bool {
+    PAUSE_REQUESTED.load(Acquire)
+}
+
+/// Wait in RAM, with this core's interrupts masked, until the access ends.
 #[esp_hal::ram]
-pub(crate) fn flash_checkpoint() {
-    use core::sync::atomic::Ordering::{Acquire, Release};
-    if !FLASH_REQUESTED.load(Acquire) {
-        return;
-    }
-    let previous_ps: u32;
-    // Safety: called on core 1 between completed DMA transfers, with no mutex
-    // guard held. The entire wait is IRAM and must not enter a flash-resident ISR.
-    unsafe { core::arch::asm!("rsil {0}, 5", out(reg) previous_ps, options(nostack)) };
-    FLASH_READY.store(true, Release);
-    while FLASH_REQUESTED.load(Acquire) {
-        core::hint::spin_loop();
-    }
-    FLASH_READY.store(false, Release);
-    unsafe { core::arch::asm!("wsr.ps {0}", "rsync", in(reg) previous_ps, options(nostack)) };
+pub(crate) fn pause() {
+    xtensa_lx::interrupt::free(|| {
+        PAUSED.store(true, Release);
+        while PAUSE_REQUESTED.load(Acquire) {
+            core::hint::spin_loop();
+        }
+        PAUSED.store(false, Release);
+    });
 }
 
+/// The Donder data and show partitions.
 pub(crate) struct DeviceStorage {
+    flash: FlashStorage<'static>,
     offset: u32,
     show_offset: u32,
 }
 
-// LittleFS provides byte buffers; the SDK low-level reads require word alignment.
-// read_nor reserves a 4 KiB frame even on its aligned path in this build.
-#[repr(align(4))]
-struct AlignedBytes([u8; 256]);
-
 impl DeviceStorage {
     pub(crate) fn new(peripheral: Flash<'static>) -> Result<Self, &'static str> {
-        let mut flash = FlashStorage::new(peripheral).multicore_auto_park();
+        // Safety: the rendering core starts after boot storage use and waits
+        // in RAM through every later access.
+        let mut flash = unsafe { FlashStorage::new(peripheral).multicore_ignore() };
         let mut bytes = alloc::vec![0; PARTITION_TABLE_MAX_LEN];
         let table =
             read_partition_table(&mut flash, &mut bytes).map_err(|_| "Invalid partition table")?;
@@ -75,22 +106,53 @@ impl DeviceStorage {
                 .find(|entry| entry.label_as_str() == label && entry.len() as usize == len)
                 .map(|entry| entry.offset())
         };
+        let offset = partition("donder", Self::BLOCK_COUNT * Self::BLOCK_SIZE)
+            .ok_or("Install the controller firmware with its Donder data partition")?;
+        let show_offset = partition("shows", donder_device_storage::show_slots::PARTITION_BYTES)
+            .ok_or("Install the controller firmware with its show partition")?;
         Ok(Self {
-            offset: partition("donder", Self::BLOCK_COUNT * Self::BLOCK_SIZE)
-                .ok_or("Install the controller firmware with its Donder data partition")?,
-            show_offset: partition("shows", donder_device_storage::show_slots::PARTITION_BYTES)
-                .ok_or("Install the controller firmware with its show partition")?,
+            flash,
+            offset,
+            show_offset,
         })
     }
 
-    fn address(&self, offset: usize, length: usize) -> Result<u32, Error> {
-        if offset
-            .checked_add(length)
-            .is_none_or(|end| end > Self::BLOCK_COUNT * Self::BLOCK_SIZE)
-        {
-            return Err(Error::INVALID);
-        }
-        Ok(self.offset + offset as u32)
+    pub(crate) fn shows(&mut self) -> Shows<'_> {
+        Shows(self)
+    }
+
+    /// Read the slot's show into `bytes`, where playback reads it.
+    pub(crate) fn read_show(
+        &mut self,
+        slot: donder_device_storage::show_slots::Slot,
+        bytes: &mut [u8],
+    ) -> Result<(), Error> {
+        self.shows().read(slot.data_offset(), bytes).map(|_| ())
+    }
+
+    fn read_at(&mut self, address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
+        mark(0, 1);
+        self.flash.read_nor(address, bytes).map_err(|_| Error::IO)?;
+        mark(0, 2);
+        Ok(bytes.len())
+    }
+
+    fn write_at(&mut self, address: u32, bytes: &[u8]) -> Result<usize, Error> {
+        mark(0, 3);
+        self.flash
+            .write_nor(address, bytes)
+            .map_err(|_| Error::IO)?;
+        mark(0, 4);
+        Ok(bytes.len())
+    }
+
+    fn erase_at(&mut self, address: u32, length: usize) -> Result<usize, Error> {
+        mark(0, 5);
+        self.flash
+            .erase(address, address + length as u32)
+            .map_err(|_| Error::IO)?;
+        mark(0, 6);
+        Ok(length)
     }
 }
 
@@ -104,47 +166,18 @@ impl Storage for DeviceStorage {
     type LOOKAHEAD_SIZE = consts::U1;
 
     fn read(&mut self, offset: usize, bytes: &mut [u8]) -> Result<usize, Error> {
-        read_flash(self.address(offset, bytes.len())?, bytes)
+        self.read_at(self.offset + offset as u32, bytes)
     }
     fn write(&mut self, offset: usize, bytes: &[u8]) -> Result<usize, Error> {
-        let address = self.address(offset, bytes.len())?;
-        write_flash(address, bytes)
+        self.write_at(self.offset + offset as u32, bytes)
     }
     fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
-        erase_flash(self.address(offset, length)?, length)
-    }
-}
-
-impl DeviceStorage {
-    pub(crate) fn shows(&mut self) -> Shows<'_> {
-        Shows(self)
-    }
-    /// Read the slot's show into `bytes`, where playback reads it.
-    pub(crate) fn read_show(
-        &mut self,
-        slot: donder_device_storage::show_slots::Slot,
-        bytes: &mut [u8],
-    ) -> Result<(), Error> {
-        let mut shows = self.shows();
-        for (index, chunk) in bytes.chunks_mut(1024).enumerate() {
-            shows.read(slot.data_offset() + index * 1024, chunk)?;
-        }
-        Ok(())
+        self.erase_at(self.offset + offset as u32, length)
     }
 }
 
 pub(crate) struct Shows<'a>(&'a mut DeviceStorage);
-impl Shows<'_> {
-    fn address(&self, offset: usize, length: usize) -> Result<u32, Error> {
-        if offset
-            .checked_add(length)
-            .is_none_or(|end| end > donder_device_storage::show_slots::PARTITION_BYTES)
-        {
-            return Err(Error::INVALID);
-        }
-        Ok(self.0.show_offset + offset as u32)
-    }
-}
+
 impl Storage for Shows<'_> {
     const READ_SIZE: usize = 4;
     const WRITE_SIZE: usize = 4;
@@ -153,139 +186,14 @@ impl Storage for Shows<'_> {
     const BLOCK_CYCLES: isize = -1;
     type CACHE_SIZE = consts::U256;
     type LOOKAHEAD_SIZE = consts::U1;
+
     fn read(&mut self, offset: usize, bytes: &mut [u8]) -> Result<usize, Error> {
-        read_flash(self.address(offset, bytes.len())?, bytes)
+        self.0.read_at(self.0.show_offset + offset as u32, bytes)
     }
     fn write(&mut self, offset: usize, bytes: &[u8]) -> Result<usize, Error> {
-        let address = self.address(offset, bytes.len())?;
-        write_flash(address, bytes)
+        self.0.write_at(self.0.show_offset + offset as u32, bytes)
     }
     fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
-        erase_flash(self.address(offset, length)?, length)
-    }
-}
-
-fn read_flash(address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
-    // The ESP32 ROM reader also operates on the shared flash/cache hardware.
-    // Protect it just like writes, including slot checksums while rendering.
-    flash_critical(|| with_other_core_parked(|| read_flash_parked(address, bytes)))
-}
-
-fn read_flash_parked(address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
-    let mut scratch = AlignedBytes([0; 256]);
-    for (index, chunk) in bytes.chunks_mut(256).enumerate() {
-        // Safety: callers validated partition bounds, and both the scratch buffer
-        // and each read's address/length satisfy the SDK's word alignment rules.
-        unsafe {
-            esp_storage::ll::spiflash_read(
-                address + (index * 256) as u32,
-                scratch.0.as_mut_ptr().cast(),
-                chunk.len() as u32,
-            )
-        }
-        .map_err(|_| Error::IO)?;
-        chunk.copy_from_slice(&scratch.0[..chunk.len()]);
-    }
-    Ok(bytes.len())
-}
-fn write_flash(address: u32, bytes: &[u8]) -> Result<usize, Error> {
-    // Acquire the cross-core critical section before parking: a frozen core
-    // must not own that lock, and the scheduler must not run while it is frozen.
-    flash_critical(|| write_flash_parked(address, bytes))
-}
-
-/// Erase the 4 KiB sectors of `length` bytes from `address`, a sector boundary.
-fn erase_flash(address: u32, length: usize) -> Result<usize, Error> {
-    flash_critical(|| {
-        with_other_core_parked(|| {
-            // Safety: callers validated bounds; the other core is parked above.
-            unsafe { esp_storage::ll::spiflash_unlock() }.map_err(|_| Error::IO)?;
-            for sector in (address..address + length as u32).step_by(4096) {
-                unsafe { esp_storage::ll::spiflash_erase_sector(sector / 4096) }
-                    .map_err(|_| Error::IO)?;
-            }
-            Ok(length)
-        })
-    })
-}
-
-fn flash_critical<T>(operation: impl FnOnce() -> T) -> T {
-    embassy_sync::blocking_mutex::raw::RawMutex::lock(
-        &embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex::new(),
-        operation,
-    )
-}
-
-fn write_flash_parked(address: u32, bytes: &[u8]) -> Result<usize, Error> {
-    // Use the SDK's same automatic parking policy with its aligned low-level
-    // writer. write_nor reserves a 4-KiB scratch frame even for aligned inputs.
-    with_other_core_parked(|| {
-        // Safety: callers validated bounds; these existing SDK routines provide
-        // their normal interrupt protection. The other core is parked above.
-        unsafe { esp_storage::ll::spiflash_unlock() }.map_err(|_| Error::IO)?;
-        let mut scratch = AlignedBytes([0; 256]);
-        for (index, chunk) in bytes.chunks(256).enumerate() {
-            scratch.0[..chunk.len()].copy_from_slice(chunk);
-            unsafe {
-                esp_storage::ll::spiflash_write(
-                    address + (index * 256) as u32,
-                    scratch.0.as_ptr().cast(),
-                    chunk.len() as u32,
-                )
-            }
-            .map_err(|_| Error::IO)?;
-        }
-        Ok(bytes.len())
-    })
-}
-
-// Call only while the cross-core critical section is held.
-fn with_other_core_parked<T>(operation: impl FnOnce() -> T) -> T {
-    use esp_hal::system::{Cpu, CpuControl, is_running};
-    let mut cpu = CpuControl::new(unsafe { esp_hal::peripherals::CPU_CTRL::steal() });
-    let other = Cpu::other().find(|&core| is_running(core));
-    if let Some(other) = other {
-        // Safety: Cpu::other excludes the executing core; storage has one owner.
-        unsafe { cpu.park_core(other) };
-    }
-    // Hardware-stalling a core does not stop its outstanding cache fill.
-    // Wait for and disable that cache before ROM SPI operations disturb the
-    // shared flash hardware; restore it before allowing the core to continue.
-    let app_cache = unsafe { disable_app_cache() };
-    let result = operation();
-    unsafe { restore_app_cache(app_cache) };
-    if let Some(other) = other {
-        cpu.unpark_core(other);
-    }
-    result
-}
-
-#[esp_hal::ram]
-unsafe fn disable_app_cache() -> bool {
-    unsafe extern "C" {
-        fn Cache_Read_Disable_rom(cpu: u32);
-    }
-    let enabled = esp_hal::peripherals::DPORT::regs()
-        .app_cache_ctrl()
-        .read()
-        .app_cache_enable()
-        .bit();
-    if enabled {
-        unsafe { Cache_Read_Disable_rom(1) };
-    }
-    enabled
-}
-
-#[esp_hal::ram]
-unsafe fn restore_app_cache(enabled: bool) {
-    unsafe extern "C" {
-        fn Cache_Flush_rom(cpu: u32);
-        fn Cache_Read_Enable_rom(cpu: u32);
-    }
-    if enabled {
-        unsafe {
-            Cache_Flush_rom(1);
-            Cache_Read_Enable_rom(1);
-        }
+        self.0.erase_at(self.0.show_offset + offset as u32, length)
     }
 }

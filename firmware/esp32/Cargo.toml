@@ -23,7 +23,8 @@ unreachable_pub = "warn"
 # Supply only littlefs's two string routines absent from the ESP32 ROM bindings.
 tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"] }
 donder-device-storage = { path = "crates/donder-device-storage" }
-esp-storage = { version = "0.10.0", features = ["esp32"] }
+esp-storage = { version = "0.10.0", features = ["esp32", "critical-section"] }
+xtensa-lx = "0.13.0"
 esp-radio = { version = "1.0.0-beta.0", features = ["esp32", "wifi", "unstable"] }
 esp-rtos = { version = "0.4.0", features = ["esp32", "esp-radio", "embassy", "esp-alloc"] }
 embassy-executor = { version = "0.10.0" }
@@ -52,14 +53,15 @@ esp-bootloader-esp-idf = { version = "0.6.0", features = ["esp32"] }
 # Keep the SDK on one source so every radio/runtime package uses the same HAL.
 # Remove these patches together once a compatible radio stack is published.
 [patch.crates-io]
-esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-esp-radio = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-esp-rtos = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-esp-radio-rtos-driver = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-esp-alloc = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-esp-println = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-esp-storage = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
+esp-hal = { path = "../../target/esp-hal-local/esp-hal" }
+esp-radio = { path = "../../target/esp-hal-local/esp-radio" }
+esp-rtos = { path = "../../target/esp-hal-local/esp-rtos" }
+esp-radio-rtos-driver = { path = "../../target/esp-hal-local/esp-radio-rtos-driver" }
+esp-alloc = { path = "../../target/esp-hal-local/esp-alloc" }
+esp-println = { path = "../../target/esp-hal-local/esp-println" }
+esp-bootloader-esp-idf = { path = "../../target/esp-hal-local/esp-bootloader-esp-idf" }
+esp-storage = { path = "../../target/esp-hal-local/esp-storage" }
+xtensa-lx = { path = "../../target/esp-hal-local/xtensa-lx" }
 
 [profile.release]
 opt-level = 3

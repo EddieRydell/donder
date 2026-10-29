@@ -154,12 +154,11 @@ fn torn_replacement_keeps_a_complete_old_or_new_record() {
 }
 
 #[test]
-fn damaged_partition_is_not_automatically_formatted() {
+fn damaged_partition_is_formatted() {
     let mut flash = Flash::blank();
     flash.bytes[8000] = 0;
-    let before = flash.bytes.clone();
-    assert!(initialize(&mut flash).is_err());
-    assert_eq!(flash.bytes, before);
+    initialize(&mut flash).unwrap();
+    assert!(read(&mut flash).unwrap().is_none());
 }
 
 #[test]
@@ -198,18 +197,4 @@ fn device_config_roundtrip() {
         "home"
     );
     assert!(Network::from_json(br#"{"ssid":"home","password":"short"}"#).is_err());
-}
-
-#[test]
-fn explicit_erase_recovers_corruption_and_removes_all_saved_records() {
-    let mut flash = Flash::blank();
-    initialize(&mut flash).unwrap();
-    write(&mut flash, b"device").unwrap();
-    flash.bytes[..4096].fill(0);
-    flash.bytes[4096..8192].fill(0);
-    assert!(initialize(&mut flash).is_err());
-    erase_all(&mut flash).unwrap();
-    assert!(flash.bytes.iter().all(|&byte| byte == 0xff));
-    initialize(&mut flash).unwrap();
-    assert!(read(&mut flash).unwrap().is_none());
 }

@@ -520,6 +520,7 @@ dependencies = [
  "picoserve",
  "static_cell",
  "tinyrlibc",
+ "xtensa-lx",
 ]
 
 [[package]]
@@ -896,7 +897,6 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "esp-alloc"
 version = "0.11.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "allocator-api2",
  "document-features",
@@ -911,7 +911,6 @@ dependencies = [
 [[package]]
 name = "esp-bootloader-esp-idf"
 version = "0.6.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "esp-config",
@@ -927,7 +926,6 @@ dependencies = [
 [[package]]
 name = "esp-config"
 version = "0.8.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "esp-metadata-generated",
@@ -939,7 +937,6 @@ dependencies = [
 [[package]]
 name = "esp-hal"
 version = "1.2.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "bitfield",
  "bytemuck",
@@ -1001,7 +998,6 @@ dependencies = [
 [[package]]
 name = "esp-hal-procmacros"
 version = "0.23.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "proc-macro-crate",
@@ -1014,12 +1010,10 @@ dependencies = [
 [[package]]
 name = "esp-metadata-generated"
 version = "0.5.1"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 
 [[package]]
 name = "esp-phy"
 version = "0.2.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "embassy-sync 0.8.0",
@@ -1034,7 +1028,6 @@ dependencies = [
 [[package]]
 name = "esp-println"
 version = "0.18.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "esp-metadata-generated",
@@ -1045,7 +1038,6 @@ dependencies = [
 [[package]]
 name = "esp-radio"
 version = "1.0.0-beta.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "allocator-api2",
  "docsplay",
@@ -1081,7 +1073,6 @@ dependencies = [
 [[package]]
 name = "esp-radio-rtos-driver"
 version = "0.4.1"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "esp-sync",
  "portable-atomic",
@@ -1090,7 +1081,6 @@ dependencies = [
 [[package]]
 name = "esp-riscv-rt"
 version = "0.15.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "riscv",
@@ -1100,7 +1090,6 @@ dependencies = [
 [[package]]
 name = "esp-rom-sys"
 version = "0.1.5"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "esp-metadata-generated",
@@ -1110,7 +1099,6 @@ dependencies = [
 [[package]]
 name = "esp-rtos"
 version = "0.4.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "allocator-api2",
  "defmt",
@@ -1135,7 +1123,6 @@ dependencies = [
 [[package]]
 name = "esp-storage"
 version = "0.10.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "esp-hal",
@@ -1149,7 +1136,6 @@ dependencies = [
 [[package]]
 name = "esp-sync"
 version = "0.3.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "embassy-sync 0.6.2",
@@ -2426,7 +2412,6 @@ dependencies = [
 [[package]]
 name = "xtensa-lx"
 version = "0.13.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "critical-section",
 ]
@@ -2434,7 +2419,6 @@ dependencies = [
 [[package]]
 name = "xtensa-lx-rt"
 version = "0.23.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "document-features",
  "xtensa-lx",
@@ -2444,7 +2428,6 @@ dependencies = [
 [[package]]
 name = "xtensa-lx-rt-proc-macros"
 version = "0.5.0"
-source = "git+https://github.com/esp-rs/esp-hal?rev=0eb3e53b4a2e555d2136ce9dc83e18c6692b9673#0eb3e53b4a2e555d2136ce9dc83e18c6692b9673"
 dependencies = [
  "proc-macro2",
  "quote",

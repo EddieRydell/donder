@@ -1,6 +1,5 @@
 pub(crate) mod discovery;
 pub(crate) mod playback;
-pub(crate) mod provisioning;
 
 use donder_device_protocol::{Action, LOADED, TOKEN_HEADER, TransportStatus, path};
 use donder_editor::dto::DonderDeviceNetworkRequest;

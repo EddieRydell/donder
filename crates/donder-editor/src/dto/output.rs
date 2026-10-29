@@ -64,13 +64,6 @@ pub struct Point3Meters {
     pub z_meters: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceSerialPort {
-    pub path: String,
-    pub label: String,
-}
-
 /// A Donder controller seen on the network, merged with this editor's claim
 /// and live-output connection.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
