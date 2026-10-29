@@ -103,7 +103,7 @@ function main() {
   }
   // Check packaging tooling before starting a potentially lengthy build.
   run('espflash', ['--version']);
-  run('cargo', ['+esp', 'build', '--release', '--bin', 'loader', '--features', digQuad ? 'dig-quad' : 'i2s-output', '--locked']);
+  run('cargo', ['+esp', 'build', '--release', '--bin', 'loader', ...(digQuad ? ['--features', 'dig-quad'] : []), '--locked']);
   checkInstructionRamPlacement(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-nm.exe' : 'xtensa-esp32-elf-nm'));
   checkRuntimeWidth(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-objdump.exe' : 'xtensa-esp32-elf-objdump'));
   const output = join(root, 'target/firmware');

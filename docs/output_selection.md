@@ -42,7 +42,7 @@ Elaboration resolves authored output selections and retained pixel domains befor
 calling the runtime-owned builder. The builder assigns dense storage from those
 domains; per-frame evaluation has no device-selection branches, alternate executor,
 or fragment type. `ShowPlayback` owns the prepared
-image and its playback buffer together. `evaluate` returns borrowed
+show and its playback buffer together. `evaluate` returns borrowed
 frame views directly, so the caller cannot mismatch a sequence and workspace.
 
 An empty selection produces no outputs or retained fixture/effect data. An
@@ -51,7 +51,7 @@ selection cannot be resolved: for example, a missing sequence, a controller or
 port outside the active setup, or a sequence targeting another layout. Internal
 preparation failures must not be disguised as an absent selection. Accepted
 preparation and playback do not return ordinary errors. Text loading and checked
-GUI edits remain validation boundaries. A show image is trusted: only the builder writes
+GUI edits remain validation boundaries. A show is trusted: only the builder writes
 it, and its records refer only to one another. Memory exhaustion and other system
 resource failures are outside this guarantee.
 
@@ -67,9 +67,9 @@ modules are not alternate entry points. The boundaries have different contracts:
 | Elaboration | Accepted project plus selection to `Option<PreparedShow>` | Resolving the selection, not repeating text validation |
 | Runtime construction | Accepted inputs and builder-issued handles to a private sequence | Handles preserve graph/storage ownership |
 | Playback | Owned sequence plus sample time to borrowed frame views | No ordinary failure; scratch storage cannot be paired with another sequence |
-| Image opening | Image bytes to a borrowed `Image` | The format version only; the image is trusted |
+| Show opening | Show bytes to an owned `PreparedShow` | The format version only; the show is trusted |
 
-Image records are runtime-private: callers build them only through the builder
+Show records are runtime-private: callers build them only through the builder
 and read them through accessors. The builder asserts the playback limits: at most 16
 frame buffers at once, 16 state buffers and 8 scans per program.
 
@@ -89,14 +89,14 @@ effects query marks and curve crossings inside that same sample program.
 
 Runtime's `lib.rs` is its only public facade. It exposes sequence playback and
 read-only frames/metadata, prepared clip sampling, the owner-bound sequence
-constructor, and image encoding and opening. It does not re-export language types
+constructor, and show encoding and opening. It does not re-export language types
 or expose the VM, raw instruction execution, binding caches, registers, signal
 providers or caller-managed execution workspaces. Mathematical sampling primitives
 shared with authoring live in `donder-runtime-types`; VM instruction execution
 stays in runtime.
-Image opening stays with the private record layouts, separate from project IO,
+Show opening stays with the private record layouts, separate from project IO,
 network transport and device storage. Opening fails only for another format
-version; playback is infallible.
+version or input shorter than the header; playback is infallible.
 
 In elaboration, `selection.rs` resolves identities and output ordering, while
 `sequence.rs` lowers accepted fixtures and effects. Its `composition`

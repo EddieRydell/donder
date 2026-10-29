@@ -322,7 +322,7 @@ impl DesktopState {
         let Some(session) = self.project_session() else {
             return Ok(crate::preview::PreviewContent {
                 instances: Vec::new(),
-                image: None,
+                show: None,
                 performance: None,
             });
         };
@@ -333,7 +333,7 @@ impl DesktopState {
             }
             return Ok(crate::preview::PreviewContent {
                 instances: geometry.instances,
-                image: Some(performance.image),
+                show: Some(performance.show),
                 performance: Some(performance.generation),
             });
         }
@@ -348,7 +348,7 @@ impl DesktopState {
 
         Ok(crate::preview::PreviewContent {
             instances: geometry.instances,
-            image: sequence.map(|sequence| sequence.bytes),
+            show: sequence.map(|sequence| sequence.bytes),
             performance: None,
         })
     }

@@ -179,10 +179,10 @@ impl Single {
                 Some(builder.operator(program, |_| layer))
             }
         });
-        let image = sequence.image();
-        let (program, params) = match image.s.clips.first() {
+        let show = sequence.show();
+        let (program, params) = match show.s.clips.first() {
             Some(effect) => (effect.program, effect.params),
-            None => (image.s.nodes[1].program, image.s.nodes[1].params),
+            None => (show.s.nodes[1].program, show.s.nodes[1].params),
         };
         Self {
             sequence,
@@ -198,8 +198,8 @@ impl Single {
         workspace: &mut StripWorkspace,
         run: impl FnOnce(&mut Strip<'_, '_>) -> R,
     ) -> R {
-        let image = self.sequence.image();
-        let program = image.program(self.program);
+        let show = self.sequence.show();
+        let program = show.program(self.program);
         let mut slots = StripSlots::default();
         slots.include(program);
         let mut size = Size::default();
@@ -209,9 +209,9 @@ impl Single {
         let mut arena = Carve::new(bytemuck::cast_slice_mut(&mut workspace.buffer));
         let mut strip_workspace = slots.carve(&mut arena).unwrap();
         let bound = Bound {
-            image,
+            show,
             program,
-            params: ParamsView::image(image, self.params),
+            params: ParamsView::show(show, self.params),
             sections: None,
         };
         let mut strip = Strip::new(bound, context, &mut strip_workspace);

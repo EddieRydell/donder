@@ -120,7 +120,7 @@ impl DesktopState {
         Ok((session, id, prepared))
     }
 
-    pub(crate) fn prepare_image_export(
+    pub(crate) fn prepare_show_export(
         &self,
         request: &GuiDocumentRequest,
         selected: &[u32],

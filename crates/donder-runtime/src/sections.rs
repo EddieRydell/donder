@@ -3,7 +3,7 @@
 //! numbering.
 use crate::format::{self, SectionPixel};
 
-use crate::image::Image;
+use crate::view::Show;
 
 pub(crate) fn normalize_width(width: f32) -> u32 {
     libm::floorf(width.max(1.0)) as u32
@@ -20,8 +20,8 @@ pub(crate) struct SectionsView<'a> {
 
 impl<'a> SectionsView<'a> {
     #[inline(never)]
-    pub(crate) fn of(image: Image<'a>, target: &'a format::Target) -> Self {
-        let s = &image.s;
+    pub(crate) fn of(show: Show<'a>, target: &'a format::Target) -> Self {
+        let s = &show.s;
         let (spans, pixels) = if target.section_kind == format::PIXELS_RUNS {
             (target.section_pixels.get(s.section_spans), &[][..])
         } else {

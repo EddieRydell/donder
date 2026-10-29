@@ -110,7 +110,7 @@ The user guides are also published at
 
 ## Status
 
-Donder is pre-release and moving fast. Project and image formats change
+Donder is pre-release and moving fast. Project and show formats change
 without migrations for now.
 
 Donder is currently very un user friendly. A lot of the UI is very vibe coded but I'm

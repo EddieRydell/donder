@@ -39,7 +39,7 @@ impl PlaybackRate {
         }
     }
 
-    /// Image microseconds that elapse per wall second; 1_000_000 is normal speed.
+    /// Show microseconds that elapse per wall second; 1_000_000 is normal speed.
     pub const fn show_micros_per_second(self) -> NonZeroU32 {
         self.show_micros_per_second
     }
@@ -52,7 +52,7 @@ impl PlaybackRate {
         self.show_micros_per_second.get() as f32 / MICROS_PER_SECOND as f32
     }
 
-    /// Image microseconds covered by `wall` elapsed microseconds.
+    /// Show microseconds covered by `wall` elapsed microseconds.
     pub fn show_elapsed(self, wall: u32) -> u32 {
         scale(wall, self.show_micros_per_second.get(), MICROS_PER_SECOND)
     }
@@ -67,7 +67,7 @@ impl PlaybackRate {
         scale(position, frame_rate, self.frame_grid_divisor())
     }
 
-    /// Image time at which rendered frame `frame` begins, rounded up.
+    /// Show time at which rendered frame `frame` begins, rounded up.
     pub fn frame_start(self, frame: u32, frame_rate: u32) -> u32 {
         scale_ceil(frame, self.frame_grid_divisor(), frame_rate.max(1))
     }

@@ -3,11 +3,11 @@
 //! curve windows into their own buffers. A rig's controls replace a binding's
 //! curve with a constant from when they are set.
 use crate::format::{self, CrossingSegment, CurvePoint};
-use crate::image::Image;
 use crate::resources::{
     LiveView, ParamsView, ResourceList, ResourceSlot, STORE_LIVE, STORE_WINDOW, WindowState,
     curve_crossings,
 };
+use crate::view::Show;
 use bytemuck::{Pod, Zeroable};
 use donder_runtime_types::sampling::{
     curve_area, curve_prefix_areas, curve_slopes, sample_curve_points,
@@ -38,10 +38,10 @@ pub(crate) struct Scratch<'w> {
 
 /// What an invocation needs of the scratch: words, resources, curve windows
 /// and window points.
-pub(crate) fn shape(image: Image<'_>, plan: u32, params: u32) -> [usize; 4] {
-    let s = &image.s;
+pub(crate) fn shape(show: Show<'_>, plan: u32, params: u32) -> [usize; 4] {
+    let s = &show.s;
     let set = &s.param_sets[params as usize];
-    let (windows, points) = match image.plan(plan) {
+    let (windows, points) = match show.plan(plan) {
         Some(plan) => (
             plan.windows.len as usize,
             plan.windows
@@ -69,20 +69,20 @@ pub(crate) struct ParamsRef {
     pub(crate) origin: u32,
 }
 
-/// The invocation's parameters at `time`: the image's when nothing rewrites
+/// The invocation's parameters at `time`: the show's when nothing rewrites
 /// them, or the scratch copy with automation and live marks applied.
 /// `overrides` are the controls of the plan's bindings, or empty.
 pub(crate) fn params<'s>(
-    image: Image<'s>,
+    show: Show<'s>,
     scratch: &'s mut Scratch<'_>,
     params_ref: ParamsRef,
     time: SampleTime,
     overrides: &[Override],
     live: LiveView<'s>,
 ) -> ParamsView<'s> {
-    let s = &image.s;
-    let Some(plan) = image.plan(params_ref.plan) else {
-        return ParamsView::image(image, params_ref.params);
+    let s = &show.s;
+    let Some(plan) = show.plan(params_ref.plan) else {
+        return ParamsView::show(show, params_ref.params);
     };
     let set = &s.param_sets[params_ref.params as usize];
     let words = set.words.len as usize;
@@ -93,7 +93,7 @@ pub(crate) fn params<'s>(
         .iter_mut()
         .zip(set.resources.get(s.resources))
     {
-        *slot = ResourceSlot::image(*resource);
+        *slot = ResourceSlot::show(*resource);
     }
     let mut start = 0;
     for (index, window) in plan.windows.get(s.windows).iter().enumerate() {
@@ -114,7 +114,7 @@ pub(crate) fn params<'s>(
     }
     let window_count = plan.windows.len as usize;
     let point_count = start as usize;
-    apply(image, scratch, plan, params_ref.origin, time, overrides);
+    apply(show, scratch, plan, params_ref.origin, time, overrides);
     ParamsView {
         words: &scratch.words[..words],
         resources: ResourceList::Slots(&scratch.resources[..resources]),
@@ -130,14 +130,14 @@ pub(crate) fn params<'s>(
 /// Apply the plan's bindings in authored order, so the last binding of a
 /// parameter wins.
 fn apply(
-    image: Image<'_>,
+    show: Show<'_>,
     scratch: &mut Scratch<'_>,
     plan: &format::Automation,
     origin: u32,
     time: SampleTime,
     overrides: &[Override],
 ) {
-    let s = &image.s;
+    let s = &show.s;
     let ticks = time.as_ticks();
     for (binding, record) in plan.bindings.get(s.bindings).iter().enumerate() {
         let item = overrides.get(binding).copied().unwrap_or_default();
@@ -147,7 +147,7 @@ fn apply(
             if item.active != 0 {
                 item.value
             } else {
-                sample_curve_points(image.curve(record.curve).points, position)
+                sample_curve_points(show.curve(record.curve).points, position)
             }
         };
         let destination = record.destination as usize;
@@ -161,7 +161,7 @@ fn apply(
                 // applies and the area is exact.
                 let span = record.duration as f32;
                 let at = |tick: u32| ticks_between(record.start, tick) / span;
-                let area = area(image, record, &item, at(origin), at(ticks)) + item.area_offset;
+                let area = area(show, record, &item, at(origin), at(ticks)) + item.area_offset;
                 let elapsed = ticks_between(origin, ticks) * SECONDS_PER_TICK;
                 let seconds = span * SECONDS_PER_TICK;
                 scratch.words[destination] =
@@ -199,7 +199,7 @@ fn apply(
                 let source = if item.active != 0 {
                     &constant[..]
                 } else {
-                    image.curve(record.curve).points
+                    show.curve(record.curve).points
                 };
                 let len = curve_window_points(
                     &mut scratch.points[range.clone()],
@@ -222,7 +222,7 @@ fn apply(
 /// Make `binding` of `plan` hold `value` (in `0..=1`) from `time` on. An
 /// integral keeps the area it had reached.
 pub(crate) fn set_value(
-    image: Image<'_>,
+    show: Show<'_>,
     plan: &format::Automation,
     overrides: &mut [Override],
     binding: usize,
@@ -230,14 +230,14 @@ pub(crate) fn set_value(
     time: SampleTime,
     origin: u32,
 ) {
-    let Some(record) = plan.bindings.get(image.s.bindings).get(binding) else {
+    let Some(record) = plan.bindings.get(show.s.bindings).get(binding) else {
         return;
     };
     let position = |at: u32| ticks_between(record.start, at) / record.duration as f32;
     let integral = record.kind == format::BINDING_FLOAT_INTEGRAL;
     let before = integral.then(|| {
         area(
-            image,
+            show,
             record,
             &overrides[binding],
             position(origin),
@@ -250,7 +250,7 @@ pub(crate) fn set_value(
     if let Some(before) = before {
         item.area_offset += before
             - area(
-                image,
+                show,
                 record,
                 item,
                 position(origin),
@@ -261,7 +261,7 @@ pub(crate) fn set_value(
 
 /// The area under a binding's curve, or its live constant, between two
 /// positions of the binding.
-fn area(image: Image<'_>, record: &format::Binding, item: &Override, from: f32, to: f32) -> f32 {
+fn area(show: Show<'_>, record: &format::Binding, item: &Override, from: f32, to: f32) -> f32 {
     if item.active != 0 {
         let constant = [CurvePoint {
             position: 0.0,
@@ -269,7 +269,7 @@ fn area(image: Image<'_>, record: &format::Binding, item: &Override, from: f32, 
         }];
         curve_area(&constant, from, to)
     } else {
-        curve_area(image.curve(record.curve).points, from, to)
+        curve_area(show.curve(record.curve).points, from, to)
     }
 }
 

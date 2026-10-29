@@ -24,7 +24,7 @@ has one owner:
 | `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, rigs, effect and operator definitions, ownership, opaque object ids, geometry preparation, validation, and the validated edits that change it: `ProjectEdit::Put` and `ProjectEdit::Remove` batches over one `Object` enum, and the ownership edits. |
 | `donder-project-io` | Source documents and object addresses, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence or a rig and an output selection into a `PreparedShow`: targets, fixture geometry, bound programs, automation, the global signal graph (black-signal folding, operator fusion), retention. Sequences and rigs share one preparation (`stage::build`) and differ only in how they place their clips. See [output selection](output_selection.md). |
-| `donder-runtime` | `no_std` show playback without `alloc`: a trusted show image borrowed in place (`Image`), and evaluation into one caller-provided buffer (`Playback`) by the private strip interpreter. The image's record layouts (`format`) are private to it. The default `host` feature adds the image builder (`ShowBuilder`) and the owned `PreparedShow` and `ShowPlayback`. |
+| `donder-runtime` | `no_std + alloc` show playback, the same on the host and the firmware: a trusted show in memory (`PreparedShow`) and its evaluation into one buffer it owns (`ShowPlayback`) by the private strip interpreter. The show's record layouts (`format`) are private to it. The default `host` feature adds the show builder (`ShowBuilder`) and clip rasters. |
 | `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
 | `donder-device-protocol` | The editor-controller wire protocol, `no_std`: HTTP paths and the token header, the JSON commands and replies, and the UDP clock packets. The desktop and the firmware both use it. |
 | `donder-audio-analysis` | Beat and downbeat detection from song audio: decoding, the log-mel spectrogram and the embedded Beat This! model (small, MIT licensed) run with tract. Host-only. |
@@ -154,22 +154,21 @@ working copies.
 
 `donder_elaboration::prepare(&project, &sequence_id, retain)` returns
 `Option<PreparedShow>`, with `None` meaning the selection cannot be
-resolved; `donder_elaboration::arm` prepares a rig the same way. `retain` (which hardware outputs the image keeps) is `Retain::All`, `Controllers` or `Ports`.
+resolved; `donder_elaboration::arm` prepares a rig the same way. `retain` (which hardware outputs the show keeps) is `Retain::All`, `Controllers` or `Ports`.
 Preparation resolves everything symbolic (imports, names, layouts, groups,
 device selection) so that playback never does.
 
-A prepared show, a sequence's or a rig's, is a show image: a header, a section table and sections of
-fixed-size records that refer to one another by index. Playback reads the
-records where they lie, in memory or in a controller's flash. A show's
-`Layout` (`Image::layout`) gives the exact size of its playback buffer;
-`Playback::new` lays the nodes' frame buffers, their state buffers, scan
-frames, port bytes, the strip workspace and the automation scratch out in that
-buffer, and `Playback::resume` borrows them again on a later frame.
-`prepared.into_playback()` (a `ShowPlayback`) owns both on the host. `evaluate(time)` returns
+A prepared show, a sequence's or a rig's, is encoded as a header, a section table and sections of
+fixed-size records that refer to one another by index. A `PreparedShow` holds
+those bytes in memory, and playback reads the records where they lie. Its
+`workspace_bytes()` is the exact size of its playback buffer.
+`prepared.into_playback()` (a `ShowPlayback`) owns that buffer and lays the nodes' frame buffers, their state buffers, scan
+frames, port bytes, the strip workspace and the automation scratch out in it,
+and each later call borrows them again. `evaluate(time)` returns
 borrowed fixture colors and packed controller bytes for the frame nearest
 `time`; asking for the same frame again returns the frame it holds. It cannot
 fail and does not allocate. The VM and record layouts are private to the
-runtime; callers build images only through `ShowBuilder`'s owner-bound
+runtime; callers build shows only through `ShowBuilder`'s owner-bound
 handles: one `clip` call places a bound program on a target for a while,
 `operator` and `mix` build the graph, and `route` packs a target into a
 port through an optional gamma table, which the builder writes once. Equal
@@ -192,10 +191,10 @@ show time and choose rendered frames through the runtime's `PlaybackRate`, so a
 playback speed and its frame timing (scaled or constant) behave identically
 everywhere:
 
-- **Preview.** The desktop sends the encoded image, projected fixture
+- **Preview.** The desktop sends the encoded show, projected fixture
   geometry and clock anchors to a separate winit/wgpu process when their
   revisions change. Each pipe message is a JSON header and a binary payload;
-  the image and fixture instances travel as raw bytes. That process evaluates frames itself, so pixels never cross
+  the show and fixture instances travel as raw bytes. That process evaluates frames itself, so pixels never cross
   Tauri IPC. Audio state arrives as timestamped anchors that the Preview
   interpolates and corrects to. A separate process also keeps GTK and wgpu from
   sharing one Wayland surface.
@@ -208,7 +207,7 @@ everywhere:
   Donder controllers. A controller that is missing or fails is reported in the
   live-output status and does not stop the others. mDNS discovery runs only
   while live output drives Donder controllers or a view that lists them is open.
-- **Controllers.** Sequence images, built for a controller's ports, are
+- **Controllers.** Sequence shows, built for a controller's ports, are
   uploaded to the ESP32 loader, which stores them in a flash slot and plays
   them from a copy in RAM beside their playback buffer.
 
@@ -221,19 +220,21 @@ when the desktop receives them, routed by the performance's `RigRouter`
 voice policies and played quantities directly), and the
 resulting `RigEvent`s fan out in order to every evaluator: the live output
 worker plays its own `ShowPlayback` on the session clock, and the Preview
-receives the rig image as its content, then the events as they arrive, with
+receives the rig show as its content, then the events as they arrive, with
 the session time as its clock anchor. An evaluator that joins mid-performance
 replays the performance's events from the start. Frame caches include the
 events applied, since an event changes a frame without changing its time.
 
-The image is trusted: only the host builder writes it, so `Image::open` checks
-nothing but its format version and playback indexes records without checking
-them. The header holds an `id`, a hash of the image the builder writes, which a
+The show is trusted: only the host builder writes it, so opening it
+(`PreparedShow::decode`, or `PreparedShow::read`, which lets the caller write
+the bytes in place) checks nothing but its format version, and playback
+indexes records without checking them. The header holds an `id`
+(`PreparedShow::id`), a hash of the show the builder writes, which a
 controller reports so a host can tell which show it holds; playback never reads
-it. A rig is an image with voices, live mark
+it. A rig is a show with voices, live mark
 collections and controls; their commands change only the playback buffer. A
 control sets automation bindings, and a live collection is read by
 automation bindings of marks parameters (`AutomationMapping::LiveMarks`). The format is a numbered current version; a mismatch is rejected
-(`LoadError::Version`) rather than migrated.
+(`LoadError::Version`) rather than migrated, as is input shorter than the header.
 
 Performance design is described in [performance](performance.md).

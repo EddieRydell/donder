@@ -41,7 +41,7 @@ export const commands = {
 	getSequenceClipDetails: (request: GuiDocumentRequest, clipIds: number[]) => typedError<SequenceClipDetailsResult, string>(__TAURI_INVOKE("get_sequence_clip_details", { request, clipIds })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,details:v.data.details.map(i=>({...i,params:i.params.map(i=>({...i,range:i.range==null?i.range:i.range}))}))}) } : v) as typeof v)),
 	matchSequenceClips: (request: GuiDocumentRequest, query: SequenceClipMatchRequest) => typedError<SequenceSelection, string>(__TAURI_INVOKE("match_sequence_clips", { request, query: ({...query,params:query.params.map(i=>i)}) })),
 	sequenceExportOptions: (request: GuiDocumentRequest) => typedError<SequenceExportOptions, string>(__TAURI_INVOKE("sequence_export_options", { request })),
-	exportImageFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_image_file", { request, outputs })),
+	exportShowFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_show_file", { request, outputs })),
 	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
 	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, framesPerSecond: number, progress: Channel<VideoExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, framesPerSecond, progress })),
 	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),

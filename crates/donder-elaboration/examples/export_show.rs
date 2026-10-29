@@ -6,7 +6,7 @@ fn main() {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     assert!(
         args.len() == 2,
-        "usage: export_image PROJECT OUTPUT.donderimage"
+        "usage: export_show PROJECT OUTPUT.dondershow"
     );
     let session = donder_project_io::check_project(
         &Utf8PathBuf::from(&args[0]),

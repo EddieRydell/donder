@@ -1,9 +1,9 @@
 # ESP32 controllers
 
-An ESP32 running the Donder loader plays show images from flash, either on
+An ESP32 running the Donder loader plays shows from flash, either on
 its own or in sync with the desktop editor. The loader runs `donder-runtime`, the
 same engine as the preview, not a second interpreter. The host does all loading,
-checking and preparation and sends a `.donderimage` image prepared for that
+checking and preparation and sends a `.dondershow` show prepared for that
 controller's output ports.
 
 Supported hardware is a classic ESP32 with 4 MB flash and a 40 MHz crystal,
@@ -29,8 +29,8 @@ the editor shows, never the access point's name. **Join network** saves a
 2.4 GHz WPA2 network and restarts; the controller then joins that network at
 boot and falls back to its own access point if it cannot join within 20 seconds.
 
-Reflash controllers whenever loader or image code changes. The editor connects
-only to controllers that advertise its own `image_format`, and tells you to
+Reflash controllers whenever loader or show format code changes. The editor connects
+only to controllers whose `format` record matches its own show format, and tells you to
 update the firmware otherwise.
 
 ## Discovery
@@ -46,12 +46,14 @@ the open setup that it has claimed and that runs a matching format.
 ## Storage and upload
 
 The configuration record (name, optional station network and claim token) lives
-in LittleFS. Images use two 128 KiB slots in a separate
-256 KiB partition. An upload:
+in LittleFS. Shows use two 128 KiB slots in a separate
+256 KiB partition; a slot's first 4 KiB sector is its header, so a show may be
+up to 124 KiB (`show_slots::CAPACITY`). A longer upload is refused with HTTP
+422 and the show's size and that limit. An upload:
 1. blacks out output and releases the current show;
-2. streams the image to the inactive slot;
-3. opens it directly from memory-mapped flash;
-4. commits the slot only after the show loads.
+2. erases only the sectors of the inactive slot the show needs and streams the show into them;
+3. loads it from that slot;
+4. commits the slot only after the show loads, and replies `LOADED`.
 
 A failed or interrupted upload leaves no show loaded, but the previous committed
 show stays saved. Reboot restores the newest committed slot, stopped. A saved
@@ -59,26 +61,25 @@ show that the current firmware rejects is left in place and the controller boots
 without one; the editor uploads a current show on its next live Play.
 Concurrent uploads are rejected, and an explicit erase clears both partitions.
 
-The loader reads the show's image from its flash slot into RAM
-and plays it there, beside its playback buffer: reading it through the flash
+The loader reads the show from its flash slot into RAM once
+(`PreparedShow::read`) and plays it there, beside its playback buffer: reading it through the flash
 cache cost Stanford `main` about a quarter of each frame. The playback stays
-open while the show plays. The image is trusted: the editor built
+open while the show plays. The show is trusted: the editor built
 it, so the loader checks only its format version. It rejects a show
-- of another format version;
-- whose image and playback buffer together would leave less than
-  10 KiB of heap for the network (the buffer's size is exact, from the show's
-  layout; Wi-Fi keeps four static receive buffers to leave heap for shows), or
-  whose playback buffer exceeds 64 KiB;
-- with more outputs, wider outputs or a higher frame rate than the board drives.
+- of another format version ("prepared for another firmware format");
+- whose RAM copy, and then whose playback buffer, would leave less than
+  10 KiB of heap for the network (`NETWORK_HEAP_RESERVE`; the buffer's size is exact, from the show's
+  layout; Wi-Fi keeps four static receive buffers to leave heap for shows); the
+  reason names the memory the show needs and the memory free;
+- with more than 4 outputs, an output wider than 200 pixels (or not a whole
+  number of pixels), or a higher frame rate than the outputs carry; the reason
+  names those limits.
 
-`GET /capabilities` reports the controller's limits (64 KiB of
-image, 1,600 pixels, 128 graph nodes, 64 KiB of playback buffer); about
-75 KiB of heap is free for a show's image and playback buffer
-together. The editor checks the size against it before it uploads.
+About 75 KiB of heap is free for a show and its playback buffer together. The
+editor does not check a show against the controller before it uploads.
 
-A panic restarts the controller. Its message survives the restart in RTC
-memory and `GET /panic` returns it (`none` when there was none); on a
-Dig-Quad, whose UART pins drive LEDs, that is the only place it shows. Playback allocates nothing after the show loads.
+A panic prints `LOADER PANIC` and its message on the serial port (not on a
+Dig-Quad, whose UART pins drive LEDs) and restarts the controller. Playback allocates nothing after the show loads.
 
 A rejected show is answered with HTTP 422 and the reason. The
 editor releases that controller and reports the reason in the live-output
@@ -87,12 +88,12 @@ status; the next Play reconnects and sends the show again.
 The protocol's messages, paths and clock packets are defined once in
 `crates/donder-device-protocol`, which the editor and the firmware both use.
 
-HTTP endpoints:
+HTTP endpoints, each but `POST /claim` requiring the claim token:
 - unauthenticated `POST /claim`, which answers only an unclaimed controller;
-- `GET /capabilities`, `PUT /image` and `POST /frame`;
+- `PUT /show` and `POST /frame`;
 - `PUT /name` with a 1-32 byte UTF-8 name, and `PUT /network` with
   `{"ssid": ..., "password": ...}` or an empty body for the access point;
-- with output enabled, `GET /transport` and `POST /transport/play`, `/pause` or
+- `GET /transport` and `POST /transport/play`, `/pause` or
   `/stop`;
 - JSON `POST /control` for clock sync, scheduling and cancellation.
 
@@ -114,7 +115,7 @@ controller.
 While live output is on, the editor's Play button:
 1. connects any controller that is not yet connected, and prepares each
    connected controller's fragment;
-2. uploads it if its SHA-256 or the device's loaded image changed (unchanged
+2. uploads it if its id or the device's loaded show changed (unchanged
    project revisions reuse their compiled fragment);
 3. schedules a shared future start.
 
@@ -140,7 +141,8 @@ editor, or the standalone HTTP Play endpoint, loops the last uploaded show
 without the editor instead.
 
 Clock synchronization:
-- **Exchanges.** Eight authenticated UDP four-timestamp exchanges keep the
+- **Exchanges.** Eight authenticated UDP four-timestamp exchanges, sent to the
+  controller's own address on its HTTP port, keep the
   smallest round trip, after subtracting the controller's reply processing
   time. Requests carry `DCLK`, the 32-byte token and an 8-byte nonce. Replies
   carry `DCLK`, the nonce, a boot identity and receive/send timestamps (32
@@ -158,9 +160,10 @@ Clock synchronization:
   that may have been armed. A controller that fails to acknowledge has its
   command cancelled and is released.
 - **Command checks.** Boot identity, clock-master identity, command order and
-  the image's id and size are checked before a scheduled command is accepted.
-  The id is the hash the editor writes into the image header; the controller
-  only reports and compares it.
+  the show's id and size are checked before a scheduled command is accepted,
+  and its start must be at least 20 ms ahead. A clock estimate is accepted when
+  its boot identity matches. The id is the hash the editor writes into the show
+  header; the controller only reports and compares it.
 - **Playback timing.** Frames follow elapsed show time, so a late evaluation
   skips frames rather than drifting.
 
@@ -179,7 +182,7 @@ parallel mode at 2.4 MHz. Each bit is three samples (`100` for zero, `110` for
 one), and two DMA buffers let the next frame be encoded while the current one
 transmits.
 
-- **Reference board** (`i2s-output`): GPIO13, GPIO18, GPIO21 and GPIO25.
+- **Reference board** (`pnpm firmware:build`): GPIO13, GPIO18, GPIO21 and GPIO25.
 - **QuinLED Dig-Quad v2/v3** (`pnpm firmware:build --board dig-quad`): LED1–LED4
   on GPIO16, GPIO3, GPIO1 and GPIO4. Confirm the module first, because other
   modules may swap GPIO1 and GPIO3.

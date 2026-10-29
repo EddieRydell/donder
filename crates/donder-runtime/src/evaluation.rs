@@ -13,10 +13,10 @@ use crate::dsl::{
     Scratch, Strip, StripSignals, StripWorkspace, params_at,
 };
 use crate::format::{self, NONE};
-use crate::image::Image;
 use crate::resources::{LiveView, ParamsView};
 use crate::sections::SectionsView;
 use crate::targets::{PreparedPixel, TargetCursor, TargetView};
+use crate::view::Show;
 use crate::workspace::{CachedClipColor, RigState, Timing, Workspace};
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
@@ -30,7 +30,7 @@ pub(crate) struct ClipEvaluator<'a> {
     pub(crate) target: TargetView<'a>,
 }
 
-/// The clips' timing and each layer's start order: the image's, or a rig's
+/// The clips' timing and each layer's start order: the show's, or a rig's
 /// as its commands moved them.
 #[derive(Clone, Copy)]
 pub(crate) struct Timeline<'a> {
@@ -43,18 +43,18 @@ pub(crate) struct Timeline<'a> {
 impl<'a> Timeline<'a> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn new(
-        image: Image<'a>,
+        show: Show<'a>,
         timing: &'a [Timing],
         order: &'a [u32],
         ends: &'a [u32],
     ) -> Self {
         let (order, ends) = if timing.is_empty() {
-            (image.s.layer_order, image.s.layer_ends)
+            (show.s.layer_order, show.s.layer_ends)
         } else {
             (order, ends)
         };
         Self {
-            clips: image.s.clips,
+            clips: show.s.clips,
             order,
             ends,
             timing,
@@ -153,7 +153,7 @@ struct StripShape {
 /// What a program reads of a target's pixels.
 #[derive(Clone, Copy)]
 struct StripLayout<'a> {
-    image: Image<'a>,
+    show: Show<'a>,
     target: TargetView<'a>,
     spatial: bool,
     sections: Option<SectionsView<'a>>,
@@ -177,7 +177,7 @@ fn fill_strip(
     pixel: PixelSet<'_, '_>,
 ) -> StripShape {
     let StripLayout {
-        image,
+        show,
         target,
         spatial,
         sections,
@@ -217,7 +217,7 @@ fn fill_strip(
         let offset = index - start;
         let (mut min, mut max) = ([0.0; 2], [0.0; 2]);
         if spatial {
-            let geometry = target.spatial_context(target_index, &pixel_at, image);
+            let geometry = target.spatial_context(target_index, &pixel_at, show);
             strip.x[offset].set(geometry.position[0]);
             strip.y[offset].set(geometry.position[1]);
             (min, max) = (geometry.min, geometry.max);
@@ -260,7 +260,7 @@ impl<'a> ClipEvaluator<'a> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn layout(&self) -> StripLayout<'a> {
         StripLayout {
-            image: self.bound.image,
+            show: self.bound.show,
             target: self.target,
             spatial: self.spatial,
             sections: self.uses_sections.then_some(self.target.sections),
@@ -314,8 +314,8 @@ impl<'a> ClipEvaluator<'a> {
 /// A plan-target pixel's place: its fixture's offset plus its cell.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn base(image: Image<'_>, fixture: usize, cell: u32) -> usize {
-    image.s.fixtures[fixture].offset as usize + cell as usize
+fn base(show: Show<'_>, fixture: usize, cell: u32) -> usize {
+    show.s.fixtures[fixture].offset as usize + cell as usize
 }
 
 /// The frame a program reads as `input`: its own previous frame, or an input
@@ -464,12 +464,12 @@ impl<'w> Programs<'_, 'w> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn params<'s>(
         &'s mut self,
-        image: Image<'s>,
+        show: Show<'s>,
         params_ref: ParamsRef,
     ) -> (ParamsView<'s>, &'s mut StripWorkspace<'w>) {
-        let overrides = overrides(image, params_ref.plan, self.overrides);
+        let overrides = overrides(show, params_ref.plan, self.overrides);
         let params = params_at(
-            image,
+            show,
             self.scratch,
             params_ref,
             self.time,
@@ -483,8 +483,8 @@ impl<'w> Programs<'_, 'w> {
 /// The controls of `plan`'s bindings, or none.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-pub(crate) fn overrides<'o>(image: Image<'_>, plan: u32, all: &'o [Override]) -> &'o [Override] {
-    match image.plan(plan) {
+pub(crate) fn overrides<'o>(show: Show<'_>, plan: u32, all: &'o [Override]) -> &'o [Override] {
+    match show.plan(plan) {
         Some(plan) if !all.is_empty() => plan.bindings.get(all),
         _ => &[],
     }
@@ -497,7 +497,7 @@ pub(crate) fn overrides<'o>(image: Image<'_>, plan: u32, all: &'o [Override]) ->
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_layer(
-    image: Image<'_>,
+    show: Show<'_>,
     layer: &format::Layer,
     timeline: Timeline<'_>,
     rendered: &mut [Color],
@@ -517,17 +517,17 @@ fn evaluate_layer(
         if !timing.is_active(time) {
             continue;
         }
-        let clip = &image.s.clips[clip_index];
+        let clip = &show.s.clips[clip_index];
         let frames_elapsed = programs.frames_elapsed;
         let (params, workspace) = programs.params(
-            image,
+            show,
             ParamsRef {
                 params: clip.params,
                 plan: clip.automation,
                 origin: timing.start,
             },
         );
-        let sampler = clip_evaluator(image, clip, timing, time, frames_elapsed, params);
+        let sampler = clip_evaluator(show, clip, timing, time, frames_elapsed, params);
         let target = sampler.target;
         signals.scanned = 0;
         if sampler.uniform() {
@@ -542,7 +542,7 @@ fn evaluate_layer(
             );
             if let Some(color) = color {
                 for segment in target.segments() {
-                    let base = base(image, segment.fixture, segment.first_cell);
+                    let base = base(show, segment.fixture, segment.first_cell);
                     for destination in &mut rendered[base..base + segment.len] {
                         compose_max(destination, color);
                     }
@@ -568,7 +568,7 @@ fn evaluate_layer(
         // index and plan-target address.
         let mut count = 0;
         for segment in target.segments() {
-            let base = base(image, segment.fixture, segment.first_cell);
+            let base = base(show, segment.fixture, segment.first_cell);
             for offset in 0..segment.len {
                 if cacheable {
                     let sample = &clip_colors[segment.first_index + offset];
@@ -650,26 +650,26 @@ fn run_gathered(
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn evaluate_operator(
-    image: Image<'_>,
+    show: Show<'_>,
     node: &format::Node,
     plan: TargetView<'_>,
     rendered: &mut [Color],
     signals: &mut FrameSignals<'_, '_>,
     programs: &mut Programs<'_, '_>,
 ) {
-    let program = image.program(node.program);
+    let program = show.program(node.program);
     let (time, frames_elapsed) = (programs.time, programs.frames_elapsed);
-    let duration = image.duration();
+    let duration = show.duration();
     let context = RunContext {
         progress: time.as_ticks() as f32 / duration.as_ticks() as f32,
         time: SampleDuration::from_ticks(time.as_ticks()),
         duration,
-        frame_rate: image.frame_rate() as f32,
+        frame_rate: show.frame_rate() as f32,
         frames_elapsed,
         pixel_count: 0,
     };
     let (params, workspace) = programs.params(
-        image,
+        show,
         ParamsRef {
             params: node.params,
             plan: node.automation,
@@ -677,7 +677,7 @@ fn evaluate_operator(
         },
     );
     let bound = Bound {
-        image,
+        show,
         program,
         params,
         sections: Some(plan.sections),
@@ -686,7 +686,7 @@ fn evaluate_operator(
     let pixels = plan.cursor();
     let pixel = PixelSet::Target(&pixels);
     let layout = StripLayout {
-        image,
+        show,
         target: plan,
         spatial: program.flag(format::PROGRAM_USES_SPATIAL),
         sections: program
@@ -726,8 +726,8 @@ const fn black() -> Color {
 }
 
 /// The buffer holding the root's frame.
-pub(crate) fn root_buffer(image: Image<'_>) -> usize {
-    image.root().map_or(0, |node| node.buffer as usize)
+pub(crate) fn root_buffer(show: Show<'_>) -> usize {
+    show.root().map_or(0, |node| node.buffer as usize)
 }
 
 /// Once per frame or per clip, so it stays in flash, outside the instruction
@@ -761,13 +761,13 @@ mod frames {
     /// previous. Returns the buffer holding the root's frame.
     #[inline(never)]
     pub(crate) fn evaluate_frame(
-        image: Image<'_>,
+        show: Show<'_>,
         workspace: &mut Workspace<'_>,
         time: SampleTime,
         frames_elapsed: u32,
     ) -> usize {
-        let result = root_buffer(image);
-        if image.root().is_none() || time.as_ticks() >= image.duration().as_ticks() {
+        let result = root_buffer(show);
+        if show.root().is_none() || time.as_ticks() >= show.duration().as_ticks() {
             workspace.buffers[result].fill(black());
             return result;
         }
@@ -790,8 +790,8 @@ mod frames {
             live_tracks,
             live_ticks,
         } = rig;
-        let timeline = Timeline::new(image, timing, layer_order, layer_ends);
-        let plan = TargetView::of(image, &image.s.targets[image.meta().plan_target as usize]);
+        let timeline = Timeline::new(show, timing, layer_order, layer_ends);
+        let plan = TargetView::of(show, &show.s.targets[show.meta().plan_target as usize]);
         let mut programs = Programs {
             strip,
             scratch,
@@ -803,7 +803,7 @@ mod frames {
             time,
             frames_elapsed,
         };
-        for node in image.s.nodes {
+        for node in show.s.nodes {
             let buffer = node.buffer as usize;
             let rendered = core::mem::take(&mut buffers[buffer]);
             {
@@ -813,8 +813,8 @@ mod frames {
                 };
                 let mut signals = FrameSignals {
                     plan,
-                    nodes: image.s.nodes,
-                    inputs: image.inputs(node),
+                    nodes: show.s.nodes,
+                    inputs: show.inputs(node),
                     buffers,
                     state,
                     scans,
@@ -824,8 +824,8 @@ mod frames {
                 };
                 match node.kind {
                     format::NODE_LAYER => evaluate_layer(
-                        image,
-                        &image.s.layers[node.layer as usize],
+                        show,
+                        &show.s.layers[node.layer as usize],
                         timeline,
                         rendered,
                         &mut signals,
@@ -834,7 +834,7 @@ mod frames {
                         clip_colors,
                     ),
                     format::NODE_OPERATOR => {
-                        evaluate_operator(image, node, plan, rendered, &mut signals, &mut programs);
+                        evaluate_operator(show, node, plan, rendered, &mut signals, &mut programs);
                     }
                     _ => {
                         rendered.fill(black());
@@ -857,19 +857,19 @@ mod frames {
     /// A clip's evaluator at `time`. Once per clip evaluation.
     #[inline(never)]
     pub(crate) fn clip_evaluator<'a>(
-        image: Image<'a>,
+        show: Show<'a>,
         clip: &'a format::Clip,
         timing: Timing,
         time: SampleTime,
         frames_elapsed: u32,
         params: ParamsView<'a>,
     ) -> ClipEvaluator<'a> {
-        let program = image.program(clip.program);
-        let target = TargetView::of(image, &image.s.targets[clip.target as usize]);
+        let program = show.program(clip.program);
+        let target = TargetView::of(show, &show.s.targets[clip.target as usize]);
         let elapsed = time.as_ticks() - timing.start;
         ClipEvaluator {
             bound: Bound {
-                image,
+                show,
                 program,
                 params,
                 sections: Some(target.sections),
@@ -878,7 +878,7 @@ mod frames {
                 progress: elapsed as f32 / timing.duration as f32,
                 time: SampleDuration::from_ticks(elapsed),
                 duration: SampleDuration::from_ticks(timing.duration),
-                frame_rate: image.frame_rate() as f32,
+                frame_rate: show.frame_rate() as f32,
                 frames_elapsed,
                 pixel_count: 0,
             },

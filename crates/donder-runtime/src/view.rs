@@ -1,55 +1,40 @@
-//! An image borrowed for playback: the records preparation wrote, read in
-//! place. The image is trusted: only its producer writes it, so playback
+//! A show's bytes borrowed for playback: the records preparation wrote, read in
+//! place. The show is trusted: only its producer writes it, so playback
 //! checks nothing but its format version.
 use crate::format::{self, NONE, Sections};
 use donder_runtime_types::bytecode::Banks;
 use donder_runtime_types::{InstructionWord, SampleDuration, SampleTime};
 
-/// Current image format accepted by this runtime.
+/// Current show format accepted by this runtime.
 pub const FORMAT_VERSION: u32 = 73;
 
-/// Why an image is not played.
+/// Why a show is not played.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
-    /// An image of another format version: a show prepared by another
-    /// Donder release.
+    /// Not a show of this format: a show prepared by another Donder
+    /// release, or bytes too short to hold its header.
     Version,
 }
 
-/// An image's total length from its first [`header_bytes`] bytes, so a
-/// transport can size an upload before receiving it.
-pub fn image_len(header: &[u8]) -> usize {
-    format::image_len(header)
-}
-
-/// An image's identity from its first [`header_bytes`] bytes: a hash of its
-/// contents that a controller reports so a host can tell which show it holds.
-pub fn image_id(header: &[u8]) -> u32 {
-    format::image_id(header)
-}
-
-pub use crate::format::header_bytes;
-
-/// An image: a show's playback bytes, borrowed in place.
+/// A show's playback bytes, borrowed in place.
 #[derive(Clone, Copy, Debug)]
-pub struct Image<'a> {
+pub(crate) struct Show<'a> {
     pub(crate) s: Sections<'a>,
 }
 
-impl<'a> Image<'a> {
-    /// Borrow an image of this format. `bytes` must be 4-byte aligned.
-    pub fn open(bytes: &'a [u8]) -> Result<Self, LoadError> {
+impl<'a> Show<'a> {
+    /// Borrow a show of this format. `bytes` must be 4-byte aligned.
+    pub(crate) fn open(bytes: &'a [u8]) -> Result<Self, LoadError> {
         format::open(bytes, FORMAT_VERSION)
             .map(|s| Self { s })
             .ok_or(LoadError::Version)
     }
 
-    /// An image this build wrote.
-    #[cfg(feature = "host")]
+    /// A show this build wrote.
     pub(crate) fn trusted(bytes: &'a [u8]) -> Self {
         match Self::open(bytes) {
-            Ok(image) => image,
-            Err(_) => unreachable!("the host builds images of its format"),
+            Ok(show) => show,
+            Err(_) => unreachable!("the host builds shows of its format"),
         }
     }
 
@@ -57,36 +42,36 @@ impl<'a> Image<'a> {
         &self.s.meta[0]
     }
 
-    pub fn frame_rate(&self) -> u32 {
+    pub(crate) fn frame_rate(&self) -> u32 {
         self.meta().frame_rate
     }
 
-    pub fn frame_count(&self) -> u32 {
+    pub(crate) fn frame_count(&self) -> u32 {
         self.meta().frame_count
     }
 
-    pub fn duration(&self) -> SampleDuration {
+    pub(crate) fn duration(&self) -> SampleDuration {
         SampleDuration::from_ticks(self.meta().duration)
     }
 
-    pub fn pixel_count(&self) -> usize {
+    pub(crate) fn pixel_count(&self) -> usize {
         self.meta().pixel_count as usize
     }
 
-    pub fn fixtures(&self) -> &'a [format::Fixture] {
+    pub(crate) fn fixtures(&self) -> &'a [format::Fixture] {
         self.s.fixtures
     }
 
-    pub fn outputs(&self) -> &'a [format::Output] {
+    pub(crate) fn outputs(&self) -> &'a [format::Output] {
         self.s.outputs
     }
 
-    pub fn clip_count(&self) -> usize {
+    pub(crate) fn clip_count(&self) -> usize {
         self.s.clips.len()
     }
 
-    /// Clips of the image's timeline active at `time`, for diagnostics.
-    pub fn active_clip_count(&self, time: SampleTime) -> usize {
+    /// Clips of the show's timeline active at `time`, for diagnostics.
+    pub(crate) fn active_clip_count(&self, time: SampleTime) -> usize {
         let ticks = time.as_ticks();
         self.s
             .clips
@@ -114,14 +99,14 @@ impl<'a> Image<'a> {
         !self.s.voices.is_empty() || !self.s.controls.is_empty()
     }
 
-    /// The root node, or `None` for a black image.
+    /// The root node, or `None` for a black show.
     pub(crate) fn root(&self) -> Option<&'a format::Node> {
         let root = self.meta().root;
         (root != NONE).then(|| &self.s.nodes[root as usize])
     }
 }
 
-/// A program of an image.
+/// A program of a show.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ProgramView<'a> {
     pub(crate) record: &'a format::Program,

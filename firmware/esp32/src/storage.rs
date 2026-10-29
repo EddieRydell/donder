@@ -2,67 +2,38 @@ use donder_device_storage::{Error, Storage, consts};
 use esp_bootloader_esp_idf::partitions::{PARTITION_TABLE_MAX_LEN, read_partition_table};
 use esp_storage::{Flash, FlashStorage};
 
-#[cfg(feature = "i2s-output")]
-static OUTPUT_RUNNING: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
-#[cfg(feature = "i2s-output")]
 static FLASH_REQUESTED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
-#[cfg(feature = "i2s-output")]
 static FLASH_READY: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
-pub(crate) struct OutputSuspension {
-    #[cfg(feature = "i2s-output")]
-    active: bool,
-}
+/// The rendering core waits in an IRAM loop until this is dropped.
+pub(crate) struct OutputSuspension;
 
 impl Drop for OutputSuspension {
     fn drop(&mut self) {
-        #[cfg(feature = "i2s-output")]
-        if self.active {
-            FLASH_REQUESTED.store(false, core::sync::atomic::Ordering::Release);
-        }
+        FLASH_REQUESTED.store(false, core::sync::atomic::Ordering::Release);
     }
 }
 
 /// Keep the rendering core in an interrupt-free IRAM loop while flash is used.
 /// Hardware parking alone can freeze an outstanding cache fill indefinitely.
-pub(crate) async fn suspend_output() -> Result<OutputSuspension, embassy_time::TimeoutError> {
-    #[cfg(feature = "i2s-output")]
-    {
-        use core::sync::atomic::Ordering::{Acquire, Release};
-        if OUTPUT_RUNNING.load(Acquire) {
-            let suspension = OutputSuspension { active: true };
-            embassy_time::with_timeout(embassy_time::Duration::from_secs(2), async {
-                // A previous suspension must finish its exit before a new
-                // request can trust the acknowledgment for this suspension.
-                while FLASH_READY.load(Acquire) {
-                    embassy_time::Timer::after_micros(100).await;
-                }
-                FLASH_REQUESTED.store(true, Release);
-                while !FLASH_READY.load(Acquire) {
-                    embassy_time::Timer::after_micros(100).await;
-                }
-            })
-            .await?;
-            return Ok(suspension);
-        }
+pub(crate) async fn suspend_output() -> OutputSuspension {
+    use core::sync::atomic::Ordering::{Acquire, Release};
+    // A previous suspension must finish its exit before a new request can
+    // trust the acknowledgment for this one.
+    while FLASH_READY.load(Acquire) {
+        embassy_time::Timer::after_micros(100).await;
     }
-    Ok(OutputSuspension {
-        #[cfg(feature = "i2s-output")]
-        active: false,
-    })
+    FLASH_REQUESTED.store(true, Release);
+    while !FLASH_READY.load(Acquire) {
+        embassy_time::Timer::after_micros(100).await;
+    }
+    OutputSuspension
 }
 
-#[cfg(feature = "i2s-output")]
-pub(crate) fn output_started() {
-    OUTPUT_RUNNING.store(true, core::sync::atomic::Ordering::Release);
-}
-
-#[cfg(feature = "i2s-output")]
 pub(crate) fn flash_requested() -> bool {
     FLASH_REQUESTED.load(core::sync::atomic::Ordering::Acquire)
 }
 
-#[cfg(feature = "i2s-output")]
 #[esp_hal::ram]
 pub(crate) fn flash_checkpoint() {
     use core::sync::atomic::Ordering::{Acquire, Release};
@@ -98,60 +69,19 @@ impl DeviceStorage {
         let mut bytes = alloc::vec![0; PARTITION_TABLE_MAX_LEN];
         let table =
             read_partition_table(&mut flash, &mut bytes).map_err(|_| "Invalid partition table")?;
-        let mut matches = table
-            .iter()
-            .filter(|entry| entry.label_as_str() == "donder");
-        let entry = matches
-            .next()
-            .ok_or("Install the controller image with its Donder data partition")?;
-        if matches.next().is_some()
-            || entry.raw_type() != 1
-            || entry.raw_subtype() != 6
-            || entry.flags() != 0
-            || entry.len() as usize != Self::BLOCK_COUNT * Self::BLOCK_SIZE
-            || entry.offset() % Self::BLOCK_SIZE as u32 != 0
-            || entry.offset() < 0x10000
-        {
-            return Err("Invalid Donder data partition");
-        }
-        let end = entry
-            .offset()
-            .checked_add(entry.len())
-            .ok_or("Invalid Donder partition bounds")?;
-        if end as usize > flash.capacity()
-            || table.iter().any(|other| {
-                other.label_as_str() != "donder"
-                    && other.offset() < end
-                    && other.offset().saturating_add(other.len()) > entry.offset()
-            })
-        {
-            return Err("Donder data partition overlaps another partition or exceeds flash");
-        }
-        let mut show_entries = table.iter().filter(|entry| entry.label_as_str() == "shows");
-        let shows = show_entries.next().ok_or("Missing show partition")?;
-        if show_entries.next().is_some()
-            || shows.raw_type() != 1
-            || shows.raw_subtype() != 6
-            || shows.flags() != 0
-            || shows.len() as usize != donder_device_storage::show_slots::PARTITION_BYTES
-            || shows.offset() % 65536 != 0
-            || shows.offset() < 0x10000
-            || shows
-                .offset()
-                .checked_add(shows.len())
-                .is_none_or(|end| end as usize > flash.capacity())
-            || table.iter().any(|other| {
-                other.label_as_str() != "shows"
-                    && other.offset() < shows.offset() + shows.len()
-                    && other.offset().saturating_add(other.len()) > shows.offset()
-            })
-        {
-            return Err("Invalid show partition");
-        }
+        // The build flashes this table; only a different firmware's table lacks these.
+        let partition = |label: &str, len: usize| {
+            table
+                .iter()
+                .find(|entry| entry.label_as_str() == label && entry.len() as usize == len)
+                .map(|entry| entry.offset())
+        };
         Ok(Self {
+            offset: partition("donder", Self::BLOCK_COUNT * Self::BLOCK_SIZE)
+                .ok_or("Install the controller show with its Donder data partition")?,
+            show_offset: partition("shows", donder_device_storage::show_slots::PARTITION_BYTES)
+                .ok_or("Install the controller show with its show partition")?,
             flash,
-            offset: entry.offset(),
-            show_offset: shows.offset(),
         })
     }
 
@@ -180,7 +110,7 @@ impl Storage for DeviceStorage {
     }
     fn write(&mut self, offset: usize, bytes: &[u8]) -> Result<usize, Error> {
         let address = self.address(offset, bytes.len())?;
-        write_flash(&mut self.flash, address, bytes)
+        write_flash(address, bytes)
     }
     fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
         let address = self.address(offset, length)?;
@@ -194,23 +124,17 @@ impl DeviceStorage {
     pub(crate) fn shows(&mut self) -> Shows<'_> {
         Shows(self)
     }
-    /// The slot's image, read into RAM as little-endian 4-byte
-    /// words, where playback reads it.
-    pub(crate) fn read_image(
+    /// Read the slot's show into `bytes`, where playback reads it.
+    pub(crate) fn read_show(
         &mut self,
         slot: donder_device_storage::show_slots::Slot,
-    ) -> Result<alloc::boxed::Box<[u32]>, Error> {
-        let mut words = alloc::vec![0u32; slot.length.div_ceil(4)].into_boxed_slice();
-        let mut chunk = [0u8; 1024];
+        bytes: &mut [u8],
+    ) -> Result<(), Error> {
         let mut shows = self.shows();
-        for (index, words) in words.chunks_mut(chunk.len() / 4).enumerate() {
-            let bytes = &mut chunk[..words.len() * 4];
-            shows.read(slot.data_offset() + index * 1024, bytes)?;
-            for (word, bytes) in words.iter_mut().zip(bytes.chunks_exact(4)) {
-                *word = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
-            }
+        for (index, chunk) in bytes.chunks_mut(1024).enumerate() {
+            shows.read(slot.data_offset() + index * 1024, chunk)?;
         }
-        Ok(words)
+        Ok(())
     }
 }
 
@@ -239,7 +163,7 @@ impl Storage for Shows<'_> {
     }
     fn write(&mut self, offset: usize, bytes: &[u8]) -> Result<usize, Error> {
         let address = self.address(offset, bytes.len())?;
-        write_flash(&mut self.0.flash, address, bytes)
+        write_flash(address, bytes)
     }
     fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
         let address = self.address(offset, length)?;
@@ -256,9 +180,6 @@ fn read_flash(address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
 }
 
 fn read_flash_parked(address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
-    if !address.is_multiple_of(4) || !bytes.len().is_multiple_of(4) {
-        return Err(Error::INVALID);
-    }
     let mut scratch = AlignedBytes([0; 256]);
     for (index, chunk) in bytes.chunks_mut(256).enumerate() {
         // Safety: callers validated partition bounds, and both the scratch buffer
@@ -275,7 +196,7 @@ fn read_flash_parked(address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
     }
     Ok(bytes.len())
 }
-fn write_flash(_flash: &mut FlashStorage<'_>, address: u32, bytes: &[u8]) -> Result<usize, Error> {
+fn write_flash(address: u32, bytes: &[u8]) -> Result<usize, Error> {
     // Acquire the cross-core critical section before parking: a frozen core
     // must not own that lock, and the scheduler must not run while it is frozen.
     flash_critical(|| write_flash_parked(address, bytes))
@@ -289,9 +210,6 @@ fn flash_critical<T>(operation: impl FnOnce() -> T) -> T {
 }
 
 fn write_flash_parked(address: u32, bytes: &[u8]) -> Result<usize, Error> {
-    if !address.is_multiple_of(4) || !bytes.len().is_multiple_of(4) {
-        return Err(Error::INVALID);
-    }
     // Use the SDK's same automatic parking policy with its aligned low-level
     // writer. write_nor reserves a 4-KiB scratch frame even for aligned inputs.
     with_other_core_parked(|| {
@@ -317,10 +235,6 @@ fn write_flash_parked(address: u32, bytes: &[u8]) -> Result<usize, Error> {
 // Call only while the cross-core critical section is held.
 fn with_other_core_parked<T>(operation: impl FnOnce() -> T) -> T {
     use esp_hal::system::{Cpu, CpuControl, is_running};
-    assert!(
-        Cpu::current() == Cpu::ProCpu,
-        "Flash storage belongs to core 0"
-    );
     let mut cpu = CpuControl::new(unsafe { esp_hal::peripherals::CPU_CTRL::steal() });
     let other = Cpu::other().find(|&core| is_running(core));
     if let Some(other) = other {

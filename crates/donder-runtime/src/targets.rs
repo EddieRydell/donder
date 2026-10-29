@@ -1,12 +1,12 @@
-//! Targets as an image stores them: runs of contiguous cells, or one record
+//! Targets as a show stores them: runs of contiguous cells, or one record
 //! per pixel for irregular selections, with each pixel's original logical
 //! place. A pixel's fraction is computed from its place, as authoring does.
 use crate::format::{self, PixelRun};
 use core::cell::Cell;
 use donder_runtime_types::SpatialContext;
 
-use crate::image::Image;
 use crate::sections::SectionsView;
+use crate::view::Show;
 
 /// A target pixel: its storage fixture and cell, and its index among the
 /// `pixel_count` pixels of its sampling scope.
@@ -76,8 +76,8 @@ pub(crate) struct Segment {
 impl<'a> TargetView<'a> {
     // Once per clip evaluation, so it stays in flash.
     #[inline(never)]
-    pub(crate) fn of(image: Image<'a>, record: &'a format::Target) -> Self {
-        let s = &image.s;
+    pub(crate) fn of(show: Show<'a>, record: &'a format::Target) -> Self {
+        let s = &show.s;
         let (runs, pixels) = if record.kind == format::PIXELS_RUNS {
             (record.pixels.get(s.pixel_runs), &[][..])
         } else {
@@ -88,7 +88,7 @@ impl<'a> TargetView<'a> {
             runs,
             pixels,
             spatial: record.spatial.get(s.spatial_runs),
-            sections: SectionsView::of(image, record),
+            sections: SectionsView::of(show, record),
         }
     }
 
@@ -183,14 +183,13 @@ impl<'a> TargetView<'a> {
         &self,
         index: usize,
         pixel: &PreparedPixel,
-        image: Image<'a>,
+        show: Show<'a>,
     ) -> SpatialContext {
         let run = &self.spatial[self
             .spatial
             .partition_point(|run| run.end as usize <= index)];
-        let fixture = &image.s.fixtures[pixel.fixture_index];
-        let position =
-            &fixture.positions.get(image.s.positions)[pixel.fixture_pixel_index as usize];
+        let fixture = &show.s.fixtures[pixel.fixture_index];
+        let position = &fixture.positions.get(show.s.positions)[pixel.fixture_pixel_index as usize];
         SpatialContext {
             position: [position.x, position.y],
             min: run.min,

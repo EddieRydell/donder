@@ -22,15 +22,15 @@ pub(crate) struct SectionEntry {
     pub(crate) count: u32,
 }
 
-/// The fixed part of an image header.
+/// The fixed part of a show header.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Header {
-    /// The format version; an image of another version is not read.
+    /// The format version; a show of another version is not read.
     pub(crate) version: u32,
     /// Payload bytes after the header and section table.
     pub(crate) payload: u32,
-    /// The image's identity, a hash of its table and payload: a controller
+    /// The show's identity, a hash of its table and payload: a controller
     /// reports it so a host can tell which show it holds. Playback never
     /// reads it.
     pub(crate) id: u32,
@@ -38,7 +38,7 @@ pub(crate) struct Header {
 }
 
 /// Bytes of a header with its section table.
-pub const fn header_bytes() -> usize {
+pub(crate) const fn header_bytes() -> usize {
     size_of::<Header>() + SECTION_COUNT * size_of::<SectionEntry>()
 }
 
@@ -70,7 +70,7 @@ pub(crate) struct Meta {
     pub(crate) pixel_count: u32,
     /// The target every frame and operator covers: every retained pixel.
     pub(crate) plan_target: u32,
-    /// The root node, whose frame the image shows, or [`NONE`] for black.
+    /// The root node, whose frame the show plays, or [`NONE`] for black.
     pub(crate) root: u32,
     /// Frame buffers the nodes write, each one plan-target frame.
     pub(crate) buffers: u32,
@@ -478,7 +478,7 @@ pub(crate) use donder_runtime_types::{Color, CurvePoint};
 
 macro_rules! sections {
     ($($name:ident: $ty:ty,)+) => {
-        /// Every section of an image, borrowed from its payload.
+        /// Every section of a show, borrowed from its payload.
         #[derive(Clone, Copy, Debug)]
         pub(crate) struct Sections<'a> {
             $(pub(crate) $name: &'a [$ty],)+
@@ -509,7 +509,7 @@ macro_rules! sections {
 
         #[cfg(feature = "host")]
         impl SectionsWriter {
-            /// The image: its header, section table and payload, each section
+            /// The show: its header, section table and payload, each section
             /// aligned to [`ALIGN`] bytes. The buffer is 4-byte aligned.
             pub(crate) fn finish(&self, version: u32) -> alloc::boxed::Box<[u32]> {
                 let mut table = alloc::vec::Vec::new();
@@ -612,28 +612,30 @@ fn frame(version: u32, table: &[SectionEntry], payload: &[u8]) -> alloc::boxed::
     words.into_boxed_slice()
 }
 
-/// The image's length from its header: the header, section table and
+/// The show's length from its header: the header, section table and
 /// payload. Lets a receiver size the rest of a transfer.
-pub(crate) fn image_len(header: &[u8]) -> usize {
+pub(crate) fn show_len(header: &[u8]) -> usize {
     let header: Header = bytemuck::pod_read_unaligned(&header[..size_of::<Header>()]);
     header_bytes() + header.payload as usize
 }
 
-/// The image's identity from its header.
-pub(crate) fn image_id(header: &[u8]) -> u32 {
+/// The show's identity from its header.
+pub(crate) fn show_id(header: &[u8]) -> u32 {
     let header: Header = bytemuck::pod_read_unaligned(&header[..size_of::<Header>()]);
     header.id
 }
 
-/// The image's sections, or `None` for an image of another format version.
-/// The image is trusted otherwise: only its producer writes it. `bytes` must
+/// The show's sections, or `None` for bytes too short for a header or an
+/// show of another format version.
+/// The show is trusted otherwise: only its producer writes it. `bytes` must
 /// be 4-byte aligned, as the writer's buffers and flash mappings are.
 pub(crate) fn open(bytes: &[u8], version: u32) -> Option<Sections<'_>> {
-    let header: Header = bytemuck::pod_read_unaligned(&bytes[..size_of::<Header>()]);
+    let (header, table) = bytes.get(..header_bytes())?.split_at(size_of::<Header>());
+    let header: Header = bytemuck::pod_read_unaligned(header);
     if header.version != version {
         return None;
     }
-    let table = bytemuck::cast_slice(&bytes[size_of::<Header>()..header_bytes()]);
+    let table = bytemuck::cast_slice(table);
     Some(Sections::borrow(&bytes[header_bytes()..], table))
 }
 

@@ -5,12 +5,12 @@ use crate::format::{self, NONE};
 use donder_runtime_types::Color;
 use donder_runtime_types::sampling::min_float;
 
-use crate::image::Image;
+use crate::view::Show;
 
 /// Pack `colors` into every output's bytes; bytes no route writes are zero.
-pub(crate) fn evaluate(image: Image<'_>, colors: &[Color], outputs: &mut [u8]) {
+pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8]) {
     outputs.fill(0);
-    let s = &image.s;
+    let s = &show.s;
     for route in s.routes {
         let colors = &colors[route.first as usize..route.end as usize];
         let rgbw = route.encoding == format::ENCODING_RGBW;

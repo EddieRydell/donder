@@ -1,5 +1,5 @@
 //! Bound parameters and the resources they hold, resolved against a show.
-//! A parameter set is the image's, or an automated or live-bound copy in the
+//! A parameter set is the show's, or an automated or live-bound copy in the
 //! workspace whose curve windows and live marks are workspace buffers.
 use crate::format::{
     self, CROSSINGS_DECREASING, CROSSINGS_INCREASING, CrossingSegment, CurvePoint, GradientStop,
@@ -8,7 +8,7 @@ use crate::format::{
 use bytemuck::{Pod, Zeroable};
 use donder_runtime_types::{MarkWindow, sampling};
 
-use crate::image::Image;
+use crate::view::Show;
 
 /// A curve: its points and the segments that invert it.
 #[derive(Clone, Copy, Debug)]
@@ -111,7 +111,7 @@ pub(crate) fn curve_crossings(
 }
 
 /// Where a bound resource lives.
-pub(crate) const STORE_IMAGE: u32 = 0;
+pub(crate) const STORE_SHOW: u32 = 0;
 /// A curve window its automation rewrites.
 pub(crate) const STORE_WINDOW: u32 = 1;
 /// A live mark collection, measured from `origin`.
@@ -123,16 +123,16 @@ pub(crate) const STORE_LIVE: u32 = 2;
 pub(crate) struct ResourceSlot {
     pub(crate) kind: u32,
     pub(crate) store: u32,
-    /// The image resource, the window, or the live collection.
+    /// The show resource, the window, or the live collection.
     pub(crate) index: u32,
     pub(crate) origin: u32,
 }
 
 impl ResourceSlot {
-    pub(crate) fn image(resource: ResourceRef) -> Self {
+    pub(crate) fn show(resource: ResourceRef) -> Self {
         Self {
             kind: resource.kind,
-            store: STORE_IMAGE,
+            store: STORE_SHOW,
             index: resource.index,
             origin: 0,
         }
@@ -166,7 +166,7 @@ pub(crate) struct LiveView<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResourceList<'a> {
-    Image(&'a [ResourceRef]),
+    Show(&'a [ResourceRef]),
     Slots(&'a [ResourceSlot]),
 }
 
@@ -184,13 +184,13 @@ pub(crate) struct ParamsView<'a> {
 }
 
 impl<'a> ParamsView<'a> {
-    /// Parameter set `set` as the image binds it.
-    pub(crate) fn image(image: Image<'a>, set: u32) -> Self {
-        let s = &image.s;
+    /// Parameter set `set` as the show binds it.
+    pub(crate) fn show(show: Show<'a>, set: u32) -> Self {
+        let s = &show.s;
         let set = &s.param_sets[set as usize];
         Self {
             words: set.words.get(s.words),
-            resources: ResourceList::Image(set.resources.get(s.resources)),
+            resources: ResourceList::Show(set.resources.get(s.resources)),
             windows: &[],
             points: &[],
             areas: &[],
@@ -203,14 +203,14 @@ impl<'a> ParamsView<'a> {
     /// Resource parameter `bank`.
     pub(crate) fn resource(&self, bank: u16) -> ResourceSlot {
         match self.resources {
-            ResourceList::Image(resources) => ResourceSlot::image(resources[usize::from(bank)]),
+            ResourceList::Show(resources) => ResourceSlot::show(resources[usize::from(bank)]),
             ResourceList::Slots(slots) => slots[usize::from(bank)],
         }
     }
 
     // Once per resource instruction, so it stays in flash.
     #[inline(never)]
-    pub(crate) fn curve(&self, image: Image<'a>, slot: ResourceSlot) -> CurveView<'a> {
+    pub(crate) fn curve(&self, show: Show<'a>, slot: ResourceSlot) -> CurveView<'a> {
         if slot.store == STORE_WINDOW {
             let window = &self.windows[slot.index as usize];
             let range = window.start as usize..(window.start + window.len) as usize;
@@ -222,11 +222,11 @@ impl<'a> ParamsView<'a> {
                 crossings: &self.crossings[range],
             };
         }
-        image.curve(slot.index)
+        show.curve(slot.index)
     }
 
     #[inline(never)]
-    pub(crate) fn marks(&self, image: Image<'a>, slot: ResourceSlot) -> MarkWindow<'a> {
+    pub(crate) fn marks(&self, show: Show<'a>, slot: ResourceSlot) -> MarkWindow<'a> {
         if slot.store == STORE_LIVE {
             let track = self.live.tracks[slot.index as usize];
             let ticks = &self.live.ticks[track.start as usize..(track.start + track.len) as usize];
@@ -236,11 +236,11 @@ impl<'a> ParamsView<'a> {
                 origin: slot.origin,
             };
         }
-        image.marks(slot.index)
+        show.marks(slot.index)
     }
 }
 
-impl<'a> Image<'a> {
+impl<'a> Show<'a> {
     #[inline(never)]
     pub(crate) fn curve(&self, index: u32) -> CurveView<'a> {
         let s = &self.s;
@@ -277,7 +277,7 @@ impl<'a> Image<'a> {
         s.arrays[index as usize].items.get(s.values)
     }
 
-    /// The image resource of an automation plan's window, or none.
+    /// The show resource of an automation plan's window, or none.
     pub(crate) fn plan(&self, index: u32) -> Option<&'a format::Automation> {
         (index != NONE).then(|| &self.s.automation[index as usize])
     }

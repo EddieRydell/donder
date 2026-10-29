@@ -23,7 +23,6 @@ use crate::dsl::bytecode::{
     Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource, SignalPixel, Slot, SlotKind,
 };
 use crate::format::{self, GradientStop, SectionPixel};
-use crate::image::{Image, ProgramView};
 use crate::resources::{CurveView, ParamsView};
 use crate::sampling::{
     clamp_array_index, color_hue, color_intensity, color_saturation, float_binary, float_unary,
@@ -31,6 +30,7 @@ use crate::sampling::{
     previous_mark_index, sample_gradient_stops, value_or,
 };
 use crate::sections::{RunSections, SectionsView, single_section_query};
+use crate::view::{ProgramView, Show};
 use core::cell::Cell;
 use donder_runtime_types::{Color, InstructionWord, MarkWindow};
 
@@ -47,10 +47,10 @@ fn decoded(code: &[InstructionWord]) -> Instruction {
     InstructionWord::decode(code)
 }
 
-/// A bound color word: the index of its color in the image.
+/// A bound color word: the index of its color in the show.
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn word_color(image: Image<'_>, word: u32) -> Color {
-    image.s.colors[word as usize]
+fn word_color(show: Show<'_>, word: u32) -> Color {
+    show.s.colors[word as usize]
 }
 
 /// Signal queries of a running strip. Pixel `n` of a strip is its `n`th
@@ -130,7 +130,7 @@ pub(crate) struct Pixels<'w> {
     pub(crate) sections: &'w Row<SectionPixel>,
 }
 
-/// A resource: one of the image's, by index into its kind's section, or a
+/// A resource: one of the show's, by index into its kind's section, or a
 /// parameter the invocation rewrites (an automated curve's window, live
 /// marks), by its resource bank.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -144,7 +144,7 @@ impl Handle {
 
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn image(index: u32) -> Self {
+    fn show(index: u32) -> Self {
         Self(index)
     }
 
@@ -154,7 +154,7 @@ impl Handle {
         Self(PARAM_HANDLE | u32::from(bank))
     }
 
-    /// The parameter bank of a rewritten resource, or the image index.
+    /// The parameter bank of a rewritten resource, or the show index.
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn kind(self) -> Result<u32, u16> {
@@ -585,7 +585,7 @@ impl NeighborWeights for Weights<'_, '_, '_> {
 /// What a program runs with: its show, code, parameters and target.
 #[derive(Clone, Copy)]
 pub(crate) struct Bound<'a> {
-    pub(crate) image: Image<'a>,
+    pub(crate) show: Show<'a>,
     pub(crate) program: ProgramView<'a>,
     pub(crate) params: ParamsView<'a>,
     pub(crate) sections: Option<SectionsView<'a>>,
@@ -1545,36 +1545,36 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn curve(&self, handle: Handle) -> CurveView<'m> {
-        let image = self.bound.image;
+        let show = self.bound.show;
         match handle.kind() {
-            Ok(index) => image.curve(index),
-            Err(bank) => self.bound.params.curve(image, self.resource(bank)),
+            Ok(index) => show.curve(index),
+            Err(bank) => self.bound.params.curve(show, self.resource(bank)),
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn gradient(&self, handle: Handle) -> &'m [GradientStop] {
         match handle.kind() {
-            Ok(index) => self.bound.image.gradient(index),
-            Err(_) => unreachable!("image gradients resolve when bound"),
+            Ok(index) => self.bound.show.gradient(index),
+            Err(_) => unreachable!("show gradients resolve when bound"),
         }
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn marks(&self, handle: Handle) -> MarkWindow<'m> {
-        let image = self.bound.image;
+        let show = self.bound.show;
         match handle.kind() {
-            Ok(index) => image.marks(index),
-            Err(bank) => self.bound.params.marks(image, self.resource(bank)),
+            Ok(index) => show.marks(index),
+            Err(bank) => self.bound.params.marks(show, self.resource(bank)),
         }
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn array(&self, handle: Handle) -> &'m [format::Value] {
         match handle.kind() {
-            Ok(index) => self.bound.image.array(index),
-            Err(_) => unreachable!("image arrays resolve when bound"),
+            Ok(index) => self.bound.show.array(index),
+            Err(_) => unreachable!("show arrays resolve when bound"),
         }
     }
 
@@ -1740,7 +1740,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 Bank::Bool => Self::set_scalar(self.bool_dst(dst), bits != 0),
                 _ => {
                     let index = self.bound.program.resources[bits as usize];
-                    Self::set_scalar(self.handle_dst(dst), Handle::image(index));
+                    Self::set_scalar(self.handle_dst(dst), Handle::show(index));
                 }
             },
             I::Param { bank, dst, index } => {
@@ -1750,15 +1750,15 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     Bank::Int => Self::set_scalar(self.int_dst(dst), word() as i32),
                     Bank::Bool => Self::set_scalar(self.bool_dst(dst), word() != 0),
                     Bank::Color => {
-                        let color = word_color(self.bound.image, word());
+                        let color = word_color(self.bound.show, word());
                         pick_color(sel, self.color_dst(dst), |_| color);
                     }
                     Bank::Resource => {
-                        // An image resource resolves now; a rewritten one
+                        // A show resource resolves now; a rewritten one
                         // when read.
                         let slot = self.resource(index);
-                        let handle = if slot.store == crate::resources::STORE_IMAGE {
-                            Handle::image(slot.index)
+                        let handle = if slot.store == crate::resources::STORE_SHOW {
+                            Handle::show(slot.index)
                         } else {
                             Handle::param(index)
                         };
@@ -2170,7 +2170,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 let default = self.color(default);
                 pick_color(sel, self.color_dst(dst), |i| match item(i) {
                     Some(item) if item.kind == format::VALUE_COLOR => {
-                        word_color(self.bound.image, item.word)
+                        word_color(self.bound.show, item.word)
                     }
                     _ => color_at(default, i),
                 });
@@ -2178,7 +2178,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             Bank::Resource => {
                 let default = self.handle(default);
                 pick_each(sel, self.handle_dst(dst), |i| match item(i) {
-                    Some(item) => Handle::image(item.word),
+                    Some(item) => Handle::show(item.word),
                     _ => default.at(i),
                 });
             }

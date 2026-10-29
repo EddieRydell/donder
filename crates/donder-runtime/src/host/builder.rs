@@ -1,6 +1,6 @@
 //! Invariant-preserving show construction. Checked authored inputs enter before
 //! `build`; graph references and storage addresses are issued only by its
-//! owner, which writes the image's sections.
+//! owner, which writes the show's sections.
 use crate::format::{self, NONE, Range, SectionsWriter};
 use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
@@ -602,7 +602,7 @@ impl<'id> ShowBuilder<'id> {
                 .as_ticks()
                 .checked_add(duration.as_ticks())
                 .is_some_and(|end| end <= self.timing.duration().as_ticks()),
-            "a clip plays within its image"
+            "a clip plays within its show"
         );
         let bytecode = &program.program().bytecode;
         let index = self.program(program.program());
@@ -805,7 +805,7 @@ impl<'id> ShowBuilder<'id> {
         pixels.len()
     }
 
-    /// The image: every record written, then the plan, layers, nodes and
+    /// The show: every record written, then the plan, layers, nodes and
     /// targets that the registered handles describe.
     pub(crate) fn finish(mut self, root: Option<SignalHandle<'id>>) -> alloc::boxed::Box<[u32]> {
         let full = self.target(&TargetGeometry::new(
@@ -1013,7 +1013,7 @@ impl<'id> ShowBuilder<'id> {
             states,
             collections: self.collections,
         });
-        w.finish(crate::image::FORMAT_VERSION)
+        w.finish(crate::view::FORMAT_VERSION)
     }
 }
 
