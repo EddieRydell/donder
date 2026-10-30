@@ -5,7 +5,7 @@ use crate::placement::{self, RenderSize};
 use crate::read::{Name, Reader, Table, Use, strtol};
 use crate::report::SkipReason;
 use glam::DVec3;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 const CUSTOM: Table = &[
     (Name::Exact("CustomModel"), Use::Modeled),
@@ -55,82 +55,49 @@ const CUSTOM: Table = &[
     ),
 ];
 
-/// The most cells the importer reads a custom model's grid into.
-const MOST_CELLS: usize = 10_000_000;
+/// A cell of the grid: its layer, row and column.
+type Cell = (usize, usize, usize);
 
-/// Node numbers by layer, row and column; 0 or less is an empty cell.
-type Grid = Vec<Vec<Vec<i32>>>;
+/// The cells the grid sets, each to a node number; 0 or less is empty.
+type Grid = BTreeMap<Cell, i32>;
 
-/// xLights: `XmlSerialize::ParseCustomModel`.
-fn parse_grid(text: &str) -> Result<Grid, SkipReason> {
-    let mut grid: Grid = Vec::new();
-    let mut width = 1usize;
-    let mut height = 1usize;
-    let mut allocated = 0usize;
-    for layer in text.split('|') {
-        let rows: Vec<&str> = layer.split(';').collect();
+/// xLights: `XmlSerialize::ParseCustomModel`, which fills a grid as wide
+/// as its widest row, then cuts every layer to the last layer's height.
+fn parse_grid(text: &str) -> Grid {
+    let mut grid = Grid::new();
+    let mut height = 1;
+    for (layer, rows) in text.split('|').enumerate() {
+        let rows: Vec<&str> = rows.split(';').collect();
         height = rows.len();
-        let mut current = vec![Vec::new(); height];
         for (row, values) in rows.iter().enumerate() {
-            let columns: Vec<&str> = values.split(',').collect();
-            width = width.max(columns.len());
-            allocated += width;
-            if allocated > MOST_CELLS {
-                return Err(SkipReason::TooManyPixels);
-            }
-            current[row].resize(width, -1);
-            for (column, value) in columns.iter().enumerate() {
+            for (column, value) in values.split(',').enumerate() {
                 let value = value.trim_start_matches(' ');
                 if !value.is_empty() {
-                    current[row][column] = strtol(value) as i32;
+                    grid.insert((layer, row, column), strtol(value) as i32);
                 }
             }
         }
-        grid.push(current);
     }
-    if grid.len().saturating_mul(height).saturating_mul(width) > MOST_CELLS {
-        return Err(SkipReason::TooManyPixels);
-    }
-    for layer in &mut grid {
-        layer.resize(height, Vec::new());
-        for row in layer {
-            row.resize(width, -1);
-        }
-    }
-    Ok(grid)
+    grid.retain(|&(_, row, _), _| row < height);
+    grid
 }
 
 /// xLights: `XmlSerialize::ParseCompressed`: `node,row,column[,layer]`
 /// entries, the last for a cell winning.
 fn parse_compressed(text: &str) -> Result<Grid, SkipReason> {
-    let mut entries = Vec::new();
+    let index = |value: i64| {
+        usize::try_from(value as i32)
+            .map_err(|_| SkipReason::Unplaceable("a cell outside the grid"))
+    };
+    let mut grid = Grid::new();
     for entry in text.split(';') {
         let parts: Vec<i64> = entry.split(',').map(strtol).collect();
-        match parts[..] {
-            [node, row, column] => entries.push((node, row, column, 0)),
-            [node, row, column, layer] => entries.push((node, row, column, layer)),
-            _ => {}
-        }
-    }
-    let index = |value: i64| {
-        usize::try_from(value)
-            .ok()
-            .filter(|value| *value < 100_000)
-            .ok_or(SkipReason::Unplaceable("a cell outside the grid"))
-    };
-    let (mut layers, mut rows, mut columns) = (0, 0, 0);
-    for &(_, row, column, layer) in &entries {
-        layers = layers.max(index(layer)?);
-        rows = rows.max(index(row)?);
-        columns = columns.max(index(column)?);
-    }
-    let cells = (layers as u64 + 1) * (rows as u64 + 1) * (columns as u64 + 1);
-    if cells > MOST_CELLS as u64 {
-        return Err(SkipReason::TooManyPixels);
-    }
-    let mut grid = vec![vec![vec![-1; columns + 1]; rows + 1]; layers + 1];
-    for (node, row, column, layer) in entries {
-        grid[layer as usize][row as usize][column as usize] = node as i32;
+        let (node, row, column, layer) = match parts[..] {
+            [node, row, column] => (node, row, column, 0),
+            [node, row, column, layer] => (node, row, column, layer),
+            _ => continue,
+        };
+        grid.insert((index(layer)?, index(row)?, index(column)?), node as i32);
     }
     Ok(grid)
 }
@@ -139,7 +106,7 @@ struct Settings {
     /// The highest node number. xLights: `GetCustomMaxChannel`.
     max_node: i32,
     /// The nodes the grid names, each with its cells.
-    cells: BTreeMap<i32, Vec<(usize, usize, usize)>>,
+    cells: BTreeMap<i32, Vec<Cell>>,
     /// The lowest node a string starts at.
     first_node: i32,
 }
@@ -149,25 +116,22 @@ struct Settings {
 fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
     let compressed = reader.as_string("CustomModelCompressed", "");
     let grid = if compressed.is_empty() {
-        parse_grid(reader.as_string("CustomModel", ""))?
+        parse_grid(reader.as_string("CustomModel", ""))
     } else {
         parse_compressed(compressed)?
     };
-    let mut cells: BTreeMap<i32, Vec<(usize, usize, usize)>> = BTreeMap::new();
+    let mut cells: BTreeMap<i32, Vec<Cell>> = BTreeMap::new();
     let mut max_node = 0;
-    for (layer, rows) in grid.iter().enumerate() {
-        for (row, columns) in rows.iter().enumerate() {
-            for (column, &node) in columns.iter().enumerate() {
-                max_node = max_node.max(node);
-                if node > 0 {
-                    cells.entry(node).or_default().push((layer, row, column));
-                }
-            }
+    for (&cell, &node) in &grid {
+        max_node = max_node.max(node);
+        if node > 0 {
+            cells.entry(node).or_default().push(cell);
         }
     }
     let strings = reader.as_int("CustomStrings", 1);
     let mut first_node = 1;
     if strings > 1 {
+        super::lights(strings as u64, 1)?;
         let count = cells.len() as f32;
         first_node = (0..strings)
             .map(|string| {
@@ -239,9 +203,15 @@ fn layout(
     if settings.cells.is_empty() {
         return Err(SkipReason::NoPixels);
     }
-    if settings.max_node > 1_000_000 {
-        return Err(SkipReason::TooManyPixels);
-    }
+    super::lights(settings.max_node as u64, 1)?;
+    super::lights(
+        settings
+            .cells
+            .values()
+            .map(|cells| cells.len() as u64)
+            .sum(),
+        1,
+    )?;
     let all = settings.cells.values().flatten();
     let (mut low, mut high) = ((usize::MAX, usize::MAX, usize::MAX), (0, 0, 0));
     for &(layer, row, column) in all {
@@ -288,22 +258,22 @@ fn layout(
 
 /// Whether cells form one group, each next to another in every direction,
 /// diagonals included.
-fn touching(cells: &[(usize, usize, usize)]) -> bool {
-    let mut reached = vec![false; cells.len()];
-    let mut queue = vec![0];
-    reached[0] = true;
-    while let Some(from) = queue.pop() {
-        for (to, cell) in cells.iter().enumerate() {
-            let near = |a: usize, b: usize| a.abs_diff(b) <= 1;
-            if !reached[to]
-                && near(cell.0, cells[from].0)
-                && near(cell.1, cells[from].1)
-                && near(cell.2, cells[from].2)
-            {
-                reached[to] = true;
-                queue.push(to);
+fn touching(cells: &[Cell]) -> bool {
+    let all: HashSet<Cell> = cells.iter().copied().collect();
+    let mut reached = HashSet::from([cells[0]]);
+    let mut queue = vec![cells[0]];
+    while let Some((layer, row, column)) = queue.pop() {
+        let near = |value: usize| value.saturating_sub(1)..=value.saturating_add(1);
+        for layer in near(layer) {
+            for row in near(row) {
+                for column in near(column) {
+                    let cell = (layer, row, column);
+                    if all.contains(&cell) && reached.insert(cell) {
+                        queue.push(cell);
+                    }
+                }
             }
         }
     }
-    reached.into_iter().all(|reached| reached)
+    reached.len() == all.len()
 }

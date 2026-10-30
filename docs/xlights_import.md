@@ -39,6 +39,11 @@ importer does not know refuses the model.
 Only models in xLights' default preview, or in all previews, are placed;
 the coordinates of other previews are their own.
 
+A networks file in xLights' older form, `<network>` elements without
+controllers, is grouped into controllers as xLights converts it, and each
+model start channel `N:k`, channel `k` of the Nth `<network>`, is converted
+with it, as xLights converts it when it opens the show.
+
 A show xLights saved keeps its start channels, models on controller ports
 included: xLights' controller auto layout reassigns start channels only
 when a model has moved on load, and in a saved show none has.
@@ -70,21 +75,24 @@ Any model is refused when it:
   applies inconsistently;
 - has a dimming curve from a file, or one for each color;
 - has a start channel that counts from the model itself;
+- has more lights than a Donder fixture holds, 1,000,000, or settings that
+  would have the importer count more than that of anything;
 - has a setting the importer does not know.
 
 Each type also refuses:
 
 | Type | Refused |
 | --- | --- |
-| Single Line, Matrix, Sphere, Wreath, Star, Spinner, Candy Canes | nothing more |
-| Poly Line | more than one string (`PolyStrings`); drops whose nodes xLights cannot find, on which xLights itself never finishes loading |
+| Single Line, Matrix, Sphere, Wreath, Spinner, Candy Canes | nothing more |
+| Star | a layer of more lights than the model has |
+| Poly Line | any number of strings (`PolyStrings`) other than 1; drops whose nodes xLights cannot find, on which xLights itself never finishes loading |
 | Arches | layer sizes |
 | Tree | a first exported strand above 1 on a vertical tree |
 | Circle | layer sizes that place fewer lights than the model has |
 | Icicles | a drop pattern of only gaps |
 | Window Frame | sides of fewer than two lights |
 | Custom | a node whose cells are not next to each other |
-| MultiPoint | more than one string (`MultiStrings`); right to left numbering |
+| MultiPoint | any number of strings (`MultiStrings`) other than 1; right to left numbering |
 
 Cubes, channel blocks, images, labels and DMX fixtures are not imported.
 
@@ -97,12 +105,14 @@ Controllers that are not created still have their outputs numbered:
 
 - DDP, ZCPP, KiNET, OPC, Twinkly and xxx Ethernet controllers, serial
   controllers, xLights' NULL controller and player-only controllers, since
-  Donder sends only E1.31 and Art-Net;
+  Donder sends only E1.31 and Art-Net, and controllers whose protocol is not
+  one xLights knows;
 - inactive controllers;
 - controllers whose address is not an IP address (or, for E1.31,
   `MULTICAST`), whose E1.31 priority is
   outside 1 to 200, whose universes are out of range or repeated, whose
-  outputs send another protocol, or with an output of no channels.
+  outputs send another protocol, or with an output of no channels or of
+  more than 512.
 
 A model whose channels an earlier model in the file already uses is left
 out, since Donder routes do not overlap, and a model's routes are left out

@@ -185,7 +185,7 @@ pub(crate) fn read_models(root: &Element, networks: &Networks) -> (Vec<ShowModel
             .iter()
             .map(|model| ModelChannels {
                 name: model.common.name.clone(),
-                start: model.common.start_channel.to_string(),
+                start: networks.start_channel(model.common.start_channel),
                 controller: model.common.controller.clone(),
                 span: model.span.as_ref().ok().copied(),
             })
@@ -351,6 +351,9 @@ fn protocol(
         }
         if output.channels == 0 {
             return Err(ControllerSkip::EmptyOutput);
+        }
+        if output.channels > 512 {
+            return Err(ControllerSkip::LargeOutput(output.channels));
         }
         let range = if kind == OutputType::E131 {
             1..=63_999

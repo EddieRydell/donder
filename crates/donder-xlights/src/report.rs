@@ -164,6 +164,8 @@ pub enum ControllerSkip {
     MixedOutputs,
     /// An output with no channels.
     EmptyOutput,
+    /// An output of more channels than a universe holds.
+    LargeOutput(u32),
 }
 
 #[derive(Clone, Debug)]
@@ -287,6 +289,10 @@ impl fmt::Display for ControllerSkip {
             Self::RepeatedUniverse(universe) => write!(f, "it sends universe {universe} twice"),
             Self::MixedOutputs => write!(f, "its outputs send another protocol than it does"),
             Self::EmptyOutput => write!(f, "one of its outputs has no channels"),
+            Self::LargeOutput(channels) => write!(
+                f,
+                "one of its outputs has {channels} channels, more than a universe's 512"
+            ),
         }
     }
 }

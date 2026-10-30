@@ -574,16 +574,15 @@ pub(crate) struct Span {
     pub(crate) end: u64,
 }
 
-/// The most nodes a model may have: as many pixels as a Donder fixture holds.
-const MOST_NODES: u64 = 1_000_000;
+/// The most lights a model may have, and so the most of anything the
+/// importer counts or lays out for one: as many pixels as a Donder fixture
+/// holds.
+pub(crate) const MOST_NODES: u64 = 1_000_000;
 
-/// The most lights a model's nodes may have between them.
-const MOST_LIGHTS: u64 = 10_000_000;
-
-/// Refuse a model whose nodes have more lights between them than the
-/// importer lays out.
+/// Refuse a model whose nodes have more lights between them than
+/// `MOST_NODES`.
 pub(crate) fn lights(nodes: u64, per_node: u64) -> Result<(), SkipReason> {
-    if nodes.saturating_mul(per_node) > MOST_LIGHTS {
+    if nodes.saturating_mul(per_node) > MOST_NODES {
         return Err(SkipReason::TooManyPixels);
     }
     Ok(())
@@ -725,13 +724,13 @@ fn dimming(reader: &Reader) -> Result<Option<Dimming>, SkipReason> {
     }
     if let Some(element) = reader.element.child("dimmingCurve") {
         let refuse = || SkipReason::Setting("dimming curve other than one brightness and gamma");
-        // xLights reads the children into a map, whose `all` comes first.
+        // xLights uses `all` over any color's own curve; one beside it is
+        // refused all the same, as a curve meant for each color.
+        if element.children.iter().any(|child| child.name != "all") {
+            return Err(refuse());
+        }
         let Some(all) = element.child("all") else {
-            return if element.children.is_empty() {
-                Ok(None)
-            } else {
-                Err(refuse())
-            };
+            return Ok(None);
         };
         let all = Reader::new(all);
         if all.has("filename") {
