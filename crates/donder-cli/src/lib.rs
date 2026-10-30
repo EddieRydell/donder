@@ -57,6 +57,15 @@ enum Command {
         #[arg(long)]
         target: Vec<String>,
     },
+    /// Put an xLights show's layout, controllers and patch in this new
+    /// project, from the show folder holding `xlights_rgbeffects.xml`.
+    ImportXlights {
+        show: Utf8PathBuf,
+        /// Meters between neighbouring pixels, which sets the layout's size;
+        /// defaults to the layout's ruler, or 7.5 cm without one.
+        #[arg(long)]
+        pixel_spacing: Option<f64>,
+    },
     /// Write the generated effect-language builtin reference.
     Builtins { output: Utf8PathBuf },
     /// Run the language server over standard input and output.
@@ -136,6 +145,21 @@ pub fn run(cli: Cli) -> Result<(), String> {
             Ok(())
         }
         Command::Lsp => lsp(),
+        Command::ImportXlights {
+            show,
+            pixel_spacing,
+        } => {
+            let mut session = load(&cli.path)?;
+            let report = donder_xlights::import_show(
+                &mut session,
+                &show,
+                &donder_xlights::ImportOptions { pixel_spacing },
+            )
+            .map_err(|error| error.to_string())?;
+            donder_project_io::save_project(&session).map_err(|error| error.to_string())?;
+            print!("{report}");
+            Ok(())
+        }
         Command::Builtins { output } => {
             let text = donder_language::compiler::builtin_reference();
             donder_project_io::atomic_write(&output, text.as_bytes())

@@ -213,6 +213,8 @@ pub enum AppCommandId {
     FileNewProject,
     #[serde(rename = "file.copyProject")]
     FileCopyProject,
+    #[serde(rename = "file.importXLights")]
+    FileImportXLights,
     #[serde(rename = "file.newSequence")]
     FileNewSequence,
     #[serde(rename = "file.openProject")]
