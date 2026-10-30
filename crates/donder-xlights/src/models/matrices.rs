@@ -50,8 +50,9 @@ fn grid(spec: &Spec, vertical: bool) -> Result<Grid, SkipReason> {
     let strands_per_string = spec
         .count("StrandsPerString", "parm3", 1)?
         .clamp(1, string_nodes.max(1));
-    let strands = strings * strands_per_string;
+    let strands = super::nodes(&[strings, strands_per_string])?;
     let strand_nodes = string_nodes / strands_per_string;
+    super::nodes(&[strands, strand_nodes])?;
     let alternate = spec.is_true("AlternateNodes", false);
     let zig_zag = !spec.is_true("NoZig", false);
     let left_to_right = spec.left_to_right();
@@ -106,6 +107,10 @@ fn grid(spec: &Spec, vertical: bool) -> Result<Grid, SkipReason> {
     // The strand xLights exports first carries the model's first channels.
     let first = spec.int("exportFirstStrand", 0)? - 1;
     if first > 0 && (first as u32) < strands {
+        // The turn counts whole strands, so every string must be whole strands.
+        if string_nodes != strands_per_string * strand_nodes {
+            return Err(SkipReason::Setting("first exported strand"));
+        }
         let total = strands * strand_nodes;
         let shift = first as u32 * strand_nodes;
         for cell in &mut cells {
@@ -206,14 +211,25 @@ fn spiral(height: u32, radius: f64, top: f64, rotations: f64) -> (Vec<f64>, Vec<
             (lengths[piece] / total * f64::from(height)).round()
         }
     };
+    // A piece too short for a light of its own has no rows; the last piece
+    // takes every row left.
     let mut piece = 0;
     let mut in_piece = lights_in(0, 0);
+    while in_piece == 0.0 {
+        piece += 1;
+        in_piece = lights_in(piece, 0);
+    }
     let mut placed = 0.0;
     for row in 1..height {
         if placed >= in_piece {
-            piece += 1;
             placed = 0.0;
-            in_piece = lights_in(piece, row);
+            loop {
+                piece += 1;
+                in_piece = lights_in(piece, row);
+                if in_piece > 0.0 {
+                    break;
+                }
+            }
         }
         let row = row as usize;
         up[row] = up[row - 1] + rise / in_piece;

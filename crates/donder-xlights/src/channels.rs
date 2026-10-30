@@ -103,29 +103,42 @@ fn first(
     }
     states[index] = Some(State::Resolving);
     let model = &models[index];
+    // Channels count from 1; the `k`th channel from `start` is `start + k - 1`.
+    let out_of_range = || UnroutedReason::OutOfRange(model.start.clone());
+    let nth = |start: u32, channel: u32| {
+        start
+            .checked_add(channel)
+            .and_then(|end| end.checked_sub(1))
+            .filter(|channel| *channel >= 1)
+            .ok_or_else(out_of_range)
+    };
     let result = match parse(&model.start) {
         None => Err(UnroutedReason::StartChannel(model.start.clone())),
-        Some(Start::Absolute(channel)) => Ok(channel),
+        Some(Start::Absolute(channel)) => nth(channel, 1),
         Some(Start::Universe(ip, universe, channel)) => networks
             .universe_start(ip.as_deref(), universe)
-            .map(|start| start + channel - 1)
-            .ok_or_else(|| UnroutedReason::UnknownUniverse(model.start.clone())),
+            .ok_or_else(|| UnroutedReason::UnknownUniverse(model.start.clone()))
+            .and_then(|start| nth(start, channel)),
         Some(Start::Controller(name, channel)) => networks
             .controller_start(&name)
-            .map(|start| start + channel - 1)
-            .ok_or(UnroutedReason::UnknownController(name)),
+            .ok_or(UnroutedReason::UnknownController(name))
+            .and_then(|start| nth(start, channel)),
         Some(Start::After(other, channel) | Start::At(other, channel)) => {
             let after = matches!(parse(&model.start), Some(Start::After(..)));
             match by_name.get(other.as_str()) {
                 None => Err(UnroutedReason::UnknownModel(other)),
-                Some(&other_index) => match (
-                    first(other_index, models, networks, by_name, states),
-                    models[other_index].span,
-                ) {
-                    (Ok(start), Some(span)) if after => Ok(start + span - 1 + channel),
-                    (Ok(start), _) if !after => Ok(start + channel - 1),
-                    (Err(UnroutedReason::ChainLoop), _) => Err(UnroutedReason::ChainLoop),
-                    _ => Err(UnroutedReason::UnknownModel(other)),
+                Some(&other_index) => match first(other_index, models, networks, by_name, states) {
+                    Err(UnroutedReason::ChainLoop) => Err(UnroutedReason::ChainLoop),
+                    Err(reason) => Err(UnroutedReason::Follows {
+                        model: other,
+                        reason: Box::new(reason),
+                    }),
+                    Ok(start) if !after => nth(start, channel),
+                    Ok(start) => match models[other_index].span {
+                        None => Err(UnroutedReason::UnknownSpan(other)),
+                        Some(span) => nth(start, span)
+                            .and_then(|last| last.checked_add(channel).ok_or_else(out_of_range)),
+                    },
                 },
             }
         }

@@ -30,7 +30,7 @@ pub(super) fn star(spec: &Spec) -> Result<Local, SkipReason> {
     let strings = spec.count("NumStrings", "parm1", 1)?;
     let string_nodes = spec.count("NodesPerString", "parm2", 1)?;
     let points = spec.count("StarPoints", "parm3", 5)?.max(2);
-    let total = strings * string_nodes;
+    let total = super::nodes(&[strings, string_nodes])?;
     let mut sizes = if spec.has("starSizes") {
         spec.csv("starSizes")?
     } else {

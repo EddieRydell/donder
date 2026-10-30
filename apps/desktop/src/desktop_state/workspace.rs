@@ -654,7 +654,10 @@ fn import_xlights(
     let mut session =
         donder_project_io::check_project(root, &Default::default(), &mut Default::default())
             .into_session()
-            .map_err(|diagnostics| format!("The new project does not load: {diagnostics:?}"))?;
+            .map_err(|diagnostics| {
+                let lines: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
+                format!("The new project does not load: {}", lines.join("; "))
+            })?;
     let report = donder_xlights::import_show(
         &mut session,
         show,

@@ -12,9 +12,9 @@ pub(super) fn single_line(spec: &Spec) -> Result<Local, SkipReason> {
     let strings = spec.count("NumStrings", "parm1", 1)?;
     let string_nodes = spec.count("NodesPerString", "parm2", 50)?;
     let lights = spec.count("LightsPerNode", "parm3", 1)?.max(1);
-    let total = strings * string_nodes;
+    let total = super::nodes(&[strings, string_nodes])?;
     let left_to_right = spec.left_to_right();
-    let light_count = total * lights;
+    let light_count = super::nodes(&[total, lights])?;
     let step = if light_count > 1 {
         f64::from(total) / f64::from(light_count - 1)
     } else {
@@ -148,7 +148,7 @@ pub(super) fn poly_line(spec: &Spec) -> Result<Local, SkipReason> {
     if path.len() < 2 || length == 0.0 {
         return Err(SkipReason::NoPixels);
     }
-    let light_count = f64::from(string_nodes * lights);
+    let light_count = f64::from(super::nodes(&[string_nodes, lights])?);
     let left_to_right = spec.left_to_right();
     let nodes = (0..string_nodes)
         .map(|node| {
