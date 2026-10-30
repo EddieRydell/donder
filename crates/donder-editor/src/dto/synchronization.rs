@@ -87,6 +87,14 @@ pub enum WorkspaceTransition {
         parent_path: String,
         directory_name: String,
     },
+    /// A new project holding the layout, controllers and patch of the
+    /// xLights show in `show_path`.
+    ImportXLights {
+        parent_path: String,
+        directory_name: String,
+        initial_color: String,
+        show_path: String,
+    },
     CloseApplication,
 }
 

@@ -16,6 +16,7 @@ donder-model.workspace = true
 donder-output.workspace = true
 donder-project-io.workspace = true
 donder-runtime-types.workspace = true
+donder-xlights.workspace = true
 donder-language-server.workspace = true
 lsp-server.workspace = true
 serde_json.workspace = true
