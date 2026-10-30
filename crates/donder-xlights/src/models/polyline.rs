@@ -46,9 +46,6 @@ const POLY_LINE: Table = &[
     ),
 ];
 
-/// The most points a path may have.
-const MOST_POINTS: usize = 100_000;
-
 /// xLights: `BezierCurve3D`'s default `steps`.
 const CURVE_STEPS: f32 = 25.0;
 
@@ -189,9 +186,7 @@ fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
         return Err(SkipReason::Setting("number of strings"));
     }
     let count = reader.as_int("NumPoints", 2).max(2) as usize;
-    if count > MOST_POINTS {
-        return Err(SkipReason::Setting("number of points above 100000"));
-    }
+    super::lights(count as u64, 1)?;
     let mut values: Vec<&str> = reader
         .as_string("PointData", "0.0, 0.0, 0.0, 0.0, 0.0, 0.0")
         .split(',')
@@ -235,10 +230,10 @@ fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
         .as_string("DropPattern", "1")
         .split(',')
         .map(|item| match strtol(item) as i32 {
-            0 => 1,
-            size => size,
+            0 => Ok(1),
+            size => super::lights(u64::from(size.unsigned_abs()), 1).map(|()| size),
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     let segments = count - 1;
     let auto = !reader.has("Seg1");
     let corner = |index: usize| reader.as_string(&format!("Corner{}", index + 1), "Neither");
@@ -291,35 +286,33 @@ fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
 
 /// The lights of the model, and how many drop positions they hang from.
 /// xLights: the start of `PolyLineModel::InitModel`.
-fn light_count(settings: &Settings) -> (u32, u32) {
+fn light_count(settings: &Settings) -> Result<(u32, u32), SkipReason> {
     let drops = &settings.drops;
     let (mut lights, mut positions) = (0u64, 0u64);
-    let mut drop = 0;
+    // Every drop has a light, so stopping past the limit bounds the loops.
+    let mut sizes = drops.iter().map(|size| size.unsigned_abs()).cycle();
+    let mut next = || {
+        let size = sizes.next().unwrap_or(1);
+        lights += u64::from(size);
+        positions += 1;
+        super::lights(lights, 1).map(|()| size)
+    };
     match &settings.segments {
-        Some(sizes) => {
-            for &size in sizes {
+        Some(segments) => {
+            for &size in segments {
                 for _ in 0..size.max(0) {
-                    lights += u64::from(drops[drop].unsigned_abs());
-                    drop = (drop + 1) % drops.len();
+                    next()?;
                 }
-                positions += size.max(0) as u64;
             }
         }
         None => {
             let mut left = i64::from(settings.total_lights);
             while left > 0 {
-                let size = drops[drop].unsigned_abs();
-                lights += u64::from(size);
-                drop = (drop + 1) % drops.len();
-                positions += 1;
-                left -= i64::from(size);
+                left -= i64::from(next()?);
             }
         }
     }
-    (
-        lights.min(u64::from(u32::MAX)) as u32,
-        positions.min(u64::from(u32::MAX)) as u32,
-    )
+    Ok((lights as u32, positions as u32))
 }
 
 pub(super) fn poly_line(
@@ -330,7 +323,10 @@ pub(super) fn poly_line(
         Ok(settings) => settings,
         Err(reason) => return (Err(reason.clone()), Err(reason)),
     };
-    let (lights, _) = light_count(&settings);
+    let lights = match light_count(&settings) {
+        Ok((lights, _)) => lights,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
     // xLights: PolyLineModel::NodesPerString, the model's one string.
     let strings = match Strings::uniform(1, lights as i32, 1) {
         Ok(strings) => strings,
@@ -353,7 +349,7 @@ fn layout(
     if settings.lights_per_node < 1 {
         return Err(SkipReason::Unplaceable("each node has no lights"));
     }
-    let (num_lights, drop_points) = light_count(&settings);
+    let (num_lights, drop_points) = light_count(&settings)?;
     if num_lights == 0 {
         return Err(SkipReason::NoPixels);
     }

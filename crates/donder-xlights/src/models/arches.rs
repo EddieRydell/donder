@@ -134,6 +134,7 @@ fn layout(
     if settings.lights_per_node < 1 {
         return Err(SkipReason::Unplaceable("each node has no lights"));
     }
+    super::lights(u64::from(strings.nodes), settings.lights_per_node as u64)?;
     let (arches, per_arch) = (strings.count, settings.nodes_per_arch as u32);
     let lights = settings.lights_per_node as u32;
     if per_arch * lights < 2 {

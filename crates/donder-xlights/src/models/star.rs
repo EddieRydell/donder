@@ -7,9 +7,6 @@ use crate::report::SkipReason;
 use glam::DVec3;
 use std::f64::consts::PI;
 
-/// The most points a star may have.
-const MOST_POINTS: i32 = 1000;
-
 const STAR: Table = &[
     (Name::Exact("NumStrings"), Use::Modeled),
     (Name::Exact("NodesPerString"), Use::Modeled),
@@ -36,7 +33,8 @@ struct Settings {
 }
 
 /// xLights: `XmlDeserializingModelFactory::DeserializeStar` and
-/// `StarModel::ConvertFromDirStartSide`.
+/// `StarModel::ConvertFromDirStartSide`, which takes `Dir` to be left only
+/// when it is `L`, where `Common::left_to_right` takes anything but `R`.
 fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
     let layers = if reader.has("starSizes") {
         read::layer_sizes(reader.as_string("starSizes", ""))
@@ -110,13 +108,12 @@ fn layout(
         return Err(SkipReason::NoPixels);
     }
     let points = settings.points.max(2);
-    if points > MOST_POINTS {
-        return Err(SkipReason::Setting("number of points above 1000"));
-    }
     let mut layers = settings.layers;
     if layers.len() <= 1 {
         layers = vec![lights];
     }
+    // Each layer goes round every point's two lines.
+    super::lights(2 * points as u64, layers.len() as u64)?;
     if layers
         .iter()
         .any(|size| i64::from(*size) > i64::from(lights))
@@ -173,7 +170,7 @@ fn layout(
             break;
         }
         let layer_nodes = layers[layer];
-        let end_node = nodes.len() as i32 + layer_nodes;
+        let end_node = (nodes.len() as i32).saturating_add(layer_nodes);
         let mut start_outer = !location.contains("Bottom Ctr");
         let (sx, sy) = on_circle(if start_outer { outer } else { inner }, start_angle);
         let (ex, ey) = on_circle(

@@ -6,7 +6,7 @@
 //! channels, whether or not the controller is active. Model start channels
 //! resolve to these absolute numbers.
 
-use crate::read::Reader;
+use crate::read::{Reader, strtol};
 use crate::xml::Element;
 
 /// The output types xLights loads. xLights: `Output::Create`.
@@ -108,7 +108,8 @@ impl OutputType {
 #[derive(Clone, Debug)]
 pub(crate) struct Output {
     pub(crate) kind: OutputType,
-    /// The universe of an IP output. xLights: `IPOutput::_universe`.
+    /// The universe of an IP output, or the id of another. xLights:
+    /// `Output::_universe`.
     pub(crate) universe: i32,
     pub(crate) ip: String,
     pub(crate) channels: u32,
@@ -142,9 +143,23 @@ pub(crate) struct NetworkController {
     pub(crate) outputs: Vec<Output>,
 }
 
+/// A `<network>` of the older networks file, kept to convert start
+/// channels written against it. xLights: `OutputManager::_conversionOutputs`.
+struct Converted {
+    kind: OutputType,
+    ip: String,
+    universe: i32,
+    /// xLights: `Output::_description_CONVERT`.
+    description: String,
+    controller: usize,
+    /// Its first output among the controller's outputs.
+    output: usize,
+}
+
 #[derive(Default)]
 pub(crate) struct Networks {
     pub(crate) controllers: Vec<NetworkController>,
+    converted: Vec<Converted>,
 }
 
 /// One `<network>` element as an output, or none for a type xLights does
@@ -161,14 +176,15 @@ fn output(network: &Element) -> Option<Output> {
     {
         channels = 512;
     }
-    let mut universe = if kind.is_ip() {
-        reader.as_int("BaudRate", 1)
-    } else {
-        0
+    // xLights: IPOutput reads BaudRate; xxxEthernetOutput, NullOutput and
+    // SerialOutput set it from their Id (SetId).
+    let universe = match kind {
+        OutputType::XxxEthernet if reader.as_int("Port", -1) != -1 => reader.as_int("Port", 0),
+        OutputType::XxxEthernet => reader.as_int("Id", 0),
+        kind if kind.is_ip() => reader.as_int("BaudRate", 1),
+        OutputType::Null => reader.as_int("Id", 64001),
+        _ => reader.as_int("Id", 0),
     };
-    if kind == OutputType::XxxEthernet && reader.as_int("Port", -1) != -1 {
-        universe = reader.as_int("Port", 0);
-    }
     Some(Output {
         kind,
         universe,
@@ -214,6 +230,25 @@ fn unxml_safe(text: &str) -> String {
     result
 }
 
+/// xLights: `XmlSafe`, whose signed `char` drops every byte of a
+/// character outside ASCII along with control characters.
+fn xml_safe(text: &str) -> String {
+    let mut result = String::new();
+    for &byte in text.as_bytes() {
+        match byte {
+            9 | 10 | 13 => result.push_str(&format!("&#{byte};")),
+            0..32 | 128.. => {}
+            b'&' => result.push_str("&amp;"),
+            b'<' => result.push_str("&lt;"),
+            b'>' => result.push_str("&gt;"),
+            b'\'' => result.push_str("&apos;"),
+            b'"' => result.push_str("&quot;"),
+            _ => result.push(char::from(byte)),
+        }
+    }
+    result
+}
+
 /// A unique name for a controller converted from the older networks file.
 /// xLights: `OutputManager::UniqueName`.
 fn unique_name(prefix: &str, controllers: &[NetworkController]) -> String {
@@ -231,6 +266,7 @@ impl Networks {
     /// xLights: `OutputManager::Load`.
     pub(crate) fn read(root: &Element) -> Self {
         let mut controllers: Vec<NetworkController> = Vec::new();
+        let mut converted = Vec::new();
         // The older form, top-level `<network>` elements, is grouped into
         // controllers as xLights converts them.
         let mut converting: Option<usize> = None;
@@ -284,6 +320,15 @@ impl Networks {
                     }
                     let index = converting.unwrap_or_default();
                     let first = controllers[index].outputs.is_empty();
+                    let description = unxml_safe(reader.as_string("Description", ""));
+                    converted.push(Converted {
+                        kind: output.kind,
+                        ip: output.ip.clone(),
+                        universe: output.universe,
+                        description: description.clone(),
+                        controller: index,
+                        output: controllers[index].outputs.len(),
+                    });
                     // xLights: E131Output::CreateMultiUniverses_CONVERT and
                     // ControllerEthernet::Convert.
                     if output.kind == OutputType::E131 && count > 1 {
@@ -297,7 +342,6 @@ impl Networks {
                         controllers[index].outputs.push(output);
                     }
                     if first {
-                        let description = unxml_safe(reader.as_string("Description", ""));
                         let description = description.as_str();
                         let prefix = if description.is_empty() {
                             "Unnamed"
@@ -319,6 +363,16 @@ impl Networks {
                         _ => continue,
                     };
                     let protocol_text = reader.as_string("Protocol", "");
+                    let mut outputs: Vec<Output> = element
+                        .children
+                        .iter()
+                        .filter(|child| child.name == "network")
+                        .filter_map(output)
+                        .collect();
+                    // xLights: ControllerSerial gives its output its own Id.
+                    if let (ControllerType::Serial, Some(first)) = (kind, outputs.first_mut()) {
+                        first.universe = reader.as_int("Id", 64001);
+                    }
                     controllers.push(NetworkController {
                         name: crate::read::trim(reader.as_string("Name", "Controller_"))
                             .to_string(),
@@ -332,12 +386,7 @@ impl Networks {
                         ip: reader.as_string("IP", "").to_string(),
                         priority: reader.as_int("Priority", 100),
                         active: active(&reader),
-                        outputs: element
-                            .children
-                            .iter()
-                            .filter(|child| child.name == "network")
-                            .filter_map(output)
-                            .collect(),
+                        outputs,
                     });
                 }
                 _ => {}
@@ -351,7 +400,65 @@ impl Networks {
                 next += u64::from(output.channels);
             }
         }
-        Self { controllers }
+        Self {
+            controllers,
+            converted,
+        }
+    }
+
+    /// A model's start channel as xLights converts it when the networks
+    /// file had the older form: `N:k`, channel `k` of the Nth `<network>`,
+    /// becomes `#ip:universe:k` (`#universe:k` when multicast) for E1.31 and
+    /// Art-Net and `!controller:k` for the rest, and `!description:k` names
+    /// the controller it became. xLights: `OutputManager::ConvertStartChannel`
+    /// and `ConvertModelStartChannels`, which also convert the `String`
+    /// start channels of an `Advanced` model, refused here.
+    pub(crate) fn start_channel(&self, start: &str) -> String {
+        if self.converted.is_empty() {
+            return start.to_string();
+        }
+        let text = unxml_safe(start);
+        let parts: Vec<&str> = text.split(':').collect();
+        let [number, channel] = parts[..] else {
+            return start.to_string();
+        };
+        let channel = strtol(channel) as i32;
+        let converted = match number.as_bytes().first() {
+            Some(first) if first.is_ascii_digit() => {
+                let number = strtol(number) as i32;
+                usize::try_from(number)
+                    .ok()
+                    .filter(|number| *number > 0)
+                    .and_then(|number| self.converted.get(number - 1))
+                    .map(|output| match output.kind {
+                        OutputType::E131 | OutputType::ArtNet if output.ip == "MULTICAST" => {
+                            format!("#{}:{channel}", output.universe)
+                        }
+                        OutputType::E131 | OutputType::ArtNet => {
+                            format!("#{}:{}:{channel}", output.ip, output.universe)
+                        }
+                        _ => format!("!{}:{channel}", self.controllers[output.controller].name),
+                    })
+            }
+            Some(b'!') => self
+                .converted
+                .iter()
+                .find(|output| output.description == number[1..])
+                .map(|output| {
+                    let controller = &self.controllers[output.controller];
+                    let before: u64 = controller.outputs[..output.output]
+                        .iter()
+                        .map(|output| u64::from(output.channels))
+                        .sum();
+                    format!(
+                        "!{}:{}",
+                        controller.name,
+                        (before as i32).wrapping_add(channel)
+                    )
+                }),
+            _ => None,
+        };
+        converted.map_or_else(|| start.to_string(), |text| xml_safe(&text))
     }
 
     /// The output holding absolute channel `channel`, and where in it.
