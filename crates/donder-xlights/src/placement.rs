@@ -1,161 +1,234 @@
-//! Where a model sits in the xLights layout: the transform from its own
-//! coordinates to layout coordinates. X is right, Y up and Z toward the
+//! Where a model sits in the xLights layout: the transform from the model's
+//! own screen coordinates to layout coordinates, computed in single
+//! precision as xLights computes it. X is right, Y up and Z toward the
 //! viewer, as in Donder.
 
-use crate::models::Spec;
+use crate::read::Reader;
 use crate::report::SkipReason;
-use glam::{DAffine3, DMat3, DQuat, DVec3};
+use glam::{Mat4, Vec3, Vec4};
 
-pub(crate) enum Placement {
-    /// Scaled per axis, rotated about X, then Y, then Z, then moved.
-    Boxed {
-        position: DVec3,
-        scale: DVec3,
-        degrees: DVec3,
-    },
-    /// Model x from 0 to `width` runs from `start` to `start + offset`.
-    TwoPoint {
-        start: DVec3,
-        offset: DVec3,
-        width: f64,
-    },
-    /// Two points as above, the model tilted `tilt` degrees about the line
-    /// between them, its y sheared by `shear` x and stretched by `height`.
-    ThreePoint {
-        start: DVec3,
-        offset: DVec3,
-        width: f64,
-        tilt: f64,
-        height: f64,
-        shear: f64,
-    },
-    /// Model coordinates scaled per axis, then moved.
-    Points { position: DVec3, scale: DVec3 },
+/// The model's size in its own coordinates, which two- and three-point
+/// placements stretch between their points. xLights: `RenderWi`, set by
+/// each model's `SetRenderSize`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RenderSize {
+    pub(crate) width: f32,
 }
 
-fn point(spec: &Spec, x: &str, y: &str, z: &str, default: f64) -> Result<DVec3, SkipReason> {
-    Ok(DVec3::new(
-        spec.float(x, default)?,
-        spec.float(y, default)?,
-        spec.float(z, default)?,
+#[derive(Clone, Debug)]
+pub(crate) enum Placement {
+    Boxed {
+        position: Vec3,
+        scale: Vec3,
+        /// Degrees about X, Y and Z, as written.
+        rotation: Vec3,
+    },
+    TwoPoint {
+        position: Vec3,
+        offset: Vec3,
+    },
+    ThreePoint {
+        position: Vec3,
+        offset: Vec3,
+        /// Degrees about the line, `RotateX`.
+        tilt: f32,
+        /// Stretches the model's height, unless the model lays out its own
+        /// height.
+        height: Option<f32>,
+        /// Icicles only.
+        shear: Option<f32>,
+    },
+    /// A transform the model computes itself, as a Poly Line's does from
+    /// its points.
+    Matrix(Mat4),
+}
+
+fn vector(reader: &Reader, names: [&str; 3], default: f32) -> Result<Vec3, SkipReason> {
+    Ok(Vec3::new(
+        reader.as_float(names[0], default)?,
+        reader.as_float(names[1], default)?,
+        reader.as_float(names[2], default)?,
     ))
 }
 
-pub(crate) fn position(spec: &Spec) -> Result<DVec3, SkipReason> {
-    point(spec, "WorldPosX", "WorldPosY", "WorldPosZ", 0.0)
+/// xLights: `DeserializeModelScreenLocationAttributes`.
+fn world(reader: &Reader) -> Result<Vec3, SkipReason> {
+    vector(reader, ["WorldPosX", "WorldPosY", "WorldPosZ"], 0.0)
 }
 
-pub(crate) fn boxed(spec: &Spec) -> Result<Placement, SkipReason> {
+/// xLights: `DeserializeTwoPointScreenLocationAttributes`.
+fn second_point(reader: &Reader) -> Result<Vec3, SkipReason> {
+    vector(reader, ["X2", "Y2", "Z2"], 0.0)
+}
+
+/// xLights: `DeserializeModelScreenLocationAttributes`, then
+/// `BoxedScreenLocation::Init`, which replaces a negative scale with 1.
+pub(crate) fn boxed(reader: &Reader) -> Result<Placement, SkipReason> {
+    let scale = vector(reader, ["ScaleX", "ScaleY", "ScaleZ"], 1.0)?;
     Ok(Placement::Boxed {
-        position: position(spec)?,
-        scale: point(spec, "ScaleX", "ScaleY", "ScaleZ", 1.0)?,
-        degrees: point(spec, "RotateX", "RotateY", "RotateZ", 0.0)?,
+        position: world(reader)?,
+        scale: Vec3::select(scale.cmplt(Vec3::ZERO), Vec3::ONE, scale),
+        rotation: vector(reader, ["RotateX", "RotateY", "RotateZ"], 0.0)?,
     })
 }
 
-/// The line from the model's first point to its second, which must be two
-/// places for the model to have a direction and a length.
-fn offset(spec: &Spec) -> Result<DVec3, SkipReason> {
-    let offset = point(spec, "X2", "Y2", "Z2", 0.0)?;
-    if offset == DVec3::ZERO {
-        return Err(SkipReason::Unplaceable("its two end points are the same"));
-    }
-    Ok(offset)
-}
-
-pub(crate) fn two_point(spec: &Spec, width: f64) -> Result<Placement, SkipReason> {
+pub(crate) fn two_point(reader: &Reader) -> Result<Placement, SkipReason> {
     Ok(Placement::TwoPoint {
-        start: position(spec)?,
-        offset: offset(spec)?,
-        width,
+        position: world(reader)?,
+        offset: second_point(reader)?,
     })
 }
 
-/// `stretch` when the placement's height stretches the model, rather than
-/// the model laying out its own height.
-pub(crate) fn three_point(spec: &Spec, width: f64, stretch: bool) -> Result<Placement, SkipReason> {
+/// xLights: `DeserializeThreePointScreenLocationAttributes`. `own_height`
+/// for the models that lay out their own height
+/// (`SetModelHandleHeight(true)`: Arches and Candy Canes); `shear` for
+/// Icicles (`SetSupportsShear(true)`).
+pub(crate) fn three_point(
+    reader: &Reader,
+    own_height: bool,
+    shear: bool,
+) -> Result<Placement, SkipReason> {
     Ok(Placement::ThreePoint {
-        start: position(spec)?,
-        offset: offset(spec)?,
-        width,
-        tilt: spec.float("RotateX", 0.0)?,
-        height: if stretch {
-            spec.float("Height", 1.0)?
+        position: world(reader)?,
+        offset: second_point(reader)?,
+        tilt: reader.as_float("RotateX", 0.0)?,
+        height: (!own_height)
+            .then(|| reader.as_float("Height", 1.0))
+            .transpose()?,
+        shear: shear.then(|| reader.as_float("Shear", 0.0)).transpose()?,
+    })
+}
+
+/// xLights: `glm::rotate(angle, axis)`.
+fn rotate(radians: f32, axis: Vec3) -> Mat4 {
+    let (s, c) = radians.sin_cos();
+    let axis = axis.normalize();
+    let temp = axis * (1.0 - c);
+    Mat4::from_cols(
+        Vec4::new(
+            c + temp.x * axis.x,
+            temp.x * axis.y + s * axis.z,
+            temp.x * axis.z - s * axis.y,
+            0.0,
+        ),
+        Vec4::new(
+            temp.y * axis.x - s * axis.z,
+            c + temp.y * axis.y,
+            temp.y * axis.z + s * axis.x,
+            0.0,
+        ),
+        Vec4::new(
+            temp.z * axis.x + s * axis.y,
+            temp.z * axis.y - s * axis.x,
+            c + temp.z * axis.z,
+            0.0,
+        ),
+        Vec4::W,
+    )
+}
+
+/// xLights: `VectorMath::rotationMatrixFromXAxisToVector2`.
+fn x_axis_to_line(origin: Vec3, point: Vec3) -> Mat4 {
+    let a = point - origin;
+    if origin.y != point.y || origin.z != point.z {
+        let length = a.length();
+        let angle = if length == 0.0 {
+            0.0
         } else {
-            1.0
-        },
-        shear: spec.float("Shear", 0.0)?,
-    })
-}
-
-pub(crate) fn points(spec: &Spec) -> Result<Placement, SkipReason> {
-    Ok(Placement::Points {
-        position: position(spec)?,
-        scale: point(spec, "ScaleX", "ScaleY", "ScaleZ", 1.0)?,
-    })
-}
-
-/// The shortest turn from +X onto `direction`; a line pointing back along X
-/// turns about Z.
-fn x_onto(direction: DVec3) -> DQuat {
-    let direction = direction.normalize();
-    if direction.abs_diff_eq(DVec3::NEG_X, 1e-12) {
-        DQuat::from_rotation_z(std::f64::consts::PI)
+            (a.x / length).acos()
+        };
+        rotate(angle, Vec3::new(0.0, -a.z, a.y))
+    } else if point.x < origin.x {
+        rotate(180f32.to_radians(), Vec3::Z)
     } else {
-        DQuat::from_rotation_arc(DVec3::X, direction)
+        Mat4::IDENTITY
     }
+}
+
+/// xLights: `VectorMath::rotationMatrixFromXAxisToVector`, which snaps a
+/// line within about a degree of the X axis onto it.
+pub(crate) fn x_axis_to_vector(a: Vec3) -> Mat4 {
+    let ax = a.x / a.length();
+    let angle = ax.acos();
+    if ax > 0.9999 || angle == 0.0 {
+        Mat4::IDENTITY
+    } else if ax < -0.9999 || (angle - std::f32::consts::PI).abs() < 0.0001 {
+        rotate(180f32.to_radians(), Vec3::Y)
+    } else {
+        rotate(angle, Vec3::new(0.0, -a.z, a.y))
+    }
+}
+
+/// The placement's second point, moved off the first when they are the
+/// same, as xLights does so the line has a length.
+fn second(position: Vec3, offset: Vec3) -> Vec3 {
+    let x = if offset == Vec3::ZERO {
+        0.001
+    } else {
+        offset.x
+    };
+    Vec3::new(x + position.x, offset.y + position.y, offset.z + position.z)
 }
 
 impl Placement {
-    pub(crate) fn transform(&self) -> DAffine3 {
+    /// xLights: each screen location's `PrepareToDraw(true, ...)` and
+    /// `TranslatePoint`.
+    pub(crate) fn transform(&self, size: RenderSize) -> Mat4 {
         match *self {
+            // xLights: BoxedScreenLocation::TranslatePoint, with the
+            // rotation `ModelScreenLocation::SetRotation` builds from the
+            // degrees as written.
             Self::Boxed {
                 position,
                 scale,
-                degrees,
+                rotation,
             } => {
-                let rotation = DQuat::from_rotation_z(degrees.z.to_radians())
-                    * DQuat::from_rotation_y(degrees.y.to_radians())
-                    * DQuat::from_rotation_x(degrees.x.to_radians());
-                DAffine3::from_scale_rotation_translation(scale, rotation, position)
+                let rotation = rotate(rotation.z.to_radians(), Vec3::Z)
+                    * rotate(rotation.y.to_radians(), Vec3::Y)
+                    * rotate(rotation.x.to_radians(), Vec3::X);
+                Mat4::from_translation(position) * rotation * Mat4::from_scale(scale)
             }
-            Self::TwoPoint {
-                start,
-                offset,
-                width,
-            } => {
-                let scale = offset.length() / width;
-                DAffine3::from_scale_rotation_translation(
-                    DVec3::splat(scale),
-                    x_onto(offset),
-                    start,
-                )
+            // xLights: TwoPointScreenLocation::PrepareToDraw.
+            Self::TwoPoint { position, offset } => {
+                let point = second(position, offset);
+                let scale = (point - position).length() / size.width;
+                Mat4::from_translation(position)
+                    * x_axis_to_line(position, point)
+                    * Mat4::from_scale(Vec3::splat(scale))
             }
+            // xLights: ThreePointScreenLocation::PrepareToDraw.
             Self::ThreePoint {
-                start,
+                position,
                 offset,
-                width,
                 tilt,
                 height,
                 shear,
             } => {
-                let scale = offset.length() / width;
-                // A line drawn right to left keeps the model upright.
-                let rotation = if offset.x < 0.0 {
-                    x_onto(-offset) * DQuat::from_rotation_y(std::f64::consts::PI)
+                let point = second(position, offset);
+                let swapped = offset.x < 0.0;
+                let (from, to) = if swapped {
+                    (point, position)
                 } else {
-                    x_onto(offset)
+                    (position, point)
                 };
-                let sheared = DMat3::from_cols(DVec3::new(1.0, shear, 0.0), DVec3::Y, DVec3::Z);
-                let linear = DMat3::from_quat(rotation)
-                    * DMat3::from_rotation_x(tilt.to_radians())
-                    * sheared
-                    * DMat3::from_diagonal(DVec3::new(scale, scale * height, scale));
-                DAffine3::from_mat3_translation(linear, start)
+                let a = to - from;
+                let scale = a.length() / size.width;
+                let mut rotation = x_axis_to_vector(a);
+                if swapped {
+                    rotation *= rotate(180f32.to_radians(), Vec3::Y);
+                }
+                let stretch =
+                    Mat4::from_scale(Vec3::new(scale, scale * height.unwrap_or(1.0), scale));
+                // xLights: glm::shearY, x' = x + shear * y.
+                let mut shearing = Mat4::IDENTITY;
+                shearing.y_axis.x = shear.unwrap_or(0.0);
+                Mat4::from_translation(position)
+                    * rotation
+                    * rotate(tilt.to_radians(), Vec3::X)
+                    * shearing
+                    * stretch
             }
-            Self::Points { position, scale } => {
-                DAffine3::from_scale_rotation_translation(scale, DQuat::IDENTITY, position)
-            }
+            Self::Matrix(matrix) => matrix,
         }
     }
 }

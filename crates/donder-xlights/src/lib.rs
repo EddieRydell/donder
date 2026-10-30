@@ -19,15 +19,17 @@
 
 mod channels;
 mod fit;
+mod kind;
 mod models;
 mod networks;
 mod placement;
 mod project;
+mod read;
 mod report;
 mod xml;
 
 pub use project::{ImportError, LAYOUT_FILE, NETWORKS_FILE, import_show};
 pub use report::{
-    DropReason, DroppedMember, ImportOptions, ImportReport, Scale, SkipReason, Skipped,
-    TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
+    ControllerSkip, DropReason, DroppedMember, ImportOptions, ImportReport, Scale, SkipReason,
+    Skipped, SkippedController, TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
 };

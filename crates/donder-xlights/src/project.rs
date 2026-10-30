@@ -2,11 +2,13 @@
 
 use crate::channels::{self, ModelChannels};
 use crate::fit::{self, Pixel};
-use crate::models::{self, Local, Spec};
-use crate::networks::{Networks, Protocol, Slot};
+use crate::kind::ModelType;
+use crate::models::{self, Dimming, Local};
+use crate::networks::{ControllerType, Networks, OutputType, Slot};
+use crate::read::Reader;
 use crate::report::{
-    DropReason, DroppedMember, ImportOptions, ImportReport, Scale, SkipReason, Skipped,
-    TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
+    ControllerSkip, DropReason, DroppedMember, ImportOptions, ImportReport, Scale, SkipReason,
+    Skipped, SkippedController, TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
 };
 use crate::xml::{self, Element};
 use camino::{Utf8Path, Utf8PathBuf};
@@ -19,7 +21,7 @@ use donder_model::{
 };
 use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::{Identifier, PixelEncoding};
-use glam::DVec3;
+use glam::{DVec3, Vec3};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -39,15 +41,12 @@ pub enum ImportError {
     },
     /// The project's setup already has fixtures, routes or controllers.
     NotEmpty,
-    /// A controller setting Donder cannot send.
-    Controller {
-        name: String,
-        message: String,
-    },
     /// The imported objects do not make a valid project.
     Project(String),
     /// Pixels must be some positive distance apart.
     PixelSpacing(f64),
+    /// The layout's ruler measures in units xLights does not name.
+    RulerUnits(i32),
 }
 
 impl fmt::Display for ImportError {
@@ -59,12 +58,13 @@ impl fmt::Display for ImportError {
                 f,
                 "This project's setup already has fixtures or controllers; import an xLights show into a new project."
             ),
-            Self::Controller { name, message } => {
-                write!(f, "Controller {name} cannot be imported: {message}")
-            }
             Self::PixelSpacing(spacing) => write!(
                 f,
                 "Pixels cannot be {spacing} m apart; give a distance above zero."
+            ),
+            Self::RulerUnits(units) => write!(
+                f,
+                "The layout's ruler measures in units {units}, which xLights does not name; set --pixel-spacing instead."
             ),
             Self::Project(message) => {
                 write!(f, "The imported show is not a valid project: {message}")
@@ -73,7 +73,7 @@ impl fmt::Display for ImportError {
     }
 }
 
-fn read(path: &Utf8Path) -> Result<Element, ImportError> {
+fn read_file(path: &Utf8Path) -> Result<Element, ImportError> {
     let bytes = std::fs::read(path).map_err(|error| ImportError::Read {
         path: path.to_owned(),
         message: error.to_string(),
@@ -88,111 +88,222 @@ fn read(path: &Utf8Path) -> Result<Element, ImportError> {
     })
 }
 
-/// A model as far as it is imported: its pixels in channel order.
-struct Imported {
-    name: String,
-    description: Option<String>,
-    pixels: Vec<Pixel>,
-    ellipses: Vec<models::Ellipse>,
-    /// Each pixel's first absolute channel, when the model is patched.
-    channels: Option<Vec<u32>>,
-    encoding: PixelEncoding,
-    gamma: f32,
-    brightness: f32,
+/// The previews whose models the importer places: xLights' default
+/// preview, and models shown in all of them. xLights: `LayoutGroup`.
+const DEFAULT_PREVIEWS: [&str; 2] = ["Default", "All Previews"];
+
+/// A model of the show as the importer reads it, before it becomes a
+/// fixture.
+pub(crate) struct ShowModel {
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    /// Its nodes, or why it is not imported.
+    pub(crate) local: Result<Local, SkipReason>,
+    /// Its first absolute channel, from 1, or why it has none.
+    pub(crate) start: Result<u32, UnroutedReason>,
+    pub(crate) encoding: Option<PixelEncoding>,
+    pub(crate) dimming: Option<Dimming>,
 }
 
-/// Slots from `0` up to `1` of an output, patched to the model named `2`.
-type Claim = (u32, u32, String);
-
-/// Channels from a model's first to its last.
-fn span(spec: &Spec, local: Option<&Local>) -> Option<u32> {
-    if let Ok(Some(count)) = models::channel_count(spec) {
-        return Some(count);
+impl ShowModel {
+    /// Each node's position in xLights layout units, transformed in single
+    /// precision as xLights transforms each light, then averaged.
+    pub(crate) fn positions(&self) -> Vec<DVec3> {
+        let Ok(local) = &self.local else {
+            return Vec::new();
+        };
+        let transform = local.placement.transform(local.size);
+        local
+            .nodes
+            .iter()
+            .map(|node| {
+                let sum: DVec3 = node
+                    .lights
+                    .iter()
+                    .map(|light| {
+                        let point = transform.transform_point3(Vec3::new(
+                            light.x as f32,
+                            light.y as f32,
+                            light.z as f32,
+                        ));
+                        DVec3::new(f64::from(point.x), f64::from(point.y), f64::from(point.z))
+                    })
+                    .sum();
+                sum / node.lights.len().max(1) as f64
+            })
+            .collect()
     }
-    let local = local?;
-    let per_node = match models::encoding(spec) {
-        Ok(encoding) => encoding.channel_order().len() as u32,
-        // Lights that are not pixels still take their channels.
-        Err(_) => match spec.element.attribute("StringType").unwrap_or_default() {
-            "3 Channel RGB" => return Some(3 * local.strings),
-            "4 Channel RGBW" | "4 Channel WRGB" => return Some(4 * local.strings),
-            "Node Single Color" => 1,
-            kind if kind.starts_with("Single Color") || kind == "Strobes" => {
-                return Some(local.strings);
-            }
-            _ => return None,
-        },
-    };
-    local
-        .nodes
-        .iter()
-        .map(|node| (node.string * local.string_nodes + node.offset + 1) * per_node)
-        .max()
 }
 
-/// Meters per layout unit: the ruler's, or pixels the typical distance
-/// apart.
-fn scale(root: &Element, locals: &[Option<Local>], options: &ImportOptions) -> (f64, Scale) {
+/// The show's models as xLights loads them, each read and its start
+/// channel resolved, and the models xLights does not load.
+pub(crate) fn read_models(root: &Element, networks: &Networks) -> (Vec<ShowModel>, Vec<Skipped>) {
+    let mut unloaded = Vec::new();
+    let elements: Vec<&Element> = root
+        .child("models")
+        .map(|models| models.children("model").collect())
+        .unwrap_or_default();
+    let mut read = Vec::new();
+    for element in elements {
+        // xLights: ModelManager::LoadModels skips models with no name.
+        let name = models::name(element);
+        if name.is_empty() {
+            continue;
+        }
+        let reader = Reader::new(element);
+        let display = reader.as_string("DisplayAs", "DisplayAs Missing");
+        let Some(kind) = ModelType::from_display(display, reader.as_string("DmxStyle", "")) else {
+            unloaded.push(Skipped {
+                model: name,
+                reason: SkipReason::UnknownType(display.to_string()),
+            });
+            continue;
+        };
+        if kind == ModelType::ModelGroup {
+            unloaded.push(Skipped {
+                model: name,
+                reason: SkipReason::Type("ModelGroup"),
+            });
+            continue;
+        }
+        read.push(models::read(element, kind));
+    }
+    let names: HashSet<&str> = read
+        .iter()
+        .map(|model| model.common.name.as_str())
+        .collect();
+    let groups: HashSet<String> = root
+        .child("modelGroups")
+        .into_iter()
+        .flat_map(|groups| groups.children("modelGroup"))
+        .map(models::name)
+        .collect();
+    let starts = channels::resolve(
+        &read
+            .iter()
+            .map(|model| ModelChannels {
+                name: model.common.name.clone(),
+                start: model.common.start_channel.to_string(),
+                controller: model.common.controller.clone(),
+                span: model.span.as_ref().ok().copied(),
+            })
+            .collect::<Vec<_>>(),
+        &groups,
+        networks,
+    );
+    let models = read
+        .iter()
+        .zip(starts)
+        .map(|(model, start)| {
+            let common = &model.common;
+            // xLights: ModelManager::LoadModels clears a ShadowModelFor
+            // naming no model.
+            let shadow = common
+                .shadow_of
+                .as_deref()
+                .is_some_and(|other| names.contains(other));
+            // xLights resolves a start channel that counts from the model
+            // itself through its own half-set state; refuse it.
+            let own = matches!(&start, Err(UnroutedReason::ChainLoop));
+            let duplicate = matches!(&start, Err(UnroutedReason::Duplicate(_)));
+            let local = if duplicate {
+                Err(SkipReason::DuplicateName)
+            } else if own {
+                Err(SkipReason::Setting(
+                    "start channel that counts from the model itself",
+                ))
+            } else if !DEFAULT_PREVIEWS.contains(&common.layout_group) {
+                Err(SkipReason::OtherPreview(common.layout_group.to_string()))
+            } else if shadow {
+                Err(SkipReason::Shadow)
+            } else if !common.active {
+                Err(SkipReason::Inactive)
+            } else {
+                match &model.local {
+                    Ok(_) => Ok(()),
+                    Err(reason) => Err(reason.clone()),
+                }
+            };
+            (local, start)
+        })
+        .collect::<Vec<_>>();
+    let shows = read
+        .into_iter()
+        .zip(models)
+        .map(|(model, (status, start))| ShowModel {
+            name: model.common.name.clone(),
+            description: model.common.description.clone(),
+            local: status.and(model.local),
+            start,
+            encoding: model.common.string_type.encoding,
+            dimming: model.common.dimming.clone().ok().flatten(),
+        })
+        .collect();
+    (shows, unloaded)
+}
+
+/// Layout units a meter, from the layout's last ruler. xLights:
+/// `RulerObject::GetPerUnit`, whose static ruler is the last one loaded.
+fn ruler(root: &Element) -> Result<Option<f64>, ImportError> {
+    let Some(ruler) = root
+        .child("view_objects")
+        .into_iter()
+        .flat_map(|objects| objects.children("view_object"))
+        .filter(|object| object.attribute("DisplayAs") == Some("Ruler"))
+        .last()
+    else {
+        return Ok(None);
+    };
+    let reader = Reader::new(ruler);
+    let number = |name: &str, default: f32| reader.as_float(name, default).unwrap_or(default);
+    let units = reader.as_int("Units", 0);
+    let meters = match units {
+        0 => 1.0,
+        1 => 0.01,
+        2 => 0.001,
+        3 => 0.9144,
+        4 => 0.3048,
+        5 => 0.0254,
+        other => return Err(ImportError::RulerUnits(other)),
+    };
+    let (dx, dy, dz) = (number("X2", 0.0), number("Y2", 0.0), number("Z2", 0.0));
+    let length = number("Length", 1.0);
+    let distance = (dx * dx + dy * dy + dz * dz).sqrt();
+    let per_unit = if distance == 0.0 || length == 0.0 {
+        1.0
+    } else {
+        length / distance
+    };
+    Ok(Some(f64::from(per_unit) * meters))
+}
+
+/// Meters per layout unit: from the pixel spacing when it is given, else
+/// the ruler's, else pixels the typical distance apart.
+fn scale(
+    root: &Element,
+    models: &[ShowModel],
+    options: &ImportOptions,
+) -> Result<(f64, Scale), ImportError> {
     if options.pixel_spacing.is_none()
-        && let Some(meters) = ruler(root)
+        && let Some(meters) = ruler(root)?
     {
-        return (meters, Scale::Ruler);
+        return Ok((meters, Scale::Ruler));
     }
     let spacing = options.pixel_spacing.unwrap_or(TYPICAL_PIXEL_SPACING);
-    let mut gaps: Vec<f64> = locals
+    let mut gaps: Vec<f64> = models
         .iter()
-        .flatten()
-        .flat_map(|local| {
-            let transform = local.placement.transform();
-            let mut nodes: Vec<_> = local.nodes.iter().collect();
-            nodes.sort_by_key(|node| (node.string, node.offset));
-            nodes
+        .flat_map(|model| {
+            model
+                .positions()
                 .windows(2)
-                .filter(|pair| pair[0].string == pair[1].string)
-                .map(|pair| {
-                    transform
-                        .transform_point3(pair[0].position)
-                        .distance(transform.transform_point3(pair[1].position))
-                })
+                .map(|pair| pair[0].distance(pair[1]))
                 .filter(|gap| *gap > 0.0)
                 .collect::<Vec<_>>()
         })
         .collect();
     gaps.sort_by(f64::total_cmp);
     let typical = gaps.get(gaps.len() / 2).copied().unwrap_or(1.0);
-    (spacing / typical, Scale::PixelSpacing(spacing))
-}
-
-fn ruler(root: &Element) -> Option<f64> {
-    let ruler = root
-        .child("view_objects")?
-        .children("view_object")
-        .find(|object| object.attribute("DisplayAs") == Some("Ruler"))?;
-    let number = |name: &str| ruler.attribute(name)?.trim().parse::<f64>().ok();
-    let units = match number("Units").unwrap_or(0.0) as u32 {
-        0 => 1.0,
-        1 => 0.01,
-        2 => 0.001,
-        3 => 0.9144,
-        4 => 0.3048,
-        _ => 0.0254,
-    };
-    let length = DVec3::new(number("X2")?, number("Y2")?, number("Z2").unwrap_or(0.0)).length();
-    // A ruler with no length says nothing of the layout's size.
-    let meters = number("Length")? * units;
-    (length > 0.0 && meters > 0.0).then(|| meters / length)
-}
-
-fn connection(spec: &Spec, name: &str, default: f32) -> f32 {
-    spec.element
-        .child("ControllerConnection")
-        .and_then(|connection| {
-            connection
-                .attribute(name)
-                .or_else(|| connection.attribute(&name.to_ascii_lowercase()))
-        })
-        .and_then(|value| value.trim().parse().ok())
-        .unwrap_or(default)
+    Ok((spacing / typical, Scale::PixelSpacing(spacing)))
 }
 
 /// The Donder controllers, with each xLights output's port.
@@ -200,13 +311,88 @@ struct Controllers {
     controllers: Vec<(Identifier, Controller)>,
     /// By xLights controller and output.
     ports: HashMap<(usize, usize), (ControllerId, ControllerPortId, u32)>,
-    skipped: Vec<(String, String)>,
+    skipped: Vec<SkippedController>,
 }
 
-fn controllers(
-    networks: &Networks,
-    mut new_id: impl FnMut() -> u32,
-) -> Result<Controllers, ImportError> {
+/// The Donder protocol of an xLights controller, or why it has none.
+fn protocol(
+    controller: &crate::networks::NetworkController,
+) -> Result<ControllerProtocol, ControllerSkip> {
+    match controller.kind {
+        ControllerType::Serial => return Err(ControllerSkip::Serial),
+        ControllerType::Null => return Err(ControllerSkip::Null),
+        ControllerType::Ethernet => {}
+    }
+    if controller.player_only {
+        return Err(ControllerSkip::PlayerOnly);
+    }
+    let kind = controller
+        .protocol
+        .ok_or(ControllerSkip::Protocol("unknown"))?;
+    if !matches!(kind, OutputType::E131 | OutputType::ArtNet) {
+        return Err(ControllerSkip::Protocol(kind.name()));
+    }
+    if !controller.active {
+        return Err(ControllerSkip::Inactive);
+    }
+    let address = || {
+        controller
+            .ip
+            .parse::<IpAddr>()
+            .map_err(|_| ControllerSkip::Address(controller.ip.clone()))
+    };
+    let mut universes = HashSet::new();
+    for output in &controller.outputs {
+        if output.kind != kind {
+            return Err(ControllerSkip::MixedOutputs);
+        }
+        if output.channels == 0 {
+            return Err(ControllerSkip::EmptyOutput);
+        }
+        let range = if kind == OutputType::E131 {
+            1..=63_999
+        } else {
+            0..=32_767
+        };
+        if !range.contains(&output.universe) {
+            return Err(ControllerSkip::Universe(output.universe));
+        }
+        if !universes.insert(output.universe) {
+            return Err(ControllerSkip::RepeatedUniverse(output.universe));
+        }
+    }
+    Ok(match kind {
+        OutputType::E131 => {
+            let mode = if controller.ip.eq_ignore_ascii_case("MULTICAST") {
+                E131Mode::Multicast
+            } else {
+                E131Mode::Unicast {
+                    destination: address()?,
+                }
+            };
+            let priority = u8::try_from(controller.priority)
+                .ok()
+                .filter(|priority| (1..=200).contains(priority))
+                .ok_or(ControllerSkip::Priority(controller.priority))?;
+            ControllerProtocol::E131(E131Config {
+                sender_name: "Donder".to_string(),
+                bind_address: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+                priority,
+                mode,
+            })
+        }
+        _ => {
+            let destination = address()?;
+            ControllerProtocol::ArtNet(ArtNetConfig {
+                bind_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 6454),
+                destination: SocketAddr::new(destination, 6454),
+                mode: ArtNetMode::Unicast,
+            })
+        }
+    })
+}
+
+fn controllers(networks: &Networks, mut new_id: impl FnMut() -> u32) -> Controllers {
     let mut result = Controllers {
         controllers: Vec::new(),
         ports: HashMap::new(),
@@ -214,75 +400,30 @@ fn controllers(
     };
     let mut taken = HashSet::new();
     for (index, controller) in networks.controllers.iter().enumerate() {
-        let invalid = |message: String| ImportError::Controller {
-            name: controller.name.clone(),
-            message,
-        };
-        let protocol = match &controller.protocol {
-            Protocol::Other(protocol) => {
-                result
-                    .skipped
-                    .push((controller.name.clone(), protocol.clone()));
+        let protocol = match protocol(controller) {
+            Ok(protocol) => protocol,
+            Err(reason) => {
+                result.skipped.push(SkippedController {
+                    controller: controller.name.clone(),
+                    reason,
+                });
                 continue;
-            }
-            Protocol::E131 => {
-                let mode = if controller.ip.eq_ignore_ascii_case("MULTICAST") {
-                    E131Mode::Multicast
-                } else {
-                    E131Mode::Unicast {
-                        destination: controller
-                            .ip
-                            .parse()
-                            .map_err(|_| invalid(format!("its address is `{}`", controller.ip)))?,
-                    }
-                };
-                let priority = controller.priority.unwrap_or(100);
-                ControllerProtocol::E131(E131Config {
-                    sender_name: "Donder".to_string(),
-                    bind_address: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                    priority: u8::try_from(priority)
-                        .ok()
-                        .filter(|priority| (1..=200).contains(priority))
-                        .ok_or_else(|| invalid(format!("its priority is {priority}")))?,
-                    mode,
-                })
-            }
-            Protocol::ArtNet => {
-                let destination: IpAddr = controller
-                    .ip
-                    .parse()
-                    .map_err(|_| invalid(format!("its address is `{}`", controller.ip)))?;
-                ControllerProtocol::ArtNet(ArtNetConfig {
-                    bind_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 6454),
-                    destination: SocketAddr::new(destination, 6454),
-                    mode: ArtNetMode::Unicast,
-                })
             }
         };
         let id = ControllerId(new_id());
         let mut ports = Vec::new();
         for (output_index, output) in controller.outputs.iter().enumerate() {
-            let universe = u16::try_from(output.universe)
-                .map_err(|_| invalid(format!("universe {} is out of range", output.universe)))?;
+            let universe = output.universe as u16;
             let address = match protocol {
                 ControllerProtocol::ArtNet(_) => ControllerPortAddress::ArtNetPort(universe),
                 _ => ControllerPortAddress::E131Universe(universe),
             };
-            let slots = u16::try_from(output.channels)
-                .ok()
-                .filter(|slots| *slots <= 512)
-                .ok_or_else(|| {
-                    invalid(format!(
-                        "universe {} has {} channels",
-                        output.universe, output.channels
-                    ))
-                })?;
             let port = ControllerPortId(ports.len() as u32 + 1);
             ports.push(ControllerPort {
                 id: port,
                 name: donder_language::object_name(&format!("universe_{}", output.universe)),
                 address,
-                slot_count: slots,
+                slot_count: output.channels as u16,
             });
             result
                 .ports
@@ -303,7 +444,22 @@ fn controllers(
             },
         ));
     }
-    Ok(result)
+    result
+}
+
+/// Slots from `0` up to `1` of an output, patched to the model named `2`.
+type Claim = (u32, u32, String);
+
+/// A model to import: its pixels in channel order.
+struct Imported {
+    name: String,
+    description: Option<String>,
+    pixels: Vec<Pixel>,
+    ellipses: Vec<models::Ellipse>,
+    /// Each pixel's first absolute channel, when the model is patched.
+    channels: Option<Vec<u32>>,
+    encoding: PixelEncoding,
+    dimming: Option<Dimming>,
 }
 
 /// The routes of one model, or why some of its pixels have none.
@@ -323,11 +479,9 @@ fn routes(
             .slot(channel)
             .ok_or(UnroutedReason::OutsideOutputs)?;
         let Some(&(_, _, slots)) = controllers.ports.get(&(slot.controller, slot.output)) else {
-            let protocol = match &networks.controllers[slot.controller].protocol {
-                Protocol::Other(protocol) => protocol.clone(),
-                _ => String::new(),
-            };
-            return Err(UnroutedReason::UnsupportedController(protocol));
+            return Err(UnroutedReason::UnsupportedController(
+                networks.controllers[slot.controller].name.clone(),
+            ));
         };
         if slot.offset + per_pixel > slots {
             return Err(UnroutedReason::SplitPixel);
@@ -357,136 +511,103 @@ pub fn import_show(
     {
         return Err(ImportError::PixelSpacing(spacing));
     }
-    let root = read(&show.join(LAYOUT_FILE))?;
+    let root = read_file(&show.join(LAYOUT_FILE))?;
     let networks_path = show.join(NETWORKS_FILE);
     let networks = if networks_path.exists() {
-        Networks::read(&read(&networks_path)?).map_err(|message| ImportError::Xml {
-            path: networks_path,
-            message,
-        })?
+        Networks::read(&read_file(&networks_path)?)
     } else {
         Networks::default()
     };
     let mut report = ImportReport::default();
-
-    let elements: Vec<&Element> = root
-        .child("models")
-        .map(|models| models.children("model").collect())
-        .unwrap_or_default();
-    let specs: Vec<Spec> = elements.iter().map(|element| Spec::new(element)).collect();
-    let locals: Vec<Result<Local, SkipReason>> = specs.iter().map(models::layout).collect();
-    let starts = channels::resolve(
-        &specs
-            .iter()
-            .zip(&locals)
-            .map(|(spec, local)| ModelChannels {
-                name: spec.name.clone(),
-                start: spec
-                    .element
-                    .attribute("StartChannel")
-                    .unwrap_or("1")
-                    .to_string(),
-                span: span(spec, local.as_ref().ok()),
-            })
-            .collect::<Vec<_>>(),
-        &networks,
-    );
-    let included: Vec<Option<Local>> = specs
-        .iter()
-        .zip(locals)
-        .map(|(spec, local)| {
-            let local = models::excluded(spec).and(local).and_then(|local| {
-                models::encoding(spec)?;
-                Ok(local)
-            });
-            match local {
-                Ok(local) => Some(local),
-                Err(reason) => {
-                    report.skipped.push(Skipped {
-                        model: spec.name.clone(),
-                        reason,
-                    });
-                    None
-                }
-            }
-        })
-        .collect();
-    let (meters, scale) = scale(&root, &included, options);
+    let (models, unloaded) = read_models(&root, &networks);
+    report.skipped.extend(unloaded);
+    // Only placed models' pixels set the typical spacing: positions() is
+    // empty for the rest.
+    let (meters, scale) = scale(&root, &models, options)?;
     report.meters_per_unit = meters;
     report.scale = Some(scale);
 
     let mut imported = Vec::new();
-    for ((spec, local), start) in specs.iter().zip(included).zip(starts) {
-        let Some(local) = local else { continue };
-        let Ok(encoding) = models::encoding(spec) else {
+    for model in &models {
+        let local = match &model.local {
+            Ok(local) => local,
+            Err(reason) => {
+                report.skipped.push(Skipped {
+                    model: model.name.clone(),
+                    reason: reason.clone(),
+                });
+                continue;
+            }
+        };
+        if local.nodes.is_empty() {
+            report.skipped.push(Skipped {
+                model: model.name.clone(),
+                reason: SkipReason::NoPixels,
+            });
+            continue;
+        }
+        let Some(encoding) = model.encoding else {
             continue;
         };
-        let per_pixel = encoding.channel_order().len() as u32;
-        let transform = local.placement.transform();
-        let mut nodes: Vec<_> = local.nodes.iter().collect();
-        nodes.sort_by_key(|node| (node.string, node.offset));
-        let channels = start.and_then(|start| {
-            nodes
+        // A fixture's pixels go in channel order, so its routes are runs of
+        // consecutive channels.
+        let mut order: Vec<usize> = (0..local.nodes.len()).collect();
+        order.sort_by_key(|&index| local.nodes[index].channel);
+        let channels = match &model.start {
+            Ok(start) => order
                 .iter()
-                .map(|node| {
-                    node.string
-                        .checked_mul(local.string_nodes)
-                        .and_then(|before| before.checked_add(node.offset))
-                        .and_then(|index| index.checked_mul(per_pixel))
-                        .and_then(|offset| offset.checked_add(start))
-                        .ok_or_else(|| {
-                            UnroutedReason::OutOfRange(
-                                spec.element
-                                    .attribute("StartChannel")
-                                    .unwrap_or("1")
-                                    .to_string(),
-                            )
-                        })
-                })
-                .collect::<Result<Vec<u32>, _>>()
-        });
+                .map(|&index| start.checked_add(local.nodes[index].channel))
+                .collect::<Option<Vec<u32>>>()
+                .ok_or(UnroutedReason::OutOfRange(String::new())),
+            Err(reason) => Err(reason.clone()),
+        };
         let channels = match channels {
             Ok(channels) => Some(channels),
             Err(reason) => {
                 report.unrouted.push(Unrouted {
-                    model: spec.name.clone(),
+                    model: model.name.clone(),
                     reason,
                 });
                 None
             }
         };
-        let place = |position: DVec3| transform.transform_point3(position) * meters;
+        let transform = local.placement.transform(local.size);
+        let to_meters = |point: DVec3| point * meters;
+        let positions = model.positions();
         imported.push(Imported {
-            name: spec.name.clone(),
-            description: spec
-                .element
-                .attribute("Description")
-                .filter(|text| !text.trim().is_empty())
-                .map(str::to_string),
-            pixels: nodes
+            name: model.name.clone(),
+            description: model.description.clone(),
+            pixels: order
                 .iter()
-                .map(|node| Pixel {
-                    position: place(node.position),
-                    arc: node.arc.map(|arc| (arc.arc, arc.degrees)),
+                .map(|&index| Pixel {
+                    position: to_meters(positions[index]),
+                    arc: local.nodes[index].arc.map(|arc| (arc.arc, arc.degrees)),
                 })
                 .collect(),
             ellipses: local
                 .ellipses
                 .iter()
-                .map(|ellipse| models::Ellipse {
-                    center: place(ellipse.center),
-                    u: transform.transform_vector3(ellipse.u) * meters,
-                    v: transform.transform_vector3(ellipse.v) * meters,
+                .map(|ellipse| {
+                    let point = |p: DVec3| {
+                        let p = transform.transform_point3(p.as_vec3());
+                        to_meters(p.as_dvec3())
+                    };
+                    let vector =
+                        |v: DVec3| to_meters(transform.transform_vector3(v.as_vec3()).as_dvec3());
+                    models::Ellipse {
+                        center: point(ellipse.center),
+                        u: vector(ellipse.u),
+                        v: vector(ellipse.v),
+                    }
                 })
                 .collect(),
             channels,
             encoding,
-            gamma: connection(spec, "gamma", 1.0),
-            brightness: connection(spec, "Brightness", 100.0) / 100.0,
+            dimming: model.dimming,
         });
     }
 
-    let controllers = controllers(&networks, || session.project.new_id())?;
+    let controllers = controllers(&networks, || session.project.new_id());
     report.skipped_controllers = controllers.skipped.clone();
 
     // Patch each model whose channels no earlier model has.
@@ -545,6 +666,9 @@ pub fn import_show(
         taken.insert(name.as_str().to_string());
         by_name.insert(model.name.clone(), id);
         let pixel_count = model.pixels.len() as u32;
+        let (brightness, gamma) = model
+            .dimming
+            .map_or((1.0, 1.0), |dimming| (dimming.brightness, dimming.gamma));
         for (slot, start, count) in runs {
             let (controller, port, _) = controllers.ports[&(slot.controller, slot.output)];
             route_list.push(PixelRoute {
@@ -558,8 +682,8 @@ pub fn import_show(
                 port,
                 start_slot: slot.offset as u16,
                 encoding: model.encoding,
-                gamma: model.gamma,
-                brightness: model.brightness,
+                gamma,
+                brightness,
             });
         }
         report.pixels += model.pixels.len();
@@ -798,7 +922,6 @@ fn new_document(
 }
 
 /// Put the layout, patch and controllers in the project's setup, each in its
-/// own document as Donder saves them.
 fn insert(
     session: &mut ProjectSession,
     layout: Layout,

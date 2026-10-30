@@ -36,8 +36,8 @@ pub struct ImportReport {
     pub skipped: Vec<Skipped>,
     /// Models in the layout that are not patched, or not completely.
     pub unrouted: Vec<Unrouted>,
-    /// Controllers that are not imported, by name, with their protocol.
-    pub skipped_controllers: Vec<(String, String)>,
+    /// Controllers that are not imported.
+    pub skipped_controllers: Vec<SkippedController>,
     /// Group members left out, by group.
     pub dropped_members: Vec<DroppedMember>,
 }
@@ -54,7 +54,22 @@ pub enum SkipReason {
     /// A second model of lights another model already describes.
     Shadow,
     /// A model type Donder has no pixels for, or that is not imported yet.
-    Type(String),
+    Type(&'static str),
+    /// A `DisplayAs` xLights does not load.
+    UnknownType(String),
+    /// An attribute the importer does not account for, which may change
+    /// where the model's lights are or which channels they take.
+    UnhandledAttribute(String),
+    /// A child element the importer does not account for.
+    UnhandledElement(String),
+    /// In another of xLights' previews, whose coordinates are not the
+    /// default preview's.
+    OtherPreview(String),
+    /// The model's channel span cannot be computed from its settings.
+    UnknownSpan,
+    /// Another model has the same name; xLights keeps whichever it loads
+    /// last, loading them in parallel.
+    DuplicateName,
     /// A string type whose lights are not individual RGB or RGBW pixels.
     StringType(String),
     /// A setting of this model type that is not imported yet.
@@ -67,9 +82,6 @@ pub enum SkipReason {
     TooManyPixels,
     /// A model xLights itself cannot lay out, as this describes it.
     Unplaceable(&'static str),
-    /// Placed by an xLights from before 2019, whose layout positions current
-    /// xLights no longer reads.
-    OldLayout,
     /// The model's channels are already patched to the named model.
     SharesChannels(String),
 }
@@ -98,6 +110,17 @@ pub enum UnroutedReason {
     OutOfRange(String),
     /// The start channel counts from itself, through other models.
     ChainLoop,
+    /// The start channel counts on with `<` from a model xLights resolves
+    /// later, which xLights cannot compute.
+    ChainOrder(String),
+    /// The model, or the one its start channel follows with `>`, is on
+    /// "No Controller".
+    NoController(String),
+    /// Another model has the same name.
+    Duplicate(String),
+    /// The start channel counts from a group, which xLights cannot count
+    /// from.
+    FollowsGroup(String),
     UnknownUniverse(String),
     UnknownController(String),
     /// Some channels are not on any controller output.
@@ -106,6 +129,39 @@ pub enum UnroutedReason {
     UnsupportedController(String),
     /// A pixel's channels continue from one output into the next.
     SplitPixel,
+}
+
+#[derive(Clone, Debug)]
+pub struct SkippedController {
+    pub controller: String,
+    pub reason: ControllerSkip,
+}
+
+/// Why a controller is not created in Donder. Its outputs still take their
+/// channels, as they do in xLights.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ControllerSkip {
+    /// It sends a protocol Donder has no output for, by xLights' name.
+    Protocol(&'static str),
+    /// A serial controller.
+    Serial,
+    /// xLights' NULL controller, which sends nothing.
+    Null,
+    /// It only plays sequences in xLights' player.
+    PlayerOnly,
+    Inactive,
+    /// Its address is not an IP address.
+    Address(String),
+    /// An E1.31 priority Donder does not send.
+    Priority(i32),
+    /// A universe Donder cannot address.
+    Universe(i32),
+    /// Two of its outputs send the same universe.
+    RepeatedUniverse(i32),
+    /// Its outputs send another protocol than the controller.
+    MixedOutputs,
+    /// An output with no channels.
+    EmptyOutput,
 }
 
 #[derive(Clone, Debug)]
@@ -131,18 +187,29 @@ impl fmt::Display for SkipReason {
             Self::Inactive => write!(f, "it is not active"),
             Self::Shadow => write!(f, "it is a shadow of another model"),
             Self::Type(kind) => write!(f, "{kind} models are not imported"),
+            Self::UnknownType(kind) => write!(f, "xLights does not load `{kind}` models"),
+            Self::UnhandledAttribute(name) => {
+                write!(f, "its {name} setting is not understood by the importer")
+            }
+            Self::UnhandledElement(name) => {
+                write!(f, "its {name} element is not understood by the importer")
+            }
+            Self::OtherPreview(name) => {
+                write!(f, "it is in the {name} preview, not the default one")
+            }
+            Self::UnknownSpan => write!(f, "its number of channels is unknown"),
+            Self::DuplicateName => write!(
+                f,
+                "another model has the same name, and xLights keeps either at random"
+            ),
             Self::StringType(kind) => {
                 write!(f, "its lights are {kind}, not RGB or RGBW pixels")
             }
-            Self::Setting(setting) => write!(f, "its {setting} setting is not imported yet"),
+            Self::Setting(setting) => write!(f, "its {setting} is not imported"),
             Self::Attribute { name, value } => write!(f, "its {name} is `{value}`"),
             Self::NoPixels => write!(f, "it has no pixels"),
             Self::TooManyPixels => write!(f, "it has more pixels than a Donder fixture holds"),
             Self::Unplaceable(what) => write!(f, "{what}, which leaves its pixels no place"),
-            Self::OldLayout => write!(
-                f,
-                "it was placed by an xLights from before 2019; move it in a current xLights and save"
-            ),
             Self::SharesChannels(other) => {
                 write!(f, "its channels are already patched to {other}")
             }
@@ -177,6 +244,16 @@ impl fmt::Display for UnroutedReason {
             ),
             Self::OutOfRange(text) => write!(f, "its start channel `{text}` is out of range"),
             Self::ChainLoop => write!(f, "its start channel follows itself"),
+            Self::ChainOrder(model) => write!(
+                f,
+                "its start channel counts on with `<` from {model}, which xLights resolves later"
+            ),
+            Self::NoController(model) => write!(f, "{model} is on No Controller"),
+            Self::Duplicate(model) => write!(f, "another model is also named {model}"),
+            Self::FollowsGroup(group) => write!(
+                f,
+                "its start channel follows the group {group}, which xLights cannot count from"
+            ),
             Self::UnknownUniverse(text) => {
                 write!(f, "no controller sends the universe of `{text}`")
             }
@@ -186,6 +263,24 @@ impl fmt::Display for UnroutedReason {
                 write!(f, "some of its channels are on a {protocol} controller")
             }
             Self::SplitPixel => write!(f, "a pixel's channels run on into the next universe"),
+        }
+    }
+}
+
+impl fmt::Display for ControllerSkip {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Protocol(protocol) => write!(f, "Donder has no {protocol} output"),
+            Self::Serial => write!(f, "Donder has no serial outputs"),
+            Self::Null => write!(f, "it is xLights' NULL controller, which sends nothing"),
+            Self::PlayerOnly => write!(f, "it only plays in xLights' player"),
+            Self::Inactive => write!(f, "it is not active"),
+            Self::Address(address) => write!(f, "its address `{address}` is not an IP address"),
+            Self::Priority(priority) => write!(f, "its E1.31 priority is {priority}"),
+            Self::Universe(universe) => write!(f, "universe {universe} is out of range"),
+            Self::RepeatedUniverse(universe) => write!(f, "it sends universe {universe} twice"),
+            Self::MixedOutputs => write!(f, "its outputs send another protocol than it does"),
+            Self::EmptyOutput => write!(f, "one of its outputs has no channels"),
         }
     }
 }
@@ -227,10 +322,11 @@ impl fmt::Display for ImportReport {
         for unrouted in &self.unrouted {
             writeln!(f, "Not patched {}: {}.", unrouted.model, unrouted.reason)?;
         }
-        for (name, protocol) in &self.skipped_controllers {
+        for skipped in &self.skipped_controllers {
             writeln!(
                 f,
-                "Left out controller {name}: Donder does not send {protocol}."
+                "Left out controller {}: {}.",
+                skipped.controller, skipped.reason
             )?;
         }
         for dropped in &self.dropped_members {

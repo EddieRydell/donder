@@ -1,99 +1,205 @@
-//! Arches: half ellipses side by side along the placement's line.
+//! Arches: each a half ellipse of lights, side by side.
 
-use super::{ArcPoint, Ellipse, Local, Node, Spec};
-use crate::placement;
+use super::{ArcPoint, Common, Ellipse, Local, Node, Span, Strings, account};
+use crate::placement::{self, RenderSize};
+use crate::read::{self, Name, Reader, Table, Use};
 use crate::report::SkipReason;
 use glam::DVec3;
 use std::f64::consts::{FRAC_PI_2, PI};
 
-/// Each arch is one string. Its lights run evenly by angle over `Arc`
-/// degrees of an ellipse as wide as twice its light count and as tall as its
-/// light count times the placement's height. Arches numbered right to left
-/// start with the last arch's last node.
-pub(super) fn arches(spec: &Spec) -> Result<Local, SkipReason> {
-    if spec.has("LayerSizes") {
+const ARCHES: Table = &[
+    (Name::Exact("NumArches"), Use::Modeled),
+    (Name::Exact("NodesPerArch"), Use::Modeled),
+    (Name::Exact("LightsPerNode"), Use::Modeled),
+    (Name::Exact("parm1"), Use::Modeled),
+    (Name::Exact("parm2"), Use::Modeled),
+    (Name::Exact("parm3"), Use::Modeled),
+    (Name::Exact("Arc"), Use::Modeled),
+    (Name::Exact("arc"), Use::Modeled),
+    (Name::Exact("Gap"), Use::Modeled),
+    (Name::Exact("ArchesSkew"), Use::Modeled),
+    (Name::Exact("LayerSizes"), Use::RefusedUnlessDefault),
+    (
+        Name::Exact("Hollow"),
+        Use::Irrelevant("only shapes arches with layer sizes, which are refused"),
+    ),
+    (
+        Name::Exact("ZigZag"),
+        Use::Irrelevant("only orders arches with layer sizes, which are refused"),
+    ),
+    (
+        Name::Exact("Shear"),
+        Use::Irrelevant("xLights shears only icicles"),
+    ),
+];
+
+struct Settings {
+    arches: i32,
+    nodes_per_arch: i32,
+    lights_per_node: i32,
+    /// Degrees of arc, `Arc`.
+    arc: i32,
+    gap: i32,
+    /// Degrees the arches lean, `Angle` or `ArchesSkew`.
+    skew: i32,
+    height: f32,
+}
+
+/// xLights: `XmlDeserializingModelFactory::DeserializeArches` and
+/// `DeserializeThreePointScreenLocationAttributes`.
+fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
+    if !read::layer_sizes(reader.as_string("LayerSizes", "")).is_empty() {
         return Err(SkipReason::Setting("layer sizes"));
     }
-    let arches = spec.count("NumArches", "parm1", 1)?;
-    let arch_nodes = spec.count("NodesPerArch", "parm2", 1)?;
-    let lights = spec.count("LightsPerNode", "parm3", 1)?.max(1);
-    let arc = spec.float("Arc", spec.float("arc", 180.0)?)?.to_radians();
-    let gap = spec.float("Gap", 0.0)?;
-    let height = spec.float("Height", 1.0)?;
-    let skew = spec
-        .float("ArchesSkew", spec.float("Angle", 0.0)?)?
-        .to_radians();
-    let left_to_right = spec.left_to_right();
+    let arc = match reader.raw("Arc").or_else(|| reader.raw("arc")) {
+        Some(text) => read::strtol(text) as i32,
+        None => 180,
+    };
+    let mut skew = reader.as_int("Angle", 0);
+    if reader.has("ArchesSkew") {
+        skew = reader.as_int("ArchesSkew", 0);
+    }
+    Ok(Settings {
+        arches: reader.parm("NumArches", "parm1", "1"),
+        nodes_per_arch: reader.parm("NodesPerArch", "parm2", "1"),
+        lights_per_node: reader.parm("LightsPerNode", "parm3", "1"),
+        arc,
+        gap: if reader.has("Gap") {
+            reader.as_int("Gap", 0)
+        } else {
+            0
+        },
+        skew,
+        height: reader.as_float("Height", 1.0)?,
+    })
+}
 
-    super::nodes(&[arches, arch_nodes, lights])?;
-    let arch_lights = f64::from(arch_nodes * lights);
-    // xLights spreads an arch's lights over the gaps between them.
-    if arch_lights < 2.0 {
+/// xLights: `toRadians` in `UtilFunctions.h`.
+fn to_radians(degrees: f32) -> f64 {
+    2.0 * PI * f64::from(degrees) / 360.0
+}
+
+/// xLights: `rotate_point` in `ArchesModel.cpp`, about `(cx, 0)`.
+fn rotate_point(cx: f32, angle: f32, x: &mut f32, y: &mut f32) {
+    let (s, c) = angle.sin_cos();
+    let (px, py) = (*x - cx, *y);
+    *x = px * c - py * s + cx;
+    *y = px * s + py * c;
+}
+
+pub(super) fn arches(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let settings = match settings(reader) {
+        Ok(settings) => settings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    // xLights: ArchesModel::CalcChannelsPerString, which takes no ts.
+    let strings = match Strings::uniform(settings.arches, settings.nodes_per_arch, 1) {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let span = Ok(strings.span(&common.string_type));
+    (span, layout(reader, common, &settings, &strings))
+}
+
+/// xLights: `ArchesModel::InitModel` and `SetArchCoord`.
+fn layout(
+    reader: &Reader,
+    common: &Common,
+    settings: &Settings,
+    strings: &Strings,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::THREE_POINT_PLACEMENT,
+        &[ARCHES],
+        super::NO_CHILDREN,
+    )?;
+    if settings.lights_per_node < 1 {
+        return Err(SkipReason::Unplaceable("each node has no lights"));
+    }
+    let (arches, per_arch) = (strings.count, settings.nodes_per_arch as u32);
+    let lights = settings.lights_per_node as u32;
+    if per_arch * lights < 2 {
         return Err(SkipReason::Unplaceable("each arch has one light"));
     }
-    let middle = (arch_lights - 1.0) / 2.0;
-    let start = (PI - arc) / 2.0;
-    let first_x = middle * (-FRAC_PI_2 + start).sin() * 2.0 + arch_lights;
-    let width = arch_lights * 2.0 - first_x;
-    let angle = |light: u32| -FRAC_PI_2 + start + arc * f64::from(light) / middle / 2.0;
-
-    let mut lowest = f64::INFINITY;
-    let mut nodes = Vec::new();
+    let string_type = &common.string_type;
+    let length = f64::from(per_arch * lights);
+    let midpt = (length - 1.0) / 2.0;
+    let total = to_radians(settings.arc as f32);
+    let start = (PI - total) / 2.0;
+    let skew = to_radians(settings.skew as f32) as f32;
+    let first = -FRAC_PI_2 + start;
+    let width = length * 2.0 - (midpt * first.sin() * 2.0 + length);
+    let mut nodes = Vec::with_capacity((arches * per_arch) as usize);
     let mut ellipses = Vec::new();
+    let mut min_y = 999_999f64;
+    let mut gaps = 0u32;
     for arch in 0..arches {
-        let center = f64::from(arch) * (width + gap) + arch_lights;
+        let xoffset = f64::from(arch) * width;
         ellipses.push(Ellipse {
-            center: DVec3::new(center, 0.0, 0.0),
-            u: DVec3::new(middle * 2.0, 0.0, 0.0),
-            v: DVec3::new(0.0, arch_lights * height, 0.0),
+            center: DVec3::new(
+                xoffset + length + f64::from(gaps * settings.gap as u32),
+                0.0,
+                0.0,
+            ),
+            u: DVec3::new(midpt * 2.0, 0.0, 0.0),
+            v: DVec3::new(0.0, length * f64::from(settings.height), 0.0),
         });
-        for node in 0..arch_nodes {
-            let points: Vec<DVec3> = (0..lights)
-                .map(|light| {
-                    let angle = angle(node * lights + light);
-                    let y = arch_lights * angle.cos();
-                    lowest = lowest.min(y);
-                    // The skew turns each light about the foot of its own
-                    // column.
-                    let (sin, cos) = skew.sin_cos();
-                    DVec3::new(
-                        center + middle * angle.sin() * 2.0 - y * height * sin,
-                        y * height * cos,
-                        0.0,
-                    )
-                })
-                .collect();
-            let (string, offset) = if left_to_right {
-                (arch, node)
+        for x in 0..per_arch {
+            let channel = if common.left_to_right {
+                strings.channel(string_type, arch, x)
             } else {
-                (arches - 1 - arch, arch_nodes - 1 - node)
+                strings.channel(string_type, arches - arch - 1, per_arch - x - 1)
             };
+            let mut node_lights = Vec::with_capacity(lights as usize);
+            for c in 0..lights {
+                let angle = -FRAC_PI_2 + start + total * f64::from(x * lights + c) / midpt / 2.0;
+                let px = xoffset
+                    + midpt * angle.sin() * 2.0
+                    + length
+                    + f64::from(gaps) * f64::from(settings.gap);
+                let py = length * angle.cos();
+                let mut sx = px as f32;
+                let mut sy = (py * f64::from(settings.height)) as f32;
+                rotate_point(px as f32, skew, &mut sx, &mut sy);
+                min_y = min_y.min(py);
+                node_lights.push(DVec3::new(f64::from(sx), f64::from(sy), 0.0));
+            }
             nodes.push(Node {
-                string,
-                offset,
-                position: super::mean(&points),
-                arc: (lights == 1 && skew == 0.0).then(|| ArcPoint {
+                channel,
+                lights: node_lights,
+                arc: (lights == 1 && settings.skew == 0).then(|| ArcPoint {
                     arc: ellipses.len() - 1,
-                    degrees: 90.0 - angle(node).to_degrees(),
+                    degrees: 90.0
+                        - (-FRAC_PI_2 + start + total * f64::from(x) / midpt / 2.0).to_degrees(),
                 }),
             });
+            if (nodes.len() as u32).is_multiple_of(per_arch) {
+                gaps += 1;
+            }
         }
     }
-    // Arches that do not reach their feet are drawn from the bottom.
-    if lowest > 1.0 {
+    if min_y > 1.0 {
         for node in &mut nodes {
-            node.position.y -= lowest;
+            for light in &mut node.lights {
+                // xLights: a float less a double, stored as a float.
+                light.y = f64::from((light.y - min_y) as f32);
+            }
         }
         for ellipse in &mut ellipses {
-            ellipse.center.y -= lowest;
+            ellipse.center.y -= min_y;
         }
     }
-    let total_width = width * f64::from(arches) + f64::from(arches.saturating_sub(1)) * gap;
+    let arch_count = f64::from(arches);
     Ok(Local {
         nodes,
         ellipses,
-        strings: arches,
-        string_nodes: arch_nodes,
-        placement: placement::three_point(spec, total_width.max(1.0), false)?,
+        size: RenderSize {
+            width: (width * arch_count + (arch_count - 1.0) * f64::from(settings.gap)) as f32,
+        },
+        placement: placement::three_point(reader, true, false)?,
     })
 }

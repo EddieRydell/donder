@@ -1,398 +1,566 @@
-//! Matrices, and the trees and spheres xLights builds from them.
+//! Matrices, trees and spheres: strands of lights in a grid, as xLights'
+//! `MatrixModel` numbers them, placed flat, on a cone or on a sphere.
 
-use super::{ArcPoint, Ellipse, Local, Node, Spec};
-use crate::placement::{self, Placement};
+use super::{ArcPoint, Common, Ellipse, Local, Node, Span, Strings, account};
+use crate::placement::{self, Placement, RenderSize};
+use crate::read::{Name, Reader, Table, Use, strtol};
 use crate::report::SkipReason;
-use glam::DVec3;
-use std::f64::consts::TAU;
+use glam::{DVec3, Vec3};
+use std::f64::consts::PI;
 
-/// A node of a matrix: its channels and its cell, counted from the bottom
-/// left.
-struct Cell {
-    string: u32,
-    offset: u32,
-    x: u32,
-    y: u32,
+const GRID: Table = &[
+    (Name::Exact("NumStrings"), Use::Modeled),
+    (Name::Exact("NodesPerString"), Use::Modeled),
+    (Name::Exact("StrandsPerString"), Use::Modeled),
+    (Name::Exact("parm1"), Use::Modeled),
+    (Name::Exact("parm2"), Use::Modeled),
+    (Name::Exact("parm3"), Use::Modeled),
+    (Name::Exact("AlternateNodes"), Use::Modeled),
+    (Name::Exact("NoZig"), Use::Modeled),
+];
+
+const MATRIX: Table = &[
+    (Name::Exact("Vertical"), Use::Modeled),
+    (
+        Name::Exact("exportFirstStrand"),
+        Use::Irrelevant("xLights reads it only for trees"),
+    ),
+];
+
+const TREE: Table = &[
+    (Name::Exact("StrandDir"), Use::Modeled),
+    (Name::Exact("exportFirstStrand"), Use::RefusedUnlessDefault),
+    (Name::Exact("TreeRotation"), Use::Modeled),
+    (Name::Exact("TreeSpiralRotations"), Use::Modeled),
+    (Name::Exact("TreeBottomTopRatio"), Use::Modeled),
+    (Name::Exact("TreeType"), Use::Modeled),
+    (Name::Exact("TreeDegrees"), Use::Modeled),
+    (
+        Name::Exact("TreePerspective"),
+        Use::Irrelevant("the lean of a tree in xLights' 2D preview"),
+    ),
+];
+
+const SPHERE: Table = &[
+    (Name::Exact("StartLatitude"), Use::Modeled),
+    (Name::Exact("EndLatitude"), Use::Modeled),
+    (Name::Exact("Degrees"), Use::Modeled),
+    (
+        Name::Exact("exportFirstStrand"),
+        Use::Irrelevant("xLights reads it only for trees"),
+    ),
+];
+
+/// A matrix's counts. xLights: `MatrixModel::InitVMatrix` and `InitHMatrix`,
+/// which clamp the strands per string and round each string down to whole
+/// strands.
+struct Counts {
+    strings: i32,
+    nodes_per_string: i32,
+    strands: i32,
+    per_strand: i32,
 }
 
-/// Cells across and up.
-struct Grid {
-    cells: Vec<Cell>,
-    width: u32,
-    height: u32,
-    strings: u32,
-    /// Each string's nodes: whole strands, as xLights counts them.
-    string_nodes: u32,
-}
-
-/// Where a strand's node `index` of `count` sits along it, with the strand's
-/// direction: alternating nodes fill every other place out and back.
-fn along(index: u32, count: u32, forward: bool, alternate: bool) -> u32 {
-    if alternate {
-        let place = if index < count.div_ceil(2) {
-            index * 2
-        } else {
-            (count - (index + 1)) * 2 + 1
-        };
-        if forward { place } else { count - 1 - place }
-    } else if forward {
-        index
-    } else {
-        count - 1 - index
+fn counts(reader: &Reader) -> Result<Counts, SkipReason> {
+    let strings = reader.parm("NumStrings", "parm1", "1");
+    let nodes_per_string = reader.parm("NodesPerString", "parm2", "1");
+    if nodes_per_string < 1 {
+        return Err(SkipReason::NoPixels);
     }
-}
-
-/// Strings of `strands` strands each. Vertical strands are columns, the
-/// first at the left unless numbered right to left, running up from the
-/// bottom unless the start side is the top, and back the other way on
-/// every second strand of a string unless the matrix has no zig-zag.
-/// Horizontal strands are rows, the same with the axes swapped.
-fn grid(spec: &Spec, vertical: bool) -> Result<Grid, SkipReason> {
-    let strings = spec.count("NumStrings", "parm1", 1)?;
-    let written_nodes = spec.count("NodesPerString", "parm2", 1)?;
-    let strands_per_string = spec
-        .count("StrandsPerString", "parm3", 1)?
-        .clamp(1, written_nodes.max(1));
-    let strands = super::nodes(&[strings, strands_per_string])?;
-    let strand_nodes = written_nodes / strands_per_string;
-    // Like xLights, a string's nodes past its last whole strand are not
-    // part of the model.
-    let string_nodes = strands_per_string * strand_nodes;
-    super::nodes(&[strands, strand_nodes])?;
-    let alternate = spec.is_true("AlternateNodes", false);
-    let zig_zag = !spec.is_true("NoZig", false);
-    let left_to_right = spec.left_to_right();
-    let bottom_to_top = spec.bottom_to_top(true);
-    let mut cells = Vec::with_capacity((strands * strand_nodes) as usize);
-    for strand in 0..strands {
-        let string = strand / strands_per_string;
-        let segment = strand % strands_per_string;
-        for index in 0..strand_nodes {
-            let offset = segment * strand_nodes + index;
-            let cell = if vertical {
-                let forward = if alternate || !zig_zag {
-                    bottom_to_top
-                } else {
-                    bottom_to_top == (segment % 2 == 0)
-                };
-                Cell {
-                    string,
-                    offset,
-                    x: if left_to_right {
-                        strand
-                    } else {
-                        strands - strand - 1
-                    },
-                    y: along(index, strand_nodes, forward, alternate),
-                }
-            } else {
-                let forward = if alternate || !zig_zag {
-                    left_to_right
-                } else {
-                    left_to_right == (segment % 2 == 0)
-                };
-                Cell {
-                    string,
-                    offset,
-                    x: along(index, strand_nodes, forward, alternate),
-                    y: if bottom_to_top {
-                        strand
-                    } else {
-                        strands - strand - 1
-                    },
-                }
-            };
-            cells.push(cell);
-        }
-    }
-    let (width, height) = if vertical {
-        (strands, strand_nodes)
-    } else {
-        (strand_nodes, strands)
-    };
-    // The strand xLights exports first carries the model's first channels.
-    let first = spec.int("exportFirstStrand", 0)?.saturating_sub(1);
-    if let Ok(first) = u32::try_from(first)
-        && first > 0
-        && first < strands
-    {
-        let total = strands * strand_nodes;
-        let shift = first * strand_nodes;
-        for cell in &mut cells {
-            let node = cell.string * string_nodes + cell.offset;
-            let node = (node + total - shift) % total;
-            cell.string = node / string_nodes;
-            cell.offset = node % string_nodes;
-        }
-    }
-    Ok(Grid {
-        cells,
-        width,
-        height,
+    let strands = reader
+        .parm("StrandsPerString", "parm3", "1")
+        .clamp(1, nodes_per_string);
+    Ok(Counts {
         strings,
-        string_nodes,
+        nodes_per_string,
+        strands,
+        per_strand: nodes_per_string / strands,
     })
 }
 
-fn local(grid: &Grid, nodes: Vec<Node>, ellipses: Vec<Ellipse>, placement: Placement) -> Local {
-    Local {
+/// The channels of a matrix: strings spaced by the nodes per string as
+/// written, with `ts`, each holding whole strands. xLights:
+/// `MatrixModel::NodesPerString` and `SetNodeCount`.
+fn strings(counts: &Counts, common: &Common) -> Result<Strings, SkipReason> {
+    let mut strings = Strings::uniform(
+        counts.strings,
+        counts.per_strand * counts.strands,
+        common.ts,
+    )?;
+    let ts = if common.string_type.single_node {
+        1
+    } else {
+        common.ts
+    };
+    strings.nodes_per_string = if ts <= 1 {
+        counts.nodes_per_string as u32
+    } else {
+        (counts.nodes_per_string as u32).saturating_mul(ts as u32)
+    };
+    Ok(strings)
+}
+
+/// A node of the grid: its channel and its buffer cell.
+struct Cell {
+    channel: u32,
+    x: i32,
+    y: i32,
+}
+
+/// The grid, in xLights' node order. xLights: `InitVMatrix` and
+/// `InitHMatrix` for individual pixels, without the first exported strand.
+fn grid(
+    counts: &Counts,
+    strings: &Strings,
+    common: &Common,
+    vertical: bool,
+    alternate: bool,
+    no_zig: bool,
+) -> (Vec<Cell>, i32, i32) {
+    let strands = counts.strings * counts.strands;
+    let per_strand = counts.per_strand;
+    let per_string = per_strand * counts.strands;
+    let channels = common.string_type.channels as i64;
+    let mut cells: Vec<Option<Cell>> = (0..strands * per_strand).map(|_| None).collect();
+    let (ltr, btt) = (common.left_to_right, common.bottom_to_top);
+    for strand in 0..strands {
+        let string = strand / counts.strands;
+        let segment = strand % counts.strands;
+        for index in 0..per_strand {
+            let node = (string * per_string + segment * per_strand + index) as usize;
+            let channel = strings.channel(&common.string_type, string as u32, 0) as i64
+                + i64::from(segment * per_strand) * channels
+                + i64::from(index) * channels;
+            let along = |forward: bool| -> i32 {
+                if alternate {
+                    let half = index < (per_strand + 1) / 2;
+                    let row = if half {
+                        index * 2
+                    } else {
+                        (per_strand - (index + 1)) * 2 + 1
+                    };
+                    if forward { row } else { per_strand - 1 - row }
+                } else if no_zig {
+                    if forward {
+                        index
+                    } else {
+                        per_strand - index - 1
+                    }
+                } else if forward == (segment % 2 == 0) {
+                    index
+                } else {
+                    per_strand - index - 1
+                }
+            };
+            let cell = if vertical {
+                Cell {
+                    channel: channel as u32,
+                    x: if ltr { strand } else { strands - strand - 1 },
+                    y: along(btt),
+                }
+            } else {
+                Cell {
+                    channel: channel as u32,
+                    x: along(ltr),
+                    y: if btt { strand } else { strands - strand - 1 },
+                }
+            };
+            cells[node] = Some(cell);
+        }
+    }
+    let (width, height) = if vertical {
+        (strands, per_strand)
+    } else {
+        (per_strand, strands)
+    };
+    (cells.into_iter().flatten().collect(), width, height)
+}
+
+fn boxed_local(
+    reader: &Reader,
+    nodes: Vec<Node>,
+    ellipses: Vec<Ellipse>,
+) -> Result<Local, SkipReason> {
+    Ok(Local {
         nodes,
         ellipses,
-        strings: grid.strings,
-        string_nodes: grid.string_nodes,
-        placement,
-    }
+        size: RenderSize { width: 1.0 },
+        placement: placement::boxed(reader)?,
+    })
 }
 
-/// Cells one unit apart, centred on the model.
-pub(super) fn matrix(spec: &Spec) -> Result<Local, SkipReason> {
-    let vertical = spec.display == "Vert Matrix"
-        || (spec.display == "Matrix" && spec.is_true("Vertical", false));
-    let grid = grid(spec, vertical)?;
-    let nodes = grid
-        .cells
-        .iter()
-        .map(|cell| Node {
-            string: cell.string,
-            offset: cell.offset,
-            position: DVec3::new(
-                f64::from(cell.x) - f64::from(grid.width / 2),
-                f64::from(cell.y) - f64::from(grid.height / 2),
-                0.0,
-            ),
-            arc: None,
-        })
-        .collect();
-    Ok(local(&grid, nodes, Vec::new(), placement::boxed(spec)?))
+fn flags(reader: &Reader) -> (bool, bool) {
+    (
+        reader.equals("AlternateNodes", "false", "true"),
+        reader.equals("NoZig", "false", "true"),
+    )
 }
 
-enum TreeShape {
-    Round(f64),
-    Flat,
-    Ribbon,
+/// xLights: `Model::CopyBufCoord2ScreenCoord`.
+fn centered(cell: &Cell, width: i32, height: i32) -> DVec3 {
+    DVec3::new(
+        f64::from(cell.x - width / 2),
+        f64::from(cell.y - height / 2),
+        0.0,
+    )
 }
 
-fn tree_shape(spec: &Spec) -> Result<TreeShape, SkipReason> {
-    match spec.display.strip_prefix("Tree ") {
-        Some("Flat") => Ok(TreeShape::Flat),
-        Some("Ribbon") => Ok(TreeShape::Ribbon),
-        Some(degrees) => degrees
-            .trim()
-            .parse::<f64>()
-            .map(TreeShape::Round)
-            .map_err(|_| SkipReason::Type(spec.display.to_string())),
-        None => match spec.int("TreeType", 0)? {
-            1 => Ok(TreeShape::Flat),
-            2 => Ok(TreeShape::Ribbon),
-            _ => Ok(TreeShape::Round(spec.float("TreeDegrees", 360.0)?)),
-        },
-    }
-}
-
-/// How far up its strand each row is, and how far a spiral has turned it:
-/// a spiralling strand is ten pieces, each with lights for its length.
-fn spiral(height: u32, radius: f64, top: f64, rotations: f64) -> (Vec<f64>, Vec<f64>) {
-    let mut up: Vec<f64> = (0..height).map(f64::from).collect();
-    let mut turned = vec![0.0; height as usize];
-    if rotations == 0.0 || height == 0 {
-        return (up, turned);
-    }
-    let gap = (radius - top) / 10.0;
-    let rise = f64::from(height) / 10.0;
-    let lengths: Vec<f64> = (0..10)
-        .map(|piece| {
-            let around = (TAU * (radius - gap * f64::from(piece)) - gap / 2.0) * rotations / 10.0;
-            (around * around + rise * rise).sqrt()
-        })
-        .collect();
-    let total: f64 = lengths.iter().sum();
-    let lights_in = |piece: usize, row: u32| {
-        if piece == 9 {
-            f64::from(height - row)
-        } else {
-            (lengths[piece] / total * f64::from(height)).round()
-        }
+pub(super) fn matrix(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let counts = match counts(reader) {
+        Ok(counts) => counts,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
     };
-    // A piece too short for a light of its own has no rows; the last piece
-    // takes every row left.
-    let mut piece = 0;
-    let mut in_piece = lights_in(0, 0);
-    while in_piece == 0.0 {
-        piece += 1;
-        in_piece = lights_in(piece, 0);
+    let strings = match strings(&counts, common) {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let span = Ok(strings.span(&common.string_type));
+    // xLights: DeserializeMatrix.
+    let vertical = reader.as_string("DisplayAs", "Matrix") == "Vert Matrix"
+        || reader.equals("Vertical", "false", "true");
+    let local = account(
+        reader,
+        super::BOXED_PLACEMENT,
+        &[GRID, MATRIX],
+        super::NO_CHILDREN,
+    )
+    .and_then(|()| {
+        let (alternate, no_zig) = flags(reader);
+        let (cells, width, height) = grid(&counts, &strings, common, vertical, alternate, no_zig);
+        let nodes = cells
+            .iter()
+            .map(|cell| Node {
+                channel: cell.channel,
+                lights: vec![centered(cell, width, height)],
+                arc: None,
+            })
+            .collect();
+        boxed_local(reader, nodes, Vec::new())
+    });
+    (span, local)
+}
+
+/// xLights: `toRadians` in `UtilFunctions.h`.
+fn to_radians(degrees: f32) -> f64 {
+    2.0 * PI * f64::from(degrees) / 360.0
+}
+
+pub(super) fn tree(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let counts = match counts(reader) {
+        Ok(counts) => counts,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let strings = match strings(&counts, common) {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let span = Ok(strings.span(&common.string_type));
+    (span, tree_layout(reader, common, &counts, &strings))
+}
+
+/// xLights: `DeserializeTree`, `TreeModel::InitModel` and `SetTreeCoord`.
+fn tree_layout(
+    reader: &Reader,
+    common: &Common,
+    counts: &Counts,
+    strings: &Strings,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::BOXED_PLACEMENT,
+        &[GRID, TREE],
+        super::NO_CHILDREN,
+    )?;
+    let vertical = reader.equals("StrandDir", "Vertical", "Vertical");
+    // xLights: a first exported strand above 1 on a vertical tree drops the
+    // model's start channel (MatrixModel::InitVMatrix).
+    if vertical && reader.as_int("exportFirstStrand", 0) - 1 > 0 {
+        return Err(SkipReason::Setting("first exported strand"));
     }
-    let mut placed = 0.0;
-    for row in 1..height {
-        if placed >= in_piece {
-            placed = 0.0;
-            loop {
-                piece += 1;
-                in_piece = lights_in(piece, row);
-                if in_piece > 0.0 {
-                    break;
+    let display = reader.as_string("DisplayAs", "Tree");
+    let mut tree_type = 0;
+    let mut degrees: i64 = 360;
+    if display != "Tree" {
+        if let Some((_, token)) = display.split_once(' ') {
+            match token {
+                "Flat" => {
+                    tree_type = 1;
+                    degrees = 0;
                 }
+                "Ribbon" => {
+                    tree_type = 2;
+                    degrees = -1;
+                }
+                other => degrees = strtol(other),
             }
         }
-        let row = row as usize;
-        up[row] = up[row - 1] + rise / in_piece;
-        turned[row] = turned[row - 1] + rotations * TAU / 10.0 / in_piece;
-        placed += 1.0;
+    } else {
+        tree_type = reader.as_int("TreeType", 0);
+        degrees = i64::from(reader.as_int("TreeDegrees", 360));
     }
-    (up, turned)
-}
-
-/// A round tree spreads its strands around a cone `degrees` wide, three
-/// times as tall as a strand's light count; flat and ribbon trees fan them
-/// out in a plane.
-pub(super) fn tree(spec: &Spec) -> Result<Local, SkipReason> {
-    let vertical = spec
-        .text("StrandDir")
-        .is_none_or(|direction| direction == "Vertical");
-    let grid = grid(spec, vertical)?;
-    let (width, height) = (f64::from(grid.width), f64::from(grid.height));
-    let fraction = |up: f64| {
-        if grid.height > 1 {
-            up / (height - 1.0)
-        } else {
-            0.5
-        }
+    let degrees = match tree_type {
+        1 => 0,
+        2 => -1,
+        _ => degrees,
     };
-    let position = |cell: &Cell,
-                    shape: &TreeShape,
-                    up: &[f64],
-                    turned: &[f64],
-                    geometry: &(f64, f64, f64, f64)| match shape {
-        TreeShape::Round(_) => {
-            let (radius, top, start, step) = *geometry;
-            let angle = start + f64::from(cell.x) * step + turned[cell.y as usize];
-            let t = fraction(up[cell.y as usize]);
-            let tall = height * 3.0;
-            DVec3::new(
-                radius * angle.sin() + (top - radius) * angle.sin() * t,
-                t * tall - tall / 2.0,
-                radius * angle.cos() + (top - radius) * angle.cos() * t,
-            )
+    let rotation = reader.as_float("TreeRotation", 3.0)?;
+    let spiral = reader.as_float("TreeSpiralRotations", 0.0)?;
+    let ratio = reader.as_float("TreeBottomTopRatio", 6.0)?;
+    let (alternate, no_zig) = flags(reader);
+    let (cells, width, height) = grid(counts, strings, common, vertical, alternate, no_zig);
+    if width < 1 || height < 1 {
+        return Err(SkipReason::NoPixels);
+    }
+    let (wi, ht) = (f64::from(width), f64::from(height));
+    let mut nodes = Vec::with_capacity(cells.len());
+    let mut ellipses = Vec::new();
+    if degrees > 0 {
+        let render_ht = ht * 3.0;
+        let render_wi = render_ht / 1.8;
+        let radians = to_radians(degrees as f32);
+        let mut radius = render_wi / 2.0;
+        let mut top = radius;
+        if ratio != 0.0 {
+            top = radius / f64::from(ratio.abs());
         }
-        TreeShape::Flat | TreeShape::Ribbon => {
-            let spread = if matches!(shape, TreeShape::Ribbon) {
-                5.0
-            } else {
-                4.0
-            };
-            let tall = height * 2.0;
-            let column = f64::from(cell.x) + 0.5 - width / 2.0;
-            let (top, bottom) = (column * 0.9, column * spread);
-            let t = fraction(f64::from(cell.y));
-            let y = if matches!(shape, TreeShape::Ribbon) {
-                let slant = (tall * tall + (top - bottom) * (top - bottom)).sqrt();
-                tall * tall * t / slant
-            } else {
-                tall * t
-            };
-            DVec3::new(bottom + (top - bottom) * t, y - tall / 2.0, 0.0)
-        }
-    };
-    let shape = tree_shape(spec)?;
-    let mut geometry = (0.0, 0.0, 0.0, 0.0);
-    let (mut up, mut turned) = (
-        (0..grid.height).map(f64::from).collect(),
-        vec![0.0; grid.height as usize],
-    );
-    if let TreeShape::Round(degrees) = shape {
-        let radius = height * 3.0 / 1.8 / 2.0;
-        let ratio = spec.float("TreeBottomTopRatio", 6.0)?;
-        let mut bottom = radius;
-        let mut top = if ratio != 0.0 {
-            radius / ratio.abs()
-        } else {
-            radius
-        };
         if ratio < 0.0 {
-            std::mem::swap(&mut top, &mut bottom);
+            std::mem::swap(&mut top, &mut radius);
         }
-        let radians = degrees.to_radians();
-        let step = if degrees < 350.0 && grid.width > 1 {
-            radians / (width - 1.0)
-        } else {
-            radians / width
-        };
-        let start = -radians / 2.0 + spec.float("TreeRotation", 3.0)?.to_radians();
-        (up, turned) = spiral(
-            grid.height,
-            bottom,
-            top,
-            spec.float("TreeSpiralRotations", 0.0)?,
-        );
-        geometry = (bottom, top, start, step);
+        let mut start = -radians / 2.0;
+        let mut increment = radians / wi;
+        if degrees < 350 && width > 1 {
+            increment = radians / (wi - 1.0);
+        }
+        start += to_radians(rotation);
+        let rows = height as usize;
+        let mut y_pos: Vec<f32> = (0..rows).map(|row| row as f32).collect();
+        let mut x_inc = vec![0f32; rows];
+        if spiral != 0.0 {
+            let gap = ((radius - top) / 10.0) as f32;
+            let mut lengths = [0f32; 10];
+            let mut total = 0f32;
+            for (index, length) in lengths.iter_mut().enumerate() {
+                *length = (2.0 * PI * (radius - f64::from(gap) * index as f64)
+                    - f64::from(gap) / 2.0) as f32;
+                *length = (f64::from(*length) * (f64::from(spiral) / 10.0)) as f32;
+                let rise = f64::from(height as f32) / 10.0 * f64::from(height as f32) / 10.0;
+                *length = (f64::from(*length) * f64::from(*length) + rise).sqrt() as f32;
+                total += *length;
+            }
+            for length in &mut lengths {
+                *length /= total;
+            }
+            let mut segment = 0usize;
+            let mut in_segment = (lengths[0] * height as f32).round();
+            let mut light = 0f32;
+            for row in 1..rows {
+                if light >= in_segment {
+                    segment += 1;
+                    light = 0.0;
+                    in_segment = if segment == 9 {
+                        (rows - row) as f32
+                    } else {
+                        (lengths[segment] * height as f32).round()
+                    };
+                }
+                let mut angle = (f64::from(spiral) * 2.0 * PI / 10.0) as f32;
+                angle /= in_segment;
+                y_pos[row] =
+                    (f64::from(y_pos[row - 1]) + (ht / 10.0 / f64::from(in_segment))) as f32;
+                x_inc[row] = x_inc[row - 1] + angle;
+                light += 1.0;
+            }
+        }
+        for cell in &cells {
+            let angle = start + f64::from(cell.x) * increment + f64::from(x_inc[cell.y as usize]);
+            let (xb, xt) = (radius * angle.sin(), top * angle.sin());
+            let (zb, zt) = (radius * angle.cos(), top * angle.cos());
+            let along = if height > 1 {
+                f64::from(y_pos[cell.y as usize]) / (ht - 1.0)
+            } else {
+                0.5
+            };
+            nodes.push(Node {
+                channel: cell.channel,
+                lights: vec![DVec3::new(
+                    f64::from((xb + (xt - xb) * along) as f32),
+                    f64::from((render_ht * along - render_ht / 2.0) as f32),
+                    f64::from((zb + (zt - zb) * along) as f32),
+                )],
+                arc: None,
+            });
+        }
+        // Each row of a tree without a spiral is a ring, or part of one.
+        if spiral == 0.0 && ratio == 1.0 {
+            for row in 0..height {
+                let along = if height > 1 {
+                    f64::from(row) / (ht - 1.0)
+                } else {
+                    0.5
+                };
+                ellipses.push(Ellipse {
+                    center: DVec3::new(0.0, render_ht * along - render_ht / 2.0, 0.0),
+                    u: DVec3::new(0.0, 0.0, radius),
+                    v: DVec3::new(radius, 0.0, 0.0),
+                });
+            }
+            for (node, cell) in nodes.iter_mut().zip(&cells) {
+                let angle = start + f64::from(cell.x) * increment;
+                node.arc = Some(ArcPoint {
+                    arc: cell.y as usize,
+                    degrees: angle.to_degrees(),
+                });
+            }
+        }
+    } else {
+        let scale = if degrees == -1 { 5.0 } else { 4.0 };
+        let render_ht = ht * 2.0;
+        for cell in &cells {
+            let (bx, by) = (f64::from(cell.x), f64::from(cell.y));
+            let xt = (bx + 0.5 - wi / 2.0) * 0.9;
+            let xb = (bx + 0.5 - wi / 2.0) * scale;
+            let mut lights = Vec::new();
+            if degrees == -1 {
+                // xLights: a ribbon tree's node is three lights.
+                let h = (render_ht * render_ht + (xt - xb) * (xt - xb)).sqrt();
+                for (offset, fallback) in [(0.0, 0.5), (-0.33, 0.0), (0.33, 1.0)] {
+                    let along = if height > 1 {
+                        (by + offset) / (ht - 1.0)
+                    } else {
+                        fallback
+                    };
+                    let rise = render_ht * along;
+                    lights.push(DVec3::new(
+                        f64::from((xb + (xt - xb) * along) as f32),
+                        f64::from((render_ht * rise / h - render_ht / 2.0) as f32),
+                        0.0,
+                    ));
+                }
+            } else {
+                let along = if height > 1 { by / (ht - 1.0) } else { 0.5 };
+                lights.push(DVec3::new(
+                    f64::from((xb + (xt - xb) * along) as f32),
+                    f64::from((render_ht * along - render_ht / 2.0) as f32),
+                    0.0,
+                ));
+            }
+            nodes.push(Node {
+                channel: cell.channel,
+                lights,
+                arc: None,
+            });
+        }
     }
-    let nodes = grid
-        .cells
-        .iter()
-        .map(|cell| Node {
-            string: cell.string,
-            offset: cell.offset,
-            position: position(cell, &shape, &up, &turned, &geometry),
-            arc: None,
-        })
-        .collect();
-    Ok(local(&grid, nodes, Vec::new(), placement::boxed(spec)?))
+    boxed_local(reader, nodes, ellipses)
 }
 
-/// Vertical strands as lines of longitude, from `StartLatitude` to
-/// `EndLatitude`, spread over `Degrees` of longitude.
-pub(super) fn sphere(spec: &Spec) -> Result<Local, SkipReason> {
-    let grid = grid(spec, true)?;
-    let (width, height) = (f64::from(grid.width), f64::from(grid.height));
-    let radius = width.max(height) / 1.8 / 2.0;
-    let degrees = spec.float("Degrees", 360.0)?;
-    let removed = (360.0 - degrees).to_radians();
-    let fudge = ((360.0 - degrees) / width).to_radians();
-    let start = TAU / 4.0 + 0.003 - removed / 2.0;
-    let step = (-TAU + removed - fudge) / width;
-    let start_latitude = spec.float("StartLatitude", -86.0)?;
-    let end_latitude = spec.float("EndLatitude", 86.0)?;
-    let first_row = (start_latitude - 90.0).to_radians();
-    let row_step = (end_latitude - start_latitude).to_radians() / (height - 1.0).max(1.0);
-    let ellipses: Vec<Ellipse> = (0..grid.width)
-        .map(|column| {
-            let longitude = start + f64::from(column) * step;
-            Ellipse {
+pub(super) fn sphere(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let counts = match counts(reader) {
+        Ok(counts) => counts,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let strings = match strings(&counts, common) {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let span = Ok(strings.span(&common.string_type));
+    (span, sphere_layout(reader, common, &counts, &strings))
+}
+
+/// xLights: `DeserializeSphere`, `SphereModel::InitModel` and
+/// `SetSphereCoord`.
+fn sphere_layout(
+    reader: &Reader,
+    common: &Common,
+    counts: &Counts,
+    strings: &Strings,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::BOXED_PLACEMENT,
+        &[GRID, SPHERE],
+        super::NO_CHILDREN,
+    )?;
+    let start_latitude = reader.as_int("StartLatitude", -86);
+    let end_latitude = reader.as_int("EndLatitude", 86);
+    let degrees = reader.as_int("Degrees", 360);
+    let (alternate, no_zig) = flags(reader);
+    let (cells, width, height) = grid(counts, strings, common, true, alternate, no_zig);
+    if width < 1 || height < 1 {
+        return Err(SkipReason::NoPixels);
+    }
+    let (wi, ht) = (f64::from(width), f64::from(height));
+    let radius = f64::from(width.max(height)) / 1.8 / 2.0;
+    let radians = to_radians(360.0);
+    let remove = to_radians((360.0 - f64::from(degrees)) as f32);
+    let fudge = to_radians(((360.0 - f64::from(degrees)) / wi) as f32);
+    let h_start = radians / 4.0 + 0.003 - remove / 2.0;
+    let h_step = (-radians + remove - fudge) / wi;
+    let v_start = to_radians((start_latitude - 90) as f32);
+    let v_step =
+        (to_radians((-start_latitude) as f32) + to_radians(end_latitude as f32)) / (ht - 1.0);
+    let mut nodes = Vec::with_capacity(cells.len());
+    let mut ellipses = Vec::new();
+    for cell in &cells {
+        let h = h_start + f64::from(cell.x) * h_step;
+        let v = v_start + f64::from(cell.y) * v_step;
+        let sv = v.sin();
+        nodes.push(Node {
+            channel: cell.channel,
+            lights: vec![DVec3::new(
+                f64::from((radius * h.cos() * sv) as f32),
+                f64::from((radius * v.cos()) as f32),
+                f64::from((radius * h.sin() * sv) as f32),
+            )],
+            arc: None,
+        });
+    }
+    // Each strand is a line of longitude.
+    if height > 2 {
+        for strand in 0..width {
+            let h = h_start + f64::from(strand) * h_step;
+            ellipses.push(Ellipse {
                 center: DVec3::ZERO,
                 u: DVec3::new(0.0, radius, 0.0),
-                v: DVec3::new(radius * longitude.cos(), 0.0, radius * longitude.sin()),
-            }
-        })
-        .collect();
-    let nodes = grid
-        .cells
-        .iter()
-        .map(|cell| {
-            let longitude = start + f64::from(cell.x) * step;
-            let latitude = first_row + f64::from(cell.y) * row_step;
-            Node {
-                string: cell.string,
-                offset: cell.offset,
-                position: DVec3::new(
-                    radius * longitude.cos() * latitude.sin(),
-                    radius * latitude.cos(),
-                    radius * longitude.sin() * latitude.sin(),
-                ),
-                arc: Some(ArcPoint {
-                    arc: cell.x as usize,
-                    degrees: latitude.to_degrees(),
-                }),
-            }
-        })
-        .collect();
-    // Before layout version 8 xLights drew spheres flattened; their scale
-    // made up for it.
-    let mut placement = placement::boxed(spec)?;
-    let version = spec.int("versionNumber", 0)?;
-    if version < 8
-        && let Placement::Boxed { scale, .. } = &mut placement
-    {
-        let squash = height / width.max(height);
-        *scale *= DVec3::new(squash / 1.8, squash, squash / 1.8);
+                v: DVec3::new(radius * h.cos(), 0.0, radius * h.sin()),
+            });
+        }
+        for (node, cell) in nodes.iter_mut().zip(&cells) {
+            node.arc = Some(ArcPoint {
+                arc: cell.x as usize,
+                degrees: (v_start + f64::from(cell.y) * v_step).to_degrees(),
+            });
+        }
     }
-    Ok(local(&grid, nodes, ellipses, placement))
+    let mut local = boxed_local(reader, nodes, ellipses)?;
+    // xLights: DeserializeSphere rescales spheres saved before version 8.
+    let version = reader.as_string("versionNumber", "");
+    if (version.is_empty() || strtol(version) < 8)
+        && let Placement::Boxed { scale, .. } = &mut local.placement
+    {
+        let biggest = height.max(counts.strings * counts.strands);
+        if biggest > 0 {
+            let ratio = height as f32 / biggest as f32;
+            // A negative scale is rescaled first, then made 1 by
+            // BoxedScreenLocation::Init.
+            let factor = Vec3::new(ratio / 1.8, ratio, ratio / 1.8);
+            let written = Vec3::new(
+                reader.as_float("ScaleX", 1.0)?,
+                reader.as_float("ScaleY", 1.0)?,
+                reader.as_float("ScaleZ", 1.0)?,
+            );
+            let rescaled = written * factor;
+            *scale = Vec3::select(rescaled.cmplt(Vec3::ZERO), Vec3::ONE, rescaled);
+        }
+    }
+    Ok(local)
 }

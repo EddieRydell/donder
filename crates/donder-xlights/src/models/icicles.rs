@@ -1,92 +1,135 @@
 //! Icicles: drops hanging from the placement's line.
 
-use super::{Local, Node, Spec};
-use crate::placement;
+use super::{Common, Local, Node, Span, Strings, account};
+use crate::placement::{self, RenderSize};
+use crate::read::{Name, Reader, Table, Use, strtol};
 use crate::report::SkipReason;
 use glam::DVec3;
 
-/// Each drop is a column one unit right of the last, its lights one unit
-/// apart down from the line. Drop lengths repeat `DropPattern`, restarting
-/// on each string; every light follows the last in the model's channels.
-pub(super) fn icicles(spec: &Spec) -> Result<Local, SkipReason> {
-    let strings = spec.count("NumStrings", "parm1", 1)?;
-    let string_lights = spec.count("NodesPerString", "parm2", 1)?;
-    super::nodes(&[strings, string_lights])?;
-    let mut pattern = spec.csv("DropPattern")?;
-    if !spec.has("DropPattern") {
-        pattern = vec![3, 4, 5, 4];
-    } else if pattern.is_empty() {
-        return Err(SkipReason::Attribute {
-            name: "DropPattern".to_string(),
-            value: spec.text("DropPattern").unwrap_or_default().to_string(),
-        });
+const ICICLES: Table = &[
+    (Name::Exact("NumStrings"), Use::Modeled),
+    (Name::Exact("NodesPerString"), Use::Modeled),
+    (Name::Exact("parm1"), Use::Modeled),
+    (Name::Exact("parm2"), Use::Modeled),
+    (Name::Exact("DropPattern"), Use::Modeled),
+    (Name::Exact("AlternateNodes"), Use::Modeled),
+    (Name::Exact("Shear"), Use::Modeled),
+];
+
+struct Settings {
+    strings: i32,
+    lights_per_string: i32,
+    drops: Vec<i32>,
+    alternate: bool,
+}
+
+/// xLights: `DeserializeIcicles` and `IciclesModel::ParseDropSizes`, which
+/// keeps drops of 0, gap columns, and leaves out negative ones.
+fn settings(reader: &Reader) -> Settings {
+    let mut drops: Vec<i32> = reader
+        .as_string("DropPattern", "3,4,5,4")
+        .split(',')
+        .map(|item| strtol(item) as i32)
+        .filter(|drop| *drop >= 0)
+        .collect();
+    if drops.is_empty() {
+        drops.push(5);
     }
-    let pattern = pattern
-        .into_iter()
-        .map(|drop| {
-            u32::try_from(drop)
-                .ok()
-                .filter(|drop| *drop > 0)
-                .ok_or_else(|| SkipReason::Attribute {
-                    name: "DropPattern".to_string(),
-                    value: drop.to_string(),
-                })
-        })
-        .collect::<Result<Vec<u32>, _>>()?;
-    let alternate = spec.is_true("AlternateNodes", false);
-    let mut column: i64 = -1;
-    let mut lights = Vec::new();
-    for _ in 0..strings {
-        column += 1;
-        let mut drop = 0;
-        let mut down = 0;
-        for _ in 0..string_lights {
-            while down >= pattern[drop] {
-                column += 1;
-                down = 0;
-                drop = (drop + 1) % pattern.len();
+    Settings {
+        strings: reader.parm("NumStrings", "parm1", "1"),
+        lights_per_string: reader.parm("NodesPerString", "parm2", "1"),
+        drops,
+        alternate: reader.equals("AlternateNodes", "false", "true"),
+    }
+}
+
+pub(super) fn icicles(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let settings = settings(reader);
+    // xLights numbers every light on from the first string's start.
+    let strings = match Strings::uniform(settings.strings, settings.lights_per_string, 1) {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let span = Ok(Span {
+        first: 0,
+        end: u64::from(strings.nodes) * u64::from(common.string_type.channels),
+    });
+    (span, layout(reader, common, &settings, &strings))
+}
+
+/// xLights: `IciclesModel::InitModel`: each string's lights down drops of
+/// the pattern's lengths, a column for each drop, the drops restarting with
+/// each string.
+fn layout(
+    reader: &Reader,
+    common: &Common,
+    settings: &Settings,
+    strings: &Strings,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::THREE_POINT_PLACEMENT,
+        &[ICICLES],
+        super::NO_CHILDREN,
+    )?;
+    if settings.drops.iter().all(|drop| *drop == 0) {
+        return Err(SkipReason::Unplaceable("a drop pattern of only gaps"));
+    }
+    let drops = &settings.drops;
+    let channels = common.string_type.channels;
+    let mut width: i32 = -1;
+    let mut lights: Vec<(i32, i32)> = Vec::with_capacity(strings.nodes as usize);
+    for _ in 0..settings.strings {
+        let mut y = 0;
+        let mut drop = 0usize;
+        let mut in_drop = drops[0];
+        width += 1;
+        for _ in 0..settings.lights_per_string {
+            while y >= drops[drop] {
+                width += 1;
+                y = 0;
+                drop = (drop + 1) % drops.len();
+                in_drop = drops[drop];
             }
-            let size = pattern[drop];
-            let place = if !alternate {
-                down
-            } else if down < size.div_ceil(2) {
-                down * 2
+            let screen_y = if settings.alternate {
+                if y < (in_drop + 1) / 2 {
+                    2 * y
+                } else {
+                    (in_drop - (y + 1)) * 2 + 1
+                }
             } else {
-                (size - (down + 1)) * 2 + 1
+                y
             };
-            lights.push((column, place));
-            down += 1;
+            lights.push((width, screen_y));
+            y += 1;
         }
     }
-    let last = column.max(0);
-    let single = last == 0;
+    let single = width == 0;
     let nodes = lights
         .into_iter()
         .enumerate()
-        .map(|(node, (column, place))| {
-            let column = if spec.left_to_right() {
-                column
-            } else {
-                last - column
-            };
+        .map(|(index, (x, y))| {
+            let x = if common.left_to_right { x } else { width - x };
             Node {
-                string: 0,
-                offset: node as u32,
-                position: DVec3::new(
-                    if single { 0.5 } else { column as f64 },
-                    f64::from(place),
+                channel: index as u32 * channels,
+                lights: vec![DVec3::new(
+                    if single { 0.5 } else { f64::from(x) },
+                    f64::from(y),
                     0.0,
-                ),
+                )],
                 arc: None,
             }
         })
         .collect();
-    let width = if single { 1.0 } else { last as f64 };
     Ok(Local {
         nodes,
         ellipses: Vec::new(),
-        strings,
-        string_nodes: string_lights,
-        placement: placement::three_point(spec, width, true)?,
+        size: RenderSize {
+            width: if single { 1.0 } else { width as f32 },
+        },
+        placement: placement::three_point(reader, false, true)?,
     })
 }

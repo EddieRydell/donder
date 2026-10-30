@@ -1,107 +1,295 @@
-//! Custom models: nodes drawn on a grid of cells.
+//! Custom models: a grid of cells, each naming the node lit there.
 
-use super::{Local, Node, Spec, mean};
-use crate::placement;
+use super::{Common, Local, Node, Span, account};
+use crate::placement::{self, RenderSize};
+use crate::read::{Name, Reader, Table, Use, strtol};
 use crate::report::SkipReason;
 use glam::DVec3;
 use std::collections::BTreeMap;
 
-/// Each cell holding node `n` is a light of node `n`, its channels `n - 1`
-/// nodes after the model's start. Rows count down from the top and layers
-/// back from the front, centred on the cells in use.
-pub(super) fn custom(spec: &Spec) -> Result<Local, SkipReason> {
-    let invalid = |name: &str, value: &str| SkipReason::Attribute {
-        name: name.to_string(),
-        value: value.to_string(),
-    };
-    // Node number to its cells, as layer, row and column.
-    let mut cells: BTreeMap<u32, Vec<(f64, f64, f64)>> = BTreeMap::new();
-    let compressed = spec.text("CustomModelCompressed").unwrap_or_default();
-    if !compressed.is_empty() {
-        for entry in compressed
-            .split(';')
-            .filter(|entry| !entry.trim().is_empty())
-        {
-            let values = entry
-                .split(',')
-                .map(|value| value.trim().parse::<u32>())
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| invalid("CustomModelCompressed", entry))?;
-            let (node, row, column, layer) = match values[..] {
-                [node, row, column] => (node, row, column, 0),
-                [node, row, column, layer] => (node, row, column, layer),
-                _ => return Err(invalid("CustomModelCompressed", entry)),
-            };
-            cells.entry(node).or_default().push((
-                f64::from(layer),
-                f64::from(row),
-                f64::from(column),
-            ));
-        }
-    } else {
-        let model = spec.text("CustomModel").unwrap_or_default();
-        for (layer, rows) in model.split('|').enumerate() {
-            for (row, columns) in rows.split(';').enumerate() {
-                for (column, cell) in columns.split(',').enumerate() {
-                    let cell = cell.trim();
-                    if cell.is_empty() {
-                        continue;
-                    }
-                    let node: i64 = cell.parse().map_err(|_| invalid("CustomModel", cell))?;
-                    if node > 0 {
-                        let node = u32::try_from(node).map_err(|_| invalid("CustomModel", cell))?;
-                        cells.entry(node).or_default().push((
-                            layer as f64,
-                            row as f64,
-                            column as f64,
-                        ));
-                    }
+const CUSTOM: Table = &[
+    (Name::Exact("CustomModel"), Use::Modeled),
+    (Name::Exact("CustomModelCompressed"), Use::Modeled),
+    (Name::Exact("CustomStrings"), Use::Modeled),
+    (Name::Numbered("NodeStart"), Use::Modeled),
+    (Name::Numbered("String"), Use::Modeled),
+    (
+        Name::Exact("CustomWidth"),
+        Use::Irrelevant("the size of xLights' effect buffer"),
+    ),
+    (
+        Name::Exact("CustomHeight"),
+        Use::Irrelevant("the size of xLights' effect buffer"),
+    ),
+    (
+        Name::Exact("parm1"),
+        Use::Irrelevant("the width of xLights' effect buffer"),
+    ),
+    (
+        Name::Exact("parm2"),
+        Use::Irrelevant("the height of xLights' effect buffer"),
+    ),
+    (
+        Name::Exact("Depth"),
+        Use::Irrelevant("the depth of xLights' effect buffer"),
+    ),
+    (
+        Name::Exact("CustomBkgImage"),
+        Use::Irrelevant("a picture behind the model in xLights' editor"),
+    ),
+    (
+        Name::Exact("CustomBkgLightness"),
+        Use::Irrelevant("a picture behind the model in xLights' editor"),
+    ),
+    (
+        Name::Exact("CustomBkgScale"),
+        Use::Irrelevant("a picture behind the model in xLights' editor"),
+    ),
+    (
+        Name::Exact("CustomBkgBrightness"),
+        Use::Irrelevant("a picture behind the model in xLights' editor"),
+    ),
+    (
+        Name::Exact("CustomBkgTransparency"),
+        Use::Irrelevant("a picture behind the model in xLights' editor"),
+    ),
+];
+
+/// Node numbers by layer, row and column; 0 or less is an empty cell.
+type Grid = Vec<Vec<Vec<i32>>>;
+
+/// xLights: `XmlSerialize::ParseCustomModel`.
+fn parse_grid(text: &str) -> Grid {
+    let mut grid: Grid = Vec::new();
+    let mut width = 1usize;
+    let mut height = 1usize;
+    for layer in text.split('|') {
+        grid.push(Vec::new());
+        let rows: Vec<&str> = layer.split(';').collect();
+        height = rows.len();
+        let current = grid.last_mut().unwrap_or_else(|| unreachable!());
+        current.resize(height, Vec::new());
+        for (row, values) in rows.iter().enumerate() {
+            let columns: Vec<&str> = values.split(',').collect();
+            width = width.max(columns.len());
+            current[row].resize(width, -1);
+            for (column, value) in columns.iter().enumerate() {
+                let value = value.trim_start_matches(' ');
+                if !value.is_empty() {
+                    current[row][column] = strtol(value) as i32;
                 }
             }
         }
     }
-    cells.retain(|node, _| *node > 0);
-    if let Some(&last) = cells.keys().next_back() {
-        super::nodes(&[last])?;
+    for layer in &mut grid {
+        layer.resize(height, Vec::new());
+        for row in layer {
+            row.resize(width, -1);
+        }
     }
-    let all = || cells.values().flatten();
-    let middle = |axis: fn(&(f64, f64, f64)) -> f64| {
-        let low = all().map(axis).fold(f64::INFINITY, f64::min);
-        let high = all().map(axis).fold(f64::NEG_INFINITY, f64::max);
-        (low + high) / 2.0
+    grid
+}
+
+/// xLights: `XmlSerialize::ParseCompressed`: `node,row,column[,layer]`
+/// entries, the last for a cell winning.
+fn parse_compressed(text: &str) -> Result<Grid, SkipReason> {
+    let mut entries = Vec::new();
+    for entry in text.split(';') {
+        let parts: Vec<i64> = entry.split(',').map(strtol).collect();
+        match parts[..] {
+            [node, row, column] => entries.push((node, row, column, 0)),
+            [node, row, column, layer] => entries.push((node, row, column, layer)),
+            _ => {}
+        }
+    }
+    let index = |value: i64| {
+        usize::try_from(value)
+            .ok()
+            .filter(|value| *value < 100_000)
+            .ok_or(SkipReason::Unplaceable("a cell outside the grid"))
     };
-    let (layer_middle, row_middle, column_middle) = (
-        middle(|cell| cell.0),
-        middle(|cell| cell.1),
-        middle(|cell| cell.2),
+    let (mut layers, mut rows, mut columns) = (0, 0, 0);
+    for &(_, row, column, layer) in &entries {
+        layers = layers.max(index(layer)?);
+        rows = rows.max(index(row)?);
+        columns = columns.max(index(column)?);
+    }
+    let mut grid = vec![vec![vec![-1; columns + 1]; rows + 1]; layers + 1];
+    for (node, row, column, layer) in entries {
+        grid[layer as usize][row as usize][column as usize] = node as i32;
+    }
+    Ok(grid)
+}
+
+struct Settings {
+    grid: Grid,
+    /// The highest node number. xLights: `GetCustomMaxChannel`.
+    max_node: i32,
+    /// The nodes the grid names, each with its cells.
+    cells: BTreeMap<i32, Vec<(usize, usize, usize)>>,
+    /// The lowest node a string starts at.
+    first_node: i32,
+}
+
+/// xLights: `DeserializeCustom`, `ParseCustomModelDataFromXml` and the
+/// string start nodes `CustomModel::SetStringStartChannels` numbers from.
+fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
+    let compressed = reader.as_string("CustomModelCompressed", "");
+    let grid = if compressed.is_empty() {
+        parse_grid(reader.as_string("CustomModel", ""))
+    } else {
+        parse_compressed(compressed)?
+    };
+    let mut cells: BTreeMap<i32, Vec<(usize, usize, usize)>> = BTreeMap::new();
+    let mut max_node = 0;
+    for (layer, rows) in grid.iter().enumerate() {
+        for (row, columns) in rows.iter().enumerate() {
+            for (column, &node) in columns.iter().enumerate() {
+                max_node = max_node.max(node);
+                if node > 0 {
+                    cells.entry(node).or_default().push((layer, row, column));
+                }
+            }
+        }
+    }
+    let strings = reader.as_int("CustomStrings", 1);
+    let mut first_node = 1;
+    if strings > 1 {
+        let count = cells.len() as f32;
+        first_node = (0..strings)
+            .map(|string| {
+                let mut value = reader.as_string(&format!("NodeStart{}", string + 1), "");
+                if value.is_empty() {
+                    value = reader.as_string(&format!("String{}", string + 1), "0");
+                }
+                let mut node = strtol(value) as i32;
+                if node == 0 {
+                    // xLights: Model::ComputeStringStartNode.
+                    node = if string == 0 {
+                        1
+                    } else {
+                        (string as f32 * (count / strings as f32) + 1.0) as i32
+                    };
+                }
+                node.max(1).min(max_node)
+            })
+            .min()
+            .unwrap_or(1);
+    }
+    Ok(Settings {
+        grid,
+        max_node,
+        cells,
+        first_node,
+    })
+}
+
+pub(super) fn custom(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let settings = match settings(reader) {
+        Ok(settings) => settings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let channels = u64::from(common.string_type.channels);
+    let offset = (settings.first_node - 1).max(0) as u64 * channels;
+    let span = Ok(
+        match (settings.cells.keys().next(), settings.cells.keys().last()) {
+            (Some(&low), Some(&high)) => Span {
+                first: offset + (low - 1) as u64 * channels,
+                end: offset + high as u64 * channels,
+            },
+            _ => Span { first: 0, end: 0 },
+        },
     );
-    let nodes = cells
-        .iter()
-        .map(|(&node, places)| {
-            let points: Vec<DVec3> = places
+    (span, layout(reader, common, &settings, offset))
+}
+
+/// xLights: `CustomModel::InitCustomMatrix`: a node for each number the
+/// grid names, in number order, its channels counted on from the first
+/// string's start, each cell a light about the middle of the cells used.
+fn layout(
+    reader: &Reader,
+    common: &Common,
+    settings: &Settings,
+    offset: u64,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::BOXED_PLACEMENT,
+        &[CUSTOM],
+        super::NO_CHILDREN,
+    )?;
+    if settings.cells.is_empty() {
+        return Err(SkipReason::NoPixels);
+    }
+    if settings.max_node > 1_000_000 {
+        return Err(SkipReason::TooManyPixels);
+    }
+    let all = settings.cells.values().flatten();
+    let (mut low, mut high) = ((usize::MAX, usize::MAX, usize::MAX), (0, 0, 0));
+    for &(layer, row, column) in all {
+        low = (low.0.min(layer), low.1.min(row), low.2.min(column));
+        high = (high.0.max(layer), high.1.max(row), high.2.max(column));
+    }
+    let center = |a: usize, b: usize| (a + b) as f32 / 2.0;
+    let (center_layer, center_row, center_column) = (
+        center(low.0, high.0),
+        center(low.1, high.1),
+        center(low.2, high.2),
+    );
+    let _ = &settings.grid;
+    let channels = u64::from(common.string_type.channels);
+    let mut nodes = Vec::with_capacity(settings.cells.len());
+    for (&number, cells) in &settings.cells {
+        // A pixel goes at the mean of its node's cells, so they must touch.
+        if !touching(cells) {
+            return Err(SkipReason::Unplaceable("a node whose cells are apart"));
+        }
+        let channel = u32::try_from(offset + (number - 1) as u64 * channels)
+            .map_err(|_| SkipReason::TooManyPixels)?;
+        nodes.push(Node {
+            channel,
+            lights: cells
                 .iter()
                 .map(|&(layer, row, column)| {
                     DVec3::new(
-                        column - column_middle,
-                        row_middle - row,
-                        layer_middle - layer,
+                        f64::from(column as f32 - center_column),
+                        f64::from(center_row - row as f32),
+                        f64::from(center_layer - layer as f32),
                     )
                 })
-                .collect();
-            Node {
-                string: 0,
-                offset: node - 1,
-                position: mean(&points),
-                arc: None,
-            }
-        })
-        .collect::<Vec<_>>();
-    let string_nodes = nodes.iter().map(|node| node.offset + 1).max().unwrap_or(0);
+                .collect(),
+            arc: None,
+        });
+    }
     Ok(Local {
         nodes,
         ellipses: Vec::new(),
-        strings: 1,
-        string_nodes,
-        placement: placement::boxed(spec)?,
+        size: RenderSize { width: 1.0 },
+        placement: placement::boxed(reader)?,
     })
+}
+
+/// Whether cells form one group, each next to another in every direction,
+/// diagonals included.
+fn touching(cells: &[(usize, usize, usize)]) -> bool {
+    let mut reached = vec![false; cells.len()];
+    let mut queue = vec![0];
+    reached[0] = true;
+    while let Some(from) = queue.pop() {
+        for (to, cell) in cells.iter().enumerate() {
+            let near = |a: usize, b: usize| a.abs_diff(b) <= 1;
+            if !reached[to]
+                && near(cell.0, cells[from].0)
+                && near(cell.1, cells[from].1)
+                && near(cell.2, cells[from].2)
+            {
+                reached[to] = true;
+                queue.push(to);
+            }
+        }
+    }
+    reached.into_iter().all(|reached| reached)
 }
