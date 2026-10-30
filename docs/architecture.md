@@ -21,9 +21,9 @@ has one owner:
 | --- | --- |
 | `donder-runtime-types` | What playback accepts and what it means, `no_std + alloc`: colors, curves, gradients, marks and sample time; the strip bytecode (`bytecode`); `Program` (bytecode and its signal input count; an effect's has none) and `BoundProgram` (a program bound to checked parameter values and automation); prepared inputs such as sequence timing, fixture and target geometry and output encodings; and the sampling math (`sampling`) shared by constant folding and evaluation. An item belongs here only if the runtime consumes it and an upstream crate produces it. |
 | `donder-language` | The text language. `data`: the data-document syntax tree, parser, printer, literal rules and schema traits. `compiler`: the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission). `analysis`: semantic tokens, symbols, hover and completion for editors. The root holds import syntax, naming rules and authored quantities (times, distances, transforms). It does not depend on the model or the runtime. |
-| `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, rigs, effect and operator definitions, ownership, opaque object ids, geometry preparation, validation, and the validated edits that change it: `ProjectEdit::Put` and `ProjectEdit::Remove` batches over one `Object` enum, and the ownership edits. |
+| `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, consoles, effect and operator definitions, ownership, opaque object ids, geometry preparation, validation, and the validated edits that change it: `ProjectEdit::Put` and `ProjectEdit::Remove` batches over one `Object` enum, and the ownership edits. |
 | `donder-project-io` | Source documents and object addresses, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
-| `donder-elaboration` | Resolving a sequence or a rig and an output selection into a `PreparedShow`: targets, fixture geometry, bound programs, automation, the global signal graph (black-signal folding, operator fusion), retention. Sequences and rigs share one preparation (`stage::build`) and differ only in how they place their clips. See [output selection](output_selection.md). |
+| `donder-elaboration` | Resolving a sequence or a console and an output selection into a `PreparedShow`: targets, fixture geometry, bound programs, automation, the global signal graph (black-signal folding, operator fusion), retention. Sequences and consoles share one preparation (`stage::build`) and differ only in how they place their clips. See [output selection](output_selection.md). |
 | `donder-runtime` | `no_std + alloc` show playback, the same on the host and the firmware: a trusted show in memory (`PreparedShow`) and its evaluation into one buffer it owns (`ShowPlayback`) by the private strip interpreter. The show's record layouts (`format`) are private to it. The default `host` feature adds the show builder (`ShowBuilder`) and clip rasters. |
 | `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
 | `donder-device-protocol` | The editor-controller wire protocol, `no_std`: HTTP paths and the token header, the JSON commands and replies, and the UDP clock packets. The desktop and the firmware both use it. |
@@ -154,11 +154,11 @@ working copies.
 
 `donder_elaboration::prepare(&project, &sequence_id, retain)` returns
 `Option<PreparedShow>`, with `None` meaning the selection cannot be
-resolved; `donder_elaboration::arm` prepares a rig the same way. `retain` (which hardware outputs the show keeps) is `Retain::All`, `Controllers` or `Ports`.
+resolved; `donder_elaboration::arm` prepares a console the same way. `retain` (which hardware outputs the show keeps) is `Retain::All`, `Controllers` or `Ports`.
 Preparation resolves everything symbolic (imports, names, layouts, groups,
 device selection) so that playback never does.
 
-A prepared show, a sequence's or a rig's, is encoded as a header, a section table and sections of
+A prepared show, a sequence's or a console's, is encoded as a header, a section table and sections of
 fixed-size records that refer to one another by index. A `PreparedShow` holds
 those bytes in memory, and playback reads the records where they lie. Its
 `workspace_bytes()` is the exact size of its playback buffer.
@@ -211,16 +211,19 @@ everywhere:
   uploaded to the ESP32 loader, which stores them in a flash slot and plays
   them from a copy in RAM beside their playback buffer.
 
-Perform mode plays a rig instead of a sequence (`desktop_state/perform.rs`).
-Starting arms the rig on the active setup and starts a session clock; sequence
-playback stops until the performance ends. Keys from the main window and from
+Perform mode plays a console instead of a sequence (`desktop_state/perform.rs`).
+Starting arms the console on the active setup, starts its `always` clips and
+starts a session clock; sequence playback stops until the performance ends.
+Keys from the main window and from
 the Preview (forwarded over its event pipe) are stamped on the session clock
-when the desktop receives them, routed by the performance's `RigRouter`
-(`desktop_state/perform/router.rs`, which reads the model's trigger lengths,
-voice policies and played quantities directly), and the
-resulting `RigEvent`s fan out in order to every evaluator: the live output
+when the desktop receives them, routed by the performance's `ConsoleRouter`
+(`desktop_state/perform/router.rs`, which reads the model's events, actions,
+lengths and played quantities directly and keeps the only performance state:
+the copies playing per clip, the next copy each `Play` takes, each live
+automation's last value and the held buttons), and the
+resulting `ConsoleEvent`s fan out in order to every evaluator: the live output
 worker plays its own `ShowPlayback` on the session clock, and the Preview
-receives the rig show as its content, then the events as they arrive, with
+receives the console show as its content, then the events as they arrive, with
 the session time as its clock anchor. An evaluator that joins mid-performance
 replays the performance's events from the start. Frame caches include the
 events applied, since an event changes a frame without changing its time.
@@ -231,10 +234,15 @@ the bytes in place) checks nothing but its format version, and playback
 indexes records without checking them. The header holds an `id`
 (`PreparedShow::id`), a hash of the show the builder writes, which a
 controller reports so a host can tell which show it holds; playback never reads
-it. A rig is a show with voices, live mark
-collections and controls; their commands change only the playback buffer. A
-control sets automation bindings, and a live collection is read by
-automation bindings of marks parameters (`AutomationMapping::LiveMarks`). The format is a numbered current version; a mismatch is rejected
+it. A console is a show with voices, live mark
+collections and live automations; `ConsoleCommand`s (`Start`, with a duration
+or until stopped, `Stop`, `Mark` and `Set`) change only the playback buffer.
+Every console clip, `always` clips included, is a voice, with as many voices
+as its largest `Play` `copies`. A live automation sets automation bindings of
+clips' and operator nodes' plans (an operator's fused into its consumer's
+program included) and holds its starting value until the first `Set`, and a
+live collection is read
+by automation bindings of marks parameters (`AutomationMapping::LiveMarks`). The format is a numbered current version; a mismatch is rejected
 (`LoadError::Version`) rather than migrated, as is input shorter than the header.
 
 Performance design is described in [performance](performance.md).

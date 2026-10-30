@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use donder_language::sample_time_from_seconds_f64;
 use donder_runtime::{LoadError, PlaybackRate, PreparedShow, ShowPlayback};
-use donder_runtime_types::RigEvent;
+use donder_runtime_types::ConsoleEvent;
 
 use super::scene::PreviewColor;
 
@@ -56,17 +56,17 @@ impl ClockAnchor {
     }
 }
 
-/// The frame last evaluated: the clock generation, the rig commands applied
+/// The frame last evaluated: the clock generation, the console commands applied
 /// before it and its frame index.
 type FrameKey = (u32, u64, u32);
 
 pub(crate) struct PreviewPlayback {
-    /// A sequence, or a rig and the commands it has received.
+    /// A sequence, or a console and the commands it has received.
     content: Option<Box<ShowPlayback>>,
     colors: Vec<PreviewColor>,
     unlit: PreviewColor,
     clock: ClockAnchor,
-    /// Counts the rig command batches applied, so a command changes the frame
+    /// Counts the console command batches applied, so a command changes the frame
     /// without changing the time.
     commands: u64,
     last_frame: Option<FrameKey>,
@@ -131,9 +131,9 @@ impl PreviewPlayback {
         Ok(())
     }
 
-    /// Apply a performance's commands, in order, to the rig the Preview
+    /// Apply a performance's commands, in order, to the console the Preview
     /// plays; a show they do not address ignores them.
-    pub(crate) fn apply_rig_events(&mut self, events: &[RigEvent]) {
+    pub(crate) fn apply_console_events(&mut self, events: &[ConsoleEvent]) {
         if let Some(playback) = self.content.as_mut() {
             for event in events {
                 playback.apply(*event);

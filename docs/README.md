@@ -39,6 +39,6 @@ pages with relative paths.
 **Authoring references**
 - [Create your first LED show](first_show.md): a two-pixel project from scratch.
 - [Fixture authoring](fixture_authoring.md): shapes, layouts, groups and routing.
-- [Live input](live_input.md): input devices, rigs and performing live.
+- [Live input](live_input.md): input devices, consoles and performing live.
 - [Vixen effects](vixen_effects.md): the approximate Vixen ports and how they
   take a Vixen effect's settings.

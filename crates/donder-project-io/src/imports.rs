@@ -112,7 +112,7 @@ pub(crate) fn canonical_reference_alias(kind: &ObjectKind) -> Option<&'static st
         ObjectKind::Curve => Some("curves"),
         ObjectKind::Gradient => Some("gradients"),
         ObjectKind::Sequence => Some("sequences"),
-        ObjectKind::Rig => Some("rigs"),
+        ObjectKind::Console => Some("consoles"),
         ObjectKind::Project => Some("projects"),
         ObjectKind::Setup => Some("setups"),
         ObjectKind::Controller => Some("controllers"),
@@ -442,7 +442,7 @@ fn kind_name(kind: &ObjectKind) -> &'static str {
         ObjectKind::Curve => "a curve",
         ObjectKind::Gradient => "a gradient",
         ObjectKind::Sequence => "a sequence",
-        ObjectKind::Rig => "a rig",
+        ObjectKind::Console => "a console",
         ObjectKind::EffectDefinition => "an effect",
         ObjectKind::OperatorDefinition => "an operator",
     }

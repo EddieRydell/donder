@@ -167,7 +167,7 @@ pub(super) fn validate_source_inventory(
         )
         .chain(
             project
-                .reusable::<donder_model::Rig>()
+                .reusable::<donder_model::Console>()
                 .keys()
                 .map(|&id| id.into()),
         )

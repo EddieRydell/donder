@@ -266,7 +266,7 @@ impl Loader {
                 ObjectId::Patch(id) => resolver.resolve_patch(&id)?,
                 ObjectId::FixtureDefinition(id) => resolver.resolve_fixture(&id)?,
                 ObjectId::Sequence(id) => resolver.resolve_sequence(&id)?,
-                ObjectId::Rig(id) => resolver.resolve_rig(&id)?,
+                ObjectId::Console(id) => resolver.resolve_console(&id)?,
                 ObjectId::Curve(_)
                 | ObjectId::Gradient(_)
                 | ObjectId::EffectDefinition(_)
@@ -602,7 +602,7 @@ impl Loader {
                 description: root.description.clone(),
                 setup: Owned::Reference(SetupId(u32::MAX)),
                 sequences: Vec::new(),
-                rigs: Vec::new(),
+                consoles: Vec::new(),
             },
             setups: IndexMap::new(),
             layouts: IndexMap::new(),
@@ -610,7 +610,7 @@ impl Loader {
             controllers: IndexMap::new(),
             input_devices: IndexMap::new(),
             sequences: IndexMap::new(),
-            rigs: IndexMap::new(),
+            consoles: IndexMap::new(),
             fixtures: IndexMap::new(),
             curves: self.definitions.curves.clone(),
             gradients: self.definitions.gradients.clone(),
@@ -629,14 +629,14 @@ impl Loader {
             .iter()
             .map(|record| resolver.owned_sequence(entrypoint, &owner, record))
             .collect::<Result<_, _>>()?;
-        let rigs = root
-            .rigs
+        let consoles = root
+            .consoles
             .iter()
-            .map(|record| resolver.owned_rig(entrypoint, &owner, record))
+            .map(|record| resolver.owned_console(entrypoint, &owner, record))
             .collect::<Result<_, _>>()?;
         project.root.setup = setup;
         project.root.sequences = sequences;
-        project.root.rigs = rigs;
+        project.root.consoles = consoles;
         Ok(project)
     }
 }

@@ -376,16 +376,27 @@ impl AutomationBinding {
     }
 }
 
+/// A parameter automation sets: of a clip, a sequence's or (with
+/// [`crate::ConsoleClipId`]) a console's, or of an operator node of the
+/// composition graph.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum AutomationTarget {
+pub enum AutomationTarget<Clip = ClipId> {
     ClipParam {
-        clip_id: ClipId,
+        clip_id: Clip,
         param: Identifier,
     },
     CompositionNodeParam {
         node_id: CompositionGraphNodeId,
         param: Identifier,
     },
+}
+
+impl<Clip> AutomationTarget<Clip> {
+    pub fn param(&self) -> &Identifier {
+        match self {
+            Self::ClipParam { param, .. } | Self::CompositionNodeParam { param, .. } => param,
+        }
+    }
 }
 
 /// `mapping` comes from the target parameter declaration.

@@ -14,6 +14,7 @@ use crate::dto::{
 
 mod arrange;
 mod clip_match;
+mod console;
 mod controller;
 mod description;
 mod dispatch;
@@ -30,7 +31,6 @@ mod ownership;
 mod patch;
 mod project;
 mod projection;
-mod rig;
 mod selection;
 mod setup;
 

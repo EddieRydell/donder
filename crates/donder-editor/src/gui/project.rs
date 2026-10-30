@@ -4,8 +4,8 @@ use donder_project_io::ProjectSession;
 use super::{ResolvedGuiObject, blocked};
 use crate::dto::{GuiDocument, ProjectGuiDocument, ProjectGuiEdit};
 
-/// A new rig's frame rate: Perform's target rate.
-const NEW_RIG_FRAME_RATE: u32 = 100;
+/// A new console's frame rate: Perform's target rate.
+const NEW_CONSOLE_FRAME_RATE: u32 = 100;
 
 pub(super) fn edit_project(
     session: &mut ProjectSession,
@@ -18,9 +18,9 @@ pub(super) fn edit_project(
         ));
     }
     match edit {
-        ProjectGuiEdit::AddRig { initial_color } => {
+        ProjectGuiEdit::AddConsole { initial_color } => {
             let color = super::model::parse_color(&initial_color)?;
-            donder_model::add_rig(&mut session.project, NEW_RIG_FRAME_RATE, color)
+            donder_model::add_console(&mut session.project, NEW_CONSOLE_FRAME_RATE, color)
                 .map_err(super::GuiMutationError::from)?;
         }
     }
@@ -40,7 +40,7 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
                 &[
                     donder_model::ObjectKind::Setup,
                     donder_model::ObjectKind::Sequence,
-                    donder_model::ObjectKind::Rig,
+                    donder_model::ObjectKind::Console,
                 ],
             ),
             path: resolved.identity.document().to_string(),
@@ -53,12 +53,12 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
                 .iter()
                 .map(|sequence| object_ref(session, *sequence.id()))
                 .collect(),
-            rigs: session
+            consoles: session
                 .project
                 .root()
-                .rigs
+                .consoles
                 .iter()
-                .map(|rig| object_ref(session, *rig.id()))
+                .map(|console| object_ref(session, *console.id()))
                 .collect(),
         },
     }

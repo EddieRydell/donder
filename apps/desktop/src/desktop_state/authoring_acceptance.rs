@@ -3,14 +3,14 @@ use super::gui_editing::GuiEditResult;
 use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
 use donder_editor::dto::{
-    CompositionGuiEdit, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, FixtureTarget,
-    GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiFixtureElement,
-    GuiFixtureShape, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiItem,
-    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, GuiOwnershipEdit,
-    GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument, LayoutGuiEdit, NewSequenceRequest,
-    NewSequenceStorage, ObjectKind, OwnedObjectSlot, OwnershipMember, Point3Meters,
-    ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, RigActionChoice, RigControlRef,
-    RigGuiDocument, RigGuiEdit, RigVoicePolicy, RigWhen, Rotation3Degrees, Scale3,
+    CompositionGuiEdit, ConsoleAction, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument,
+    ConsoleGuiEdit, ConsolePlayLength, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage,
+    FixtureTarget, GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand,
+    GuiFixtureElement, GuiFixtureShape, GuiInputControl, GuiInputControlKind, GuiInputDriver,
+    GuiItem, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture,
+    GuiOwnershipEdit, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument, LayoutGuiEdit,
+    NewSequenceRequest, NewSequenceStorage, ObjectKind, OwnedObjectSlot, OwnershipMember,
+    Point3Meters, ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, Rotation3Degrees, Scale3,
     SequenceClipScope, SequenceEffectReference, SequenceGraphEdge, SequenceGraphNodeKind,
     SequenceGraphOperator, SequenceGuiEdit, SequenceParamValue, SetupControllerConfig,
     SetupControllerPort, SetupGuiDocument, SetupGuiEdit, Transform,
@@ -1316,7 +1316,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         assert_eq!(setup.input_devices.len(), 1);
         project_edit(
             &state,
-            ProjectGuiEdit::AddRig {
+            ProjectGuiEdit::AddConsole {
                 initial_color: "#38bdf8".into(),
             },
         );
@@ -1327,7 +1327,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
             Slot::Layout,
             Slot::Patch,
             Slot::Sequence(0),
-            Slot::Rig(0),
+            Slot::Console(0),
             Slot::Setup,
         ] {
             let session = state.project_session().unwrap();
@@ -1340,7 +1340,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                 Slot::Controller(..) | Slot::InputDevice(..) | Slot::Layout | Slot::Patch => {
                     address(&state, setup.id)
                 }
-                Slot::Sequence(..) | Slot::Rig(..) | Slot::Setup => {
+                Slot::Sequence(..) | Slot::Console(..) | Slot::Setup => {
                     address(&state, session.project.root().id)
                 }
             };
@@ -1373,7 +1373,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                             Slot::Patch => ObjectKind::Patch,
                             Slot::Controller(..) => ObjectKind::Controller,
                             Slot::InputDevice(..) => ObjectKind::InputDevice,
-                            Slot::Rig(..) => ObjectKind::Rig,
+                            Slot::Console(..) => ObjectKind::Console,
                             Slot::Fixture(..) => ObjectKind::Fixture,
                         };
                         GuiOwnershipEdit::UseExisting {
@@ -1449,7 +1449,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                 .len(),
             1
         );
-        assert_eq!(session.project.reusable::<donder_model::Rig>().len(), 1);
+        assert_eq!(session.project.reusable::<donder_model::Console>().len(), 1);
         assert_eq!(session.project.reusable::<donder_model::Setup>().len(), 1);
     }
 }
@@ -2319,7 +2319,7 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
 fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
     let metadata = donder_project_io::ProjectMetadata::read(root).unwrap();
     let text = format!(
-        "{imports}\nProject show {{\n  format: {},\n  description: none,\n{fields}\n  rigs: [],\n}}\n",
+        "{imports}\nProject show {{\n  format: {},\n  description: none,\n{fields}\n  consoles: [],\n}}\n",
         metadata.format_version
     );
     std::fs::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
@@ -2331,7 +2331,7 @@ fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
 enum Slot {
     Setup,
     Sequence(usize),
-    Rig(usize),
+    Console(usize),
     Layout,
     Patch,
     Controller(usize),
@@ -2350,7 +2350,7 @@ fn member(state: &DesktopState, slot: Slot) -> OwnershipMember {
     let id: donder_model::ObjectId = match slot {
         Slot::Setup => (*root.setup.id()).into(),
         Slot::Sequence(index) => (*root.sequences[index].id()).into(),
-        Slot::Rig(index) => (*root.rigs[index].id()).into(),
+        Slot::Console(index) => (*root.consoles[index].id()).into(),
         Slot::Layout => (*setup.layout.id()).into(),
         Slot::Patch => (*setup.patch.id()).into(),
         Slot::Controller(index) => (*setup.controllers[index].id()).into(),
@@ -2394,13 +2394,20 @@ fn object_request(
     }
 }
 
-fn rig_edit(state: &DesktopState, rig: &donder_model::RigId, edit: RigGuiEdit) -> RigGuiDocument {
+fn console_edit(
+    state: &DesktopState,
+    console: &donder_model::ConsoleId,
+    edit: ConsoleGuiEdit,
+) -> ConsoleGuiDocument {
     match state
-        .apply_gui_edit(object_request(state, *rig), GuiEditCommand::Rig { edit })
+        .apply_gui_edit(
+            object_request(state, *console),
+            GuiEditCommand::Console { edit },
+        )
         .document
     {
-        GuiDocument::Rig { document } => document,
-        other => panic!("rig edit rejected: {other:?}"),
+        GuiDocument::Console { document } => document,
+        other => panic!("console edit rejected: {other:?}"),
     }
 }
 
@@ -2414,7 +2421,7 @@ fn setup_document(state: &DesktopState) -> SetupGuiDocument {
 }
 
 #[test]
-fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
+fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
     let (_temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
@@ -2428,7 +2435,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
         .unwrap();
     let keyboard = *setup.input_devices[0].id();
 
-    // Renaming a control renames the reference every rig prints for it.
+    // Renaming a control renames the reference every console prints for it.
     let request = object_request(&state, keyboard);
     let GuiDocument::InputDevice { document } = state.get_gui_document(request.clone()).document
     else {
@@ -2459,7 +2466,7 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     );
     assert!(matches!(duplicate.document, GuiDocument::Blocked { .. }));
 
-    // The jam rig plays from the keyboard, so the setup keeps it.
+    // The jam console plays from the keyboard, so the setup keeps it.
     let detach = state.apply_gui_edit(
         object_request(&state, setup.id),
         GuiEditCommand::Setup {
@@ -2512,19 +2519,20 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     assert_eq!(attached.input_devices.len(), 2);
     assert_eq!(attached.input_devices[1].name, "pads");
 
-    // A new rig starts with the default layer drawn to the output.
+    // A new console starts with the default layer drawn to the output.
     let project = project_edit(
         &state,
-        ProjectGuiEdit::AddRig {
+        ProjectGuiEdit::AddConsole {
             initial_color: "#38bdf8".into(),
         },
     );
-    assert_eq!(project.rigs.len(), 2);
-    let rig = *state.project_session().unwrap().project.root().rigs[1].id();
-    let GuiDocument::Rig { document } =
-        state.get_gui_document(object_request(&state, rig)).document
+    assert_eq!(project.consoles.len(), 2);
+    let console = *state.project_session().unwrap().project.root().consoles[1].id();
+    let GuiDocument::Console { document } = state
+        .get_gui_document(object_request(&state, console))
+        .document
     else {
-        panic!("rig projection missing");
+        panic!("console projection missing");
     };
     assert_eq!(document.layers.len(), 1);
     assert_eq!(document.composition_graph.nodes.len(), 2);
@@ -2538,84 +2546,98 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
         .unwrap()
         .effect
         .clone();
-    let input = RigControlRef {
+    let input = ConsoleControlRef {
         device: pad.device.clone(),
         control: pad.buttons[0].control,
     };
     let target = document.targets[0].target.clone();
-    rig_edit(
+    console_edit(
         &state,
-        &rig,
-        RigGuiEdit::Composition {
+        &console,
+        ConsoleGuiEdit::Composition {
             edit: CompositionGuiEdit::CreateLayer {
                 name: "Accents".into(),
                 color: "#ff0000".into(),
             },
         },
     );
-    rig_edit(
+    console_edit(
         &state,
-        &rig,
-        RigGuiEdit::AddLiveMarks {
+        &console,
+        ConsoleGuiEdit::AddLiveMarks {
             name: "Beat".into(),
             color: "#22c55e".into(),
         },
     );
-    let document = rig_edit(
+    let document = console_edit(
         &state,
-        &rig,
-        RigGuiEdit::AddMapping {
-            input: input.clone(),
-            action: RigActionChoice::Trigger {
-                initial_color: "#ffffff".into(),
-                effect,
-                target,
-            },
+        &console,
+        ConsoleGuiEdit::AddClip {
+            initial_color: "#ffffff".into(),
+            effect,
+            target,
         },
     );
-    let mapping = document.mappings[0].id;
+    let clip = document.clips[0].id;
     state.apply_gui_edit(
-        object_request(&state, rig),
+        object_request(&state, console),
         GuiEditCommand::Rename {
-            item: GuiItem::Mapping { id: mapping },
+            item: GuiItem::Clip { id: clip },
             name: "Flash".into(),
         },
     );
-    rig_edit(
+    let document = console_edit(
         &state,
-        &rig,
-        RigGuiEdit::SetTriggerVoices {
-            mapping_id: mapping,
-            voices: RigVoicePolicy::Stack { count: 3 },
+        &console,
+        ConsoleGuiEdit::AddEvent {
+            event: ConsoleEventKind::Press,
+            input,
         },
     );
-    let document = rig_edit(&state, &rig, RigGuiEdit::AddSwitch { input });
-    let switch = document.switches[0].id;
+    let event = document.events[0].id;
+    let play = |copies| ConsoleAction::Play {
+        clip_id: clip,
+        copies,
+        length: ConsolePlayLength::Fixed {
+            duration_seconds: 0.5,
+        },
+        values: Vec::new(),
+    };
     let before = state.project_session().unwrap();
-    let document = rig_edit(
+    let document = console_edit(
         &state,
-        &rig,
-        RigGuiEdit::SetMappingWhen {
-            id: mapping,
-            when: Some(RigWhen::On { switch_id: switch }),
+        &console,
+        ConsoleGuiEdit::SetActions {
+            id: event,
+            actions: vec![play(3)],
         },
     );
     assert!(matches!(
-        document.mappings[0].when,
-        Some(RigWhen::On { .. })
+        document.events[0].actions[..],
+        [ConsoleAction::Play { copies: 3, .. }]
     ));
     let after = state.project_session().unwrap();
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);
     state.redo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *after);
-    // A stack holds at most 16 voices.
+    // A clip plays at most 16 copies at once.
     let rejected = state.apply_gui_edit(
-        object_request(&state, rig),
-        GuiEditCommand::Rig {
-            edit: RigGuiEdit::SetTriggerVoices {
-                mapping_id: mapping,
-                voices: RigVoicePolicy::Stack { count: 17 },
+        object_request(&state, console),
+        GuiEditCommand::Console {
+            edit: ConsoleGuiEdit::SetActions {
+                id: event,
+                actions: vec![play(17)],
+            },
+        },
+    );
+    assert!(matches!(rejected.document, GuiDocument::Blocked { .. }));
+    // A played clip cannot also play for the whole session.
+    let rejected = state.apply_gui_edit(
+        object_request(&state, console),
+        GuiEditCommand::Console {
+            edit: ConsoleGuiEdit::SetAlways {
+                clip_ids: vec![clip],
             },
         },
     );
@@ -2624,10 +2646,10 @@ fn live_input_editors_author_devices_and_rigs_and_roundtrip() {
     state.save_all().unwrap();
     let saved = state.project_session().unwrap();
     crate::desktop_foundation_tests::tests::assert_reloads(&root, &saved);
-    let jam = std::fs::read_to_string(root.join("rigs/jam.data.donder")).unwrap();
+    let jam = std::fs::read_to_string(root.join("consoles/jam.data.donder")).unwrap();
     assert!(jam.contains("devices.keyboard.hit"));
     let project = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
     assert!(project.contains("name: flash"));
-    assert!(project.contains("voices: Stack { count: 3 }"));
-    assert!(project.contains("when: On { switch: switch }"));
+    assert!(project.contains("copies: 3"));
+    assert!(project.contains("length: Fixed { duration: 0.5s }"));
 }

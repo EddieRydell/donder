@@ -30,7 +30,7 @@ pub fn attach_input_device(
 }
 
 /// Remove setup membership, retaining a reusable device's authored source.
-/// The project's rigs must no longer play from it.
+/// The project's consoles must no longer play from it.
 pub fn detach_input_device(
     project: &mut DonderProject,
     setup_id: &SetupId,

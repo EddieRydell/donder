@@ -24,7 +24,7 @@ impl Loader {
                         "controllers" => OwnedObjectSlot::Controller,
                         "input_devices" => OwnedObjectSlot::InputDevice,
                         "sequences" => OwnedObjectSlot::Sequence,
-                        "rigs" => OwnedObjectSlot::Rig,
+                        "consoles" => OwnedObjectSlot::Console,
                         _ => return Err(self.unresolved(document, reference)),
                     };
                     let (member, after) = after
@@ -38,7 +38,7 @@ impl Loader {
                 OwnedObjectSlot::Controller(_)
                     | OwnedObjectSlot::InputDevice(_)
                     | OwnedObjectSlot::Sequence(_)
-                    | OwnedObjectSlot::Rig(_)
+                    | OwnedObjectSlot::Console(_)
             );
             kind = slot
                 .child_kind(kind)

@@ -151,7 +151,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
       gesture.current = null;
       // A failed/stale gesture must restore the document, even when no new projection arrived.
       const latest = useAppStore.getState().guiDocument;
-      const latestNodes = new Map((latest?.type === "sequence" || latest?.type === "rig" ? latest.document.compositionGraph.nodes : []).map((node) => [node.id, node]));
+      const latestNodes = new Map((latest?.type === "sequence" || latest?.type === "console" ? latest.document.compositionGraph.nodes : []).map((node) => [node.id, node]));
       setFlowNodes((current) => {
         const localNodes = new Map(current.map((node) => [node.id, node]));
         return authoritativeNodes.current.map((node) => {

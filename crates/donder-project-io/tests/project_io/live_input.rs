@@ -1,21 +1,21 @@
-//! Input devices and rigs: the starter's keyboard and jam rig, and the
-//! diagnostics for invalid ones.
+//! Input devices and consoles: the starter's keyboard and jam console, and
+//! the diagnostics for invalid ones.
 use crate::common;
 
 use camino::Utf8PathBuf;
 use donder_model::{
-    ControlTarget, EditError, InputControlKind, InputProblem, MappingAction, MappingProblem,
-    Member, NameProblem, ProjectValidationError, RigValidationError, TriggerLength,
-    ValidationProblem, VoicePolicy, When,
+    Action, AutomationTarget, CompositionGraphNodeId, ConsoleValidationError, EditError,
+    EventProblem, InputControlKind, InputEvent, InputProblem, LiveAutomationProblem, Member,
+    NameProblem, PlayLength, ProjectValidationError, ValidationProblem,
 };
 use donder_project_io::{check_project, project_source_texts};
 
 const KEYBOARD: &str = "input_devices/keyboard.data.donder";
-const JAM: &str = "rigs/jam.data.donder";
+const JAM: &str = "consoles/jam.data.donder";
 const SETUP: &str = "setups/main.data.donder";
 
 #[test]
-fn starter_keyboard_and_jam_rig_load_typed() {
+fn starter_keyboard_and_jam_console_load_typed() {
     let session = common::load_project(&common::starter_root());
     let project = &session.project;
     let setup = project
@@ -27,57 +27,51 @@ fn starter_keyboard_and_jam_rig_load_typed() {
     let device = project
         .get::<donder_model::InputDevice>(*device.id())
         .unwrap();
-    assert_eq!(device.controls.len(), 5);
+    assert_eq!(device.controls.len(), 4);
     assert!(
         device
             .controls
             .iter()
             .all(|control| matches!(control.kind, InputControlKind::Button(_)))
     );
-    let [rig] = project.root().rigs.as_slice() else {
-        panic!("the starter project lists one rig");
+    let [console] = project.root().consoles.as_slice() else {
+        panic!("the starter project lists one console");
     };
-    let rig = project.get::<donder_model::Rig>(*rig.id()).unwrap();
-    assert_eq!(rig.live_marks.len(), 1);
-    assert_eq!(rig.voices.len(), 1);
-    assert_eq!(rig.switches.len(), 1);
-    assert!(rig.inputs().all(|input| input.device == device.id));
-    let actions = rig
-        .mappings
+    let console = project.get::<donder_model::Console>(*console.id()).unwrap();
+    assert_eq!(console.live_marks.len(), 1);
+    assert_eq!(console.automations.len(), 1);
+    assert_eq!(console.clips.len(), 3);
+    assert_eq!(console.always, [console.clips[0].id]);
+    assert!(console.inputs().all(|input| input.device == device.id));
+    let events = console
+        .events
         .iter()
-        .map(|mapping| (mapping.when, &mapping.action))
+        .map(|on| (&on.event, on.actions.as_slice()))
         .collect::<Vec<_>>();
-    let switch = rig.switches[0].id;
+    let (flash, wash) = (console.clips[1].id, console.clips[2].id);
+    let decay = console.automations[0].id;
     assert!(matches!(
-        actions.as_slice(),
+        events.as_slice(),
         [
-            (
-                Some(When::Off(off)),
-                MappingAction::Trigger(flash)
-            ),
-            (Some(When::On(on)), MappingAction::Trigger(burst)),
-            (None, MappingAction::Trigger(wash)),
-            (None, MappingAction::Mark(_)),
-            (
-                None,
-                MappingAction::Control {
-                    target: ControlTarget::Voice(_),
-                    ..
-                }
-            ),
-        ] if *off == switch
-            && *on == switch
-            && matches!(flash.length, TriggerLength::Fixed(_))
-            && flash.voices == VoicePolicy::Retrigger
-            && burst.voices == VoicePolicy::Stack { count: 4 }
-            && wash.length == TriggerLength::Held
-            && wash.voices == VoicePolicy::Mono
+            (InputEvent::Press(_), [Action::Play(play)]),
+            (InputEvent::Press(_), [Action::Start { clip: started, .. }]),
+            (InputEvent::Release(_), [Action::Stop { clip: stopped }]),
+            (InputEvent::Press(_), [Action::Mark(_)]),
+            (InputEvent::Press(_), [Action::Set(pressed)]),
+            (InputEvent::Release(_), [Action::Set(released)]),
+        ] if play.clip == flash
+            && play.copies == 4
+            && matches!(play.length, PlayLength::Fixed(_))
+            && *started == wash
+            && *stopped == wash
+            && *pressed == decay
+            && *released == decay
     ));
     donder_model::validate_project(project).unwrap();
 }
 
 #[test]
-fn starter_keyboard_and_jam_rig_save_byte_exactly() {
+fn starter_keyboard_and_jam_console_save_byte_exactly() {
     let (_temporary, root) = common::starter_copy();
     let before = project_source_texts(&root).unwrap();
     let session = common::load_project(&root);
@@ -119,9 +113,9 @@ fn invalid_input_devices_are_rejected_at_the_control() {
     assert_rejected(&[
         (
             KEYBOARD,
-            "Button { name: shift,",
+            "Button { name: tap,",
             "Button { name: kick, description: none, input: Key { code: KeyQ } },
-    Button { name: shift,",
+    Button { name: tap,",
             "control `kick` is declared twice",
         ),
         (
@@ -146,43 +140,38 @@ fn invalid_input_devices_are_rejected_at_the_control() {
 }
 
 #[test]
-fn invalid_rigs_are_rejected_at_the_reference() {
+fn invalid_consoles_are_rejected_at_the_reference() {
     assert_rejected(&[
         (
             JAM,
-            "input: devices.keyboard.tap,",
-            "input: devices.keyboard,",
+            "control: devices.keyboard.tap }",
+            "control: devices.keyboard }",
             "`devices.keyboard` is an input device; an input is one of its controls",
         ),
         (
             JAM,
-            "input: devices.keyboard.tap,",
-            "input: devices.keyboard.snare,",
+            "control: devices.keyboard.tap }",
+            "control: devices.keyboard.snare }",
             "`devices.keyboard` has no control `snare`",
         ),
         (
             JAM,
-            "Stack { count: 4 }",
-            "Stack { count: 17 }",
-            "mapping `burst`: stacks 17 voices; a stack has 1 to 16",
+            "copies: 4",
+            "copies: 17",
+            "plays 17 copies; `Play` plays 1 to 16 at once",
         ),
-        (
-            JAM,
-            "Stack { count: 4 }",
-            "Stack { count: 0 }",
-            "mapping `burst`: stacks 0 voices",
-        ),
+        (JAM, "copies: 4", "copies: 0", "plays 0 copies"),
         (
             JAM,
             "duration: 0.4s",
             "duration: 0s",
-            "mapping `flash`: a `Fixed` duration must be positive",
+            "a length must be positive",
         ),
         (
             JAM,
             "param: decay_seconds",
             "param: accent",
-            "`accent` cannot be controlled",
+            "`accent` cannot be automated",
         ),
         (
             JAM,
@@ -192,27 +181,33 @@ fn invalid_rigs_are_rejected_at_the_reference() {
         ),
         (
             JAM,
-            "voice: background",
-            "voice: tap",
-            "names neither a voice nor a `Trigger` mapping",
+            "Set { into: decay }",
+            "Set { into: speed }",
+            "no live automation `speed`",
         ),
         (
             JAM,
-            "On { switch: page_two }",
-            "On { switch: page_three }",
-            "no switch `page_three`",
+            "Stop { clip: wash }",
+            "Stop { clip: burst }",
+            "no clip `burst`",
         ),
         (
             JAM,
-            "Mark { marks: beat }",
-            "Mark { marks: downbeat }",
+            "Mark { into: beat }",
+            "Mark { into: downbeat }",
             "no live mark collection `downbeat`",
         ),
         (
             JAM,
-            "name: wash,",
-            "name: background,",
-            "voice or mapping `background` is declared twice",
+            "marks: [LiveMarks { name: beat,",
+            "marks: [LiveMarks { name: beat, description: none, color: #22c55e }, LiveMarks { name: beat,",
+            "live mark collection `beat` is declared twice",
+        ),
+        (
+            JAM,
+            "always: [background],",
+            "always: [flash],",
+            "clip `flash` is played by `Play` and also held",
         ),
         (
             SETUP,
@@ -224,87 +219,110 @@ fn invalid_rigs_are_rejected_at_the_reference() {
 }
 
 #[test]
-fn rig_edits_are_validated_like_loading() {
+fn console_edits_are_validated_like_loading() {
     let mut session = common::load_project(&common::starter_root());
-    let rig = session
+    let console = session
         .project
-        .reusable::<donder_model::Rig>()
+        .reusable::<donder_model::Console>()
         .values()
         .next()
         .unwrap()
         .clone();
-    let rejected = |edit: &dyn Fn(&mut donder_model::Rig),
-                    expected: &dyn Fn(&RigValidationError) -> bool| {
-        let mut value = rig.clone();
+    let rejected = |edit: &dyn Fn(&mut donder_model::Console),
+                    expected: &dyn Fn(&ConsoleValidationError) -> bool| {
+        let mut value = console.clone();
         edit(&mut value);
         let error = session.project.clone().put(value).unwrap_err();
         assert!(
-            matches!(&error, EditError::Invalid(ProjectValidationError { problem: ValidationProblem::Rig(problem), .. }) if expected(problem)),
+            matches!(&error, EditError::Invalid(ProjectValidationError { problem: ValidationProblem::Console(problem), .. }) if expected(problem)),
             "{error:?}"
         );
     };
+    let play = |console: &mut donder_model::Console| -> donder_model::Play {
+        let Action::Play(play) = &mut console.events[0].actions[0] else {
+            unreachable!("`kick` plays `flash`");
+        };
+        play.clone()
+    };
     rejected(
-        &|rig| {
-            let MappingAction::Trigger(trigger) = &mut rig.mappings[1].action else {
-                unreachable!("`burst` triggers");
-            };
-            trigger.voices = VoicePolicy::Stack { count: 0 };
+        &|console| {
+            let mut changed = play(console);
+            changed.copies = 0;
+            console.events[0].actions[0] = Action::Play(changed);
         },
         &|problem| {
             matches!(
                 problem,
-                RigValidationError::Mapping {
-                    problem: MappingProblem::StackSize(0),
+                ConsoleValidationError::Event {
+                    problem: EventProblem::Copies(0),
                     ..
                 }
             )
         },
     );
     rejected(
-        &|rig| {
-            let MappingAction::Trigger(trigger) = &mut rig.mappings[0].action else {
-                unreachable!("`flash` triggers");
-            };
-            trigger.length =
-                TriggerLength::Fixed(donder_language::DonderDuration(std::time::Duration::ZERO));
+        &|console| {
+            let mut changed = play(console);
+            changed.length =
+                PlayLength::Fixed(donder_language::DonderDuration(std::time::Duration::ZERO));
+            console.events[0].actions[0] = Action::Play(changed);
         },
         &|problem| {
             matches!(
                 problem,
-                RigValidationError::Mapping {
-                    problem: MappingProblem::NonPositiveFixedDuration,
+                ConsoleValidationError::Event {
+                    problem: EventProblem::NonPositiveDuration,
                     ..
                 }
             )
         },
     );
     rejected(
-        &|rig| {
-            let MappingAction::Control { param, .. } = &mut rig.mappings[4].action else {
-                unreachable!("`boost` controls");
+        &|console| {
+            let AutomationTarget::ClipParam { param, .. } = &mut console.automations[0].bindings[0]
+            else {
+                unreachable!("the starter's automation sets a clip parameter")
             };
             *param = donder_language::object_name("accent");
         },
         &|problem| {
             matches!(
                 problem,
-                RigValidationError::Mapping {
-                    problem: MappingProblem::ControlNotAutomatable(_),
+                ConsoleValidationError::Automation {
+                    problem: LiveAutomationProblem::NotAutomatable(_),
                     ..
                 }
             )
         },
     );
     rejected(
-        &|rig| rig.mappings[2].name = rig.voices[0].name.clone(),
+        &|console| {
+            console.automations[0].bindings[0] = AutomationTarget::CompositionNodeParam {
+                node_id: CompositionGraphNodeId(99),
+                param: donder_language::object_name("decay_seconds"),
+            };
+        },
         &|problem| {
             matches!(
                 problem,
-                RigValidationError::Name(NameProblem::Duplicate(Member::Mapping(_), _))
+                ConsoleValidationError::Automation {
+                    problem: LiveAutomationProblem::MissingNode,
+                    ..
+                }
             )
         },
     );
-    // A rig of the project reads only the input devices of the project's setup.
+    rejected(
+        &|console| console.clips[2].name = console.clips[0].name.clone(),
+        &|problem| {
+            matches!(
+                problem,
+                ConsoleValidationError::Name(NameProblem::Duplicate(Member::ConsoleClip(_), _))
+            )
+        },
+    );
+    // A console of the project reads only the input devices of the project's
+    // setup.
     let setup_id = *session.project.root().setup.id();
     let mut setup = session
         .project
@@ -317,15 +335,10 @@ fn rig_edits_are_validated_like_loading() {
         matches!(
             error,
             EditError::Invalid(ProjectValidationError {
-                problem: ValidationProblem::Rig(
-                    RigValidationError::Switch {
-                        problem: InputProblem::NotInSetup,
-                        ..
-                    } | RigValidationError::Mapping {
-                        problem: MappingProblem::Input(InputProblem::NotInSetup),
-                        ..
-                    }
-                ),
+                problem: ValidationProblem::Console(ConsoleValidationError::Event {
+                    problem: EventProblem::Input(InputProblem::NotInSetup),
+                    ..
+                }),
                 ..
             })
         ),

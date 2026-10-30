@@ -15,7 +15,7 @@ export function AvailableInputDevices({ document }: { document: SetupGuiDocument
 
 export function SetupInputDeviceActions({ device }: { device: SetupGuiDocument["inputDevices"][number] }) {
   return <div className="setup-controller-membership">
-    <p>{device.sourceRef.ownedPath.length > 0 ? "Removing this input device deletes its owned contents." : "Removing this link keeps the reusable input device declaration."} A rig of the project cannot play from a device the setup does not list.</p>
+    <p>{device.sourceRef.ownedPath.length > 0 ? "Removing this input device deletes its owned contents." : "Removing this link keeps the reusable input device declaration."} A console of the project cannot play from a device the setup does not list.</p>
     <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "detachInputDevice", device: device.sourceRef } }))}>Remove from setup</button>
   </div>;
 }

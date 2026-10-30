@@ -118,10 +118,10 @@ does not also report the fields the error swallowed.
 **Every object other objects refer to has a name**: setups, controllers, ports,
 input devices, controls, layouts, fixtures, groups, fixture definitions, fixture
 shapes, patches, sequences, layers, clips, mark collections, graph operator
-nodes, rigs, live mark collections, voices, switches, mappings, curves and
-gradients. The name is the object's only identity: references use it, and the
+nodes, consoles, console clips, live mark collections, live automations, curves
+and gradients. The name is the object's only identity: references use it, and the
 GUI shows and edits it. Objects nothing refers to (routes, automation clips,
-edges) have no name. No document contains a numeric ID; loading assigns session
+edges, console events) have no name. No document contains a numeric ID; loading assigns session
 identities in document order.
 
 | Object | Unique within |
@@ -132,7 +132,7 @@ identities in document order.
 | Ports | their controller |
 | Controls | their input device |
 | Layers and graph nodes together; clips; mark collections | their sequence |
-| Layers and graph nodes together; live mark collections; switches; voices and mappings together | their rig |
+| Layers and graph nodes together; clips; live mark collections; live automations | their console |
 
 A layer node is named by its layer and the output node is named `output`, so a
 graph node's name never collides with a layer's. The GUI derives names from what
@@ -143,11 +143,12 @@ converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 
 - a bare name resolves in the enclosing scope: a declaration of the same
   document, a layer, clip, node or mark collection of the same sequence, or a
-  layer, node, live mark collection, switch, voice or mapping of the same rig;
+  layer, node, clip, live mark collection or live automation of the same
+  console;
 - `alias.name` reaches a top-level declaration of an imported document;
 - `layout.fixture` reaches a fixture or group of a layout, whatever groups list
   it, so changing group membership changes no reference;
-- `device.control` reaches a button, dial or keys of an input device;
+- `device.control` reaches a button or axis of an input device;
 - an owned object is reached through its owner and the owning fields:
   `show.setup.layout`, `show.setup.controllers.main`, `show.setup.layout.desk`,
   `show.setup.input_devices.pad.hit`.
@@ -158,7 +159,7 @@ object is an error at the reference.
 ## Owned and shared objects
 
 Some fields take either a reference or the object written in place, which its
-owner then owns: a project's `setup`, `sequences` and `rigs`, a setup's
+owner then owns: a project's `setup`, `sequences` and `consoles`, a setup's
 `layout`, `patch`, `controllers` and `input_devices`, and a fixture's
 `definition`. Owned and shared
 objects behave differently, so the two forms are two meanings, not two
@@ -211,9 +212,9 @@ import layouts from <layouts/outputs.data.donder>;
   `*.donder` file nothing reaches gets a warning, with a fix that imports it
   from the root. The fix extends the root import named for what the document
   declares (`effects`, `operators`, `scripts` for both, `layouts`, `sequences`,
-  `rigs`, `devices`, ...), or the first `alias_2`, `alias_3`, ... without a name
-  clash. It also adds a document's sequences and rigs to the project's
-  `sequences` and `rigs`. A setup has no fix,
+  `consoles`, `devices`, ...), or the first `alias_2`, `alias_3`, ... without a
+  name clash. It also adds a document's sequences and consoles to the project's
+  `sequences` and `consoles`. A setup has no fix,
   because the project names exactly one.
 
 Prepared playback never sees paths, aliases or names.
@@ -228,14 +229,14 @@ a list.
 ```text
 import setups from <setups/main.data.donder>;
 import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;
-import rigs from <rigs/jam.data.donder>;
+import consoles from <consoles/jam.data.donder>;
 
 Project starter {
   format: 1,
   description: none,
   setup: setups.main,
   sequences: [sequences.empty, sequences.layer_test],
-  rigs: [rigs.jam],
+  consoles: [consoles.jam],
 }
 ```
 
@@ -245,7 +246,7 @@ Project starter {
 | `description` | `Option<string>` |
 | `setup` | a `Setup` reference or `Setup { ... }` |
 | `sequences` | `[Sequence reference or Sequence name { ... }]` |
-| `rigs` | `[Rig reference or Rig name { ... }]` |
+| `consoles` | `[Console reference or Console name { ... }]` |
 
 The root document `project.data.donder` holds exactly one `Project`, which no
 other document may declare. Its `format` marks the current
@@ -254,7 +255,7 @@ deleted, and there is no other manifest, lockfile or asset inventory.
 
 New projects start as a single `project.data.donder` with an owned setup, an
 empty layout and patch, no controllers or input devices, one owned sequence
-and no rigs. The root document imports the
+and no consoles. The root document imports the
 bundled standard effect and operator libraries, so the initial sequence can use
 them; other sequence documents need their own imports.
 
@@ -298,29 +299,26 @@ Controller output_controller {
 
 ```text
 InputDevice keyboard {
-  description: "The computer keyboard, for playing the jam rig.",
+  description: "The computer keyboard, for playing the jam console.",
   driver: Keyboard,
   controls: [
     Button { name: kick, description: none, input: Key { code: KeyA } },
     Button { name: swell, description: none, input: Key { code: KeyS } },
     Button { name: boost, description: none, input: Key { code: KeyD } },
     Button { name: tap, description: "Tap along to the beat.", input: Key { code: Space } },
-    Button { name: shift, description: none, input: Key { code: ShiftLeft } },
   ],
 }
 ```
 
 - `InputDevice`: `description`, `driver`, `controls`. The setup lists the input
-  devices its rigs play from.
+  devices its consoles play from.
 - `driver` is `Keyboard`, the computer keyboard; `Midi { port }`, the MIDI
   input ports whose name contains `port`, ignoring case, or every port when it
   is `none`; or `Osc { port }`, OSC messages sent over UDP to `port`, from 1 to
   65535, on every network interface. No two OSC devices of a setup share a
   port.
-- A control is `Button { name, description, input }`, pressed or released,
-  `Dial { name, description, input }`, a position from 0 to 1, or
-  `Keys { name, description, input }`, a range of MIDI notes each pressed on
-  its own, with `input` `Notes { low, high }`.
+- A control is `Button { name, description, input }`, pressed or released, or
+  `Axis { name, description, input }`, a position from 0 to 1.
 - A keyboard button's `input` is `Key { code }`. `code` is a key by its browser
   `KeyboardEvent.code` name: `KeyA` to `KeyZ`, `Digit0` to `Digit9`, `F1` to
   `F12`, `Space`, `Enter`, `Tab`, `Escape`, `Backspace`, `ArrowUp`,
@@ -332,18 +330,23 @@ InputDevice keyboard {
   `NumpadEnter`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown` and
   `CapsLock`. `donder_model::KeyCode` is the one list of key names; the schema
   reads it.
-- A MIDI button's `input` is `Note { note }`, a note number from 0 to 127 held
-  from note on to note off, or `ControlChange { number }`, from 0 to 119, held
-  at 64 and above. A MIDI dial's `input` is `ControlChange { number }` or
-  `PitchBend`.
+- A MIDI button's `input` is `Notes { low, high, channel }`, note numbers from
+  0 to 127 with `low` at most `high`, each note its own press held from note on
+  to note off (one note when `low` is `high`), or
+  `ControlChange { number, channel }`, from 0 to 119, held at 64 and above. A
+  MIDI axis's `input` is `ControlChange { number, channel }` or
+  `PitchBend { channel }`. `channel` is the MIDI channel the input reads, from
+  1 to 16, or `none` for every channel.
 - An OSC button's `input` is `Address { path }`, pressed by a first argument
   above 0, released by 0, and pressed and released at once by a message with no
-  arguments. An OSC dial's `input` is `Address { path, low, high }`, its first
+  arguments. An OSC axis's `input` is `Address { path, low, high }`, its first
   argument running from `low` to `high`, two finite floats with `low < high`.
   `path` is a `/` and then printable characters other than spaces and
-  `*?[]{}#,`, matched exactly. OSC devices have no `Keys`.
+  `*?[]{}#,`, matched exactly.
 - Control names are unique within their device, and no two controls read the
-  same input; a note inside a `Keys` range is read by those keys.
+  same input; every note of a button's range is an input it reads. Two MIDI
+  inputs of the same kind conflict when they share a note or number and a
+  channel: when either reads every channel, or both read the same one.
 
 In the GUI, the setup adds and attaches input devices, and an input device
 opens in its own editor.
@@ -585,19 +588,30 @@ In the editor:
 - Row heights, node sizes, graph pan and zoom and guides are workspace
   preferences, not project data, and are outside undo history.
 
-### Rigs
+### Consoles
 
-A rig is played live from input devices instead of on the timeline; it never
-plays on top of a sequence.
+A console is played live from input devices instead of on the timeline; it
+never plays on top of a sequence. Each action edits it at the time of the event
+that runs it: `Play` and `Start`..`Stop` place clips, `Mark` adds a mark and
+`Set` writes an automation value. See [Live input](live_input.md) for how a
+console plays.
 
 ```text
-Rig jam {
+Console jam {
   description: "Play the outputs live from the keyboard.",
   frame_rate: 100,
   marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
+  automations: [
+    LiveAutomation {
+      name: decay,
+      description: "Lengthens the background's pulses while D is held.",
+      value: 0.0,
+      bindings: [ClipParam { clip: background, param: decay_seconds }],
+    },
+  ],
   layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
-  scene: [
-    Voice {
+  clips: [
+    ConsoleClip {
       name: background,
       description: "Pulses on every tapped beat.",
       layer: default,
@@ -606,68 +620,39 @@ Rig jam {
       effect: effects.MarkPulse,
       params: { beats: beat, accent: gradients.cool_gradient, pulse_shape: curves.ease_down },
     },
-  ],
-  switches: [Switch { name: page_two, description: none, input: devices.keyboard.shift }],
-  mappings: [
-    Mapping {
+    ConsoleClip {
       name: flash,
       description: none,
-      input: devices.keyboard.kick,
-      when: Off { switch: page_two },
-      action: Trigger {
-        layer: default,
-        target: elements.outputs_layout.all_outputs,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
-        length: Fixed { duration: 0.4s },
-        voices: Retrigger,
-      },
+      layer: default,
+      target: elements.outputs_layout.all_outputs,
+      scope: WholeTarget,
+      effect: effects.Pulse,
+      params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
     },
-    Mapping {
-      name: burst,
-      description: none,
-      input: devices.keyboard.kick,
-      when: On { switch: page_two },
-      action: Trigger {
-        layer: default,
-        target: elements.outputs_layout.all_outputs,
-        scope: PerFixture,
-        effect: effects.Pulse,
-        params: { gradient: gradients.fire_gradient, pulse_shape: curves.soft_pulse },
-        length: Fixed { duration: 1s },
-        voices: Stack { count: 4 },
-      },
-    },
-    Mapping {
+    ConsoleClip {
       name: wash,
       description: none,
-      input: devices.keyboard.swell,
-      when: none,
-      action: Trigger {
-        layer: default,
-        target: elements.outputs_layout.all_outputs,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
-        length: Held,
-        voices: Mono,
-      },
+      layer: default,
+      target: elements.outputs_layout.all_outputs,
+      scope: WholeTarget,
+      effect: effects.Pulse,
+      params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
     },
-    Mapping {
-      name: tap,
-      description: none,
-      input: devices.keyboard.tap,
-      when: none,
-      action: Mark { marks: beat },
+  ],
+  always: [background],
+  events: [
+    On {
+      event: Press { control: devices.keyboard.kick },
+      actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s }, values: [] }],
     },
-    Mapping {
-      name: boost,
-      description: none,
-      input: devices.keyboard.boost,
-      when: none,
-      action: Control { voice: background, param: decay_seconds },
+    On {
+      event: Press { control: devices.keyboard.swell },
+      actions: [Start { clip: wash, values: [] }],
     },
+    On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
+    On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
+    On { event: Press { control: devices.keyboard.boost }, actions: [Set { into: decay }] },
+    On { event: Release { control: devices.keyboard.boost }, actions: [Set { into: decay }] },
   ],
   graph: Graph {
     nodes: [
@@ -679,49 +664,51 @@ Rig jam {
 }
 ```
 
-- `Rig`: `description`, `frame_rate`, `marks`, `layers`, `scene`, `switches`,
-  `mappings`, `graph`.
+- `Console`: `description`, `frame_rate`, `marks`, `automations`, `layers`,
+  `clips`, `always`, `events`, `graph`.
 - `LiveMarks`: `name`, `description`, `color`. A live mark collection starts
-  empty each session and gains a mark each time a `Mark` mapping fires.
+  empty each session and gains a mark each time a `Mark` action runs.
+- `LiveAutomation`: `name`, `description`, `value`, `bindings`. `value` is the
+  starting value, from 0 to 1, held until the first `Set`. Each binding is an
+  `AutomationClip`'s: `ClipParam { clip, param }`, an automatable parameter of
+  a console clip, set on every copy of the clip, or `NodeParam { node, param }`,
+  an automatable parameter of an operator node of the console's graph. The
+  value maps onto the parameter exactly as an automation curve does. Deleting a
+  bound clip or node removes its bindings.
 - `layers` and `graph` are exactly a sequence's `Layer` and `Graph`, with the
   same rules: the first layer is the default, a layer is in at most one layer
   node, there is one output node, and operator inputs on the output path are
   connected.
-- `Voice`: `name`, `description`, `layer`, `target`, `scope`, `effect`,
-  `params`. A scene voice plays for the whole session: a clip without `start`
-  or `duration`. Parameters are a clip's, except that a marks value names one
-  of the rig's live mark collections, or is `none`.
-- `Switch`: `name`, `description`, `input`, a button. A switch is off when the
-  session starts, and each press of `input` toggles it.
-- `Mapping`: `name`, `description`, `input`, `when`, `action`. An `input` is a
-  button, a dial or keys, `device.control`; a dial plays only `Control`, and
-  keys only `Trigger` and `Mark`. `when` is `none`, `On { switch }` or
-  `Off { switch }`: the mapping acts only while that switch of the rig is on or
-  off. `action` is one of:
-  - `Trigger { layer, target, scope, effect, params, length, voices, values }`
-    starts an effect voice. `length` is `Fixed { duration }` (positive), `Held` (plays
-    while its button or key is held) or `Latched` (a press starts it and the next press
-    stops it). `voices` is `Retrigger` (one voice, restarted by each press),
-    `Stack { count }` (1 to 16 voices; each press takes the next, reusing the
-    oldest) or `Mono` (one voice; presses while it plays are ignored).
-    `values` are `PlayedValue { param, from }`: each press sets that parameter
-    of the voice it starts, `from` `Velocity`, `Pitch`, `PitchClass` or
-    `Fifths`, mapped onto the parameter's range as automation is. A parameter
-    is played at most once, and only notes and keys play the last three.
-  - `Mark { marks }` adds a mark to that live mark collection.
-  - `Control { voice, param }` holds a parameter at the top of its range while
-    a button is held and at the bottom otherwise, or follows a dial's position;
-    the control's `0..1` maps
-    onto the parameter exactly as an automation curve does. `voice` names a
-    scene voice or a `Trigger` mapping (all its voices), and the parameter is a
-    float, int, bool, enum or curve.
-- Voices and mappings share one namespace. Every input device a rig of the
-  project reads must be among the project setup's `input_devices`, and its
-  targets are in the setup's layout.
+- `ConsoleClip`: `name`, `description`, `layer`, `target`, `scope`, `effect`,
+  `params`: a clip without `start` or `duration`. Parameters are a clip's,
+  except that a marks value names one of the console's live mark collections,
+  or is `none`.
+- `always` names clips that play for the whole session.
+- `On`: `event`, `actions`. `event` is `Press { control }` or
+  `Release { control }` of a button, or `Move { control }` of an axis, each
+  `device.control`. `actions` run in order, and are each one of:
+  - `Play { clip, copies, length, values }` plays a copy of `clip` on top of
+    those playing, up to `copies` (1 to 16) at once, reusing the oldest.
+    `length` is `Fixed { duration }` or `Scaled { by, shortest, longest }`,
+    `by` being `Velocity` or `Automation { automation }`, a value from 0 to 1
+    read when the copy starts and mapped from `shortest` to `longest`.
+  - `Start { clip, values }` plays one copy until stopped; it does nothing
+    while the clip plays.
+  - `Stop { clip }` stops every copy of the clip.
+  - `Toggle { clip, values }` is `Start` while no copy plays, else `Stop`.
+  - `Mark { into }` adds a mark to that live mark collection.
+  - `Set { into }` writes the event's value into that live automation: an
+    axis's position, a press's velocity, or 0 for a release.
 
-In the GUI, the project lists its rigs with a Perform button each, the setup
-lists its input devices, and each input device and rig has its own editor; a
-rig's layers and graph use the sequence graph editor.
+  `values` are `PlayedValue { param, from }`: each press sets that parameter
+  of the copy it starts, `from` `Velocity`, `Pitch`, `PitchClass` or `Fifths`,
+  mapped onto the parameter's range as automation is.
+- Every input device a console of the project reads must be among the project
+  setup's `input_devices`, and its clips target the setup's layout.
+
+In the GUI, the project lists its consoles with a Perform button each, the setup
+lists its input devices, and each input device and console has its own editor;
+a console's layers and graph use the sequence graph editor.
 
 ### Curves and gradients
 
@@ -741,8 +728,8 @@ Gradient warm_gradient {
 
 The project, setups, controllers, input devices and their controls, layouts, fixtures
 and groups, fixture definitions, patches, sequences, layers, mark collections,
-clips, rigs, live mark collections, voices, switches, mappings, curves and
-gradients have a `description`. The GUI edits an open object's description in
+clips, consoles, live mark collections, live automations, console clips, curves
+and gradients have a `description`. The GUI edits an open object's description in
 the bar above its editor, and an item's with the item: a layout item's in its
 name dialog, a clip's in the clip inspector, a layer's in its graph node, and a
 mark collection's in the marks inspector. Text is trimmed, and empty text is
@@ -775,8 +762,8 @@ with data:
 
 ## Validity
 
-`donder_model::validate_sequence` and `donder_model::validate_rig` are the
-single sequence and rig validators, and they share the layer and graph rules.
+`donder_model::validate_sequence` and `donder_model::validate_console` are the
+single sequence and console validators, and they share the layer and graph rules.
 Project loading and checked GUI edits run them before accepting state;
 preparation does not repeat them.
 
@@ -797,14 +784,20 @@ preparation does not repeat them.
   automation. A clip binds a target at most once (active or detached), and clips
   that bind the same target do not overlap. Automation curve values lie in
   0..1.
-- A rig's frame rate is positive and at most 1,000. Its voices and triggers
-  follow the clip rules without timing, a `Fixed` length is positive, a stack
-  has 1 to 16 voices, `when` names a switch of the rig, `Mark` a live mark
-  collection, and `Control` an automatable parameter of a voice or trigger.
-  Inputs are controls of input devices in the project's setup: switches play
-  from buttons, `Control` from buttons and dials, and `Trigger` and `Mark`
-  from buttons and keys. A trigger plays each parameter at most once, and
-  plays pitch values only from notes and keys.
+- A console's frame rate is positive and at most 1,000. Its clips follow the
+  clip rules without timing and all target one layout, and `always` names each
+  clip at most once. A clip is played either by `Play` actions or by `Start`,
+  `Toggle` and `always`, not both. Actions name existing clips, live mark
+  collections and automations; `copies` is 1 to 16; lengths are positive, fit
+  the playback clock and have `shortest` at most `longest`.
+- A live automation's `value` lies in 0..1, its bindings name automatable
+  parameters of the console's clips and operator nodes, and a parameter is
+  bound at most once; a clip parameter is never also played.
+- Events read controls of input devices in the project's setup: `Press` and
+  `Release` a button, and `Move` an axis, which runs only `Set`. Played values
+  are only on `Press`, name automatable parameters of the clip, each at most
+  once per action, and `Pitch`, `PitchClass` and `Fifths` only from a button
+  reading notes.
 
 ## Saving
 

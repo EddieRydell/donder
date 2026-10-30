@@ -53,15 +53,15 @@ fn use_existing_candidate(
                 .get_mut(*index)
                 .ok_or(EditRejection::Missing(ObjectKind::Sequence))? = OwnedMember::Reference(id);
         }
-        (Slot::ProjectRig(index), ObjectId::Rig(id)) => {
-            if !project.rigs.contains_key(&id) {
-                return Err(EditRejection::ChooseReusable(ObjectKind::Rig));
+        (Slot::ProjectConsole(index), ObjectId::Console(id)) => {
+            if !project.consoles.contains_key(&id) {
+                return Err(EditRejection::ChooseReusable(ObjectKind::Console));
             }
             *project
                 .root
-                .rigs
+                .consoles
                 .get_mut(*index)
-                .ok_or(EditRejection::Missing(ObjectKind::Rig))? = OwnedMember::Reference(id);
+                .ok_or(EditRejection::Missing(ObjectKind::Console))? = OwnedMember::Reference(id);
         }
         (Slot::SetupInputDevice { setup, index }, ObjectId::InputDevice(id)) => {
             if !project.input_devices.contains_key(&id) {

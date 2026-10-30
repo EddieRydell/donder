@@ -95,7 +95,7 @@ pub(crate) fn validate_ownership(project: &DonderProject) -> Result<(), ProjectV
     ids.store(&project.input_devices)
         .map_err(at(project.root.id))?;
     ids.store(&project.sequences).map_err(at(project.root.id))?;
-    ids.store(&project.rigs).map_err(at(project.root.id))?;
+    ids.store(&project.consoles).map_err(at(project.root.id))?;
     ids.value(&project.root.setup, |id| project.setups.contains_key(id))
         .map_err(at(project.root.id))?;
     distinct_members(&project.root.sequences, OwnershipProblem::DuplicateSequence)
@@ -104,10 +104,10 @@ pub(crate) fn validate_ownership(project: &DonderProject) -> Result<(), ProjectV
         ids.member(source, |id| project.sequences.contains_key(id))
             .map_err(at(project.root.id))?;
     }
-    distinct_members(&project.root.rigs, OwnershipProblem::DuplicateRig)
+    distinct_members(&project.root.consoles, OwnershipProblem::DuplicateConsole)
         .map_err(at(project.root.id))?;
-    for source in &project.root.rigs {
-        ids.member(source, |id| project.rigs.contains_key(id))
+    for source in &project.root.consoles {
+        ids.member(source, |id| project.consoles.contains_key(id))
             .map_err(at(project.root.id))?;
     }
     for setup in project.objects::<crate::Setup>() {

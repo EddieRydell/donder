@@ -183,8 +183,8 @@ impl PreviewHostApplication {
             } => self
                 .replace_content(revision, instances, show)
                 .map(|()| CommandEffect::Redraw),
-            PreviewCommand::RigEvents { events } => {
-                self.playback.apply_rig_events(&events);
+            PreviewCommand::ConsoleEvents { events } => {
+                self.playback.apply_console_events(&events);
                 Ok(CommandEffect::Redraw)
             }
             PreviewCommand::SetClock {

@@ -1,10 +1,10 @@
-//! Layers and the composition graph, which sequences and rigs share.
+//! Layers and the composition graph, which sequences and consoles share.
 use std::collections::BTreeSet;
 
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    EffectGraphEdge, GraphNodePosition, GraphOperatorNode, GraphPortId, ParamValue, Rig, Sequence,
-    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
+    Console, EffectGraphEdge, GraphNodePosition, GraphOperatorNode, GraphPortId, ParamValue,
+    Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 use indexmap::IndexMap;
@@ -57,7 +57,7 @@ impl Composition for Sequence {
     }
 }
 
-impl Composition for Rig {
+impl Composition for Console {
     fn layers(&self) -> &[SequenceLayer] {
         &self.layers
     }
@@ -71,13 +71,17 @@ impl Composition for Rig {
         &mut self.composition_graph
     }
     fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
-        for clip in self.clips_mut() {
+        for clip in &mut self.clips {
             if removed.contains(&clip.layer_id.0) {
                 clip.layer_id = destination.clone();
             }
         }
     }
-    fn forget_nodes(&mut self, _removed: &BTreeSet<CompositionGraphNodeId>) {}
+    fn forget_nodes(&mut self, removed: &BTreeSet<CompositionGraphNodeId>) {
+        for node in removed {
+            self.forget_node(node);
+        }
+    }
 }
 
 /// Apply a layer or graph edit to `composition`, which `owner` declares.

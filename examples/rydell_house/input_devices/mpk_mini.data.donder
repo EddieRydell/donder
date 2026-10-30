@@ -1,0 +1,36 @@
+InputDevice mpk_mini {
+  description: "Akai MPK mini mk2 on its factory preset, keys at the middle octave. Its lowest four keys share notes with pads 1 to 4, and the joystick's up and down share knob 1's control change.",
+  driver: Midi { port: "MPKmini2" },
+  controls: [
+    Button { name: pad_1, description: none, input: Notes { low: 48, high: 48, channel: none } },
+    Button { name: pad_2, description: none, input: Notes { low: 49, high: 49, channel: none } },
+    Button { name: pad_3, description: none, input: Notes { low: 50, high: 50, channel: none } },
+    Button { name: pad_4, description: none, input: Notes { low: 51, high: 51, channel: none } },
+    Button { name: pad_5, description: none, input: Notes { low: 44, high: 44, channel: none } },
+    Button { name: pad_6, description: none, input: Notes { low: 45, high: 45, channel: none } },
+    Button { name: pad_7, description: none, input: Notes { low: 46, high: 46, channel: none } },
+    Button { name: pad_8, description: none, input: Notes { low: 47, high: 47, channel: none } },
+    Button {
+      name: keys,
+      description: "The keys above the pads' notes, E3 to C5.",
+      input: Notes { low: 52, high: 72, channel: none },
+    },
+    Axis {
+      name: knob_1,
+      description: "Also the joystick's up and down.",
+      input: ControlChange { number: 1, channel: none },
+    },
+    Axis { name: knob_2, description: none, input: ControlChange { number: 2, channel: none } },
+    Axis { name: knob_3, description: none, input: ControlChange { number: 3, channel: none } },
+    Axis { name: knob_4, description: none, input: ControlChange { number: 4, channel: none } },
+    Axis { name: knob_5, description: none, input: ControlChange { number: 5, channel: none } },
+    Axis { name: knob_6, description: none, input: ControlChange { number: 6, channel: none } },
+    Axis { name: knob_7, description: none, input: ControlChange { number: 7, channel: none } },
+    Axis { name: knob_8, description: none, input: ControlChange { number: 8, channel: none } },
+    Axis {
+      name: joystick_x,
+      description: "Left and right, centered at rest.",
+      input: PitchBend { channel: none },
+    },
+  ],
+}

@@ -12,13 +12,16 @@ use donder_model::ObjectKind;
 use donder_model::Owned;
 use donder_model::Patch;
 use donder_model::Setup;
+use donder_model::{
+    Action, Console, ConsoleClipId, InputEvent, LengthSource, LiveAutomationId, PlayLength,
+    PlayedValue,
+};
 use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio};
 use donder_model::{
-    ButtonInput, ControlRef, DialInput, InputControlKind, InputDevice, InputDriver, PlayedQuantity,
+    AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver, PlayedQuantity,
     SequenceCompositionGraph, SequenceLayer,
 };
-use donder_model::{ControlTarget, MappingAction, Rig, RigClip, TriggerLength, VoicePolicy, When};
 use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform, OwnedFixture};
 use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
 use donder_model::{ObjectId, OwnedMember};
@@ -135,8 +138,8 @@ impl Encoder<'_> {
                     reference.segments.push(segment("sequences")?);
                     reference.segments.push(segment(member.as_str())?);
                 }
-                OwnedObjectSlot::Rig(member) => {
-                    reference.segments.push(segment("rigs")?);
+                OwnedObjectSlot::Console(member) => {
+                    reference.segments.push(segment("consoles")?);
                     reference.segments.push(segment(member.as_str())?);
                 }
                 OwnedObjectSlot::Fixture(_) => {
@@ -221,10 +224,12 @@ impl Encoder<'_> {
                     })
                 })
                 .collect::<Result<_, _>>()?,
-            rigs: root
-                .rigs
+            consoles: root
+                .consoles
                 .iter()
-                .map(|source| self.named_source(ObjectKind::Rig, source, |rig| self.rig(rig)))
+                .map(|source| {
+                    self.named_source(ObjectKind::Console, source, |console| self.console(console))
+                })
                 .collect::<Result<_, _>>()?,
         })
     }
@@ -386,7 +391,7 @@ impl Encoder<'_> {
         }
     }
 
-    /// The layers of a sequence or rig.
+    /// The layers of a sequence or console.
     fn layers(layers: &[SequenceLayer]) -> Vec<types::Layer> {
         layers
             .iter()
@@ -399,7 +404,7 @@ impl Encoder<'_> {
             .collect()
     }
 
-    /// The composition graph of a sequence or rig.
+    /// The composition graph of a sequence or console.
     fn graph(
         &self,
         layers: &[SequenceLayer],
@@ -477,23 +482,6 @@ impl Encoder<'_> {
             .ok_or_else(|| self.error("", "the effect definition is missing"))
     }
 
-    /// The parts of a rig clip, as a voice or trigger writes them.
-    fn rig_clip(
-        &self,
-        rig: &Rig,
-        clip: &RigClip,
-    ) -> Result<(Name, Reference, types::Scope, Reference, Params), ExportProjectError> {
-        let definition = &clip.definition;
-        let declarations = self.effect_declarations(definition)?;
-        Ok((
-            self.layer_name(&rig.layers, &clip.layer_id)?,
-            self.fixture_target(&clip.target)?,
-            scope_document(&clip.scope),
-            self.object_reference(ObjectKind::EffectDefinition, *definition)?,
-            self.params(&declarations, &clip.param_overrides)?,
-        ))
-    }
-
     /// `device.control`: a control's device reference and the control's name.
     fn control(&self, input: &ControlRef) -> Result<Reference, ExportProjectError> {
         let mut reference = self.object_reference(ObjectKind::InputDevice, input.device)?;
@@ -510,32 +498,37 @@ impl Encoder<'_> {
         Ok(reference)
     }
 
-    pub(crate) fn rig(&self, rig: &Rig) -> Result<types::Rig, ExportProjectError> {
-        let switch_name = |id: &donder_model::RigSwitchId| {
-            rig.switches
-                .iter()
-                .find(|switch| &switch.id == id)
-                .map(|switch| name(&switch.name))
-                .ok_or_else(|| self.error("", "a switch is missing"))
+    pub(crate) fn console(&self, console: &Console) -> Result<types::Console, ExportProjectError> {
+        let clip_name = |id: &ConsoleClipId| {
+            console
+                .clip(*id)
+                .map(|clip| name(&clip.name))
+                .ok_or_else(|| self.error("", "a console clip is missing"))
         };
-        let voice_name = |target: &ControlTarget| match target {
-            ControlTarget::Voice(id) => rig
-                .voices
-                .iter()
-                .find(|voice| &voice.id == id)
-                .map(|voice| name(&voice.name))
-                .ok_or_else(|| self.error("", "a controlled voice is missing")),
-            ControlTarget::Trigger(id) => rig
-                .mappings
-                .iter()
-                .find(|mapping| &mapping.id == id)
-                .map(|mapping| name(&mapping.name))
-                .ok_or_else(|| self.error("", "a controlled trigger is missing")),
+        let automation_name = |id: &LiveAutomationId| {
+            console
+                .automation(*id)
+                .map(|automation| name(&automation.name))
+                .ok_or_else(|| self.error("", "a live automation is missing"))
         };
-        Ok(types::Rig {
-            description: rig.description.clone(),
-            frame_rate: rig.frame_rate,
-            marks: rig
+        let values = |values: &[PlayedValue]| {
+            values
+                .iter()
+                .map(|value| types::PlayedValue {
+                    param: name(&value.param),
+                    from: match value.from {
+                        PlayedQuantity::Velocity => types::PlayedQuantity::Velocity,
+                        PlayedQuantity::Pitch => types::PlayedQuantity::Pitch,
+                        PlayedQuantity::PitchClass => types::PlayedQuantity::PitchClass,
+                        PlayedQuantity::Fifths => types::PlayedQuantity::Fifths,
+                    },
+                })
+                .collect()
+        };
+        Ok(types::Console {
+            description: console.description.clone(),
+            frame_rate: console.frame_rate,
+            marks: console
                 .live_marks
                 .iter()
                 .map(|marks| types::LiveMarks {
@@ -544,114 +537,128 @@ impl Encoder<'_> {
                     color: marks.display_color,
                 })
                 .collect(),
-            layers: Self::layers(&rig.layers),
-            scene: rig
-                .voices
+            automations: console
+                .automations
                 .iter()
-                .map(|voice| {
-                    let (layer, target, scope, effect, params) = self.rig_clip(rig, &voice.clip)?;
-                    Ok(types::Voice {
-                        name: name(&voice.name),
-                        description: voice.description.clone(),
-                        layer,
-                        target,
-                        scope,
-                        effect,
-                        params,
+                .map(|automation| {
+                    Ok(types::LiveAutomation {
+                        name: name(&automation.name),
+                        description: automation.description.clone(),
+                        value: automation.value,
+                        bindings: automation
+                            .bindings
+                            .iter()
+                            .map(|binding| {
+                                self.binding(
+                                    &console.layers,
+                                    &console.composition_graph,
+                                    binding,
+                                    |clip| console.clip(*clip).map(|clip| name(&clip.name)),
+                                )
+                            })
+                            .collect::<Result<_, ExportProjectError>>()?,
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
-            switches: rig
-                .switches
+            layers: Self::layers(&console.layers),
+            clips: console
+                .clips
                 .iter()
-                .map(|switch| {
-                    Ok(types::Switch {
-                        name: name(&switch.name),
-                        description: switch.description.clone(),
-                        input: self.control(&switch.input)?,
+                .map(|clip| {
+                    let definition = &clip.definition;
+                    let declarations = self.effect_declarations(definition)?;
+                    Ok(types::ConsoleClip {
+                        name: name(&clip.name),
+                        description: clip.description.clone(),
+                        layer: self.layer_name(&console.layers, &clip.layer_id)?,
+                        target: self.fixture_target(&clip.target)?,
+                        scope: scope_document(&clip.scope),
+                        effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
+                        params: self.params(&declarations, &clip.param_overrides)?,
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
-            mappings: rig
-                .mappings
+            always: console
+                .always
                 .iter()
-                .map(|mapping| {
-                    Ok(types::Mapping {
-                        name: name(&mapping.name),
-                        description: mapping.description.clone(),
-                        input: self.control(&mapping.input)?,
-                        when: match &mapping.when {
-                            None => None,
-                            Some(When::On(switch)) => Some(types::When::On {
-                                switch: switch_name(switch)?,
-                            }),
-                            Some(When::Off(switch)) => Some(types::When::Off {
-                                switch: switch_name(switch)?,
-                            }),
+                .map(clip_name)
+                .collect::<Result<_, ExportProjectError>>()?,
+            events: console
+                .events
+                .iter()
+                .map(|on| {
+                    let control = self.control(on.event.control())?;
+                    Ok(types::On {
+                        event: match on.event {
+                            InputEvent::Press(_) => types::InputEvent::Press { control },
+                            InputEvent::Release(_) => types::InputEvent::Release { control },
+                            InputEvent::Move(_) => types::InputEvent::Move { control },
                         },
-                        action: match &mapping.action {
-                            MappingAction::Trigger(trigger) => {
-                                let (layer, target, scope, effect, params) =
-                                    self.rig_clip(rig, &trigger.clip)?;
-                                types::MappingAction::Trigger {
-                                    layer,
-                                    target,
-                                    scope,
-                                    effect,
-                                    params,
-                                    length: match &trigger.length {
-                                        TriggerLength::Fixed(duration) => {
-                                            types::TriggerLength::Fixed {
-                                                duration: duration.0,
+                        actions: on
+                            .actions
+                            .iter()
+                            .map(|action| {
+                                Ok(match action {
+                                    Action::Play(play) => types::Action::Play {
+                                        clip: clip_name(&play.clip)?,
+                                        copies: play.copies,
+                                        length: match &play.length {
+                                            PlayLength::Fixed(duration) => {
+                                                types::PlayLength::Fixed {
+                                                    duration: duration.0,
+                                                }
                                             }
-                                        }
-                                        TriggerLength::Held => types::TriggerLength::Held,
-                                        TriggerLength::Latched => types::TriggerLength::Latched,
-                                    },
-                                    voices: match trigger.voices {
-                                        VoicePolicy::Retrigger => types::VoicePolicy::Retrigger,
-                                        VoicePolicy::Stack { count } => {
-                                            types::VoicePolicy::Stack { count }
-                                        }
-                                        VoicePolicy::Mono => types::VoicePolicy::Mono,
-                                    },
-                                    values: trigger
-                                        .values
-                                        .iter()
-                                        .map(|value| types::PlayedValue {
-                                            param: name(&value.param),
-                                            from: match value.from {
-                                                PlayedQuantity::Velocity => {
-                                                    types::PlayedQuantity::Velocity
-                                                }
-                                                PlayedQuantity::Pitch => {
-                                                    types::PlayedQuantity::Pitch
-                                                }
-                                                PlayedQuantity::PitchClass => {
-                                                    types::PlayedQuantity::PitchClass
-                                                }
-                                                PlayedQuantity::Fifths => {
-                                                    types::PlayedQuantity::Fifths
-                                                }
+                                            PlayLength::Scaled {
+                                                by,
+                                                shortest,
+                                                longest,
+                                            } => types::PlayLength::Scaled {
+                                                by: match by {
+                                                    LengthSource::Velocity => {
+                                                        types::LengthSource::Velocity
+                                                    }
+                                                    LengthSource::Automation(id) => {
+                                                        types::LengthSource::Automation {
+                                                            automation: automation_name(id)?,
+                                                        }
+                                                    }
+                                                },
+                                                shortest: shortest.0,
+                                                longest: longest.0,
                                             },
-                                        })
-                                        .collect(),
-                                }
-                            }
-                            MappingAction::Mark(key) => types::MappingAction::Mark {
-                                marks: name(&key.name),
-                            },
-                            MappingAction::Control { target, param } => {
-                                types::MappingAction::Control {
-                                    voice: voice_name(target)?,
-                                    param: name(param),
-                                }
-                            }
-                        },
+                                        },
+                                        values: values(&play.values),
+                                    },
+                                    Action::Start {
+                                        clip,
+                                        values: played,
+                                    } => types::Action::Start {
+                                        clip: clip_name(clip)?,
+                                        values: values(played),
+                                    },
+                                    Action::Stop { clip } => types::Action::Stop {
+                                        clip: clip_name(clip)?,
+                                    },
+                                    Action::Toggle {
+                                        clip,
+                                        values: played,
+                                    } => types::Action::Toggle {
+                                        clip: clip_name(clip)?,
+                                        values: values(played),
+                                    },
+                                    Action::Mark(key) => types::Action::Mark {
+                                        into: name(&key.name),
+                                    },
+                                    Action::Set(id) => types::Action::Set {
+                                        into: automation_name(id)?,
+                                    },
+                                })
+                            })
+                            .collect::<Result<_, ExportProjectError>>()?,
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
-            graph: self.graph(&rig.layers, &rig.composition_graph)?,
+            graph: self.graph(&console.layers, &console.composition_graph)?,
         })
     }
 
@@ -684,27 +691,19 @@ impl Encoder<'_> {
         &self,
         sequence: &Sequence,
     ) -> Result<types::Sequence, ExportProjectError> {
-        let node_name = |id: &donder_model::CompositionGraphNodeId| {
-            self.node_name(&sequence.layers, &sequence.composition_graph, id)
-        };
-        let binding = |target: &AutomationTarget| -> Result<types::Binding, ExportProjectError> {
-            Ok(match target {
-                AutomationTarget::ClipParam { clip_id, param } => types::Binding::ClipParam {
-                    clip: sequence
+        let binding = |target: &AutomationTarget| {
+            self.binding(
+                &sequence.layers,
+                &sequence.composition_graph,
+                target,
+                |clip_id| {
+                    sequence
                         .clips
                         .iter()
                         .find(|clip| &clip.id == clip_id)
                         .map(|clip| name(&clip.name))
-                        .ok_or_else(|| self.error("", "an automated clip is missing"))?,
-                    param: name(param),
                 },
-                AutomationTarget::CompositionNodeParam { node_id, param } => {
-                    types::Binding::NodeParam {
-                        node: node_name(node_id)?,
-                        param: name(param),
-                    }
-                }
-            })
+            )
         };
         Ok(types::Sequence {
             description: sequence.description.clone(),
@@ -769,6 +768,30 @@ impl Encoder<'_> {
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
+        })
+    }
+
+    /// A sequence's or console's automation binding; `clip_name` names the
+    /// clip a clip binding sets.
+    fn binding<Clip>(
+        &self,
+        layers: &[donder_model::SequenceLayer],
+        graph: &donder_model::SequenceCompositionGraph,
+        target: &AutomationTarget<Clip>,
+        clip_name: impl FnOnce(&Clip) -> Option<Name>,
+    ) -> Result<types::Binding, ExportProjectError> {
+        Ok(match target {
+            AutomationTarget::ClipParam { clip_id, param } => types::Binding::ClipParam {
+                clip: clip_name(clip_id)
+                    .ok_or_else(|| self.error("", "an automated clip is missing"))?,
+                param: name(param),
+            },
+            AutomationTarget::CompositionNodeParam { node_id, param } => {
+                types::Binding::NodeParam {
+                    node: self.node_name(layers, graph, node_id)?,
+                    param: name(param),
+                }
+            }
         })
     }
 
@@ -862,36 +885,40 @@ pub(crate) fn input_device_document(device: &InputDevice) -> types::InputDevice 
                             ButtonInput::Key(code) => types::ButtonInput::Key {
                                 code: types::KeyCode(*code),
                             },
-                            ButtonInput::Note(note) => types::ButtonInput::Note { note: *note },
-                            ButtonInput::ControlChange(number) => {
-                                types::ButtonInput::ControlChange { number: *number }
+                            ButtonInput::Notes { notes, channel } => types::ButtonInput::Notes {
+                                low: notes.low,
+                                high: notes.high,
+                                channel: channel.map(|channel| channel.0),
+                            },
+                            ButtonInput::ControlChange { number, channel } => {
+                                types::ButtonInput::ControlChange {
+                                    number: *number,
+                                    channel: channel.map(|channel| channel.0),
+                                }
                             }
                             ButtonInput::Address(path) => types::ButtonInput::Address {
                                 path: path.0.clone(),
                             },
                         },
                     },
-                    InputControlKind::Dial(input) => types::InputControl::Dial {
+                    InputControlKind::Axis(input) => types::InputControl::Axis {
                         name,
                         description,
                         input: match input {
-                            DialInput::ControlChange(number) => {
-                                types::DialInput::ControlChange { number: *number }
+                            AxisInput::ControlChange { number, channel } => {
+                                types::AxisInput::ControlChange {
+                                    number: *number,
+                                    channel: channel.map(|channel| channel.0),
+                                }
                             }
-                            DialInput::PitchBend => types::DialInput::PitchBend,
-                            DialInput::Address { path, low, high } => types::DialInput::Address {
+                            AxisInput::PitchBend { channel } => types::AxisInput::PitchBend {
+                                channel: channel.map(|channel| channel.0),
+                            },
+                            AxisInput::Address { path, low, high } => types::AxisInput::Address {
                                 path: path.0.clone(),
                                 low: *low,
                                 high: *high,
                             },
-                        },
-                    },
-                    InputControlKind::Keys(range) => types::InputControl::Keys {
-                        name,
-                        description,
-                        input: types::Notes {
-                            low: range.low,
-                            high: range.high,
                         },
                     },
                 }

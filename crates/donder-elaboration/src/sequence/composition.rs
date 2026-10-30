@@ -9,7 +9,7 @@ use donder_language::compiler::Instance;
 use donder_model::CompositionGraphNodeId;
 use donder_model::{CompositionGraphNodeKind, SequenceLayerId};
 use donder_runtime::{ShowBuilder, SignalHandle};
-use donder_runtime_types::Color;
+use donder_runtime_types::{BoundProgram, Color};
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
@@ -25,7 +25,9 @@ enum Pending<'id> {
     Mix(Vec<usize>),
 }
 
-/// The signal the show displays; none is black.
+/// The signal the show displays; none is black. Each operator built with
+/// automation joins `automated` with its program, whose automation names
+/// the bindings of every node fused into it.
 pub(crate) fn prepare<'id>(
     builder: &mut ShowBuilder<'id>,
     parts: &Parts<'_>,
@@ -33,6 +35,7 @@ pub(crate) fn prepare<'id>(
     layers: &IndexMap<&SequenceLayerId, SignalHandle<'id>>,
     black: &HashSet<&SequenceLayerId>,
     programs: &mut super::programs::Programs,
+    automated: &mut Vec<(SignalHandle<'id>, BoundProgram)>,
 ) -> Option<SignalHandle<'id>> {
     let graph = parts.graph;
     let indexes = graph
@@ -131,6 +134,9 @@ pub(crate) fn prepare<'id>(
                 let program = programs.lower(&instance);
                 let signal = builder.operator(&program, |input| signals[&inputs[input]]);
                 signals.insert(index, signal);
+                if !program.automation().is_empty() {
+                    automated.push((signal, program));
+                }
             }
             Some(Pending::Mix(inputs)) => {
                 let signal = builder.mix(inputs.iter().map(|input| signals[input]));

@@ -14,7 +14,7 @@ pub(crate) struct SelectedPort<'a> {
     pub(crate) port: &'a ControllerPort,
 }
 
-/// What plays, a sequence or a rig, and the parts of the active setup it
+/// What plays, a sequence or a console, and the parts of the active setup it
 /// plays on.
 pub(crate) struct Selection<'a, S = AcceptedSequence<'a>> {
     pub(crate) show: S,
@@ -50,16 +50,17 @@ pub(crate) fn resolve<'a>(
     })
 }
 
-pub(crate) fn resolve_rig<'a>(
+pub(crate) fn resolve_console<'a>(
     project: &'a DonderProject,
-    rig: &donder_model::RigId,
+    console: &donder_model::ConsoleId,
     retain: Retain<'_>,
-) -> Option<Selection<'a, donder_model::AcceptedRig<'a>>> {
-    let accepted = project.accepted_rig(rig)?;
+) -> Option<Selection<'a, donder_model::AcceptedConsole<'a>>> {
+    let accepted = project.accepted_console(console)?;
     resolve_show(project, accepted, retain, |layout| {
         accepted
-            .rig()
-            .clips()
+            .console()
+            .clips
+            .iter()
             .all(|clip| &clip.target.layout == layout)
     })
 }

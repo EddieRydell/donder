@@ -158,10 +158,10 @@ fn declaration(
                     .ok_or_else(missing)?,
             )?,
         ),
-        ObjectId::Rig(id) => Declaration::Rig(
-            encoder.rig(
+        ObjectId::Console(id) => Declaration::Console(
+            encoder.console(
                 project
-                    .reusable::<donder_model::Rig>()
+                    .reusable::<donder_model::Console>()
                     .get(&id)
                     .ok_or_else(missing)?,
             )?,

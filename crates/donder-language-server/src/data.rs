@@ -467,7 +467,7 @@ impl Members {
     /// An input device's controls.
     const DEVICE: Self = Self {
         field: "controls",
-        types: &["Button", "Dial", "Keys"],
+        types: &["Button", "Axis"],
     };
 }
 
@@ -689,18 +689,17 @@ pub(crate) fn completions(
                 .map(|(name, _)| format!("{name}."))
                 .collect(),
             Refers::Layer => local_names(document, "Layer", "name"),
-            Refers::Clip => local_names(document, "Clip", "name"),
+            Refers::Clip => {
+                let mut names = local_names(document, "Clip", "name");
+                names.extend(local_names(document, "ConsoleClip", "name"));
+                names
+            }
             Refers::Marks => {
                 let mut names = local_names(document, "MarkCollection", "name");
                 names.extend(local_names(document, "LiveMarks", "name"));
                 names
             }
-            Refers::Switch => local_names(document, "Switch", "name"),
-            Refers::Voice => {
-                let mut names = local_names(document, "Voice", "name");
-                names.extend(local_names(document, "Mapping", "name"));
-                names
-            }
+            Refers::Automation => local_names(document, "LiveAutomation", "name"),
             Refers::Node => {
                 let mut names = local_names(document, "OperatorNode", "name");
                 names.extend(local_names(document, "LayerNode", "layer"));

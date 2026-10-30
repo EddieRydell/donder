@@ -121,7 +121,7 @@ therefore remain as signal dependencies. Packing still writes only selected
 ports; retained upstream pixels increase evaluation and memory costs.
 
 Effects targeting no retained pixels are removed, as are effects in disabled or
-unreachable layers. A rig keeps such an effect's voices, so commands still
+unreachable layers. A console keeps such an effect's voices, so commands still
 address them, but plays them in no layer. Referenced signal inputs remain connected, including temporal
 operator inputs. An empty layer feeding an operator remains a valid input: an
 operator can produce a nonblack result from black. Retained programs, targets,

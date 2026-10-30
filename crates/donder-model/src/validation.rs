@@ -2,15 +2,16 @@ mod problem;
 
 use std::collections::{HashMap, HashSet};
 
+use crate::console::{
+    Action, Console, ConsoleClip, ConsoleClipId, InputEvent, LengthSource, MAX_COPIES, On,
+    PlayLength,
+};
 use crate::effect::{OwnedCurve, OwnedGradient, ParamValue};
 use crate::fixture::FixtureDefinitionId;
 use crate::identity::ObjectId;
 use crate::input_device::{ControlRef, InputControlKind};
 use crate::operator::{param_matches_type, validate_composition_graph};
 use crate::project::DonderProject;
-use crate::rig::{
-    MAX_STACKED_VOICES, MappingAction, Rig, RigClip, TriggerLength, VoicePolicy, When,
-};
 use crate::sequence::{
     AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
     SequenceCompositionGraph, SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
@@ -23,10 +24,10 @@ use donder_runtime_types::{Identifier, SampleDuration};
 use indexmap::IndexMap;
 
 pub use problem::{
-    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, InputProblem,
-    MappingProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem, ProblemSite,
-    ProjectValidationError, RegionProblem, RigValidationError, RouteProblem,
-    SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
+    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
+    EventProblem, InputProblem, LiveAutomationProblem, Member, MemberPart, NameProblem,
+    OwnershipProblem, ParamProblem, ProblemSite, ProjectValidationError, RegionProblem,
+    RouteProblem, SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
 };
 
 pub(crate) const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
@@ -117,8 +118,9 @@ pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidation
         validate_sequence(project, sequence)
             .map_err(|error| at(sequence.id)(ValidationProblem::Sequence(error)))?;
     }
-    for rig in project.objects::<crate::Rig>() {
-        validate_rig(project, rig).map_err(|error| at(rig.id)(ValidationProblem::Rig(error)))?;
+    for console in project.objects::<crate::Console>() {
+        validate_console(project, console)
+            .map_err(|error| at(console.id)(ValidationProblem::Console(error)))?;
     }
     Ok(())
 }
@@ -517,7 +519,7 @@ fn validate_sequence_names(
     distinct(marks)
 }
 
-/// The layers and composition graph of a sequence or rig: layers and graph
+/// The layers and composition graph of a sequence or console: layers and graph
 /// nodes are referred to by name, so each name is valid and unique. A layer
 /// node is named by its layer and the root node is `root`, so operator
 /// nodes share that namespace with layers. Returns the layer ids.
@@ -577,7 +579,7 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
     Ok(layer_ids)
 }
 
-/// A sequence or rig clip's target names an existing fixture or group.
+/// A sequence or console clip's target names an existing fixture or group.
 fn validate_target(
     project: &DonderProject,
     target: &crate::layout::FixtureTarget,
@@ -625,14 +627,14 @@ fn validate_params(
     Ok(())
 }
 
-/// A rig voice's or trigger's clip.
-fn validate_rig_clip(
+/// A console clip.
+fn validate_console_clip(
     project: &DonderProject,
-    clip: &RigClip,
+    clip: &ConsoleClip,
     layer_ids: &HashSet<&SequenceLayerId>,
     mark_keys: &HashSet<&MarkCollectionKey>,
     active_layout: Option<&crate::layout::LayoutId>,
-    rig_layout: Option<&crate::layout::LayoutId>,
+    console_layout: Option<&crate::layout::LayoutId>,
 ) -> Result<(), ClipProblem> {
     if !layer_ids.contains(&clip.layer_id) {
         return Err(ClipProblem::MissingLayer);
@@ -640,93 +642,176 @@ fn validate_rig_clip(
     if active_layout.is_some_and(|layout| &clip.target.layout != layout) {
         return Err(ClipProblem::NotInActiveLayout);
     }
-    if rig_layout.is_some_and(|layout| layout != &clip.target.layout) {
+    if console_layout.is_some_and(|layout| layout != &clip.target.layout) {
         return Err(ClipProblem::MixedLayouts);
     }
     validate_target(project, &clip.target)?;
     validate_params(project, &clip.definition, &clip.param_overrides, mark_keys)
 }
 
-pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), RigValidationError> {
-    use RigValidationError as Error;
+/// The automation mapping of parameter `name` of `definition`: `None` when
+/// it has no such parameter, `Some(None)` when it cannot be automated.
+fn param_mapping(
+    project: &DonderProject,
+    definition: &crate::effect::EffectDefinitionId,
+    name: &Identifier,
+) -> Option<Option<donder_runtime_types::AutomationMapping>> {
+    project
+        .get::<crate::EffectDefinition>(*definition)
+        .and_then(|definition| {
+            definition
+                .params()
+                .iter()
+                .find(|declaration| &declaration.name == name)
+        })
+        .map(ParamDecl::automation_mapping)
+}
+
+pub fn validate_console(
+    project: &DonderProject,
+    console: &Console,
+) -> Result<(), ConsoleValidationError> {
+    use ConsoleValidationError as Error;
     let setup = project
         .get::<crate::Setup>(*project.root.setup.id())
         .ok_or(Error::MissingActiveSetup)?;
     let active = project
         .root
-        .rigs
+        .consoles
         .iter()
-        .any(|source| source.id() == &rig.id);
-    if rig.frame_rate == 0 {
+        .any(|source| source.id() == &console.id);
+    if console.frame_rate == 0 {
         return Err(Error::Timing(TimingProblem::ZeroFrameRate));
     }
-    if rig.frame_rate > MAX_SEQUENCE_FRAME_RATE {
+    if console.frame_rate > MAX_SEQUENCE_FRAME_RATE {
         return Err(Error::Timing(TimingProblem::FrameRateAboveLimit));
     }
-    let live_marks = rig
+    let live_marks = console
         .live_marks
         .iter()
         .map(|marks| (Member::LiveMarks(marks.key.name.clone()), &marks.key.name));
-    let voices = rig
-        .voices
+    let automations = console
+        .automations
         .iter()
-        .map(|voice| (Member::Voice(voice.id), &voice.name));
-    let switches = rig
-        .switches
+        .map(|automation| (Member::LiveAutomation(automation.id), &automation.name));
+    let clips = console
+        .clips
         .iter()
-        .map(|switch| (Member::Switch(switch.id), &switch.name));
-    let mappings = rig
-        .mappings
-        .iter()
-        .map(|mapping| (Member::Mapping(mapping.id), &mapping.name));
+        .map(|clip| (Member::ConsoleClip(clip.id), &clip.name));
     snake_case(
         live_marks
             .clone()
-            .chain(voices.clone())
-            .chain(switches.clone())
-            .chain(mappings.clone()),
+            .chain(automations.clone())
+            .chain(clips.clone()),
     )?;
     distinct(live_marks)?;
-    distinct(voices.chain(mappings))?;
-    distinct(switches)?;
-    if let Some(voice) = first_repeat(&rig.voices, |voice| voice.id) {
-        return Err(Error::DuplicateVoiceId(voice.id));
+    distinct(automations)?;
+    distinct(clips)?;
+    if let Some(clip) = first_repeat(&console.clips, |clip| clip.id) {
+        return Err(Error::DuplicateClipId(clip.id));
     }
-    if let Some(switch) = first_repeat(&rig.switches, |switch| switch.id) {
-        return Err(Error::DuplicateSwitchId(switch.id));
+    if let Some(automation) = first_repeat(&console.automations, |automation| automation.id) {
+        return Err(Error::DuplicateAutomationId(automation.id));
     }
-    if let Some(mapping) = first_repeat(&rig.mappings, |mapping| mapping.id) {
-        return Err(Error::DuplicateMappingId(mapping.id));
+    if let Some(on) = first_repeat(&console.events, |on| on.id) {
+        return Err(Error::DuplicateEventId(on.id));
     }
-    let mark_keys = rig
+    let mark_keys = console
         .live_marks
         .iter()
         .map(|marks| &marks.key)
         .collect::<HashSet<_>>();
     let layer_ids = validate_layers_and_graph::<Error>(
         project,
-        &rig.layers,
-        &rig.composition_graph,
+        &console.layers,
+        &console.composition_graph,
         &mark_keys,
     )?;
-    let rig_layout = rig.clips().next().map(|clip| &clip.target.layout);
+    let console_layout = console.clips.first().map(|clip| &clip.target.layout);
     let active_layout = active.then(|| setup.layout.id());
-    let clip = |clip: &RigClip| {
-        validate_rig_clip(
+    for clip in &console.clips {
+        validate_console_clip(
             project,
             clip,
             &layer_ids,
             &mark_keys,
             active_layout,
-            rig_layout,
+            console_layout,
         )
-    };
-    for voice in &rig.voices {
-        clip(&voice.clip).map_err(|problem| Error::Voice {
-            voice: voice.id,
-            name: voice.name.clone(),
+        .map_err(|problem| Error::Clip {
+            clip: clip.id,
+            name: clip.name.clone(),
             problem,
         })?;
+    }
+    let mut always = HashSet::new();
+    for id in &console.always {
+        let clip = console.clip(*id).ok_or(Error::MissingAlwaysClip)?;
+        if !always.insert(id) {
+            return Err(Error::RepeatedAlwaysClip {
+                clip: clip.id,
+                name: clip.name.clone(),
+            });
+        }
+    }
+    for clip in &console.clips {
+        let played = console
+            .actions()
+            .any(|action| matches!(action, Action::Play(play) if play.clip == clip.id));
+        let held = always.contains(&clip.id)
+            || console.actions().any(|action| {
+                matches!(action, Action::Start { clip: id, .. } | Action::Toggle { clip: id, .. } if *id == clip.id)
+            });
+        if played && held {
+            return Err(Error::PlayedAndHeld {
+                clip: clip.id,
+                name: clip.name.clone(),
+            });
+        }
+    }
+    let mut bound = HashSet::new();
+    for automation in &console.automations {
+        let fail = |problem| Error::Automation {
+            automation: automation.id,
+            name: automation.name.clone(),
+            problem,
+        };
+        if !(0.0..=1.0).contains(&automation.value) {
+            return Err(fail(LiveAutomationProblem::ValueOutOfRange));
+        }
+        for binding in &automation.bindings {
+            let name = || binding.param().clone();
+            let declaration = target_param(
+                project,
+                &console.composition_graph,
+                binding,
+                |clip: &ConsoleClipId| console.clip(*clip).map(|clip| clip.definition),
+            )
+            .map_err(|problem| {
+                fail(match problem {
+                    AutomationProblem::MissingClip => LiveAutomationProblem::MissingClip,
+                    AutomationProblem::MissingNode => LiveAutomationProblem::MissingNode,
+                    AutomationProblem::MissingParam(param) => {
+                        LiveAutomationProblem::UnknownParam(param)
+                    }
+                    _ => unreachable!("a target's parameter is missing or found"),
+                })
+            })?;
+            if declaration.automation_mapping().is_none() {
+                return Err(fail(LiveAutomationProblem::NotAutomatable(name())));
+            }
+            if !bound.insert(binding) {
+                return Err(fail(LiveAutomationProblem::BoundTwice(name())));
+            }
+            if let AutomationTarget::ClipParam { clip_id, param } = binding
+                && console.actions().any(|action| {
+                    action.clip() == Some(*clip_id)
+                        && action.values().iter().any(|value| &value.param == param)
+                })
+            {
+                return Err(fail(LiveAutomationProblem::Played(name())));
+            }
+        }
     }
     let setup_devices = setup
         .input_devices
@@ -745,109 +830,111 @@ pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), RigValidat
         }
         Ok(&control.kind)
     };
-    for switch in &rig.switches {
-        let fail = |problem| Error::Switch {
-            switch: switch.id,
-            name: switch.name.clone(),
-            problem,
-        };
-        if !control(&switch.input).map_err(fail)?.is_button() {
-            return Err(fail(InputProblem::NotAButton));
-        }
-    }
-    for mapping in &rig.mappings {
-        validate_mapping(project, rig, mapping, &mark_keys, &control, &clip).map_err(
-            |problem| Error::Mapping {
-                mapping: mapping.id,
-                name: mapping.name.clone(),
+    for on in &console.events {
+        validate_event(project, console, on, &mark_keys, &control).map_err(|problem| {
+            Error::Event {
+                event: on.id,
                 problem,
-            },
-        )?;
+            }
+        })?;
     }
     Ok(())
 }
 
-fn validate_mapping<'a>(
+fn validate_event<'a>(
     project: &'a DonderProject,
-    rig: &Rig,
-    mapping: &crate::rig::Mapping,
+    console: &Console,
+    on: &On,
     mark_keys: &HashSet<&MarkCollectionKey>,
     control: &impl Fn(&ControlRef) -> Result<&'a InputControlKind, InputProblem>,
-    clip: &impl Fn(&RigClip) -> Result<(), ClipProblem>,
-) -> Result<(), MappingProblem> {
-    let input = control(&mapping.input).map_err(MappingProblem::Input)?;
-    match &mapping.action {
-        MappingAction::Control { .. } if input.is_pressed() && !input.is_button() => {
-            return Err(MappingProblem::KeysDriveControl);
+) -> Result<(), EventProblem> {
+    let input = control(on.event.control()).map_err(EventProblem::Input)?;
+    match on.event {
+        InputEvent::Press(_) | InputEvent::Release(_) if !input.is_button() => {
+            return Err(EventProblem::Input(InputProblem::NotAButton));
         }
-        MappingAction::Trigger(_) | MappingAction::Mark(_) if !input.is_pressed() => {
-            return Err(MappingProblem::DialDrivesTrigger);
+        InputEvent::Move(_) if input.is_button() => {
+            return Err(EventProblem::Input(InputProblem::NotAnAxis));
+        }
+        InputEvent::Move(_)
+            if on
+                .actions
+                .iter()
+                .any(|action| !matches!(action, Action::Set(_))) =>
+        {
+            return Err(EventProblem::AxisPlays);
         }
         _ => {}
     }
-    if let Some(When::On(switch) | When::Off(switch)) = mapping.when
-        && !rig.switches.iter().any(|candidate| candidate.id == switch)
-    {
-        return Err(MappingProblem::MissingSwitch);
-    }
-    let param = |definition: &crate::effect::EffectDefinitionId, name: &Identifier| {
-        project
-            .get::<crate::EffectDefinition>(*definition)
-            .and_then(|definition| {
-                definition
-                    .params()
-                    .iter()
-                    .find(|declaration| &declaration.name == name)
-            })
-            .map(ParamDecl::automation_mapping)
+    let duration = |duration: &DonderDuration| {
+        let sampled = sample_duration_from_donder_duration(duration)
+            .map_err(|_| EventProblem::DurationBeyondClock)?;
+        if duration.0.is_zero() || sampled.as_ticks() == 0 {
+            return Err(EventProblem::NonPositiveDuration);
+        }
+        Ok(())
     };
-    match &mapping.action {
-        MappingAction::Trigger(trigger) => {
-            clip(&trigger.clip).map_err(MappingProblem::Clip)?;
-            if let TriggerLength::Fixed(duration) = &trigger.length {
-                let sampled = sample_duration_from_donder_duration(duration)
-                    .map_err(|_| MappingProblem::DurationBeyondClock)?;
-                if duration.0.is_zero() || sampled.as_ticks() == 0 {
-                    return Err(MappingProblem::NonPositiveFixedDuration);
+    for action in &on.actions {
+        let clip = match action.clip() {
+            Some(id) => Some(console.clip(id).ok_or(EventProblem::MissingClip)?),
+            None => None,
+        };
+        match action {
+            Action::Play(play) => {
+                if !(1..=MAX_COPIES).contains(&play.copies) {
+                    return Err(EventProblem::Copies(play.copies));
+                }
+                match &play.length {
+                    PlayLength::Fixed(length) => duration(length)?,
+                    PlayLength::Scaled {
+                        by,
+                        shortest,
+                        longest,
+                    } => {
+                        duration(shortest)?;
+                        duration(longest)?;
+                        if shortest.0 > longest.0 {
+                            return Err(EventProblem::ShortestAboveLongest);
+                        }
+                        if let LengthSource::Automation(id) = by
+                            && console.automation(*id).is_none()
+                        {
+                            return Err(EventProblem::MissingAutomation);
+                        }
+                    }
                 }
             }
-            if let VoicePolicy::Stack { count } = trigger.voices
-                && !(1..=MAX_STACKED_VOICES).contains(&count)
-            {
-                return Err(MappingProblem::StackSize(count));
-            }
-            let mut played = HashSet::new();
-            for value in &trigger.values {
-                let name = || value.param.clone();
-                match param(&trigger.clip.definition, &value.param) {
-                    None => return Err(MappingProblem::UnknownValue(name())),
-                    Some(None) => return Err(MappingProblem::ValueNotAutomatable(name())),
-                    Some(Some(_)) => {}
-                }
-                if !played.insert(&value.param) {
-                    return Err(MappingProblem::ValueTwice(name()));
-                }
-                if value.from.needs_note() && input.notes().is_none() {
-                    return Err(MappingProblem::PitchWithoutNotes(name()));
+            Action::Mark(key) => {
+                if !mark_keys.contains(key) {
+                    return Err(EventProblem::MissingLiveMarks(key.name.clone()));
                 }
             }
+            Action::Set(id) => {
+                if console.automation(*id).is_none() {
+                    return Err(EventProblem::MissingAutomation);
+                }
+            }
+            Action::Start { .. } | Action::Stop { .. } | Action::Toggle { .. } => {}
         }
-        MappingAction::Mark(key) => {
-            if !mark_keys.contains(key) {
-                return Err(MappingProblem::MissingLiveMarks(key.name.clone()));
-            }
+        if !action.values().is_empty() && !matches!(on.event, InputEvent::Press(_)) {
+            return Err(EventProblem::ValuesWithoutPress);
         }
-        MappingAction::Control {
-            target,
-            param: name,
-        } => {
-            let clip = rig
-                .control_clip(*target)
-                .ok_or(MappingProblem::MissingControlTarget)?;
-            match param(&clip.definition, name) {
-                None => return Err(MappingProblem::UnknownControlParam(name.clone())),
-                Some(None) => return Err(MappingProblem::ControlNotAutomatable(name.clone())),
+        let mut played = HashSet::new();
+        for value in action.values() {
+            let name = || value.param.clone();
+            let Some(clip) = clip else {
+                unreachable!("only actions that start a clip play values")
+            };
+            match param_mapping(project, &clip.definition, &value.param) {
+                None => return Err(EventProblem::UnknownValue(name())),
+                Some(None) => return Err(EventProblem::ValueNotAutomatable(name())),
                 Some(Some(_)) => {}
+            }
+            if !played.insert(&value.param) {
+                return Err(EventProblem::ValueTwice(name()));
+            }
+            if value.from.needs_note() && input.notes().is_none() {
+                return Err(EventProblem::PitchWithoutNotes(name()));
             }
         }
     }
@@ -961,6 +1048,23 @@ pub fn automation_target_param<'a>(
     sequence: &'a Sequence,
     target: &AutomationTarget,
 ) -> Result<&'a ParamDecl, AutomationProblem> {
+    target_param(project, &sequence.composition_graph, target, |clip_id| {
+        sequence
+            .clips
+            .iter()
+            .find(|clip| &clip.id == clip_id)
+            .map(|clip| clip.definition)
+    })
+}
+
+/// The declaration a sequence's or console's automation target addresses;
+/// `clip_definition` finds the effect of a clip it names.
+fn target_param<'a, Clip>(
+    project: &'a DonderProject,
+    graph: &SequenceCompositionGraph,
+    target: &AutomationTarget<Clip>,
+    clip_definition: impl FnOnce(&Clip) -> Option<crate::effect::EffectDefinitionId>,
+) -> Result<&'a ParamDecl, AutomationProblem> {
     let find = |params: &'a [ParamDecl], param: &Identifier| {
         params
             .iter()
@@ -969,19 +1073,14 @@ pub fn automation_target_param<'a>(
     };
     match target {
         AutomationTarget::ClipParam { clip_id, param } => {
-            let clip = sequence
-                .clips
-                .iter()
-                .find(|clip| &clip.id == clip_id)
-                .ok_or(AutomationProblem::MissingClip)?;
+            let definition = clip_definition(clip_id).ok_or(AutomationProblem::MissingClip)?;
             let definition = project
-                .get::<crate::EffectDefinition>(clip.definition)
+                .get::<crate::EffectDefinition>(definition)
                 .ok_or_else(|| AutomationProblem::MissingParam(param.clone()))?;
             find(definition.params(), param)
         }
         AutomationTarget::CompositionNodeParam { node_id, param } => {
-            let operator = sequence
-                .composition_graph
+            let operator = graph
                 .nodes
                 .iter()
                 .find(|node| &node.id == node_id)
@@ -1010,13 +1109,13 @@ impl From<CompositionProblem> for SequenceValidationError {
     }
 }
 
-impl From<NameProblem> for RigValidationError {
+impl From<NameProblem> for ConsoleValidationError {
     fn from(problem: NameProblem) -> Self {
         Self::Name(problem)
     }
 }
 
-impl From<CompositionProblem> for RigValidationError {
+impl From<CompositionProblem> for ConsoleValidationError {
     fn from(problem: CompositionProblem) -> Self {
         Self::Composition(problem)
     }

@@ -1,4 +1,4 @@
-//! MIDI input for performances: the ports a rig plays from, read on midir's
+//! MIDI input for performances: the ports a console plays from, read on midir's
 //! threads and handed on as each message arrives. Ports that appear while a
 //! performance runs are connected within a second, and ports that go away
 //! are dropped.
@@ -10,11 +10,19 @@ use std::time::Duration;
 use midir::{Ignore, MidiInput, MidiInputConnection};
 
 use crate::desktop_state::lock_unpoisoned;
+use donder_model::MidiChannel;
 
 /// How often the watcher looks for ports that appeared or went away.
 const PORT_SCAN_INTERVAL: Duration = Duration::from_secs(1);
 
-/// The MIDI messages a performance reads, from any channel.
+/// A MIDI message a performance reads, and the channel it came on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ChannelMessage {
+    pub(crate) channel: MidiChannel,
+    pub(crate) message: MidiMessage,
+}
+
+/// The MIDI messages a performance reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MidiMessage {
     NoteOn {
@@ -34,30 +42,35 @@ pub(crate) enum MidiMessage {
     },
 }
 
-impl MidiMessage {
+impl ChannelMessage {
     fn parse(bytes: &[u8]) -> Option<Self> {
         let (&status, data) = bytes.split_first()?;
         let byte = |index: usize| data.get(index).copied().filter(|byte| *byte < 0x80);
-        match status & 0xF0 {
-            0x80 => Some(Self::NoteOff { note: byte(0)? }),
+        let message = match status & 0xF0 {
+            0x80 => MidiMessage::NoteOff { note: byte(0)? },
             // A note on with no velocity is how many keyboards send note off.
             0x90 => match (byte(0)?, byte(1)?) {
-                (note, 0) => Some(Self::NoteOff { note }),
-                (note, velocity) => Some(Self::NoteOn { note, velocity }),
+                (note, 0) => MidiMessage::NoteOff { note },
+                (note, velocity) => MidiMessage::NoteOn { note, velocity },
             },
-            0xB0 => Some(Self::ControlChange {
+            0xB0 => MidiMessage::ControlChange {
                 number: byte(0)?,
                 value: byte(1)?,
-            }),
-            0xE0 => Some(Self::PitchBend {
+            },
+            0xE0 => MidiMessage::PitchBend {
                 value: u16::from(byte(0)?) | u16::from(byte(1)?) << 7,
-            }),
-            _ => None,
-        }
+            },
+            _ => return None,
+        };
+        // The low four bits number channels from 0; devices label them from 1.
+        Some(Self {
+            channel: MidiChannel((status & 0x0F) + 1),
+            message,
+        })
     }
 }
 
-type OnMessage = Arc<dyn Fn(&str, MidiMessage) + Send + Sync>;
+type OnMessage = Arc<dyn Fn(&str, ChannelMessage) + Send + Sync>;
 type OnLost = Arc<dyn Fn(&str) + Send + Sync>;
 
 /// The MIDI ports a performance is connected to. Dropping it disconnects
@@ -80,7 +93,7 @@ impl MidiInputs {
     /// A port that goes away calls `on_lost` with its name.
     pub(crate) fn start(
         wanted: impl Fn(&str) -> bool + Send + 'static,
-        on_message: impl Fn(&str, MidiMessage) + Send + Sync + 'static,
+        on_message: impl Fn(&str, ChannelMessage) + Send + Sync + 'static,
         on_lost: impl Fn(&str) + Send + Sync + 'static,
     ) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
@@ -188,7 +201,7 @@ fn connect(
             &port,
             "donder-perform",
             move |_, bytes, _| {
-                if let Some(message) = MidiMessage::parse(bytes) {
+                if let Some(message) = ChannelMessage::parse(bytes) {
                     on_message(&port_name, message);
                 }
             },

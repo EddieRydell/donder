@@ -48,7 +48,7 @@ Project {project} {{
       automation: [],
     }},
   ],
-  rigs: [],
+  consoles: [],
 }}
 "#,
         format = config.format_version,

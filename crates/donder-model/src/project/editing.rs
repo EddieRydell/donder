@@ -12,7 +12,7 @@ pub enum Object {
     Controller(Controller),
     InputDevice(InputDevice),
     Sequence(Sequence),
-    Rig(Rig),
+    Console(Box<Console>),
     FixtureDefinition(FixtureDefinitionId, FixtureDefinition),
     Curve(CurveId, CurveDefinition),
     Gradient(GradientId, GradientDefinition),
@@ -31,7 +31,13 @@ macro_rules! object_from {
         }
     )*};
 }
-object_from!(Setup, Layout, Patch, Controller, InputDevice, Sequence, Rig);
+object_from!(Setup, Layout, Patch, Controller, InputDevice, Sequence);
+
+impl From<Console> for Object {
+    fn from(value: Console) -> Self {
+        Self::Console(Box::new(value))
+    }
+}
 
 impl From<ProjectRoot> for Object {
     fn from(value: ProjectRoot) -> Self {
@@ -97,7 +103,7 @@ impl DonderProject {
                         Object::Controller(value) => put(project, value.id, value),
                         Object::InputDevice(value) => put(project, value.id, value),
                         Object::Sequence(value) => put(project, value.id, value),
-                        Object::Rig(value) => put(project, value.id, value),
+                        Object::Console(value) => put(project, value.id, *value),
                         Object::FixtureDefinition(id, value) => put(project, id, value),
                         Object::Curve(id, value) => put(project, id, value),
                         Object::Gradient(id, value) => put(project, id, value),
@@ -114,7 +120,7 @@ impl DonderProject {
                         ObjectId::Controller(id) => remove::<Controller>(project, id)?,
                         ObjectId::InputDevice(id) => remove::<InputDevice>(project, id)?,
                         ObjectId::Sequence(id) => remove::<Sequence>(project, id)?,
-                        ObjectId::Rig(id) => remove::<Rig>(project, id)?,
+                        ObjectId::Console(id) => remove::<Console>(project, id)?,
                         ObjectId::FixtureDefinition(id) => {
                             remove::<FixtureDefinition>(project, id)?
                         }

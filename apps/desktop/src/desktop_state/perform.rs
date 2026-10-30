@@ -1,6 +1,6 @@
-//! Perform mode: one rig played live from the setup's input devices. A
+//! Perform mode: one console played live from the setup's input devices. A
 //! performance is not an edit; it never touches project documents or history.
-//! Each input is stamped on the session clock, routed to rig commands, and the
+//! Each input is stamped on the session clock, routed to console commands, and the
 //! commands fan out in order to live output and the Preview.
 
 use std::collections::HashMap;
@@ -8,22 +8,22 @@ use std::collections::HashMap;
 mod router;
 
 use super::{DesktopState, lock_unpoisoned};
-use crate::midi::{MidiInputs, MidiMessage};
+use crate::midi::{ChannelMessage, MidiInputs, MidiMessage};
 use crate::osc::{OscInputs, OscMessage};
-use crate::rendering::{RigOutput, SessionClock};
+use crate::rendering::{ConsoleOutput, SessionClock};
 use donder_editor::dto::{
-    AudioTransportState, LiveOutputState, PerformButton, PerformMidi, PerformOsc, PerformRig,
-    PerformSession, PerformSnapshot, PerformSwitch,
+    AudioTransportState, LiveOutputState, PerformButton, PerformConsole, PerformMidi, PerformOsc,
+    PerformSession, PerformSnapshot,
 };
 use donder_elaboration::{PreparationCache, Retain};
 use donder_model::{
-    ButtonInput, ControllerId, DialInput, InputControlKind, InputDevice, InputDriver, KeyCode,
-    KeyRange, OscAddress, RigId,
+    AxisInput, ButtonInput, ConsoleId, ControllerId, InputControlKind, InputDevice, InputDriver,
+    KeyCode, MidiChannel, NoteRange, OscAddress,
 };
 use donder_project_io::ProjectSession;
 use donder_runtime::PreparedShow;
-use donder_runtime_types::{RigEvent, SampleTime, sample_time_seconds_f32};
-use router::RigRouter;
+use donder_runtime_types::{ConsoleEvent, SampleTime, sample_time_seconds_f32};
+use router::ConsoleRouter;
 
 #[derive(Default)]
 pub(crate) struct PerformService {
@@ -47,6 +47,8 @@ pub(crate) struct PreviewPerformance {
 struct MidiBinding {
     /// Ports whose name contains this, ignoring case, or every port.
     port: Option<String>,
+    /// The channel it reads, or every channel.
+    channel: Option<MidiChannel>,
     reads: MidiRead,
     /// The router input.
     input: usize,
@@ -55,12 +57,11 @@ struct MidiBinding {
 /// What a MIDI control reads.
 #[derive(Clone, Copy)]
 enum MidiRead {
-    Note(u8),
-    Keys(KeyRange),
+    Notes(NoteRange),
     /// A control change read as a button, as a pedal is.
     Pedal(u8),
-    /// A control change read as a dial.
-    Dial(u8),
+    /// A control change read as an axis.
+    Axis(u8),
     PitchBend,
 }
 
@@ -78,8 +79,8 @@ struct OscBinding {
 #[derive(Clone, Copy)]
 enum OscRead {
     Button,
-    /// A dial whose first argument runs from `low` to `high`.
-    Dial {
+    /// An axis whose first argument runs from `low` to `high`.
+    Axis {
         low: f32,
         high: f32,
     },
@@ -120,8 +121,8 @@ enum MidiTouch {
     Up {
         number: u8,
     },
-    /// A dial turns, to a value in `0..=1`.
-    Turn(f32),
+    /// An axis moves, to a value in `0..=1`.
+    Move(f32),
 }
 
 impl MidiTouch {
@@ -129,17 +130,7 @@ impl MidiTouch {
         let velocity = |velocity: u8| f32::from(velocity) / 127.0;
         Some(match (reads, message) {
             (
-                MidiRead::Note(read),
-                MidiMessage::NoteOn {
-                    note,
-                    velocity: struck,
-                },
-            ) if read == note => Self::Down {
-                number: note,
-                velocity: velocity(struck),
-            },
-            (
-                MidiRead::Keys(range),
+                MidiRead::Notes(range),
                 MidiMessage::NoteOn {
                     note,
                     velocity: struck,
@@ -148,10 +139,7 @@ impl MidiTouch {
                 number: note,
                 velocity: velocity(struck),
             },
-            (MidiRead::Note(read), MidiMessage::NoteOff { note }) if read == note => {
-                Self::Up { number: note }
-            }
-            (MidiRead::Keys(range), MidiMessage::NoteOff { note }) if range.contains(note) => {
+            (MidiRead::Notes(range), MidiMessage::NoteOff { note }) if range.contains(note) => {
                 Self::Up { number: note }
             }
             // A pedal is down at 64 and above.
@@ -167,13 +155,13 @@ impl MidiTouch {
                     Self::Up { number }
                 }
             }
-            (MidiRead::Dial(read), MidiMessage::ControlChange { number, value })
+            (MidiRead::Axis(read), MidiMessage::ControlChange { number, value })
                 if read == number =>
             {
-                Self::Turn(velocity(value))
+                Self::Move(velocity(value))
             }
             (MidiRead::PitchBend, MidiMessage::PitchBend { value }) => {
-                Self::Turn(f32::from(value) / 16383.0)
+                Self::Move(f32::from(value) / 16383.0)
             }
             _ => return None,
         })
@@ -182,23 +170,23 @@ impl MidiTouch {
 
 struct Performance {
     generation: u32,
-    rig: PerformRig,
+    console: PerformConsole,
     clock: SessionClock,
     prepared: PreparedShow,
-    /// The prepared rig, encoded once for the Preview.
+    /// The prepared console, encoded once for the Preview.
     show: Vec<u8>,
     fixtures: Vec<(u32, usize)>,
-    router: RigRouter,
+    router: ConsoleRouter,
     /// Each router button's device and control names.
     buttons: Box<[PerformButton]>,
     /// The router buttons each key presses.
     keys: HashMap<KeyCode, Vec<usize>>,
     /// The router inputs MIDI plays.
     midi: Vec<MidiBinding>,
-    /// The ports holding each MIDI press down, by router input and note or
-    /// pedal number: the router hears the press when the first port holds it
-    /// and its release when the last lets go.
-    midi_held: HashMap<(usize, u8), Vec<usize>>,
+    /// The ports and channels holding each MIDI press down, by router input
+    /// and note or pedal number: the router hears the press when the first
+    /// holds it and its release when the last lets go.
+    midi_held: HashMap<(usize, u8), Vec<(usize, MidiChannel)>>,
     /// The names of the ports MIDI has come from, by the index `midi_held`
     /// holds them by.
     midi_ports: Vec<String>,
@@ -209,10 +197,9 @@ struct Performance {
     osc: Vec<OscBinding>,
     /// The UDP ports the performance listens on, when it plays from OSC.
     osc_inputs: Option<OscInputs>,
-    switches: Box<[String]>,
     controllers: Vec<ControllerId>,
     /// Every command so far, for an evaluator that joins mid-performance.
-    events: Vec<RigEvent>,
+    events: Vec<ConsoleEvent>,
 }
 
 impl Performance {
@@ -224,17 +211,8 @@ impl Performance {
             .collect::<Vec<_>>();
         keys.sort();
         PerformSession {
-            rig: self.rig.clone(),
+            console: self.console.clone(),
             elapsed_seconds: f64::from(sample_time_seconds_f32(self.clock.now())),
-            switches: self
-                .switches
-                .iter()
-                .enumerate()
-                .map(|(index, name)| PerformSwitch {
-                    name: name.clone(),
-                    on: self.router.switch_on(index),
-                })
-                .collect(),
             held: self
                 .buttons
                 .iter()
@@ -260,8 +238,8 @@ impl Performance {
         }
     }
 
-    fn output(&self) -> RigOutput {
-        RigOutput::new(
+    fn output(&self) -> ConsoleOutput {
+        ConsoleOutput::new(
             self.prepared.clone(),
             &self.events,
             self.controllers.clone(),
@@ -272,14 +250,14 @@ impl Performance {
 
 impl DesktopState {
     pub(crate) fn perform_snapshot(&self) -> PerformSnapshot {
-        let rigs = self
+        let consoles = self
             .project_session()
-            .map(|session| project_rigs(&session))
+            .map(|session| project_consoles(&session))
             .unwrap_or_default();
         let perform = lock_unpoisoned(&self.perform);
         PerformSnapshot {
             revision: perform.revision,
-            rigs,
+            consoles,
             session: perform.performance.as_ref().map(Performance::session),
         }
     }
@@ -288,28 +266,28 @@ impl DesktopState {
         lock_unpoisoned(&self.perform).performance.is_some()
     }
 
-    /// Arm the project's `rig`th rig on the active setup and start its session.
+    /// Arm the project's `console`th console on the active setup and start its session.
     /// Sequence playback stops; live output that was on follows the performance.
     pub(crate) fn start_performing(
         &self,
         project_revision: u32,
-        rig: u32,
+        console: u32,
     ) -> Result<PerformSnapshot, String> {
         let session = self
             .project_session()
             .ok_or("Open a valid project to perform.")?;
         if project_revision != self.snapshot().project_revision {
-            return Err("The project changed. Choose the rig to perform again.".into());
+            return Err("The project changed. Choose the console to perform again.".into());
         }
         let project = &session.project;
         let source = project
             .root()
-            .rigs
-            .get(rig as usize)
-            .ok_or("The rig is no longer in the project.")?;
-        let rig_id = *source.id();
-        let described = perform_rig(&session, rig, rig_id)?;
-        check_armable(&session, &rig_id, &described.name)?;
+            .consoles
+            .get(console as usize)
+            .ok_or("The console is no longer in the project.")?;
+        let console_id = *source.id();
+        let described = perform_console(&session, console, console_id)?;
+        check_armable(&session, &console_id, &described.name)?;
         // Output that is on plays the new performance in place of what it played.
         let live = matches!(
             lock_unpoisoned(&self.live_output).snapshot().state,
@@ -321,26 +299,27 @@ impl DesktopState {
         ) {
             self.audio_stop();
         }
-        // A rig plays only on streamed controllers.
+        // A console plays only on streamed controllers.
         self.set_devices_live(false);
         {
             let mut perform = lock_unpoisoned(&self.perform);
-            let armed =
-                donder_elaboration::arm(project, &rig_id, Retain::All, &mut perform.preparation)
-                    .ok_or_else(|| {
-                        format!(
-                            "Rig {} cannot be prepared on the active setup.",
-                            described.name
-                        )
-                    })?;
-            let router = RigRouter::new(
+            let armed = donder_elaboration::arm(
                 project,
-                project
-                    .get::<donder_model::Rig>(rig_id)
-                    .ok_or("The rig is no longer in the project.")?,
-                &armed,
+                &console_id,
+                Retain::All,
+                &mut perform.preparation,
             )
-            .ok_or("An input control of the rig is missing.")?;
+            .ok_or_else(|| {
+                format!(
+                    "Console {} cannot be prepared on the active setup.",
+                    described.name
+                )
+            })?;
+            let console = project
+                .get::<donder_model::Console>(console_id)
+                .ok_or("The console is no longer in the project.")?;
+            let mut router = ConsoleRouter::new(project, console, &armed)
+                .ok_or("An input control of the console is missing.")?;
             let setup = project
                 .get::<donder_model::Setup>(*project.root().setup.id())
                 .ok_or("The active setup is missing.")?;
@@ -351,12 +330,12 @@ impl DesktopState {
             for (index, button) in router.inputs().iter().enumerate() {
                 let device = project
                     .get::<donder_model::InputDevice>(button.device)
-                    .ok_or("An input device of the rig is missing.")?;
+                    .ok_or("An input device of the console is missing.")?;
                 let control = device
                     .controls
                     .iter()
                     .find(|control| control.id == button.control)
-                    .ok_or("A button of the rig is missing.")?;
+                    .ok_or("A control of the console is missing.")?;
                 buttons.push(PerformButton {
                     device: declared_name(&session, device.id)?,
                     control: control.name.as_str().to_string(),
@@ -371,33 +350,35 @@ impl DesktopState {
                         osc.push(osc_binding(device, address, OscRead::Button, index)?);
                         continue;
                     }
-                    InputControlKind::Dial(DialInput::Address {
+                    InputControlKind::Axis(AxisInput::Address {
                         path: address,
                         low,
                         high,
                     }) => {
-                        let reads = OscRead::Dial {
+                        let reads = OscRead::Axis {
                             low: *low,
                             high: *high,
                         };
                         osc.push(osc_binding(device, address, reads, index)?);
                         continue;
                     }
-                    InputControlKind::Button(ButtonInput::Note(note)) => MidiRead::Note(*note),
-                    InputControlKind::Button(ButtonInput::ControlChange(number)) => {
+                    InputControlKind::Button(ButtonInput::Notes { notes, .. }) => {
+                        MidiRead::Notes(*notes)
+                    }
+                    InputControlKind::Button(ButtonInput::ControlChange { number, .. }) => {
                         MidiRead::Pedal(*number)
                     }
-                    InputControlKind::Dial(DialInput::ControlChange(number)) => {
-                        MidiRead::Dial(*number)
+                    InputControlKind::Axis(AxisInput::ControlChange { number, .. }) => {
+                        MidiRead::Axis(*number)
                     }
-                    InputControlKind::Dial(DialInput::PitchBend) => MidiRead::PitchBend,
-                    InputControlKind::Keys(range) => MidiRead::Keys(*range),
+                    InputControlKind::Axis(AxisInput::PitchBend { .. }) => MidiRead::PitchBend,
                 };
                 let InputDriver::Midi { port } = &device.driver else {
                     return Err("A keyboard control reads a MIDI input.".into());
                 };
                 midi.push(MidiBinding {
                     port: port.clone(),
+                    channel: control.kind.channel(),
                     reads,
                     input: index,
                 });
@@ -435,10 +416,12 @@ impl DesktopState {
                     }
                 })
             });
+            // Every clip starts dormant; the session starts the `always` clips.
+            let events = router.start(SampleTime::from_ticks(0));
             let prepared = armed.prepared;
             let performance = Performance {
                 generation,
-                rig: described,
+                console: described,
                 clock: SessionClock::start(prepared.duration()),
                 show: prepared.encode(),
                 fixtures: prepared
@@ -456,15 +439,8 @@ impl DesktopState {
                 midi_inputs,
                 osc,
                 osc_inputs,
-                switches: project
-                    .get::<donder_model::Rig>(rig_id)
-                    .ok_or("The rig is no longer in the project.")?
-                    .switches
-                    .iter()
-                    .map(|switch| switch.name.as_str().to_string())
-                    .collect(),
                 controllers: crate::rendering::setup_controllers(setup),
-                events: Vec::new(),
+                events,
             };
             perform.generation = performance.generation;
             perform.revision = perform.revision.wrapping_add(1);
@@ -496,7 +472,7 @@ impl DesktopState {
         self.perform_snapshot()
     }
 
-    /// A key, by its `KeyboardEvent.code`, pressed or released. Keys the rig
+    /// A key, by its `KeyboardEvent.code`, pressed or released. Keys the console
     /// does not play, and keys while nothing is performing, do nothing.
     pub(crate) fn perform_key(&self, code: &str, pressed: bool) -> PerformSnapshot {
         if let Some(key) = KeyCode::from_name(code) {
@@ -521,8 +497,10 @@ impl DesktopState {
 
     /// A MIDI message from `port` while performance `generation` plays.
     /// Notes strike note buttons and keys, pedals press and release buttons,
-    /// and control changes and pitch bend turn dials.
-    fn perform_midi(&self, generation: u32, port: &str, message: MidiMessage) {
+    /// and control changes and pitch bend move axes, of the controls that
+    /// read its channel.
+    fn perform_midi(&self, generation: u32, port: &str, message: ChannelMessage) {
+        let ChannelMessage { channel, message } = message;
         self.route(|performance, time| {
             if performance.generation != generation {
                 return None;
@@ -541,7 +519,9 @@ impl DesktopState {
             let name = &performance.midi_ports[port];
             let mut events = Vec::new();
             for binding in &performance.midi {
-                if !reads_port(binding.port.as_deref(), name) {
+                if !reads_port(binding.port.as_deref(), name)
+                    || !channel.is_read_by(binding.channel)
+                {
                     continue;
                 }
                 let Some(touch) = MidiTouch::of(binding.reads, message) else {
@@ -553,11 +533,11 @@ impl DesktopState {
                 match touch {
                     MidiTouch::Down { number, velocity } => {
                         let holders = performance.midi_held.entry((input, number)).or_default();
-                        if holders.contains(&port) {
+                        if holders.contains(&(port, channel)) {
                             continue;
                         }
-                        holders.push(port);
-                        // Another port already holds it down.
+                        holders.push((port, channel));
+                        // Another port or channel already holds it down.
                         if holders.len() > 1 {
                             continue;
                         }
@@ -571,7 +551,9 @@ impl DesktopState {
                         let Some(holders) = performance.midi_held.get_mut(&(input, number)) else {
                             continue;
                         };
-                        let Some(held) = holders.iter().position(|holder| *holder == port) else {
+                        let Some(held) =
+                            holders.iter().position(|holder| *holder == (port, channel))
+                        else {
                             continue;
                         };
                         holders.swap_remove(held);
@@ -585,7 +567,7 @@ impl DesktopState {
                             router.release_note(input, number, time)
                         });
                     }
-                    MidiTouch::Turn(value) => events.extend(router.turn(input, value, time)),
+                    MidiTouch::Move(value) => events.extend(router.move_axis(input, value, time)),
                 }
             }
             (!events.is_empty()).then_some(events)
@@ -593,7 +575,7 @@ impl DesktopState {
     }
 
     /// A port that went away while performance `generation` plays: the notes
-    /// and pedals only it held are released, while dials keep their place.
+    /// and pedals only it held are released, while axes keep their place.
     fn perform_midi_lost(&self, generation: u32, port: &str) {
         self.route(|performance, time| {
             if performance.generation != generation {
@@ -612,7 +594,7 @@ impl DesktopState {
             let midi = &performance.midi;
             let router = &mut performance.router;
             performance.midi_held.retain(|&(input, number), holders| {
-                holders.retain(|holder| *holder != port);
+                holders.retain(|(holder, _)| *holder != port);
                 if !holders.is_empty() {
                     return true;
                 }
@@ -629,7 +611,7 @@ impl DesktopState {
 
     /// An OSC message to `port` while performance `generation` plays. A button
     /// presses at a value above 0 and releases at 0, and a message with no
-    /// value presses and releases it at once; a dial turns to the value's
+    /// value presses and releases it at once; an axis moves to the value's
     /// place in its range.
     fn perform_osc(&self, generation: u32, port: u16, message: &OscMessage) {
         self.route(|performance, time| {
@@ -652,10 +634,10 @@ impl DesktopState {
                         events.extend(router.press(input, time));
                     }
                     (OscRead::Button, Some(_)) => events.extend(router.release(input, time)),
-                    (OscRead::Dial { low, high }, Some(value)) => {
-                        events.extend(router.turn(input, (value - low) / (high - low), time));
+                    (OscRead::Axis { low, high }, Some(value)) => {
+                        events.extend(router.move_axis(input, (value - low) / (high - low), time));
                     }
-                    (OscRead::Dial { .. }, None) => {}
+                    (OscRead::Axis { .. }, None) => {}
                 }
             }
             (!events.is_empty()).then_some(events)
@@ -673,7 +655,7 @@ impl DesktopState {
 
     /// Stamp an input on the session clock and fan the commands it routes to
     /// out to every evaluator, in order.
-    fn route(&self, input: impl FnOnce(&mut Performance, SampleTime) -> Option<Vec<RigEvent>>) {
+    fn route(&self, input: impl FnOnce(&mut Performance, SampleTime) -> Option<Vec<ConsoleEvent>>) {
         let mut perform = lock_unpoisoned(&self.perform);
         let Some(performance) = perform.performance.as_mut() else {
             return;
@@ -684,7 +666,7 @@ impl DesktopState {
         };
         performance.events.extend_from_slice(&events);
         if !events.is_empty() {
-            lock_unpoisoned(&self.live_output).rig_events(&events);
+            lock_unpoisoned(&self.live_output).console_events(&events);
         }
         perform.revision = perform.revision.wrapping_add(1);
         drop(perform);
@@ -693,7 +675,10 @@ impl DesktopState {
 
     /// Live output for the performance in progress, if any. It holds the
     /// performance while the output starts, so no command is missed.
-    pub(super) fn perform_live_output<R>(&self, start: impl FnOnce(Option<RigOutput>) -> R) -> R {
+    pub(super) fn perform_live_output<R>(
+        &self,
+        start: impl FnOnce(Option<ConsoleOutput>) -> R,
+    ) -> R {
         let perform = lock_unpoisoned(&self.perform);
         start(perform.performance.as_ref().map(Performance::output))
     }
@@ -719,7 +704,11 @@ impl DesktopState {
 
     /// The performance's commands from the `from`th on, while `generation` is
     /// still performing.
-    pub(crate) fn performance_events(&self, generation: u32, from: usize) -> Option<Vec<RigEvent>> {
+    pub(crate) fn performance_events(
+        &self,
+        generation: u32,
+        from: usize,
+    ) -> Option<Vec<ConsoleEvent>> {
         lock_unpoisoned(&self.perform)
             .performance
             .as_ref()
@@ -754,26 +743,30 @@ impl DesktopState {
     }
 }
 
-fn project_rigs(session: &ProjectSession) -> Vec<PerformRig> {
+fn project_consoles(session: &ProjectSession) -> Vec<PerformConsole> {
     session
         .project
         .root()
-        .rigs
+        .consoles
         .iter()
         .zip(0..)
         .map(|(source, index)| {
-            perform_rig(session, index, *source.id())
-                .unwrap_or_else(|_| unreachable!("every rig of a session has an address"))
+            perform_console(session, index, *source.id())
+                .unwrap_or_else(|_| unreachable!("every console of a session has an address"))
         })
         .collect()
 }
 
-/// The project's `index`th rig as Perform names it.
-fn perform_rig(session: &ProjectSession, index: u32, rig: RigId) -> Result<PerformRig, String> {
+/// The project's `index`th console as Perform names it.
+fn perform_console(
+    session: &ProjectSession,
+    index: u32,
+    console: ConsoleId,
+) -> Result<PerformConsole, String> {
     let address = session
-        .address_of(rig.into())
-        .ok_or("The rig is missing from the source inventory.")?;
-    Ok(PerformRig {
+        .address_of(console.into())
+        .ok_or("The console is missing from the source inventory.")?;
+    Ok(PerformConsole {
         index,
         name: address.declared_name().to_string(),
         path: address.document().to_string(),
@@ -791,29 +784,33 @@ fn declared_name(
         .ok_or_else(|| "An object is missing from the source inventory.".to_string())
 }
 
-/// Explain why `rig` cannot play on the active setup, before preparing it.
-fn check_armable(session: &ProjectSession, rig: &RigId, name: &str) -> Result<(), String> {
+/// Explain why `console` cannot play on the active setup, before preparing it.
+fn check_armable(session: &ProjectSession, console: &ConsoleId, name: &str) -> Result<(), String> {
     let project = &session.project;
-    let rig = project
-        .get::<donder_model::Rig>(*rig)
-        .ok_or("The rig is no longer in the project.")?;
+    let console = project
+        .get::<donder_model::Console>(*console)
+        .ok_or("The console is no longer in the project.")?;
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or("The active setup is missing.")?;
     let layout = setup.layout.id();
-    if rig.clips().any(|clip| &clip.target.layout != layout) {
+    if console
+        .clips
+        .iter()
+        .any(|clip| &clip.target.layout != layout)
+    {
         return Err(format!(
-            "Rig {name} targets a layout other than the active setup's."
+            "Console {name} targets a layout other than the active setup's."
         ));
     }
-    if let Some(input) = rig.inputs().find(|input| {
+    if let Some(input) = console.inputs().find(|input| {
         !setup
             .input_devices
             .iter()
             .any(|device| device.id() == &input.device)
     }) {
         return Err(format!(
-            "Rig {name} plays from input device {}, which the active setup does not list.",
+            "Console {name} plays from input device {}, which the active setup does not list.",
             declared_name(session, input.device)?
         ));
     }
@@ -827,7 +824,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
-    fn a_key_plays_the_starter_jam_rig_to_live_output() {
+    fn a_key_plays_the_starter_jam_console_to_live_output() {
         let receiver = UdpSocket::bind("127.0.0.1:0").unwrap();
         receiver
             .set_read_timeout(Some(Duration::from_millis(200)))
@@ -860,11 +857,11 @@ mod tests {
         );
         let jam = state
             .perform_snapshot()
-            .rigs
+            .consoles
             .into_iter()
-            .find(|rig| rig.name == "jam")
+            .find(|console| console.name == "jam")
             .unwrap();
-        assert_eq!(jam.path, "rigs/jam.data.donder");
+        assert_eq!(jam.path, "consoles/jam.data.donder");
         let revision = state.snapshot().project_revision;
         assert!(state.start_performing(revision + 1, jam.index).is_err());
         assert!(state.start_performing(revision, 99).is_err());
@@ -874,10 +871,8 @@ mod tests {
             .unwrap()
             .session
             .unwrap();
-        assert_eq!(session.rig, jam);
+        assert_eq!(session.console, jam);
         assert!(session.keys.iter().any(|key| key == "KeyA"));
-        assert_eq!(session.switches.len(), 1);
-        assert!(!session.switches[0].on);
         assert!(session.held.is_empty());
         assert_eq!(
             state.audio_play().status,
@@ -919,11 +914,10 @@ mod tests {
                 .held
                 .is_empty()
         );
-        let shifted = state.perform_key("ShiftLeft", true).session.unwrap();
-        assert!(shifted.switches[0].on);
+        let swelling = state.perform_key("KeyS", true).session.unwrap();
+        assert_eq!(swelling.held.len(), 1);
         let released = state.perform_release_all().session.unwrap();
         assert!(released.held.is_empty());
-        assert!(released.switches[0].on);
 
         let stopped = state.stop_performing();
         assert!(stopped.session.is_none());

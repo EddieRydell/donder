@@ -19,6 +19,10 @@ use donder_model::GraphOperatorNode;
 use donder_model::ObjectId;
 use donder_model::ProjectData;
 use donder_model::{
+    Action, Console, ConsoleClip, ConsoleClipId, ConsoleId, InputEvent, LengthSource,
+    LiveAutomation, LiveAutomationId, LiveMarks, On, OnId, Play, PlayLength,
+};
+use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
     ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
 };
@@ -30,15 +34,12 @@ use donder_model::{
     SequenceId, SequenceLayer, SequenceLayerId,
 };
 use donder_model::{
-    ButtonInput, ControlRef, DialInput, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDriver, KeyRange, OscAddress, PlayedQuantity, PlayedValue,
+    AxisInput, ButtonInput, ControlRef, InputControl, InputControlId, InputControlKind,
+    InputDevice, InputDeviceId, InputDriver, MidiChannel, NoteRange, OscAddress, PlayedQuantity,
+    PlayedValue,
 };
 use donder_model::{
     Clip, ClipId, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue,
-};
-use donder_model::{
-    ControlTarget, LiveMarks, Mapping, MappingAction, Rig, RigClip, RigId, RigMappingId,
-    RigSwitchId, RigVoiceId, Switch, Trigger, TriggerLength, Voice, VoicePolicy, When,
 };
 use donder_model::{
     FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
@@ -67,7 +68,7 @@ pub(super) struct DomainResolver<'a> {
     pub(super) project: &'a mut ProjectData,
 }
 
-/// Each layer of a sequence or rig by name, with its declaring name's span.
+/// Each layer of a sequence or console by name, with its declaring name's span.
 type LayerIds = IndexMap<Identifier, (SequenceLayerId, TextSpan)>;
 
 /// Each graph node by name: its identity, whether it is the root, the name
@@ -299,31 +300,31 @@ impl DomainResolver<'_> {
         }
     }
 
-    pub(super) fn owned_rig(
+    pub(super) fn owned_console(
         &mut self,
         document: &DocumentId,
         owner: &ObjectAddress,
-        record: &OwnedNamedRecord<types::Rig>,
-    ) -> Result<donder_model::OwnedRig, LoadError> {
+        record: &OwnedNamedRecord<types::Console>,
+    ) -> Result<donder_model::OwnedConsole, LoadError> {
         match record {
             OwnedNamedRecord::Reference(reference) => {
-                let ObjectId::Rig(id) =
+                let ObjectId::Console(id) =
                     self.loader
-                        .resolve_reference(document, reference, ObjectKind::Rig)?
+                        .resolve_reference(document, reference, ObjectKind::Console)?
                 else {
                     return Err(self.loader.unresolved(document, reference));
                 };
-                self.resolve_rig(&id)?;
+                self.resolve_console(&id)?;
                 Ok(OwnedMember::Reference(id))
             }
-            OwnedNamedRecord::Inline(member, rig) => {
-                let id = RigId(
+            OwnedNamedRecord::Inline(member, console) => {
+                let id = ConsoleId(
                     self.loader
-                        .intern(owner.owned(OwnedObjectSlot::Rig(name(member)))),
+                        .intern(owner.owned(OwnedObjectSlot::Console(name(member)))),
                 );
                 Ok(OwnedMember::Inline {
                     name: name(member),
-                    value: Box::new(self.rig(&id, document, rig)?),
+                    value: Box::new(self.console(&id, document, console)?),
                 })
             }
         }
@@ -406,18 +407,18 @@ impl DomainResolver<'_> {
         Ok(())
     }
 
-    pub(super) fn resolve_rig(&mut self, id: &RigId) -> Result<(), LoadError> {
-        if self.project.rigs.contains_key(id) {
+    pub(super) fn resolve_console(&mut self, id: &ConsoleId) -> Result<(), LoadError> {
+        if self.project.consoles.contains_key(id) {
             return Ok(());
         }
         let address = self.loader.address(*id);
         let source = address.root_source();
         let (data, _) = self.declared(source)?;
-        let Declaration::Rig(rig) = data.declared(source.object()).1 else {
+        let Declaration::Console(console) = data.declared(source.object()).1 else {
             return Err(self.wrong_kind(source));
         };
-        let value = self.rig(id, source.document_id(), rig)?;
-        self.project.rigs.insert(*id, value);
+        let value = self.console(id, source.document_id(), console)?;
+        self.project.consoles.insert(*id, value);
         Ok(())
     }
 
@@ -625,44 +626,48 @@ impl DomainResolver<'_> {
                         description,
                         InputControlKind::Button(match input {
                             types::ButtonInput::Key { code } => ButtonInput::Key(code.0),
-                            types::ButtonInput::Note { note } => ButtonInput::Note(*note),
-                            types::ButtonInput::ControlChange { number } => {
-                                ButtonInput::ControlChange(*number)
+                            types::ButtonInput::Notes { low, high, channel } => {
+                                ButtonInput::Notes {
+                                    notes: NoteRange {
+                                        low: *low,
+                                        high: *high,
+                                    },
+                                    channel: channel.map(MidiChannel),
+                                }
+                            }
+                            types::ButtonInput::ControlChange { number, channel } => {
+                                ButtonInput::ControlChange {
+                                    number: *number,
+                                    channel: channel.map(MidiChannel),
+                                }
                             }
                             types::ButtonInput::Address { path } => {
                                 ButtonInput::Address(OscAddress(path.clone()))
                             }
                         }),
                     ),
-                    types::InputControl::Dial {
+                    types::InputControl::Axis {
                         name,
                         description,
                         input,
                     } => (
                         name,
                         description,
-                        InputControlKind::Dial(match input {
-                            types::DialInput::ControlChange { number } => {
-                                DialInput::ControlChange(*number)
+                        InputControlKind::Axis(match input {
+                            types::AxisInput::ControlChange { number, channel } => {
+                                AxisInput::ControlChange {
+                                    number: *number,
+                                    channel: channel.map(MidiChannel),
+                                }
                             }
-                            types::DialInput::PitchBend => DialInput::PitchBend,
-                            types::DialInput::Address { path, low, high } => DialInput::Address {
+                            types::AxisInput::PitchBend { channel } => AxisInput::PitchBend {
+                                channel: channel.map(MidiChannel),
+                            },
+                            types::AxisInput::Address { path, low, high } => AxisInput::Address {
                                 path: OscAddress(path.clone()),
                                 low: *low,
                                 high: *high,
                             },
-                        }),
-                    ),
-                    types::InputControl::Keys {
-                        name,
-                        description,
-                        input,
-                    } => (
-                        name,
-                        description,
-                        InputControlKind::Keys(KeyRange {
-                            low: input.low,
-                            high: input.high,
                         }),
                     ),
                 };
@@ -684,42 +689,6 @@ impl DomainResolver<'_> {
             },
             controls,
         }
-    }
-
-    /// A trigger's played values, each linked to its parameter.
-    fn played_values(
-        &self,
-        document: &DocumentId,
-        effect: &Reference,
-        values: &[types::PlayedValue],
-    ) -> Result<Vec<PlayedValue>, LoadError> {
-        let definition = self.effect_definition(document, effect)?;
-        let declarations = self.definition_params(&definition);
-        Ok(values
-            .iter()
-            .map(|value| {
-                let param = &value.param;
-                if declarations
-                    .iter()
-                    .any(|declaration| declaration.name == param.0.value)
-                {
-                    self.loader.link(
-                        document,
-                        param.0.span,
-                        self.script(definition, ScriptMember::Param(param.as_str().to_string())),
-                    );
-                }
-                PlayedValue {
-                    param: name(param),
-                    from: match value.from {
-                        types::PlayedQuantity::Velocity => PlayedQuantity::Velocity,
-                        types::PlayedQuantity::Pitch => PlayedQuantity::Pitch,
-                        types::PlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
-                        types::PlayedQuantity::Fifths => PlayedQuantity::Fifths,
-                    },
-                }
-            })
-            .collect())
     }
 
     /// `device.control`: a control of an input device.
@@ -1178,7 +1147,7 @@ impl DomainResolver<'_> {
         );
     }
 
-    /// The layers of a sequence or rig, numbered from 0, the default layer.
+    /// The layers of a sequence or console, numbered from 0, the default layer.
     fn layers(layers: &[types::Layer]) -> (Vec<SequenceLayer>, LayerIds) {
         let mut layer_ids = IndexMap::new();
         let layers = layers
@@ -1248,7 +1217,7 @@ impl DomainResolver<'_> {
         Ok((id, root, operator))
     }
 
-    /// The composition graph of a sequence or rig, and its nodes by name.
+    /// The composition graph of a sequence or console, and its nodes by name.
     fn graph(
         &self,
         document: &DocumentId,
@@ -1470,46 +1439,8 @@ impl DomainResolver<'_> {
         }
         let (composition_graph, node_ids) =
             self.graph(document, &layer_ids, &marks, &sequence.graph)?;
-        let binding = |binding: &types::Binding| -> Result<AutomationTarget, LoadError> {
-            Ok(match binding {
-                types::Binding::ClipParam { clip, param } => {
-                    let (clip_id, span, effect) =
-                        clip_ids.get(&clip.0.value).cloned().ok_or_else(|| {
-                            self.invalid(
-                                document,
-                                clip.0.span,
-                                format!("no clip `{}`", clip.as_str()),
-                            )
-                        })?;
-                    self.link_local(document, clip.0.span, span);
-                    self.loader.link(
-                        document,
-                        param.0.span,
-                        self.script(effect, ScriptMember::Param(param.as_str().to_string())),
-                    );
-                    AutomationTarget::ClipParam {
-                        clip_id,
-                        param: name(param),
-                    }
-                }
-                types::Binding::NodeParam {
-                    node: target,
-                    param,
-                } => {
-                    let (node_id, _, operator) = self.node(document, &node_ids, &target.0)?;
-                    if let Some(operator) = operator {
-                        self.loader.link(
-                            document,
-                            param.0.span,
-                            self.script(operator, ScriptMember::Param(param.as_str().to_string())),
-                        );
-                    }
-                    AutomationTarget::CompositionNodeParam {
-                        node_id,
-                        param: name(param),
-                    }
-                }
-            })
+        let binding = |binding: &types::Binding| {
+            self.automation_target(document, &clip_ids, &node_ids, binding)
         };
         let mut automation_clips = Vec::with_capacity(sequence.automation.len());
         for (index, clip) in sequence.automation.iter().enumerate() {
@@ -1551,199 +1482,251 @@ impl DomainResolver<'_> {
         })
     }
 
-    /// A rig clip: a sequence clip without timing.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the fields a voice and a trigger share"
-    )]
-    fn rig_clip(
+    /// A sequence's or console's automation binding, its clip named in
+    /// `clip_ids` or its node in `node_ids`.
+    fn automation_target<Clip: Clone>(
         &self,
         document: &DocumentId,
-        layer_ids: &LayerIds,
-        marks: &[(Identifier, TextSpan)],
-        layer: &Name,
-        target: &Reference,
-        scope: &types::Scope,
-        effect: &Reference,
-        params: &Params,
-    ) -> Result<RigClip, LoadError> {
-        let definition = self.effect_definition(document, effect)?;
-        let declarations = self.definition_params(&definition);
-        Ok(RigClip {
-            layer_id: self.layer(document, layer_ids, layer)?,
-            target: self.fixture_target(document, target)?,
-            scope: Self::scope(scope),
-            param_overrides: self.params(
-                document,
-                definition.into(),
-                &declarations,
-                marks,
-                params,
-            )?,
-            definition: (definition),
+        clip_ids: &IndexMap<Identifier, (Clip, TextSpan, EffectDefinitionId)>,
+        node_ids: &NodeIds,
+        binding: &types::Binding,
+    ) -> Result<AutomationTarget<Clip>, LoadError> {
+        Ok(match binding {
+            types::Binding::ClipParam { clip, param } => {
+                let (clip_id, span, effect) =
+                    clip_ids.get(&clip.0.value).cloned().ok_or_else(|| {
+                        self.invalid(
+                            document,
+                            clip.0.span,
+                            format!("no clip `{}`", clip.as_str()),
+                        )
+                    })?;
+                self.link_local(document, clip.0.span, span);
+                self.link_param(document, effect, param);
+                AutomationTarget::ClipParam {
+                    clip_id,
+                    param: name(param),
+                }
+            }
+            types::Binding::NodeParam {
+                node: target,
+                param,
+            } => {
+                let (node_id, _, operator) = self.node(document, node_ids, &target.0)?;
+                if let Some(operator) = operator {
+                    self.loader.link(
+                        document,
+                        param.0.span,
+                        self.script(operator, ScriptMember::Param(param.as_str().to_string())),
+                    );
+                }
+                AutomationTarget::CompositionNodeParam {
+                    node_id,
+                    param: name(param),
+                }
+            }
         })
     }
 
-    fn rig(&self, id: &RigId, document: &DocumentId, rig: &types::Rig) -> Result<Rig, LoadError> {
+    fn console(
+        &self,
+        id: &ConsoleId,
+        document: &DocumentId,
+        console: &types::Console,
+    ) -> Result<Console, LoadError> {
         let mut mark_names = IndexMap::new();
-        for collection in &rig.marks {
+        for collection in &console.marks {
             mark_names
                 .entry(name(&collection.name))
                 .or_insert(collection.name.0.span);
         }
         let marks = mark_names.clone().into_iter().collect::<Vec<_>>();
-        let (layers, layer_ids) = Self::layers(&rig.layers);
-        // Voices and mappings share one namespace; `Control` names either.
-        let mut controlled =
-            IndexMap::<Identifier, (ControlTarget, TextSpan, Option<EffectDefinitionId>)>::new();
-        let mut voices = Vec::with_capacity(rig.scene.len());
-        for (voice, index) in rig.scene.iter().zip(1..) {
-            let clip = self.rig_clip(
-                document,
-                &layer_ids,
-                &marks,
-                &voice.layer,
-                &voice.target,
-                &voice.scope,
-                &voice.effect,
-                &voice.params,
-            )?;
-            controlled.entry(name(&voice.name)).or_insert((
-                ControlTarget::Voice(RigVoiceId(index)),
-                voice.name.0.span,
-                Some(clip.definition),
-            ));
-            voices.push(Voice {
-                id: RigVoiceId(index),
-                name: name(&voice.name),
-                description: voice.description.clone(),
-                clip,
-            });
-        }
-        let mut switch_ids = IndexMap::new();
-        let mut switches = Vec::with_capacity(rig.switches.len());
-        for (switch, index) in rig.switches.iter().zip(1..) {
-            switch_ids
-                .entry(name(&switch.name))
-                .or_insert((RigSwitchId(index), switch.name.0.span));
-            switches.push(Switch {
-                id: RigSwitchId(index),
-                name: name(&switch.name),
-                description: switch.description.clone(),
-                input: self.control_ref(document, &switch.input)?,
-            });
-        }
-        // Mapping names come first, so a `Control` may name a later trigger.
-        for (mapping, index) in rig.mappings.iter().zip(1..) {
-            let definition = match &mapping.action {
-                types::MappingAction::Trigger { effect, .. } => {
-                    Some(self.effect_definition(document, effect)?)
-                }
-                types::MappingAction::Mark { .. } | types::MappingAction::Control { .. } => None,
-            };
-            controlled.entry(name(&mapping.name)).or_insert((
-                ControlTarget::Trigger(RigMappingId(index)),
-                mapping.name.0.span,
+        let (layers, layer_ids) = Self::layers(&console.layers);
+        let mut clip_ids = IndexMap::new();
+        let mut clips = Vec::with_capacity(console.clips.len());
+        for (clip, index) in console.clips.iter().zip(1..) {
+            let definition = self.effect_definition(document, &clip.effect)?;
+            let declarations = self.definition_params(&definition);
+            clip_ids.entry(name(&clip.name)).or_insert((
+                ConsoleClipId(index),
+                clip.name.0.span,
                 definition,
             ));
-        }
-        let switch = |switch: &Name| {
-            let (id, span) = switch_ids.get(&switch.0.value).copied().ok_or_else(|| {
-                self.invalid(
+            clips.push(ConsoleClip {
+                id: ConsoleClipId(index),
+                name: name(&clip.name),
+                description: clip.description.clone(),
+                layer_id: self.layer(document, &layer_ids, &clip.layer)?,
+                target: self.fixture_target(document, &clip.target)?,
+                scope: Self::scope(&clip.scope),
+                param_overrides: self.params(
                     document,
-                    switch.0.span,
-                    format!("no switch `{}`", switch.as_str()),
-                )
-            })?;
-            self.link_local(document, switch.0.span, span);
-            Ok::<_, LoadError>(id)
-        };
-        let mut mappings = Vec::with_capacity(rig.mappings.len());
-        for (mapping, index) in rig.mappings.iter().zip(1..) {
-            let action = match &mapping.action {
-                types::MappingAction::Trigger {
-                    layer,
-                    target,
-                    scope,
-                    effect,
-                    params,
-                    length,
-                    voices,
-                    values,
-                } => MappingAction::Trigger(Box::new(Trigger {
-                    clip: self.rig_clip(
-                        document, &layer_ids, &marks, layer, target, scope, effect, params,
-                    )?,
-                    values: self.played_values(document, effect, values)?,
-                    length: match length {
-                        types::TriggerLength::Fixed { duration } => {
-                            TriggerLength::Fixed(DonderDuration(*duration))
-                        }
-                        types::TriggerLength::Held => TriggerLength::Held,
-                        types::TriggerLength::Latched => TriggerLength::Latched,
-                    },
-                    voices: match voices {
-                        types::VoicePolicy::Retrigger => VoicePolicy::Retrigger,
-                        types::VoicePolicy::Stack { count } => VoicePolicy::Stack { count: *count },
-                        types::VoicePolicy::Mono => VoicePolicy::Mono,
-                    },
-                })),
-                types::MappingAction::Mark { marks } => {
-                    if let Some(span) = mark_names.get(&marks.0.value) {
-                        self.link_local(document, marks.0.span, *span);
-                    }
-                    MappingAction::Mark(MarkCollectionKey { name: name(marks) })
-                }
-                types::MappingAction::Control { voice, param } => {
-                    let (target, span, definition) =
-                        controlled.get(&voice.0.value).copied().ok_or_else(|| {
-                            self.invalid(
-                                document,
-                                voice.0.span,
-                                format!("no voice or trigger `{}`", voice.as_str()),
-                            )
-                        })?;
-                    self.link_local(document, voice.0.span, span);
-                    if let Some(definition) = definition
-                        && self
-                            .definition_params(&definition)
-                            .iter()
-                            .any(|declaration| declaration.name == param.0.value)
-                    {
-                        self.loader.link(
-                            document,
-                            param.0.span,
-                            self.script(
-                                definition,
-                                ScriptMember::Param(param.as_str().to_string()),
-                            ),
-                        );
-                    }
-                    MappingAction::Control {
-                        target,
-                        param: name(param),
-                    }
-                }
-            };
-            mappings.push(Mapping {
-                id: RigMappingId(index),
-                name: name(&mapping.name),
-                description: mapping.description.clone(),
-                input: self.control_ref(document, &mapping.input)?,
-                when: match &mapping.when {
-                    None => None,
-                    Some(types::When::On { switch: on }) => Some(When::On(switch(on)?)),
-                    Some(types::When::Off { switch: off }) => Some(When::Off(switch(off)?)),
-                },
-                action,
+                    definition.into(),
+                    &declarations,
+                    &marks,
+                    &clip.params,
+                )?,
+                definition,
             });
         }
-        let (composition_graph, _) = self.graph(document, &layer_ids, &marks, &rig.graph)?;
-        Ok(Rig {
+        let clip = |clip: &Name| {
+            let (id, span, definition) = clip_ids.get(&clip.0.value).copied().ok_or_else(|| {
+                self.invalid(
+                    document,
+                    clip.0.span,
+                    format!("no clip `{}`", clip.as_str()),
+                )
+            })?;
+            self.link_local(document, clip.0.span, span);
+            Ok::<_, LoadError>((id, definition))
+        };
+        let mut automation_ids = IndexMap::new();
+        for (automation, index) in console.automations.iter().zip(1..) {
+            automation_ids
+                .entry(name(&automation.name))
+                .or_insert((LiveAutomationId(index), automation.name.0.span));
+        }
+        let automation = |automation: &Name| {
+            let (id, span) = automation_ids
+                .get(&automation.0.value)
+                .copied()
+                .ok_or_else(|| {
+                    self.invalid(
+                        document,
+                        automation.0.span,
+                        format!("no live automation `{}`", automation.as_str()),
+                    )
+                })?;
+            self.link_local(document, automation.0.span, span);
+            Ok::<_, LoadError>(id)
+        };
+        let (composition_graph, node_ids) =
+            self.graph(document, &layer_ids, &marks, &console.graph)?;
+        let mut automations = Vec::with_capacity(console.automations.len());
+        for (live, index) in console.automations.iter().zip(1..) {
+            let bindings = live
+                .bindings
+                .iter()
+                .map(|binding| self.automation_target(document, &clip_ids, &node_ids, binding))
+                .collect::<Result<_, LoadError>>()?;
+            automations.push(LiveAutomation {
+                id: LiveAutomationId(index),
+                name: name(&live.name),
+                description: live.description.clone(),
+                value: live.value,
+                bindings,
+            });
+        }
+        let always = console
+            .always
+            .iter()
+            .map(|name| clip(name).map(|(id, _)| id))
+            .collect::<Result<_, _>>()?;
+        let values = |definition: EffectDefinitionId, values: &[types::PlayedValue]| {
+            values
+                .iter()
+                .map(|value| {
+                    self.link_param(document, definition, &value.param);
+                    PlayedValue {
+                        param: name(&value.param),
+                        from: match value.from {
+                            types::PlayedQuantity::Velocity => PlayedQuantity::Velocity,
+                            types::PlayedQuantity::Pitch => PlayedQuantity::Pitch,
+                            types::PlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
+                            types::PlayedQuantity::Fifths => PlayedQuantity::Fifths,
+                        },
+                    }
+                })
+                .collect()
+        };
+        let mut events = Vec::with_capacity(console.events.len());
+        for (on, index) in console.events.iter().zip(1..) {
+            let control = self.control_ref(document, on.event.control())?;
+            let actions = on
+                .actions
+                .iter()
+                .map(|action| {
+                    Ok(match action {
+                        types::Action::Play {
+                            clip: played,
+                            copies,
+                            length,
+                            values: played_values,
+                        } => {
+                            let (clip, definition) = clip(played)?;
+                            Action::Play(Play {
+                                clip,
+                                copies: *copies,
+                                length: match length {
+                                    types::PlayLength::Fixed { duration } => {
+                                        PlayLength::Fixed(DonderDuration(*duration))
+                                    }
+                                    types::PlayLength::Scaled {
+                                        by,
+                                        shortest,
+                                        longest,
+                                    } => PlayLength::Scaled {
+                                        by: match by {
+                                            types::LengthSource::Velocity => LengthSource::Velocity,
+                                            types::LengthSource::Automation {
+                                                automation: source,
+                                            } => LengthSource::Automation(automation(source)?),
+                                        },
+                                        shortest: DonderDuration(*shortest),
+                                        longest: DonderDuration(*longest),
+                                    },
+                                },
+                                values: values(definition, played_values),
+                            })
+                        }
+                        types::Action::Start {
+                            clip: started,
+                            values: played_values,
+                        } => {
+                            let (clip, definition) = clip(started)?;
+                            Action::Start {
+                                clip,
+                                values: values(definition, played_values),
+                            }
+                        }
+                        types::Action::Stop { clip: stopped } => Action::Stop {
+                            clip: clip(stopped)?.0,
+                        },
+                        types::Action::Toggle {
+                            clip: toggled,
+                            values: played_values,
+                        } => {
+                            let (clip, definition) = clip(toggled)?;
+                            Action::Toggle {
+                                clip,
+                                values: values(definition, played_values),
+                            }
+                        }
+                        types::Action::Mark { into } => {
+                            if let Some(span) = mark_names.get(&into.0.value) {
+                                self.link_local(document, into.0.span, *span);
+                            }
+                            Action::Mark(MarkCollectionKey { name: name(into) })
+                        }
+                        types::Action::Set { into } => Action::Set(automation(into)?),
+                    })
+                })
+                .collect::<Result<_, LoadError>>()?;
+            events.push(On {
+                id: OnId(index),
+                event: match on.event {
+                    types::InputEvent::Press { .. } => InputEvent::Press(control),
+                    types::InputEvent::Release { .. } => InputEvent::Release(control),
+                    types::InputEvent::Move { .. } => InputEvent::Move(control),
+                },
+                actions,
+            });
+        }
+        Ok(Console {
             id: *id,
-            description: rig.description.clone(),
-            frame_rate: rig.frame_rate,
-            live_marks: rig
+            description: console.description.clone(),
+            frame_rate: console.frame_rate,
+            live_marks: console
                 .marks
                 .iter()
                 .map(|collection| LiveMarks {
@@ -1754,12 +1737,28 @@ impl DomainResolver<'_> {
                     display_color: collection.color,
                 })
                 .collect(),
+            automations,
             layers,
-            voices,
-            switches,
-            mappings,
+            clips,
+            always,
+            events,
             composition_graph,
         })
+    }
+
+    /// Link `param` to its declaration in `definition`, when it declares it.
+    fn link_param(&self, document: &DocumentId, definition: EffectDefinitionId, param: &Name) {
+        if self
+            .definition_params(&definition)
+            .iter()
+            .any(|declaration| declaration.name == param.0.value)
+        {
+            self.loader.link(
+                document,
+                param.0.span,
+                self.script(definition, ScriptMember::Param(param.as_str().to_string())),
+            );
+        }
     }
 
     fn definition_params(&self, definition: &EffectDefinitionId) -> Vec<ParamDecl> {

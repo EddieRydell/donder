@@ -12,6 +12,7 @@
     )
 )]
 
+mod console;
 mod controller;
 mod effect;
 mod fixture;
@@ -23,11 +24,15 @@ mod operator;
 mod ownership;
 mod patch;
 mod project;
-mod rig;
 mod sequence;
 mod setup;
 mod validation;
 
+pub use console::{
+    Action, ClipUse, Console, ConsoleAutomationTarget, ConsoleClip, ConsoleClipId, InputEvent,
+    LengthSource, LiveAutomation, LiveAutomationId, LiveMarks, MAX_COPIES, On, OnId, OwnedConsole,
+    Play, PlayLength, PlayedQuantity, PlayedValue, sample_duration,
+};
 pub use controller::{
     ArtNetConfig, ArtNetMode, Controller, ControllerPort, ControllerPortAddress, ControllerPortId,
     ControllerProtocol, ControllerValidationError, DonderConfig, DonderDeviceId, E131Config,
@@ -47,14 +52,15 @@ pub use geometry::{
     PreparedPixel, element_handles, element_pixels, fixture_transform, prepare_geometry,
 };
 pub use identity::{
-    ControllerId, CurveId, EffectDefinitionId, FixtureDefinitionId, GradientId, InputDeviceId,
-    LayoutId, ObjectId, ObjectKind, OperatorDefinitionId, PatchId, ProjectId, RigId, SequenceId,
-    SetupId,
+    ConsoleId, ControllerId, CurveId, EffectDefinitionId, FixtureDefinitionId, GradientId,
+    InputDeviceId, LayoutId, ObjectId, ObjectKind, OperatorDefinitionId, PatchId, ProjectId,
+    SequenceId, SetupId,
 };
 pub use input_device::{
-    ButtonInput, ControlInput, ControlRef, DialInput, InputControl, InputControlId,
-    InputControlKind, InputDevice, InputDeviceValidationError, InputDriver, KeyCode, KeyRange,
-    MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, OscAddress, OwnedInputDevice,
+    AxisInput, ButtonInput, ControlInput, ControlRef, InputControl, InputControlId,
+    InputControlKind, InputDevice, InputDeviceValidationError, InputDriver, KeyCode,
+    MAX_MIDI_CHANNEL, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, MidiChannel, NoteRange, OscAddress,
+    OwnedInputDevice,
 };
 pub use layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
@@ -65,20 +71,15 @@ pub use operator::{
     composition_graph_root_dependencies, param_matches_type, validate_composition_graph,
 };
 pub use ownership::edit::{
-    OwnershipSite, add_rig, add_sequence, duplicate_layout_fixture, make_independent,
+    OwnershipSite, add_console, add_sequence, duplicate_layout_fixture, make_independent,
     make_reusable, use_existing,
 };
 pub use ownership::{Identified, Owned, OwnedMember};
 pub use patch::{OwnedPatch, Patch, PixelRoute, PixelRouteId, PixelSpan};
 pub use project::{
-    AcceptedClipInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigClip, AcceptedSequence,
-    DonderProject, EditError, EditRejection, Object, ProjectData, ProjectEdit, ProjectObject,
-    ProjectRoot, RIG_SESSION, Reusable, RigBinding, RigClipOrigin,
-};
-pub use rig::{
-    ControlTarget, LiveMarks, MAX_STACKED_VOICES, Mapping, MappingAction, OwnedRig, PlayedQuantity,
-    PlayedValue, Rig, RigClip, RigMappingId, RigSwitchId, RigVoiceId, Switch, Trigger,
-    TriggerLength, Voice, VoicePolicy, When,
+    AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
+    AcceptedSequence, CONSOLE_SESSION, ConsoleBinding, DonderProject, EditError, EditRejection,
+    Object, ProjectData, ProjectEdit, ProjectObject, ProjectRoot, Reusable,
 };
 pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationEnvelope,
@@ -93,9 +94,9 @@ pub use setup::authoring::{
 };
 pub use setup::{OwnedSetup, Setup};
 pub use validation::{
-    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, InputProblem,
-    MappingProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem, ProblemSite,
-    ProjectValidationError, RegionProblem, RigValidationError, RouteProblem,
-    SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
-    automation_target_param, validate_project, validate_rig, validate_sequence,
+    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
+    EventProblem, InputProblem, LiveAutomationProblem, Member, MemberPart, NameProblem,
+    OwnershipProblem, ParamProblem, ProblemSite, ProjectValidationError, RegionProblem,
+    RouteProblem, SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
+    automation_target_param, validate_console, validate_project, validate_sequence,
 };

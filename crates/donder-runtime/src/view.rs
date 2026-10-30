@@ -6,7 +6,7 @@ use donder_runtime_types::bytecode::Banks;
 use donder_runtime_types::{InstructionWord, SampleDuration, SampleTime};
 
 /// Current show format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 73;
+pub const FORMAT_VERSION: u32 = 75;
 
 /// Why a show is not played.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,9 +94,9 @@ impl<'a> Show<'a> {
         node.inputs.get(self.s.node_inputs)
     }
 
-    /// Whether the show is a rig: it has voices commands start.
-    pub(crate) fn is_rig(&self) -> bool {
-        !self.s.voices.is_empty() || !self.s.controls.is_empty()
+    /// Whether the show is a console's: it has voices commands start.
+    pub(crate) fn is_console(&self) -> bool {
+        !self.s.voices.is_empty() || !self.s.live_automations.is_empty()
     }
 
     /// The root node, or `None` for a black show.

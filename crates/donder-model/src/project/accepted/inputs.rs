@@ -16,7 +16,7 @@ use std::num::NonZeroU32;
 #[derive(Debug, Default)]
 pub(in crate::project) struct ProjectInputs {
     pub(super) sequences: IndexMap<SequenceId, SequenceInputs>,
-    pub(super) rigs: IndexMap<crate::rig::RigId, super::rig::RigInputs>,
+    pub(super) consoles: IndexMap<crate::console::ConsoleId, super::console::ConsoleInputs>,
     pub(super) layouts: IndexMap<crate::layout::LayoutId, super::geometry::LayoutGeometry>,
     pub(super) patches: IndexMap<crate::patch::PatchId, super::patch::PatchEncodings>,
 }
@@ -127,7 +127,7 @@ impl ProjectInputs {
         }
         Ok(Self {
             sequences,
-            rigs: super::rig::admit(project)?,
+            consoles: super::console::admit(project)?,
             layouts: super::geometry::admit(project, previous)?,
             patches: super::patch::admit(project)?,
         })

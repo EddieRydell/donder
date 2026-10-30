@@ -12,7 +12,7 @@ Every builtin function, context value and signal method of the [effect language]
 | `duration` | float | The clip's duration in seconds; in an operator, the sequence's. |
 | `progress` | float | `time / duration`, in 0..1. |
 | `frame_rate` | float | The sequence's frames per second. |
-| `frames_elapsed` | int | Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a rig command re-renders the same frame. |
+| `frames_elapsed` | int | Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a console command re-renders the same frame. |
 | `previous` | color | This pixel last frame: an operator's own output, or an effect's layer. `previous.at(i)` reads another pixel of the fixture and `around previous` its neighbors. Black until the first frame and for a clip previewed alone; kept as it was after a seek. |
 | `pixel.index` | int | The pixel's zero-based index within the target; in an operator, within its fixture instance. |
 | `pixel.fraction` | float | The pixel's index scaled to 0..1 across the target; in an operator, across its fixture instance. |

@@ -1,8 +1,8 @@
-//! Input devices: the hardware rigs play from.
+//! Input devices: the hardware consoles play from.
 use donder_model::{
-    ButtonInput, DialInput, InputControl, InputControlId, InputControlKind, InputDevice,
-    InputDeviceId, InputDriver, KeyCode, KeyRange, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
-    OscAddress,
+    AxisInput, ButtonInput, InputControl, InputControlId, InputControlKind, InputDevice,
+    InputDeviceId, InputDriver, KeyCode, MAX_MIDI_CHANNEL, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE,
+    MidiChannel, NoteRange, OscAddress,
 };
 use donder_project_io::ProjectSession;
 
@@ -17,6 +17,7 @@ pub(super) fn input_limits() -> GuiInputLimits {
     GuiInputLimits {
         max_note: MAX_MIDI_NOTE,
         max_control_change: MAX_MIDI_CONTROL_CHANGE,
+        max_channel: MAX_MIDI_CHANNEL,
     }
 }
 
@@ -55,34 +56,35 @@ fn gui_control(control: &InputControl) -> GuiInputControl {
                 ButtonInput::Key(code) => GuiControlInput::Key {
                     code: code.name().to_string(),
                 },
-                ButtonInput::Note(note) => GuiControlInput::Note { note: *note },
-                ButtonInput::ControlChange(number) => {
-                    GuiControlInput::ControlChange { number: *number }
-                }
+                ButtonInput::Notes { notes, channel } => GuiControlInput::Notes {
+                    low: notes.low,
+                    high: notes.high,
+                    channel: channel.map(|channel| channel.0),
+                },
+                ButtonInput::ControlChange { number, channel } => GuiControlInput::ControlChange {
+                    number: *number,
+                    channel: channel.map(|channel| channel.0),
+                },
                 ButtonInput::Address(path) => GuiControlInput::Address {
                     path: path.0.clone(),
                 },
             },
         ),
-        InputControlKind::Dial(input) => (
-            GuiInputControlKind::Dial,
+        InputControlKind::Axis(input) => (
+            GuiInputControlKind::Axis,
             match input {
-                DialInput::ControlChange(number) => {
-                    GuiControlInput::ControlChange { number: *number }
-                }
-                DialInput::PitchBend => GuiControlInput::PitchBend,
-                DialInput::Address { path, low, high } => GuiControlInput::AddressRange {
+                AxisInput::ControlChange { number, channel } => GuiControlInput::ControlChange {
+                    number: *number,
+                    channel: channel.map(|channel| channel.0),
+                },
+                AxisInput::PitchBend { channel } => GuiControlInput::PitchBend {
+                    channel: channel.map(|channel| channel.0),
+                },
+                AxisInput::Address { path, low, high } => GuiControlInput::AddressRange {
                     path: path.0.clone(),
                     low: *low,
                     high: *high,
                 },
-            },
-        ),
-        InputControlKind::Keys(range) => (
-            GuiInputControlKind::Keys,
-            GuiControlInput::Notes {
-                low: range.low,
-                high: range.high,
             },
         ),
     };
@@ -107,57 +109,60 @@ fn domain_control_kind(
                     .ok_or_else(|| GuiMutationError::Invalid(format!("`{code}` is not a key.")))?,
             ))
         }
-        (GuiInputControlKind::Button, GuiControlInput::Note { note }) => {
-            InputControlKind::Button(ButtonInput::Note(*note))
+        (GuiInputControlKind::Button, GuiControlInput::Notes { low, high, channel }) => {
+            InputControlKind::Button(ButtonInput::Notes {
+                notes: NoteRange {
+                    low: *low,
+                    high: *high,
+                },
+                channel: channel.map(MidiChannel),
+            })
         }
-        (GuiInputControlKind::Button, GuiControlInput::ControlChange { number }) => {
-            InputControlKind::Button(ButtonInput::ControlChange(*number))
+        (GuiInputControlKind::Button, GuiControlInput::ControlChange { number, channel }) => {
+            InputControlKind::Button(ButtonInput::ControlChange {
+                number: *number,
+                channel: channel.map(MidiChannel),
+            })
         }
-        (GuiInputControlKind::Dial, GuiControlInput::ControlChange { number }) => {
-            InputControlKind::Dial(DialInput::ControlChange(*number))
+        (GuiInputControlKind::Axis, GuiControlInput::ControlChange { number, channel }) => {
+            InputControlKind::Axis(AxisInput::ControlChange {
+                number: *number,
+                channel: channel.map(MidiChannel),
+            })
         }
         (GuiInputControlKind::Button, GuiControlInput::Address { path }) => {
             InputControlKind::Button(ButtonInput::Address(OscAddress(path.trim().to_string())))
         }
-        (GuiInputControlKind::Dial, GuiControlInput::PitchBend) => {
-            InputControlKind::Dial(DialInput::PitchBend)
+        (GuiInputControlKind::Axis, GuiControlInput::PitchBend { channel }) => {
+            InputControlKind::Axis(AxisInput::PitchBend {
+                channel: channel.map(MidiChannel),
+            })
         }
-        (GuiInputControlKind::Dial, GuiControlInput::AddressRange { path, low, high }) => {
-            InputControlKind::Dial(DialInput::Address {
+        (GuiInputControlKind::Axis, GuiControlInput::AddressRange { path, low, high }) => {
+            InputControlKind::Axis(AxisInput::Address {
                 path: OscAddress(path.trim().to_string()),
                 low: *low,
                 high: *high,
             })
         }
-        (GuiInputControlKind::Keys, GuiControlInput::Notes { low, high }) => {
-            InputControlKind::Keys(KeyRange {
-                low: *low,
-                high: *high,
-            })
-        }
-        (GuiInputControlKind::Keys, _) | (_, GuiControlInput::Notes { .. }) => {
+        (GuiInputControlKind::Button, GuiControlInput::PitchBend { .. }) => {
             return Err(GuiMutationError::Invalid(
-                "Keys read a range of notes, and only keys do.".into(),
-            ));
-        }
-        (GuiInputControlKind::Button, GuiControlInput::PitchBend) => {
-            return Err(GuiMutationError::Invalid(
-                "Pitch bend is a dial, not a button.".into(),
+                "Pitch bend is an axis, not a button.".into(),
             ));
         }
         (
-            GuiInputControlKind::Dial,
+            GuiInputControlKind::Axis,
             GuiControlInput::Key { .. }
-            | GuiControlInput::Note { .. }
+            | GuiControlInput::Notes { .. }
             | GuiControlInput::Address { .. },
         ) => {
             return Err(GuiMutationError::Invalid(
-                "Keys, notes and addresses without a range are buttons, not dials.".into(),
+                "Keys, notes and addresses without a range are buttons, not axes.".into(),
             ));
         }
         (GuiInputControlKind::Button, GuiControlInput::AddressRange { .. }) => {
             return Err(GuiMutationError::Invalid(
-                "An address with a range is a dial, not a button.".into(),
+                "An address with a range is an axis, not a button.".into(),
             ));
         }
     })

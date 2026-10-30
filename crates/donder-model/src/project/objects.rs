@@ -172,9 +172,9 @@ owned_kind!(Sequence => SequenceId, sequences,
     project.root.sequences[index].inline_mut()
 });
 
-owned_kind!(Rig => RigId, rigs,
-|project| project.root.rigs.iter().filter_map(OwnedMember::inline),
+owned_kind!(Console => ConsoleId, consoles,
+|project| project.root.consoles.iter().filter_map(OwnedMember::inline),
 |project, id| {
-    let index = member_position(&project.root.rigs, &id)?;
-    project.root.rigs[index].inline_mut()
+    let index = member_position(&project.root.consoles, &id)?;
+    project.root.consoles[index].inline_mut()
 });

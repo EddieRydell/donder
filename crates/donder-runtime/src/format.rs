@@ -76,7 +76,7 @@ pub(crate) struct Meta {
     pub(crate) buffers: u32,
     /// State buffers: the previous frames of the nodes that read them.
     pub(crate) states: u32,
-    /// A rig's live mark collections.
+    /// A console's live mark collections.
     pub(crate) collections: u32,
 }
 
@@ -451,26 +451,23 @@ pub struct Output {
     pub width: u32,
 }
 
-/// A voice of length [`NONE`] plays until stopped.
+/// A live automation: the automation bindings it sets.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub(crate) struct Voice {
-    pub(crate) clip: u32,
-    pub(crate) duration: u32,
-}
-
-/// A control: the automation bindings it sets.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct Control {
+pub(crate) struct LiveAutomation {
     pub(crate) targets: Range,
 }
 
+/// An automation binding a live automation sets: `binding` of automation
+/// plan `plan`, a clip's or an operator node's.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub(crate) struct ControlTarget {
-    pub(crate) clip: u32,
+pub(crate) struct LiveTarget {
+    pub(crate) plan: u32,
     pub(crate) binding: u32,
+    /// The clip whose plan it is, whose start its time counts from, or
+    /// [`NONE`] for an operator node's, counting from the session's start.
+    pub(crate) clip: u32,
 }
 
 pub(crate) use donder_runtime_types::InstructionWord;
@@ -576,9 +573,9 @@ sections! {
     routes: Route,
     lookups: Lookup,
     outputs: Output,
-    voices: Voice,
-    controls: Control,
-    control_targets: ControlTarget,
+    voices: u32,
+    live_automations: LiveAutomation,
+    live_targets: LiveTarget,
 }
 
 fn section<T: Pod>(payload: &[u8], entry: SectionEntry) -> &[T] {

@@ -1,4 +1,4 @@
-//! Turn one selected sequence or rig from a loaded project into portable playback data.
+//! Turn one selected sequence or console from a loaded project into portable playback data.
 //!
 //! The active setup belongs to the project. Selection is the only optional part:
 //! the preparation implementation is private, and playback belongs to runtime.
@@ -14,16 +14,16 @@
     )
 )]
 
-mod rig;
+mod console;
 mod selection;
 mod sequence;
 mod stage;
 
+pub use console::{ArmedClip, ArmedConsole, arm};
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::{ControllerId, ControllerPortId};
 pub use donder_runtime::PreparedShow;
-pub use rig::{ArmedRig, arm};
 pub use sequence::PreparationCache;
 
 /// Which hardware outputs a show keeps. Explicit lists preserve first-occurrence

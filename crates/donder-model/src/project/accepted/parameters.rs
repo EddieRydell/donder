@@ -18,7 +18,7 @@ pub(crate) struct ClipTiming {
 pub(crate) enum MarkOrigin<'a> {
     /// A sequence's authored collections.
     Authored(&'a [MarkCollection]),
-    /// A rig's live collections, which start empty; playback rebinds them.
+    /// A console's live collections, which start empty; playback rebinds them.
     Live,
 }
 

@@ -20,6 +20,7 @@ import rainbow from <sequences/rainbow.data.donder>;
 import joy_to_the_world from <sequences/joy_to_the_world.data.donder>;
 import tiny_tree from <sequences/tiny_tree.data.donder>;
 import trans_siberian_mix from <sequences/trans_siberian_mix.data.donder>;
+import consoles from <consoles/mpk_mini.data.donder>;
 
 Project rydell_house {
   format: 1,
@@ -45,22 +46,5 @@ Project rydell_house {
     tiny_tree.tiny_tree,
     trans_siberian_mix.trans_siberian_mix,
   ],
-  rigs: [
-    Rig keyboard_mapping {
-      description: none,
-      frame_rate: 100,
-      marks: [],
-      layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
-      scene: [],
-      switches: [],
-      mappings: [],
-      graph: Graph {
-        nodes: [
-          LayerNode { layer: default, position: (80.0, 80.0) },
-          RootNode { position: (420.0, 80.0) },
-        ],
-        edges: [Edge { from: default, to: root }],
-      },
-    },
-  ],
+  consoles: [consoles.mpk_mini],
 }

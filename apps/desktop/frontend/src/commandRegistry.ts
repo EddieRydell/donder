@@ -129,7 +129,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
   "project.reload": command("Reload / Check Project", "Project", ["refresh", "diagnostics"], async () => {
     await runWorkspaceTransition({ type: "reloadProject" });
   }, hasProject, [shortcut("r", { primary: true })]),
-  "perform.stop": command("Stop Performing", "Perform", ["rig", "live", "keyboard"], stopPerforming, isPerforming),
+  "perform.stop": command("Stop Performing", "Perform", ["console", "live", "keyboard"], stopPerforming, isPerforming),
 };
 
 /** Commands the topmost editor surface implements; they are enabled while it does. */

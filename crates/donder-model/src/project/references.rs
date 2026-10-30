@@ -2,12 +2,12 @@
 //! link to an object written elsewhere; objects owned in place are not
 //! references of their owner.
 use super::{DonderProject, ProjectRoot};
+use crate::console::{Console, InputEvent};
 use crate::effect::{Clip, ParamValue};
 use crate::identity::ObjectId;
 use crate::layout::{Layout, LayoutFixtureKind};
 use crate::ownership::{Owned, OwnedMember};
 use crate::patch::Patch;
-use crate::rig::{MappingAction, Rig, RigClip};
 use crate::sequence::{CompositionGraphNodeKind, Sequence, SequenceCompositionGraph};
 use crate::setup::Setup;
 
@@ -72,7 +72,7 @@ macro_rules! walks {
                     $visit!(f, changed, owner, *id);
                 }
             }
-            for source in & $($m)* root.rigs {
+            for source in & $($m)* root.consoles {
                 if let OwnedMember::Reference(id) = source {
                     $visit!(f, changed, owner, *id);
                 }
@@ -135,28 +135,18 @@ macro_rules! walks {
             }
         }
 
-        pub(super) fn rig(owner: ObjectId, rig: & $($m)* Rig, f: &mut Visit<'_>, changed: &mut bool) {
-            for voice in & $($m)* rig.voices {
-                rig_clip(owner, & $($m)* voice.clip, f, changed);
-            }
-            for switch in & $($m)* rig.switches {
-                $visit!(f, changed, owner, switch.input.device);
-            }
-            for mapping in & $($m)* rig.mappings {
-                $visit!(f, changed, owner, mapping.input.device);
-                if let MappingAction::Trigger(trigger) = & $($m)* mapping.action {
-                    rig_clip(owner, & $($m)* trigger.clip, f, changed);
+        pub(super) fn console(owner: ObjectId, console: & $($m)* Console, f: &mut Visit<'_>, changed: &mut bool) {
+            for clip in & $($m)* console.clips {
+                $visit!(f, changed, owner, clip.target.layout);
+                $visit!(f, changed, owner, clip.definition);
+                for value in (& $($m)* clip.param_overrides).values_mut_or_ref() {
+                    param(owner, value, f, changed);
                 }
             }
-            graph(owner, & $($m)* rig.composition_graph, f, changed);
-        }
-
-        fn rig_clip(owner: ObjectId, clip: & $($m)* RigClip, f: &mut Visit<'_>, changed: &mut bool) {
-            $visit!(f, changed, owner, clip.target.layout);
-            $visit!(f, changed, owner, clip.definition);
-            for value in (& $($m)* clip.param_overrides).values_mut_or_ref() {
-                param(owner, value, f, changed);
+            for on in & $($m)* console.events {
+                $visit!(f, changed, owner, (& $($m)* on.event).control_mut_or_ref().device);
             }
+            graph(owner, & $($m)* console.composition_graph, f, changed);
         }
 
         fn graph(owner: ObjectId, graph: & $($m)* SequenceCompositionGraph, f: &mut Visit<'_>, changed: &mut bool) {
@@ -218,6 +208,26 @@ impl<'a, K, V> ValuesOf<'a, &'a mut V> for &'a mut indexmap::IndexMap<K, V> {
     }
 }
 
+/// The control an event reads, borrowed as the event is.
+trait ControlOf<'a> {
+    type Control;
+    fn control_mut_or_ref(self) -> Self::Control;
+}
+
+impl<'a> ControlOf<'a> for &'a InputEvent {
+    type Control = &'a crate::input_device::ControlRef;
+    fn control_mut_or_ref(self) -> Self::Control {
+        self.control()
+    }
+}
+
+impl<'a> ControlOf<'a> for &'a mut InputEvent {
+    type Control = &'a mut crate::input_device::ControlRef;
+    fn control_mut_or_ref(self) -> Self::Control {
+        self.control_mut()
+    }
+}
+
 mod read {
     walks!(visit_read, clip_read,);
 }
@@ -266,8 +276,8 @@ impl DonderProject {
         for sequence in self.objects::<Sequence>() {
             read::sequence(sequence.id.into(), sequence, f, changed);
         }
-        for rig in self.objects::<Rig>() {
-            read::rig(rig.id.into(), rig, f, changed);
+        for console in self.objects::<Console>() {
+            read::console(console.id.into(), console, f, changed);
         }
     }
 
@@ -291,7 +301,7 @@ impl DonderProject {
         retarget!(self, f, layout, Layout);
         retarget!(self, f, patch, Patch);
         retarget!(self, f, sequence, Sequence);
-        retarget!(self, f, rig, Rig);
+        retarget!(self, f, console, Console);
     }
 }
 
@@ -314,7 +324,7 @@ macro_rules! references_of {
         }
     )*};
 }
-references_of!(Patch => patch, Rig => rig, Sequence => sequence);
+references_of!(Patch => patch, Console => console, Sequence => sequence);
 
 impl<T: References> References for Box<T> {
     fn references(&self, visit: &mut dyn FnMut(ObjectId)) {

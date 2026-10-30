@@ -23,11 +23,12 @@ pub use audio::{
 pub use diagnostics::{Rotation3Degrees, Scale3};
 pub use donder_project_io::{IoDiagnostic, TextPosition, TextRange};
 pub use live::{
-    GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits,
-    InputDeviceGuiDocument, ProjectGuiEdit, RigActionChoice, RigClip, RigClipEdit, RigClipOwner,
-    RigControlRef, RigControlTarget, RigGuiDocument, RigGuiEdit, RigInput, RigInputControl,
-    RigInputDevice, RigLiveMarks, RigMapping, RigMappingAction, RigPlayedQuantity, RigPlayedValue,
-    RigSwitch, RigTriggerLength, RigVoice, RigVoicePolicy, RigWhen, SetupInputDevice,
+    ConsoleAction, ConsoleAutomation, ConsoleClip, ConsoleClipEdit, ConsoleControlRef,
+    ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInput, ConsoleInputControl,
+    ConsoleInputDevice, ConsoleLengthSource, ConsoleLiveMarks, ConsoleOn, ConsolePlayLength,
+    ConsolePlayedQuantity, ConsolePlayedValue, GuiControlInput, GuiInputControl,
+    GuiInputControlKind, GuiInputDriver, GuiInputLimits, InputDeviceGuiDocument, ProjectGuiEdit,
+    SetupInputDevice,
 };
 pub use output::{
     ControllerOutputTest, DonderDeviceClaim, DonderDeviceConnection, DonderDeviceNetwork,
@@ -40,8 +41,7 @@ pub use patch::{
     PatchLayout,
 };
 pub use perform::{
-    PerformButton, PerformMidi, PerformOsc, PerformRig, PerformSession, PerformSnapshot,
-    PerformSwitch,
+    PerformButton, PerformConsole, PerformMidi, PerformOsc, PerformSession, PerformSnapshot,
 };
 pub use preview::{
     FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,
@@ -239,7 +239,7 @@ pub enum SequenceGuiEdit {
     },
 }
 
-/// Edits to the layers and composition graph that sequences and rigs share.
+/// Edits to the layers and composition graph that sequences and consoles share.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",

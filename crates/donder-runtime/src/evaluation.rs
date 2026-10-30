@@ -17,7 +17,7 @@ use crate::resources::{LiveView, ParamsView};
 use crate::sections::SectionsView;
 use crate::targets::{PreparedPixel, TargetCursor, TargetView};
 use crate::view::Show;
-use crate::workspace::{CachedClipColor, RigState, Timing, Workspace};
+use crate::workspace::{CachedClipColor, ConsoleState, Timing, Workspace};
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 /// One clip at one time, evaluated over any selection of pixel coordinates.
@@ -30,7 +30,7 @@ pub(crate) struct ClipEvaluator<'a> {
     target: TargetView<'a>,
 }
 
-/// The clips' timing and each layer's start order: the show's, or a rig's
+/// The clips' timing and each layer's start order: the show's, or a console's
 /// as its commands moved them.
 #[derive(Clone, Copy)]
 pub(crate) struct Timeline<'a> {
@@ -475,7 +475,7 @@ impl<'w> Programs<'_, 'w> {
     }
 }
 
-/// The controls of `plan`'s bindings, or none.
+/// The live automations of `plan`'s bindings, or none.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn overrides<'o>(show: Show<'_>, plan: u32, all: &'o [Override]) -> &'o [Override] {
@@ -774,17 +774,17 @@ mod frames {
             scratch,
             gather,
             clip_colors,
-            rig,
+            console,
             ..
         } = workspace;
-        let RigState {
+        let ConsoleState {
             timing,
             layer_order,
             layer_ends,
             overrides,
             live_tracks,
             live_ticks,
-        } = rig;
+        } = console;
         let timeline = Timeline::new(show, timing, layer_order, layer_ends);
         let plan = TargetView::of(show, &show.s.targets[show.meta().plan_target as usize]);
         let mut programs = Programs {
