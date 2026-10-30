@@ -10,10 +10,11 @@ import { THEME_COLORS, THEME_METRICS } from "../theme";
 const NEW_PROJECT_EVENT = "donder:new-project";
 
 export function NewProjectDialog() {
-  const [mode, setMode] = useState<"createProject" | "copyProject">("createProject");
+  const [mode, setMode] = useState<"createProject" | "copyProject" | "importXLights">("createProject");
   const [open, setOpen] = useState(false);
   const [directoryName, setDirectoryName] = useState("");
   const [parentPath, setParentPath] = useState("");
+  const [showPath, setShowPath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -28,10 +29,17 @@ export function NewProjectDialog() {
       setOpen(true);
       setError(null);
     };
+    const onImportXLights = () => {
+      setMode("importXLights");
+      setOpen(true);
+      setError(null);
+    };
     window.addEventListener("donder:copy-project", onCopyProject);
+    window.addEventListener("donder:import-xlights", onImportXLights);
     window.addEventListener(NEW_PROJECT_EVENT, onNewProject);
     return () => {
       window.removeEventListener(NEW_PROJECT_EVENT, onNewProject);
+      window.removeEventListener("donder:import-xlights", onImportXLights);
       window.removeEventListener("donder:copy-project", onCopyProject);
     };
   }, []);
@@ -41,13 +49,26 @@ export function NewProjectDialog() {
     if (parentPath === "" || directoryName === "") return "";
     return `${parentPath.replace(/[\\/]+$/, "")}/${directoryName}`;
   }, [directoryName, parentPath]);
-  const createDisabled = creating || parentPath === "" || directoryName === "" || nameError !== null;
+  const createDisabled = creating || parentPath === "" || directoryName === "" || nameError !== null
+    || (mode === "importXLights" && showPath === "");
 
   async function browseParent() {
     try {
       const selected = await commands.chooseNewProjectParentDirectory();
       if (selected !== null) {
         setParentPath(selected);
+        setError(null);
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
+  async function browseShow() {
+    try {
+      const selected = await commands.chooseXlightsShowDirectory();
+      if (selected !== null) {
+        setShowPath(selected);
         setError(null);
       }
     } catch (caught) {
@@ -64,7 +85,9 @@ export function NewProjectDialog() {
     try {
       const applied = await runWorkspaceTransition(mode === "createProject"
         ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor }
-        : { type: mode, parentPath, directoryName });
+        : mode === "importXLights"
+          ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor, showPath }
+          : { type: mode, parentPath, directoryName });
       if (!applied) {
         setError(useAppStore.getState().error);
         return;
@@ -73,6 +96,7 @@ export function NewProjectDialog() {
       setOpen(false);
       setDirectoryName("");
       setParentPath("");
+      setShowPath("");
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -85,9 +109,22 @@ export function NewProjectDialog() {
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="dialog-overlay" />
         <AlertDialog.Content className="dialog-content new-project-dialog">
-          <AlertDialog.Title>{mode === "copyProject" ? "Create Standalone Project Copy" : "New Project"}</AlertDialog.Title>
+          <AlertDialog.Title>{mode === "copyProject" ? "Create Standalone Project Copy" : mode === "importXLights" ? "Import xLights Show" : "New Project"}</AlertDialog.Title>
           {mode === "copyProject" && <AlertDialog.Description>Create and open a separate project containing the current show, imported definitions, and referenced audio. The copied files can be edited independently. Choose a new folder.</AlertDialog.Description>}
+          {mode === "importXLights" && <AlertDialog.Description>Create and open a new project with the layout, controllers and patch of an xLights show. Choose the show folder, which holds xlights_rgbeffects.xml.</AlertDialog.Description>}
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
+            {mode === "importXLights" && (
+              <label>
+                <span>xLights show folder</span>
+                <div className="new-project-location-row">
+                  <input readOnly value={showPath} />
+                  <button type="button" disabled={creating} onClick={() => void browseShow()}>
+                    <FolderOpen size={THEME_METRICS.iconSizeSmall} />
+                    Browse...
+                  </button>
+                </div>
+              </label>
+            )}
             <label>
               <span>Project folder name</span>
               <input
@@ -120,7 +157,7 @@ export function NewProjectDialog() {
             <div className="dialog-actions">
               <AlertDialog.Cancel disabled={creating}>Cancel</AlertDialog.Cancel>
               <button type="submit" disabled={createDisabled}>
-                {creating ? "Creating..." : mode === "copyProject" ? "Create and open copy" : "Create"}
+                {creating ? "Creating..." : mode === "copyProject" ? "Create and open copy" : mode === "importXLights" ? "Import" : "Create"}
               </button>
             </div>
           </form>

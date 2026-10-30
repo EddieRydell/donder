@@ -12,6 +12,8 @@ export const commands = {
 	getRestoredViewState: () => __TAURI_INVOKE<ProjectRestoreState>("get_restored_view_state").then((v) => (({...v,editorStates:Object.fromEntries(Object.entries(v.editorStates).map(([k,v])=>[k,v])),sequenceViewports:Object.fromEntries(Object.entries(v.sequenceViewports).map(([k,v])=>[k,({...v,rowHeights:Object.fromEntries(Object.entries(v.rowHeights).map(([k,v])=>[k,v]))})])),spatialViews:Object.fromEntries(Object.entries(v.spatialViews).map(([k,v])=>[k,({...v,guides:v.guides.map(i=>i)})])),graphViews:Object.fromEntries(Object.entries(v.graphViews).map(([k,v])=>[k,({...v,viewport:v.viewport==null?v.viewport:v.viewport,nodeSizes:Object.fromEntries(Object.entries(v.nodeSizes).map(([k,v])=>[k,v]))})]))}) as typeof v)),
 	openProjectDialog: () => __TAURI_INVOKE<string | null>("open_project_dialog"),
 	chooseNewProjectParentDirectory: () => __TAURI_INVOKE<string | null>("choose_new_project_parent_directory"),
+	/**  The folder of an xLights show, holding `xlights_rgbeffects.xml`. */
+	chooseXlightsShowDirectory: () => __TAURI_INVOKE<string | null>("choose_xlights_show_directory"),
 	createSequence: (request: NewSequenceRequest) => typedError<NewSequenceResult, string>(__TAURI_INVOKE("create_sequence", { request })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,snapshot:({...v.data.snapshot,audioTransport:({...v.data.snapshot.audioTransport,range:v.data.snapshot.audioTransport.range==null?v.data.snapshot.audioTransport.range:v.data.snapshot.audioTransport.range})})}) } : v) as typeof v)),
 	openFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("open_file", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	resolveGuiSource: (path: string, objectKey: string) => typedError<GuiDocumentRequest, string>(__TAURI_INVOKE("resolve_gui_source", { path, objectKey })),
@@ -93,7 +95,7 @@ export const commands = {
 
 /* Types */
 /**  Commands the workbench runs, whatever editor is open. */
-export type AppCommandId = "file.newProject" | "file.copyProject" | "file.newSequence" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.quickOpen" | "workbench.commandPalette" | "project.reload" | "perform.stop";
+export type AppCommandId = "file.newProject" | "file.copyProject" | "file.importXLights" | "file.newSequence" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.quickOpen" | "workbench.commandPalette" | "project.reload" | "perform.stop";
 
 export type AppSettings = {
 	reopenLastProject: boolean,
@@ -1692,7 +1694,12 @@ export type WorkspacePathChangeRequest = {
 	projectRevision: number,
 };
 
-export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string; initialColor: string } | { type: "copyProject"; parentPath: string; directoryName: string } | { type: "closeApplication" };
+export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string; initialColor: string } | { type: "copyProject"; parentPath: string; directoryName: string } | 
+/**
+ *  A new project holding the layout, controllers and patch of the
+ *  xLights show in `show_path`.
+ */
+{ type: "importXLights"; parentPath: string; directoryName: string; initialColor: string; showPath: string } | { type: "closeApplication" };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

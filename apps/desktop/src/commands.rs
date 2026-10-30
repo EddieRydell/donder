@@ -45,6 +45,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         get_restored_view_state,
         open_project_dialog,
         choose_new_project_parent_directory,
+        choose_xlights_show_directory,
         create_sequence,
         open_file,
         resolve_gui_source,

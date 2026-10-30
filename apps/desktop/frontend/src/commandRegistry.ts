@@ -45,6 +45,9 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
   "file.copyProject": command("Create Standalone Project Copy...", "File", ["copy", "folder"], () => {
     window.dispatchEvent(new CustomEvent("donder:copy-project"));
   }, hasProject),
+  "file.importXLights": command("Import xLights Show...", "File", ["xlights", "layout", "controllers", "create"], () => {
+    window.dispatchEvent(new CustomEvent("donder:import-xlights"));
+  }),
   "file.newSequence": command("New Sequence...", "File", ["create", "document"], () => {
     window.dispatchEvent(new CustomEvent("donder:new-sequence"));
   }, hasProject),

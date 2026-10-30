@@ -421,6 +421,61 @@ impl DesktopState {
         self.open_created_project_locked(&root)
     }
 
+    /// A new project from the template, then the xLights show in
+    /// `show_path` imported into it. What was left out is written to
+    /// [`XLIGHTS_REPORT_FILE`] in the project.
+    pub(super) fn import_xlights_project_locked(
+        &self,
+        parent_path: &str,
+        directory_name: &str,
+        initial_color: &str,
+        show_path: &str,
+    ) -> AppSnapshot {
+        let root = match project_destination(parent_path, directory_name) {
+            Ok(root) => root,
+            Err(error) => {
+                return self.snapshot_with_error("project.importXLights", parent_path, &error);
+            }
+        };
+        let files = match new_project_files(directory_name, initial_color) {
+            Ok(files) => files,
+            Err(error) => {
+                return self.snapshot_with_error("project.importXLights", root.as_str(), &error);
+            }
+        };
+        let imported = {
+            let _filesystem = lock_unpoisoned(&self.filesystem);
+            write_new_project_files(&root, &files).and_then(|()| {
+                let imported = import_xlights(&root, Utf8Path::new(show_path));
+                if imported.is_err() {
+                    let _ = std::fs::remove_dir_all(&root);
+                }
+                imported
+            })
+        };
+        let report = match imported {
+            Ok(report) => report,
+            Err(error) => {
+                return self.snapshot_with_error("project.importXLights", show_path, &error);
+            }
+        };
+        let opened = self.open_created_project_locked(&root);
+        if opened.project_root.as_deref() != Some(root.as_str()) {
+            return opened;
+        }
+        let left_out = report.skipped.len() + report.unrouted.len();
+        self.update_snapshot(|snapshot| {
+            snapshot.status = if left_out == 0 {
+                format!("Imported {} fixtures from xLights", report.fixtures)
+            } else {
+                format!(
+                    "Imported {} fixtures from xLights; {left_out} models left out or not patched are listed in {XLIGHTS_REPORT_FILE}",
+                    report.fixtures
+                )
+            };
+        })
+    }
+
     pub(super) fn copy_project_locked(
         &self,
         parent_path: &str,
@@ -586,4 +641,28 @@ fn project_destination(parent_path: &str, directory_name: &str) -> Result<Utf8Pa
         return Err("Project folder already exists".into());
     }
     Ok(root)
+}
+
+/// Where an xLights import lists what it left out.
+const XLIGHTS_REPORT_FILE: &str = "xlights-import.txt";
+
+/// Import the xLights show at `show` into the new project at `root`.
+fn import_xlights(
+    root: &Utf8Path,
+    show: &Utf8Path,
+) -> Result<donder_xlights::ImportReport, String> {
+    let mut session =
+        donder_project_io::check_project(root, &Default::default(), &mut Default::default())
+            .into_session()
+            .map_err(|diagnostics| format!("The new project does not load: {diagnostics:?}"))?;
+    let report = donder_xlights::import_show(
+        &mut session,
+        show,
+        &donder_xlights::ImportOptions::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    donder_project_io::save_project(&session).map_err(|error| error.to_string())?;
+    std::fs::write(root.join(XLIGHTS_REPORT_FILE), report.to_string())
+        .map_err(|error| error.to_string())?;
+    Ok(report)
 }
