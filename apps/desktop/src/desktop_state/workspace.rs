@@ -463,13 +463,16 @@ impl DesktopState {
         if opened.project_root.as_deref() != Some(root.as_str()) {
             return opened;
         }
-        let left_out = report.skipped.len() + report.unrouted.len();
+        let left_out = report.skipped.len()
+            + report.unrouted.len()
+            + report.skipped_controllers.len()
+            + report.dropped_members.len();
         self.update_snapshot(|snapshot| {
             snapshot.status = if left_out == 0 {
                 format!("Imported {} fixtures from xLights", report.fixtures)
             } else {
                 format!(
-                    "Imported {} fixtures from xLights; {left_out} models left out or not patched are listed in {XLIGHTS_REPORT_FILE}",
+                    "Imported {} fixtures from xLights; {left_out} models, controllers and group members left out or not patched are listed in {XLIGHTS_REPORT_FILE}",
                     report.fixtures
                 )
             };

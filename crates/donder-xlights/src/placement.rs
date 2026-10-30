@@ -53,10 +53,20 @@ pub(crate) fn boxed(spec: &Spec) -> Result<Placement, SkipReason> {
     })
 }
 
+/// The line from the model's first point to its second, which must be two
+/// places for the model to have a direction and a length.
+fn offset(spec: &Spec) -> Result<DVec3, SkipReason> {
+    let offset = point(spec, "X2", "Y2", "Z2", 0.0)?;
+    if offset == DVec3::ZERO {
+        return Err(SkipReason::Unplaceable("its two end points are the same"));
+    }
+    Ok(offset)
+}
+
 pub(crate) fn two_point(spec: &Spec, width: f64) -> Result<Placement, SkipReason> {
     Ok(Placement::TwoPoint {
         start: position(spec)?,
-        offset: point(spec, "X2", "Y2", "Z2", 0.0)?,
+        offset: offset(spec)?,
         width,
     })
 }
@@ -66,7 +76,7 @@ pub(crate) fn two_point(spec: &Spec, width: f64) -> Result<Placement, SkipReason
 pub(crate) fn three_point(spec: &Spec, width: f64, stretch: bool) -> Result<Placement, SkipReason> {
     Ok(Placement::ThreePoint {
         start: position(spec)?,
-        offset: point(spec, "X2", "Y2", "Z2", 0.0)?,
+        offset: offset(spec)?,
         width,
         tilt: spec.float("RotateX", 0.0)?,
         height: if stretch {
@@ -96,15 +106,6 @@ fn x_onto(direction: DVec3) -> DQuat {
     }
 }
 
-/// A placement's line, made long enough to have a direction.
-fn line(offset: DVec3) -> DVec3 {
-    if offset == DVec3::ZERO {
-        DVec3::new(0.001, 0.0, 0.0)
-    } else {
-        offset
-    }
-}
-
 impl Placement {
     pub(crate) fn transform(&self) -> DAffine3 {
         match *self {
@@ -113,7 +114,6 @@ impl Placement {
                 scale,
                 degrees,
             } => {
-                let degrees = degrees.clamp(DVec3::splat(-180.0), DVec3::splat(180.0));
                 let rotation = DQuat::from_rotation_z(degrees.z.to_radians())
                     * DQuat::from_rotation_y(degrees.y.to_radians())
                     * DQuat::from_rotation_x(degrees.x.to_radians());
@@ -124,7 +124,6 @@ impl Placement {
                 offset,
                 width,
             } => {
-                let offset = line(offset);
                 let scale = offset.length() / width;
                 DAffine3::from_scale_rotation_translation(
                     DVec3::splat(scale),
@@ -140,7 +139,6 @@ impl Placement {
                 height,
                 shear,
             } => {
-                let offset = line(offset);
                 let scale = offset.length() / width;
                 // A line drawn right to left keeps the model upright.
                 let rotation = if offset.x < 0.0 {

@@ -48,6 +48,16 @@ pub(super) fn star(spec: &Spec) -> Result<Local, SkipReason> {
             })
         })
         .collect::<Result<Vec<u32>, _>>()?;
+    if sizes.iter().map(|&size| u64::from(size)).sum::<u64>() != u64::from(total) {
+        return Err(SkipReason::Attribute {
+            name: "LayerSizes".to_string(),
+            value: sizes
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+        });
+    }
     let layers = sizes.len() as u32;
     let width = sizes
         .iter()

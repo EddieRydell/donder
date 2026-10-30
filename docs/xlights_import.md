@@ -27,10 +27,11 @@ model sizes in `parm1`, `parm2` and `parm3`.
 
 ## Size
 
-xLights layouts are in preview units. A layout with a ruler takes its size
-from the ruler. Otherwise the typical distance between neighbouring pixels is
-taken to be 7.5 cm, the spacing of most pixel strings; `--pixel-spacing`
-sets another distance in meters.
+xLights layouts are in preview units. `--pixel-spacing` sets the typical
+distance between neighbouring pixels in meters, and with it the layout's
+size, even when the layout has a ruler. Without it, a layout with a ruler
+takes its size from the ruler, and one without takes neighbouring pixels to
+be 7.5 cm apart, the spacing of most pixel strings.
 
 ## What is left out
 

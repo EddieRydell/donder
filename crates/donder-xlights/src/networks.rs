@@ -6,6 +6,9 @@
 
 use crate::xml::Element;
 
+/// The most universes one output sends: every E1.31 universe.
+const MOST_UNIVERSES: u32 = 63_999;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Protocol {
     E131,
@@ -71,19 +74,28 @@ fn number<T: std::str::FromStr>(element: &Element, name: &str) -> Result<Option<
 /// several consecutive universes.
 fn outputs(network: &Element, next: &mut u32) -> Result<Vec<Output>, String> {
     let channels = number(network, "MaxChannels")?.unwrap_or(512);
-    let universe = number(network, "BaudRate")?.unwrap_or(1);
-    let count = number(network, "NumUniverses")?.unwrap_or(1).max(1);
-    Ok((0..count)
+    let universe: u32 = number(network, "BaudRate")?.unwrap_or(1);
+    let count: u32 = number(network, "NumUniverses")?.unwrap_or(1).max(1);
+    if count > MOST_UNIVERSES {
+        return Err(format!(
+            "`NumUniverses` is {count}; no output sends more than {MOST_UNIVERSES}"
+        ));
+    }
+    (0..count)
         .map(|index| {
             let output = Output {
-                universe: universe + index,
+                universe: universe
+                    .checked_add(index)
+                    .ok_or_else(|| format!("universe {universe} and on is past the last"))?,
                 channels,
                 start: *next,
             };
-            *next += channels;
-            output
+            *next = next
+                .checked_add(channels)
+                .ok_or("the outputs number more channels than xLights can")?;
+            Ok(output)
         })
-        .collect())
+        .collect()
 }
 
 impl Networks {

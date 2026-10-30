@@ -20,6 +20,9 @@ struct Grid {
     cells: Vec<Cell>,
     width: u32,
     height: u32,
+    strings: u32,
+    /// Each string's nodes: whole strands, as xLights counts them.
+    string_nodes: u32,
 }
 
 /// Where a strand's node `index` of `count` sits along it, with the strand's
@@ -46,12 +49,15 @@ fn along(index: u32, count: u32, forward: bool, alternate: bool) -> u32 {
 /// Horizontal strands are rows, the same with the axes swapped.
 fn grid(spec: &Spec, vertical: bool) -> Result<Grid, SkipReason> {
     let strings = spec.count("NumStrings", "parm1", 1)?;
-    let string_nodes = spec.count("NodesPerString", "parm2", 1)?;
+    let written_nodes = spec.count("NodesPerString", "parm2", 1)?;
     let strands_per_string = spec
         .count("StrandsPerString", "parm3", 1)?
-        .clamp(1, string_nodes.max(1));
+        .clamp(1, written_nodes.max(1));
     let strands = super::nodes(&[strings, strands_per_string])?;
-    let strand_nodes = string_nodes / strands_per_string;
+    let strand_nodes = written_nodes / strands_per_string;
+    // Like xLights, a string's nodes past its last whole strand are not
+    // part of the model.
+    let string_nodes = strands_per_string * strand_nodes;
     super::nodes(&[strands, strand_nodes])?;
     let alternate = spec.is_true("AlternateNodes", false);
     let zig_zag = !spec.is_true("NoZig", false);
@@ -105,14 +111,13 @@ fn grid(spec: &Spec, vertical: bool) -> Result<Grid, SkipReason> {
         (strand_nodes, strands)
     };
     // The strand xLights exports first carries the model's first channels.
-    let first = spec.int("exportFirstStrand", 0)? - 1;
-    if first > 0 && (first as u32) < strands {
-        // The turn counts whole strands, so every string must be whole strands.
-        if string_nodes != strands_per_string * strand_nodes {
-            return Err(SkipReason::Setting("first exported strand"));
-        }
+    let first = spec.int("exportFirstStrand", 0)?.saturating_sub(1);
+    if let Ok(first) = u32::try_from(first)
+        && first > 0
+        && first < strands
+    {
         let total = strands * strand_nodes;
-        let shift = first as u32 * strand_nodes;
+        let shift = first * strand_nodes;
         for cell in &mut cells {
             let node = cell.string * string_nodes + cell.offset;
             let node = (node + total - shift) % total;
@@ -124,22 +129,19 @@ fn grid(spec: &Spec, vertical: bool) -> Result<Grid, SkipReason> {
         cells,
         width,
         height,
+        strings,
+        string_nodes,
     })
 }
 
-fn local(
-    spec: &Spec,
-    nodes: Vec<Node>,
-    ellipses: Vec<Ellipse>,
-    placement: Placement,
-) -> Result<Local, SkipReason> {
-    Ok(Local {
+fn local(grid: &Grid, nodes: Vec<Node>, ellipses: Vec<Ellipse>, placement: Placement) -> Local {
+    Local {
         nodes,
         ellipses,
-        strings: spec.count("NumStrings", "parm1", 1)?,
-        string_nodes: spec.count("NodesPerString", "parm2", 1)?,
+        strings: grid.strings,
+        string_nodes: grid.string_nodes,
         placement,
-    })
+    }
 }
 
 /// Cells one unit apart, centred on the model.
@@ -161,7 +163,7 @@ pub(super) fn matrix(spec: &Spec) -> Result<Local, SkipReason> {
             arc: None,
         })
         .collect();
-    local(spec, nodes, Vec::new(), placement::boxed(spec)?)
+    Ok(local(&grid, nodes, Vec::new(), placement::boxed(spec)?))
 }
 
 enum TreeShape {
@@ -333,7 +335,7 @@ pub(super) fn tree(spec: &Spec) -> Result<Local, SkipReason> {
             arc: None,
         })
         .collect();
-    local(spec, nodes, Vec::new(), placement::boxed(spec)?)
+    Ok(local(&grid, nodes, Vec::new(), placement::boxed(spec)?))
 }
 
 /// Vertical strands as lines of longitude, from `StartLatitude` to
@@ -392,5 +394,5 @@ pub(super) fn sphere(spec: &Spec) -> Result<Local, SkipReason> {
         let squash = height / width.max(height);
         *scale *= DVec3::new(squash / 1.8, squash, squash / 1.8);
     }
-    local(spec, nodes, ellipses, placement)
+    Ok(local(&grid, nodes, ellipses, placement))
 }

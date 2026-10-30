@@ -161,22 +161,15 @@ impl fmt::Display for UnroutedReason {
                 )
             }
             Self::Follows { model, reason } => {
-                // Through a chain of unpatched models, to the one that starts it.
-                let (mut first, mut cause) = (model, reason.as_ref());
+                // Every link of a chain of unpatched models, to the one that
+                // starts it.
+                write!(f, "its start channel follows {model}")?;
+                let mut cause = reason.as_ref();
                 while let Self::Follows { model, reason } = cause {
-                    (first, cause) = (model, reason.as_ref());
+                    write!(f, ", which follows {model}")?;
+                    cause = reason.as_ref();
                 }
-                if first == model {
-                    write!(
-                        f,
-                        "its start channel follows {model}, which is not patched: {cause}"
-                    )
-                } else {
-                    write!(
-                        f,
-                        "its start channel follows {model}, which follows {first}, which is not patched: {cause}"
-                    )
-                }
+                write!(f, ", which is not patched: {cause}")
             }
             Self::UnknownSpan(model) => write!(
                 f,

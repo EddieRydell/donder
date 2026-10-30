@@ -114,7 +114,8 @@ pub(crate) fn shapes(pixels: &[Pixel], ellipses: &[Ellipse], origin: DVec3) -> V
             && let Some((frame, radius, height)) = ellipse_frame(&ellipses[index])
         {
             let step = turn(degrees, pixels[start + 1].arc.map_or(0.0, |(_, next)| next));
-            let closed = arc as f64 * step.abs() >= 360.0 - 1e-6;
+            // A ring only when its lights go exactly once round.
+            let closed = (arc as f64 * step.abs() - 360.0).abs() < 1e-6;
             let sweep = if closed {
                 360.0_f64.copysign(step)
             } else {

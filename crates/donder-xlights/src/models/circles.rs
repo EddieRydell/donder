@@ -95,8 +95,8 @@ pub(super) fn circle(spec: &Spec) -> Result<Local, SkipReason> {
 }
 
 /// One ring of all the lights, starting at the top, or the bottom, and
-/// running clockwise unless numbered right to left or from the bottom, but
-/// not both.
+/// running clockwise when numbered left to right from the top or right to
+/// left from the bottom, and counter-clockwise otherwise, as in xLights.
 pub(super) fn wreath(spec: &Spec) -> Result<Local, SkipReason> {
     let strings = spec.count("NumStrings", "parm1", 1)?;
     let string_nodes = spec.count("NodesPerString", "parm2", 50)?;
