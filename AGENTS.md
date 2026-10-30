@@ -1,113 +1,44 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Project Structure
 
-This is a Rust workspace. What playback accepts and what it means (values, bytecode, program and invocation descriptions, prepared inputs, sampling math) lives in the `no_std` crate `crates/donder-runtime-types`; the text language (data-document syntax, the effect compiler, editor analysis, import syntax and naming rules) lives in `crates/donder-language`; the typed domain model and its validated edits live in `crates/donder-model`; project parsing, import/source ownership, diagnostics, and serialization live in `crates/donder-project-io`; host-side preparation lives in `crates/donder-elaboration`; portable prepared-sequence evaluation lives in `crates/donder-runtime`. `crates/donder-output` holds the E1.31 and Art-Net transports and FSEQ export, `crates/donder-audio-analysis` song decoding and beat and downbeat detection for mark generation, `crates/donder-language-server` the transport-independent language server behind every text editor, and `crates/donder-cli` the local project CLI, including `donder lsp`. `crates/donder-test-support` holds the playback workloads shared by runtime and elaboration tests and benchmarks. The desktop service and UI state live under `apps/desktop/src`; ESP32 firmware lives in `firmware/esp32`. `examples/starter` is the maintained example project. `examples/stanford_room` is a full show used as the representative performance workload. `examples/rydell_house` is a full house display (layout, controllers and patch) converted from a Vixen 3 profile. The example projects' `AGENTS.md` files guide an assistant helping a show's author write the show in the Donder language, not work on this codebase; the starter's ships with every new project, so keep them about authoring. Keep synthetic and invalid fixtures beside their owning tests or create them in temporary test directories; do not add scratch projects under `examples/`.
+Rust workspace; the crate map is in `docs/development.md` and the load/compile/prepare/play/edit call paths are in `docs/code_map.md`. Layering: language semantics in `donder-language`, domain rules in `donder-model`, project IO in `donder-project-io`, preparation in `donder-elaboration`, portable frame evaluation in `donder-runtime`, and the values, bytecode and prepared inputs playback accepts in the `no_std` `donder-runtime-types` (an item belongs there only if the runtime consumes it and an upstream crate produces it). Desktop projection code must not reimplement any of them. Firmware lives in `firmware/esp32`, a separate Cargo workspace; keep embedded-only dependencies out of the root workspace.
 
-Every document is written in the Donder project language (`docs/project_language.md`): data documents are `*.data.donder` (root `project.data.donder`) and scripts are `*.donder`. The typed `DonderProject` is authoritative after loading. `SourceProject` records document ownership, imports, script source text, and referenced assets. Saving prints data documents directly from typed state with the canonical printer; do not add a synchronization or typed-to-text mutation phase.
-Data documents and editor states correspond exactly: every field is explicit and canonical, data documents have no comments (objects have a `description` field), and every name and description the text holds must be shown and editable in the GUI. A save of a loaded project rewrites no byte of a canonical document. Keep that correspondence when adding a field: add it to the document types in `crates/donder-project-io/src/document/types.rs`, the encoder and resolver, and the GUI together. Do not add per-token provenance or comment preservation.
-The language's syntax tree, parser, printer, literal rules and schema traits live in `donder_language::data`; the `#[derive(Data)]` macro is `crates/donder-data-derive`. Project/source metadata and ownership live in `crates/donder-project-io/src/source.rs`. Canonical import declarations, aliases, and symbolic references belong to `donder-language/src/imports.rs`; project configuration and safe document paths are validated in `donder-project-io/src/project_config.rs`. Project import expansion, scopes, linking, reference resolution, and edit-time visibility belong to `crates/donder-project-io/src/imports.rs`. Document types, decoding, and encoding live in `document/`; resolution of declarations into typed state in `loader/`. Project loading and checking live in `project_loading.rs`; diagnostics in `diagnostics.rs`; project save/export and sequence insertion in `project_edit.rs`. Keep `lib.rs` as the public facade. Every crate's public API is listed in its `lib.rs` (or, for `donder-language`, in the `data`, `compiler` and `analysis` namespace roots); do not add glob re-exports or reach into a crate's modules from outside. Both Cargo workspaces enable the `unreachable_pub` and `unnameable_types` lints for every crate, so an item is either exported or crate-private.
+`examples/starter` is the maintained example; `examples/stanford_room` is the representative performance workload; `examples/rydell_house` is a house display converted from Vixen. The examples' `AGENTS.md` files guide an assistant authoring a show in the Donder language, not work on this codebase; the starter's ships with every new project, so keep them about authoring. Do not add scratch projects under `examples/`.
 
-Desktop state orchestration is split by workflow under `apps/desktop/src/desktop_state`. Shared typed GUI behavior is split into projection, editing, selection, and model conversion under `crates/donder-editor/src/gui`; shared DTOs live in `crates/donder-editor/src/dto`. Desktop imports them directly. Keep new behavior with the owning workflow instead of growing the module roots.
-Mutual Donder document imports are valid. The loader indexes a document's local objects before following imports; do not reject an in-progress document as a cycle error.
-Keep import identity and path remapping in project loading and editing, never in per-frame evaluation. Imports are `import alias from <path>, <path>;` with the shared identifier alias policy.
+Every document is written in the Donder project language (`docs/project_language.md`): data documents are `*.data.donder` (root `project.data.donder`), scripts are `*.donder`. The typed `DonderProject` is authoritative after loading; saving prints data documents from typed state with the canonical printer. Do not add a synchronization or typed-to-text mutation phase, per-token provenance, or comment preservation. Data documents and editor states correspond exactly: every field is explicit and canonical, documents have no comments (objects have a `description` field), every name and description the text holds is shown and editable in the GUI, and saving a loaded project rewrites no byte of a canonical document. When adding a field, add it to the document types (`crates/donder-project-io/src/document/types.rs`), the encoder and resolver, and the GUI together.
 
-## Testing Guidelines
+Every crate's public API is listed in its `lib.rs` (for `donder-language`, the `data`, `compiler` and `analysis` roots); no glob re-exports and no reaching into another crate's modules. Both workspaces enable `unreachable_pub` and `unnameable_types`. Import identity and path remapping belong to project loading and editing, never per-frame evaluation. Mutual document imports are valid: the loader indexes a document's local objects before following imports, so do not reject an in-progress document as a cycle.
 
-`pnpm check` includes `pnpm storage:test`, which executes the firmware-owned
-device-storage tests on the host from the repository root. Keep this coverage
-when changing workspace boundaries. Configure `DONDER_HOST_LIBCLANG_PATH` for
-the host gate; `storage:test` passes it to Cargo as `LIBCLANG_PATH` and uses
-`target/storage-host` for build artifacts.
-openh264 compiles its x86 assembly only when `nasm` is on `PATH`; without it the
-build still succeeds but video export encodes several times slower.
-`pnpm firmware:build` and `pnpm firmware:cargo` select ESP tools in child processes
-using `DONDER_ESP_LIBCLANG_PATH` and `DONDER_ESP_TOOLCHAIN_BIN`.
+Desktop state is split by workflow under `apps/desktop/src/desktop_state`; keep new behavior with its owning workflow instead of growing module roots. Source object kind conversion to `ObjectKind` belongs in the DTO boundary only.
 
-Rust integration tests live under `crates/*/tests`, and desktop service tests may live beside the service modules. Do not add or modify tests unless specifically requested.
-When tests are requested for project analysis, document edits, diagnostics, or model behavior, prefer fixtures from `examples/starter` for realistic project flows and use temporary test directories for invalid or synthetic Donder documents.
+## Testing
 
-## Benchmark Guidelines
-
-Prioritize representative playback performance, especially ESP32 frame times, missed deadlines, and memory use, over isolated microbenchmark percentages. Microbenchmarks are diagnostic tools, not individual acceptance gates. Investigate reproducible regressions with meaningful absolute cost, poor scaling, or a connection to a measured bottleneck; use controlled reruns to distinguish signal from noise. Do not repeatedly chase or justify tiny isolated regressions when representative workloads improve. Briefly record the tradeoff or uncertainty and move on; do not add complexity merely to recover a microbenchmark score. Simplifying the hot path may warrant an intermediate slowdown, but verify the eventual end-to-end result.
-
-Prepared playback and real-project render benchmarks use Criterion only. Use `pnpm bench:effect-vm:quick` for a fast smoke pass, `pnpm bench:effect-vm:save` before optimization work, `pnpm bench:effect-vm:compare` after optimization work, and `pnpm bench:effect-vm` for the full benchmark set. Focused runs are `cargo bench -p donder-runtime --bench prepared_playback_bench -- prepared_effect_suite_4x512_pixels` and `cargo bench -p donder-elaboration --bench render_bench -- controller_output_dense_60_frames`.
-
-Do not reintroduce custom benchmark CLIs, JSON reporters, legacy aliases, or old render bench flags such as `--project`, `--frames`, `--iterations`, `--warmup`, or `--render-only`. Criterion output lives under `target/criterion` and must not be committed. Timing changes are advisory; checksum and active-effect-count assertion changes are behavior changes unless intentional.
+Do not add or modify tests unless specifically requested. Prefer `examples/starter` fixtures for realistic flows and temporary directories for invalid or synthetic documents. The gate, test layout and benchmark workflow are in `docs/testing.md`. Prioritize representative playback performance (ESP32 frame times, missed deadlines, memory) over microbenchmarks; do not chase tiny isolated regressions or add complexity to recover a microbenchmark score. Benchmarks use Criterion only. Do not commit Criterion output.
 
 ## Agent-Specific Instructions
 
 ### Development version policy
 
-Donder is pre-release software with no users or compatibility obligations. Treat
-the Donder product version and the current project/serialization formats
-as one moving development line, currently `0.1` / `0.1.0` where a full
-semantic version is required. Do not add migrations, compatibility layers,
-legacy aliases, version ranges, or support for intermediate versions that were
-created during local development. When an authored format or internal wire
-format changes, update the current implementation, fixtures, and documentation
-in place; old local data may be discarded or regenerated.
+Donder is pre-release with no users or compatibility obligations; the product version and the current project/serialization formats are one moving development line (`0.1` / `0.1.0`). Do not add migrations, compatibility layers, legacy aliases, shims, version ranges, or fallbacks; change the current implementation, fixtures and docs in place. Do not add fallbacks when something fails; that hides errors. Keep safeguards that detect malformed data, corruption, impossible values, or an actually incompatible current format.
 
-Keep safeguards that detect malformed data, corruption, impossible values, or
-an actually incompatible current format. A numeric protocol/schema version may
-remain when it is needed to reject a mismatched payload, but it is a current
-format marker rather than a promise to support historical versions. Dependency
-versions in Cargo and pnpm manifests are third-party constraints and are not
-part of this policy. Revisit this policy only when Donder is preparing for real
-external users or a deliberate compatibility commitment.
+### Rules
 
-### Dependency maintenance policy
-
-Dependency freshness is checked locally; do not depend on Dependabot or other
-external update PRs. Before adding a dependency, check its current upstream
-release and use the latest compatible release for the target platform and
-feature set. Do not knowingly add an older release unless an explicit upstream
-compatibility constraint, local patch, or measured regression requires it;
-record that reason beside the dependency.
-
-When reviewing or preparing dependency updates, inspect both Cargo workspaces
-and the pnpm workspace. The ESP32 workspace under `firmware/esp32` has its own
-manifest and lockfile and must be checked separately from the desktop
-workspace. Use read-only checks such as `pnpm outdated`, `pnpm audit`,
-`cargo outdated --workspace`, `cargo deny check advisories -W unmaintained`,
-and `cargo tree -i <crate>`. Use `--manifest-path
-firmware/esp32/Cargo.toml` for firmware `cargo outdated` and `cargo tree`
-checks; run `cargo deny check advisories -W unmaintained` from
-`firmware/esp32` because cargo-deny does not accept `--manifest-path`.
-Treating the unmaintained lint as a warning keeps vulnerability advisories
-fatal while still printing inherited packages that have no safe upgrade. Check direct and
-transitive dependencies, including SDK and HAL packages. Do not update
-anything automatically, and do not update a lockfile or manifest as part of an
-inspection. Separate available upgrades from security advisories,
-unmaintained transitive packages, upstream Git patches, and intentionally
-pinned hardware SDK revisions. Summarize those findings before making changes.
-
-Never reinvent a pattern or solve a problem that has already been solved. Use dependencies (after asking the user) to solve problems rather than reinventing the wheel.
-Avoid using strings in internal logic. Prefer enums or other structured data.
-All static color literals must be defined in `apps/desktop/frontend/src/styles.css` as CSS custom properties. TypeScript, JSX, Rust, and tests must reference CSS-backed tokens or receive data-driven colors; do not define palette values elsewhere.
-Always use `apps/desktop/frontend/src/styles.css` as the styling source of truth and `apps/desktop/frontend/src/theme.ts` as the runtime bridge for CSS-backed values. Never hardcode styling values in TypeScript or JSX. Reuse existing CSS classes and tokens whenever they fit; when they do not, add a clearly named semantic style or token to `styles.css` and expose it through `theme.ts` when runtime code needs it.
-All static frontend styling values—including typography, spacing, dimensions, shape, elevation, layering, motion, opacity, form geometry, icon sizes, scrollbar geometry, visualization metrics, responsive breakpoints, and accessibility geometry—must be defined in `apps/desktop/frontend/src/styles.css`. TypeScript and JSX may only use CSS-backed values or genuinely runtime/data-dependent values such as measured geometry, coordinates, and user/project colors.
-`apps/desktop/frontend/src/generated/bindings.ts` and `apps/desktop/gen/schemas/` are committed generated API artifacts. Regenerate bindings with `pnpm generate:bindings` and schemas through the Tauri tooling; never hand-edit either.
-Avoid unrelated edits to lockfiles, IDE files, or generated assets.
-Keep temporary Donder scripts, profiling captures, and build artifacts under an ignored `target/` directory inside this repository, not in the user's home directory. Do not commit raw logs, measurement captures, profiler output, screenshots, or step-by-step implementation journals; summarize a durable result, with its date and conditions, in `docs/performance.md`. Shared installed toolchains and package caches may remain in their standard locations.
-Documentation describes current behavior and durable contracts. Consolidate superseded investigation notes into the current architecture or performance reference, then remove the journal; links are not a reason to retain stale documents.
-Check both Rust and desktop manifests before assuming a command or dependency belongs at the workspace root. `firmware/esp32/crates/donder-device-storage` is firmware-only and belongs to the ESP32 workspace. Keep embedded-only dependencies out of the root host workspace, and validate them with the firmware manifest and toolchain.
-Do not add compatibility layers, shims, fallbacks, or allow for legacy code when adding features or refactoring.
-Do not add fallbacks when something doesn't work. This hides errors and makes debugging harder.
-The goal is fast development, not support. Minimize clutter and favor having a single way of doing things. SSOT is your friend.
-Put language semantics in `donder-language`, domain rules in `donder-model`, preparation in `donder-elaboration`, and portable frame-evaluation semantics in `donder-runtime`; desktop projection code must not reimplement any of them.
-An item belongs in `donder-runtime-types` only if the runtime consumes it and an upstream crate produces it; playback logic stays in `donder-runtime` and authoring logic stays upstream. Firmware places `donder-runtime`'s strip interpreter and graph evaluation in IRAM: every function in `dsl/vm/strip.rs` and `evaluation.rs` carries the `iram`-feature `link_section` attribute, except the once-per-frame or once-per-clip code in `evaluation::frames`, which stays in flash, and `pnpm firmware:build` fails if any of the rest lands in flash. The runtime is 32-bit: `donder-runtime` and `donder-runtime-types` never use `u64`, `i64`, `u128`, `i128` or `f64` (their `clippy.toml` bans them), and `pnpm firmware:build` fails if runtime code calls 64-bit integer or double-precision routines. Give new functions there the same attribute; closures cannot carry it, so when the check reports an outlined closure, move its body into a named `#[inline(never)]` method.
-`DesktopState` owns GUI edit transactionality and history. Loaded and historical project snapshots are immutable `Arc<ProjectSession>` values; a GUI edit makes one candidate clone, then shares the accepted snapshot with state, history, save, render-refresh, and clip-raster work. Model stores and each sequence clip are shared copy-on-write, so an edit detaches only what it changes; admission, validation, document printing and preparation reuse their earlier results for clips that are still the same allocation. Keep that sharing when adding edits: mutate clips through `Arc::make_mut` only when they change. GUI mutation helpers edit the candidate session they receive; do not add another whole-session transactional clone inside them.
-Desktop background save/render scheduling and GUI history storage live in `state_tasks/`; use its single latest-request scheduler rather than adding another channel scheduler. Read-only fixture/layout geometry projection lives under `preview/geometry.rs`, outside GUI mutation dispatch. The Preview window is a child process of the desktop executable: `apps/desktop/src/preview.rs` spawns and feeds it, and `preview/` holds its event loop (`host.rs`), playback clock, scene and wgpu renderer, and the framed pipe protocol (`protocol.rs`), whose binary payload carries the show and fixture instances. MP4 export (`preview/video.rs`) renders the same scene offscreen with the Preview's renderer, then encodes H.264 with openh264 and AAC with fdk-aac, muxed by shiguredo_mp4; never draw Preview frames another way.
-Sequence waveform decoding, cache management, and drawing live in `apps/desktop/frontend/src/ui/gui/sequence/sequenceWaveform.tsx`; keep audio processing out of `SequenceCanvas.tsx`, and pass palette values into the waveform renderer instead of duplicating colors.
-Source object kind conversion to desktop `ObjectKind` belongs in the DTO boundary. Do not duplicate that mapping in state or GUI modules.
-GUI edits must mutate typed domain state only. Do not construct, inspect, or mutate document text directly from GUI edit code.
-GUI edits must not run project checks or reload from text after mutation. Persistence belongs to the IO save path.
-Do not use git or commands associated with it unless the user specifically requests it.
-Work directly in the user's checkout. Do not create new git worktrees unless the user requests one.
-Do not use .env files to store information.
-Do not jump to editing if the conversation is about diagnosing an issue or discussing architecture/design decisions.
-Do not start or leave a frontend dev server running when finishing work. The user needs `pnpm tauri dev` to own the frontend port.
-When planning, don't hesitate to ask the user relevant questions.
-When presenting a plan for approval from the user, list files that will be affected by the plan.
-Run `cargo fmt` and then `pnpm check` for linting, tests, and other checks after implementing a plan. Fix any regressions. Running these checks is not necessary after updating docs, example projects, or other things unaffected by tests or checks.
+- Never reinvent a solved problem. Use dependencies (after asking the user) rather than the wheel. Before adding one, use its latest compatible release and record any reason for an older one beside it. Dependency inspection procedure: `docs/development.md`.
+- Avoid strings in internal logic; prefer enums or structured data.
+- Single way of doing things; SSOT; minimize clutter.
+- All static frontend styling values (colors, typography, spacing, dimensions, shape, motion, breakpoints, and so on) are defined in `apps/desktop/frontend/src/styles.css` and reach runtime code through `theme.ts`. TypeScript and JSX use only CSS-backed or genuinely runtime/data-dependent values. Reuse existing classes and tokens; add a semantic one when none fits.
+- `apps/desktop/frontend/src/generated/bindings.ts` and `apps/desktop/gen/schemas/` are generated; regenerate with `pnpm generate:bindings` and the Tauri tooling, never hand-edit.
+- Runtime is 32-bit: `donder-runtime` and `donder-runtime-types` never use `u64`, `i64`, `u128`, `i128` or `f64` (clippy bans them). Every function in the runtime's `dsl/vm/strip.rs` and `evaluation.rs` carries the `iram`-feature `link_section` attribute, except the once-per-frame code in `evaluation::frames`; `pnpm firmware:build` enforces both. Details: `docs/development.md`.
+- `DesktopState` owns GUI edit transactionality and history. Snapshots are immutable `Arc<ProjectSession>`; an edit makes one candidate clone and shares the accepted snapshot. Mutate clips through `Arc::make_mut` only when they change; mutation helpers edit the candidate they receive and do not clone the session again.
+- Background save/render scheduling uses the single latest-request scheduler in `state_tasks/`; do not add another channel scheduler. Preview frames and MP4 export are drawn only by the Preview's wgpu renderer (`apps/desktop/src/preview/`).
+- Keep waveform decoding, caching and drawing in `sequence/sequenceWaveform.tsx`, not `SequenceCanvas.tsx`; pass palette values in rather than duplicating colors.
+- GUI edits mutate typed domain state only: never construct, inspect or mutate document text, run project checks, or reload from text after mutation. Persistence belongs to the IO save path.
+- Do not use git unless the user requests it; work in the user's checkout and do not create worktrees unless asked.
+- Do not use `.env` files.
+- Keep temporary scripts, profiling captures and build artifacts under the ignored `target/` directory in this repository. Do not commit raw logs, captures, profiler output, screenshots or implementation journals; record durable results, with date and conditions, in `docs/performance.md`.
+- Docs describe current behavior and durable contracts. Consolidate superseded investigation notes into the current reference and remove the journal.
+- Avoid unrelated edits to lockfiles, IDE files and generated assets.
+- Do not start or leave a frontend dev server running; the user needs `pnpm tauri dev` to own the port.
+- Do not jump to editing when the conversation is diagnosing or discussing design. When planning, ask relevant questions and list the files the plan affects.
+- After implementing a plan, run `cargo fmt` then `pnpm check` and fix regressions. Not needed for docs, example projects or other changes the checks do not cover.

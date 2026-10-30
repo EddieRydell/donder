@@ -49,6 +49,41 @@ edits. Benchmarks use Criterion (`pnpm bench:effect-vm:quick`, or
 `pnpm bench:effect-vm` for the full set). Firmware builds need the ESP Rust
 toolchain; see the [firmware README](../firmware/esp32/README.md).
 
+openh264 compiles its x86 assembly only when `nasm` is on `PATH`; without it
+the build still succeeds but video export encodes several times slower.
+`pnpm firmware:build` and `pnpm firmware:cargo` select ESP tools in child
+processes using `DONDER_ESP_LIBCLANG_PATH` and `DONDER_ESP_TOOLCHAIN_BIN`.
+
+## Firmware runtime constraints
+
+The runtime is 32-bit: `donder-runtime` and `donder-runtime-types` never use
+`u64`, `i64`, `u128`, `i128` or `f64` (their `clippy.toml` bans them), and
+`pnpm firmware:build` fails if runtime code calls 64-bit integer or
+double-precision routines. Firmware places the strip interpreter and graph
+evaluation in IRAM: every function in `dsl/vm/strip.rs` and `evaluation.rs`
+carries the `iram`-feature `link_section` attribute, except the
+once-per-frame or once-per-clip code in `evaluation::frames`, which stays in
+flash. `pnpm firmware:build` fails if any other function lands in flash.
+Closures cannot carry the attribute: when the check reports an outlined
+closure, move its body into a named `#[inline(never)]` method.
+
+## Dependency maintenance
+
+Dependency freshness is checked locally, not by external update PRs. Inspect
+both Cargo workspaces and the pnpm workspace; the ESP32 workspace under
+`firmware/esp32` has its own manifest and lockfile and is checked separately.
+Use read-only checks: `pnpm outdated`, `pnpm audit`, `cargo outdated
+--workspace`, `cargo deny check advisories -W unmaintained`, and `cargo tree -i
+<crate>`. For firmware use `--manifest-path firmware/esp32/Cargo.toml` with
+`cargo outdated` and `cargo tree`, and run `cargo deny` from `firmware/esp32`
+(it takes no `--manifest-path`). The `-W unmaintained` form keeps
+vulnerability advisories fatal while printing inherited unmaintained packages.
+Check direct and transitive dependencies, including SDK and HAL packages.
+Do not update a manifest or lockfile during an inspection. Report separately
+available upgrades, security advisories, unmaintained transitive packages,
+upstream Git patches, and intentionally pinned hardware SDK revisions, and
+summarize before making changes.
+
 See [testing and benchmarks](testing.md) for where tests live and the
 benchmark workflow, and [architecture](architecture.md) for how the crates fit
 together.
