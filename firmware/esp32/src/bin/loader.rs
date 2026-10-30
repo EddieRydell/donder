@@ -36,7 +36,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Read as _;
 use esp_hal::{
-    Async, dma::DmaTxBuf, gpio::NoPin, i2s::parallel::I2sParallel, system::Stack, time::Rate,
+    Blocking, dma::DmaTxBuf, gpio::NoPin, i2s::parallel::I2sParallel, system::Stack, time::Rate,
 };
 use esp_hal::{clock::CpuClock, rng::Rng, time::Instant, timer::timg::TimerGroup};
 static SERIAL_DIAGNOSTICS: core::sync::atomic::AtomicBool =
@@ -70,7 +70,6 @@ static OUTPUT_READY: AtomicBool = AtomicBool::new(false);
 // Recursive 32-lane playback measured about 17 KiB below its caller. Leave
 // headroom for controller/RTOS frames and interrupts; rebalance the heap below.
 static APP_CORE_STACK: StaticCell<Stack<{ 24 * 1024 }>> = StaticCell::new();
-static APP_CORE_EXECUTOR: StaticCell<esp_rtos::embassy::Executor> = StaticCell::new();
 
 #[path = "../transport.rs"]
 mod transport;
@@ -128,7 +127,7 @@ const DMA_BYTES: usize = DATA_SAMPLES + RESET_SAMPLES;
 const MAX_FRAME_RATE: u32 = (I2S_SAMPLE_RATE as usize / (DATA_SAMPLES + RESET_SAMPLES)) as u32;
 /// Frame rate of the black frames sent while no show plays.
 const IDLE_FRAME_RATE: u32 = 30;
-type ParallelOutput = I2sParallel<'static, Async>;
+type ParallelOutput = I2sParallel<'static, Blocking>;
 
 /// Why a show does not load.
 enum LoadError {
@@ -798,15 +797,29 @@ async fn clock_server(stack: embassy_net::Stack<'static>, boot_id: u32) -> ! {
 fn transmit(
     output: ParallelOutput,
     buffer: DmaTxBuf,
-) -> esp_hal::i2s::parallel::I2sParallelTransfer<'static, DmaTxBuf, Async> {
+) -> esp_hal::i2s::parallel::I2sParallelTransfer<'static, DmaTxBuf, Blocking> {
     match output.send(buffer) {
         Ok(transfer) => transfer,
         Err((error, _, _)) => panic!("I2S DMA start failed: {error:?}"),
     }
 }
 
-#[embassy_executor::task]
-async fn render_outputs(
+/// The rendering core has no executor; the network core holds these locks
+/// only briefly.
+fn spin_lock<T>(
+    mutex: &Mutex<CriticalSectionRawMutex, T>,
+) -> embassy_sync::mutex::MutexGuard<'_, CriticalSectionRawMutex, T> {
+    loop {
+        if let Ok(guard) = mutex.try_lock() {
+            return guard;
+        }
+        core::hint::spin_loop();
+    }
+}
+
+/// The rendering core's loop. It runs outside the scheduler, so nothing else
+/// is scheduled on this core and it takes no interrupts.
+fn render_outputs(
     playback: &'static SharedPlayback,
     clock: &'static SharedClock,
     mut output: ParallelOutput,
@@ -823,19 +836,12 @@ async fn render_outputs(
     let mut ready_signature = None;
     let mut ready_display_time = 0;
     loop {
-        storage::mark(1, 10);
         if storage::pause_requested() {
-            storage::mark(1, 30);
             storage::pause();
-            storage::mark(1, 31);
             ready_signature = None;
         }
-        if let Some(wait) = next_transmit.checked_sub(local_micros()) {
-            Timer::after_micros(wait).await;
-        }
-        storage::mark(1, 11);
-        let mut current = playback.lock().await;
-        storage::mark(1, 12);
+        while local_micros() < next_transmit {}
+        let mut current = spin_lock(playback);
         let frame_rate = current
             .as_ref()
             .map_or(IDLE_FRAME_RATE, |p| p.show.prepared().frame_rate());
@@ -846,13 +852,10 @@ async fn render_outputs(
             let rendered = current.as_mut().and_then(|p| p.render(ready_display_time));
             encode_frame(rendered, ready_buffer.as_mut_slice());
         }
-        storage::mark(1, 13);
-        let mut transfer = transmit(output, ready_buffer);
+        let transfer = transmit(output, ready_buffer);
         drop(current);
-        storage::mark(1, 14);
 
-        let model = *clock.lock().await;
-        storage::mark(1, 15);
+        let model = *spin_lock(clock);
         let master_now = model.master_at(local_micros());
         // Frame numbers count periods of one clock and one rate.
         if (model.id, frame_rate) != (previous_clock, previous_rate) {
@@ -868,18 +871,14 @@ async fn render_outputs(
         next_transmit = model.local_at(next_latch.saturating_sub(data_micros));
         ready_frame = next_frame;
         let render_start = Instant::now();
-        storage::mark(1, 16);
-        let mut active = playback.lock().await;
-        storage::mark(1, 17);
+        let mut active = spin_lock(playback);
         let rendered = active.as_mut().and_then(|playback| {
             playback
                 .transport
                 .refresh(master_now, playback.show.prepared().duration().as_ticks());
             playback.render(next_latch)
         });
-        storage::mark(1, 18);
         encode_frame(rendered, spare_buffer.as_mut_slice());
-        storage::mark(1, 19);
         ready_signature = active
             .as_ref()
             .map(|p| (p.show_id, p.show_bytes, p.transport.generation));
@@ -887,9 +886,6 @@ async fn render_outputs(
         drop(active);
         render_budget = render_start.elapsed().as_micros() + 500;
 
-        storage::mark(1, 20);
-        transfer.wait_for_done().await.unwrap();
-        storage::mark(1, 21);
         let (next_output, finished_buffer) = transfer.wait();
         output = next_output;
         ready_buffer = spare_buffer;
@@ -935,14 +931,6 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     esp_alloc::heap_allocator!(size: 62 * 1024);
     let timer = TimerGroup::new(p.TIMG0);
     esp_rtos::start(timer.timer0, p.FROM_CPU_INTR0);
-    let marks = unsafe { storage::MARKS };
-    esp_println::println!("BOOT reason={:?} marks={:?}", esp_hal::system::reset_reason(), marks);
-    for index in 0..4 {
-        storage::mark(index, 0);
-    }
-    let mut rtc = esp_hal::rtc_cntl::Rtc::new(p.RTC_TIMER);
-    rtc.rwdt.set_timeout(esp_hal::rtc_cntl::RwdtStage::Stage0, esp_hal::time::Duration::from_millis(8000));
-    rtc.rwdt.enable();
 
     let mut storage =
         storage::DeviceStorage::new(p.FLASH).unwrap_or_else(|error| panic!("{error}"));
@@ -972,11 +960,10 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
     // Start output before the network: joining a missing network must not
     // delay a restored show.
-    esp_rtos::start_second_core(
-        p.CPU_CTRL,
-        p.FROM_CPU_INTR1,
-        APP_CORE_STACK.init(Stack::new()),
-        move || {
+    // Rendering has core 1 to itself, outside the esp-rtos scheduler.
+    let mut cpu_control = esp_hal::system::CpuControl::new(p.CPU_CTRL);
+    let _render_core = cpu_control
+        .start_app_core(APP_CORE_STACK.init(Stack::new()), move || {
             #[cfg(feature = "dig-quad")]
             let pins = dig_quad::output_pins(p.GPIO16, p.GPIO3, p.GPIO1, p.GPIO4);
             #[cfg(not(feature = "dig-quad"))]
@@ -989,8 +976,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                 Rate::from_hz(I2S_SAMPLE_RATE),
                 pins,
                 NoPin,
-            )
-            .into_async();
+            );
             let mut ready_buffer = esp_hal::dma_tx_buffer!(DMA_BYTES).unwrap();
             ready_buffer.as_mut_slice().fill(0);
             ready_buffer.set_length(DMA_BYTES);
@@ -998,16 +984,9 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             spare_buffer.as_mut_slice().fill(0);
             spare_buffer.set_length(DMA_BYTES);
             OUTPUT_READY.store(true, Relaxed);
-            APP_CORE_EXECUTOR
-                .init(esp_rtos::embassy::Executor::new())
-                .run(|spawner| {
-                    spawner.spawn(
-                        render_outputs(playback, clock, output, ready_buffer, spare_buffer)
-                            .unwrap(),
-                    );
-                });
-        },
-    );
+            render_outputs(playback, clock, output, ready_buffer, spare_buffer)
+        })
+        .unwrap();
 
     while !OUTPUT_READY.load(Relaxed) {
         Timer::after_millis(1).await;
@@ -1059,10 +1038,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     );
 
     loop {
-        Timer::after_secs(1).await;
-        rtc.rwdt.feed();
-        let marks = unsafe { core::ptr::read_volatile(&raw const storage::MARKS) };
-        esp_println::println!("H {:?} free={}", marks, esp_alloc::HEAP.free());
+        Timer::after_secs(60).await;
     }
 }
 

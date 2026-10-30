@@ -77,7 +77,7 @@ impl ArgType {
     }
 
     /// The type as scripts spell it.
-    pub fn text(&self) -> String {
+    pub(crate) fn text(&self) -> String {
         match self {
             Self::Is(ty) => type_text(ty),
             Self::Array => format!("{ARRAY_WORD}<T>"),
@@ -109,14 +109,14 @@ pub(crate) enum Lowering {
 /// and the operation it lowers to.
 #[derive(Debug)]
 pub struct Signature {
-    pub args: &'static [(&'static str, ArgType)],
-    pub result: Type,
+    pub(crate) args: &'static [(&'static str, ArgType)],
+    result: Type,
     pub(crate) lowering: Lowering,
 }
 
 impl Signature {
     /// `name(a: float, b: int) -> float`.
-    pub fn label(&self, name: &str) -> String {
+    pub(crate) fn label(&self, name: &str) -> String {
         format!(
             "{name}({}) -> {}",
             self.args
@@ -132,18 +132,18 @@ impl Signature {
 #[derive(Debug)]
 pub struct Builtin {
     pub name: &'static str,
-    pub group: BuiltinGroup,
+    group: BuiltinGroup,
     /// Overloads: a call takes one its arguments fit exactly, else one they
     /// fit with ints widened to floats.
-    pub signatures: &'static [Signature],
-    pub summary: &'static str,
+    pub(crate) signatures: &'static [Signature],
+    pub(crate) summary: &'static str,
     /// Edge cases: NaN, ranges, units and conversions.
-    pub details: &'static str,
-    pub example: &'static str,
+    pub(crate) details: &'static str,
+    pub(crate) example: &'static str,
 }
 
 impl Builtin {
-    pub fn arity(&self) -> usize {
+    pub(crate) fn arity(&self) -> usize {
         self.signatures[0].args.len()
     }
 }
@@ -781,15 +781,15 @@ pub(crate) enum Read {
 #[derive(Debug)]
 pub struct ContextValue {
     /// `time`, or `pixel.index` for a field.
-    pub name: &'static str,
-    pub ty: Type,
-    pub summary: &'static str,
+    pub(crate) name: &'static str,
+    pub(crate) ty: Type,
+    pub(crate) summary: &'static str,
     pub(crate) read: Read,
 }
 
 impl ContextValue {
     /// The scope and field of a field like `pixel.index`.
-    pub fn field(&self) -> Option<(&'static str, &'static str)> {
+    pub(crate) fn field(&self) -> Option<(&'static str, &'static str)> {
         self.name.split_once('.')
     }
 }
@@ -938,9 +938,9 @@ pub const CONTEXT: &[ContextValue] = &[
 /// A method of operator inputs and `previous`.
 #[derive(Debug)]
 pub struct Method {
-    pub name: &'static str,
-    pub signature: &'static str,
-    pub summary: &'static str,
+    pub(crate) name: &'static str,
+    pub(crate) signature: &'static str,
+    pub(crate) summary: &'static str,
 }
 
 /// `at`, the only method.
@@ -953,8 +953,8 @@ pub const AT: Method = Method {
 /// A reduction over a range of indexes.
 #[derive(Debug)]
 pub struct Reducer {
-    pub name: &'static str,
-    pub summary: &'static str,
+    pub(crate) name: &'static str,
+    pub(crate) summary: &'static str,
     pub(crate) kind: ReducerKind,
 }
 

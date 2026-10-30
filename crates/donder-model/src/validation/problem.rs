@@ -479,7 +479,7 @@ impl ClipProblem {
 
 impl ParamProblem {
     /// The parameter the problem concerns.
-    pub fn param(&self) -> &Identifier {
+    fn param(&self) -> &Identifier {
         match self {
             Self::WrongType(param)
             | Self::MissingRequired(param)

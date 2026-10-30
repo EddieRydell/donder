@@ -66,7 +66,7 @@ pub enum ControllerSender {
 }
 
 impl ControllerSender {
-    pub fn open(id: ControllerId, controller: &Controller) -> Result<Self, OutputError> {
+    fn open(id: ControllerId, controller: &Controller) -> Result<Self, OutputError> {
         match &controller.protocol {
             ControllerProtocol::E131(config) => {
                 E131Sender::open(id, config, &controller.ports).map(Self::E131)
@@ -78,7 +78,7 @@ impl ControllerSender {
         }
     }
 
-    pub fn send<'a>(
+    fn send<'a>(
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
@@ -88,14 +88,14 @@ impl ControllerSender {
         }
     }
 
-    pub fn blackout(&mut self) -> Result<(), OutputError> {
+    fn blackout(&mut self) -> Result<(), OutputError> {
         match self {
             Self::E131(sender) => sender.blackout(),
             Self::ArtNet(sender) => sender.blackout(),
         }
     }
 
-    pub fn terminate(&mut self) -> Result<(), OutputError> {
+    fn terminate(&mut self) -> Result<(), OutputError> {
         match self {
             Self::E131(sender) => sender.terminate(),
             Self::ArtNet(sender) => sender.blackout(),

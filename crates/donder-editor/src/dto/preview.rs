@@ -19,11 +19,11 @@ pub struct PreviewAppearance {
 #[serde(rename_all = "camelCase")]
 pub struct FixtureGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::Description`.
-    pub description: Option<String>,
+    pub(crate) description: Option<String>,
     pub name: String,
-    pub path: String,
-    pub source_ref: GuiObjectRef,
-    pub object_key: String,
+    pub(crate) path: String,
+    pub(crate) source_ref: GuiObjectRef,
+    pub(crate) object_key: String,
     pub elements: Vec<GuiFixtureElement>,
     pub handles: Vec<GuiFixtureHandle>,
     pub render_plan: SpatialRenderPlan,
@@ -43,8 +43,8 @@ pub struct GuiFixtureElement {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiFixtureHandle {
-    pub element: u32,
-    pub index: u32,
+    pub(crate) element: u32,
+    pub(crate) index: u32,
     pub position: Point3Meters,
 }
 
@@ -126,10 +126,10 @@ pub enum FixtureGuiEdit {
 #[serde(rename_all = "camelCase")]
 pub struct LayoutGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::Description`.
-    pub description: Option<String>,
+    pub(crate) description: Option<String>,
     pub path: String,
     pub source_ref: GuiObjectRef,
-    pub object_key: String,
+    pub(crate) object_key: String,
     /// Every fixture and group once; fixture order is placement order.
     pub fixtures: Vec<GuiLayoutFixture>,
     /// Top-level members in display order.
@@ -225,7 +225,7 @@ pub enum FixtureStorage {
 #[serde(rename_all = "camelCase")]
 pub struct SpatialRenderPlan {
     pub pixels: Vec<SpatialRenderPixel>,
-    pub bounds: GeometryRenderBounds,
+    pub(crate) bounds: GeometryRenderBounds,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -235,16 +235,16 @@ pub struct SpatialRenderPixel {
     pub owner: u32,
     pub index: u32,
     pub position: Point3Meters,
-    pub diameter_meters: f32,
+    pub(crate) diameter_meters: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GeometryRenderBounds {
-    pub min_x_meters: f32,
-    pub min_y_meters: f32,
-    pub max_x_meters: f32,
-    pub max_y_meters: f32,
+    pub(crate) min_x_meters: f32,
+    pub(crate) min_y_meters: f32,
+    pub(crate) max_x_meters: f32,
+    pub(crate) max_y_meters: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

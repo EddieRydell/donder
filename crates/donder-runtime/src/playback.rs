@@ -7,7 +7,7 @@ use crate::format::{self, NONE};
 use donder_runtime_types::{Color, MICROS_PER_SECOND, RigCommand, RigEvent, SampleTime, mul_div};
 
 use crate::dsl::set_value;
-use crate::evaluation::{Timeline, evaluate_frame, index_layer, root_buffer};
+use crate::evaluation::{evaluate_frame, index_layer, root_buffer};
 use crate::view::Show;
 use crate::workspace::{LIVE_MARK_CAPACITY, Layout, Timing, Workspace, carve};
 
@@ -54,23 +54,6 @@ impl<'a, 'w> Playback<'a, 'w> {
         }
     }
 
-    /// The output bytes of the latest frame.
-    pub(crate) fn outputs(self) -> impl ExactSizeIterator<Item = OutputFrame<'w>>
-    where
-        'a: 'w,
-    {
-        output_frames(self.show, self.workspace.outputs)
-    }
-
-    /// Clips active at `time` as commands have placed them.
-    pub(crate) fn active_clip_count(&self, time: SampleTime) -> usize {
-        let rig = &self.workspace.rig;
-        let timeline = Timeline::new(self.show, rig.timing, rig.layer_order, rig.layer_ends);
-        (0..self.show.clip_count())
-            .filter(|&clip| timeline.timing(clip).is_active(time))
-            .count()
-    }
-
     /// Apply a command at its time. Commands arrive in time order; one the
     /// show does not address is ignored.
     pub(crate) fn apply(&mut self, event: RigEvent) {
@@ -92,7 +75,7 @@ fn frame_at(time: SampleTime, frame_rate: u32) -> u32 {
 /// colors. A frame after the one before advances its state by the frames
 /// between them, the same frame after a command by none, and any other is a
 /// seek: one frame on from the state it has.
-pub(crate) fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize {
+fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize {
     let frame = frame_at(time, show.frame_rate());
     let [last, held] = *workspace.frame;
     if last == frame && held != 0 {
@@ -112,9 +95,9 @@ pub(crate) fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTim
 /// Borrowed logical colors and packed controller outputs from one evaluation.
 #[derive(Clone, Copy)]
 pub struct SequenceFrame<'a> {
-    pub(crate) show: Show<'a>,
-    pub(crate) colors: &'a [Color],
-    pub(crate) outputs: &'a [u8],
+    show: Show<'a>,
+    colors: &'a [Color],
+    outputs: &'a [u8],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -150,7 +133,7 @@ impl<'a> SequenceFrame<'a> {
     }
 }
 
-pub(crate) fn output_frames<'a>(
+fn output_frames<'a>(
     show: Show<'a>,
     bytes: &'a [u8],
 ) -> impl ExactSizeIterator<Item = OutputFrame<'a>> + 'a {
@@ -164,20 +147,20 @@ pub(crate) fn output_frames<'a>(
 }
 
 impl Show<'_> {
-    pub(crate) fn voice_count(&self) -> usize {
+    fn voice_count(&self) -> usize {
         self.s.voices.len()
     }
 
-    pub(crate) fn collection_count(&self) -> usize {
+    fn collection_count(&self) -> usize {
         self.meta().collections as usize
     }
 
-    pub(crate) fn control_count(&self) -> usize {
+    fn control_count(&self) -> usize {
         self.s.controls.len()
     }
 
     /// Whether `command` addresses a voice, collection or control of this show.
-    pub(crate) fn accepts(&self, command: RigCommand) -> bool {
+    fn accepts(&self, command: RigCommand) -> bool {
         match command {
             RigCommand::Start { voice } | RigCommand::Stop { voice } => {
                 usize::from(voice) < self.voice_count()
@@ -190,7 +173,7 @@ impl Show<'_> {
     }
 }
 
-pub(crate) fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEvent) {
+fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEvent) {
     if !show.accepts(event.command) {
         return;
     }

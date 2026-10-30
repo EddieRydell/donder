@@ -319,7 +319,7 @@ impl DesktopState {
         }
     }
 
-    pub(crate) fn set_render_error_if_changed(&self, message: String) {
+    fn set_render_error_if_changed(&self, message: String) {
         let current = lock_unpoisoned(&self.workspace).view.render_error.clone();
         if current.as_deref() != Some(message.as_str()) {
             self.update_snapshot(|snapshot| {
@@ -328,7 +328,7 @@ impl DesktopState {
         }
     }
 
-    pub(crate) fn clear_render_error_if_set(&self) {
+    fn clear_render_error_if_set(&self) {
         let current = lock_unpoisoned(&self.workspace).view.render_error.is_some();
         if current {
             self.update_snapshot(|snapshot| {
@@ -406,7 +406,7 @@ impl DesktopState {
     // preparation neither suspends, stops nor resumes it. Donder controllers
     // stay live while a sequence prepares; they reload at the next Play.
 
-    pub(super) fn suspend_live_output(&self) {
+    fn suspend_live_output(&self) {
         if self.is_performing() {
             return;
         }
@@ -415,7 +415,7 @@ impl DesktopState {
         lock_unpoisoned(&self.workspace).view.live_output = output;
     }
 
-    pub(super) fn disable_live_output(&self) {
+    fn disable_live_output(&self) {
         self.set_devices_live(false);
         if self.is_performing() {
             return;
@@ -425,7 +425,7 @@ impl DesktopState {
         lock_unpoisoned(&self.workspace).view.live_output = output;
     }
 
-    pub(super) fn resume_live_output_after_prepare(&self) {
+    fn resume_live_output_after_prepare(&self) {
         if self.is_performing() {
             return;
         }

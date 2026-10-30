@@ -29,7 +29,7 @@ pub enum ParamRange {
 
 impl ParamRange {
     /// Whether this range is well formed and fits a param of `ty`.
-    pub fn fits(&self, ty: &Type) -> bool {
+    pub(crate) fn fits(&self, ty: &Type) -> bool {
         match (self, ty) {
             (Self::Int { min, max }, Type::Int) => min <= max,
             (Self::Float { min, max }, Type::Float | Type::Curve) => {
@@ -73,7 +73,7 @@ impl ParamDecl {
     }
 
     /// The value has this param's type and lies within its declared range.
-    pub fn accepts_value(&self, value: &Value) -> bool {
+    pub(crate) fn accepts_value(&self, value: &Value) -> bool {
         self.ty.accepts_value(value) && self.range.is_none_or(|range| range.contains(value))
     }
 

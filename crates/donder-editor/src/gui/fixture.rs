@@ -180,9 +180,7 @@ fn validate_geometry(geometry: &FixtureDefinition) -> Result<(), GuiMutationErro
     Ok(())
 }
 
-pub(super) fn domain_element(
-    element: GuiFixtureElement,
-) -> Result<FixtureElement, GuiMutationError> {
+fn domain_element(element: GuiFixtureElement) -> Result<FixtureElement, GuiMutationError> {
     let shape = match element.shape {
         GuiFixtureShape::Pixel => FixtureShape::Pixel,
         GuiFixtureShape::Line { length, count } => FixtureShape::Line { length, count },

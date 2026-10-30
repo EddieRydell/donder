@@ -272,7 +272,7 @@ fn next_node_id(composition: &impl Composition) -> u32 {
 
 /// Whether a name is used by a layer, graph node or the root node: they
 /// share the graph's namespace.
-pub(super) fn name_taken(composition: &impl Composition, name: &str) -> bool {
+fn name_taken(composition: &impl Composition, name: &str) -> bool {
     name == "root"
         || composition
             .layers()

@@ -140,7 +140,7 @@ impl DeviceClient {
             .map_err(|error| format!("Device returned invalid playback status: {error}"))
     }
 
-    pub(crate) fn upload(&self, bytes: Vec<u8>) -> Result<String, String> {
+    fn upload(&self, bytes: Vec<u8>) -> Result<String, String> {
         let response = self.client.put(self.url(path::SHOW))
             .header("content-type", "application/octet-stream").body(bytes).send()
             .map_err(|error| format!("Upload did not finish: {error}. Check the device before retrying; it may have received the sequence."))?;

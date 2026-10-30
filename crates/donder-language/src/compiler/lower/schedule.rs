@@ -41,9 +41,9 @@ pub(crate) enum RegionKind {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Region {
-    pub(crate) parent: Option<RegionId>,
+    parent: Option<RegionId>,
     pub(crate) kind: RegionKind,
-    pub(crate) loop_depth: u32,
+    loop_depth: u32,
     /// Placed nodes, operands first.
     pub(crate) nodes: Vec<Node>,
 }
@@ -61,8 +61,8 @@ pub(crate) struct Plan {
     pub(crate) branches: HashSet<Node>,
     /// Region children of each branch and reduction.
     pub(crate) children: HashMap<Node, Vec<RegionId>>,
-    pub(crate) uses: HashMap<Node, u32>,
-    pub(crate) stage: HashMap<Node, Stage>,
+    uses: HashMap<Node, u32>,
+    stage: HashMap<Node, Stage>,
     /// The tables of reductions' index-only values.
     pub(crate) tables: Vec<Table>,
 }

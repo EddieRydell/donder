@@ -296,16 +296,16 @@ pub enum CompositionGuiEdit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NewMarkCollection {
-    pub name: String,
-    pub color: String,
-    pub marks_seconds: Vec<f64>,
+    pub(crate) name: String,
+    pub(crate) color: String,
+    pub(crate) marks_seconds: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceMarkRef {
-    pub collection_key: String,
-    pub index: u32,
+    pub(crate) collection_key: String,
+    pub(crate) index: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -504,9 +504,9 @@ pub struct SequenceGraphOperator {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphNodePosition {
-    pub node_id: String,
-    pub x: f32,
-    pub y: f32,
+    pub(crate) node_id: String,
+    pub(crate) x: f32,
+    pub(crate) y: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -571,7 +571,7 @@ pub struct SequenceEffectReference {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceCurvePoint {
-    pub time: f32,
+    pub(crate) time: f32,
     pub value: f32,
 }
 
@@ -584,7 +584,7 @@ pub struct FixtureTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGradientStop {
-    pub time: f32,
+    pub(crate) time: f32,
     pub value: String,
 }
 

@@ -70,10 +70,6 @@ impl DonderDuration {
         Self(Duration::from_nanos(nanos))
     }
 
-    pub const fn from_micros(micros: u64) -> Self {
-        Self(Duration::from_micros(micros))
-    }
-
     pub fn as_nanos(&self) -> u128 {
         self.0.as_nanos()
     }
@@ -111,7 +107,7 @@ pub struct Distance {
 }
 
 impl Distance {
-    pub const ZERO: Self = Self { micrometers: 0 };
+    const ZERO: Self = Self { micrometers: 0 };
 
     pub fn from_meters(value: f32) -> Self {
         Self {

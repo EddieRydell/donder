@@ -119,7 +119,7 @@ pub enum DonderDeviceConnection {
 #[serde(rename_all = "camelCase")]
 pub struct DonderDeviceNetworkRequest {
     pub ssid: String,
-    pub password: String,
+    password: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

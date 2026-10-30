@@ -26,7 +26,7 @@ pub(crate) struct ProjectSessionRestore {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PersistedStore {
-    pub(crate) version: u32,
+    version: u32,
     #[serde(default)]
     pub(crate) settings: AppSettings,
     #[serde(default)]

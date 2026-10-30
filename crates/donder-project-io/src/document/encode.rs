@@ -70,7 +70,7 @@ impl Encoder<'_> {
     }
 
     /// `name` or `alias.name` for a declared object.
-    pub(crate) fn source_reference(
+    fn source_reference(
         &self,
         kind: ObjectKind,
         identity: &SourceIdentity,
@@ -89,7 +89,7 @@ impl Encoder<'_> {
 
     /// A declared object, or one owned by a declared object: the owner's
     /// reference followed by the owning fields, `show.setup.controllers.main`.
-    pub(crate) fn object_reference(
+    fn object_reference(
         &self,
         kind: ObjectKind,
         id: impl Into<ObjectId>,
@@ -1028,7 +1028,7 @@ fn transform_document(transform: &FixtureTransform) -> types::Transform {
     }
 }
 
-pub(crate) fn curve_points(curve: &Curve) -> Vec<(f32, f32)> {
+fn curve_points(curve: &Curve) -> Vec<(f32, f32)> {
     curve
         .points
         .iter()
@@ -1036,7 +1036,7 @@ pub(crate) fn curve_points(curve: &Curve) -> Vec<(f32, f32)> {
         .collect()
 }
 
-pub(crate) fn gradient_stops(gradient: &Gradient) -> Vec<(f32, donder_runtime_types::Color)> {
+fn gradient_stops(gradient: &Gradient) -> Vec<(f32, donder_runtime_types::Color)> {
     gradient
         .stops
         .iter()

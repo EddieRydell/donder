@@ -38,7 +38,7 @@ pub struct PixelRoute {
 }
 
 impl Patch {
-    pub fn remove_output(&mut self, id: PixelRouteId) -> Result<(), EditRejection> {
+    pub(crate) fn remove_output(&mut self, id: PixelRouteId) -> Result<(), EditRejection> {
         let index = self
             .routes
             .iter()

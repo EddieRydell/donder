@@ -157,7 +157,7 @@ impl StripSlots {
 impl<T: Copy> Store<'_, T> {
     /// Values a bank of `scalars` and `rows` holds. A bank with scalars but no
     /// rows keeps a row of padding, so every scalar has a row-sized window.
-    pub(super) fn len(scalars: usize, rows: usize) -> usize {
+    fn len(scalars: usize, rows: usize) -> usize {
         let rows = if scalars == 0 { rows } else { rows.max(1) };
         scalars + rows * STRIP
     }

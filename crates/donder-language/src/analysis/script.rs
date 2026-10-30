@@ -24,8 +24,8 @@ pub enum ScriptTarget {
 
 #[derive(Clone, Copy, Debug)]
 pub struct ScriptReference {
-    pub span: TextSpan,
-    pub target: ScriptTarget,
+    pub(crate) span: TextSpan,
+    pub(crate) target: ScriptTarget,
 }
 
 /// One script document, analyzed.
@@ -34,7 +34,7 @@ pub struct ScriptAnalysis {
     /// Every error: syntax, checking and lowering.
     pub diagnostics: Vec<Diagnostic>,
     pub symbols: Vec<Symbol>,
-    pub references: Vec<ScriptReference>,
+    references: Vec<ScriptReference>,
     pub tokens: Vec<SemanticToken>,
 }
 

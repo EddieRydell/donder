@@ -345,5 +345,5 @@ fn with_outcome(update: GuiEditUpdate, outcome: donder_editor::GuiEditOutcome) -
 #[cfg(test)]
 #[derive(Debug)]
 pub(crate) struct GuiEditResult {
-    pub document: donder_editor::dto::GuiDocument,
+    pub(crate) document: donder_editor::dto::GuiDocument,
 }

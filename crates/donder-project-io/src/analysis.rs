@@ -27,14 +27,14 @@ pub struct RecoveryDocument {
     pub format: SourceDocumentFormat,
     pub objects: Vec<RecoveryObject>,
     /// Where the first declaration is named.
-    pub first_name: Option<TextRange>,
+    pub(crate) first_name: Option<TextRange>,
 }
 
 /// An object a document declares, by its name.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecoveryObject {
     pub kind: ObjectKind,
-    pub name: Identifier,
+    pub(crate) name: Identifier,
 }
 
 /// Read every document at `paths`, reporting its syntax errors, and list what

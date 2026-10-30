@@ -4,7 +4,7 @@ use donder_language::{DistanceSpan, Point3, Rotation3, Scale3};
 
 use std::collections::HashSet;
 
-pub(crate) const MAX_FIXTURE_PIXELS: u32 = 1_000_000;
+const MAX_FIXTURE_PIXELS: u32 = 1_000_000;
 
 /// Stable within a definition; list order determines output order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -65,7 +65,7 @@ pub enum FixtureShape {
 }
 
 impl FixtureShape {
-    pub fn pixel_count(&self) -> Option<u32> {
+    fn pixel_count(&self) -> Option<u32> {
         match self {
             Self::Pixel => Some(1),
             Self::Line { count, .. } | Self::Polyline { count, .. } | Self::Arc { count, .. } => {
@@ -75,7 +75,7 @@ impl FixtureShape {
         }
     }
 
-    pub fn is_valid(&self) -> bool {
+    fn is_valid(&self) -> bool {
         let positive = |v: f32| v.is_finite() && v > 0.0 && v <= 2_000.0;
         if !matches!(self.pixel_count(), Some(1..=MAX_FIXTURE_PIXELS)) {
             return false;
@@ -194,7 +194,7 @@ impl FixtureDefinition {
         Ok(total)
     }
 
-    pub fn validate(&self, id: &FixtureDefinitionId) -> Result<u32, FixtureDefinitionError> {
+    pub(crate) fn validate(&self, id: &FixtureDefinitionId) -> Result<u32, FixtureDefinitionError> {
         self.validate_geometry().map_err(|error| match error {
             FixtureGeometryError::TooManyPixels => FixtureDefinitionError::TooManyPixels(*id),
             FixtureGeometryError::DuplicateElement(element) => {

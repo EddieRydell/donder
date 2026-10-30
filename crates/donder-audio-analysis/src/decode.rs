@@ -20,7 +20,7 @@ pub struct DecodedAudio {
 
 impl DecodedAudio {
     /// Each frame's channels averaged.
-    pub fn mono(&self) -> Vec<f64> {
+    pub(crate) fn mono(&self) -> Vec<f64> {
         self.samples
             .chunks_exact(self.channels)
             .map(|frame| {

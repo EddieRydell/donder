@@ -125,7 +125,7 @@ pub(crate) fn describe(document: &Document, span: TextSpan) -> Option<String> {
     })
 }
 
-pub(crate) fn shape_text(shape: &Shape) -> String {
+fn shape_text(shape: &Shape) -> String {
     match shape {
         Shape::Integer => "integer".into(),
         Shape::Float => "float, like `1.0`".into(),

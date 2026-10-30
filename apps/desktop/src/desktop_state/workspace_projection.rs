@@ -15,11 +15,11 @@ pub(crate) enum FsEntryKind {
     Directory,
 }
 
-pub(crate) fn canonical_relative_path(path: &Utf8Path) -> Utf8PathBuf {
+fn canonical_relative_path(path: &Utf8Path) -> Utf8PathBuf {
     Utf8PathBuf::from(path.as_str().replace(std::path::MAIN_SEPARATOR, "/"))
 }
 
-pub(crate) fn collect_workspace_paths(
+fn collect_workspace_paths(
     root: &Utf8Path,
     relative: &Utf8Path,
     paths: &mut BTreeMap<Utf8PathBuf, FsEntryKind>,
@@ -45,10 +45,7 @@ pub(crate) fn collect_workspace_paths(
     }
 }
 
-pub(crate) fn insert_path_with_parents(
-    paths: &mut BTreeMap<Utf8PathBuf, FsEntryKind>,
-    path: &Utf8Path,
-) {
+fn insert_path_with_parents(paths: &mut BTreeMap<Utf8PathBuf, FsEntryKind>, path: &Utf8Path) {
     let mut current = Utf8PathBuf::new();
     let path = canonical_relative_path(path);
     for component in path.components() {

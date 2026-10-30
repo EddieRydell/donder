@@ -33,7 +33,7 @@ pub struct DeclarationSpan {
     pub kind: DeclarationKind,
     pub name: Identifier,
     pub name_span: TextSpan,
-    pub span: TextSpan,
+    pub(crate) span: TextSpan,
 }
 
 #[derive(Clone, Debug)]

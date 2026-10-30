@@ -26,7 +26,7 @@ pub fn row(count: usize) -> FixtureGeometry {
 }
 
 /// The target of every pixel of the first registered fixture, `geometry`.
-pub fn whole<'id>(
+pub(crate) fn whole<'id>(
     builder: &mut ShowBuilder<'id>,
     geometry: &FixtureGeometry,
     scope: TargetScope,
@@ -58,7 +58,7 @@ pub fn compile(source: &str) -> CompiledDefinition {
 }
 
 /// The declaration of `source` named `name`.
-pub fn definition(source: &str, name: &str) -> CompiledDefinition {
+pub(crate) fn definition(source: &str, name: &str) -> CompiledDefinition {
     compile_script(source)
         .unwrap()
         .into_iter()

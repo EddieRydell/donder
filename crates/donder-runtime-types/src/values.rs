@@ -27,21 +27,6 @@ impl SampleTime {
             None => None,
         }
     }
-
-    pub const fn checked_sub_duration(self, duration: SampleDuration) -> Option<Self> {
-        match self.0.checked_sub(duration.0) {
-            Some(ticks) => Some(Self(ticks)),
-            None => None,
-        }
-    }
-
-    /// The span from `earlier` to this time, or `None` when `earlier` is later.
-    pub const fn checked_duration_since(self, earlier: Self) -> Option<SampleDuration> {
-        match self.0.checked_sub(earlier.0) {
-            Some(ticks) => Some(SampleDuration(ticks)),
-            None => None,
-        }
-    }
 }
 
 impl SampleDuration {
@@ -51,24 +36,6 @@ impl SampleDuration {
 
     pub const fn as_ticks(self) -> u32 {
         self.0
-    }
-
-    pub const fn is_zero(self) -> bool {
-        self.0 == 0
-    }
-
-    pub const fn checked_add(self, other: Self) -> Option<Self> {
-        match self.0.checked_add(other.0) {
-            Some(ticks) => Some(Self(ticks)),
-            None => None,
-        }
-    }
-
-    pub const fn checked_sub(self, other: Self) -> Option<Self> {
-        match self.0.checked_sub(other.0) {
-            Some(ticks) => Some(Self(ticks)),
-            None => None,
-        }
     }
 }
 
@@ -82,7 +49,7 @@ pub enum SampleTimeError {
 
 /// `a * b` as its high and low 32-bit halves.
 #[inline]
-pub(crate) const fn wide_mul(a: u32, b: u32) -> (u32, u32) {
+const fn wide_mul(a: u32, b: u32) -> (u32, u32) {
     let (a1, a0) = (a >> 16, a & 0xffff);
     let (b1, b0) = (b >> 16, b & 0xffff);
     let low = a0 * b0;
@@ -124,54 +91,6 @@ pub fn sample_time_from_frame(frame: u32, frame_rate: u32) -> Result<SampleTime,
     let (ticks, _) =
         mul_div(frame, MICROS_PER_SECOND, frame_rate).ok_or(SampleTimeError::OutOfRange)?;
     Ok(SampleTime::from_ticks(ticks))
-}
-
-/// Converts a desktop/audio API value at the boundary of the portable runtime.
-pub fn sample_time_from_seconds_f32(seconds: f32) -> Result<SampleTime, SampleTimeError> {
-    Ok(SampleTime::from_ticks(positive_seconds_to_ticks(seconds)?))
-}
-
-/// Converts a floating-point DSL duration at the VM boundary. Runtime state
-/// keeps the resulting 32-bit microsecond value, not the source float.
-pub fn sample_duration_from_seconds_f32(seconds: f32) -> Result<SampleDuration, SampleTimeError> {
-    Ok(SampleDuration::from_ticks(positive_seconds_to_ticks(
-        seconds,
-    )?))
-}
-
-fn positive_seconds_to_ticks(seconds: f32) -> Result<u32, SampleTimeError> {
-    if !seconds.is_finite() {
-        return Err(SampleTimeError::NotFinite);
-    }
-    if seconds < 0.0 {
-        return Err(SampleTimeError::Negative);
-    }
-    let ticks = seconds * MICROS_PER_SECOND as f32 + 0.5;
-    if ticks >= 4_294_967_296.0 {
-        return Err(SampleTimeError::OutOfRange);
-    }
-    Ok(ticks as u32)
-}
-
-/// Adds a possibly-negative floating-point DSL offset to the portable clock.
-/// The conversion and arithmetic both stay within 32-bit tick values.
-pub fn sample_time_with_seconds_offset(
-    start: SampleTime,
-    seconds: f32,
-) -> Result<SampleTime, SampleTimeError> {
-    if !seconds.is_finite() {
-        return Err(SampleTimeError::NotFinite);
-    }
-    let offset = SampleDuration::from_ticks(positive_seconds_to_ticks(seconds.abs())?);
-    if seconds.is_sign_negative() {
-        start
-            .checked_sub_duration(offset)
-            .ok_or(SampleTimeError::OutOfRange)
-    } else {
-        start
-            .checked_add_duration(offset)
-            .ok_or(SampleTimeError::OutOfRange)
-    }
 }
 
 /// Every tick count becomes seconds by one multiply: the ESP32's FPU
@@ -278,7 +197,7 @@ impl Curve {
     }
 
     /// A hash consistent with [`Self::same`].
-    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+    pub(crate) fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
         use core::hash::Hash;
         self.points.len().hash(state);
         for point in &self.points {
@@ -356,7 +275,7 @@ impl Gradient {
     }
 
     /// A hash consistent with [`Self::same`].
-    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+    pub(crate) fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
         use core::hash::Hash;
         self.stops.len().hash(state);
         for stop in &self.stops {
@@ -441,14 +360,6 @@ impl Marks {
         &self.track
     }
 
-    /// The same window over `track`, which holds the same times.
-    pub fn with_track(&self, track: crate::Shared<[u32]>) -> Self {
-        Self {
-            track,
-            ..self.clone()
-        }
-    }
-
     fn ticks(&self) -> &[u32] {
         &self.track[self.first as usize..self.end as usize]
     }
@@ -461,7 +372,7 @@ impl Marks {
         self.first == self.end
     }
 
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = SampleDuration> + '_ {
+    fn iter(&self) -> impl ExactSizeIterator<Item = SampleDuration> + '_ {
         self.ticks()
             .iter()
             .map(|&mark| SampleDuration::from_ticks(mark - self.origin))
@@ -495,7 +406,7 @@ impl MarkWindow<'_> {
 
     /// `sample_duration_seconds_f32` of mark `index`, or NaN for a missing
     /// index.
-    pub fn seconds(&self, index: usize) -> f32 {
+    pub(crate) fn seconds(&self, index: usize) -> f32 {
         self.ticks.get(index).map_or(f32::NAN, |&mark| {
             sample_duration_seconds_f32(SampleDuration::from_ticks(mark - self.origin))
         })
@@ -506,7 +417,11 @@ impl MarkWindow<'_> {
     /// `cursor` holds the boundary the last query found. Queries a strip
     /// makes in turn are usually near one another, so the boundary is checked
     /// there before the track is searched.
-    pub fn previous(&self, seconds: f32, cursor: &core::cell::Cell<usize>) -> Option<(usize, f32)> {
+    pub(crate) fn previous(
+        &self,
+        seconds: f32,
+        cursor: &core::cell::Cell<usize>,
+    ) -> Option<(usize, f32)> {
         let ticks = self.ticks;
         let at = self
             .origin

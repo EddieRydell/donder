@@ -23,7 +23,7 @@ pub struct E131Sender {
 }
 
 impl E131Sender {
-    pub fn open(
+    pub(crate) fn open(
         id: ControllerId,
         config: &E131Config,
         ports: &[ControllerPort],
@@ -57,7 +57,7 @@ impl E131Sender {
         })
     }
 
-    pub fn send<'a>(
+    pub(crate) fn send<'a>(
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
@@ -96,7 +96,7 @@ impl E131Sender {
         Ok(())
     }
 
-    pub fn blackout(&mut self) -> Result<(), OutputError> {
+    pub(crate) fn blackout(&mut self) -> Result<(), OutputError> {
         let frames = self
             .universes
             .iter()
@@ -109,7 +109,7 @@ impl E131Sender {
         self.send(&frames)
     }
 
-    pub fn terminate(&mut self) -> Result<(), OutputError> {
+    pub(crate) fn terminate(&mut self) -> Result<(), OutputError> {
         let universes = self
             .universes
             .values()

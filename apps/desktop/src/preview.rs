@@ -518,7 +518,7 @@ impl PreviewWake {
         }
     }
 
-    pub(crate) fn generation(&self) -> u64 {
+    fn generation(&self) -> u64 {
         let (generation, _) = &*self.state;
         *lock(generation)
     }
@@ -530,7 +530,7 @@ impl PreviewWake {
         wake.notify_all();
     }
 
-    pub(crate) fn wait(&self, observed: u64, running: &AtomicBool) -> u64 {
+    fn wait(&self, observed: u64, running: &AtomicBool) -> u64 {
         let (generation, wake) = &*self.state;
         let generation = lock(generation);
         let generation = wake
@@ -541,12 +541,7 @@ impl PreviewWake {
         *generation
     }
 
-    pub(crate) fn wait_timeout(
-        &self,
-        observed: u64,
-        running: &AtomicBool,
-        timeout: Duration,
-    ) -> u64 {
+    fn wait_timeout(&self, observed: u64, running: &AtomicBool, timeout: Duration) -> u64 {
         let (generation, wake) = &*self.state;
         let generation = lock(generation);
         let (generation, _) = wake

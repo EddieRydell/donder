@@ -263,15 +263,4 @@ impl PreparedAutomation {
         (self.quantity == AutomatedQuantity::Integral).hash(state);
         self.param_index.hash(state);
     }
-
-    pub fn position(&self, sample_time: SampleTime) -> f32 {
-        let elapsed = sample_time
-            .checked_duration_since(self.start)
-            .map_or(0, |duration| duration.as_ticks());
-        if self.duration.as_ticks() == 0 {
-            0.0
-        } else {
-            (elapsed as f32 / self.duration.as_ticks() as f32).clamp(0.0, 1.0)
-        }
-    }
 }

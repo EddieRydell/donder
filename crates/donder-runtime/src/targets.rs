@@ -54,7 +54,7 @@ fn indexed_pixel(pixel: &format::Pixel) -> PreparedPixel {
 /// One target of a show.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct TargetView<'a> {
-    pub(crate) record: &'a format::Target,
+    record: &'a format::Target,
     runs: &'a [PixelRun],
     pixels: &'a [format::Pixel],
     spatial: &'a [format::SpatialRun],
@@ -126,7 +126,7 @@ impl<'a> TargetView<'a> {
     }
 
     #[inline]
-    pub(crate) fn segment_count(&self) -> usize {
+    fn segment_count(&self) -> usize {
         if self.record.kind == format::PIXELS_RUNS {
             self.runs.len()
         } else {
@@ -135,7 +135,7 @@ impl<'a> TargetView<'a> {
     }
 
     #[inline]
-    pub(crate) fn segment(&self, index: usize) -> Segment {
+    fn segment(&self, index: usize) -> Segment {
         if self.record.kind != format::PIXELS_RUNS {
             let pixel = &self.pixels[index];
             return Segment {

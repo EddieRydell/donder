@@ -76,22 +76,22 @@ pub struct AppSettings {
     pub editor_view_mode: EditorViewMode,
     pub reopen_preview_window: bool,
     pub autosave_project_edits: bool,
-    pub sequence_initial_zoom_mode: SequenceInitialZoomMode,
-    pub sequence_follow_mode: SequenceFollowMode,
+    sequence_initial_zoom_mode: SequenceInitialZoomMode,
+    sequence_follow_mode: SequenceFollowMode,
     /// Timeline drags snap to marks and clip edges; holding Alt inverts this for the gesture.
-    pub sequence_snap: bool,
+    sequence_snap: bool,
     pub sequence_clip_match: SequenceClipMatch,
     pub sequence_initial_px_per_second: f32,
     pub sequence_initial_lane_height_px: f32,
     #[serde(default)]
-    pub sequence_spectrogram_enabled: bool,
+    sequence_spectrogram_enabled: bool,
     #[serde(default = "default_sequence_spectrogram_time_resolution_ms")]
     pub sequence_spectrogram_time_resolution_ms: f32,
     #[serde(default = "default_sequence_spectrogram_fft_size")]
     pub sequence_spectrogram_fft_size: u32,
     /// Marks draw only in the Marks lane instead of also across the waveform and lanes.
     #[serde(default)]
-    pub sequence_marks_lane_only: bool,
+    sequence_marks_lane_only: bool,
     pub clip_raster: ClipRasterSettings,
     pub spatial_snap: SpatialSnapSettings,
     /// Commands whose keys differ from their defaults.
@@ -186,9 +186,9 @@ pub enum EditorViewMode {
 pub struct Shortcut {
     /// The key as the browser names it: a lowercase character or a named key such as `ArrowLeft`.
     pub key: String,
-    pub primary: bool,
-    pub shift: bool,
-    pub alt: bool,
+    primary: bool,
+    shift: bool,
+    alt: bool,
 }
 
 /// Keys chosen for a command in place of its defaults; an empty list leaves it unbound.
@@ -461,8 +461,8 @@ pub struct DocumentObjectDescriptor {
 #[serde(rename_all = "camelCase")]
 pub struct EditorTab {
     pub path: String,
-    pub name: String,
-    pub syntax: TextDocumentSyntax,
+    name: String,
+    syntax: TextDocumentSyntax,
     pub dirty: bool,
     pub document_revision: u32,
     pub saved_revision: u32,
@@ -543,9 +543,9 @@ pub struct WorkspaceEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SpatialSnapSettings {
-    pub enabled: bool,
+    enabled: bool,
     pub spacing_meters: f64,
-    pub unit: SpatialUnit,
+    unit: SpatialUnit,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
@@ -573,19 +573,19 @@ impl Default for SpatialSnapSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipMatch {
-    pub effect_type: bool,
+    pub(crate) effect_type: bool,
     pub start: SequenceClipTimeMatch,
     pub end: SequenceClipTimeMatch,
     pub duration: SequenceClipTimeMatch,
-    pub same_lane: bool,
-    pub automation_clips: bool,
+    pub(crate) same_lane: bool,
+    pub(crate) automation_clips: bool,
 }
 
 /// A time property matches within `tolerance_seconds` of the seed's.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipTimeMatch {
-    pub enabled: bool,
+    pub(crate) enabled: bool,
     pub tolerance_seconds: f64,
 }
 

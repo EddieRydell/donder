@@ -45,7 +45,7 @@ impl Declaration {
         }
     }
 
-    pub(crate) fn encode(&self, name: &Identifier) -> DataDeclaration {
+    fn encode(&self, name: &Identifier) -> DataDeclaration {
         match self {
             Self::Project(value) => declaration(name, value),
             Self::Setup(value) => declaration(name, value),

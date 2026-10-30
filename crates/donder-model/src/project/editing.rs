@@ -20,25 +20,7 @@ pub enum Object {
     OperatorDefinition(OperatorDefinition),
 }
 
-impl Object {
-    pub fn id(&self) -> ObjectId {
-        match self {
-            Self::Project(value) => value.id.into(),
-            Self::Setup(value) => value.id.into(),
-            Self::Layout(value) => value.id.into(),
-            Self::Patch(value) => value.id.into(),
-            Self::Controller(value) => value.id.into(),
-            Self::InputDevice(value) => value.id.into(),
-            Self::Sequence(value) => value.id.into(),
-            Self::Rig(value) => value.id.into(),
-            Self::FixtureDefinition(id, _) => (*id).into(),
-            Self::Curve(id, _) => (*id).into(),
-            Self::Gradient(id, _) => (*id).into(),
-            Self::EffectDefinition(value) => (*value.id()).into(),
-            Self::OperatorDefinition(value) => (*value.id()).into(),
-        }
-    }
-}
+impl Object {}
 
 macro_rules! object_from {
     ($($kind:ident),*) => {$(

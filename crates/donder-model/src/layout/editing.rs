@@ -71,7 +71,7 @@ impl Layout {
     }
 
     /// List a new item right after `original` in every group listing it.
-    pub fn add_beside(&mut self, id: FixtureInstanceId, original: FixtureInstanceId) {
+    pub(crate) fn add_beside(&mut self, id: FixtureInstanceId, original: FixtureInstanceId) {
         let lists =
             std::iter::once(&mut self.root).chain(self.fixtures.iter_mut().filter_map(|fixture| {
                 match &mut fixture.kind {

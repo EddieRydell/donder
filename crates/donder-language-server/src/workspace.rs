@@ -57,10 +57,10 @@ pub trait DocumentSource: Send {
 
 /// A project check and the document texts it read over disk.
 pub struct ProjectCheck {
-    pub root: Utf8PathBuf,
-    pub diagnostics: Vec<IoDiagnostic>,
-    pub index: ProjectIndex,
-    pub texts: Arc<SourceOverrides>,
+    root: Utf8PathBuf,
+    pub(crate) diagnostics: Vec<IoDiagnostic>,
+    pub(crate) index: ProjectIndex,
+    texts: Arc<SourceOverrides>,
 }
 
 impl ProjectCheck {

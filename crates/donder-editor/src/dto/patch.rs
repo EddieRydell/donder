@@ -6,27 +6,27 @@ use specta::Type;
 #[serde(rename_all = "camelCase")]
 pub struct PatchGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::Description`.
-    pub description: Option<String>,
-    pub path: String,
-    pub object_key: String,
-    pub routes: Vec<GuiPixelRoute>,
-    pub layouts: Vec<PatchLayout>,
-    pub controllers: Vec<SetupController>,
+    pub(crate) description: Option<String>,
+    pub(crate) path: String,
+    pub(crate) object_key: String,
+    pub(crate) routes: Vec<GuiPixelRoute>,
+    pub(crate) layouts: Vec<PatchLayout>,
+    pub(crate) controllers: Vec<SetupController>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchLayout {
-    pub source_ref: GuiObjectRef,
-    pub fixtures: Vec<PatchFixtureTarget>,
+    pub(crate) source_ref: GuiObjectRef,
+    pub(crate) fixtures: Vec<PatchFixtureTarget>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchFixtureTarget {
-    pub id: u32,
-    pub name: String,
-    pub pixel_count: u32,
+    pub(crate) id: u32,
+    pub(crate) name: String,
+    pub(crate) pixel_count: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -47,8 +47,8 @@ pub struct GuiPixelRoute {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiPixelSpan {
-    pub start: u32,
-    pub count: u32,
+    pub(crate) start: u32,
+    pub(crate) count: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

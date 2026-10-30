@@ -245,7 +245,7 @@ impl Layout {
 
     /// Members name existing items once per list, groups are acyclic, and
     /// every item is reachable from the root.
-    pub fn validate_membership(&self) -> Result<(), LayoutError> {
+    fn validate_membership(&self) -> Result<(), LayoutError> {
         let index = self.index();
         let lists =
             std::iter::once(&self.root[..]).chain(self.fixtures.iter().map(LayoutFixture::members));

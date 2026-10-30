@@ -71,7 +71,7 @@ impl DesktopState {
         self.enqueue_render_refresh(request);
     }
 
-    pub(super) fn enqueue_render_refresh(&self, request: RenderRefreshPayload) {
+    fn enqueue_render_refresh(&self, request: RenderRefreshPayload) {
         let failed = !self.render_refresh.schedule(request);
         if failed {
             self.set_render_error_if_changed("Render refresh worker is unavailable.".to_string());

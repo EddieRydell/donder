@@ -17,17 +17,17 @@ use crate::{
 /// Bringing an unreferenced document into the project from the root document.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, specta::Type)]
 pub struct Inclusion {
-    pub document: Utf8PathBuf,
+    document: Utf8PathBuf,
     /// The root import that takes the document: an existing alias it extends
     /// without a name clash, or a new one.
     #[specta(type = String)]
-    pub alias: Identifier,
+    alias: Identifier,
     /// The sequences the document declares, added to the project's `sequences`.
     #[specta(type = Vec<String>)]
-    pub sequences: Vec<Identifier>,
+    sequences: Vec<Identifier>,
     /// The rigs the document declares, added to the project's `rigs`.
     #[specta(type = Vec<String>)]
-    pub rigs: Vec<Identifier>,
+    rigs: Vec<Identifier>,
 }
 
 /// An inclusion as text: names read back must be valid identifiers.

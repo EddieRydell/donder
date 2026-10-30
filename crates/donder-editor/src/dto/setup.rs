@@ -202,32 +202,32 @@ pub enum BufferExternalState {
 #[serde(rename_all = "camelCase")]
 pub struct CurveGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
-    pub description: Option<String>,
-    pub path: String,
-    pub object_key: String,
-    pub points: Vec<SequenceCurvePoint>,
+    pub(crate) description: Option<String>,
+    pub(crate) path: String,
+    pub(crate) object_key: String,
+    pub(crate) points: Vec<SequenceCurvePoint>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GradientGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
-    pub description: Option<String>,
-    pub path: String,
-    pub object_key: String,
-    pub stops: Vec<SequenceGradientStop>,
+    pub(crate) description: Option<String>,
+    pub(crate) path: String,
+    pub(crate) object_key: String,
+    pub(crate) stops: Vec<SequenceGradientStop>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
-    pub description: Option<String>,
+    pub(crate) description: Option<String>,
     pub available_declarations: Vec<GuiObjectRef>,
-    pub path: String,
-    pub object_key: String,
-    pub setup: GuiObjectRef,
-    pub sequences: Vec<GuiObjectRef>,
+    pub(crate) path: String,
+    pub(crate) object_key: String,
+    pub(crate) setup: GuiObjectRef,
+    pub(crate) sequences: Vec<GuiObjectRef>,
     pub rigs: Vec<GuiObjectRef>,
 }
 
@@ -235,39 +235,39 @@ pub struct ProjectGuiDocument {
 #[serde(rename_all = "camelCase")]
 pub struct SetupGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
-    pub description: Option<String>,
+    pub(crate) description: Option<String>,
     pub available_declarations: Vec<GuiObjectRef>,
-    pub path: String,
-    pub source_ref: GuiObjectRef,
-    pub object_key: String,
+    pub(crate) path: String,
+    pub(crate) source_ref: GuiObjectRef,
+    pub(crate) object_key: String,
     pub layout_ref: GuiObjectRef,
     pub patch_ref: GuiObjectRef,
     pub controllers: Vec<SetupController>,
-    pub available_controllers: Vec<SetupController>,
+    pub(crate) available_controllers: Vec<SetupController>,
     pub input_devices: Vec<SetupInputDevice>,
     pub available_input_devices: Vec<SetupInputDevice>,
     /// Every key a new input device's control can read, in the language's order.
-    pub key_codes: Vec<String>,
-    pub input_limits: GuiInputLimits,
+    pub(crate) key_codes: Vec<String>,
+    pub(crate) input_limits: GuiInputLimits,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupController {
-    pub label: String,
+    pub(crate) label: String,
     pub source_ref: GuiObjectRef,
-    pub config: SetupControllerConfig,
-    pub ports: Vec<SetupControllerPort>,
+    pub(crate) config: SetupControllerConfig,
+    pub(crate) ports: Vec<SetupControllerPort>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ControllerGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
-    pub description: Option<String>,
-    pub path: String,
-    pub object_key: String,
-    pub controller: SetupController,
+    pub(crate) description: Option<String>,
+    pub(crate) path: String,
+    pub(crate) object_key: String,
+    pub(crate) controller: SetupController,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

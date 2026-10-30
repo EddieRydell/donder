@@ -25,7 +25,7 @@ pub struct Sequence {
 }
 
 impl Sequence {
-    pub fn frame_count(&self) -> u128 {
+    pub(crate) fn frame_count(&self) -> u128 {
         (self.duration.as_nanos() * u128::from(self.frame_rate))
             .div_ceil(u128::from(donder_language::NANOS_PER_SECOND))
     }
@@ -135,7 +135,7 @@ pub fn automation_curve_is_normalized(curve: &Curve) -> bool {
 }
 
 impl AutomationClip {
-    pub fn end(&self) -> core::time::Duration {
+    fn end(&self) -> core::time::Duration {
         self.start.0.saturating_add(self.duration.0)
     }
 
@@ -248,9 +248,9 @@ impl AutomationClip {
 
 /// Every clip actively bound to one target, merged into a single curve.
 pub struct AutomationEnvelope {
-    pub start: DonderTime,
-    pub duration: DonderDuration,
-    pub curve: Curve,
+    pub(crate) start: DonderTime,
+    pub(crate) duration: DonderDuration,
+    pub(crate) curve: Curve,
 }
 
 impl Sequence {
@@ -372,13 +372,6 @@ impl AutomationBinding {
         match &self.target {
             AutomationTarget::ClipParam { clip_id, param } => Some((clip_id, param)),
             AutomationTarget::CompositionNodeParam { .. } => None,
-        }
-    }
-
-    pub fn composition_node_param(&self) -> Option<(&CompositionGraphNodeId, &Identifier)> {
-        match &self.target {
-            AutomationTarget::CompositionNodeParam { node_id, param } => Some((node_id, param)),
-            AutomationTarget::ClipParam { .. } => None,
         }
     }
 }

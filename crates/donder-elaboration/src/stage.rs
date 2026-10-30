@@ -18,15 +18,15 @@ use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 
 pub(crate) struct Stage {
-    pub(crate) geometry: Vec<FixtureGeometry>,
+    geometry: Vec<FixtureGeometry>,
     /// Every fixture and group's ordered member fixtures, by geometry index.
-    pub(crate) targets: IndexMap<FixtureInstanceId, Vec<usize>>,
+    targets: IndexMap<FixtureInstanceId, Vec<usize>>,
     /// Each selected route's pixels, in the original geometry.
     pub(crate) routes: IndexMap<PixelRouteId, TargetGeometry>,
     /// The cells of each fixture the show keeps.
-    pub(crate) cells: Vec<Vec<u32>>,
-    pub(crate) has_pixels: bool,
-    pub(crate) dependencies: HashSet<CompositionGraphNodeId>,
+    cells: Vec<Vec<u32>>,
+    has_pixels: bool,
+    dependencies: HashSet<CompositionGraphNodeId>,
     compact: bool,
 }
 

@@ -18,11 +18,11 @@ use donder_runtime_types::{SECONDS_PER_TICK, SampleTime, curve_window_points};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Override {
-    pub(crate) active: u32,
-    pub(crate) value: f32,
+    active: u32,
+    value: f32,
     /// Normalized area an integral adds to its curve's, so a value set
     /// mid-session keeps the integral continuous.
-    pub(crate) area_offset: f32,
+    area_offset: f32,
 }
 
 /// The copy of the running invocation's parameters.

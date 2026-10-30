@@ -743,7 +743,7 @@ impl DesktopState {
 
     /// The performance's colors now, as every evaluator renders them.
     #[cfg(test)]
-    pub(crate) fn render_performance_colors(&self) -> Option<Vec<donder_runtime_types::Color>> {
+    fn render_performance_colors(&self) -> Option<Vec<donder_runtime_types::Color>> {
         let perform = lock_unpoisoned(&self.perform);
         let performance = perform.performance.as_ref()?;
         let mut playback = performance.prepared.clone().into_playback();

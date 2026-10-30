@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
 
-pub(crate) const MESSAGE_EVENT: &str = "language_server_message";
+const MESSAGE_EVENT: &str = "language_server_message";
 
 pub(crate) struct LanguageServerHost {
     sender: Mutex<mpsc::Sender<serde_json::Value>>,

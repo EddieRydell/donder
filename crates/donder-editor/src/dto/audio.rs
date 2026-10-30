@@ -50,8 +50,8 @@ pub enum PlaybackFrameTiming {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackSpeed {
-    pub show_micros_per_second: u32,
-    pub frame_timing: PlaybackFrameTiming,
+    show_micros_per_second: u32,
+    frame_timing: PlaybackFrameTiming,
 }
 
 impl From<PlaybackRate> for PlaybackSpeed {

@@ -109,14 +109,14 @@ pub type OwnedGradient = crate::ownership::Owned<Gradient, GradientId>;
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectDefinition {
     pub(crate) id: EffectDefinitionId,
-    pub(crate) compiled: CompiledDefinition,
+    compiled: CompiledDefinition,
 }
 
 impl EffectDefinition {
     pub fn new(id: EffectDefinitionId, compiled: CompiledDefinition) -> Self {
         Self { id, compiled }
     }
-    pub fn id(&self) -> &EffectDefinitionId {
+    pub(crate) fn id(&self) -> &EffectDefinitionId {
         &self.id
     }
     pub fn name(&self) -> &str {
@@ -125,7 +125,7 @@ impl EffectDefinition {
     pub fn params(&self) -> &[ParamDecl] {
         self.compiled.params()
     }
-    pub fn compiled(&self) -> &CompiledDefinition {
+    pub(crate) fn compiled(&self) -> &CompiledDefinition {
         &self.compiled
     }
     pub fn description(&self) -> Option<&str> {
