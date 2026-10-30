@@ -42,3 +42,5 @@ pages with relative paths.
 - [Live input](live_input.md): input devices, consoles and performing live.
 - [Vixen effects](vixen_effects.md): the approximate Vixen ports and how they
   take a Vixen effect's settings.
+- [xLights import](xlights_import.md): a new project from an xLights show's
+  layout, controllers and patch.

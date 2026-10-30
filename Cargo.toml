@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-xlights"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -33,6 +33,7 @@ donder-project-io = { path = "crates/donder-project-io" }
 donder-runtime = { path = "crates/donder-runtime" }
 donder-runtime-types = { path = "crates/donder-runtime-types" }
 donder-test-support = { path = "crates/donder-test-support" }
+donder-xlights = { path = "crates/donder-xlights" }
 glam = "0.33.7"
 fdk-aac = "0.8.0"
 ignore = "0.4.33"
@@ -46,6 +47,7 @@ midir = "0.11.1"
 micromath = { version = "2.1.0", default-features = false }
 notify = "=8.2.0"
 openh264 = "0.9.8"
+quick-xml = "0.42.0"
 proc-macro2 = "1.0.107"
 realfft = "3.5.0"
 rubato = "5.0.1"
