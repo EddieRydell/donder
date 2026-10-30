@@ -24,7 +24,7 @@ pub(crate) enum Target {
 }
 
 /// A script symbol as a target, linked when the script is in the project.
-pub(crate) fn script_symbol_target(
+fn script_symbol_target(
     workspace: &Workspace,
     uri: &str,
     analysis: &ScriptAnalysis,

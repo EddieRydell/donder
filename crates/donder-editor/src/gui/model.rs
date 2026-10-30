@@ -524,7 +524,7 @@ pub(super) fn create_object_document(
     ))
 }
 
-pub(crate) fn object_identity_from_gui(
+fn object_identity_from_gui(
     reference: &crate::dto::GuiObjectRef,
 ) -> Result<donder_project_io::ObjectAddress, GuiMutationError> {
     let root = source_identity_from_gui(&reference.path, &reference.object_key);
@@ -557,7 +557,7 @@ pub(crate) fn object_ref(
 }
 
 /// The GUI's reference to the object of `kind` at `address`.
-pub(crate) fn address_ref(
+fn address_ref(
     address: &donder_project_io::ObjectAddress,
     kind: donder_model::ObjectKind,
 ) -> crate::dto::GuiObjectRef {

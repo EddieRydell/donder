@@ -276,7 +276,7 @@ impl DesktopState {
     }
 
     #[cfg(test)]
-    pub(crate) fn render_current_sequence_frame(
+    fn render_current_sequence_frame(
         &self,
     ) -> Result<crate::rendering::AudioClockRenderedFrame, crate::rendering::SequenceRenderError>
     {
@@ -287,7 +287,7 @@ impl DesktopState {
     }
 
     #[cfg(test)]
-    pub(crate) fn active_preview_render_identity(
+    fn active_preview_render_identity(
         &self,
     ) -> Result<crate::rendering::AudioClockRenderIdentity, crate::rendering::SequenceRenderError>
     {

@@ -67,7 +67,7 @@ impl<T> std::ops::Deref for Shared<T> {
 impl<T> Shared<T> {
     /// Whether both values are one allocation: neither side has been edited
     /// since they were shared.
-    pub(crate) fn same_allocation(&self, other: &Self) -> bool {
+    fn same_allocation(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
 }
@@ -88,10 +88,10 @@ pub struct DonderProject {
     pub(crate) sequences: Shared<IndexMap<SequenceId, Sequence>>,
     pub(crate) rigs: Shared<IndexMap<RigId, Rig>>,
     pub(crate) fixtures: Shared<IndexMap<FixtureDefinitionId, FixtureDefinition>>,
-    pub(crate) curves: Shared<IndexMap<CurveId, CurveDefinition>>,
-    pub(crate) gradients: Shared<IndexMap<GradientId, GradientDefinition>>,
-    pub(crate) effects: Shared<IndexMap<EffectDefinitionId, EffectDefinition>>,
-    pub(crate) operators: Shared<IndexMap<OperatorDefinitionId, OperatorDefinition>>,
+    curves: Shared<IndexMap<CurveId, CurveDefinition>>,
+    gradients: Shared<IndexMap<GradientId, GradientDefinition>>,
+    effects: Shared<IndexMap<EffectDefinitionId, EffectDefinition>>,
+    operators: Shared<IndexMap<OperatorDefinitionId, OperatorDefinition>>,
     next_id: u32,
     accepted_inputs: Arc<accepted::ProjectInputs>,
 }
@@ -284,7 +284,7 @@ impl DonderProject {
 
     /// Whether the definitions clips are admitted against, the effects,
     /// operators, curves and gradients, are unchanged from `other`.
-    pub(crate) fn definitions_same_allocation(&self, other: &Self) -> bool {
+    fn definitions_same_allocation(&self, other: &Self) -> bool {
         self.effects.same_allocation(&other.effects)
             && self.operators.same_allocation(&other.operators)
             && self.curves.same_allocation(&other.curves)
@@ -305,24 +305,5 @@ impl DonderProject {
         );
         *self = candidate;
         Ok(result)
-    }
-
-    /// The object `id` names, whatever its kind.
-    pub fn contains(&self, id: ObjectId) -> bool {
-        match id {
-            ObjectId::Project(id) => self.get::<ProjectRoot>(id).is_some(),
-            ObjectId::Setup(id) => self.get::<Setup>(id).is_some(),
-            ObjectId::Layout(id) => self.get::<Layout>(id).is_some(),
-            ObjectId::Patch(id) => self.get::<Patch>(id).is_some(),
-            ObjectId::Controller(id) => self.get::<Controller>(id).is_some(),
-            ObjectId::InputDevice(id) => self.get::<InputDevice>(id).is_some(),
-            ObjectId::Sequence(id) => self.get::<Sequence>(id).is_some(),
-            ObjectId::Rig(id) => self.get::<Rig>(id).is_some(),
-            ObjectId::FixtureDefinition(id) => self.get::<FixtureDefinition>(id).is_some(),
-            ObjectId::Curve(id) => self.get::<CurveDefinition>(id).is_some(),
-            ObjectId::Gradient(id) => self.get::<GradientDefinition>(id).is_some(),
-            ObjectId::EffectDefinition(id) => self.get::<EffectDefinition>(id).is_some(),
-            ObjectId::OperatorDefinition(id) => self.get::<OperatorDefinition>(id).is_some(),
-        }
     }
 }

@@ -86,7 +86,7 @@ fn ensure_document_imports_target(
     Ok(())
 }
 
-pub(crate) fn ensure_document_can_reference_source(
+fn ensure_document_can_reference_source(
     session: &mut ProjectSession,
     from_document: &DocumentId,
     kind: ObjectKind,
@@ -168,7 +168,7 @@ pub(crate) fn write_source_reference(
 impl Loader {
     /// The declared object a reference starts with, `name` or `alias.name`,
     /// and the segments that follow it.
-    pub(crate) fn resolve_declared<'r>(
+    fn resolve_declared<'r>(
         &self,
         document: &DocumentId,
         reference: &'r Reference,
@@ -341,7 +341,7 @@ impl Loader {
         Ok(())
     }
 
-    pub(crate) fn resolve_import(
+    fn resolve_import(
         &self,
         importer: &DocumentId,
         import: &ParsedImport,
@@ -430,7 +430,7 @@ fn validate_reference_target(
     Ok(())
 }
 /// An object kind as diagnostics name it.
-pub(crate) fn kind_name(kind: &ObjectKind) -> &'static str {
+fn kind_name(kind: &ObjectKind) -> &'static str {
     match kind {
         ObjectKind::Project => "a project",
         ObjectKind::Setup => "a setup",

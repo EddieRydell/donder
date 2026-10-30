@@ -172,7 +172,7 @@ pub(super) fn ternary(op: Ternary, a: &Value, b: &Value, c: &Value) -> Option<Va
 }
 
 /// `x` multiplied into one, `n` times; a nonpositive count gives one.
-pub(crate) fn power(x: f32, n: i32) -> f32 {
+fn power(x: f32, n: i32) -> f32 {
     let mut result = 1.0;
     for _ in 0..n.max(0) {
         result *= x;
@@ -198,7 +198,7 @@ pub(crate) fn reduce_identity(reducer: Reducer, ty: &Type) -> Option<Value> {
 }
 
 /// The accumulation step of `max`, `min` and `sum`.
-pub(crate) fn combine(reducer: Reducer, accumulator: &Value, value: &Value) -> Option<Value> {
+fn combine(reducer: Reducer, accumulator: &Value, value: &Value) -> Option<Value> {
     let ty = super::value_type(value);
     let op = match (reducer, ty) {
         (Reducer::Max, Type::Float) => Binary::Max,

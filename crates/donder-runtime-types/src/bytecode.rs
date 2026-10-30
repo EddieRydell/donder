@@ -185,7 +185,7 @@ pub struct Banks {
 impl Banks {
     const STORAGE: [Bank; 4] = [Bank::Float, Bank::Int, Bank::Bool, Bank::Resource];
 
-    pub fn get(&self, bank: Bank) -> u16 {
+    fn get(&self, bank: Bank) -> u16 {
         match bank.storage() {
             Bank::Int => self.ints,
             Bank::Bool => self.bools,
@@ -243,21 +243,21 @@ pub enum ContextRead {
 }
 
 impl ContextRead {
-    pub fn bank(self) -> Bank {
+    fn bank(self) -> Bank {
         match self {
             Self::PixelCount | Self::FramesElapsed => Bank::Int,
             _ => Bank::Float,
         }
     }
 
-    pub fn reads_target(self) -> bool {
+    fn reads_target(self) -> bool {
         !matches!(
             self,
             Self::Seconds | Self::Progress | Self::Duration | Self::FrameRate | Self::FramesElapsed
         )
     }
 
-    pub fn reads_geometry(self) -> bool {
+    fn reads_geometry(self) -> bool {
         matches!(
             self,
             Self::TargetMinX | Self::TargetMinY | Self::TargetMaxX | Self::TargetMaxY
@@ -333,15 +333,15 @@ impl Colors {
         Self(self.0 | 1 << index)
     }
 
-    pub const fn bits(self) -> u8 {
+    pub(crate) const fn bits(self) -> u8 {
         self.0
     }
 
-    pub const fn from_bits(bits: u8) -> Self {
+    pub(crate) const fn from_bits(bits: u8) -> Self {
         Self(bits)
     }
 
-    pub fn is_color(self, index: u8) -> bool {
+    fn is_color(self, index: u8) -> bool {
         self.0 & 1 << index != 0
     }
 
@@ -362,7 +362,7 @@ impl Colors {
     }
 
     /// The bank of operand `index`, or of the destination for `None`.
-    pub fn bank(self, index: Option<u8>) -> Bank {
+    fn bank(self, index: Option<u8>) -> Bank {
         let color = match index {
             Some(index) => self.is_color(index),
             None => self.0 != 0,
@@ -421,17 +421,7 @@ pub enum Resource {
     Array,
 }
 
-impl Resource {
-    pub fn for_type(ty: &Type) -> Option<Self> {
-        match ty {
-            Type::Curve => Some(Self::Curve),
-            Type::Gradient => Some(Self::Gradient),
-            Type::Marks => Some(Self::Marks),
-            Type::Array(_) => Some(Self::Array),
-            _ => None,
-        }
-    }
-}
+impl Resource {}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Reducer {
@@ -503,7 +493,7 @@ impl<T> SignalPixel<T> {
         }
     }
 
-    pub fn index_mut(&mut self) -> Option<&mut T> {
+    fn index_mut(&mut self) -> Option<&mut T> {
         match self {
             Self::Current => None,
             Self::Local(index) | Self::Shifted(index, _) => Some(index),
@@ -850,9 +840,9 @@ pub enum Access {
 
 /// How an instruction's slots are read and written, for allocation: each
 /// destination and operand with its bank.
-pub struct Operands {
-    pub dst: Option<(Bank, Slot)>,
-    pub reads: Vec<(Bank, Slot)>,
+struct Operands {
+    dst: Option<(Bank, Slot)>,
+    reads: Vec<(Bank, Slot)>,
 }
 
 impl Instruction {
@@ -1112,7 +1102,7 @@ impl Instruction {
 
     /// The destination and operands, with their banks; a reduction's index is
     /// left out and its accumulator is both.
-    pub fn operands(&self) -> Operands {
+    fn operands(&self) -> Operands {
         let mut operands = Operands {
             dst: None,
             reads: Vec::new(),
@@ -1141,7 +1131,7 @@ impl Instruction {
     }
 
     /// Words of code nested in this one, in order.
-    pub fn nested(&self) -> u32 {
+    fn nested(&self) -> u32 {
         match *self {
             Self::Branch {
                 then_len, else_len, ..
@@ -1248,11 +1238,6 @@ impl BytecodeProgram {
     pub fn has_stencil(&self) -> bool {
         instructions(self.body())
             .any(|instruction| matches!(instruction, Instruction::Stencil { .. }))
-    }
-
-    /// Whole-frame scans, each keeping its frame while the node runs.
-    pub fn scan_count(&self) -> usize {
-        usize::from(self.scans)
     }
 }
 

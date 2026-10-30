@@ -31,7 +31,7 @@ pub enum AutomationMapping {
 
 impl AutomationMapping {
     /// A hash consistent with `==`; floats hash by their bits.
-    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+    pub(crate) fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
         use core::hash::Hash;
         core::mem::discriminant(self).hash(state);
         match self {
@@ -48,7 +48,7 @@ impl AutomationMapping {
         }
     }
 
-    pub fn is_well_formed(&self) -> bool {
+    pub(crate) fn is_well_formed(&self) -> bool {
         match self {
             Self::Float { min, max } | Self::Curve { min, max } => {
                 min.is_finite() && max.is_finite()
@@ -58,7 +58,7 @@ impl AutomationMapping {
         }
     }
 
-    pub fn accepts_type(&self, ty: &Type) -> bool {
+    pub(crate) fn accepts_type(&self, ty: &Type) -> bool {
         self.is_well_formed()
             && match (self, ty) {
                 (Self::Float { .. }, Type::Float)

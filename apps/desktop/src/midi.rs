@@ -35,7 +35,7 @@ pub(crate) enum MidiMessage {
 }
 
 impl MidiMessage {
-    pub(crate) fn parse(bytes: &[u8]) -> Option<Self> {
+    fn parse(bytes: &[u8]) -> Option<Self> {
         let (&status, data) = bytes.split_first()?;
         let byte = |index: usize| data.get(index).copied().filter(|byte| *byte < 0x80);
         match status & 0xF0 {

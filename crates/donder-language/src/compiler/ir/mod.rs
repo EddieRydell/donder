@@ -45,7 +45,7 @@ impl LoopId {
 pub(crate) struct Domain(u8);
 
 impl Domain {
-    pub(crate) const CONSTANT: Self = Self(0);
+    const CONSTANT: Self = Self(0);
     /// Fixed for one instance: bound parameters, the clip duration.
     pub(crate) const PARAM: Self = Self(1);
     /// The query time: `time`, `progress`, automated parameters.
@@ -92,7 +92,7 @@ impl LoopSet {
     fn without(self, id: LoopId) -> Self {
         Self(self.0 & !(1 << id.0))
     }
-    pub(crate) fn contains(self, id: LoopId) -> bool {
+    fn contains(self, id: LoopId) -> bool {
         self.0 & (1 << id.0) != 0
     }
     pub(crate) fn is_empty(self) -> bool {
@@ -127,11 +127,11 @@ pub(crate) enum Context {
 }
 
 impl Context {
-    pub(crate) fn ty(self) -> Type {
+    fn ty(self) -> Type {
         crate::compiler::builtins::context_type(self)
     }
 
-    pub(crate) fn domain(self) -> Domain {
+    fn domain(self) -> Domain {
         match self {
             Self::Time | Self::Progress | Self::FramesElapsed => Domain::TIME,
             Self::Duration | Self::FrameRate => Domain::PARAM,
@@ -232,7 +232,7 @@ pub(crate) enum Binary {
 }
 
 impl Binary {
-    pub(crate) fn commutative(self) -> bool {
+    fn commutative(self) -> bool {
         matches!(
             self,
             Self::Add
@@ -415,7 +415,7 @@ pub(crate) struct Loop {
     /// Every pixel shares the index: the loop runs the union of the pixels'
     /// ranges, each pixel taking part in its own, so work that depends only
     /// on the index runs once per iteration rather than once per pixel.
-    pub(crate) shared: bool,
+    shared: bool,
 }
 
 impl Loop {
@@ -481,7 +481,7 @@ impl Graph {
     pub(crate) fn loop_(&self, id: LoopId) -> &Loop {
         &self.loops[id.index()]
     }
-    pub(crate) fn loop_count(&self) -> usize {
+    fn loop_count(&self) -> usize {
         self.loops.len()
     }
     pub(crate) fn params(&self) -> &[Param] {
@@ -517,7 +517,7 @@ impl Graph {
         }
     }
 
-    pub(crate) fn constant(&mut self, value: Value) -> Node {
+    fn constant(&mut self, value: Value) -> Node {
         let ty = value_type(&value);
         self.typed_constant(value, ty)
     }
@@ -714,7 +714,7 @@ impl Graph {
     }
 }
 
-pub(crate) fn value_type(value: &Value) -> Type {
+fn value_type(value: &Value) -> Type {
     match value {
         Value::Void => Type::Void,
         Value::Int(_) => Type::Int,
@@ -819,7 +819,7 @@ fn ternary_type(op: Ternary) -> Type {
     }
 }
 
-pub(crate) fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
+fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
     core::mem::discriminant(value).hash(state);
     match value {
         Value::Void => {}

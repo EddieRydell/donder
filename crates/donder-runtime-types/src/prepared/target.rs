@@ -29,13 +29,6 @@ impl TargetPixel {
     pub fn count(&self) -> usize {
         self.count
     }
-    pub fn fraction(&self) -> f32 {
-        if self.count <= 1 {
-            0.0
-        } else {
-            self.index as f32 / (self.count - 1) as f32
-        }
-    }
     pub fn spatial(&self) -> SpatialContext {
         self.spatial
     }

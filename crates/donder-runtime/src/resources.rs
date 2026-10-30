@@ -14,10 +14,10 @@ use crate::view::Show;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CurveView<'a> {
     pub(crate) points: &'a [CurvePoint],
-    pub(crate) areas: &'a [f32],
-    pub(crate) slopes: &'a [f32],
-    pub(crate) kind: u32,
-    pub(crate) crossings: &'a [CrossingSegment],
+    areas: &'a [f32],
+    slopes: &'a [f32],
+    kind: u32,
+    crossings: &'a [CrossingSegment],
 }
 
 impl<'a> CurveView<'a> {

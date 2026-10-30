@@ -23,7 +23,7 @@ impl<T, I> Owned<T, I> {
         }
     }
 
-    pub fn inline_mut(&mut self) -> Option<&mut T> {
+    pub(crate) fn inline_mut(&mut self) -> Option<&mut T> {
         match self {
             Self::Inline(value) => Some(value),
             Self::Reference(_) => None,
@@ -40,14 +40,14 @@ pub enum OwnedMember<T, I> {
 }
 
 impl<T, I> OwnedMember<T, I> {
-    pub fn inline(&self) -> Option<&T> {
+    pub(crate) fn inline(&self) -> Option<&T> {
         match self {
             Self::Inline { value, .. } => Some(value),
             Self::Reference(_) => None,
         }
     }
 
-    pub fn inline_mut(&mut self) -> Option<&mut T> {
+    pub(crate) fn inline_mut(&mut self) -> Option<&mut T> {
         match self {
             Self::Inline { value, .. } => Some(value),
             Self::Reference(_) => None,

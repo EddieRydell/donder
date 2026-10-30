@@ -5,7 +5,7 @@
 use core::cell::Cell;
 
 /// Every region starts on this alignment.
-pub(crate) const ALIGN: usize = 4;
+const ALIGN: usize = 4;
 
 pub(crate) type Row<T> = [Cell<T>; crate::dsl::STRIP];
 

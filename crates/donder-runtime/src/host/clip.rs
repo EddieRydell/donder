@@ -68,7 +68,7 @@ impl<'a> ShowClip<'a> {
         self.show.frame_rate()
     }
 
-    pub fn frame_count(&self) -> u32 {
+    fn frame_count(&self) -> u32 {
         self.show.frame_count()
     }
 

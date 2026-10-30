@@ -111,22 +111,22 @@ pub enum SequenceClipboard {
 
 #[derive(Clone)]
 pub struct ClipboardClip {
-    pub clip: Clip,
-    pub start_seconds: f64,
-    pub lane_index: usize,
+    pub(crate) clip: Clip,
+    pub(crate) start_seconds: f64,
+    pub(crate) lane_index: usize,
 }
 
 #[derive(Clone)]
 pub struct ClipboardAutomation {
-    pub clip: donder_model::AutomationClip,
-    pub lane_index: usize,
+    pub(crate) clip: donder_model::AutomationClip,
+    pub(crate) lane_index: usize,
 }
 
 #[derive(Clone)]
 pub struct ClipboardMark {
-    pub collection_key: String,
-    pub time_seconds: f64,
-    pub label: Option<String>,
+    pub(crate) collection_key: String,
+    pub(crate) time_seconds: f64,
+    pub(crate) label: Option<String>,
 }
 
 /// Copy `selection` of the sequence `request` opens; the project does not

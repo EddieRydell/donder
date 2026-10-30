@@ -24,9 +24,9 @@ pub struct PathChangeImpact {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PathChangePlan {
-    pub source: Utf8PathBuf,
-    pub destination: Utf8PathBuf,
-    pub source_kind: PathChangeSourceKind,
+    source: Utf8PathBuf,
+    destination: Utf8PathBuf,
+    source_kind: PathChangeSourceKind,
     pub structural: bool,
     pub impact: PathChangeImpact,
     document_remaps: BTreeMap<DocumentId, DocumentId>,

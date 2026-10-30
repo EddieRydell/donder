@@ -22,7 +22,7 @@ pub(crate) const MAX_SCANS: usize = 8;
 pub(crate) const LIVE_MARK_CAPACITY: usize = 1024;
 /// A dormant voice starts at the end of time, so it is never active and
 /// sorts after every started clip of its layer.
-pub(crate) const DORMANT: u32 = u32::MAX;
+const DORMANT: u32 = u32::MAX;
 
 /// A clip color kept for duplicate fixture layouts.
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
@@ -150,7 +150,7 @@ impl Layout {
     }
 
     /// Bytes of the buffer [`carve`] needs.
-    pub(crate) fn size(&self) -> usize {
+    fn size(&self) -> usize {
         let mut size = Size::default();
         for _ in 0..self.buffers + self.states + self.scans {
             size.values::<Color>(self.pixels);

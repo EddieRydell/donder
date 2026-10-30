@@ -370,7 +370,7 @@ impl Keyword {
 impl LexMode {
     /// The words this mode reserves. Data documents reserve only their own,
     /// so fields may be named `effect`, `input` or `in`.
-    pub(crate) fn keywords(self) -> &'static [Keyword] {
+    fn keywords(self) -> &'static [Keyword] {
         match self {
             Self::Script => &[
                 Keyword::Effect,

@@ -34,57 +34,57 @@ pub struct SequenceGradientLibraryItem {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::Description`.
-    pub description: Option<String>,
-    pub path: String,
-    pub source_ref: GuiObjectRef,
-    pub object_key: String,
+    pub(crate) description: Option<String>,
+    pub(crate) path: String,
+    pub(crate) source_ref: GuiObjectRef,
+    pub(crate) object_key: String,
     pub duration_seconds: f64,
     pub frame_rate: f32,
     pub audio: Option<SequenceAudio>,
-    pub mark_collections: Vec<SequenceMarkCollection>,
+    pub(crate) mark_collections: Vec<SequenceMarkCollection>,
     pub lanes: Vec<SequenceLane>,
     pub effect_definitions: Vec<SequenceEffectDefinition>,
     pub curve_library: Vec<SequenceCurveLibraryItem>,
     pub gradient_library: Vec<SequenceGradientLibraryItem>,
-    pub layers: Vec<SequenceLayer>,
+    pub(crate) layers: Vec<SequenceLayer>,
     pub clips: Vec<SequenceClip>,
     pub composition_graph: SequenceCompositionGraph,
-    pub automation_clips: Vec<SequenceAutomationClip>,
+    pub(crate) automation_clips: Vec<SequenceAutomationClip>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceLayer {
-    pub id: u32,
-    pub name: String,
-    pub description: Option<String>,
-    pub color: String,
-    pub enabled: bool,
-    pub is_default: bool,
+    pub(crate) id: u32,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) color: String,
+    pub(crate) enabled: bool,
+    pub(crate) is_default: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceAutomationClip {
-    pub id: u32,
-    pub start_seconds: f64,
-    pub duration_seconds: f64,
-    pub row_target: FixtureTarget,
-    pub curve: Vec<SequenceCurvePoint>,
-    pub bindings: Vec<SequenceAutomationBinding>,
-    pub detached_bindings: Vec<SequenceDetachedAutomationBinding>,
+    pub(crate) id: u32,
+    pub(crate) start_seconds: f64,
+    pub(crate) duration_seconds: f64,
+    pub(crate) row_target: FixtureTarget,
+    pub(crate) curve: Vec<SequenceCurvePoint>,
+    pub(crate) bindings: Vec<SequenceAutomationBinding>,
+    pub(crate) detached_bindings: Vec<SequenceDetachedAutomationBinding>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceAutomationBinding {
-    pub target: SequenceAutomationTarget,
+    pub(crate) target: SequenceAutomationTarget,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceDetachedAutomationBinding {
-    pub target: SequenceAutomationTarget,
+    pub(crate) target: SequenceAutomationTarget,
 }
 
 /// The clips the editor shows, in the order their rasters should render.
@@ -140,18 +140,18 @@ pub struct SequenceClipRasterError {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClip {
-    pub index: u32,
+    pub(crate) index: u32,
     pub id: u32,
     /// The clip's name, which automation bindings use.
-    pub name: String,
-    pub description: Option<String>,
-    pub layer_id: u32,
-    pub start_seconds: f64,
-    pub duration_seconds: f64,
-    pub target: FixtureTarget,
-    pub target_label: String,
-    pub scope: SequenceClipScope,
-    pub effect: String,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) layer_id: u32,
+    pub(crate) start_seconds: f64,
+    pub(crate) duration_seconds: f64,
+    pub(crate) target: FixtureTarget,
+    pub(crate) target_label: String,
+    pub(crate) scope: SequenceClipScope,
+    pub(crate) effect: String,
 }
 
 /// What the inspector edits on one clip, fetched for the selected clips only:
@@ -159,8 +159,8 @@ pub struct SequenceClip {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipDetails {
-    pub id: u32,
-    pub effect_reference: SequenceEffectReference,
+    pub(crate) id: u32,
+    pub(crate) effect_reference: SequenceEffectReference,
     pub params: Vec<SequenceClipParam>,
 }
 
@@ -177,9 +177,9 @@ pub struct SequenceClipDetailsResult {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipMatchRequest {
     /// The seed clips.
-    pub clips: Vec<SequenceClipRef>,
-    pub criteria: SequenceClipMatch,
-    pub params: Vec<SequenceClipParamMatch>,
+    pub(crate) clips: Vec<SequenceClipRef>,
+    pub(crate) criteria: SequenceClipMatch,
+    pub(crate) params: Vec<SequenceClipParamMatch>,
 }
 
 /// A parameter matches when its value equals the seed's, with numbers within
@@ -187,14 +187,14 @@ pub struct SequenceClipMatchRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipParamMatch {
-    pub name: String,
-    pub tolerance: f32,
+    pub(crate) name: String,
+    pub(crate) tolerance: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceCompositionGraph {
-    pub id: u32,
+    pub(crate) id: u32,
     pub operator_catalog: Vec<SequenceGraphOperatorDefinition>,
     pub nodes: Vec<SequenceGraphNode>,
     pub edges: Vec<SequenceGraphEdge>,
@@ -204,10 +204,10 @@ pub struct SequenceCompositionGraph {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphNode {
     pub id: String,
-    pub x: f32,
-    pub y: f32,
-    pub inputs: Vec<SequenceGraphPortDefinition>,
-    pub outputs: Vec<SequenceGraphPortDefinition>,
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) inputs: Vec<SequenceGraphPortDefinition>,
+    pub(crate) outputs: Vec<SequenceGraphPortDefinition>,
     pub kind: SequenceGraphNodeKind,
 }
 
@@ -237,20 +237,20 @@ pub enum SequenceGraphNodeKind {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphOperatorDefinition {
     pub operator: SequenceGraphOperator,
-    pub source_name: String,
-    pub display_name: String,
+    pub(crate) source_name: String,
+    pub(crate) display_name: String,
     /// The script's description of the operator.
-    pub description: Option<String>,
-    pub inputs: Vec<SequenceGraphPortDefinition>,
-    pub outputs: Vec<SequenceGraphPortDefinition>,
-    pub params: Vec<SequenceEffectDefinitionParam>,
+    pub(crate) description: Option<String>,
+    pub(crate) inputs: Vec<SequenceGraphPortDefinition>,
+    pub(crate) outputs: Vec<SequenceGraphPortDefinition>,
+    pub(crate) params: Vec<SequenceEffectDefinitionParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphPortDefinition {
-    pub source_name: String,
-    pub display_name: String,
+    pub(crate) source_name: String,
+    pub(crate) display_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -259,57 +259,57 @@ pub struct SequenceClipParam {
     pub supports_automation: bool,
     pub name: String,
     /// The script's description of the parameter.
-    pub description: Option<String>,
-    pub kind: SequenceParamKind,
-    pub options: Vec<String>,
-    pub range: Option<SequenceParamRange>,
+    pub(crate) description: Option<String>,
+    pub(crate) kind: SequenceParamKind,
+    pub(crate) options: Vec<String>,
+    pub(crate) range: Option<SequenceParamRange>,
     pub editable: bool,
     pub value: SequenceParamValue,
-    pub automation: Option<SequenceParamAutomation>,
+    pub(crate) automation: Option<SequenceParamAutomation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceParamAutomation {
-    pub automation_clip_id: u32,
+    pub(crate) automation_clip_id: u32,
 }
 
 /// Inclusive declared range of an `int`, `float`, or `curve` param.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceParamRange {
-    pub min: f64,
-    pub max: f64,
+    pub(crate) min: f64,
+    pub(crate) max: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectDefinition {
-    pub name: String,
+    pub(crate) name: String,
     /// The script's description of the effect.
-    pub description: Option<String>,
+    pub(crate) description: Option<String>,
     pub effect: SequenceEffectReference,
     #[serde(rename = "import")]
-    pub import_path: Option<String>,
-    pub params: Vec<SequenceEffectDefinitionParam>,
+    pub(crate) import_path: Option<String>,
+    pub(crate) params: Vec<SequenceEffectDefinitionParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectDefinitionParam {
-    pub supports_automation: bool,
-    pub name: String,
+    pub(crate) supports_automation: bool,
+    pub(crate) name: String,
     /// The script's description of the parameter.
-    pub description: Option<String>,
-    pub kind: SequenceParamKind,
+    pub(crate) description: Option<String>,
+    pub(crate) kind: SequenceParamKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceLane {
     pub target: FixtureTarget,
-    pub label: String,
-    pub kind: SequenceLaneKind,
+    pub(crate) label: String,
+    pub(crate) kind: SequenceLaneKind,
     /** Nesting depth below the layout root; top-level fixtures and groups are 0. */
     pub depth: u32,
     /** How many lanes show this target. Every copy shows the same clips. */
@@ -329,10 +329,10 @@ pub enum SequenceLaneKind {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceMarkCollection {
     /// The collection's name, which clip parameters use.
-    pub key: String,
-    pub description: Option<String>,
-    pub color: String,
-    pub marks_seconds: Vec<f64>,
+    pub(crate) key: String,
+    pub(crate) description: Option<String>,
+    pub(crate) color: String,
+    pub(crate) marks_seconds: Vec<f64>,
     /// Each mark's label, in the same order as `marks_seconds`.
-    pub mark_labels: Vec<Option<String>>,
+    pub(crate) mark_labels: Vec<Option<String>>,
 }

@@ -24,7 +24,6 @@ unreachable_pub = "warn"
 tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"] }
 donder-device-storage = { path = "crates/donder-device-storage" }
 esp-storage = { version = "0.10.0", features = ["esp32", "critical-section"] }
-xtensa-lx = "0.13.0"
 esp-radio = { version = "1.0.0-beta.0", features = ["esp32", "wifi", "unstable"] }
 esp-rtos = { version = "0.4.0", features = ["esp32", "esp-radio", "embassy", "esp-alloc"] }
 embassy-executor = { version = "0.10.0" }
@@ -52,16 +51,17 @@ esp-bootloader-esp-idf = { version = "0.6.0", features = ["esp32"] }
 # Published esp-radio beta.0 targets HAL 1.1; this upstream revision targets 1.2.
 # Keep the SDK on one source so every radio/runtime package uses the same HAL.
 # Remove these patches together once a compatible radio stack is published.
+# The rev is the fork branch donder-i2s-fix: upstream 0eb3e53b plus the I2sParallel::send hang fix
+# (esp-rs/esp-hal PR pending). Point back at esp-rs/esp-hal once it is merged and released.
 [patch.crates-io]
-esp-hal = { path = "../../target/esp-hal-local/esp-hal" }
-esp-radio = { path = "../../target/esp-hal-local/esp-radio" }
-esp-rtos = { path = "../../target/esp-hal-local/esp-rtos" }
-esp-radio-rtos-driver = { path = "../../target/esp-hal-local/esp-radio-rtos-driver" }
-esp-alloc = { path = "../../target/esp-hal-local/esp-alloc" }
-esp-println = { path = "../../target/esp-hal-local/esp-println" }
-esp-bootloader-esp-idf = { path = "../../target/esp-hal-local/esp-bootloader-esp-idf" }
-esp-storage = { path = "../../target/esp-hal-local/esp-storage" }
-xtensa-lx = { path = "../../target/esp-hal-local/xtensa-lx" }
+esp-hal = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+esp-radio = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+esp-rtos = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+esp-radio-rtos-driver = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+esp-alloc = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+esp-println = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+esp-bootloader-esp-idf = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+esp-storage = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
 
 [profile.release]
 opt-level = 3

@@ -7,22 +7,22 @@ use specta::Type;
 #[serde(rename_all = "camelCase")]
 pub struct InputDeviceGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::Description`.
-    pub description: Option<String>,
-    pub path: String,
-    pub object_key: String,
+    pub(crate) description: Option<String>,
+    pub(crate) path: String,
+    pub(crate) object_key: String,
     pub device: SetupInputDevice,
     /// Every key a control can read, by its `KeyboardEvent.code` name, in the
     /// language's order.
     pub key_codes: Vec<String>,
-    pub input_limits: GuiInputLimits,
+    pub(crate) input_limits: GuiInputLimits,
 }
 
 /// The highest MIDI inputs a control can read.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiInputLimits {
-    pub max_note: u8,
-    pub max_control_change: u8,
+    pub(crate) max_note: u8,
+    pub(crate) max_control_change: u8,
 }
 
 /// An input device as a setup lists it and its editor edits it.
@@ -122,61 +122,61 @@ pub enum GuiControlInput {
 #[serde(rename_all = "camelCase")]
 pub struct RigGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::Description`.
-    pub description: Option<String>,
-    pub path: String,
-    pub source_ref: GuiObjectRef,
-    pub object_key: String,
+    pub(crate) description: Option<String>,
+    pub(crate) path: String,
+    pub(crate) source_ref: GuiObjectRef,
+    pub(crate) object_key: String,
     /// The declared name, or the name the rig is stored under.
-    pub name: String,
+    pub(crate) name: String,
     /// The rig's position among the project's rigs, which Perform starts it by;
     /// `None` when the project does not list it.
     pub perform_index: Option<u32>,
-    pub frame_rate: u32,
-    pub live_marks: Vec<RigLiveMarks>,
+    pub(crate) frame_rate: u32,
+    pub(crate) live_marks: Vec<RigLiveMarks>,
     pub layers: Vec<SequenceLayer>,
     pub composition_graph: SequenceCompositionGraph,
-    pub voices: Vec<RigVoice>,
+    pub(crate) voices: Vec<RigVoice>,
     pub switches: Vec<RigSwitch>,
     pub mappings: Vec<RigMapping>,
     /// The active layout's fixtures and groups, each once, depth-first.
     pub targets: Vec<SequenceLane>,
     pub effect_definitions: Vec<SequenceEffectDefinition>,
-    pub curve_library: Vec<SequenceCurveLibraryItem>,
-    pub gradient_library: Vec<SequenceGradientLibraryItem>,
+    pub(crate) curve_library: Vec<SequenceCurveLibraryItem>,
+    pub(crate) gradient_library: Vec<SequenceGradientLibraryItem>,
     /// The active setup's input devices, which the rig's inputs choose from.
     pub input_devices: Vec<RigInputDevice>,
-    pub max_stacked_voices: u32,
+    pub(crate) max_stacked_voices: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigLiveMarks {
     /// The collection's name; marks parameters and `Mark` mappings refer to it.
-    pub key: String,
-    pub description: Option<String>,
-    pub color: String,
+    pub(crate) key: String,
+    pub(crate) description: Option<String>,
+    pub(crate) color: String,
 }
 
 /// A clip a rig plays: a clip without timing.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigClip {
-    pub layer_id: u32,
-    pub target: FixtureTarget,
-    pub target_label: String,
-    pub scope: SequenceClipScope,
-    pub effect: SequenceEffectReference,
-    pub effect_name: String,
-    pub params: Vec<SequenceClipParam>,
+    pub(crate) layer_id: u32,
+    pub(crate) target: FixtureTarget,
+    pub(crate) target_label: String,
+    pub(crate) scope: SequenceClipScope,
+    pub(crate) effect: SequenceEffectReference,
+    pub(crate) effect_name: String,
+    pub(crate) params: Vec<SequenceClipParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigVoice {
-    pub id: u32,
-    pub name: String,
-    pub description: Option<String>,
-    pub clip: RigClip,
+    pub(crate) id: u32,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) clip: RigClip,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -190,51 +190,51 @@ pub struct RigControlRef {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigInput {
-    pub control: RigControlRef,
-    pub device_name: String,
-    pub control_name: String,
+    pub(crate) control: RigControlRef,
+    pub(crate) device_name: String,
+    pub(crate) control_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigInputDevice {
     pub device: GuiObjectRef,
-    pub name: String,
+    pub(crate) name: String,
     pub buttons: Vec<RigInputControl>,
     /// Dials only drive `Control` mappings.
-    pub dials: Vec<RigInputControl>,
+    pub(crate) dials: Vec<RigInputControl>,
     /// Keys only trigger clips and add marks.
-    pub keys: Vec<RigInputControl>,
+    pub(crate) keys: Vec<RigInputControl>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigInputControl {
     pub control: u32,
-    pub name: String,
+    pub(crate) name: String,
     /// Whether it plays notes, as values played from a note need.
-    pub notes: bool,
+    pub(crate) notes: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigSwitch {
     pub id: u32,
-    pub name: String,
-    pub description: Option<String>,
-    pub input: RigInput,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) input: RigInput,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigMapping {
     pub id: u32,
-    pub name: String,
-    pub description: Option<String>,
-    pub input: RigInput,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) input: RigInput,
     /// `None` acts always.
     pub when: Option<RigWhen>,
-    pub action: RigMappingAction,
+    pub(crate) action: RigMappingAction,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -274,8 +274,8 @@ pub enum RigMappingAction {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RigPlayedValue {
-    pub param: String,
-    pub from: RigPlayedQuantity,
+    pub(crate) param: String,
+    pub(crate) from: RigPlayedQuantity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]

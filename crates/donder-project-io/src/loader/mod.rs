@@ -57,29 +57,29 @@ impl Interner {
 
 /// A data document's text and its declarations by name.
 pub(crate) struct DataDocument {
-    pub(crate) text: String,
+    text: String,
     read: Arc<ReadDocument>,
     /// Each declaration's index in the reading.
     declarations: IndexMap<String, usize>,
     /// Each declaration's name span.
-    pub(crate) names: IndexMap<String, TextSpan>,
+    names: IndexMap<String, TextSpan>,
 }
 
 impl DataDocument {
     /// The span and value of the declaration named `name`.
-    pub(crate) fn declaration(&self, name: &str) -> Option<(TextSpan, &Declaration)> {
+    fn declaration(&self, name: &str) -> Option<(TextSpan, &Declaration)> {
         let (_, span, declaration) =
             &self.read.document.declarations[*self.declarations.get(name)?];
         Some((*span, declaration))
     }
 
     /// A declaration [`Loader::declaration`] found in this document.
-    pub(crate) fn declared(&self, name: &str) -> (TextSpan, &Declaration) {
+    fn declared(&self, name: &str) -> (TextSpan, &Declaration) {
         self.declaration(name)
             .unwrap_or_else(|| unreachable!("the document declares `{name}`"))
     }
 
-    pub(crate) fn declarations(&self) -> impl Iterator<Item = (&str, TextSpan, &Declaration)> {
+    fn declarations(&self) -> impl Iterator<Item = (&str, TextSpan, &Declaration)> {
         self.declarations.iter().map(|(name, &index)| {
             let (_, span, declaration) = &self.read.document.declarations[index];
             (name.as_str(), *span, declaration)
@@ -91,29 +91,29 @@ impl DataDocument {
 /// before the project resolves.
 #[derive(Default)]
 pub(crate) struct LoadedDefinitions {
-    pub(crate) curves: IndexMap<CurveId, CurveDefinition>,
-    pub(crate) gradients: IndexMap<GradientId, GradientDefinition>,
-    pub(crate) effects: IndexMap<EffectDefinitionId, EffectDefinition>,
-    pub(crate) operators: IndexMap<OperatorDefinitionId, OperatorDefinition>,
+    curves: IndexMap<CurveId, CurveDefinition>,
+    gradients: IndexMap<GradientId, GradientDefinition>,
+    effects: IndexMap<EffectDefinitionId, EffectDefinition>,
+    operators: IndexMap<OperatorDefinitionId, OperatorDefinition>,
 }
 
 pub(super) struct Loader {
-    pub(crate) workspace: crate::ProjectWorkspace,
-    pub(crate) entrypoint: DocumentId,
+    workspace: crate::ProjectWorkspace,
+    entrypoint: DocumentId,
     pub(crate) documents: IndexMap<DocumentId, SourceDocument>,
-    pub(crate) data: IndexMap<DocumentId, Arc<DataDocument>>,
+    data: IndexMap<DocumentId, Arc<DataDocument>>,
     pub(crate) visible_objects: IndexMap<DocumentId, IndexMap<SourceReference, ObjectId>>,
     pub(crate) import_locations: IndexMap<DocumentId, Vec<ParsedImport>>,
-    pub(crate) loading_documents: IndexSet<DocumentId>,
-    pub(crate) definitions: LoadedDefinitions,
-    pub(crate) referenced_assets: Vec<ReferencedAsset>,
-    pub(crate) next_asset_id: u32,
+    loading_documents: IndexSet<DocumentId>,
+    definitions: LoadedDefinitions,
+    referenced_assets: Vec<ReferencedAsset>,
+    next_asset_id: u32,
     pub(crate) checked_scripts: IndexSet<Utf8PathBuf>,
     pub(crate) texts: crate::project_loading::SourceTexts,
-    pub(crate) cache: ProjectCheckCache,
+    cache: ProjectCheckCache,
     /// Where each resolved name points, for the language server.
     pub(crate) links: RefCell<IndexSet<Link>>,
-    pub(crate) interner: RefCell<Interner>,
+    interner: RefCell<Interner>,
 }
 
 impl Loader {
@@ -200,7 +200,7 @@ impl Loader {
     }
 
     /// The session id of the object at `address`.
-    pub(crate) fn intern(&self, address: ObjectAddress) -> u32 {
+    fn intern(&self, address: ObjectAddress) -> u32 {
         self.interner.borrow_mut().intern(address)
     }
 
@@ -210,7 +210,7 @@ impl Loader {
     }
 
     /// The declared object `identity` names, as a `kind`.
-    pub(crate) fn declared(&self, kind: &ObjectKind, identity: SourceIdentity) -> ObjectId {
+    fn declared(&self, kind: &ObjectKind, identity: SourceIdentity) -> ObjectId {
         kind.id(self.intern(identity.into()))
     }
 
@@ -548,7 +548,7 @@ impl Loader {
     }
 
     /// The declaration span of a declared object, or none for scripts.
-    pub(crate) fn declaration_span(&self, identity: &SourceIdentity) -> TextSpan {
+    fn declaration_span(&self, identity: &SourceIdentity) -> TextSpan {
         self.data
             .get(identity.document_id())
             .and_then(|data| data.declaration(identity.object()))
@@ -556,10 +556,7 @@ impl Loader {
     }
 
     /// The data document holding a declared object.
-    pub(crate) fn declaration(
-        &self,
-        identity: &SourceIdentity,
-    ) -> Result<Arc<DataDocument>, LoadError> {
+    fn declaration(&self, identity: &SourceIdentity) -> Result<Arc<DataDocument>, LoadError> {
         self.data
             .get(identity.document_id())
             .filter(|data| data.declaration(identity.object()).is_some())

@@ -10,7 +10,7 @@ use rubato::{
 
 use crate::AnalysisError;
 
-pub(crate) const SAMPLE_RATE: u32 = 22_050;
+const SAMPLE_RATE: u32 = 22_050;
 pub(crate) const MEL_BANDS: usize = 128;
 /// Spectrogram frames per second: the sample rate over the hop.
 pub(crate) const FRAMES_PER_SECOND: f64 = 50.0;

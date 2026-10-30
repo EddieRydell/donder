@@ -30,7 +30,7 @@ pub struct IoDiagnostic {
     pub severity: IoDiagnosticSeverity,
     pub code: IoDiagnosticCode,
     pub message: String,
-    pub detail: Option<String>,
+    pub(crate) detail: Option<String>,
     pub fix: Option<IoFix>,
     pub related: Vec<IoRelatedLocation>,
 }
@@ -64,9 +64,9 @@ pub enum IoFix {
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IoRelatedLocation {
-    pub path: Utf8PathBuf,
+    pub(crate) path: Utf8PathBuf,
     pub range: Option<TextRange>,
-    pub message: String,
+    pub(crate) message: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize, Type)]
@@ -107,7 +107,7 @@ pub struct TextPosition {
 
 impl IoDiagnostic {
     /// An error with no fix and no related locations.
-    pub fn error(
+    pub(crate) fn error(
         path: impl Into<Utf8PathBuf>,
         range: Option<TextRange>,
         code: IoDiagnosticCode,
@@ -216,7 +216,7 @@ pub(crate) fn byte_range(text: &str, start: usize, end: usize) -> TextRange {
     TextRange { start, end }
 }
 
-pub(crate) fn byte_position(text: &str, byte_offset: usize) -> TextPosition {
+fn byte_position(text: &str, byte_offset: usize) -> TextPosition {
     let clamped = byte_offset.min(text.len());
     let mut line = 0;
     let mut line_start = 0;

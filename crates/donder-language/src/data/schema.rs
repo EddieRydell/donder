@@ -163,7 +163,7 @@ pub fn field(name: &str, value: DataValue) -> DataField {
     }
 }
 
-pub(crate) fn identifier(name: &str) -> Identifier {
+fn identifier(name: &str) -> Identifier {
     Identifier::new(name.to_string()).unwrap_or_else(|_| unreachable!("schema names are valid"))
 }
 
@@ -188,7 +188,7 @@ pub fn variant(name: &str) -> DataValue {
 }
 
 /// What a value looks like, for diagnostics.
-pub(crate) fn describe(value: &DataValue) -> String {
+fn describe(value: &DataValue) -> String {
     match value {
         DataValue::Integer(_) => "an integer".into(),
         DataValue::Float(_) => "a float".into(),

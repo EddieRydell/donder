@@ -23,11 +23,11 @@ use donder_runtime_types::{Color, SampleDuration, SampleTime};
 /// One clip at one time, evaluated over any selection of pixel coordinates.
 /// Both sequence playback and sparse editor rasters use this evaluator.
 pub(crate) struct ClipEvaluator<'a> {
-    pub(crate) bound: Bound<'a>,
+    bound: Bound<'a>,
     context: RunContext,
-    pub(crate) spatial: bool,
-    pub(crate) uses_sections: bool,
-    pub(crate) target: TargetView<'a>,
+    spatial: bool,
+    uses_sections: bool,
+    target: TargetView<'a>,
 }
 
 /// The clips' timing and each layer's start order: the show's, or a rig's
@@ -42,12 +42,7 @@ pub(crate) struct Timeline<'a> {
 
 impl<'a> Timeline<'a> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    pub(crate) fn new(
-        show: Show<'a>,
-        timing: &'a [Timing],
-        order: &'a [u32],
-        ends: &'a [u32],
-    ) -> Self {
+    fn new(show: Show<'a>, timing: &'a [Timing], order: &'a [u32], ends: &'a [u32]) -> Self {
         let (order, ends) = if timing.is_empty() {
             (show.s.layer_order, show.s.layer_ends)
         } else {
@@ -63,7 +58,7 @@ impl<'a> Timeline<'a> {
 
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    pub(crate) fn timing(&self, clip: usize) -> Timing {
+    fn timing(&self, clip: usize) -> Timing {
         match self.timing.get(clip) {
             Some(timing) => *timing,
             None => {
@@ -79,7 +74,7 @@ impl<'a> Timeline<'a> {
     /// The layer's clips that may be active at `time`: those starting by
     /// then, from the first whose latest end so far is after it.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    pub(crate) fn live(&self, layer: &format::Layer, time: SampleTime) -> &'a [u32] {
+    fn live(&self, layer: &format::Layer, time: SampleTime) -> &'a [u32] {
         let order = layer.clips.get(self.order);
         let ends = layer.clips.get(self.ends);
         let ticks = time.as_ticks();
@@ -248,7 +243,7 @@ impl<'a> ClipEvaluator<'a> {
 
     /// Whether every pixel of the clip has one color.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    pub(crate) fn uniform(&self) -> bool {
+    fn uniform(&self) -> bool {
         !self.bound.program.flag(format::PROGRAM_USES_PIXEL_CONTEXT) && !self.reads_state()
     }
 
@@ -483,7 +478,7 @@ impl<'w> Programs<'_, 'w> {
 /// The controls of `plan`'s bindings, or none.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-pub(crate) fn overrides<'o>(show: Show<'_>, plan: u32, all: &'o [Override]) -> &'o [Override] {
+fn overrides<'o>(show: Show<'_>, plan: u32, all: &'o [Override]) -> &'o [Override] {
     match show.plan(plan) {
         Some(plan) if !all.is_empty() => plan.bindings.get(all),
         _ => &[],
@@ -714,7 +709,7 @@ fn evaluate_operator(
 
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-pub(crate) fn compose_max(target: &mut Color, source: Color) {
+fn compose_max(target: &mut Color, source: Color) {
     target.red = target.red.max(source.red);
     target.green = target.green.max(source.green);
     target.blue = target.blue.max(source.blue);

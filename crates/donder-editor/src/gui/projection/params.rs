@@ -208,7 +208,7 @@ fn graph_operator_params(
         .collect()
 }
 
-pub(in crate::gui) fn graph_operator_definition_to_gui(
+fn graph_operator_definition_to_gui(
     session: &ProjectSession,
     operator: OperatorDefinitionId,
     definition: &OperatorDefinition,
@@ -364,7 +364,7 @@ pub(in crate::gui) fn gradient_library(
         .collect()
 }
 
-pub(in crate::gui) fn param_kind(ty: &Type) -> Option<SequenceParamKind> {
+fn param_kind(ty: &Type) -> Option<SequenceParamKind> {
     Some(match ty {
         Type::Int => SequenceParamKind::Int,
         Type::Float => SequenceParamKind::Float,
@@ -412,7 +412,7 @@ fn param_options(ty: &Type) -> Vec<String> {
     }
 }
 
-pub(in crate::gui) fn param_value_to_gui(
+fn param_value_to_gui(
     session: &ProjectSession,
     value: &ParamValue,
     ty: &Type,
@@ -473,10 +473,7 @@ pub(in crate::gui) fn param_value_to_gui(
     }
 }
 
-pub(in crate::gui) fn default_param_value(
-    value: &EffectValue,
-    ty: &Type,
-) -> Option<SequenceParamValue> {
+fn default_param_value(value: &EffectValue, ty: &Type) -> Option<SequenceParamValue> {
     Some(match value {
         EffectValue::Int(value) => SequenceParamValue::Int {
             value: *value as f32,

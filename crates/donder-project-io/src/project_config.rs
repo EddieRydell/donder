@@ -25,7 +25,7 @@ impl ProjectMetadata {
         Self::parse(&text)
     }
 
-    pub fn parse(text: &str) -> Result<Self, Vec<crate::IoDiagnostic>> {
+    pub(crate) fn parse(text: &str) -> Result<Self, Vec<crate::IoDiagnostic>> {
         let path = Utf8Path::new(PROJECT_ROOT_FILE);
         let (document, diagnostics) = crate::document::read(text);
         if !diagnostics.is_empty() {
@@ -61,7 +61,7 @@ impl ProjectMetadata {
         Ok(metadata)
     }
 
-    pub fn validate(&self) -> Result<(), String> {
+    pub(crate) fn validate(&self) -> Result<(), String> {
         if self.format_version != PROJECT_FORMAT_VERSION {
             return Err(format!(
                 "Unsupported project format {}; expected {}",
@@ -75,12 +75,12 @@ impl ProjectMetadata {
 /// The one editable source root of a local project.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectWorkspace {
-    pub root: Utf8PathBuf,
-    pub metadata: ProjectMetadata,
+    pub(crate) root: Utf8PathBuf,
+    pub(crate) metadata: ProjectMetadata,
 }
 
 impl ProjectWorkspace {
-    pub fn new(root: &Utf8Path, metadata: ProjectMetadata) -> Result<Self, String> {
+    pub(crate) fn new(root: &Utf8Path, metadata: ProjectMetadata) -> Result<Self, String> {
         metadata.validate()?;
         let root = root
             .canonicalize_utf8()

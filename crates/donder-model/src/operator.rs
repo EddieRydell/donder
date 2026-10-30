@@ -25,9 +25,9 @@ pub struct OperatorPortDefinition {
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorDefinition {
     pub(crate) id: OperatorDefinitionId,
-    pub(crate) compiled: Box<CompiledDefinition>,
-    pub(crate) inputs: Vec<OperatorPortDefinition>,
-    pub(crate) output: OperatorPortDefinition,
+    compiled: Box<CompiledDefinition>,
+    inputs: Vec<OperatorPortDefinition>,
+    output: OperatorPortDefinition,
 }
 
 impl OperatorDefinition {
@@ -58,7 +58,7 @@ impl OperatorDefinition {
     pub fn params(&self) -> &[ParamDecl] {
         self.compiled.params()
     }
-    pub fn compiled(&self) -> &CompiledDefinition {
+    pub(crate) fn compiled(&self) -> &CompiledDefinition {
         &self.compiled
     }
     pub fn description(&self) -> Option<&str> {
@@ -109,7 +109,7 @@ pub enum GraphValidationError {
 
 impl GraphValidationError {
     /// The node the error concerns.
-    pub fn node(&self) -> Option<CompositionGraphNodeId> {
+    pub(crate) fn node(&self) -> Option<CompositionGraphNodeId> {
         match self {
             Self::DuplicateNode(node)
             | Self::MissingOperator(node)
@@ -327,7 +327,7 @@ fn validate_acyclic(graph: &SequenceCompositionGraph) -> Result<(), GraphValidat
     }
 }
 
-pub(crate) fn input_ports(
+fn input_ports(
     node: &crate::sequence::CompositionGraphNode,
     definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
 ) -> Result<Vec<OperatorPortDefinition>, GraphValidationError> {
@@ -341,7 +341,7 @@ pub(crate) fn input_ports(
     }
 }
 
-pub(crate) fn output_ports(
+fn output_ports(
     node: &crate::sequence::CompositionGraphNode,
     definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
 ) -> Result<Vec<String>, GraphValidationError> {

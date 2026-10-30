@@ -9,7 +9,7 @@ use std::collections::HashMap;
 pub(crate) struct Interval {
     pub(crate) min: f64,
     pub(crate) max: f64,
-    pub(crate) nan: bool,
+    nan: bool,
 }
 
 impl Interval {
@@ -47,7 +47,7 @@ impl Interval {
         )
     }
 
-    pub(crate) fn excludes_zero(self) -> bool {
+    fn excludes_zero(self) -> bool {
         self.min > 0.0 || self.max < 0.0
     }
 

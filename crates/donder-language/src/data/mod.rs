@@ -31,4 +31,4 @@ pub const DATA_DOCUMENT_SUFFIX: &str = ".data.donder";
 pub const SCRIPT_SUFFIX: &str = ".donder";
 
 /// The longest line the printer writes, counting indentation.
-pub const LINE_WIDTH: usize = 100;
+pub(crate) const LINE_WIDTH: usize = 100;

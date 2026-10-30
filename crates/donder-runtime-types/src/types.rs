@@ -121,18 +121,6 @@ impl Value {
 }
 
 impl Type {
-    pub fn accepts(&self, actual: &Self) -> bool {
-        self == actual
-            || matches!((self, actual), (Self::Float, Self::Int))
-            || match (self, actual) {
-                (Self::Enum(options), Self::Enum(values)) => {
-                    values.iter().all(|value| options.contains(value))
-                }
-                (Self::Array(expected), Self::Array(actual)) => expected.accepts(actual),
-                _ => false,
-            }
-    }
-
     pub fn accepts_value(&self, value: &Value) -> bool {
         match (self, value) {
             (Self::Void, Value::Void)

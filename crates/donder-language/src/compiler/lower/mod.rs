@@ -85,16 +85,16 @@ impl Instance {
 
 /// An instance whose preparation-time values are computed.
 pub(crate) struct Prepared {
-    pub(crate) graph: Graph,
-    pub(crate) root: Node,
-    pub(crate) values: Vec<Value>,
-    pub(crate) automation: Vec<PreparedAutomation>,
+    graph: Graph,
+    root: Node,
+    values: Vec<Value>,
+    automation: Vec<PreparedAutomation>,
 }
 
 /// Evaluate every value fixed for the instance. Those that a playback-time
 /// value reads (the frontier) become parameter slots, after the automated
 /// parameters; nothing else fixed survives.
-pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
+fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
     let graph = &instance.graph;
     let automated: HashSet<u32> = instance
         .automation

@@ -30,7 +30,7 @@ pub enum InputDriver {
 
 impl InputDriver {
     /// Whether this driver reads `input`.
-    pub fn reads(&self, input: &ControlInput) -> bool {
+    fn reads(&self, input: &ControlInput) -> bool {
         match self {
             Self::Keyboard => matches!(input, ControlInput::Key(_)),
             Self::Midi { .. } => matches!(
@@ -90,7 +90,7 @@ impl OscAddress {
 
     /// Whether it starts with `/` and has only printable ASCII characters
     /// that are not spaces or OSC's pattern characters.
-    pub fn is_valid(&self) -> bool {
+    fn is_valid(&self) -> bool {
         self.0.starts_with('/')
             && self
                 .0
@@ -138,7 +138,7 @@ pub enum ControlInput {
 
 impl InputControlKind {
     /// Every input the control reads: one, or each key of its range.
-    pub fn sources(&self) -> Vec<ControlInput> {
+    fn sources(&self) -> Vec<ControlInput> {
         match self {
             Self::Button(ButtonInput::Key(code)) => vec![ControlInput::Key(*code)],
             Self::Button(ButtonInput::Note(note)) => vec![ControlInput::Note(*note)],
@@ -197,7 +197,7 @@ impl InputControlKind {
 impl ControlInput {
     /// Whether the number it reads is one MIDI has, leaving out the control
     /// changes 120 and up, which are channel modes.
-    pub fn in_range(&self) -> bool {
+    fn in_range(&self) -> bool {
         match self {
             Self::Key(_) | Self::PitchBend => true,
             Self::Note(note) => *note <= MAX_MIDI_NOTE,

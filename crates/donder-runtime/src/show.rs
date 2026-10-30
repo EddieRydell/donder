@@ -5,7 +5,7 @@ use crate::format;
 use alloc::{boxed::Box, vec, vec::Vec};
 use donder_runtime_types::{RigEvent, SampleDuration, SampleTime, Shared};
 
-use crate::playback::{OutputFrame, Playback, SequenceFrame};
+use crate::playback::{Playback, SequenceFrame};
 use crate::view::{LoadError, Show};
 use crate::workspace::Layout;
 
@@ -169,19 +169,9 @@ impl ShowPlayback {
         self.playback().frame(time)
     }
 
-    /// Borrow the packed bytes of the most recently evaluated frame.
-    pub fn outputs(&mut self) -> impl ExactSizeIterator<Item = OutputFrame<'_>> {
-        self.playback().outputs()
-    }
-
     /// Apply a rig command at its time. Commands arrive in time order; one
     /// the show does not address is ignored.
     pub fn apply(&mut self, event: RigEvent) {
         self.playback().apply(event);
-    }
-
-    /// Clips active at `time` as commands have placed them.
-    pub fn active_clip_count(&mut self, time: SampleTime) -> usize {
-        self.playback().active_clip_count(time)
     }
 }

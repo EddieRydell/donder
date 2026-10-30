@@ -5,7 +5,7 @@ use crate::format::{self, SectionPixel};
 
 use crate::view::Show;
 
-pub(crate) fn normalize_width(width: f32) -> u32 {
+fn normalize_width(width: f32) -> u32 {
     libm::floorf(width.max(1.0)) as u32
 }
 

@@ -181,10 +181,10 @@ pub fn affected_paths(
 }
 
 pub struct ResolvedGuiObject {
-    pub owned_path: Vec<crate::dto::OwnedObjectSlot>,
+    pub(crate) owned_path: Vec<crate::dto::OwnedObjectSlot>,
     /// The declared object the address starts at.
-    pub identity: SourceIdentity,
-    pub kind: donder_model::ObjectKind,
+    pub(crate) identity: SourceIdentity,
+    pub(crate) kind: donder_model::ObjectKind,
     /// The object, or for a fixture definition a layout owns, that layout.
     pub object: donder_model::ObjectId,
 }
@@ -192,7 +192,7 @@ pub struct ResolvedGuiObject {
 impl ResolvedGuiObject {
     /// The resolved object's address. Owned paths are checked when the object
     /// is resolved, so every step converts.
-    pub fn object_identity(&self) -> donder_project_io::ObjectAddress {
+    fn object_identity(&self) -> donder_project_io::ObjectAddress {
         self.owned_path.iter().fold(
             self.identity.clone().into(),
             |address: donder_project_io::ObjectAddress, step| {
@@ -206,13 +206,13 @@ impl ResolvedGuiObject {
 
     /// The resolved object as the id its editor works on. Requests resolve
     /// only to objects their view edits.
-    pub fn id<I: TryFrom<donder_model::ObjectId>>(&self) -> I {
+    pub(crate) fn id<I: TryFrom<donder_model::ObjectId>>(&self) -> I {
         I::try_from(self.object)
             .unwrap_or_else(|_| unreachable!("resolved objects match their editor"))
     }
 
     /// The document the resolved object is written in.
-    pub fn document_id(&self) -> &DocumentId {
+    pub(crate) fn document_id(&self) -> &DocumentId {
         self.identity.document_id()
     }
 

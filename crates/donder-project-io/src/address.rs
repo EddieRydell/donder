@@ -99,7 +99,7 @@ impl ObjectAddress {
         &self.root
     }
 
-    pub fn source(&self) -> Option<&SourceIdentity> {
+    pub(crate) fn source(&self) -> Option<&SourceIdentity> {
         self.owned_path.is_empty().then_some(&self.root)
     }
 
@@ -175,7 +175,7 @@ pub struct DeclaredObject {
 }
 
 impl DeclaredObject {
-    pub fn new(id: ObjectId, name: Identifier) -> Self {
+    pub(crate) fn new(id: ObjectId, name: Identifier) -> Self {
         Self { id, name }
     }
 
@@ -226,7 +226,7 @@ where
 
 impl SourceProject {
     /// The document and name a declared object is written under.
-    pub fn declaration(&self, id: ObjectId) -> Option<(&DocumentId, &Identifier)> {
+    fn declaration(&self, id: ObjectId) -> Option<(&DocumentId, &Identifier)> {
         self.documents.iter().find_map(|(document, source)| {
             source
                 .objects
@@ -242,7 +242,7 @@ impl SourceProject {
     }
 
     /// The declared object a document and name write.
-    pub fn declared_id(&self, identity: &SourceIdentity) -> Option<ObjectId> {
+    fn declared_id(&self, identity: &SourceIdentity) -> Option<ObjectId> {
         self.documents
             .get(identity.document_id())?
             .objects
@@ -283,7 +283,7 @@ impl ProjectSession {
     }
 
     /// Every object's address, for printing many references at once.
-    pub fn addresses(&self) -> HashMap<ObjectId, ObjectAddress> {
+    pub(crate) fn addresses(&self) -> HashMap<ObjectId, ObjectAddress> {
         let mut addresses = HashMap::new();
         for (document, source) in &self.source.documents {
             for object in &source.objects {

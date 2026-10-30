@@ -143,7 +143,7 @@ pub(in crate::gui) fn project_layout(
     }
 }
 
-pub(crate) fn definition_ref(session: &ProjectSession, id: &FixtureDefinitionId) -> GuiObjectRef {
+fn definition_ref(session: &ProjectSession, id: &FixtureDefinitionId) -> GuiObjectRef {
     crate::gui::model::object_ref(session, *id)
 }
 

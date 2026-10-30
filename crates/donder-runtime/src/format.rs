@@ -12,14 +12,14 @@ use bytemuck::{Pod, Zeroable};
 /// No index: an absent optional reference.
 pub(crate) const NONE: u32 = u32::MAX;
 /// Every section starts on this alignment within the payload.
-pub(crate) const ALIGN: usize = 4;
+const ALIGN: usize = 4;
 
 /// One section's place in the payload: a byte offset and a record count.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct SectionEntry {
-    pub(crate) offset: u32,
-    pub(crate) count: u32,
+    offset: u32,
+    count: u32,
 }
 
 /// The fixed part of a show header.
@@ -27,18 +27,18 @@ pub(crate) struct SectionEntry {
 #[repr(C)]
 pub(crate) struct Header {
     /// The format version; a show of another version is not read.
-    pub(crate) version: u32,
+    version: u32,
     /// Payload bytes after the header and section table.
-    pub(crate) payload: u32,
+    payload: u32,
     /// The show's identity, a hash of its table and payload: a controller
     /// reports it so a host can tell which show it holds. Playback never
     /// reads it.
-    pub(crate) id: u32,
-    pub(crate) reserved: u32,
+    id: u32,
+    reserved: u32,
 }
 
 /// Bytes of a header with its section table.
-pub(crate) const fn header_bytes() -> usize {
+const fn header_bytes() -> usize {
     size_of::<Header>() + SECTION_COUNT * size_of::<SectionEntry>()
 }
 
@@ -86,7 +86,7 @@ pub struct Fixture {
     pub id: u32,
     pub pixel_count: u32,
     /// The fixture's first pixel in the plan target.
-    pub offset: u32,
+    pub(crate) offset: u32,
     /// Layout positions of its retained cells, for spatial programs; empty
     /// when no program reads them.
     pub(crate) positions: Range,
@@ -446,7 +446,7 @@ pub struct Output {
     pub port: u32,
     /// Where its bytes start in the frame's output bytes, after every
     /// output before it.
-    pub offset: u32,
+    pub(crate) offset: u32,
     /// Bytes.
     pub width: u32,
 }

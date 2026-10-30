@@ -192,7 +192,7 @@ pub enum ControlTarget {
 
 impl Rig {
     /// The clip a `Control` mapping's target plays.
-    pub fn control_clip(&self, target: ControlTarget) -> Option<&RigClip> {
+    pub(crate) fn control_clip(&self, target: ControlTarget) -> Option<&RigClip> {
         match target {
             ControlTarget::Voice(id) => self
                 .voices

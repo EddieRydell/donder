@@ -38,7 +38,7 @@ pub struct ProjectSession {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SourceProject {
-    pub workspace: crate::ProjectWorkspace,
+    pub(crate) workspace: crate::ProjectWorkspace,
     pub entrypoint: Option<DocumentId>,
     pub documents: IndexMap<DocumentId, SourceDocument>,
     pub referenced_assets: Vec<ReferencedAsset>,
@@ -162,7 +162,7 @@ pub struct SourceDocument {
     pub(crate) objects: Vec<DeclaredObject>,
     /// A script's text, kept exactly; the GUI never rewrites code. A data
     /// document has none: saving prints it from typed state.
-    pub(crate) script: Option<String>,
+    script: Option<String>,
 }
 
 impl SourceDocument {
@@ -172,7 +172,7 @@ impl SourceDocument {
     }
 
     /// A script with its text and the definitions it declares.
-    pub fn script(objects: Vec<DeclaredObject>, source: String) -> Result<Self, String> {
+    pub(crate) fn script(objects: Vec<DeclaredObject>, source: String) -> Result<Self, String> {
         Self::new(Vec::new(), objects, Some(source))
     }
 
@@ -224,7 +224,7 @@ impl SourceDocument {
     }
 
     /// A script's text.
-    pub fn script_source(&self) -> Option<&str> {
+    pub(crate) fn script_source(&self) -> Option<&str> {
         self.script.as_deref()
     }
 }
@@ -236,15 +236,11 @@ pub struct ImportEdge {
 }
 
 impl ImportEdge {
-    pub fn declaration(&self) -> &donder_language::ImportDeclaration {
-        &self.declaration
-    }
-
     pub fn alias(&self) -> &str {
         self.declaration.alias.as_str()
     }
 
-    pub fn documents(&self) -> &[Utf8PathBuf] {
+    pub(crate) fn documents(&self) -> &[Utf8PathBuf] {
         &self.declaration.documents
     }
 
@@ -269,7 +265,7 @@ pub struct ExportReport {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaveReport {
-    pub written_files: Vec<Utf8PathBuf>,
+    pub(crate) written_files: Vec<Utf8PathBuf>,
 }
 
 impl ProjectSession {

@@ -18,7 +18,7 @@ pub struct ArtNetSender {
 }
 
 impl ArtNetSender {
-    pub fn open(
+    pub(crate) fn open(
         id: ControllerId,
         config: &ArtNetConfig,
         ports: &[ControllerPort],
@@ -47,7 +47,7 @@ impl ArtNetSender {
         })
     }
 
-    pub fn send<'a>(
+    pub(crate) fn send<'a>(
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
@@ -90,7 +90,7 @@ impl ArtNetSender {
         Ok(())
     }
 
-    pub fn blackout(&mut self) -> Result<(), OutputError> {
+    pub(crate) fn blackout(&mut self) -> Result<(), OutputError> {
         let frames = self
             .ports
             .iter()

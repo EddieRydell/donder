@@ -96,11 +96,6 @@ impl CompiledDefinition {
         self.0.description.as_deref()
     }
 
-    /// A digest of the compiled behavior, for caches of rendered output.
-    pub fn fingerprint(&self) -> u64 {
-        self.0.fingerprint
-    }
-
     /// Positional `values` respect every declared range and the
     /// iteration limit of reductions bounded by parameter lengths.
     pub fn check_values(&self, values: &[Value]) -> Result<(), BindingError> {

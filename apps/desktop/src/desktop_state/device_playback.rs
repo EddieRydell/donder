@@ -236,7 +236,7 @@ impl DesktopState {
         output
     }
 
-    pub(super) fn publish_devices(&self) {
+    fn publish_devices(&self) {
         let links = self.device_links();
         let used = self
             .setup_devices()

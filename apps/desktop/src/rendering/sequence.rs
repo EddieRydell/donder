@@ -54,13 +54,13 @@ pub(crate) struct AudioClockRenderedFrame {
 #[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct AudioClockRenderIdentity {
-    pub session_generation: u64,
-    pub audio_generation: u32,
-    pub audio_state: AudioTransportState,
-    pub position_seconds: f64,
-    pub frame_rate: u32,
-    pub frame_count: u32,
-    pub frame_index: u32,
+    session_generation: u64,
+    audio_generation: u32,
+    audio_state: AudioTransportState,
+    position_seconds: f64,
+    frame_rate: u32,
+    pub(crate) frame_count: u32,
+    frame_index: u32,
 }
 
 pub(crate) struct EncodedPreviewSequence {
@@ -98,7 +98,7 @@ impl SequenceRenderService {
         }
     }
 
-    pub(crate) fn prepare(
+    fn prepare(
         &mut self,
         project: &DonderProject,
         sequence_id: &SequenceId,

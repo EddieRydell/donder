@@ -167,7 +167,7 @@ pub(super) fn canonical_audio_path(path: &str) -> Result<String, std::io::Error>
     std::fs::canonicalize(path).map(|path| path.to_string_lossy().into_owned())
 }
 
-pub(super) fn instant_tween() -> Tween {
+fn instant_tween() -> Tween {
     Tween {
         duration: Duration::ZERO,
         ..Tween::default()

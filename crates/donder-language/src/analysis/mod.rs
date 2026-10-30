@@ -128,7 +128,7 @@ impl Completion {
         self
     }
 
-    pub fn documentation(mut self, documentation: impl Into<String>) -> Self {
+    fn documentation(mut self, documentation: impl Into<String>) -> Self {
         self.documentation = Some(documentation.into());
         self
     }

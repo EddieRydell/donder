@@ -98,7 +98,7 @@ pub fn sample_curve(curve: &Curve, position: f32) -> f32 {
 
 /// The slope of the segment from `start` to `finish`.
 #[inline(always)]
-pub fn segment_slope(start: &CurvePoint, finish: &CurvePoint) -> f32 {
+fn segment_slope(start: &CurvePoint, finish: &CurvePoint) -> f32 {
     (finish.value - start.value) / (finish.position - start.position)
 }
 
@@ -452,12 +452,6 @@ pub fn hsv(h: f32, s: f32, v: f32) -> Color {
     hue_color(h, chroma, v - chroma)
 }
 
-#[inline(always)]
-pub fn deterministic_random(values: impl Iterator<Item = f32>) -> f32 {
-    let seed = values.fold(0.0, |seed, value| seed * 31.0 + value);
-    deterministic_random_seed(seed)
-}
-
 /// MurmurHash3's 32-bit avalanche finalizer over the seed's bits: stateless,
 /// allocation-free and 32-bit.
 #[inline(always)]
@@ -536,13 +530,6 @@ fn power(base: f32, exponent: f32) -> f32 {
 pub fn smoothstep(value: f32) -> f32 {
     let t = clamp_float(value, 0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
-}
-
-/// Position within a section of `width` pixels, given the width's reciprocal.
-#[inline(always)]
-pub fn section_position(pixel_index: i32, width: f32, inverse: f32) -> f32 {
-    let index = pixel_index as f32;
-    (index - libm::floorf(index * inverse) * width) * inverse
 }
 
 #[inline(always)]

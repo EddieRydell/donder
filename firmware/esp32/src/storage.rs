@@ -21,14 +21,6 @@ static PAUSED: AtomicBool = AtomicBool::new(false);
 
 pub(crate) type SharedStorage = Mutex<CriticalSectionRawMutex, DeviceStorage>;
 
-#[esp_hal::ram(unstable(rtc_slow, persistent))]
-#[unsafe(export_name = "DONDER_FLASH_MARKS")]
-pub(crate) static mut MARKS: [u32; 4] = [0; 4];
-#[inline(always)]
-pub(crate) fn mark(index: usize, value: u32) {
-    unsafe { core::ptr::write_volatile((&raw mut MARKS).cast::<u32>().add(index), value) }
-}
-
 /// Storage, usable while the rendering core waits in RAM.
 pub(crate) struct Access<'a>(MutexGuard<'a, CriticalSectionRawMutex, DeviceStorage>);
 
@@ -39,12 +31,10 @@ pub(crate) async fn access(storage: &SharedStorage) -> Access<'_> {
     while PAUSED.load(Acquire) {
         embassy_time::Timer::after_micros(100).await;
     }
-    mark(0, 7);
     PAUSE_REQUESTED.store(true, Release);
     while !PAUSED.load(Acquire) {
         embassy_time::Timer::after_micros(100).await;
     }
-    mark(0, 8);
     Access(guard)
 }
 
@@ -72,16 +62,15 @@ pub(crate) fn pause_requested() -> bool {
     PAUSE_REQUESTED.load(Acquire)
 }
 
-/// Wait in RAM, with this core's interrupts masked, until the access ends.
+/// Wait in RAM until the access ends. The rendering core takes no
+/// interrupts, so nothing on it reads flash meanwhile.
 #[esp_hal::ram]
 pub(crate) fn pause() {
-    xtensa_lx::interrupt::free(|| {
-        PAUSED.store(true, Release);
-        while PAUSE_REQUESTED.load(Acquire) {
-            core::hint::spin_loop();
-        }
-        PAUSED.store(false, Release);
-    });
+    PAUSED.store(true, Release);
+    while PAUSE_REQUESTED.load(Acquire) {
+        core::hint::spin_loop();
+    }
+    PAUSED.store(false, Release);
 }
 
 /// The Donder data and show partitions.
@@ -131,27 +120,21 @@ impl DeviceStorage {
     }
 
     fn read_at(&mut self, address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
-        mark(0, 1);
         self.flash.read_nor(address, bytes).map_err(|_| Error::IO)?;
-        mark(0, 2);
         Ok(bytes.len())
     }
 
     fn write_at(&mut self, address: u32, bytes: &[u8]) -> Result<usize, Error> {
-        mark(0, 3);
         self.flash
             .write_nor(address, bytes)
             .map_err(|_| Error::IO)?;
-        mark(0, 4);
         Ok(bytes.len())
     }
 
     fn erase_at(&mut self, address: u32, length: usize) -> Result<usize, Error> {
-        mark(0, 5);
         self.flash
             .erase(address, address + length as u32)
             .map_err(|_| Error::IO)?;
-        mark(0, 6);
         Ok(length)
     }
 }

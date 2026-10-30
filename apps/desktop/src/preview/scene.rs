@@ -10,7 +10,7 @@ pub(crate) struct PreviewInstance {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Pod, Zeroable)]
 pub(crate) struct PreviewColor {
-    pub(crate) rgba: [u8; 4],
+    rgba: [u8; 4],
 }
 
 impl PreviewColor {

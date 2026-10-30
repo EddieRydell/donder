@@ -7,7 +7,7 @@ use donder_language::compiler::TextSpan;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ProjectIndex {
-    pub links: Vec<Link>,
+    pub(crate) links: Vec<Link>,
 }
 
 /// One name in a data document and the object it names.
