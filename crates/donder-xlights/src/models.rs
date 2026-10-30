@@ -110,11 +110,7 @@ impl<'a> Spec<'a> {
     /// A count written under its own name since xLights 2026.04, and as
     /// `parm1`, `parm2` or `parm3` before.
     pub(crate) fn count(&self, name: &str, parm: &str, default: i64) -> Result<u32, SkipReason> {
-        let attribute = if self.text(name).is_some() {
-            name
-        } else {
-            parm
-        };
+        let attribute = if self.has(name) { name } else { parm };
         let value = self.int(attribute, default)?;
         u32::try_from(value).map_err(|_| self.invalid(attribute))
     }
@@ -207,13 +203,13 @@ pub(crate) fn excluded(spec: &Spec) -> Result<(), SkipReason> {
 }
 
 /// The channels a model takes that has no pixels Donder can show.
-pub(crate) fn channel_count(spec: &Spec) -> Option<u32> {
+pub(crate) fn channel_count(spec: &Spec) -> Result<Option<u32>, SkipReason> {
     if spec.display.starts_with("Dmx") || spec.display == "DMX" {
-        spec.count("DmxChannelCount", "parm1", 1).ok()
+        spec.count("DmxChannelCount", "parm1", 1).map(Some)
     } else if spec.display == "Channel Block" {
-        spec.count("NumChannels", "parm1", 1).ok()
+        spec.count("NumChannels", "parm1", 1).map(Some)
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -221,6 +217,8 @@ pub(crate) fn layout(spec: &Spec) -> Result<Local, SkipReason> {
     if spec.int("versionNumber", 0)? < 2 {
         return Err(SkipReason::OldLayout);
     }
+    // A model of channels names its bad count, not just its type.
+    channel_count(spec)?;
     if spec.is_true("Advanced", false) {
         return Err(SkipReason::Setting("individual string start channel"));
     }

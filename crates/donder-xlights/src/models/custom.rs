@@ -49,7 +49,8 @@ pub(super) fn custom(spec: &Spec) -> Result<Local, SkipReason> {
                     }
                     let node: i64 = cell.parse().map_err(|_| invalid("CustomModel", cell))?;
                     if node > 0 {
-                        cells.entry(node as u32).or_default().push((
+                        let node = u32::try_from(node).map_err(|_| invalid("CustomModel", cell))?;
+                        cells.entry(node).or_default().push((
                             layer as f64,
                             row as f64,
                             column as f64,

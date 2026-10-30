@@ -1,5 +1,5 @@
-//! Importing the xLights show of the house in `examples/rydell_house`, as it
-//! was set up in xLights in December 2025.
+//! Importing the xLights show in `tests/fixtures/oklahoma_house`, the house
+//! of `examples/rydell_house`, as it was set up in xLights in December 2025.
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_model::{FixtureShape, Layout, LayoutFixtureKind, Owned, Patch};
@@ -115,7 +115,7 @@ fn imports_the_house() {
 fn shapes_follow_the_models() {
     let (_directory, session, _) = imported(&ImportOptions::default());
     let layout = layout(&session);
-    // A sidewalk arch is one 250-pixel half ellipse, three times as tall as
+    // A sidewalk arch is one 250-pixel half ellipse, more than twice as tall as
     // it is wide.
     let arch = fixture_shapes(layout, "sw_arch_16");
     assert_eq!(arch.len(), 1);

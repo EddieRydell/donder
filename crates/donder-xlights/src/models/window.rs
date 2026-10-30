@@ -45,9 +45,8 @@ pub(super) fn window_frame(spec: &Spec) -> Result<Local, SkipReason> {
     let top = spec.count("TopNodes", "parm1", 0)?;
     let side = spec.count("SideNodes", "parm2", 0)?;
     let bottom = spec.count("BottomNodes", "parm3", 0)?;
-    for count in [top, side, bottom] {
-        super::nodes(&[count])?;
-    }
+    let total = u64::from(top) + u64::from(bottom) + 2 * u64::from(side);
+    super::nodes(&[u32::try_from(total).map_err(|_| SkipReason::TooManyPixels)?])?;
     let clockwise = matches!(spec.text("Rotation").unwrap_or("CW"), "CW" | "Clockwise");
     let sides = sides(top, side, bottom);
     // The side leaving each corner clockwise: bottom left, top left, top

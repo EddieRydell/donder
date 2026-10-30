@@ -15,6 +15,11 @@ pub(super) fn icicles(spec: &Spec) -> Result<Local, SkipReason> {
     let mut pattern = spec.csv("DropPattern")?;
     if !spec.has("DropPattern") {
         pattern = vec![3, 4, 5, 4];
+    } else if pattern.is_empty() {
+        return Err(SkipReason::Attribute {
+            name: "DropPattern".to_string(),
+            value: spec.text("DropPattern").unwrap_or_default().to_string(),
+        });
     }
     let pattern = pattern
         .into_iter()

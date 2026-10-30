@@ -106,7 +106,7 @@ type Claim = (u32, u32, String);
 
 /// Channels from a model's first to its last.
 fn span(spec: &Spec, local: Option<&Local>) -> Option<u32> {
-    if let Some(count) = models::channel_count(spec) {
+    if let Ok(Some(count)) = models::channel_count(spec) {
         return Some(count);
     }
     let local = local?;
@@ -178,7 +178,9 @@ fn ruler(root: &Element) -> Option<f64> {
         _ => 0.0254,
     };
     let length = DVec3::new(number("X2")?, number("Y2")?, number("Z2").unwrap_or(0.0)).length();
-    (length > 0.0).then(|| number("Length").unwrap_or(0.0) * units / length)
+    // A ruler with no length says nothing of the layout's size.
+    let meters = number("Length")? * units;
+    (length > 0.0 && meters > 0.0).then(|| meters / length)
 }
 
 fn connection(spec: &Spec, name: &str, default: f32) -> f32 {
