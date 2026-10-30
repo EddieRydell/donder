@@ -1,133 +1,257 @@
-//! Circle and Wreath models: rings of evenly spaced lights.
+//! Circles and wreaths: rings of lights.
 
-use super::{ArcPoint, Ellipse, Local, Node, Spec};
-use crate::placement;
+use super::{ArcPoint, Common, Ellipse, Local, Node, Span, Strings, account};
+use crate::placement::{self, RenderSize};
+use crate::read::{self, Name, Reader, Table, Use};
 use crate::report::SkipReason;
 use glam::DVec3;
-use std::f64::consts::{PI, TAU};
+use std::f64::consts::PI;
 
-fn ring(radius: f64) -> Ellipse {
-    Ellipse {
-        center: DVec3::ZERO,
-        u: DVec3::new(radius, 0.0, 0.0),
-        v: DVec3::new(0.0, radius, 0.0),
-    }
+const CIRCLE: Table = &[
+    (Name::Exact("NumStrings"), Use::Modeled),
+    (Name::Exact("NodesPerString"), Use::Modeled),
+    (Name::Exact("centerPercent"), Use::Modeled),
+    (Name::Exact("parm1"), Use::Modeled),
+    (Name::Exact("parm2"), Use::Modeled),
+    (Name::Exact("parm3"), Use::Modeled),
+    (Name::Exact("circleSizes"), Use::Modeled),
+    (Name::Exact("LayerSizes"), Use::Modeled),
+    (Name::Exact("InsideOut"), Use::Modeled),
+];
+
+const WREATH: Table = &[
+    (Name::Exact("NumStrings"), Use::Modeled),
+    (Name::Exact("NodesPerString"), Use::Modeled),
+    (Name::Exact("parm1"), Use::Modeled),
+    (Name::Exact("parm2"), Use::Modeled),
+];
+
+struct CircleSettings {
+    strings: i32,
+    nodes_per_string: i32,
+    /// Lights on each ring, innermost first.
+    layers: Vec<i32>,
+    center_percent: i32,
+    inside_out: bool,
+    /// xLights: a circle without `StartSide` starts at the top.
+    bottom_to_top: bool,
 }
 
-/// A node at `angle` clockwise from the top of a ring.
-fn on_ring(radius: f64, angle: f64) -> DVec3 {
-    DVec3::new(angle.sin() * radius, angle.cos() * radius, 0.0)
-}
-
-/// Concentric rings, the outer one first unless inside out, their sizes
-/// from `LayerSizes`. Each ring starts at the top, or the bottom, and runs
-/// clockwise, or counter-clockwise right to left.
-pub(super) fn circle(spec: &Spec) -> Result<Local, SkipReason> {
-    let strings = spec.count("NumStrings", "parm1", 1)?;
-    let string_nodes = spec.count("NodesPerString", "parm2", 1)?;
-    let center_percent = spec.count("centerPercent", "parm3", 0)?;
-    let inside_out = spec.text("InsideOut") == Some("1");
-    let total = super::nodes(&[strings, string_nodes])?;
-    // Older files list the rings innermost first.
-    let mut sizes: Vec<i64> = if spec.has("circleSizes") {
-        spec.csv("circleSizes")?.into_iter().rev().collect()
+/// xLights: `XmlDeserializingModelFactory::DeserializeCircle`, which reverses
+/// the older `circleSizes` into layer sizes.
+fn circle_settings(reader: &Reader, common: &Common) -> CircleSettings {
+    let circle_sizes = reader.as_string("circleSizes", "");
+    let layers = if circle_sizes.is_empty() {
+        read::layer_sizes(reader.as_string("LayerSizes", ""))
     } else {
-        spec.csv("LayerSizes")?
+        let mut sizes: Vec<&str> = circle_sizes.split(',').collect();
+        sizes.reverse();
+        read::layer_sizes(&sizes.join(","))
     };
-    if sizes.is_empty() {
-        sizes.push(i64::from(total));
+    CircleSettings {
+        strings: reader.parm("NumStrings", "parm1", "1"),
+        nodes_per_string: reader.parm("NodesPerString", "parm2", "1"),
+        layers,
+        center_percent: reader.parm("centerPercent", "parm3", "0"),
+        inside_out: reader.equals("InsideOut", "0", "1"),
+        bottom_to_top: reader.has("StartSide") && common.bottom_to_top,
     }
-    let mut placed = 0_i64;
-    let sizes: Vec<u32> = sizes
-        .into_iter()
-        .map(|size| {
-            let size = size.clamp(0, (i64::from(total) - placed).max(0));
-            placed += size;
-            size as u32
-        })
-        .collect();
-    let largest = sizes.iter().copied().max().unwrap_or(0);
-    let outer = f64::from(largest) / 2.0;
-    let inner = f64::from(center_percent) / 100.0 * outer;
-    let layers = sizes.len();
-    let bottom = spec.bottom_to_top(false);
-    let left_to_right = spec.left_to_right();
+}
 
-    let mut nodes = Vec::new();
-    let mut ellipses = Vec::new();
-    for (layer, &count) in sizes.iter().enumerate() {
-        let radius = if layers == 1 {
-            outer
-        } else {
-            let step = if inside_out {
-                layers - layer - 1
+pub(super) fn circle(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let settings = circle_settings(reader, common);
+    let strings = match Strings::uniform(settings.strings, settings.nodes_per_string, common.ts) {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let span = Ok(strings.span(&common.string_type));
+    (span, circle_layout(reader, common, settings, &strings))
+}
+
+/// xLights: `CircleModel::InitModel`, `InitCircle` and `SetCircleCoord`:
+/// rings wired outermost first unless inside out, each ring's lights evenly
+/// round it from the top, or the bottom.
+fn circle_layout(
+    reader: &Reader,
+    common: &Common,
+    settings: CircleSettings,
+    strings: &Strings,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::BOXED_PLACEMENT,
+        &[CIRCLE],
+        super::NO_CHILDREN,
+    )?;
+    let lights = strings.nodes as i64;
+    let mut layers = settings.layers;
+    if layers.len() <= 1 {
+        layers = vec![lights as i32];
+    }
+    // xLights: InitCircle trims the layers to the model's lights, through
+    // Model::SetLayerSize, which leaves a layer as it is when trimmed to 0.
+    let mut placed = 0i64;
+    for layer in &mut layers {
+        if placed + i64::from(*layer) > lights {
+            let trimmed = if placed > lights {
+                0
             } else {
-                layer
+                (lights - placed) as i32
             };
-            inner + (outer - inner) * (1.0 - step as f64 / (layers - 1) as f64)
+            if trimmed != 0 {
+                *layer = trimmed;
+            }
+        }
+        placed += i64::from(*layer);
+    }
+    if placed < lights {
+        return Err(SkipReason::Setting(
+            "layer sizes that place fewer lights than the model has",
+        ));
+    }
+    let count = layers.len();
+    let strand = |circle: usize| {
+        layers[if settings.inside_out {
+            circle
+        } else {
+            count - circle - 1
+        }]
+    };
+    let max_lights = layers.iter().copied().max().unwrap_or(0);
+    let max_radius = f64::from(max_lights) / 2.0;
+    let min_radius = f64::from(settings.center_percent) / 100.0 * max_radius;
+    let string_type = &common.string_type;
+    let per_string = settings.nodes_per_string.max(1) as u32;
+    let mut nodes = Vec::with_capacity(lights as usize);
+    let mut ellipses = Vec::new();
+    let mut node = 0u32;
+    let mut left = lights;
+    for circle in 0..count {
+        let loop_count = left.min(i64::from(strand(circle))) as i32;
+        let radius = if count == 1 {
+            max_radius
+        } else if settings.inside_out {
+            min_radius
+                + (max_radius - min_radius)
+                    * (1.0 - (count - circle - 1) as f64 / (count - 1) as f64)
+        } else {
+            min_radius + (max_radius - min_radius) * (1.0 - circle as f64 / (count - 1) as f64)
         };
-        ellipses.push(ring(radius));
-        for index in 0..count {
-            let mut angle =
-                if bottom { -PI } else { 0.0 } + TAU * f64::from(index) / f64::from(count);
-            if !left_to_right {
+        ellipses.push(Ellipse {
+            center: DVec3::ZERO,
+            u: DVec3::new(0.0, radius, 0.0),
+            v: DVec3::new(radius, 0.0, 0.0),
+        });
+        for n in 0..loop_count {
+            let along = if loop_count == 1 {
+                0.0
+            } else {
+                f64::from(n) / f64::from(loop_count)
+            };
+            let mut angle = if settings.bottom_to_top { -PI } else { 0.0 } + PI * along * 2.0;
+            if !common.left_to_right {
                 angle = -angle;
             }
-            let node = nodes.len() as u32;
             nodes.push(Node {
-                string: node / string_nodes.max(1),
-                offset: node % string_nodes.max(1),
-                position: on_ring(radius, angle),
+                channel: strings.channel(string_type, node / per_string, node % per_string),
+                lights: vec![DVec3::new(
+                    f64::from((angle.sin() * radius) as f32),
+                    f64::from((angle.cos() * radius) as f32),
+                    0.0,
+                )],
                 arc: Some(ArcPoint {
                     arc: ellipses.len() - 1,
-                    degrees: 90.0 - angle.to_degrees(),
+                    degrees: angle.to_degrees(),
                 }),
             });
+            node += 1;
         }
+        left -= i64::from(loop_count);
     }
     Ok(Local {
         nodes,
         ellipses,
-        strings,
-        string_nodes,
-        placement: placement::boxed(spec)?,
+        size: RenderSize {
+            width: max_lights as f32,
+        },
+        placement: placement::boxed(reader)?,
     })
 }
 
-/// One ring of all the lights, starting at the top, or the bottom, and
-/// running clockwise when numbered left to right from the top or right to
-/// left from the bottom, and counter-clockwise otherwise, as in xLights.
-pub(super) fn wreath(spec: &Spec) -> Result<Local, SkipReason> {
-    let strings = spec.count("NumStrings", "parm1", 1)?;
-    let string_nodes = spec.count("NodesPerString", "parm2", 50)?;
-    let total = super::nodes(&[strings, string_nodes])?;
-    let bottom = spec.bottom_to_top(true);
-    let radius = f64::from(total / 2);
-    let mut step = 1.0 / f64::from(total.max(1));
-    if spec.left_to_right() != bottom {
+pub(super) fn wreath(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    // xLights: DeserializeWreath.
+    let count = reader.parm("NumStrings", "parm1", "1");
+    let per_string = reader.parm("NodesPerString", "parm2", "50");
+    let strings = match Strings::uniform(count, per_string, common.ts) {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
+    };
+    let span = Ok(strings.span(&common.string_type));
+    (span, wreath_layout(reader, common, &strings, per_string))
+}
+
+/// xLights: `WreathModel::InitWreath` and `CopyBufCoord2ScreenCoord`: one
+/// ring of all the lights, each at the whole buffer cell nearest its place,
+/// from the top, or the bottom, clockwise when numbered left to right from
+/// the top or right to left from the bottom.
+fn wreath_layout(
+    reader: &Reader,
+    common: &Common,
+    strings: &Strings,
+    per_string: i32,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::BOXED_PLACEMENT,
+        &[WREATH],
+        super::NO_CHILDREN,
+    )?;
+    let lights = strings.nodes as i32;
+    if lights == 0 {
+        return Err(SkipReason::NoPixels);
+    }
+    let offset = lights / 2;
+    let radius = f64::from(offset);
+    let btt = common.bottom_to_top;
+    let mut pct = if btt { 0.5 } else { 0.0 };
+    let mut step = 1.0 / f64::from(lights);
+    if common.left_to_right != btt {
         step = -step;
     }
-    let mut turn: f64 = if bottom { 0.5 } else { 0.0 };
-    let nodes = (0..total)
-        .map(|node| {
-            let angle = turn * TAU;
-            turn = (turn + step).rem_euclid(1.0);
-            Node {
-                string: node / string_nodes.max(1),
-                offset: node % string_nodes.max(1),
-                position: on_ring(radius, angle),
-                arc: Some(ArcPoint {
-                    arc: 0,
-                    degrees: 90.0 - angle.to_degrees(),
-                }),
-            }
-        })
-        .collect();
+    let size = lights + 1;
+    let string_type = &common.string_type;
+    let per_string = per_string.max(1) as u32;
+    let mut nodes = Vec::with_capacity(lights as usize);
+    for node in 0..lights as u32 {
+        let x = (radius * (pct * 2.0 * PI).sin() + f64::from(offset) + 0.5) as i32;
+        let y = (radius * (pct * 2.0 * PI).cos() + f64::from(offset) + 0.5) as i32;
+        pct += step;
+        if pct >= 1.0 {
+            pct -= 1.0;
+        }
+        if pct < 0.0 {
+            pct += 1.0;
+        }
+        nodes.push(Node {
+            channel: strings.channel(string_type, node / per_string, node % per_string),
+            lights: vec![DVec3::new(
+                f64::from(x - size / 2),
+                f64::from(y - size / 2),
+                0.0,
+            )],
+            arc: None,
+        });
+    }
     Ok(Local {
         nodes,
-        ellipses: vec![ring(radius)],
-        strings,
-        string_nodes,
-        placement: placement::boxed(spec)?,
+        ellipses: Vec::new(),
+        size: RenderSize { width: size as f32 },
+        placement: placement::boxed(reader)?,
     })
 }

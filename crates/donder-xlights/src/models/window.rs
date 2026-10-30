@@ -1,87 +1,171 @@
 //! Window frames: one string around a rectangle.
 
-use super::{Local, Node, Spec};
-use crate::placement;
+use super::{Common, Local, Node, Span, Strings, account};
+use crate::placement::{self, RenderSize};
+use crate::read::{Name, Reader, Table, Use};
 use crate::report::SkipReason;
 use glam::DVec3;
 
-/// The sides of a frame `width` wide and `height` tall, clockwise from the
-/// bottom left corner: up the left, across the top, down the right and back
-/// along the bottom. The sides reach the corners; the top and bottom stop
-/// short of them.
-fn sides(top: u32, side: u32, bottom: u32) -> [Vec<DVec3>; 4] {
-    let width = f64::from(top.max(bottom) + 2);
-    let height = f64::from(side.max(1) - 1);
-    let (left, right) = (-width / 2.0, width / 2.0);
-    let (low, high) = (-height / 2.0, height / 2.0);
-    let column = |count: u32, x: f64, rising: bool| {
-        (0..count)
-            .map(|index| {
-                let y = low + f64::from(index);
-                DVec3::new(x, if rising { y } else { low + high - y }, 0.0)
-            })
-            .collect::<Vec<_>>()
-    };
-    let row = |count: u32, y: f64, rightward: bool| {
-        let step = width / f64::from(count + 1);
-        (1..=count)
-            .map(|index| {
-                let x = left + step * f64::from(index);
-                DVec3::new(if rightward { x } else { left + right - x }, y, 0.0)
-            })
-            .collect::<Vec<_>>()
-    };
-    [
-        column(side, left, true),
-        row(top, high, true),
-        column(side, right, false),
-        row(bottom, low, false),
-    ]
+const WINDOW: Table = &[
+    (Name::Exact("TopNodes"), Use::Modeled),
+    (Name::Exact("SideNodes"), Use::Modeled),
+    (Name::Exact("BottomNodes"), Use::Modeled),
+    (Name::Exact("parm1"), Use::Modeled),
+    (Name::Exact("parm2"), Use::Modeled),
+    (Name::Exact("parm3"), Use::Modeled),
+    (Name::Exact("Rotation"), Use::Modeled),
+];
+
+struct Settings {
+    top: i32,
+    side: i32,
+    bottom: i32,
+    clockwise: bool,
 }
 
-/// The string starts at the corner the direction and start side name and
-/// runs clockwise or counter-clockwise.
-pub(super) fn window_frame(spec: &Spec) -> Result<Local, SkipReason> {
-    let top = spec.count("TopNodes", "parm1", 0)?;
-    let side = spec.count("SideNodes", "parm2", 0)?;
-    let bottom = spec.count("BottomNodes", "parm3", 0)?;
-    let total = u64::from(top) + u64::from(bottom) + 2 * u64::from(side);
-    super::nodes(&[u32::try_from(total).map_err(|_| SkipReason::TooManyPixels)?])?;
-    let clockwise = matches!(spec.text("Rotation").unwrap_or("CW"), "CW" | "Clockwise");
-    let sides = sides(top, side, bottom);
-    // The side leaving each corner clockwise: bottom left, top left, top
-    // right, bottom right.
-    let corner = match (spec.left_to_right(), spec.bottom_to_top(true)) {
-        (true, true) => 0,
-        (true, false) => 1,
-        (false, false) => 2,
-        (false, true) => 3,
+/// xLights: `XmlDeserializingModelFactory::DeserializeWindow`.
+fn settings(reader: &Reader) -> Settings {
+    let rotation = reader.as_string("Rotation", "CW");
+    Settings {
+        top: reader.parm("TopNodes", "parm1", "0"),
+        side: reader.parm("SideNodes", "parm2", "0"),
+        bottom: reader.parm("BottomNodes", "parm3", "0"),
+        clockwise: rotation == "Clockwise" || rotation == "CW",
+    }
+}
+
+pub(super) fn window_frame(
+    reader: &Reader,
+    common: &Common,
+) -> (Result<Span, SkipReason>, Result<Local, SkipReason>) {
+    let settings = settings(reader);
+    let total = i64::from(settings.top) + 2 * i64::from(settings.side) + i64::from(settings.bottom);
+    let strings = match i32::try_from(total)
+        .map_err(|_| SkipReason::TooManyPixels)
+        .and_then(|total| Strings::uniform(1, total, 1))
+    {
+        Ok(strings) => strings,
+        Err(reason) => return (Err(reason.clone()), Err(reason)),
     };
-    let order: Vec<DVec3> = if clockwise {
-        (0..4)
-            .flat_map(|step| sides[(corner + step) % 4].iter().copied())
-            .collect()
+    let span = Ok(strings.span(&common.string_type));
+    (span, layout(reader, common, &settings, &strings))
+}
+
+/// xLights: `WindowFrameModel::InitFrame`: one string up the sides and
+/// along the top and bottom from the corner the start side and direction
+/// name. For the corners and rotations where xLights adjusts the lengths
+/// (`wadj`, `hadj`), the corner lights belong to the top and bottom.
+fn layout(
+    reader: &Reader,
+    common: &Common,
+    settings: &Settings,
+    strings: &Strings,
+) -> Result<Local, SkipReason> {
+    account(
+        reader,
+        super::BOXED_PLACEMENT,
+        &[WINDOW],
+        super::NO_CHILDREN,
+    )?;
+    if settings.side < 2 || settings.top < 0 || settings.bottom < 0 {
+        return Err(SkipReason::Setting("side with fewer than two lights"));
+    }
+    let (left, top, bottom) = (settings.side, settings.top, settings.bottom);
+    let width = top.max(bottom) + 2;
+    let height = settings.side;
+    let (ltr, btt) = (common.left_to_right, common.bottom_to_top);
+    let dir: f32 = if settings.clockwise { 1.0 } else { -1.0 };
+    let corners_on_rows = if dir == -1.0 { btt == ltr } else { btt != ltr };
+    let (wadj, hadj) = if corners_on_rows { (2, -2) } else { (0, 0) };
+    let w = width as f32;
+    let top_screen = if top + wadj - 1 != 0 {
+        w / (top + 1) as f32
     } else {
-        (1..=4)
-            .flat_map(|step| sides[(corner + 4 - step) % 4].iter().rev().copied())
-            .collect()
+        1.0
     };
-    let nodes = order
-        .into_iter()
-        .enumerate()
-        .map(|(node, position)| Node {
-            string: 0,
-            offset: node as u32,
-            position,
+    let bottom_screen = if bottom + wadj - 1 != 0 {
+        -w / (bottom + 1) as f32
+    } else {
+        1.0
+    };
+    let lengths = [left + hadj, top + wadj, left + hadj, bottom + wadj];
+    let x_screen_incr = [0.0, top_screen, 0.0, bottom_screen];
+    let y_screen_incr = [1.0, 0.0, -1.0, 0.0];
+    let half_h = (height - 1) as f32 / 2.0;
+    // Where each side's first light is drawn.
+    let (x_screen, y_screen): ([f32; 4], [f32; 4]) = if dir == -1.0 {
+        if btt == ltr {
+            let (a, b) = (-w / 2.0, w / 2.0);
+            ([a, b, b, a], [half_h - 1.0, half_h, -half_h + 1.0, -half_h])
+        } else {
+            let a = -w / 2.0;
+            (
+                [a, w / 2.0 - top_screen, w / 2.0, a - bottom_screen],
+                [half_h, half_h, -half_h, -half_h],
+            )
+        }
+    } else if btt != ltr {
+        let (a, b) = (-w / 2.0, w / 2.0);
+        ([a, a, b, b], [-half_h + 1.0, half_h, half_h - 1.0, -half_h])
+    } else {
+        (
+            [
+                -w / 2.0,
+                -w / 2.0 + top_screen,
+                w / 2.0,
+                w / 2.0 + bottom_screen,
+            ],
+            [-half_h, half_h, half_h, -half_h],
+        )
+    };
+    let indexes = match (ltr, btt, dir == 1.0) {
+        (true, true, true) => [0, 1, 2, 3],
+        (true, true, false) => [3, 2, 1, 0],
+        (true, false, true) => [1, 2, 3, 0],
+        (true, false, false) => [0, 3, 2, 1],
+        (false, true, true) => [3, 0, 1, 2],
+        (false, true, false) => [2, 1, 0, 3],
+        (false, false, true) => [2, 3, 0, 1],
+        (false, false, false) => [1, 0, 3, 2],
+    };
+    if lengths.iter().all(|length| *length <= 0) {
+        return Err(SkipReason::NoPixels);
+    }
+    let mut side = 0;
+    while lengths[indexes[side]] == 0 {
+        side += 1;
+    }
+    let mut screen_x = x_screen[indexes[side]];
+    let mut screen_y = y_screen[indexes[side]];
+    let mut length = lengths[indexes[side]];
+    let channels = common.string_type.channels;
+    let mut nodes = Vec::with_capacity(strings.nodes as usize);
+    for index in 0..strings.nodes {
+        if length <= 0 {
+            return Err(SkipReason::Unplaceable("a side with no lights"));
+        }
+        nodes.push(Node {
+            channel: index * channels,
+            lights: vec![DVec3::new(f64::from(screen_x), f64::from(screen_y), 0.0)],
             arc: None,
-        })
-        .collect::<Vec<_>>();
-    let total = nodes.len() as u32;
+        });
+        screen_x += x_screen_incr[indexes[side]] * dir;
+        screen_y += y_screen_incr[indexes[side]] * dir;
+        length -= 1;
+        if length <= 0 {
+            side = (side + 1) % 4;
+            while lengths[indexes[side]] == 0 {
+                side = (side + 1) % 4;
+            }
+            screen_x = x_screen[indexes[side]];
+            screen_y = y_screen[indexes[side]];
+            length = lengths[indexes[side]];
+        }
+    }
     Ok(Local {
         nodes,
         ellipses: Vec::new(),
-        strings: 1,
-        string_nodes: total,
-        placement: placement::boxed(spec)?,
+        size: RenderSize { width: w },
+        placement: placement::boxed(reader)?,
     })
 }

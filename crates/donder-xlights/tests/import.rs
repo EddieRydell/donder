@@ -88,10 +88,7 @@ fn imports_the_house() {
             .map(|skipped| skipped.reason.clone())
             .collect::<Vec<_>>()
     };
-    assert_eq!(
-        reasons("Wristband85"),
-        [SkipReason::Type("DmxGeneral".into())]
-    );
+    assert_eq!(reasons("Wristband85"), [SkipReason::Type("DmxGeneral")]);
     // Two models drive the same lights; the first in the file keeps them.
     assert_eq!(
         reasons("Left meteor1"),

@@ -17,6 +17,10 @@ impl Element {
             .map(|(_, value)| value.as_str())
     }
 
+    pub(crate) fn attribute_names(&self) -> impl Iterator<Item = &str> {
+        self.attributes.iter().map(|(key, _)| key.as_str())
+    }
+
     pub(crate) fn child(&self, name: &str) -> Option<&Element> {
         self.children.iter().find(|child| child.name == name)
     }
