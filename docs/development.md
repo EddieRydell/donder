@@ -12,6 +12,7 @@ crates/donder-runtime/          Portable no_std playback runtime: trusted shows 
 crates/donder-output/           E1.31 and Art-Net transports, FSEQ export
 crates/donder-audio-analysis/   Beat and downbeat detection from song audio
 crates/donder-language-server/  Language server for documents and scripts
+crates/donder-xlights/          xLights show import (layout, controllers, patch)
 crates/donder-cli/              Command-line project tools
 crates/donder-editor/           Shared GUI projection and edits, and the editor DTOs exported to TypeScript
 apps/desktop/                   Tauri desktop app: Rust service and React frontend

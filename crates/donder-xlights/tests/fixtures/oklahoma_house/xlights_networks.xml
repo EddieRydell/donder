@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Networks computer="Pauls-MacBook-Pro-2" GlobalFPPProxy="" GlobalForceLocalIP="" AutoUpdateFromBase="0" BaseShowDir="">
+  <suppressframes frames="20"/>
+  <Controller Id="1" Name="Unnamed" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.153" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.153" BaudRate="1" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.153" BaudRate="2" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="3" Name="Unnamed_1" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.152" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.152" BaudRate="3" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.152" BaudRate="4" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="5" Name="Unnamed_2" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.199" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.199" BaudRate="5" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="6" Name="Unnamed_3" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.167" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.167" BaudRate="6" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.167" BaudRate="7" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.167" BaudRate="8" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="9" Name="Unnamed_4" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.130" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.130" BaudRate="9" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.130" BaudRate="10" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.130" BaudRate="11" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.130" BaudRate="12" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.130" BaudRate="13" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.130" BaudRate="14" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="15" Name="Unnamed_5" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.186" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.186" BaudRate="15" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.186" BaudRate="16" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.186" BaudRate="17" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.186" BaudRate="18" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.186" BaudRate="19" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.186" BaudRate="20" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.186" BaudRate="21" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.186" BaudRate="22" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="23" Name="Unnamed_6" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.159" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.159" BaudRate="23" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.159" BaudRate="24" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.159" BaudRate="25" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.159" BaudRate="26" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.159" BaudRate="27" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="28" Name="Unnamed_7" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.176" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.176" BaudRate="28" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.176" BaudRate="29" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="31" Name="Unnamed_8" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.173" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.173" BaudRate="31" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.173" BaudRate="32" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="33" Name="Unnamed_9" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.160" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="TRUE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.160" BaudRate="33" NetworkType="E131" MaxChannels="498"/>
+    <network ComPort="192.168.168.160" BaudRate="34" NetworkType="E131" MaxChannels="219"/>
+  </Controller>
+  <Controller Id="35" Name="Unnamed_10" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.161" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="TRUE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.161" BaudRate="35" NetworkType="E131" MaxChannels="450"/>
+    <network ComPort="192.168.168.161" BaudRate="36" NetworkType="E131" MaxChannels="450"/>
+    <network ComPort="192.168.168.161" BaudRate="37" NetworkType="E131" MaxChannels="450"/>
+    <network ComPort="192.168.168.161" BaudRate="38" NetworkType="E131" MaxChannels="450"/>
+    <network ComPort="192.168.168.161" BaudRate="39" NetworkType="E131" MaxChannels="450"/>
+    <network ComPort="192.168.168.161" BaudRate="40" NetworkType="E131" MaxChannels="150"/>
+  </Controller>
+  <Controller Id="41" Name="wristbandcontroller" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.129" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.129" BaudRate="41" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="42" Name="Unnamed_12" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.192" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.192" BaudRate="42" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.192" BaudRate="43" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.192" BaudRate="44" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="45" Name="Unnamed_13" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.237" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.237" BaudRate="45" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.237" BaudRate="46" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.237" BaudRate="47" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.237" BaudRate="48" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="49" Name="Unnamed_14" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.184" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.184" BaudRate="49" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.184" BaudRate="50" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.184" BaudRate="51" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="52" Name="Unnamed_15" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.198" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.198" BaudRate="52" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.198" BaudRate="53" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.198" BaudRate="54" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="55" Name="Unnamed_16" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.183" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.183" BaudRate="55" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.183" BaudRate="56" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.183" BaudRate="57" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.183" BaudRate="58" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.183" BaudRate="59" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="60" Name="Unnamed_17" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.166" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.166" BaudRate="60" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.166" BaudRate="61" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="62" Name="Unnamed_18" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.186" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.186" BaudRate="62" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="63" Name="Unnamed_19" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.129" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.129" BaudRate="63" NetworkType="E131" MaxChannels="300"/>
+  </Controller>
+  <Controller Id="66" Name="nativity" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.37" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.37" BaudRate="64" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.37" BaudRate="65" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.37" BaudRate="66" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.37" BaudRate="67" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.37" BaudRate="68" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.37" BaudRate="69" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.37" BaudRate="70" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.37" BaudRate="71" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="73" Name="Null_1" Description="" Type="Null" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="0" AutoUpload="0" SuppressDuplicates="0" Monitor="1">
+    <network NetworkType="NULL" MaxChannels="5955"/>
+  </Controller>
+  <Controller Id="72" Name="paulballscontroller" Description="Pauls Balls" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.64" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.64" BaudRate="110" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="111" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="112" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="113" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="114" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="115" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="116" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="117" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="118" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="119" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="120" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="121" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="122" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="123" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="124" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="125" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="126" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="127" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="128" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="129" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="130" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="131" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="132" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="133" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="134" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="135" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="136" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="137" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="138" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="139" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="140" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="141" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="142" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="143" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="144" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="145" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="146" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="147" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="148" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="149" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="150" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="151" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="152" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="153" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="154" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="155" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="156" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="157" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="158" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="159" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="160" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="161" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="162" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="163" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="164" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="165" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="166" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="167" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="168" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="169" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="170" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="171" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="172" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="173" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="174" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="175" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="176" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="177" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="178" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="179" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="180" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="181" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="182" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="183" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="184" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="185" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="186" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="187" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="188" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="189" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="190" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="191" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="192" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="193" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="194" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="195" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="196" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="197" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="198" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.64" BaudRate="199" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="Ethernet_1meteorright" Description="Extra meteors RIGHT" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="1" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.176" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.176" BaudRate="30" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="Ethernet_1meteorleft" Description="extra left" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="1" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.173" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.173" BaudRate="101" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="extramegatreework" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.162" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.162" BaudRate="102" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.162" BaudRate="103" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.162" BaudRate="104" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.162" BaudRate="105" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.162" BaudRate="106" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="sidewalknewtunnel" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.161" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.161" BaudRate="201" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="202" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="203" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="204" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="205" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="206" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="207" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="208" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="209" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="210" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="211" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="212" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="213" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="214" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="215" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="216" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="217" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="218" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="219" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="220" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="221" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="222" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="223" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.161" BaudRate="224" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="Driveway right spots" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.242" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.242" BaudRate="230" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="driveway left spots" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="1" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.139" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.139" BaudRate="231" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="penguin" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.169" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.169" BaudRate="232" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.169" BaudRate="233" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.169" BaudRate="234" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.169" BaudRate="235" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.169" BaudRate="236" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.169" BaudRate="237" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.169" BaudRate="238" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="garagewreath" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="0" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.227" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.227" BaudRate="239" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.227" BaudRate="240" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.227" BaudRate="241" NetworkType="E131" MaxChannels="510"/>
+    <network ComPort="192.168.168.227" BaudRate="242" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+  <Controller Id="72" Name="mailboxsign" Description="" Type="Ethernet" Vendor="" Model="" Variant="" AutoSize="1" FromBase="0" FullxLightsControl="TRUE" DefaultBrightnessUnderFullControl="100" DefaultGammaUnderFullControl="1" ActiveState="Active" AutoLayout="1" AutoUpload="0" SuppressDuplicates="0" Monitor="1" IP="192.168.168.102" Protocol="E131" FPPProxy="" Priority="100" Version="1" Expanded="FALSE" UPS="FALSE" ForceLocalIP="">
+    <network ComPort="192.168.168.102" BaudRate="243" NetworkType="E131" MaxChannels="510"/>
+  </Controller>
+</Networks>
