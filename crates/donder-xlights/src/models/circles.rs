@@ -67,7 +67,13 @@ pub(super) fn circle(
         Ok(strings) => strings,
         Err(reason) => return (Err(reason.clone()), Err(reason)),
     };
-    let span = Ok(strings.span(&common.string_type));
+    // xLights maps only the first node of a model whose nodes each hold a
+    // whole string, leaving the rest at channel 0.
+    let span = if common.string_type.single_node {
+        Err(SkipReason::UnknownSpan)
+    } else {
+        Ok(strings.span(&common.string_type))
+    };
     (span, circle_layout(reader, common, settings, &strings))
 }
 

@@ -100,7 +100,21 @@ pub(super) fn arches(
         Ok(strings) => strings,
         Err(reason) => return (Err(reason.clone()), Err(reason)),
     };
-    let span = Ok(strings.span(&common.string_type));
+    // xLights: ArchesModel spaces arches by its nodes per arch and keeps a
+    // node a segment even when a node holds a whole string.
+    let string_type = &common.string_type;
+    let span = Ok(if strings.nodes == 0 {
+        Span { first: 0, end: 0 }
+    } else {
+        let per_arch = (strings.nodes / strings.count) as u64;
+        let step = u64::from(string_type.channels);
+        Span {
+            first: 0,
+            end: (u64::from(strings.count) - 1) * step * per_arch
+                + (per_arch - 1) * step
+                + u64::from(string_type.node_channels),
+        }
+    });
     (span, layout(reader, common, &settings, &strings))
 }
 
@@ -141,7 +155,7 @@ fn layout(
         let xoffset = f64::from(arch) * width;
         ellipses.push(Ellipse {
             center: DVec3::new(
-                xoffset + length + f64::from(gaps * settings.gap as u32),
+                xoffset + length + f64::from(gaps) * f64::from(settings.gap),
                 0.0,
                 0.0,
             ),

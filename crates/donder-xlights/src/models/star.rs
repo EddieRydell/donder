@@ -7,6 +7,9 @@ use crate::report::SkipReason;
 use glam::DVec3;
 use std::f64::consts::PI;
 
+/// The most points a star may have.
+const MOST_POINTS: i32 = 1000;
+
 const STAR: Table = &[
     (Name::Exact("NumStrings"), Use::Modeled),
     (Name::Exact("NodesPerString"), Use::Modeled),
@@ -77,7 +80,13 @@ pub(super) fn star(
         Ok(strings) => strings,
         Err(reason) => return (Err(reason.clone()), Err(reason)),
     };
-    let span = Ok(strings.span(&common.string_type));
+    // xLights maps only the first node of a model whose nodes each hold a
+    // whole string, leaving the rest at channel 0.
+    let span = if common.string_type.single_node {
+        Err(SkipReason::UnknownSpan)
+    } else {
+        Ok(strings.span(&common.string_type))
+    };
     (span, layout(reader, common, settings, &strings))
 }
 
@@ -101,9 +110,18 @@ fn layout(
         return Err(SkipReason::NoPixels);
     }
     let points = settings.points.max(2);
+    if points > MOST_POINTS {
+        return Err(SkipReason::Setting("number of points above 1000"));
+    }
     let mut layers = settings.layers;
     if layers.len() <= 1 {
         layers = vec![lights];
+    }
+    if layers
+        .iter()
+        .any(|size| i64::from(*size) > i64::from(lights))
+    {
+        return Err(SkipReason::Setting("layer larger than the model"));
     }
     let count = layers.len() as i32;
     let mut max_on_layer = 0;

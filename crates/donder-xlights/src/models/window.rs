@@ -67,7 +67,12 @@ fn layout(
         &[WINDOW],
         super::NO_CHILDREN,
     )?;
-    if settings.side < 2 || settings.top < 0 || settings.bottom < 0 {
+    if settings.top < 0 || settings.bottom < 0 {
+        return Err(SkipReason::Setting(
+            "negative number of top or bottom lights",
+        ));
+    }
+    if settings.side < 2 {
         return Err(SkipReason::Setting("side with fewer than two lights"));
     }
     let (left, top, bottom) = (settings.side, settings.top, settings.bottom);

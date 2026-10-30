@@ -66,6 +66,7 @@ fn single_line_layout(
         return Err(SkipReason::Unplaceable("each node has no lights"));
     }
     let lights = settings.lights_per_node as u32;
+    super::lights(u64::from(strings.nodes), u64::from(lights))?;
     let width = strings.nodes;
     let string_type = &common.string_type;
     let mut nodes = Vec::with_capacity(strings.nodes as usize);

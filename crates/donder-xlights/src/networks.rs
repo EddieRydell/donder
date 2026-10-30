@@ -131,8 +131,9 @@ pub(crate) struct NetworkController {
     /// xLights: `ControllerEthernet::_type`, the `Protocol` attribute: what
     /// the controller sends, as an output type.
     pub(crate) protocol: Option<OutputType>,
-    /// The `Protocol` text, for a protocol that is not an output type
-    /// (`Player Only`).
+    /// The `Protocol` as written.
+    pub(crate) protocol_name: String,
+    /// The `Protocol` is `Player Only`.
     pub(crate) player_only: bool,
     pub(crate) ip: String,
     pub(crate) priority: i32,
@@ -230,27 +231,8 @@ impl Networks {
     /// xLights: `OutputManager::Load`.
     pub(crate) fn read(root: &Element) -> Self {
         let mut controllers: Vec<NetworkController> = Vec::new();
-        // The older form: top-level `<network>` elements, grouped into
+        // The older form, top-level `<network>` elements, is grouped into
         // controllers as xLights converts them.
-        let mut multi_ip: std::collections::HashMap<String, bool> = Default::default();
-        let (mut last_port, mut last_universe) = (String::new(), -1);
-        for network in root.children.iter().filter(|child| child.name == "network") {
-            let reader = Reader::new(network);
-            let port = reader.as_string("ComPort", "").to_string();
-            let universe = reader.as_int("BaudRate", -1);
-            match multi_ip.get_mut(&port) {
-                None => {
-                    multi_ip.insert(port.clone(), false);
-                }
-                Some(multi) => {
-                    if port != last_port || universe != last_universe + 1 {
-                        *multi = true;
-                    }
-                }
-            }
-            last_port = port;
-            last_universe = universe;
-        }
         let mut converting: Option<usize> = None;
         let (mut last_type, mut last_port, mut last_universe) = (String::new(), String::new(), -1);
         for element in &root.children {
@@ -291,6 +273,7 @@ impl Networks {
                             description: None,
                             kind: controller_type,
                             protocol: Some(output.kind),
+                            protocol_name: output.kind.name().to_string(),
                             player_only: false,
                             ip: output.ip.clone(),
                             priority: reader.as_int("Priority", 100),
@@ -323,7 +306,6 @@ impl Networks {
                         };
                         controllers[index].name = unique_name(prefix, &controllers);
                     }
-                    let _ = multi_ip.get(&port);
                     last_type = kind;
                     last_port = port;
                     last_universe = universe + count - 1;
@@ -345,6 +327,7 @@ impl Networks {
                             .map(str::to_string),
                         kind,
                         protocol: OutputType::from_name(protocol_text),
+                        protocol_name: protocol_text.to_string(),
                         player_only: protocol_text == "Player Only",
                         ip: reader.as_string("IP", "").to_string(),
                         priority: reader.as_int("Priority", 100),

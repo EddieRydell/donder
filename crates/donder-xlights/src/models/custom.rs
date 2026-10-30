@@ -55,23 +55,29 @@ const CUSTOM: Table = &[
     ),
 ];
 
+/// The most cells the importer reads a custom model's grid into.
+const MOST_CELLS: usize = 10_000_000;
+
 /// Node numbers by layer, row and column; 0 or less is an empty cell.
 type Grid = Vec<Vec<Vec<i32>>>;
 
 /// xLights: `XmlSerialize::ParseCustomModel`.
-fn parse_grid(text: &str) -> Grid {
+fn parse_grid(text: &str) -> Result<Grid, SkipReason> {
     let mut grid: Grid = Vec::new();
     let mut width = 1usize;
     let mut height = 1usize;
+    let mut allocated = 0usize;
     for layer in text.split('|') {
-        grid.push(Vec::new());
         let rows: Vec<&str> = layer.split(';').collect();
         height = rows.len();
-        let current = grid.last_mut().unwrap_or_else(|| unreachable!());
-        current.resize(height, Vec::new());
+        let mut current = vec![Vec::new(); height];
         for (row, values) in rows.iter().enumerate() {
             let columns: Vec<&str> = values.split(',').collect();
             width = width.max(columns.len());
+            allocated += width;
+            if allocated > MOST_CELLS {
+                return Err(SkipReason::TooManyPixels);
+            }
             current[row].resize(width, -1);
             for (column, value) in columns.iter().enumerate() {
                 let value = value.trim_start_matches(' ');
@@ -80,6 +86,10 @@ fn parse_grid(text: &str) -> Grid {
                 }
             }
         }
+        grid.push(current);
+    }
+    if grid.len().saturating_mul(height).saturating_mul(width) > MOST_CELLS {
+        return Err(SkipReason::TooManyPixels);
     }
     for layer in &mut grid {
         layer.resize(height, Vec::new());
@@ -87,7 +97,7 @@ fn parse_grid(text: &str) -> Grid {
             row.resize(width, -1);
         }
     }
-    grid
+    Ok(grid)
 }
 
 /// xLights: `XmlSerialize::ParseCompressed`: `node,row,column[,layer]`
@@ -114,6 +124,10 @@ fn parse_compressed(text: &str) -> Result<Grid, SkipReason> {
         rows = rows.max(index(row)?);
         columns = columns.max(index(column)?);
     }
+    let cells = (layers as u64 + 1) * (rows as u64 + 1) * (columns as u64 + 1);
+    if cells > MOST_CELLS as u64 {
+        return Err(SkipReason::TooManyPixels);
+    }
     let mut grid = vec![vec![vec![-1; columns + 1]; rows + 1]; layers + 1];
     for (node, row, column, layer) in entries {
         grid[layer as usize][row as usize][column as usize] = node as i32;
@@ -122,7 +136,6 @@ fn parse_compressed(text: &str) -> Result<Grid, SkipReason> {
 }
 
 struct Settings {
-    grid: Grid,
     /// The highest node number. xLights: `GetCustomMaxChannel`.
     max_node: i32,
     /// The nodes the grid names, each with its cells.
@@ -136,7 +149,7 @@ struct Settings {
 fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
     let compressed = reader.as_string("CustomModelCompressed", "");
     let grid = if compressed.is_empty() {
-        parse_grid(reader.as_string("CustomModel", ""))
+        parse_grid(reader.as_string("CustomModel", ""))?
     } else {
         parse_compressed(compressed)?
     };
@@ -177,7 +190,6 @@ fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
             .unwrap_or(1);
     }
     Ok(Settings {
-        grid,
         max_node,
         cells,
         first_node,
@@ -194,11 +206,14 @@ pub(super) fn custom(
     };
     let channels = u64::from(common.string_type.channels);
     let offset = (settings.first_node - 1).max(0) as u64 * channels;
+    // xLights: InitCustomMatrix steps each node by the channels its node
+    // holds (GetChanCountPerNode), made with no lights.
+    let per_node = u64::from(common.string_type.empty_node_channels);
     let span = Ok(
         match (settings.cells.keys().next(), settings.cells.keys().last()) {
             (Some(&low), Some(&high)) => Span {
-                first: offset + (low - 1) as u64 * channels,
-                end: offset + high as u64 * channels,
+                first: offset + (low - 1) as u64 * per_node,
+                end: offset + (high - 1) as u64 * per_node + per_node,
             },
             _ => Span { first: 0, end: 0 },
         },
@@ -239,7 +254,6 @@ fn layout(
         center(low.1, high.1),
         center(low.2, high.2),
     );
-    let _ = &settings.grid;
     let channels = u64::from(common.string_type.channels);
     let mut nodes = Vec::with_capacity(settings.cells.len());
     for (&number, cells) in &settings.cells {

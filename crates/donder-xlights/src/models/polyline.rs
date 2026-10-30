@@ -46,6 +46,9 @@ const POLY_LINE: Table = &[
     ),
 ];
 
+/// The most points a path may have.
+const MOST_POINTS: usize = 100_000;
+
 /// xLights: `BezierCurve3D`'s default `steps`.
 const CURVE_STEPS: f32 = 25.0;
 
@@ -182,10 +185,13 @@ fn strtof(text: &str) -> Result<f32, SkipReason> {
 /// xLights: `DeserializePolyLine`, `DeserializePolyPointScreenLocationAttributes`,
 /// `SetDataFromString`, `SetCurveDataFromString` and `ParseDropSizes`.
 fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
-    if reader.as_int("PolyStrings", 1) > 1 {
+    if reader.as_int("PolyStrings", 1) != 1 {
         return Err(SkipReason::Setting("number of strings"));
     }
     let count = reader.as_int("NumPoints", 2).max(2) as usize;
+    if count > MOST_POINTS {
+        return Err(SkipReason::Setting("number of points above 100000"));
+    }
     let mut values: Vec<&str> = reader
         .as_string("PointData", "0.0, 0.0, 0.0, 0.0, 0.0, 0.0")
         .split(',')
@@ -351,6 +357,7 @@ fn layout(
     if num_lights == 0 {
         return Err(SkipReason::NoPixels);
     }
+    super::lights(u64::from(num_lights), settings.lights_per_node as u64)?;
     let per_node = settings.lights_per_node as usize;
     let channels = common.string_type.channels;
     let drops = settings.drops.clone();

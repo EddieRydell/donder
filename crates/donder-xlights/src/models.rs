@@ -71,6 +71,13 @@ pub(crate) struct StringType {
     pub(crate) single_node: bool,
     /// xLights: `HasSingleChannel`: a whole string takes one channel.
     pub(crate) single_channel: bool,
+    /// The channels each node xLights makes holds, which can differ from
+    /// the channels between nodes. xLights: the node classes
+    /// `Model::SetNodeCount` makes.
+    pub(crate) node_channels: u32,
+    /// The same for a node made with no lights, as Custom models make
+    /// theirs. xLights: `SetNodeCount(1, 0, ...)`.
+    pub(crate) empty_node_channels: u32,
     /// The pixels Donder sends, for individual RGB or RGBW pixels.
     pub(crate) encoding: Option<PixelEncoding>,
 }
@@ -102,10 +109,55 @@ impl StringType {
         let single_node =
             text != "Node Single Color" && (text == "Superstring" || !text.contains(" Nodes"));
         let single_channel = channels == 1 && text != "Node Single Color";
+        let single_class = match text {
+            "Single Color Red"
+            | "Single Color Green"
+            | "Single Color Blue"
+            | "Single Color White"
+            | "Strobes White 3fps"
+            | "Strobes"
+            | "Single Color Custom"
+            | "Single Color Intensity" => 1,
+            "Superstring" => superstring,
+            "4 Channel RGBW" | "4 Channel WRGB" => 4,
+            _ => 3,
+        };
+        let node_channels = if single_node {
+            single_class
+        } else if bytes.get(3) == Some(&b' ') {
+            3
+        } else if text == "Node Single Color" {
+            1
+        } else if text == "RGBWW Nodes" {
+            5
+        } else {
+            4
+        };
+        // xLights: Model::FourChannelNodes and FiveChannelNodes.
+        let four = text.contains('W')
+            && [
+                "RGBW", "WRGB", "WRBG", "RBGW", "WGRB", "GRBW", "WGBR", "GBRW", "WBRG", "BRGW",
+                "WBGR", "BGRW",
+            ]
+            .iter()
+            .any(|order| text.contains(order));
+        let empty_node_channels = if single_node {
+            single_class
+        } else if text == "Node Single Color" {
+            1
+        } else if text.contains("RGBWW") {
+            5
+        } else if four {
+            4
+        } else {
+            3
+        };
         Self {
             channels,
             single_node,
             single_channel,
+            node_channels,
+            empty_node_channels,
             encoding: (!single_node).then(|| pixel_encoding(text)).flatten(),
         }
     }
@@ -129,7 +181,9 @@ fn pixel_encoding(text: &str) -> Option<PixelEncoding> {
         [a, b, c] => PixelEncoding::Rgb {
             order: [*a, *b, *c],
         },
-        [a, b, c, d] => PixelEncoding::Rgbw {
+        // xLights: Model::GetNodeChannelCount counts four channels only
+        // with the white first or last.
+        [a, b, c, d] if *a == 3 || *d == 3 => PixelEncoding::Rgbw {
             order: [*a, *b, *c, *d],
         },
         _ => return None,
@@ -523,6 +577,18 @@ pub(crate) struct Span {
 /// The most nodes a model may have: as many pixels as a Donder fixture holds.
 const MOST_NODES: u64 = 1_000_000;
 
+/// The most lights a model's nodes may have between them.
+const MOST_LIGHTS: u64 = 10_000_000;
+
+/// Refuse a model whose nodes have more lights between them than the
+/// importer lays out.
+pub(crate) fn lights(nodes: u64, per_node: u64) -> Result<(), SkipReason> {
+    if nodes.saturating_mul(per_node) > MOST_LIGHTS {
+        return Err(SkipReason::TooManyPixels);
+    }
+    Ok(())
+}
+
 impl Strings {
     /// `count` strings of `nodes_per_string` nodes, the strings spaced by
     /// `ts` times as many.
@@ -574,17 +640,19 @@ impl Strings {
         }
     }
 
+    /// One past the last node's last channel: its start, the last string's
+    /// start and its nodes before it, plus the channels its node holds.
     fn end(&self, string_type: &StringType) -> u64 {
-        if self.count == 0 {
+        if self.count == 0 || self.nodes == 0 {
             return 0;
         }
         let per_string = u64::from(self.channels_per_string(string_type));
-        let last_string = if string_type.single_node {
-            u64::from(string_type.channels)
+        let before = if string_type.single_node {
+            0
         } else {
-            u64::from(self.nodes / self.count.max(1)) * u64::from(string_type.channels)
+            u64::from(self.nodes / self.count - 1) * u64::from(string_type.channels)
         };
-        u64::from(self.count - 1) * per_string + last_string
+        u64::from(self.count - 1) * per_string + before + u64::from(string_type.node_channels)
     }
 }
 
@@ -755,6 +823,18 @@ pub(crate) fn read(element: &Element, kind: ModelType) -> Model<'_> {
         (span, local)
     };
     let local = local.and_then(|local| {
+        // xLights places some lights at no number, such as a sphere one
+        // light tall or a short spiral tree's.
+        if local
+            .nodes
+            .iter()
+            .flat_map(|node| &node.lights)
+            .any(|light| !light.is_finite())
+        {
+            return Err(SkipReason::Unplaceable(
+                "a light xLights places at no number",
+            ));
+        }
         refused(&reader, &common)?;
         if common.string_type.encoding.is_none() {
             return Err(SkipReason::StringType(
