@@ -2,6 +2,7 @@
 //! one is written here, once, by `Display`.
 use std::fmt;
 
+use crate::console::{ConsoleClipId, LiveAutomationId, MAX_COPIES, OnId};
 use crate::controller::{
     ARTNET_PORT_ADDRESS_MAX, ControllerPortId, ControllerValidationError, DMX_SLOT_LIMIT,
     E131_UNIVERSE_MAX, E131_UNIVERSE_MIN,
@@ -13,7 +14,6 @@ use crate::input_device::{InputControlId, InputDeviceValidationError};
 use crate::layout::{FixtureInstanceId, LayoutError};
 use crate::operator::GraphValidationError;
 use crate::patch::PixelRouteId;
-use crate::rig::{MAX_STACKED_VOICES, RigMappingId, RigSwitchId, RigVoiceId};
 use crate::sequence::{AutomationClipId, CompositionGraphNodeId, SequenceLayerId};
 use crate::validation::{MAX_SEQUENCE_FRAME_COUNT, MAX_SEQUENCE_FRAME_RATE};
 use donder_runtime_types::{
@@ -56,7 +56,7 @@ pub enum ValidationProblem {
     },
     Setup(SetupProblem),
     Sequence(SequenceValidationError),
-    Rig(RigValidationError),
+    Console(ConsoleValidationError),
     Admission(AdmissionProblem),
 }
 
@@ -67,7 +67,7 @@ pub enum OwnershipProblem {
     StoredUnderOtherId(ObjectId),
     MissingReference(ObjectId),
     DuplicateSequence,
-    DuplicateRig,
+    DuplicateConsole,
     DuplicateController,
     DuplicateInputDevice,
 }
@@ -118,33 +118,42 @@ pub enum SequenceValidationError {
     },
 }
 
-/// A rig that cannot be played as written.
+/// A console that cannot be played as written.
 #[derive(Clone, Debug, PartialEq)]
-pub enum RigValidationError {
+pub enum ConsoleValidationError {
     MissingActiveSetup,
     Timing(TimingProblem),
     Name(NameProblem),
     Composition(CompositionProblem),
-    DuplicateVoiceId(RigVoiceId),
-    DuplicateSwitchId(RigSwitchId),
-    DuplicateMappingId(RigMappingId),
-    Voice {
-        voice: RigVoiceId,
+    DuplicateClipId(ConsoleClipId),
+    DuplicateAutomationId(LiveAutomationId),
+    DuplicateEventId(OnId),
+    Clip {
+        clip: ConsoleClipId,
         name: Identifier,
         problem: ClipProblem,
     },
-    Switch {
-        switch: RigSwitchId,
+    /// `Play` actions play the clip, and `Start`, `Toggle` or `always` hold
+    /// it too.
+    PlayedAndHeld {
+        clip: ConsoleClipId,
         name: Identifier,
-        problem: InputProblem,
     },
-    Mapping {
-        mapping: RigMappingId,
+    MissingAlwaysClip,
+    RepeatedAlwaysClip {
+        clip: ConsoleClipId,
         name: Identifier,
-        problem: MappingProblem,
+    },
+    Automation {
+        automation: LiveAutomationId,
+        name: Identifier,
+        problem: LiveAutomationProblem,
+    },
+    Event {
+        event: OnId,
+        problem: EventProblem,
     },
 }
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TimingProblem {
     ZeroFrameRate,
@@ -162,7 +171,7 @@ pub enum NameProblem {
     Duplicate(Member, Identifier),
 }
 
-/// The layers and composition graph of a sequence or rig.
+/// The layers and composition graph of a sequence or console.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CompositionProblem {
     DuplicateLayerId(SequenceLayerId),
@@ -175,7 +184,7 @@ pub enum CompositionProblem {
     },
 }
 
-/// A sequence clip or a rig voice or trigger clip.
+/// A sequence or console clip.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ClipProblem {
     MissingLayer,
@@ -229,33 +238,51 @@ pub enum AutomationProblem {
     Overlap,
 }
 
-/// The control a switch or mapping plays from.
+/// The control an event plays from.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InputProblem {
     MissingDevice,
     NotAControl,
     NotInSetup,
+    /// `Press` or `Release` of an axis.
     NotAButton,
+    /// `Move` of a button.
+    NotAnAxis,
 }
 
+/// A live automation of a console.
 #[derive(Clone, Debug, PartialEq)]
-pub enum MappingProblem {
+pub enum LiveAutomationProblem {
+    ValueOutOfRange,
+    MissingClip,
+    MissingNode,
+    UnknownParam(Identifier),
+    NotAutomatable(Identifier),
+    /// Another binding sets the same parameter.
+    BoundTwice(Identifier),
+    /// Actions play the parameter on the copies they start.
+    Played(Identifier),
+}
+
+/// An event of a console and its actions.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EventProblem {
     Input(InputProblem),
-    KeysDriveControl,
-    DialDrivesTrigger,
-    MissingSwitch,
+    /// An axis's `Move` only sets live automations.
+    AxisPlays,
+    /// Played values on an event other than a press.
+    ValuesWithoutPress,
+    MissingClip,
+    MissingLiveMarks(Identifier),
+    MissingAutomation,
+    Copies(u8),
     DurationBeyondClock,
-    NonPositiveFixedDuration,
-    StackSize(u8),
+    NonPositiveDuration,
+    ShortestAboveLongest,
     ValueTwice(Identifier),
     PitchWithoutNotes(Identifier),
     UnknownValue(Identifier),
     ValueNotAutomatable(Identifier),
-    MissingLiveMarks(Identifier),
-    MissingControlTarget,
-    UnknownControlParam(Identifier),
-    ControlNotAutomatable(Identifier),
-    Clip(ClipProblem),
 }
 
 /// Rules found while binding a validated project for playback.
@@ -268,10 +295,7 @@ pub enum AdmissionProblem {
     TimingUnrepresentable,
     MissingParam(Identifier),
     Binding(Member, BindingError),
-    ControlSetTwice(Identifier),
     LiveMarksInOperator(CompositionGraphNodeId),
-    UnknownControlParam(Identifier),
-    ControlNotAutomatable(Identifier),
     TooManyParams,
 }
 
@@ -284,9 +308,9 @@ pub enum Member {
     AutomationClip(AutomationClipId),
     Node(CompositionGraphNodeId),
     LiveMarks(Identifier),
-    Voice(RigVoiceId),
-    Switch(RigSwitchId),
-    Mapping(RigMappingId),
+    ConsoleClip(ConsoleClipId),
+    LiveAutomation(LiveAutomationId),
+    Event(OnId),
     Control(InputControlId),
     Port(ControllerPortId),
     LayoutItem(FixtureInstanceId),
@@ -299,9 +323,9 @@ pub enum Member {
 pub enum MemberPart {
     /// A parameter value it sets.
     Param(Identifier),
-    /// A value a trigger plays.
+    /// A value an action plays on the copy it starts.
     PlayedValue(Identifier),
-    /// The control it plays from.
+    /// The control an event reads.
     Input,
     /// A shape of a fixture definition written in place.
     Shape(FixtureElementId),
@@ -356,7 +380,7 @@ impl ValidationProblem {
                 .map(|control| ProblemSite::of(Member::Control(control))),
             Self::Route { route, .. } => Some(ProblemSite::of(Member::Route(*route))),
             Self::Sequence(error) => error.site(),
-            Self::Rig(error) => error.site(),
+            Self::Console(error) => error.site(),
             Self::Admission(AdmissionProblem::Binding(member, _)) => {
                 Some(ProblemSite::of(member.clone()))
             }
@@ -396,49 +420,61 @@ impl SequenceValidationError {
     }
 }
 
-impl RigValidationError {
+impl ConsoleValidationError {
     fn site(&self) -> Option<ProblemSite> {
         match self {
             Self::Name(problem) => Some(problem.site()),
             Self::Composition(problem) => problem.site(),
-            Self::DuplicateVoiceId(voice) => Some(ProblemSite::of(Member::Voice(*voice))),
-            Self::DuplicateSwitchId(switch) => Some(ProblemSite::of(Member::Switch(*switch))),
-            Self::DuplicateMappingId(mapping) => Some(ProblemSite::of(Member::Mapping(*mapping))),
-            Self::Voice { voice, problem, .. } => Some(problem.site(Member::Voice(*voice))),
-            Self::Switch { switch, .. } => Some(ProblemSite::with(
-                Member::Switch(*switch),
-                MemberPart::Input,
-            )),
-            Self::Mapping {
-                mapping, problem, ..
+            Self::DuplicateClipId(clip)
+            | Self::PlayedAndHeld { clip, .. }
+            | Self::RepeatedAlwaysClip { clip, .. } => {
+                Some(ProblemSite::of(Member::ConsoleClip(*clip)))
+            }
+            Self::DuplicateAutomationId(automation) => {
+                Some(ProblemSite::of(Member::LiveAutomation(*automation)))
+            }
+            Self::DuplicateEventId(event) => Some(ProblemSite::of(Member::Event(*event))),
+            Self::Clip { clip, problem, .. } => Some(problem.site(Member::ConsoleClip(*clip))),
+            Self::Automation {
+                automation,
+                problem,
+                ..
             } => {
-                let member = Member::Mapping(*mapping);
+                let member = Member::LiveAutomation(*automation);
                 Some(match problem {
-                    MappingProblem::Input(_)
-                    | MappingProblem::KeysDriveControl
-                    | MappingProblem::DialDrivesTrigger => {
-                        ProblemSite::with(member, MemberPart::Input)
-                    }
-                    MappingProblem::ValueTwice(param)
-                    | MappingProblem::PitchWithoutNotes(param)
-                    | MappingProblem::UnknownValue(param)
-                    | MappingProblem::ValueNotAutomatable(param) => {
-                        ProblemSite::with(member, MemberPart::PlayedValue(param.clone()))
-                    }
-                    MappingProblem::Clip(problem) => problem.site(member),
-                    MappingProblem::UnknownControlParam(param)
-                    | MappingProblem::ControlNotAutomatable(param) => {
+                    LiveAutomationProblem::UnknownParam(param)
+                    | LiveAutomationProblem::NotAutomatable(param)
+                    | LiveAutomationProblem::BoundTwice(param)
+                    | LiveAutomationProblem::Played(param) => {
                         ProblemSite::with(member, MemberPart::Param(param.clone()))
                     }
-                    MappingProblem::MissingSwitch
-                    | MappingProblem::DurationBeyondClock
-                    | MappingProblem::NonPositiveFixedDuration
-                    | MappingProblem::StackSize(_)
-                    | MappingProblem::MissingLiveMarks(_)
-                    | MappingProblem::MissingControlTarget => ProblemSite::of(member),
+                    LiveAutomationProblem::ValueOutOfRange
+                    | LiveAutomationProblem::MissingClip
+                    | LiveAutomationProblem::MissingNode => ProblemSite::of(member),
                 })
             }
-            Self::MissingActiveSetup | Self::Timing(_) => None,
+            Self::Event { event, problem } => {
+                let member = Member::Event(*event);
+                Some(match problem {
+                    EventProblem::Input(_) => ProblemSite::with(member, MemberPart::Input),
+                    EventProblem::ValueTwice(param)
+                    | EventProblem::PitchWithoutNotes(param)
+                    | EventProblem::UnknownValue(param)
+                    | EventProblem::ValueNotAutomatable(param) => {
+                        ProblemSite::with(member, MemberPart::PlayedValue(param.clone()))
+                    }
+                    EventProblem::AxisPlays
+                    | EventProblem::ValuesWithoutPress
+                    | EventProblem::MissingClip
+                    | EventProblem::MissingLiveMarks(_)
+                    | EventProblem::MissingAutomation
+                    | EventProblem::Copies(_)
+                    | EventProblem::DurationBeyondClock
+                    | EventProblem::NonPositiveDuration
+                    | EventProblem::ShortestAboveLongest => ProblemSite::of(member),
+                })
+            }
+            Self::MissingActiveSetup | Self::Timing(_) | Self::MissingAlwaysClip => None,
         }
     }
 }
@@ -514,7 +550,7 @@ impl fmt::Display for ValidationProblem {
             Self::Route { route, problem } => write!(f, "output {}: {problem}", route.0),
             Self::Setup(problem) => problem.fmt(f),
             Self::Sequence(error) => error.fmt(f),
-            Self::Rig(error) => error.fmt(f),
+            Self::Console(error) => error.fmt(f),
             Self::Admission(problem) => problem.fmt(f),
         }
     }
@@ -529,7 +565,7 @@ impl fmt::Display for OwnershipProblem {
             }
             Self::MissingReference(id) => write!(f, "a referenced {} is missing", id.kind()),
             Self::DuplicateSequence => f.write_str("a sequence appears twice in the project"),
-            Self::DuplicateRig => f.write_str("a rig appears twice in the project"),
+            Self::DuplicateConsole => f.write_str("a console appears twice in the project"),
             Self::DuplicateController => f.write_str("a controller appears twice in the setup"),
             Self::DuplicateInputDevice => f.write_str("an input device appears twice in the setup"),
         }
@@ -628,10 +664,9 @@ impl Member {
             Self::AutomationClip(_) => "automation clip",
             Self::Node(_) => "graph node",
             Self::LiveMarks(_) => "live mark collection",
-            Self::Voice(_) => "voice",
-            Self::Switch(_) => "switch",
-            // Voices and mappings share one namespace.
-            Self::Mapping(_) => "voice or mapping",
+            Self::ConsoleClip(_) => "clip",
+            Self::LiveAutomation(_) => "live automation",
+            Self::Event(_) => "event",
             Self::Control(_) => "control",
             Self::Port(_) => "port",
             Self::LayoutItem(_) => "layout item",
@@ -668,30 +703,32 @@ impl fmt::Display for SequenceValidationError {
     }
 }
 
-impl fmt::Display for RigValidationError {
+impl fmt::Display for ConsoleValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingActiveSetup => f.write_str("the active setup is missing"),
             Self::Timing(problem) => problem.fmt(f),
             Self::Name(problem) => problem.fmt(f),
             Self::Composition(problem) => problem.fmt(f),
-            Self::DuplicateVoiceId(voice) => write!(f, "voice id {} is used twice", voice.0),
-            Self::DuplicateSwitchId(switch) => write!(f, "switch id {} is used twice", switch.0),
-            Self::DuplicateMappingId(mapping) => {
-                write!(f, "mapping id {} is used twice", mapping.0)
+            Self::DuplicateClipId(clip) => write!(f, "clip id {} is used twice", clip.0),
+            Self::DuplicateAutomationId(automation) => {
+                write!(f, "live automation id {} is used twice", automation.0)
             }
-            Self::Voice { name, problem, .. } => {
-                write!(f, "voice `{}`: {problem}", name.as_str())
+            Self::DuplicateEventId(event) => write!(f, "event id {} is used twice", event.0),
+            Self::Clip { name, problem, .. } => write!(f, "clip `{}`: {problem}", name.as_str()),
+            Self::PlayedAndHeld { name, .. } => write!(
+                f,
+                "clip `{}` is played by `Play` and also held by `Start`, `Toggle` or `always`",
+                name.as_str()
+            ),
+            Self::MissingAlwaysClip => f.write_str("`always` names a missing clip"),
+            Self::RepeatedAlwaysClip { name, .. } => {
+                write!(f, "`always` lists clip `{}` twice", name.as_str())
             }
-            Self::Switch { name, problem, .. } => match problem {
-                InputProblem::NotAButton => {
-                    write!(f, "switch `{}` is not played from a button", name.as_str())
-                }
-                problem => write!(f, "switch `{}`: {problem}", name.as_str()),
-            },
-            Self::Mapping { name, problem, .. } => {
-                write!(f, "mapping `{}`: {problem}", name.as_str())
+            Self::Automation { name, problem, .. } => {
+                write!(f, "live automation `{}`: {problem}", name.as_str())
             }
+            Self::Event { problem, .. } => problem.fmt(f),
         }
     }
 }
@@ -817,54 +854,70 @@ impl fmt::Display for InputProblem {
             Self::MissingDevice => "the input device is missing",
             Self::NotAControl => "the input is not a control of its device",
             Self::NotInSetup => "the input device is not in the project's setup",
-            Self::NotAButton => "the input is not a button",
+            Self::NotAButton => "`Press` and `Release` read a button, not an axis",
+            Self::NotAnAxis => "`Move` reads an axis, not a button",
         })
     }
 }
 
-impl fmt::Display for MappingProblem {
+impl fmt::Display for LiveAutomationProblem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ValueOutOfRange => f.write_str("the starting value must lie in 0..1"),
+            Self::MissingClip => f.write_str("a binding names a missing clip"),
+            Self::MissingNode => f.write_str("a binding names a missing operator node"),
+            Self::UnknownParam(param) => write!(f, "no parameter `{}`", param.as_str()),
+            Self::NotAutomatable(param) => write!(
+                f,
+                "`{}` cannot be automated; a live automation sets a float, int, bool, enum or curve parameter",
+                param.as_str()
+            ),
+            Self::BoundTwice(param) => write!(
+                f,
+                "parameter `{}` is bound by another live automation binding",
+                param.as_str()
+            ),
+            Self::Played(param) => write!(
+                f,
+                "parameter `{}` is also played by an action's values",
+                param.as_str()
+            ),
+        }
+    }
+}
+
+impl fmt::Display for EventProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Input(problem) => problem.fmt(f),
-            Self::KeysDriveControl => {
-                f.write_str("keys trigger clips and add marks; they cannot drive a `Control`")
+            Self::AxisPlays => f.write_str("a `Move` can only `Set` live automations"),
+            Self::ValuesWithoutPress => f.write_str("only a `Press` plays values"),
+            Self::MissingClip => f.write_str("an action names a missing clip"),
+            Self::MissingLiveMarks(name) => {
+                write!(f, "no live mark collection `{}`", name.as_str())
             }
-            Self::DialDrivesTrigger => f.write_str("a dial can only drive a `Control`"),
-            Self::MissingSwitch => f.write_str("`when` names a missing switch"),
-            Self::DurationBeyondClock => {
-                f.write_str("the `Fixed` duration exceeds the runtime clock range")
-            }
-            Self::NonPositiveFixedDuration => f.write_str("a `Fixed` duration must be positive"),
-            Self::StackSize(count) => write!(
+            Self::MissingAutomation => f.write_str("`Set` names a missing live automation"),
+            Self::Copies(count) => write!(
                 f,
-                "stacks {count} voices; a stack has 1 to {MAX_STACKED_VOICES}"
+                "plays {count} copies; `Play` plays 1 to {MAX_COPIES} at once"
             ),
+            Self::DurationBeyondClock => f.write_str("a length exceeds the runtime clock range"),
+            Self::NonPositiveDuration => f.write_str("a length must be positive"),
+            Self::ShortestAboveLongest => {
+                f.write_str("a `Scaled` length's `shortest` is longer than its `longest`")
+            }
             Self::ValueTwice(param) => write!(f, "`{}` is played twice", param.as_str()),
             Self::PitchWithoutNotes(param) => write!(
                 f,
                 "`{}` is played from a note, but the input plays no notes",
                 param.as_str()
             ),
-            Self::UnknownValue(param) | Self::UnknownControlParam(param) => {
-                write!(f, "no parameter `{}`", param.as_str())
-            }
+            Self::UnknownValue(param) => write!(f, "no parameter `{}`", param.as_str()),
             Self::ValueNotAutomatable(param) => write!(
                 f,
                 "`{}` cannot be played; a played value sets a float, int, bool, enum or curve parameter",
                 param.as_str()
             ),
-            Self::MissingLiveMarks(name) => {
-                write!(f, "no live mark collection `{}`", name.as_str())
-            }
-            Self::MissingControlTarget => {
-                f.write_str("`Control` names neither a voice nor a `Trigger` mapping")
-            }
-            Self::ControlNotAutomatable(param) => write!(
-                f,
-                "`{}` cannot be controlled; a control sets a float, int, bool, enum or curve parameter",
-                param.as_str()
-            ),
-            Self::Clip(problem) => problem.fmt(f),
         }
     }
 }
@@ -885,23 +938,8 @@ impl fmt::Display for AdmissionProblem {
             }
             Self::MissingParam(param) => write!(f, "parameter `{}` has no value", param.as_str()),
             Self::Binding(_, error) => f.write_str(&error.message),
-            Self::ControlSetTwice(param) => write!(
-                f,
-                "two controls or played values set parameter `{}` of the same voice",
-                param.as_str()
-            ),
             Self::LiveMarksInOperator(_) => {
-                f.write_str("operators in a rig cannot read live mark collections")
-            }
-            Self::UnknownControlParam(param) => {
-                write!(f, "a control sets unknown parameter `{}`", param.as_str())
-            }
-            Self::ControlNotAutomatable(param) => {
-                write!(
-                    f,
-                    "a control sets `{}`, which cannot be automated",
-                    param.as_str()
-                )
+                f.write_str("operators in a console cannot read live mark collections")
             }
             Self::TooManyParams => f.write_str("the definition has too many parameters"),
         }
@@ -933,7 +971,7 @@ impl fmt::Display for ObjectKind {
             Self::Controller => "controller",
             Self::InputDevice => "input device",
             Self::Sequence => "sequence",
-            Self::Rig => "rig",
+            Self::Console => "console",
             Self::FixtureDefinition => "fixture definition",
             Self::Curve => "curve",
             Self::Gradient => "gradient",

@@ -23,7 +23,7 @@ pub(crate) enum Declaration {
     Patch(types::Patch),
     FixtureDefinition(types::FixtureDefinition),
     Sequence(types::Sequence),
-    Rig(types::Rig),
+    Console(types::Console),
     Curve(types::Curve),
     Gradient(types::Gradient),
 }
@@ -39,7 +39,7 @@ impl Declaration {
             Self::Patch(_) => ObjectKind::Patch,
             Self::FixtureDefinition(_) => ObjectKind::FixtureDefinition,
             Self::Sequence(_) => ObjectKind::Sequence,
-            Self::Rig(_) => ObjectKind::Rig,
+            Self::Console(_) => ObjectKind::Console,
             Self::Curve(_) => ObjectKind::Curve,
             Self::Gradient(_) => ObjectKind::Gradient,
         }
@@ -55,7 +55,7 @@ impl Declaration {
             Self::Patch(value) => declaration(name, value),
             Self::FixtureDefinition(value) => declaration(name, value),
             Self::Sequence(value) => declaration(name, value),
-            Self::Rig(value) => declaration(name, value),
+            Self::Console(value) => declaration(name, value),
             Self::Curve(value) => declaration(name, value),
             Self::Gradient(value) => declaration(name, value),
         }
@@ -73,7 +73,7 @@ pub fn document_schema() -> Schema {
     types::Patch::shape(&mut schema);
     types::FixtureDefinition::shape(&mut schema);
     types::Sequence::shape(&mut schema);
-    types::Rig::shape(&mut schema);
+    types::Console::shape(&mut schema);
     types::Curve::shape(&mut schema);
     types::Gradient::shape(&mut schema);
     schema
@@ -89,12 +89,12 @@ pub const DECLARATION_TYPE_NAMES: [&str; 11] = [
     "Patch",
     "FixtureDefinition",
     "Sequence",
-    "Rig",
+    "Console",
     "Curve",
     "Gradient",
 ];
 
-const DECLARATION_TYPES: &str = "`Project`, `Setup`, `Controller`, `InputDevice`, `Layout`, `Patch`, `FixtureDefinition`, `Sequence`, `Rig`, `Curve` or `Gradient`";
+const DECLARATION_TYPES: &str = "`Project`, `Setup`, `Controller`, `InputDevice`, `Layout`, `Patch`, `FixtureDefinition`, `Sequence`, `Console`, `Curve` or `Gradient`";
 
 /// A parsed data document: its imports and declarations by name, in order.
 #[derive(Clone, Debug, Default)]
@@ -126,8 +126,8 @@ pub(crate) fn read(source: &str) -> (ParsedDocument, Vec<Diagnostic>) {
             }
             types::InputDevice::TYPE => types::InputDevice::decode_fields(fields, &mut decoder)
                 .map(Declaration::InputDevice),
-            types::Rig::TYPE => {
-                types::Rig::decode_fields(fields, &mut decoder).map(Declaration::Rig)
+            types::Console::TYPE => {
+                types::Console::decode_fields(fields, &mut decoder).map(Declaration::Console)
             }
             types::Layout::TYPE => {
                 types::Layout::decode_fields(fields, &mut decoder).map(Declaration::Layout)

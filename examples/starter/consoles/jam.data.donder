@@ -1,0 +1,71 @@
+import elements from <layouts/outputs.data.donder>;
+import effects from <effects/standard.donder>;
+import curves from <curves/basic_curves.data.donder>;
+import gradients from <gradients/basic_gradients.data.donder>;
+import devices from <input_devices/keyboard.data.donder>;
+
+Console jam {
+  description: "Play the outputs live from the keyboard.",
+  frame_rate: 100,
+  marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
+  automations: [
+    LiveAutomation {
+      name: decay,
+      description: "Lengthens the background's pulses while D is held.",
+      value: 0.0,
+      bindings: [ClipParam { clip: background, param: decay_seconds }],
+    },
+  ],
+  layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+  clips: [
+    ConsoleClip {
+      name: background,
+      description: "Pulses on every tapped beat.",
+      layer: default,
+      target: elements.outputs_layout.all_outputs,
+      scope: WholeTarget,
+      effect: effects.MarkPulse,
+      params: { beats: beat, accent: gradients.cool_gradient, pulse_shape: curves.ease_down },
+    },
+    ConsoleClip {
+      name: flash,
+      description: none,
+      layer: default,
+      target: elements.outputs_layout.all_outputs,
+      scope: WholeTarget,
+      effect: effects.Pulse,
+      params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
+    },
+    ConsoleClip {
+      name: wash,
+      description: none,
+      layer: default,
+      target: elements.outputs_layout.all_outputs,
+      scope: WholeTarget,
+      effect: effects.Pulse,
+      params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
+    },
+  ],
+  always: [background],
+  events: [
+    On {
+      event: Press { control: devices.keyboard.kick },
+      actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s }, values: [] }],
+    },
+    On {
+      event: Press { control: devices.keyboard.swell },
+      actions: [Start { clip: wash, values: [] }],
+    },
+    On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
+    On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
+    On { event: Press { control: devices.keyboard.boost }, actions: [Set { into: decay }] },
+    On { event: Release { control: devices.keyboard.boost }, actions: [Set { into: decay }] },
+  ],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 120.0) },
+      RootNode { position: (420.0, 120.0) },
+    ],
+    edges: [Edge { from: default, to: root }],
+  },
+}

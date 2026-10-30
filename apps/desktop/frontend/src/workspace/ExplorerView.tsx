@@ -211,8 +211,8 @@ function TreeRow({
   onDelete: (node: WorkspaceTreeNode) => void;
 }) {
   const isRenaming = editing?.mode === "rename" && editing.path === node.data.path;
-  const rigs = usePerformStore((store) => store.perform?.rigs);
-  const performable = node.data.kind === "file" ? (rigs ?? []).filter((rig) => rig.path === node.data.path) : [];
+  const consoles = usePerformStore((store) => store.perform?.consoles);
+  const performable = node.data.kind === "file" ? (consoles ?? []).filter((performed) => performed.path === node.data.path) : [];
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
@@ -243,9 +243,9 @@ function TreeRow({
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="menu-content">
-          {performable.map((rig) => (
-            <ContextMenu.Item key={rig.index} className="menu-item" onSelect={() => { startPerforming(rig.index); }}>
-              <Play size={THEME_METRICS.iconSizeSmall} /> Perform {rig.name}
+          {performable.map((performed) => (
+            <ContextMenu.Item key={performed.index} className="menu-item" onSelect={() => { startPerforming(performed.index); }}>
+              <Play size={THEME_METRICS.iconSizeSmall} /> Perform {performed.name}
             </ContextMenu.Item>
           ))}
           {performable.length > 0 && <ContextMenu.Separator className="menu-separator" />}
@@ -376,7 +376,7 @@ function roleIcon(role: WorkspaceEntryRole, open: boolean) {
     case "effect": return <Sparkles size={size} />;
     case "operator": return <Workflow size={size} />;
     case "sequence": return <SquareStack size={size} />;
-    case "rig": return <SlidersHorizontal size={size} />;
+    case "console": return <SlidersHorizontal size={size} />;
     case "file": return <File size={size} />;
   }
 }

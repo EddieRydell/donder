@@ -85,7 +85,7 @@ export const commands = {
 	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getPerformSnapshot: () => __TAURI_INVOKE<PerformSnapshot>("get_perform_snapshot").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
-	startPerforming: (projectRevision: number, rig: number) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("start_performing", { projectRevision, rig })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:v.data.session}) } : v) as typeof v)),
+	startPerforming: (projectRevision: number, console: number) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("start_performing", { projectRevision, console })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:v.data.session}) } : v) as typeof v)),
 	stopPerforming: () => __TAURI_INVOKE<PerformSnapshot>("stop_performing").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
 	performKey: (code: string, pressed: boolean) => __TAURI_INVOKE<PerformSnapshot>("perform_key", { code, pressed }).then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
 	performReleaseAll: () => __TAURI_INVOKE<PerformSnapshot>("perform_release_all").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
@@ -169,8 +169,184 @@ export type ClipRasterSettings = {
 
 export type CommandId = AppCommandId | EditorCommandId;
 
-/**  Edits to the layers and composition graph that sequences and rigs share. */
+/**  Edits to the layers and composition graph that sequences and consoles share. */
 export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceParamValue };
+
+export type ConsoleAction = 
+/**  Play a copy of a clip for its length, on top of the copies playing. */
+{ type: "play"; clipId: number; copies: number; length: ConsolePlayLength; values: ConsolePlayedValue[] } | 
+/**  Play one copy of a clip until it is stopped. */
+{ type: "start"; clipId: number; values: ConsolePlayedValue[] } | { type: "stop"; clipId: number } | { type: "toggle"; clipId: number; values: ConsolePlayedValue[] } | 
+/**  Add a mark to the live mark collection `into`. */
+{ type: "mark"; into: string } | 
+/**  Write the event's value into the live automation `into`. */
+{ type: "set"; into: number };
+
+/**
+ *  A value in `0..=1` that `Set` actions write, mapped onto each bound
+ *  parameter's range.
+ */
+export type ConsoleAutomation = {
+	id: number,
+	name: string,
+	description: string | null,
+	/**  The value it holds until the first `Set`. */
+	value: number,
+	/**  The parameters it sets: of console clips or of graph operator nodes. */
+	bindings: SequenceAutomationTarget[],
+};
+
+/**  A clip a console plays: a sequence clip without timing. */
+export type ConsoleClip = {
+	id: number,
+	name: string,
+	description: string | null,
+	layerId: number,
+	target: FixtureTarget,
+	targetLabel: string,
+	scope: SequenceClipScope,
+	effect: SequenceEffectReference,
+	effectName: string,
+	/**
+	 *  A parameter a live automation sets carries that automation's id as
+	 *  its `automation`.
+	 */
+	params: SequenceClipParam[],
+};
+
+export type ConsoleClipEdit = { type: "layer"; layerId: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceClipScope } | 
+/**
+ *  Play another effect; its required parameters start from
+ *  `initial_color`, and the played values and automation bindings of the
+ *  old effect's parameters go.
+ */
+{ type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceParamValue };
+
+export type ConsoleControlRef = {
+	device: GuiObjectRef,
+	control: number,
+};
+
+export type ConsoleEventKind = 
+/**  A button pressed. */
+"press" | "release" | 
+/**  An axis moved. */
+"move";
+
+export type ConsoleGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
+	description: string | null,
+	path: string,
+	sourceRef: GuiObjectRef,
+	objectKey: string,
+	/**  The declared name, or the name the console is stored under. */
+	name: string,
+	/**
+	 *  The console's position among the project's consoles, which Perform
+	 *  starts it by; `None` when the project does not list it.
+	 */
+	performIndex: number | null,
+	frameRate: number,
+	liveMarks: ConsoleLiveMarks[],
+	automations: ConsoleAutomation[],
+	layers: SequenceLayer[],
+	compositionGraph: SequenceCompositionGraph,
+	clips: ConsoleClip[],
+	/**  The clips that play for the whole session, by id. */
+	always: number[],
+	events: ConsoleOn[],
+	/**  The active layout's fixtures and groups, each once, depth-first. */
+	targets: SequenceLane[],
+	effectDefinitions: SequenceEffectDefinition[],
+	curveLibrary: SequenceCurveLibraryItem[],
+	gradientLibrary: SequenceGradientLibraryItem[],
+	/**  The active setup's input devices, which the console's events choose from. */
+	inputDevices: ConsoleInputDevice[],
+	/**  The most copies of a clip `Play` actions play at once. */
+	maxCopies: number,
+};
+
+export type ConsoleGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
+/**  The name becomes a unique `snake_case` name. */
+{ type: "addLiveMarks"; name: string; color: string } | 
+/**
+ *  A new automation at 0 with no bindings; the name becomes a unique
+ *  `snake_case` name.
+ */
+{ type: "addAutomation"; name: string } | { type: "setAutomationValue"; id: number; value: number } | { type: "setAutomationBindings"; id: number; bindings: SequenceAutomationTarget[] } | 
+/**
+ *  A new clip on the first layer over the whole target, named after its
+ *  effect.
+ */
+{ type: "addClip"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "editClip"; id: number; edit: ConsoleClipEdit } | { type: "setAlways"; clipIds: number[] } | 
+/**  A new event with no actions. */
+{ type: "addEvent"; event: ConsoleEventKind; input: ConsoleControlRef } | 
+/**
+ *  Change what an event answers. Actions the new event cannot run go:
+ *  all but `Set` for a move, played values for all but a press, and
+ *  values played from a note for a control without notes.
+ */
+{ type: "setEvent"; id: number; event: ConsoleEventKind; input: ConsoleControlRef } | { type: "setActions"; id: number; actions: ConsoleAction[] };
+
+/**  A control an event reads, with the names the console's text uses. */
+export type ConsoleInput = {
+	control: ConsoleControlRef,
+	deviceName: string,
+	controlName: string,
+};
+
+export type ConsoleInputControl = {
+	control: number,
+	name: string,
+	/**  Whether it plays notes, as values played from a note need. */
+	notes: boolean,
+};
+
+export type ConsoleInputDevice = {
+	device: GuiObjectRef,
+	name: string,
+	buttons: ConsoleInputControl[],
+	axes: ConsoleInputControl[],
+};
+
+export type ConsoleLengthSource = 
+/**  The press's velocity; a computer key presses at 1. */
+{ type: "velocity" } | { type: "automation"; automationId: number };
+
+export type ConsoleLiveMarks = {
+	/**  The collection's name; marks parameters and `Mark` actions refer to it. */
+	key: string,
+	description: string | null,
+	color: string,
+};
+
+/**  What an input event does. */
+export type ConsoleOn = {
+	id: number,
+	event: ConsoleEventKind,
+	input: ConsoleInput,
+	actions: ConsoleAction[],
+};
+
+export type ConsolePlayLength = { type: "fixed"; durationSeconds: number } | 
+/**  From `shortest_seconds` at 0 to `longest_seconds` at 1 of `by`. */
+{ type: "scaled"; by: ConsoleLengthSource; shortestSeconds: number; longestSeconds: number };
+
+export type ConsolePlayedQuantity = 
+/**  How hard the note was struck; a computer key or pedal plays at 1. */
+"velocity" | 
+/**  The note's place in its button's note range. */
+"pitch" | 
+/**  The note's name, C to B up the chromatic scale. */
+"pitchClass" | 
+/**  The note's name round the circle of fifths. */
+"fifths";
+
+/**  A parameter a press sets on the copy it starts. */
+export type ConsolePlayedValue = {
+	param: string,
+	from: ConsolePlayedQuantity,
+};
 
 export type ControllerGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
@@ -337,26 +513,28 @@ export type GradientGuiDocument = {
 };
 
 /**
- *  What a control reads. A keyboard reads keys; MIDI buttons read notes and
- *  control changes, MIDI dials read control changes and pitch bend, and MIDI
- *  keys read a range of notes. OSC buttons read an address, and OSC dials an
- *  address and the range its value runs over.
+ *  What a control reads. A keyboard reads keys; MIDI buttons read a range of
+ *  notes or a control change, and MIDI axes a control change or pitch bend.
+ *  OSC buttons read an address, and OSC axes an address and the range its
+ *  value runs over. A MIDI input reads its `channel`, from 1 to 16, or every
+ *  channel when it is `None`.
  */
 export type GuiControlInput = 
 /**  A keyboard key by its `KeyboardEvent.code` name. */
 { type: "key"; code: string } | 
-/**  A MIDI note number, 0 to 127; middle C is 60. */
-{ type: "note"; note: number } | 
-/**  MIDI notes from `low` through `high`; a full piano is 21 to 108. */
-{ type: "notes"; low: number; high: number } | 
+/**
+ *  MIDI notes from `low` through `high`, each its own press; one note
+ *  when `low` is `high`. A full piano is 21 to 108 and middle C is 60.
+ */
+{ type: "notes"; low: number; high: number; channel: number | null } | 
 /**  A MIDI control change number, 0 to 119; the sustain pedal is 64. */
-{ type: "controlChange"; number: number } | { type: "pitchBend" } | 
+{ type: "controlChange"; number: number; channel: number | null } | { type: "pitchBend"; channel: number | null } | 
 /**  An OSC address, such as `/chord/change`. */
 { type: "address"; path: string } | 
 /**  An OSC address whose first argument runs from `low` to `high`. */
 { type: "addressRange"; path: string; low: number; high: number };
 
-export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "rig"; document: RigGuiDocument } | { type: "blocked"; reason: string; diagnostics: IoDiagnostic[] };
+export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "console"; document: ConsoleGuiDocument } | { type: "blocked"; reason: string; diagnostics: IoDiagnostic[] };
 
 /**
  *  How an edit changed the open GUI document, relative to the document at the
@@ -389,10 +567,10 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "ownership"; member: OwnershipMember; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "rig"; edit: RigGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
+export type GuiEditCommand = { type: "ownership"; member: OwnershipMember; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "console"; edit: ConsoleGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
 /**
  *  The name becomes a `snake_case` name, which the edit reports; renaming
- *  marks renames every parameter and mapping that names them.
+ *  marks renames every parameter and action that names them.
  */
 { type: "rename"; item: GuiItem; name: string } | 
 /**  Empty text removes the description. */
@@ -436,7 +614,7 @@ export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight
 export type GuiInputControl = {
 	/**  Kept across edits; a new control has an id no other control uses. */
 	id: number,
-	/**  Unique within the device; rigs refer to it. */
+	/**  Unique within the device; consoles refer to it. */
 	name: string,
 	description: string | null,
 	kind: GuiInputControlKind,
@@ -444,12 +622,13 @@ export type GuiInputControl = {
 };
 
 export type GuiInputControlKind = 
-/**  Pressed or released. */
+/**
+ *  Pressed or released; a button reading a range of notes is pressed by
+ *  each of them.
+ */
 "button" | 
 /**  A position from 0 to 1. */
-"dial" | 
-/**  A range of MIDI notes, each its own press. */
-"keys";
+"axis";
 
 export type GuiInputDriver = { type: "keyboard" } | 
 /**  MIDI input ports whose name contains `port`, or every port. */
@@ -461,14 +640,18 @@ export type GuiInputDriver = { type: "keyboard" } |
 export type GuiInputLimits = {
 	maxNote: number,
 	maxControlChange: number,
+	/**  Channels run from 1 to this. */
+	maxChannel: number,
 };
 
 /**
  *  A part of the open object a generic edit names: the object itself, or one
- *  of its clips, mark collections (a rig's live marks), layers, graph nodes or
- *  rig behaviors.
+ *  of its clips, mark collections (a console's live marks), layers, graph nodes,
+ *  or a console's live automations and events.
  */
-export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: string } | { type: "voice"; id: number } | { type: "switch"; id: number } | { type: "mapping"; id: number };
+export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: string } | { type: "automation"; id: number } | 
+/**  Events have no name or description; they are only deleted. */
+{ type: "event"; id: number };
 
 export type GuiLayoutFixture = {
 	id: number,
@@ -523,8 +706,8 @@ export type Inclusion = {
 	alias: string,
 	/**  The sequences the document declares, added to the project's `sequences`. */
 	sequences: string[],
-	/**  The rigs the document declares, added to the project's `rigs`. */
-	rigs: string[],
+	/**  The consoles the document declares, added to the project's `consoles`. */
+	consoles: string[],
 };
 
 export type InputDeviceGuiDocument = {
@@ -638,12 +821,12 @@ export type NewSequenceResult = {
 
 export type NewSequenceStorage = { type: "inline" } | { type: "sameFile"; name: string } | { type: "newFile"; name: string };
 
-export type ObjectKind = "project" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "sequence" | "rig" | "curve" | "gradient" | "effect" | "operator";
+export type ObjectKind = "project" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "sequence" | "console" | "curve" | "gradient" | "effect" | "operator";
 
 /**  A stable ownership slot: owned members are named, never addressed by position. */
 export type OwnedObjectSlot = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
-/**  Owned controllers, input devices, sequences and rigs are named. */
-{ type: "controller"; name: string } | { type: "inputDevice"; name: string } | { type: "sequence"; name: string } | { type: "rig"; name: string } | { type: "fixture"; id: number };
+/**  Owned controllers, input devices, sequences and consoles are named. */
+{ type: "controller"; name: string } | { type: "inputDevice"; name: string } | { type: "sequence"; name: string } | { type: "console"; name: string } | { type: "fixture"; id: number };
 
 /**
  *  The member of the open object an ownership edit changes: the object a slot
@@ -678,6 +861,14 @@ export type PerformButton = {
 	control: string,
 };
 
+/**  A console of the project, by its position in the project's consoles. */
+export type PerformConsole = {
+	index: number,
+	name: string,
+	/**  The document that declares it. */
+	path: string,
+};
+
 export type PerformMidi = {
 	/**  The ports connected now. */
 	ports: string[],
@@ -692,39 +883,25 @@ export type PerformOsc = {
 	error: string | null,
 };
 
-/**  A rig of the project, by its position in the project's rigs. */
-export type PerformRig = {
-	index: number,
-	name: string,
-	/**  The document that declares it. */
-	path: string,
-};
-
 export type PerformSession = {
-	rig: PerformRig,
+	console: PerformConsole,
 	elapsedSeconds: number,
-	switches: PerformSwitch[],
 	/**  The buttons held down. */
 	held: PerformButton[],
-	/**  The `KeyboardEvent.code` of every key the rig plays from. */
+	/**  The `KeyboardEvent.code` of every key the console plays from. */
 	keys: string[],
-	/**  The rig's MIDI connections, when it plays from MIDI. */
+	/**  The console's MIDI connections, when it plays from MIDI. */
 	midi: PerformMidi | null,
-	/**  The rig's OSC listeners, when it plays from OSC. */
+	/**  The console's OSC listeners, when it plays from OSC. */
 	osc: PerformOsc | null,
 };
 
-/**  Perform mode: the rigs the project can perform and the performance in progress. */
+/**  Perform mode: the consoles the project can perform and the performance in progress. */
 export type PerformSnapshot = {
 	/**  Increases with every change, so a client keeps the latest of several. */
 	revision: number,
-	rigs: PerformRig[],
+	consoles: PerformConsole[],
 	session: PerformSession | null,
-};
-
-export type PerformSwitch = {
-	name: string,
-	on: boolean,
 };
 
 export type PersistedEditorViewState = {
@@ -832,12 +1009,12 @@ export type ProjectGuiDocument = {
 	objectKey: string,
 	setup: GuiObjectRef,
 	sequences: GuiObjectRef[],
-	rigs: GuiObjectRef[],
+	consoles: GuiObjectRef[],
 };
 
 export type ProjectGuiEdit = 
-/**  A new rig stored in the project, with the default layer drawn to the output. */
-{ type: "addRig"; initialColor: string };
+/**  A new console stored in the project, with the default layer drawn to the output. */
+{ type: "addConsole"; initialColor: string };
 
 export type ProjectHealth = "closed" | "ready" | "checking" | "invalid";
 
@@ -873,158 +1050,6 @@ export type ProjectSearchResponse = {
 };
 
 export type ReusableStorage = "sameFile" | "newFile";
-
-/**  A mapping's action as the editor chooses it. */
-export type RigActionChoice = 
-/**
- *  A new trigger plays on the default layer for one second, restarting on
- *  each press.
- */
-{ type: "trigger"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
-
-/**  A clip a rig plays: a clip without timing. */
-export type RigClip = {
-	layerId: number,
-	target: FixtureTarget,
-	targetLabel: string,
-	scope: SequenceClipScope,
-	effect: SequenceEffectReference,
-	effectName: string,
-	params: SequenceClipParam[],
-};
-
-export type RigClipEdit = { type: "layer"; layerId: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceClipScope } | 
-/**  Play another effect; its required parameters start from `initial_color`. */
-{ type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceParamValue };
-
-/**
- *  A named item of a rig.
- *  The clip of a voice or of a `Trigger` mapping.
- */
-export type RigClipOwner = { type: "voice"; id: number } | { type: "trigger"; mappingId: number };
-
-export type RigControlRef = {
-	device: GuiObjectRef,
-	control: number,
-};
-
-/**  The voices a `Control` mapping sets a parameter of. */
-export type RigControlTarget = { type: "voice"; voiceId: number } | 
-/**  Every voice of a `Trigger` mapping. */
-{ type: "trigger"; mappingId: number };
-
-export type RigGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
-	description: string | null,
-	path: string,
-	sourceRef: GuiObjectRef,
-	objectKey: string,
-	/**  The declared name, or the name the rig is stored under. */
-	name: string,
-	/**
-	 *  The rig's position among the project's rigs, which Perform starts it by;
-	 *  `None` when the project does not list it.
-	 */
-	performIndex: number | null,
-	frameRate: number,
-	liveMarks: RigLiveMarks[],
-	layers: SequenceLayer[],
-	compositionGraph: SequenceCompositionGraph,
-	voices: RigVoice[],
-	switches: RigSwitch[],
-	mappings: RigMapping[],
-	/**  The active layout's fixtures and groups, each once, depth-first. */
-	targets: SequenceLane[],
-	effectDefinitions: SequenceEffectDefinition[],
-	curveLibrary: SequenceCurveLibraryItem[],
-	gradientLibrary: SequenceGradientLibraryItem[],
-	/**  The active setup's input devices, which the rig's inputs choose from. */
-	inputDevices: RigInputDevice[],
-	maxStackedVoices: number,
-};
-
-export type RigGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
-/**  The name becomes a unique `snake_case` name. */
-{ type: "addLiveMarks"; name: string; color: string } | { type: "addVoice"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "addSwitch"; input: RigControlRef } | { type: "addMapping"; input: RigControlRef; action: RigActionChoice } | { type: "editClip"; owner: RigClipOwner; edit: RigClipEdit } | { type: "setSwitchInput"; id: number; input: RigControlRef } | { type: "setMappingInput"; id: number; input: RigControlRef } | { type: "setMappingWhen"; id: number; when: RigWhen | null } | { type: "setMappingAction"; id: number; action: RigActionChoice } | { type: "setTriggerLength"; mappingId: number; length: RigTriggerLength } | { type: "setTriggerVoices"; mappingId: number; voices: RigVoicePolicy } | { type: "setTriggerValues"; mappingId: number; values: RigPlayedValue[] };
-
-/**  A control a switch or mapping reads, with the names the rig's text uses. */
-export type RigInput = {
-	control: RigControlRef,
-	deviceName: string,
-	controlName: string,
-};
-
-export type RigInputControl = {
-	control: number,
-	name: string,
-	/**  Whether it plays notes, as values played from a note need. */
-	notes: boolean,
-};
-
-export type RigInputDevice = {
-	device: GuiObjectRef,
-	name: string,
-	buttons: RigInputControl[],
-	/**  Dials only drive `Control` mappings. */
-	dials: RigInputControl[],
-	/**  Keys only trigger clips and add marks. */
-	keys: RigInputControl[],
-};
-
-export type RigLiveMarks = {
-	/**  The collection's name; marks parameters and `Mark` mappings refer to it. */
-	key: string,
-	description: string | null,
-	color: string,
-};
-
-export type RigMapping = {
-	id: number,
-	name: string,
-	description: string | null,
-	input: RigInput,
-	/**  `None` acts always. */
-	when: RigWhen | null,
-	action: RigMappingAction,
-};
-
-export type RigMappingAction = { type: "trigger"; clip: RigClip; length: RigTriggerLength; voices: RigVoicePolicy; values: RigPlayedValue[] } | { type: "mark"; marks: string } | { type: "control"; target: RigControlTarget; param: string };
-
-export type RigPlayedQuantity = 
-/**  How hard the note was struck; a computer key or pedal plays at 1. */
-"velocity" | 
-/**  The note's place in its key range. */
-"pitch" | 
-/**  The note's name, C to B up the chromatic scale. */
-"pitchClass" | 
-/**  The note's name round the circle of fifths. */
-"fifths";
-
-/**  A parameter each press of a trigger sets on the voice it starts. */
-export type RigPlayedValue = {
-	param: string,
-	from: RigPlayedQuantity,
-};
-
-export type RigSwitch = {
-	id: number,
-	name: string,
-	description: string | null,
-	input: RigInput,
-};
-
-export type RigTriggerLength = { type: "fixed"; durationSeconds: number } | { type: "held" } | { type: "latched" };
-
-export type RigVoice = {
-	id: number,
-	name: string,
-	description: string | null,
-	clip: RigClip,
-};
-
-export type RigVoicePolicy = { type: "retrigger" } | { type: "stack"; count: number } | { type: "mono" };
-
-export type RigWhen = { type: "on"; switchId: number } | { type: "off"; switchId: number };
 
 export type Rotation3Degrees = {
 	xDegrees: number,

@@ -18,7 +18,7 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
           <span className="object-overview-eyebrow">Project</span>
           <h2>{document.objectKey}</h2>
         </div>
-        <span>{document.sequences.length} {document.sequences.length === 1 ? "sequence" : "sequences"} · {document.rigs.length} {document.rigs.length === 1 ? "rig" : "rigs"}</span>
+        <span>{document.sequences.length} {document.sequences.length === 1 ? "sequence" : "sequences"} · {document.consoles.length} {document.consoles.length === 1 ? "console" : "consoles"}</span>
       </header>
 
       <section className="object-overview-group">
@@ -49,34 +49,34 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
         ))}
       </section>
 
-      <RigList document={document} />
+      <ConsoleList document={document} />
     </main>
   );
 }
 
-/** The project's rigs, which Perform plays live. */
-function RigList({ document }: { document: ProjectGuiDocument }) {
+/** The project's consoles, which Perform plays live. */
+function ConsoleList({ document }: { document: ProjectGuiDocument }) {
   const pending = useAppStore((state) => state.guiEditPending);
   const performing = usePerformStore((state) => state.perform?.session !== null && state.perform?.session !== undefined);
   return <section className="object-overview-group">
     <div className="object-overview-group-header">
-      <h3>Rigs</h3>
+      <h3>Consoles</h3>
       <button type="button" disabled={pending} onClick={() => void runGuiEditCommand((request) =>
-        commands.applyGuiEdit(request, { type: "project", edit: { type: "addRig", initialColor: THEME_COLORS.defaultSequenceColor } }))}>Add rig</button>
+        commands.applyGuiEdit(request, { type: "project", edit: { type: "addConsole", initialColor: THEME_COLORS.defaultSequenceColor } }))}>Add console</button>
     </div>
-    {document.rigs.length === 0 ? (
-      <p className="object-overview-empty">No rigs are included in this project.</p>
-    ) : document.rigs.map((rig, index) => {
-      const step = rig.ownedPath[rig.ownedPath.length - 1];
-      const name = step?.type === "rig" ? step.name : rig.objectKey;
-      return <div className="object-overview-row-with-actions" key={guiObjectKey(rig)}><ObjectRow
+    {document.consoles.length === 0 ? (
+      <p className="object-overview-empty">No consoles are included in this project.</p>
+    ) : document.consoles.map((entry, index) => {
+      const step = entry.ownedPath[entry.ownedPath.length - 1];
+      const name = step?.type === "console" ? step.name : entry.objectKey;
+      return <div className="object-overview-row-with-actions" key={guiObjectKey(entry)}><ObjectRow
         icon={<Radio aria-hidden="true" />}
         title={name}
-        reference={ownershipLabel(rig)}
-        onOpen={() => void navigateToGuiObject(rig)}
+        reference={ownershipLabel(entry)}
+        onOpen={() => void navigateToGuiObject(entry)}
       /><button type="button" className="object-overview-row-perform" disabled={performing} onClick={() => { startPerforming(index); }}>
         <Play aria-hidden="true" /> Perform
-      </button><OwnershipActions declarations={document.availableDeclarations} source={rig} label={name} /></div>;
+      </button><OwnershipActions declarations={document.availableDeclarations} source={entry} label={name} /></div>;
     })}
   </section>;
 }

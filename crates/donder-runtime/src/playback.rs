@@ -1,10 +1,13 @@
-//! Playback of a show in a caller's buffer: frames, and the rig commands
-//! that start and stop voices, add live marks and set controls.
+//! Playback of a show in a caller's buffer: frames, and the console commands
+//! that start and stop voices, add live marks and set live automations.
 //!
 //! Commands change only the workspace: a voice's start and duration, its
-//! layer's start order, live marks, and the controls' parameter values.
+//! layer's start order, live marks, and the live automations' parameter
+//! values.
 use crate::format::{self, NONE};
-use donder_runtime_types::{Color, MICROS_PER_SECOND, RigCommand, RigEvent, SampleTime, mul_div};
+use donder_runtime_types::{
+    Color, ConsoleCommand, ConsoleEvent, MICROS_PER_SECOND, SampleTime, mul_div,
+};
 
 use crate::dsl::set_value;
 use crate::evaluation::{evaluate_frame, index_layer, root_buffer};
@@ -56,7 +59,7 @@ impl<'a, 'w> Playback<'a, 'w> {
 
     /// Apply a command at its time. Commands arrive in time order; one the
     /// show does not address is ignored.
-    pub(crate) fn apply(&mut self, event: RigEvent) {
+    pub(crate) fn apply(&mut self, event: ConsoleEvent) {
         apply(self.show, &mut self.workspace, event);
     }
 }
@@ -155,62 +158,69 @@ impl Show<'_> {
         self.meta().collections as usize
     }
 
-    fn control_count(&self) -> usize {
-        self.s.controls.len()
+    fn automation_count(&self) -> usize {
+        self.s.live_automations.len()
     }
 
-    /// Whether `command` addresses a voice, collection or control of this show.
-    fn accepts(&self, command: RigCommand) -> bool {
+    /// Whether `command` addresses a voice, collection or live automation of
+    /// this show.
+    fn accepts(&self, command: ConsoleCommand) -> bool {
         match command {
-            RigCommand::Start { voice } | RigCommand::Stop { voice } => {
+            ConsoleCommand::Start { voice, .. } | ConsoleCommand::Stop { voice } => {
                 usize::from(voice) < self.voice_count()
             }
-            RigCommand::Mark { collection } => usize::from(collection) < self.collection_count(),
-            RigCommand::Control { control, value } => {
-                usize::from(control) < self.control_count() && (0.0..=1.0).contains(&value)
+            ConsoleCommand::Mark { collection } => {
+                usize::from(collection) < self.collection_count()
+            }
+            ConsoleCommand::Set { automation, value } => {
+                usize::from(automation) < self.automation_count() && (0.0..=1.0).contains(&value)
             }
         }
     }
 }
 
-fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEvent) {
+fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: ConsoleEvent) {
     if !show.accepts(event.command) {
         return;
     }
     let s = &show.s;
     let time = event.time;
     let ticks = time.as_ticks();
-    let rig = &mut workspace.rig;
+    let console = &mut workspace.console;
     match event.command {
-        RigCommand::Start { voice } => {
-            let voice = &s.voices[usize::from(voice)];
-            rig.timing[voice.clip as usize] = Timing {
+        ConsoleCommand::Start { voice, duration } => {
+            let clip = s.voices[usize::from(voice)];
+            console.timing[clip as usize] = Timing {
                 start: ticks,
-                duration: if voice.duration == NONE {
-                    show.duration().as_ticks().saturating_sub(ticks)
-                } else {
-                    voice.duration
-                },
+                duration: duration.map_or_else(
+                    || show.duration().as_ticks().saturating_sub(ticks),
+                    |duration| duration.as_ticks(),
+                ),
             };
             if let Some(layer) = s
                 .layers
                 .iter()
-                .find(|layer| layer.clips.get(s.layer_order).contains(&voice.clip))
+                .find(|layer| layer.clips.get(s.layer_order).contains(&clip))
             {
-                index_layer(layer, rig.timing, rig.layer_order, rig.layer_ends);
+                index_layer(
+                    layer,
+                    console.timing,
+                    console.layer_order,
+                    console.layer_ends,
+                );
             }
         }
-        RigCommand::Stop { voice } => {
-            let clip = s.voices[usize::from(voice)].clip as usize;
-            let timing = &mut rig.timing[clip];
+        ConsoleCommand::Stop { voice } => {
+            let clip = s.voices[usize::from(voice)] as usize;
+            let timing = &mut console.timing[clip];
             if timing.is_active(time) {
                 timing.duration = ticks - timing.start;
             }
         }
-        RigCommand::Mark { collection } => {
-            let track = &mut rig.live_tracks[usize::from(collection)];
+        ConsoleCommand::Mark { collection } => {
+            let track = &mut console.live_tracks[usize::from(collection)];
             let start = track.start as usize;
-            let marks = &mut rig.live_ticks[start..start + LIVE_MARK_CAPACITY];
+            let marks = &mut console.live_ticks[start..start + LIVE_MARK_CAPACITY];
             if track.len as usize == LIVE_MARK_CAPACITY {
                 marks.copy_within(1.., 0);
                 track.len -= 1;
@@ -218,18 +228,20 @@ fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: RigEvent) {
             marks[track.len as usize] = ticks;
             track.len += 1;
         }
-        RigCommand::Control { control, value } => {
-            for target in s.controls[usize::from(control)]
+        ConsoleCommand::Set { automation, value } => {
+            for target in s.live_automations[usize::from(automation)]
                 .targets
-                .get(s.control_targets)
+                .get(s.live_targets)
             {
-                let clip = target.clip as usize;
-                let Some(plan) = show.plan(s.clips[clip].automation) else {
+                let Some(plan) = show.plan(target.plan) else {
                     continue;
                 };
                 let start = plan.bindings.start as usize;
-                let overrides = &mut rig.overrides[start..start + plan.bindings.len as usize];
-                let origin = rig.timing[clip].start;
+                let overrides = &mut console.overrides[start..start + plan.bindings.len as usize];
+                let origin = match target.clip {
+                    NONE => 0,
+                    clip => console.timing[clip as usize].start,
+                };
                 set_value(
                     show,
                     plan,

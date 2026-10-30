@@ -7,12 +7,12 @@ use donder_output::OutputTransports;
 use indexmap::IndexMap;
 
 use crate::audio::AudioEngine;
-use crate::rendering::{RigOutput, SequenceRenderService};
+use crate::rendering::{ConsoleOutput, SequenceRenderService};
 use donder_editor::dto::{
     AudioTransportState, LiveOutputControllerSnapshot, LiveOutputControllerState,
     LiveOutputSnapshot, LiveOutputState,
 };
-use donder_runtime_types::RigEvent;
+use donder_runtime_types::ConsoleEvent;
 
 const INITIAL_TICK_INTERVAL: Duration = Duration::from_millis(20);
 const HOLDING_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
@@ -25,7 +25,7 @@ const OUTPUT_TEST_DURATION: Duration = Duration::from_millis(500);
 enum LiveFeed {
     Sequence,
     /// A performance, rendered on its own session clock.
-    Rig(Box<RigOutput>),
+    Console(Box<ConsoleOutput>),
     Test {
         frames: Vec<donder_output::OutputFrame>,
         started: Instant,
@@ -41,10 +41,10 @@ enum Command {
         active: Vec<ControllerId>,
         feed: LiveFeed,
     },
-    /// Commands for the performance a rig output plays, in arrival order.
-    RigEvents {
+    /// Commands for the performance a console output plays, in arrival order.
+    ConsoleEvents {
         generation: u32,
-        events: Vec<RigEvent>,
+        events: Vec<ConsoleEvent>,
     },
     Disable {
         generation: u32,
@@ -67,7 +67,7 @@ pub(crate) struct LiveOutputService {
     resume_after_prepare: bool,
     resume_ready: bool,
     /// Whether the active output plays a performance.
-    rig: bool,
+    console: bool,
     worker: Option<JoinHandle<()>>,
 }
 
@@ -86,7 +86,7 @@ impl LiveOutputService {
             snapshot: disabled_snapshot(0),
             resume_after_prepare: false,
             resume_ready: false,
-            rig: false,
+            console: false,
             worker: Some(worker),
         }
     }
@@ -104,19 +104,19 @@ impl LiveOutputService {
         &mut self,
         controllers: IndexMap<ControllerId, Controller>,
         active: Vec<ControllerId>,
-        output: RigOutput,
+        output: ConsoleOutput,
     ) -> LiveOutputSnapshot {
-        self.start(controllers, active, LiveFeed::Rig(Box::new(output)))
+        self.start(controllers, active, LiveFeed::Console(Box::new(output)))
     }
 
     /// Send a performance's new commands to the output that plays it.
-    pub(crate) fn rig_events(&mut self, events: &[RigEvent]) {
-        if !self.rig {
+    pub(crate) fn console_events(&mut self, events: &[ConsoleEvent]) {
+        if !self.console {
             return;
         }
         if self
             .sender
-            .send(Command::RigEvents {
+            .send(Command::ConsoleEvents {
                 generation: self.generation,
                 events: events.to_vec(),
             })
@@ -153,7 +153,7 @@ impl LiveOutputService {
     ) -> LiveOutputSnapshot {
         self.resume_after_prepare = false;
         self.resume_ready = false;
-        self.rig = matches!(feed, LiveFeed::Rig(_));
+        self.console = matches!(feed, LiveFeed::Console(_));
         self.generation = self.generation.saturating_add(1);
         self.snapshot = preparing_snapshot(self.generation, &controllers, &active);
         if matches!(feed, LiveFeed::Test { .. }) {
@@ -182,7 +182,7 @@ impl LiveOutputService {
     }
 
     fn disable_preserving_resume(&mut self) -> LiveOutputSnapshot {
-        self.rig = false;
+        self.console = false;
         self.snapshot();
         if matches!(
             self.snapshot.state,
@@ -315,7 +315,7 @@ fn worker(
                     Ok(transports) => {
                         snapshot.state = match feed {
                             LiveFeed::Sequence => LiveOutputState::Holding,
-                            LiveFeed::Rig(_) => LiveOutputState::Streaming,
+                            LiveFeed::Console(_) => LiveOutputState::Streaming,
                             LiveFeed::Test { .. } => LiveOutputState::Testing,
                         };
                         for controller in &mut snapshot.controllers {
@@ -336,8 +336,8 @@ fn worker(
                     }
                 }
             }
-            Ok(Command::RigEvents { generation, events }) => {
-                if let Some((active_generation, _, _, LiveFeed::Rig(output))) = active.as_mut()
+            Ok(Command::ConsoleEvents { generation, events }) => {
+                if let Some((active_generation, _, _, LiveFeed::Console(output))) = active.as_mut()
                     && *active_generation == generation
                 {
                     output.apply(&events);
@@ -397,7 +397,7 @@ fn worker(
             tick_interval = INITIAL_TICK_INTERVAL;
             continue;
         }
-        if let LiveFeed::Rig(output) = feed {
+        if let LiveFeed::Console(output) = feed {
             tick_interval = output.frame_interval();
             if let Err(error) = transports.send(output.render()) {
                 let generation = *generation;
@@ -627,7 +627,7 @@ mod tests {
                 snapshot,
                 resume_after_prepare: false,
                 resume_ready: false,
-                rig: false,
+                console: false,
                 worker: None,
             };
             let mut completed = disabled_snapshot(9);

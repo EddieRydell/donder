@@ -133,8 +133,8 @@ kept. A choice fixed as a whole is left for preparation to evaluate, so it does
 not multiply programs. Fixed reduction bounds become constants.
 
 `Instance::lower` returns the program (a `Program`: bytecode and its signal
-input count), its parameter values and automation, unbound. A rig's controls
-are ordinary automation bindings whose value playback sets, and so is a marks
+input count), its parameter values and automation, unbound. A console's live
+automations are ordinary automation bindings whose value playback sets, and so is a marks
 parameter that reads a live collection (`AutomationMapping::LiveMarks`):
 playback binds it to the collection's marks as they arrive. Like every
 automated parameter it is a `TIME` leaf, so nothing reads its contents or
@@ -144,7 +144,7 @@ is rejected when the invocation is made.
 ## Global signal graph
 
 Preparation (`donder-elaboration/src/sequence/composition.rs`) builds one graph
-per sequence or rig selection from layers, operator instances and the root. Layers
+per sequence or console selection from layers, operator instances and the root. Layers
 stay runtime nodes: the active clip set changes with time.
 
 1. **Black signals.** A disabled or empty layer is black. Reading a black input

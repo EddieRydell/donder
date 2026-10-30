@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use donder_model::ControllerId;
 use donder_output::OutputFrame;
 use donder_runtime::{PreparedShow, ShowPlayback};
-use donder_runtime_types::{RigEvent, SampleDuration, SampleTime};
+use donder_runtime_types::{ConsoleEvent, SampleDuration, SampleTime};
 
 use super::sequence::controller_frames;
 
@@ -33,28 +33,28 @@ impl SessionClock {
     }
 }
 
-/// A rig played to controllers: its playback, the commands applied so far,
+/// A console played to controllers: its playback, the commands applied so far,
 /// and the frame last rendered.
-pub(crate) struct RigOutput {
+pub(crate) struct ConsoleOutput {
     playback: ShowPlayback,
     controllers: Vec<ControllerId>,
     clock: SessionClock,
     /// Counts the event batches applied, so a frame reflects its commands.
     revision: u64,
-    rendered: Option<RenderedRigFrame>,
+    rendered: Option<RenderedConsoleFrame>,
 }
 
-struct RenderedRigFrame {
+struct RenderedConsoleFrame {
     frame: u64,
     revision: u64,
     controller_frames: Vec<OutputFrame>,
 }
 
-impl RigOutput {
+impl ConsoleOutput {
     /// `events` are the performance's commands so far, applied in order.
     pub(crate) fn new(
         prepared: PreparedShow,
-        events: &[RigEvent],
+        events: &[ConsoleEvent],
         controllers: Vec<ControllerId>,
         clock: SessionClock,
     ) -> Self {
@@ -69,7 +69,7 @@ impl RigOutput {
         output
     }
 
-    pub(crate) fn apply(&mut self, events: &[RigEvent]) {
+    pub(crate) fn apply(&mut self, events: &[ConsoleEvent]) {
         for event in events {
             self.playback.apply(*event);
         }
@@ -89,7 +89,7 @@ impl RigOutput {
             Some(rendered) if rendered.frame == frame && rendered.revision == self.revision => {
                 rendered
             }
-            _ => RenderedRigFrame {
+            _ => RenderedConsoleFrame {
                 frame,
                 revision: self.revision,
                 controller_frames: controller_frames(

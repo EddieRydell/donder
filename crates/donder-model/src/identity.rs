@@ -70,7 +70,7 @@ object_ids! {
     Controller(ControllerId),
     InputDevice(InputDeviceId),
     Sequence(SequenceId),
-    Rig(RigId),
+    Console(ConsoleId),
     FixtureDefinition(FixtureDefinitionId),
     Curve(CurveId),
     Gradient(GradientId),

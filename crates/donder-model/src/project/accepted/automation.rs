@@ -26,10 +26,7 @@ pub(super) fn admit(
     targets
         .into_iter()
         .map(|target| {
-            let name = match target {
-                AutomationTarget::ClipParam { param, .. }
-                | AutomationTarget::CompositionNodeParam { param, .. } => param,
-            };
+            let name = target.param();
             let (param_index, mapping) = params
                 .iter()
                 .position(|param| &param.name == name)

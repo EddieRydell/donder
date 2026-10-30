@@ -56,12 +56,12 @@ pub enum OwnedObjectSlot {
     Setup,
     Layout,
     Patch,
-    /// An owned controller, input device, sequence or rig is named like a
+    /// An owned controller, input device, sequence or console is named like a
     /// declaration.
     Controller(Identifier),
     InputDevice(Identifier),
     Sequence(Identifier),
-    Rig(Identifier),
+    Console(Identifier),
     Fixture(u32),
 }
 
@@ -107,7 +107,7 @@ impl ObjectAddress {
         &self.owned_path
     }
 
-    /// The name a controller, input device, sequence or rig is declared or
+    /// The name a controller, input device, sequence or console is declared or
     /// stored under: its owned slot's name, else its source object's.
     pub fn declared_name(&self) -> &str {
         match self.owned_path.last() {
@@ -115,7 +115,7 @@ impl ObjectAddress {
                 OwnedObjectSlot::Controller(name)
                 | OwnedObjectSlot::InputDevice(name)
                 | OwnedObjectSlot::Sequence(name)
-                | OwnedObjectSlot::Rig(name),
+                | OwnedObjectSlot::Console(name),
             ) => name.as_str(),
             _ => self.root.object(),
         }
@@ -147,7 +147,7 @@ impl std::fmt::Display for ObjectAddress {
                     write!(f, " › input device `{}`", name.as_str())?
                 }
                 OwnedObjectSlot::Sequence(name) => write!(f, " › sequence `{}`", name.as_str())?,
-                OwnedObjectSlot::Rig(name) => write!(f, " › rig `{}`", name.as_str())?,
+                OwnedObjectSlot::Console(name) => write!(f, " › console `{}`", name.as_str())?,
                 OwnedObjectSlot::Fixture(id) => write!(f, " › fixture {id}")?,
             }
         }
@@ -199,7 +199,7 @@ impl OwnedObjectSlot {
         match (owner, self) {
             (Kind::Project, Self::Setup) => Some(Kind::Setup),
             (Kind::Project, Self::Sequence(_)) => Some(Kind::Sequence),
-            (Kind::Project, Self::Rig(_)) => Some(Kind::Rig),
+            (Kind::Project, Self::Console(_)) => Some(Kind::Console),
             (Kind::Setup, Self::Layout) => Some(Kind::Layout),
             (Kind::Setup, Self::Patch) => Some(Kind::Patch),
             (Kind::Setup, Self::Controller(_)) => Some(Kind::Controller),
@@ -324,8 +324,8 @@ impl ProjectSession {
             (ObjectId::Project(id), OwnedObjectSlot::Sequence(name)) if id == project.root().id => {
                 member(&project.root().sequences, name)
             }
-            (ObjectId::Project(id), OwnedObjectSlot::Rig(name)) if id == project.root().id => {
-                member(&project.root().rigs, name)
+            (ObjectId::Project(id), OwnedObjectSlot::Console(name)) if id == project.root().id => {
+                member(&project.root().consoles, name)
             }
             (ObjectId::Setup(id), slot) => {
                 let setup = project.get::<donder_model::Setup>(id)?;
@@ -360,11 +360,11 @@ impl ProjectSession {
                 );
             }
         }
-        for source in &project.root().rigs {
+        for source in &project.root().consoles {
             if let OwnedMember::Inline { name, value } = source {
                 visit(
                     value.id.into(),
-                    &root.owned(OwnedObjectSlot::Rig(name.clone())),
+                    &root.owned(OwnedObjectSlot::Console(name.clone())),
                 );
             }
         }

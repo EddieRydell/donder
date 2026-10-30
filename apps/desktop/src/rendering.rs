@@ -1,7 +1,7 @@
-//! Desktop adapter around runtime sequence and rig preparation and frame rendering.
+//! Desktop adapter around runtime sequence and console preparation and frame rendering.
 
-mod rig;
+mod console;
 mod sequence;
 
-pub(crate) use rig::*;
+pub(crate) use console::*;
 pub(crate) use sequence::*;

@@ -2,11 +2,11 @@ use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 
 /// A root document declaring `Project main` with a fresh project id and no
-/// rigs. `fields` are written after `description`; imports come first.
+/// consoles. `fields` are written after `description`; imports come first.
 pub(crate) fn root_document(imports: &str, fields: &str) -> String {
     let metadata = donder_project_io::ProjectMetadata::default();
     format!(
-        "{imports}\nProject main {{\n  format: {},\n  description: none,\n{fields}  rigs: [],\n}}\n",
+        "{imports}\nProject main {{\n  format: {},\n  description: none,\n{fields}  consoles: [],\n}}\n",
         metadata.format_version
     )
 }
@@ -129,7 +129,7 @@ fn copy_tree(source: &Utf8Path, destination: &Utf8Path) {
 pub(crate) enum Slot {
     ProjectSetup,
     ProjectSequence(usize),
-    ProjectRig(usize),
+    ProjectConsole(usize),
     SetupLayout(donder_model::SetupId),
     SetupPatch(donder_model::SetupId),
     SetupController {
@@ -157,7 +157,7 @@ pub(crate) fn site(
     let (owner, member): (ObjectId, ObjectId) = match slot {
         Slot::ProjectSetup => (root.id.into(), (*root.setup.id()).into()),
         Slot::ProjectSequence(index) => (root.id.into(), (*root.sequences[index].id()).into()),
-        Slot::ProjectRig(index) => (root.id.into(), (*root.rigs[index].id()).into()),
+        Slot::ProjectConsole(index) => (root.id.into(), (*root.consoles[index].id()).into()),
         Slot::SetupLayout(id) => (id.into(), (*setup(id).layout.id()).into()),
         Slot::SetupPatch(id) => (id.into(), (*setup(id).patch.id()).into()),
         Slot::SetupController { setup: id, index } => {

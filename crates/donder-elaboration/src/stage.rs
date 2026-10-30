@@ -1,4 +1,4 @@
-//! The preparation shared by sequences and rigs: the fixtures and cells a
+//! The preparation shared by sequences and consoles: the fixtures and cells a
 //! show keeps, the prepared targets its clips use, its layers, its global
 //! signal graph and its output routes. Only how clips are placed differs.
 use crate::selection::Selection;
@@ -10,7 +10,7 @@ use donder_model::{
     FixtureInstanceId, FixtureTarget, PixelRouteId, SequenceCompositionGraph, SequenceLayer,
     SequenceLayerId, composition_graph_root_dependencies,
 };
-use donder_runtime::{ClipHandle, PreparedShow, ShowBuilder, TargetHandle};
+use donder_runtime::{ClipHandle, PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
 use donder_runtime_types::{
     BoundProgram, FixtureGeometry, SequenceTiming, TargetGeometry, TargetScope,
 };
@@ -39,14 +39,16 @@ pub(crate) struct Parts<'a> {
 }
 
 /// Build the show of `parts` on the selected setup, with the clips
-/// `clips` places. Without `compact` every cell, layer and clip is kept;
-/// with it, only what the selected outputs show.
-pub(crate) fn build<'a, S>(
+/// `clips` places. `operators` then sees, with what `clips` returned, each
+/// operator built with automation and its program. Without `compact` every
+/// cell, layer and clip is kept; with it, only what the selected outputs show.
+pub(crate) fn build<'a, S, Placed>(
     selected: &Selection<'a, S>,
     parts: Parts<'a>,
     compact: bool,
     cache: &mut PreparationCache,
-    clips: impl for<'id> FnOnce(&mut Clips<'_, 'id>),
+    clips: impl for<'id> FnOnce(&mut Clips<'_, 'id>) -> Placed,
+    operators: impl for<'id> FnOnce(&mut ShowBuilder<'id>, &[(SignalHandle<'id>, BoundProgram)], Placed),
 ) -> PreparedShow {
     let stage = Stage::new(selected, parts.graph, &parts.operators, compact);
     let required = stage.required_layers(parts.graph);
@@ -79,7 +81,7 @@ pub(crate) fn build<'a, S>(
                 .map(|layer| (&layer.id, Vec::new()))
                 .collect(),
         };
-        clips(&mut placed);
+        let made = clips(&mut placed);
         let Clips {
             builder,
             mut programs,
@@ -104,6 +106,7 @@ pub(crate) fn build<'a, S>(
             .filter(|layer| !layer.enabled || layer_clips[&layer.id].is_empty())
             .map(|layer| &layer.id)
             .collect::<HashSet<_>>();
+        let mut automated = Vec::new();
         let root = if compact && !stage.has_pixels {
             None
         } else {
@@ -114,8 +117,10 @@ pub(crate) fn build<'a, S>(
                 &layers,
                 &black,
                 &mut programs,
+                &mut automated,
             )
         };
+        operators(builder, &automated, made);
         crate::sequence::prepare_routes(builder, selected, &stage);
         root
     })

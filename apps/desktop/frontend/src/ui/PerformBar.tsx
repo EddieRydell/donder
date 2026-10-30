@@ -5,7 +5,7 @@ import { installPerformKeys, refreshPerform, stopPerforming, usePerformStore } f
 import { runSnapshotCommand, useAppStore } from "../store";
 import { THEME_METRICS } from "../theme";
 
-/** The performance in progress: its rig, clock, switches and held buttons. */
+/** The performance in progress: its console, clock and held buttons. */
 export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: number; projectRevision: number }) {
   const session = usePerformStore((store) => store.perform?.session ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
@@ -18,11 +18,8 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
   const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
   return (
     <section className="perform-bar" aria-label="Performing">
-      <span className="perform-bar-rig">Performing {session.rig.name}</span>
+      <span className="perform-bar-console">Performing {session.console.name}</span>
       <span className="perform-bar-clock">{formatElapsed(session.elapsedSeconds)}</span>
-      {session.switches.map((item) => (
-        <span key={item.name} className={`perform-bar-switch ${item.on ? "on" : ""}`}>{item.name}</span>
-      ))}
       {session.midi !== null && <InputStatus
         summary={session.midi.ports.length === 0 ? "No MIDI device found" : `MIDI: ${session.midi.ports.join(", ")}`}
         details={session.midi.ports}

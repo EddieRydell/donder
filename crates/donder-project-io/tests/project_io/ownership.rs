@@ -9,7 +9,7 @@ const TRANSFORM: &str =
 
 /// Every owned object written in place: a setup with its layout, an inline
 /// fixture definition, a patch, two controllers and an input device, a
-/// sequence, and a rig.
+/// sequence, and a console.
 fn inline_fields() -> String {
     format!(
         r#"  setup: Setup {{
@@ -85,21 +85,19 @@ const SEQUENCE: &str = r#"Sequence song_4 {
       automation: [],
     }"#;
 
-const RIG: &str = r#"  rigs: [
-    Rig jam_6 {
+const CONSOLE: &str = r#"  consoles: [
+    Console jam_6 {
       description: none,
       frame_rate: 60,
       marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
+      automations: [],
       layers: [],
-      scene: [],
-      switches: [Switch { name: hold, description: none, input: main.setup.input_devices.pad_5.hit }],
-      mappings: [
-        Mapping {
-          name: tap,
-          description: none,
-          input: main.setup.input_devices.pad_5.hit,
-          when: On { switch: hold },
-          action: Mark { marks: beat },
+      clips: [],
+      always: [],
+      events: [
+        On {
+          event: Press { control: main.setup.input_devices.pad_5.hit },
+          actions: [Mark { into: beat }],
         },
       ],
       graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
@@ -108,7 +106,7 @@ const RIG: &str = r#"  rigs: [
 "#;
 
 fn inline_project() -> String {
-    common::root_document("", &inline_fields()).replace("  rigs: [],\n", RIG)
+    common::root_document("", &inline_fields()).replace("  consoles: [],\n", CONSOLE)
 }
 
 fn write_inline_project(root: &Utf8Path) {
@@ -319,7 +317,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
         (common::Slot::SetupLayout(setup), "stage"),
         (common::Slot::SetupPatch(setup), "routing"),
         (common::Slot::ProjectSequence(0), "song"),
-        (common::Slot::ProjectRig(0), "jam"),
+        (common::Slot::ProjectConsole(0), "jam"),
         (common::Slot::ProjectSetup, "venue"),
     ];
     for (site, name) in &sites {
@@ -359,7 +357,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
         session.source.declared_name(id)
     })
     .unwrap();
-    let site = common::site(&session.project, common::Slot::ProjectRig(0));
+    let site = common::site(&session.project, common::Slot::ProjectConsole(0));
     make_independent(&mut session.project, &site, &|id| {
         session.source.declared_name(id)
     })
@@ -372,9 +370,9 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
         session.source.declared_name(id)
     })
     .unwrap();
-    let rig = session
+    let console = session
         .project
-        .get::<donder_model::Rig>(*session.project.root().rigs[0].id())
+        .get::<donder_model::Console>(*session.project.root().consoles[0].id())
         .unwrap();
     let device = session
         .project
@@ -382,7 +380,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
         .unwrap()
         .input_devices[0]
         .id();
-    assert!(rig.inputs().all(|input| &input.device == device));
+    assert!(console.inputs().all(|input| &input.device == device));
     let owned = session.project.get::<donder_model::Setup>(setup).unwrap();
     assert!(matches!(owned.patch, Owned::Inline(_)));
     let layout = *owned.layout.id();

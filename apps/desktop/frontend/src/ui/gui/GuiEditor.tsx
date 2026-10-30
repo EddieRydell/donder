@@ -28,7 +28,7 @@ import { LibraryEditor } from "./library/LibraryEditor";
 import { ControllerEditor } from "./controller/ControllerEditor";
 import { PatchEditor } from "./patch/PatchEditor";
 import { InputDeviceEditor } from "./inputDevice/InputDeviceEditor";
-import { RigEditor } from "./rig/RigEditor";
+import { ConsoleEditor } from "./console/ConsoleEditor";
 
 const INSPECTOR_MIN_WIDTH_PX = THEME_METRICS.inspectorMinWidth;
 const INSPECTOR_MAX_WIDTH_PX = THEME_METRICS.inspectorMaxWidth;
@@ -93,8 +93,8 @@ function ResourceEditor({
   if (gui.type === "inputDevice") {
     return <InputDeviceEditor document={gui.document} />;
   }
-  if (gui.type === "rig") {
-    return <RigEditor document={gui.document} />;
+  if (gui.type === "console") {
+    return <ConsoleEditor document={gui.document} />;
   }
 
 

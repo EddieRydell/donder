@@ -315,7 +315,7 @@ pub enum ObjectKind {
     Fixture,
     Patch,
     Sequence,
-    Rig,
+    Console,
     Curve,
     Gradient,
     Effect,
@@ -336,7 +336,7 @@ impl From<donder_model::ObjectKind> for ObjectKind {
             Kind::Curve => Self::Curve,
             Kind::Gradient => Self::Gradient,
             Kind::Sequence => Self::Sequence,
-            Kind::Rig => Self::Rig,
+            Kind::Console => Self::Console,
             Kind::EffectDefinition => Self::Effect,
             Kind::OperatorDefinition => Self::Operator,
         }

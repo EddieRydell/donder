@@ -2770,22 +2770,13 @@ html.donder-app-shell :is(
   padding-inline: var(--donder-space-6);
 }
 
-.perform-bar-rig {
+.perform-bar-console {
   color: var(--donder-text-strong);
   font-weight: var(--donder-font-weight-semibold);
 }
 
 .perform-bar-clock {
   font-family: var(--donder-font-code);
-}
-
-.perform-bar-switch {
-  color: var(--donder-text-muted);
-}
-
-.perform-bar-switch.on {
-  color: var(--donder-accent);
-  font-weight: var(--donder-font-weight-semibold);
 }
 
 .perform-bar-input {
@@ -4930,7 +4921,7 @@ button.status-chip:hover {
   white-space: nowrap;
 }
 
-/* Project rigs: Perform sits left of the row's source actions. */
+/* Project consoles: Perform sits left of the row's source actions. */
 .object-overview-row-perform {
   position: absolute;
   top: var(--donder-space-5);
@@ -4946,15 +4937,15 @@ button.status-chip:hover {
   height: var(--donder-object-overview-icon-glyph-size);
 }
 
-/* Rig editor: each voice, switch, mapping and live mark collection. */
-.rig-item {
+/* Console editor: each live mark collection, live automation, clip and event. */
+.console-item {
   display: grid;
   gap: var(--donder-space-6);
   padding: var(--donder-space-6) 0;
   border-bottom: var(--donder-border-width) solid var(--donder-border-soft);
 }
 
-.setup-section.rig-item {
+.setup-section.console-item {
   padding: var(--donder-space-8);
   margin-bottom: var(--donder-space-6);
 }

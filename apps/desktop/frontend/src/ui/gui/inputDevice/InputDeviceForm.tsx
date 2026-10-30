@@ -19,20 +19,15 @@ const DRIVERS: { type: DriverType; label: string }[] = [
   { type: "osc", label: "OSC" }
 ];
 
-/** The kinds of control a driver has: a keyboard has only buttons, and OSC has no keys. */
+/** The kinds of control a driver has: a keyboard has only buttons. */
 function driverHas(driver: DriverType, kind: GuiInputControlKind): boolean {
-  switch (driver) {
-    case "keyboard": return kind === "button";
-    case "midi": return true;
-    case "osc": return kind !== "keys";
-  }
+  return driver !== "keyboard" || kind === "button";
 }
 
 /** Whether `driver` reads `input`. */
 function driverReads(driver: DriverType, input: GuiControlInput): boolean {
   switch (input.type) {
     case "key": return driver === "keyboard";
-    case "note":
     case "notes":
     case "controlChange":
     case "pitchBend": return driver === "midi";
@@ -43,7 +38,7 @@ function driverReads(driver: DriverType, input: GuiControlInput): boolean {
 
 /** The kinds of control `driver` has none of but the device has, in the plural. */
 function droppedKinds(controls: GuiInputControl[], driver: DriverType): string[] {
-  return ([["dial", "dials"], ["keys", "keys"]] as const)
+  return ([["axis", "axes"]] as const)
     .filter(([kind]) => !driverHas(driver, kind) && controls.some((control) => control.kind === kind))
     .map(([, plural]) => plural);
 }
@@ -73,46 +68,54 @@ function freshControlName(controls: GuiInputControl[]): string {
   }
 }
 
-/** What an input reads, one entry per note of a range, so two controls never
- * read the same input. */
-function inputKeys(input: GuiControlInput): string[] {
+/** The channels a MIDI input reads: its own, or every channel when it has none. */
+function channelsRead(channel: number | null, limits: GuiInputLimits): number[] {
+  return channel === null ? Array.from({ length: limits.maxChannel }, (_, index) => index + 1) : [channel];
+}
+
+/** What an input reads, one entry per note of a range and per channel it
+ * reads, so two controls never read the same input on a channel both read. */
+function inputKeys(input: GuiControlInput, limits: GuiInputLimits): string[] {
+  const onChannels = (reads: string[], channel: number | null) =>
+    channelsRead(channel, limits).flatMap((read) => reads.map((key) => `${key} channel ${read}`));
   switch (input.type) {
     case "key": return [`key ${input.code}`];
-    case "note": return [`note ${input.note}`];
-    case "notes": return Array.from({ length: Math.max(0, input.high - input.low + 1) }, (_, offset) => `note ${input.low + offset}`);
-    case "controlChange": return [`cc ${input.number}`];
-    case "pitchBend": return ["pitch bend"];
+    case "notes": return onChannels(Array.from({ length: Math.max(0, input.high - input.low + 1) }, (_, offset) => `note ${input.low + offset}`), input.channel);
+    case "controlChange": return onChannels([`cc ${input.number}`], input.channel);
+    case "pitchBend": return onChannels(["pitch bend"], input.channel);
     case "address":
     case "addressRange": return [`address ${input.path.trim()}`];
   }
 }
 
-function inputKey(input: GuiControlInput): string {
-  return inputKeys(input).join(" ");
+/** Whether `input` reads nothing in `used`. */
+function isFree(input: GuiControlInput, used: Set<string>, limits: GuiInputLimits): boolean {
+  return inputKeys(input, limits).every((key) => !used.has(key));
 }
 
-/** The first input of `type` the device does not read yet, from `start`. */
+/** The first input of `type` the device does not read yet, from `start`; a
+ * note is a range of one, on every channel. */
 function freeInput(type: "key" | "note" | "controlChange", used: Set<string>, keyCodes: string[], limits: GuiInputLimits, start = 0): GuiControlInput | null {
   if (type === "key") {
-    const code = keyCodes.find((candidate) => !used.has(inputKey({ type: "key", code: candidate })));
+    const code = keyCodes.find((candidate) => isFree({ type: "key", code: candidate }, used, limits));
     return code === undefined ? null : { type: "key", code };
   }
   const max = type === "note" ? limits.maxNote : limits.maxControlChange;
   for (let offset = 0; offset <= max; offset += 1) {
     const value = (start + offset) % (max + 1);
-    const input: GuiControlInput = type === "note" ? { type: "note", note: value } : { type: "controlChange", number: value };
-    if (!used.has(inputKey(input))) return input;
+    const input: GuiControlInput = type === "note" ? { type: "notes", low: value, high: value, channel: null } : { type: "controlChange", number: value, channel: null };
+    if (isFree(input, used, limits)) return input;
   }
   return null;
 }
 
 /** An OSC input for a control of `kind` named `name`: `/name`, or `/name_<n>`
- * when the device already reads that address. A dial's value runs from 0 to 1. */
-function oscInput(kind: GuiInputControlKind, name: string, used: Set<string>): GuiControlInput {
+ * when the device already reads that address. An axis's value runs from 0 to 1. */
+function oscInput(kind: GuiInputControlKind, name: string, used: Set<string>, limits: GuiInputLimits): GuiControlInput {
   for (let index = 1; ; index += 1) {
     const path = index === 1 ? `/${name}` : `/${name}_${index}`;
-    if (used.has(inputKey({ type: "address", path }))) continue;
-    return kind === "dial" ? { type: "addressRange", path, low: 0, high: 1 } : { type: "address", path };
+    if (!isFree({ type: "address", path }, used, limits)) continue;
+    return kind === "axis" ? { type: "addressRange", path, low: 0, high: 1 } : { type: "address", path };
   }
 }
 
@@ -120,8 +123,8 @@ function oscInput(kind: GuiInputControlKind, name: string, used: Set<string>): G
 function convertedInput(control: GuiInputControl, driver: DriverType, used: Set<string>, keyCodes: string[], limits: GuiInputLimits): GuiControlInput | null {
   switch (driver) {
     case "keyboard": return freeInput("key", used, keyCodes, limits);
-    case "midi": return control.kind === "dial" ? freeInput("controlChange", used, keyCodes, limits, 1) : freeInput("note", used, keyCodes, limits, MIDDLE_C);
-    case "osc": return oscInput(control.kind, control.name, used);
+    case "midi": return control.kind === "axis" ? freeInput("controlChange", used, keyCodes, limits, 1) : freeInput("note", used, keyCodes, limits, MIDDLE_C);
+    case "osc": return oscInput(control.kind, control.name, used, limits);
   }
 }
 
@@ -133,7 +136,7 @@ function convertControls(controls: GuiInputControl[], driver: GuiInputDriver, ke
   for (const control of controls) {
     const input = driverReads(driver.type, control.input) ? control.input : convertedInput(control, driver.type, used, keyCodes, limits);
     if (input === null) continue;
-    for (const key of inputKeys(input)) used.add(key);
+    for (const key of inputKeys(input, limits)) used.add(key);
     converted.push({ ...control, input });
   }
   return converted;
@@ -159,8 +162,8 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     next.splice(index + offset, 0, control);
     setControls(next);
   };
-  const used = new Set(controls.flatMap((control) => inputKeys(control.input)));
-  const readByOthers = (index: number) => new Set(controls.flatMap((control, i) => i === index ? [] : inputKeys(control.input)));
+  const used = new Set(controls.flatMap((control) => inputKeys(control.input, limits)));
+  const readByOthers = (index: number) => new Set(controls.flatMap((control, i) => i === index ? [] : inputKeys(control.input, limits)));
   const nextName = freshControlName(controls);
   const add = (kind: GuiInputControlKind, input: GuiControlInput | null) => {
     if (input === null) return;
@@ -170,8 +173,8 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
   const nextKey = freeInput("key", used, keyCodes, limits);
   const nextNote = freeInput("note", used, keyCodes, limits, MIDDLE_C);
   const nextControlChange = freeInput("controlChange", used, keyCodes, limits, 1);
-  const piano: GuiControlInput = { type: "notes", low: PIANO_LOW, high: PIANO_HIGH };
-  const pianoFree = inputKeys(piano).every((key) => !used.has(key));
+  const piano: GuiControlInput = { type: "notes", low: PIANO_LOW, high: PIANO_HIGH, channel: null };
+  const pianoFree = isFree(piano, used, limits);
   return <form className="setup-authoring-form" onSubmit={(event) => {
     event.preventDefault();
     void onSave(driver, controls);
@@ -204,16 +207,16 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
           if (port !== null) setDriver({ type: "osc", port });
         }} /></label>}
       {controls.length === 0 && <p className="object-overview-empty">
-        {driver.type === "midi" ? "No controls. Add keys for a keyboard's notes, a button for each pad or pedal a rig plays from, and a dial for each knob."
-          : driver.type === "osc" ? "No controls. Add a button for each OSC address that presses something, and a dial for each address that sends a value."
-            : "No controls. Add a button for each key a rig plays from."}
+        {driver.type === "midi" ? "No controls. Add piano keys for a keyboard's notes, a button for each pad or pedal a console plays from, and an axis for each knob."
+          : driver.type === "osc" ? "No controls. Add a button for each OSC address that presses something, and an axis for each address that sends a value."
+            : "No controls. Add a button for each key a console plays from."}
       </p>}
       {controls.map((control, index) => <div className="controller-port-row" key={control.id}>
         <label>Name<input required pattern="[a-z_][a-z0-9_]*" value={control.name} onChange={(event) => { update(index, { name: event.target.value }); }} /></label>
         {driver.type === "midi" && <MidiInputFields control={control} used={used} limits={limits} onChange={(change) => { update(index, change); }} />}
-        {driver.type === "osc" && <OscInputFields control={control} taken={readByOthers(index).has(inputKey(control.input))} onChange={(change) => { update(index, change); }} />}
+        {driver.type === "osc" && <OscInputFields control={control} taken={!isFree(control.input, readByOthers(index), limits)} onChange={(change) => { update(index, change); }} />}
         {driver.type === "keyboard" && control.input.type === "key" && <label>Key<select value={control.input.code} onChange={(event) => { update(index, { input: { type: "key", code: event.target.value } }); }}>
-          {keyCodes.map((code) => <option key={code} value={code} disabled={control.input.type === "key" && code !== control.input.code && used.has(inputKey({ type: "key", code }))}>{code}</option>)}
+          {keyCodes.map((code) => <option key={code} value={code} disabled={control.input.type === "key" && code !== control.input.code && !isFree({ type: "key", code }, used, limits)}>{code}</option>)}
         </select></label>}
         <DescriptionField description={control.description} onCommit={(description) => { update(index, { description }); return Promise.resolve(); }} />
         <button type="button" disabled={index === 0} onClick={() => { move(index, -1); }}>Move up</button>
@@ -222,12 +225,12 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
       </div>)}
       {driver.type === "midi" && <>
         <button type="button" disabled={nextNote === null} onClick={() => { add("button", nextNote); }}>Add button</button>
-        <button type="button" disabled={nextControlChange === null} onClick={() => { add("dial", nextControlChange); }}>Add dial</button>
-        <button type="button" disabled={!pianoFree} onClick={() => { add("keys", piano); }}>Add keys</button>
+        <button type="button" disabled={nextControlChange === null} onClick={() => { add("axis", nextControlChange); }}>Add axis</button>
+        <button type="button" disabled={!pianoFree} onClick={() => { add("button", piano); }}>Add piano keys</button>
       </>}
       {driver.type === "osc" && <>
-        <button type="button" onClick={() => { add("button", oscInput("button", nextName, used)); }}>Add button</button>
-        <button type="button" onClick={() => { add("dial", oscInput("dial", nextName, used)); }}>Add dial</button>
+        <button type="button" onClick={() => { add("button", oscInput("button", nextName, used, limits)); }}>Add button</button>
+        <button type="button" onClick={() => { add("axis", oscInput("axis", nextName, used, limits)); }}>Add axis</button>
       </>}
       {driver.type === "keyboard" && <button type="button" disabled={nextKey === null} onClick={() => { add("button", nextKey); }}>Add button</button>}
       <button type="submit">{device === undefined ? "Add input device" : "Apply input device settings"}</button>
@@ -235,7 +238,8 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
   </form>;
 }
 
-/** A MIDI control's kind and the note, control change or pitch bend it reads. */
+/** A MIDI control's kind, the notes, control change or pitch bend it reads,
+ * and the channel it reads them on. */
 function MidiInputFields({ control, used, limits, onChange }: {
   control: GuiInputControl;
   used: Set<string>;
@@ -243,21 +247,34 @@ function MidiInputFields({ control, used, limits, onChange }: {
   onChange: (change: Partial<GuiInputControl>) => void;
 }) {
   const { input } = control;
-  const own = new Set(inputKeys(input));
-  const taken = (candidate: GuiControlInput) => inputKeys(candidate).some((key) => !own.has(key) && used.has(key));
+  if (input.type !== "notes" && input.type !== "controlChange" && input.type !== "pitchBend") return null;
+  const { channel } = input;
+  const own = new Set(inputKeys(input, limits));
+  const taken = (candidate: GuiControlInput) => inputKeys(candidate, limits).some((key) => !own.has(key) && used.has(key));
   return <>
     <label>Kind<select value={control.kind} onChange={(event) => {
-      const kind = event.target.value === "dial" ? "dial" : event.target.value === "keys" ? "keys" : "button";
-      // Keys read a range of notes, a dial no notes, and a button no pitch bend.
-      if (kind === "keys") onChange({ kind, input: { type: "notes", low: PIANO_LOW, high: PIANO_HIGH } });
-      else {
-        const fits = kind === "dial" ? input.type === "controlChange" || input.type === "pitchBend" : input.type === "note" || input.type === "controlChange";
-        onChange({ kind, input: fits ? input : { type: "controlChange", number: 1 } });
-      }
+      const kind = event.target.value === "axis" ? "axis" : "button";
+      // An axis reads no notes, and a button no pitch bend.
+      const fits = kind === "axis" ? input.type === "controlChange" || input.type === "pitchBend" : input.type === "notes" || input.type === "controlChange";
+      onChange({ kind, input: fits ? input : { type: "controlChange", number: 1, channel } });
     }}>
       <option value="button">Button</option>
-      <option value="dial">Dial</option>
-      <option value="keys">Keys</option>
+      <option value="axis">Axis</option>
+    </select></label>
+    <label>Input<select value={input.type} onChange={(event) => {
+      const type = event.target.value;
+      onChange({ input: type === "notes" ? { type: "notes", low: MIDDLE_C, high: MIDDLE_C, channel } : type === "pitchBend" ? { type: "pitchBend", channel } : { type: "controlChange", number: 1, channel } });
+    }}>
+      {control.kind === "button" && <option value="notes">Notes</option>}
+      <option value="controlChange">Control change</option>
+      {control.kind === "axis" && <option value="pitchBend" disabled={taken({ type: "pitchBend", channel })}>Pitch bend</option>}
+    </select></label>
+    <label>Channel<select value={channel ?? ""} aria-invalid={taken(input)} onChange={(event) => {
+      const value = event.target.value;
+      onChange({ input: { ...input, channel: value === "" ? null : Number(value) } });
+    }}>
+      <option value="">Any</option>
+      {channelsRead(null, limits).map((number) => <option key={number} value={number}>{number}</option>)}
     </select></label>
     {input.type === "notes" && <>
       <label>Lowest<input type="number" min={0} max={limits.maxNote} required value={input.low} aria-invalid={taken(input)}
@@ -271,30 +288,16 @@ function MidiInputFields({ control, used, limits, onChange }: {
           if (high !== null) onChange({ input: { ...input, high } });
         }} /><span>{noteName(input.high)}</span></label>
     </>}
-    {control.kind !== "keys" && <label>Input<select value={input.type} onChange={(event) => {
-      const type = event.target.value;
-      onChange({ input: type === "note" ? { type: "note", note: MIDDLE_C } : type === "pitchBend" ? { type: "pitchBend" } : { type: "controlChange", number: 1 } });
-    }}>
-      {control.kind === "button" && <option value="note">Note</option>}
-      <option value="controlChange">Control change</option>
-      {control.kind === "dial" && <option value="pitchBend" disabled={taken({ type: "pitchBend" })}>Pitch bend</option>}
-    </select></label>}
-    {input.type === "note" && <label>Note<input type="number" min={0} max={limits.maxNote} required value={input.note}
-      title={noteName(input.note)} aria-invalid={taken(input)}
-      onChange={(event) => {
-        const note = fieldNumber(event.target.value, limits.maxNote);
-        if (note !== null) onChange({ input: { type: "note", note } });
-      }} /><span>{noteName(input.note)}</span></label>}
     {input.type === "controlChange" && <label>Number<input type="number" min={0} max={limits.maxControlChange} required value={input.number}
       aria-invalid={taken(input)}
       onChange={(event) => {
         const number = fieldNumber(event.target.value, limits.maxControlChange);
-        if (number !== null) onChange({ input: { type: "controlChange", number } });
+        if (number !== null) onChange({ input: { type: "controlChange", number, channel } });
       }} /></label>}
   </>;
 }
 
-/** An OSC control's kind, the address it reads, and the range a dial's value runs over. */
+/** An OSC control's kind, the address it reads, and the range an axis's value runs over. */
 function OscInputFields({ control, taken, onChange }: {
   control: GuiInputControl;
   /** Whether another control of the device reads the address. */
@@ -306,11 +309,11 @@ function OscInputFields({ control, taken, onChange }: {
   const { path } = input;
   return <>
     <label>Kind<select value={control.kind} onChange={(event) => {
-      const kind = event.target.value === "dial" ? "dial" : "button";
-      onChange({ kind, input: kind === "dial" ? { type: "addressRange", path, low: 0, high: 1 } : { type: "address", path } });
+      const kind = event.target.value === "axis" ? "axis" : "button";
+      onChange({ kind, input: kind === "axis" ? { type: "addressRange", path, low: 0, high: 1 } : { type: "address", path } });
     }}>
       <option value="button">Button</option>
-      <option value="dial">Dial</option>
+      <option value="axis">Axis</option>
     </select></label>
     <label>Address<input required value={path} placeholder="/chord/change" aria-invalid={!validAddress(path.trim()) || taken}
       onChange={(event) => { onChange({ input: { ...input, path: event.target.value } }); }} /></label>

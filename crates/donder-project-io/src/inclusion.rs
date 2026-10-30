@@ -25,9 +25,9 @@ pub struct Inclusion {
     /// The sequences the document declares, added to the project's `sequences`.
     #[specta(type = Vec<String>)]
     sequences: Vec<Identifier>,
-    /// The rigs the document declares, added to the project's `rigs`.
+    /// The consoles the document declares, added to the project's `consoles`.
     #[specta(type = Vec<String>)]
-    rigs: Vec<Identifier>,
+    consoles: Vec<Identifier>,
 }
 
 /// An inclusion as text: names read back must be valid identifiers.
@@ -37,7 +37,7 @@ struct InclusionText {
     document: Utf8PathBuf,
     alias: String,
     sequences: Vec<String>,
-    rigs: Vec<String>,
+    consoles: Vec<String>,
 }
 
 impl serde::Serialize for Inclusion {
@@ -48,7 +48,7 @@ impl serde::Serialize for Inclusion {
             document: self.document.clone(),
             alias: self.alias.as_str().to_string(),
             sequences: names(&self.sequences),
-            rigs: names(&self.rigs),
+            consoles: names(&self.consoles),
         }
         .serialize(serializer)
     }
@@ -65,7 +65,7 @@ impl<'de> serde::Deserialize<'de> for Inclusion {
             document: text.document,
             alias: name(text.alias)?,
             sequences: names(text.sequences)?,
-            rigs: names(text.rigs)?,
+            consoles: names(text.consoles)?,
         })
     }
 }
@@ -91,7 +91,7 @@ pub fn include_document(root_text: &str, inclusion: &Inclusion) -> Result<String
     }
     for (field, names) in [
         ("sequences", &inclusion.sequences),
-        ("rigs", &inclusion.rigs),
+        ("consoles", &inclusion.consoles),
     ] {
         if names.is_empty() {
             continue;
@@ -201,7 +201,7 @@ pub(crate) fn unreferenced_documents(
                     document: path.clone(),
                     alias,
                     sequences: declared_of(ObjectKind::Sequence),
-                    rigs: declared_of(ObjectKind::Rig),
+                    consoles: declared_of(ObjectKind::Console),
                 })
             });
         diagnostics.push(IoDiagnostic {

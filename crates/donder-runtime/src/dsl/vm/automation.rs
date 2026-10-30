@@ -1,6 +1,6 @@
 //! Automation: an invocation's parameters at a time, written into the one
 //! scratch copy the running program reads: words from its plan's bindings,
-//! curve windows into their own buffers. A rig's controls replace a binding's
+//! curve windows into their own buffers. A console's live automations replace a binding's
 //! curve with a constant from when they are set.
 use crate::format::{self, CrossingSegment, CurvePoint};
 use crate::resources::{
@@ -14,7 +14,7 @@ use donder_runtime_types::sampling::{
 };
 use donder_runtime_types::{SECONDS_PER_TICK, SampleTime, curve_window_points};
 
-/// A live control's value for one binding, from when it was set.
+/// A live automation's value for one binding, from when it was set.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Override {
@@ -71,7 +71,7 @@ pub(crate) struct ParamsRef {
 
 /// The invocation's parameters at `time`: the show's when nothing rewrites
 /// them, or the scratch copy with automation and live marks applied.
-/// `overrides` are the controls of the plan's bindings, or empty.
+/// `overrides` are the live automations of the plan's bindings, or empty.
 pub(crate) fn params<'s>(
     show: Show<'s>,
     scratch: &'s mut Scratch<'_>,

@@ -82,8 +82,8 @@ pub fn apply_edit(
         (Kind::InputDevice, GuiEditCommand::InputDevice { driver, controls }) => {
             super::input_device::edit(session, &resolved, driver, controls).map(none)
         }
-        (Kind::Rig, GuiEditCommand::Rig { edit }) => {
-            super::rig::edit_rig(session, &resolved, edit).map(GuiEditOutcome::created)
+        (Kind::Console, GuiEditCommand::Console { edit }) => {
+            super::console::edit_console(session, &resolved, edit).map(GuiEditOutcome::created)
         }
         (Kind::Project, GuiEditCommand::Project { edit }) => {
             super::project::edit_project(session, &resolved, edit).map(none)

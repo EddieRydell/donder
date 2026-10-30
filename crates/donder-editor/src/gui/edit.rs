@@ -480,12 +480,12 @@ pub(super) fn edit_sequence(
     Ok(created)
 }
 
-fn automation_target_from_gui(
+pub(super) fn automation_target_from_gui<Clip: GuiClipId>(
     target: SequenceAutomationTarget,
-) -> Result<AutomationTarget, GuiMutationError> {
+) -> Result<AutomationTarget<Clip>, GuiMutationError> {
     Ok(match target {
         SequenceAutomationTarget::ClipParam { clip_id, param } => AutomationTarget::ClipParam {
-            clip_id: ClipId(clip_id),
+            clip_id: Clip::from_gui(clip_id),
             param: identifier(&param)?,
         },
         SequenceAutomationTarget::CompositionNodeParam { node_id, param } => {
@@ -600,6 +600,7 @@ use super::model::{
     mark_collection_mut, parse_color, parse_graph_node_id, register_sequence_audio_asset,
     required_param_values,
 };
+use super::projection::GuiClipId;
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{SequenceAutomationTarget, SequenceGuiEdit};
 

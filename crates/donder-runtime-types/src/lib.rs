@@ -28,9 +28,9 @@ pub use alloc::sync::Arc as Shared;
 mod automation;
 mod bindings;
 pub mod bytecode;
+mod console;
 mod prepared;
 mod program;
-mod rig;
 pub mod sampling;
 mod types;
 mod values;
@@ -42,13 +42,13 @@ pub use automation::{
 };
 pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
+pub use console::{ConsoleCommand, ConsoleEvent};
 pub use prepared::{
     AutomatedQuantity, FixtureGeometry, OutputEncoding, PixelEncoding, PreparedAutomation,
     RgbOrder, SequenceTiming, SpatialContext, TargetGeometry, TargetPixel, TargetScope,
     WhitePosition,
 };
 pub use program::{BoundProgram, Program};
-pub use rig::{RigCommand, RigEvent};
 pub use types::{Identifier, IdentifierError, Type, Value};
 pub use values::{
     Color, Curve, CurvePoint, CurveValidationError, Gradient, GradientStop,

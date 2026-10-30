@@ -159,7 +159,7 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
   return { requestDelete, dialog };
 }
 
-/** A sequence's or rig's layers, with adding, editing and deleting. */
+/** A sequence's or console's layers, with adding, editing and deleting. */
 export function LayerList({ composition }: { composition: CompositionEditing }) {
   const { document } = composition;
   const reportSequenceEditError = useSequenceEditErrorReporter();

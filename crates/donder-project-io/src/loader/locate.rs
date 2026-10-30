@@ -18,7 +18,7 @@ pub(super) enum Located<'a> {
     Layout(&'a types::Layout),
     Patch(&'a types::Patch),
     Sequence(&'a types::Sequence),
-    Rig(&'a types::Rig),
+    Console(&'a types::Console),
     Fixture(&'a types::FixtureDefinition),
     Other,
 }
@@ -36,7 +36,7 @@ pub(super) fn owned<'a>(
         Declaration::Layout(layout) => Located::Layout(layout),
         Declaration::Patch(patch) => Located::Patch(patch),
         Declaration::Sequence(sequence) => Located::Sequence(sequence),
-        Declaration::Rig(rig) => Located::Rig(rig),
+        Declaration::Console(console) => Located::Console(console),
         Declaration::FixtureDefinition(definition) => Located::Fixture(definition),
         Declaration::Curve(_) | Declaration::Gradient(_) => Located::Other,
     };
@@ -55,8 +55,8 @@ pub(super) fn owned<'a>(
             (Located::Project(project), OwnedObjectSlot::Sequence(name)) => {
                 Located::Sequence(member(&project.sequences, name)?)
             }
-            (Located::Project(project), OwnedObjectSlot::Rig(name)) => {
-                Located::Rig(member(&project.rigs, name)?)
+            (Located::Project(project), OwnedObjectSlot::Console(name)) => {
+                Located::Console(member(&project.consoles, name)?)
             }
             (Located::Setup(setup), OwnedObjectSlot::Layout) => match &setup.layout {
                 OwnedRecord::Inline(layout) => Located::Layout(layout),
@@ -91,7 +91,9 @@ pub(super) fn member_name(declaration: &Declaration, path: &[OwnedObjectSlot]) -
         (Located::Project(project), OwnedObjectSlot::Sequence(name)) => {
             named(&project.sequences, name)
         }
-        (Located::Project(project), OwnedObjectSlot::Rig(name)) => named(&project.rigs, name),
+        (Located::Project(project), OwnedObjectSlot::Console(name)) => {
+            named(&project.consoles, name)
+        }
         (Located::Setup(setup), OwnedObjectSlot::Controller(name)) => {
             named(&setup.controllers, name)
         }
@@ -153,43 +155,52 @@ pub(super) fn site_span(
             Member::Node(id) => node(&sequence.graph, id.0),
             _ => None,
         },
-        (Located::Rig(rig), member) => match member {
-            Member::Layer(id) => layer(&rig.layers, id.0),
-            Member::Node(id) => node(&rig.graph, id.0),
-            Member::LiveMarks(name) => rig
+        (Located::Console(console), member) => match member {
+            Member::Layer(id) => layer(&console.layers, id.0),
+            Member::Node(id) => node(&console.graph, id.0),
+            Member::LiveMarks(name) => console
                 .marks
                 .iter()
                 .find(|marks| &marks.name.0.value == name)
                 .map(|marks| name_span(&marks.name)),
-            Member::Voice(id) => {
-                let voice = nth(&rig.scene, id.0)?;
-                with_param(&voice.name, &voice.params)
+            Member::ConsoleClip(id) => {
+                let clip = nth(&console.clips, id.0)?;
+                with_param(&clip.name, &clip.params)
             }
-            Member::Switch(id) => {
-                let switch = nth(&rig.switches, id.0)?;
-                Some(match part {
-                    Some(MemberPart::Input) => switch.input.span,
-                    _ => name_span(&switch.name),
-                })
-            }
-            Member::Mapping(id) => {
-                let mapping = nth(&rig.mappings, id.0)?;
-                match (part, &mapping.action) {
-                    (Some(MemberPart::Input), _) => Some(mapping.input.span),
-                    (
-                        Some(MemberPart::PlayedValue(name)),
-                        types::MappingAction::Trigger { values, .. },
-                    ) => values
+            Member::LiveAutomation(id) => {
+                let automation = nth(&console.automations, id.0)?;
+                match part {
+                    Some(MemberPart::Param(name)) => automation
+                        .bindings
                         .iter()
+                        .map(|binding| match binding {
+                            types::Binding::ClipParam { param, .. }
+                            | types::Binding::NodeParam { param, .. } => param,
+                        })
+                        .find(|param| &param.0.value == name)
+                        .map(name_span),
+                    _ => Some(name_span(&automation.name)),
+                }
+            }
+            Member::Event(id) => {
+                let on = nth(&console.events, id.0)?;
+                let control = on.event.control().span;
+                match part {
+                    Some(MemberPart::PlayedValue(name)) => on
+                        .actions
+                        .iter()
+                        .flat_map(|action| match action {
+                            types::Action::Play { values, .. }
+                            | types::Action::Start { values, .. }
+                            | types::Action::Toggle { values, .. } => values.as_slice(),
+                            types::Action::Stop { .. }
+                            | types::Action::Mark { .. }
+                            | types::Action::Set { .. } => &[],
+                        })
                         .find(|value| &value.param.0.value == name)
-                        .map(|value| name_span(&value.param)),
-                    (Some(MemberPart::Param(_)), types::MappingAction::Trigger { params, .. }) => {
-                        with_param(&mapping.name, params)
-                    }
-                    (Some(MemberPart::Param(_)), types::MappingAction::Control { param, .. }) => {
-                        Some(name_span(param))
-                    }
-                    _ => Some(name_span(&mapping.name)),
+                        .map(|value| name_span(&value.param))
+                        .or(Some(control)),
+                    _ => Some(control),
                 }
             }
             _ => None,

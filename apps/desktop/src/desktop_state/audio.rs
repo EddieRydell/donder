@@ -92,7 +92,7 @@ impl DesktopState {
     }
 
     pub(crate) fn audio_play(&self) -> AppSnapshot {
-        // A rig never plays on top of a sequence.
+        // A console never plays on top of a sequence.
         if self.is_performing() {
             return self.update_snapshot(|snapshot| {
                 snapshot.status = "Stop performing to play a sequence.".into();
@@ -329,7 +329,7 @@ impl DesktopState {
         let geometry = crate::preview::PreviewGeometry::from_project(&session.project)?;
         if let Some(performance) = self.preview_performance() {
             if performance.fixtures != geometry.fixtures {
-                return Err("The performed rig does not match the active layout.".to_string());
+                return Err("The performed console does not match the active layout.".to_string());
             }
             return Ok(crate::preview::PreviewContent {
                 instances: geometry.instances,

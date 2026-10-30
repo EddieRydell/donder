@@ -1,0 +1,266 @@
+import layouts from <layouts/main.data.donder>;
+import effects from <effects/standard.donder>, <effects/impact-burst.donder>;
+import operators from <operators/standard.donder>;
+import devices from <input_devices/mpk_mini.data.donder>;
+
+Console mpk_mini {
+  description: "Play the house from the MPK mini: pads fire hits, keys sweep wipes, knobs shape the look.",
+  frame_rate: 100,
+  marks: [LiveMarks { name: beat, description: "Tapped on pad 8.", color: #22c55e }],
+  automations: [
+    LiveAutomation {
+      name: glow,
+      description: "Knob 1: how long light lingers after it goes out.",
+      value: 0.02,
+      bindings: [NodeParam { node: afterglow, param: seconds }],
+    },
+    LiveAutomation {
+      name: decay,
+      description: "Knob 2: how long the background's beat pulses last.",
+      value: 0.02,
+      bindings: [ClipParam { clip: background, param: decay_seconds }],
+    },
+    LiveAutomation {
+      name: hit_length,
+      description: "Knob 3: how long the next pad hits play.",
+      value: 0.3,
+      bindings: [],
+    },
+    LiveAutomation {
+      name: hue,
+      description: "Knob 7: turns every color round the color wheel.",
+      value: 0.0,
+      bindings: [NodeParam { node: hue_shift, param: shift }],
+    },
+    LiveAutomation {
+      name: master,
+      description: "Knob 8: master brightness.",
+      value: 1.0,
+      bindings: [NodeParam { node: master_dim, param: amount }],
+    },
+    LiveAutomation {
+      name: tilt,
+      description: "Joystick left and right: the house wipe's direction.",
+      value: 0.5,
+      bindings: [ClipParam { clip: house_wipe, param: direction_angle }],
+    },
+  ],
+  layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+  clips: [
+    ConsoleClip {
+      name: background,
+      description: "Warm sparkles on every tapped beat.",
+      layer: default,
+      target: layouts.main.everything,
+      scope: WholeTarget,
+      effect: effects.MarkPulse,
+      params: {
+        beats: beat,
+        accent: [(0.0, #ffb347), (1.0, #ff5e3a)],
+        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+      },
+    },
+    ConsoleClip {
+      name: flash,
+      description: "Pad 1: a white flash on everything.",
+      layer: default,
+      target: layouts.main.everything,
+      scope: WholeTarget,
+      effect: effects.Pulse,
+      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+    },
+    ConsoleClip {
+      name: tree_spin,
+      description: "Pad 2: a spin round the mega tree.",
+      layer: default,
+      target: layouts.main.mega_tree,
+      scope: WholeTarget,
+      effect: effects.Spin,
+      params: {
+        gradient: [(0.0, #7df9ff), (1.0, #3a5bff)],
+        chase_position: [(0.0, 0.0), (1.0, 1.0)],
+        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+      },
+    },
+    ConsoleClip {
+      name: tunnel_chase,
+      description: "Pad 3: a chase through the arch tunnel.",
+      layer: default,
+      target: layouts.main.arch_tunnel,
+      scope: WholeTarget,
+      effect: effects.Chase,
+      params: {
+        gradient: [(0.0, #ff3af2), (1.0, #7a2cff)],
+        chase_position: [(0.0, 0.0), (1.0, 1.0)],
+        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+      },
+    },
+    ConsoleClip {
+      name: house_wipe,
+      description: "Pad 4: a wipe across the house and trees, steered by the joystick.",
+      layer: default,
+      target: layouts.main.house_and_trees,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: [(0.0, #39ff88), (1.0, #00c2ff)],
+        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+      },
+    },
+    ConsoleClip {
+      name: star_burst,
+      description: "Pad 5: a burst out from the middle of the star rings.",
+      layer: default,
+      target: layouts.main.star_rings,
+      scope: WholeTarget,
+      effect: effects.ImpactBurst,
+      params: { gradient: [(0.0, #fff6a8), (1.0, #ffb000)], intensity: [(0.0, 1.0), (1.0, 0.0)] },
+    },
+    ConsoleClip {
+      name: garage_burst,
+      description: "Pad 6: a burst across the garage matrix.",
+      layer: default,
+      target: layouts.main.garage_matrix,
+      scope: WholeTarget,
+      effect: effects.ImpactBurst,
+      params: { gradient: [(0.0, #ff2a00), (1.0, #ffd000)], intensity: [(0.0, 1.0), (1.0, 0.0)] },
+    },
+    ConsoleClip {
+      name: yard_wash,
+      description: "Pad 7: a steady wash on the yard, on until pressed again.",
+      layer: default,
+      target: layouts.main.yard,
+      scope: WholeTarget,
+      effect: effects.Pulse,
+      params: { gradient: [(0.0, #1f4dff)], pulse_shape: [(0.0, 0.6), (1.0, 0.6)] },
+    },
+    ConsoleClip {
+      name: key_wipe,
+      description: "Keys: a wipe across everything, its direction from the note and its length from how hard it is struck.",
+      layer: default,
+      target: layouts.main.everything,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: [(0.0, #ffffff), (1.0, #ff7ad9)],
+        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+      },
+    },
+  ],
+  always: [background],
+  events: [
+    On {
+      event: Press { control: devices.mpk_mini.pad_1 },
+      actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.3s }, values: [] }],
+    },
+    On {
+      event: Press { control: devices.mpk_mini.pad_2 },
+      actions: [
+        Play {
+          clip: tree_spin,
+          copies: 4,
+          length: Scaled { by: Automation { automation: hit_length }, shortest: 0.3s, longest: 4s },
+          values: [],
+        },
+      ],
+    },
+    On {
+      event: Press { control: devices.mpk_mini.pad_3 },
+      actions: [
+        Play {
+          clip: tunnel_chase,
+          copies: 4,
+          length: Scaled { by: Automation { automation: hit_length }, shortest: 0.3s, longest: 4s },
+          values: [],
+        },
+      ],
+    },
+    On {
+      event: Press { control: devices.mpk_mini.pad_4 },
+      actions: [
+        Play {
+          clip: house_wipe,
+          copies: 4,
+          length: Scaled { by: Automation { automation: hit_length }, shortest: 0.3s, longest: 4s },
+          values: [],
+        },
+      ],
+    },
+    On {
+      event: Press { control: devices.mpk_mini.pad_5 },
+      actions: [
+        Play {
+          clip: star_burst,
+          copies: 4,
+          length: Scaled { by: Automation { automation: hit_length }, shortest: 0.3s, longest: 4s },
+          values: [],
+        },
+      ],
+    },
+    On {
+      event: Press { control: devices.mpk_mini.pad_6 },
+      actions: [
+        Play {
+          clip: garage_burst,
+          copies: 4,
+          length: Scaled { by: Automation { automation: hit_length }, shortest: 0.3s, longest: 4s },
+          values: [],
+        },
+      ],
+    },
+    On {
+      event: Press { control: devices.mpk_mini.pad_7 },
+      actions: [Toggle { clip: yard_wash, values: [] }],
+    },
+    On { event: Press { control: devices.mpk_mini.pad_8 }, actions: [Mark { into: beat }] },
+    On {
+      event: Press { control: devices.mpk_mini.keys },
+      actions: [
+        Play {
+          clip: key_wipe,
+          copies: 8,
+          length: Scaled { by: Velocity, shortest: 0.3s, longest: 2.5s },
+          values: [PlayedValue { param: direction_angle, from: Pitch }],
+        },
+      ],
+    },
+    On { event: Move { control: devices.mpk_mini.knob_1 }, actions: [Set { into: glow }] },
+    On { event: Move { control: devices.mpk_mini.knob_2 }, actions: [Set { into: decay }] },
+    On { event: Move { control: devices.mpk_mini.knob_3 }, actions: [Set { into: hit_length }] },
+    On { event: Move { control: devices.mpk_mini.knob_7 }, actions: [Set { into: hue }] },
+    On { event: Move { control: devices.mpk_mini.knob_8 }, actions: [Set { into: master }] },
+    On { event: Move { control: devices.mpk_mini.joystick_x }, actions: [Set { into: tilt }] },
+  ],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 80.0) },
+      OperatorNode {
+        name: afterglow,
+        operator: operators.Afterglow,
+        params: {},
+        position: (320.0, 80.0),
+      },
+      OperatorNode {
+        name: hue_shift,
+        operator: operators.HueShift,
+        params: {},
+        position: (560.0, 80.0),
+      },
+      OperatorNode {
+        name: master_dim,
+        operator: operators.Dim,
+        params: {},
+        position: (800.0, 80.0),
+      },
+      RootNode { position: (1040.0, 80.0) },
+    ],
+    edges: [
+      Edge { from: default, to: afterglow.input },
+      Edge { from: afterglow, to: hue_shift.source },
+      Edge { from: hue_shift, to: master_dim.input },
+      Edge { from: master_dim, to: root },
+    ],
+  },
+}

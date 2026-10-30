@@ -67,13 +67,17 @@ pub(in crate::gui) fn invocation_params(
         .collect()
 }
 
-/// A composition's graph as the graph editor shows it. A sequence passes
-/// itself for its operators' automation.
+/// A composition's graph as the graph editor shows it, with what
+/// `automation` finds automating each operator parameter.
 pub(in crate::gui) fn composition_graph(
     session: &ProjectSession,
     layers: &[donder_model::SequenceLayer],
     graph: &donder_model::SequenceCompositionGraph,
-    sequence: Option<&donder_model::Sequence>,
+    automation: impl Fn(
+        &CompositionGraphNodeId,
+        &Identifier,
+        &mut SequenceParamValue,
+    ) -> Option<SequenceParamAutomation>,
 ) -> SequenceCompositionGraph {
     SequenceCompositionGraph {
         id: 0,
@@ -86,7 +90,7 @@ pub(in crate::gui) fn composition_graph(
         nodes: graph
             .nodes
             .iter()
-            .map(|node| composition_graph_node(session, layers, sequence, node))
+            .map(|node| composition_graph_node(session, layers, &automation, node))
             .collect(),
         edges: graph
             .edges
@@ -118,7 +122,11 @@ pub(in crate::gui) fn layers_to_gui(layers: &[donder_model::SequenceLayer]) -> V
 fn composition_graph_node(
     session: &ProjectSession,
     layers: &[donder_model::SequenceLayer],
-    sequence: Option<&donder_model::Sequence>,
+    automation: &impl Fn(
+        &CompositionGraphNodeId,
+        &Identifier,
+        &mut SequenceParamValue,
+    ) -> Option<SequenceParamAutomation>,
     node: &CompositionGraphNode,
 ) -> SequenceGraphNode {
     SequenceGraphNode {
@@ -144,7 +152,7 @@ fn composition_graph_node(
             CompositionGraphNodeKind::Operator(operator) => SequenceGraphNodeKind::Operator {
                 name: operator.name.as_str().to_string(),
                 operator: graph_operator_to_gui(session, &operator.operator),
-                params: graph_operator_params(session, sequence, &node.id, operator),
+                params: graph_operator_params(session, automation, &node.id, operator),
             },
             CompositionGraphNodeKind::Root => SequenceGraphNodeKind::Root,
         },
@@ -157,7 +165,11 @@ pub(in crate::gui) fn graph_node_id(node_id: &CompositionGraphNodeId) -> String 
 
 fn graph_operator_params(
     session: &ProjectSession,
-    sequence: Option<&donder_model::Sequence>,
+    automation: &impl Fn(
+        &CompositionGraphNodeId,
+        &Identifier,
+        &mut SequenceParamValue,
+    ) -> Option<SequenceParamAutomation>,
     node_id: &CompositionGraphNodeId,
     operator: &GraphOperatorNode,
 ) -> Vec<SequenceClipParam> {
@@ -181,18 +193,7 @@ fn graph_operator_params(
                         .as_ref()
                         .and_then(|value| default_param_value(value, &declaration.ty))
                 })?;
-            let automation = sequence.and_then(|sequence| {
-                param_automation(
-                    sequence,
-                    &AutomationTarget::CompositionNodeParam {
-                        node_id: node_id.clone(),
-                        param: declaration.name.clone(),
-                    },
-                    &donder_language::DonderTime::from_nanos(0),
-                    &sequence.duration,
-                    &mut value,
-                )
-            });
+            let automation = automation(node_id, &declaration.name, &mut value);
             Some(SequenceClipParam {
                 supports_automation: declaration.supports_automation(),
                 name: declaration.name.as_str().to_string(),
@@ -297,6 +298,26 @@ fn graph_operator_to_gui(
         path: identity.document().to_string(),
         object_key: identity.object().to_string(),
     }
+}
+
+/// The automation of a sequence's operator node parameter, over the
+/// sequence.
+pub(super) fn sequence_node_automation(
+    sequence: &donder_model::Sequence,
+    node_id: &CompositionGraphNodeId,
+    param: &Identifier,
+    value: &mut SequenceParamValue,
+) -> Option<SequenceParamAutomation> {
+    param_automation(
+        sequence,
+        &AutomationTarget::CompositionNodeParam {
+            node_id: node_id.clone(),
+            param: param.clone(),
+        },
+        &donder_language::DonderTime::from_nanos(0),
+        &sequence.duration,
+        value,
+    )
 }
 
 fn param_automation(

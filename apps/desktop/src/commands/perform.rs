@@ -11,15 +11,16 @@ pub(crate) fn get_perform_snapshot(state: State<'_, DesktopState>) -> PerformSna
 #[specta::specta]
 pub(crate) async fn start_performing(
     project_revision: u32,
-    rig: u32,
+    console: u32,
     app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<PerformSnapshot, String> {
     let owned = state.inner().clone();
-    let snapshot =
-        tauri::async_runtime::spawn_blocking(move || owned.start_performing(project_revision, rig))
-            .await
-            .map_err(|error| format!("Perform worker failed: {error}"))??;
+    let snapshot = tauri::async_runtime::spawn_blocking(move || {
+        owned.start_performing(project_revision, console)
+    })
+    .await
+    .map_err(|error| format!("Perform worker failed: {error}"))??;
     let _ = app.emit("perform_changed", snapshot.clone());
     let _ = app.emit("live_output_changed", state.live_output_snapshot());
     start_live_output_poll(app.clone());

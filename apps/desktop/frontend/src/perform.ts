@@ -26,10 +26,10 @@ async function runPerformCommand(command: () => Promise<PerformSnapshot>) {
   }
 }
 
-export function startPerforming(rig: number) {
+export function startPerforming(console: number) {
   const projectRevision = useAppStore.getState().snapshot?.projectRevision;
   if (projectRevision === undefined) return;
-  void runPerformCommand(() => commands.startPerforming(projectRevision, rig));
+  void runPerformCommand(() => commands.startPerforming(projectRevision, console));
 }
 
 export function stopPerforming() {
@@ -40,13 +40,13 @@ export function isPerforming(): boolean {
   return (usePerformStore.getState().perform?.session ?? null) !== null;
 }
 
-/** Refreshes the project's rigs whenever the project changes. */
+/** Refreshes the project's consoles whenever the project changes. */
 export function refreshPerform() {
   void runPerformCommand(commands.getPerformSnapshot);
 }
 
 /**
- * While performing, the rig's keys play it instead of reaching editor shortcuts, except in text
+ * While performing, the console's keys play it instead of reaching editor shortcuts, except in text
  * entry and the code editor. Losing focus releases every held key.
  */
 export function installPerformKeys() {

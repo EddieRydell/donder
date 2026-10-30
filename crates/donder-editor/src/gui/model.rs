@@ -486,7 +486,7 @@ pub(super) fn create_object_document(
         Kind::Controller => "controllers",
         Kind::InputDevice => "input_devices",
         Kind::Sequence => "sequences",
-        Kind::Rig => "rigs",
+        Kind::Console => "consoles",
         Kind::FixtureDefinition => "fixtures",
         Kind::Curve => "curves",
         Kind::Gradient => "gradients",

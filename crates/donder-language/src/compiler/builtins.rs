@@ -858,7 +858,7 @@ pub const CONTEXT: &[ContextValue] = &[
     ContextValue {
         name: "frames_elapsed",
         ty: Type::Int,
-        summary: "Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a rig command re-renders the same frame.",
+        summary: "Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a console command re-renders the same frame.",
         read: Read::Context(Context::FramesElapsed),
     },
     ContextValue {

@@ -1,4 +1,4 @@
-//! Live input editors: input devices and the rigs that play from them.
+//! Live input editors: input devices and the consoles that play from them.
 use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -23,6 +23,8 @@ pub struct InputDeviceGuiDocument {
 pub struct GuiInputLimits {
     pub(crate) max_note: u8,
     pub(crate) max_control_change: u8,
+    /// Channels run from 1 to this.
+    pub(crate) max_channel: u8,
 }
 
 /// An input device as a setup lists it and its editor edits it.
@@ -59,7 +61,7 @@ pub enum GuiInputDriver {
 pub struct GuiInputControl {
     /// Kept across edits; a new control has an id no other control uses.
     pub id: u32,
-    /// Unique within the device; rigs refer to it.
+    /// Unique within the device; consoles refer to it.
     pub name: String,
     pub description: Option<String>,
     pub kind: GuiInputControlKind,
@@ -69,18 +71,18 @@ pub struct GuiInputControl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum GuiInputControlKind {
-    /// Pressed or released.
+    /// Pressed or released; a button reading a range of notes is pressed by
+    /// each of them.
     Button,
     /// A position from 0 to 1.
-    Dial,
-    /// A range of MIDI notes, each its own press.
-    Keys,
+    Axis,
 }
 
-/// What a control reads. A keyboard reads keys; MIDI buttons read notes and
-/// control changes, MIDI dials read control changes and pitch bend, and MIDI
-/// keys read a range of notes. OSC buttons read an address, and OSC dials an
-/// address and the range its value runs over.
+/// What a control reads. A keyboard reads keys; MIDI buttons read a range of
+/// notes or a control change, and MIDI axes a control change or pitch bend.
+/// OSC buttons read an address, and OSC axes an address and the range its
+/// value runs over. A MIDI input reads its `channel`, from 1 to 16, or every
+/// channel when it is `None`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -92,20 +94,21 @@ pub enum GuiControlInput {
     Key {
         code: String,
     },
-    /// A MIDI note number, 0 to 127; middle C is 60.
-    Note {
-        note: u8,
-    },
-    /// MIDI notes from `low` through `high`; a full piano is 21 to 108.
+    /// MIDI notes from `low` through `high`, each its own press; one note
+    /// when `low` is `high`. A full piano is 21 to 108 and middle C is 60.
     Notes {
         low: u8,
         high: u8,
+        channel: Option<u8>,
     },
     /// A MIDI control change number, 0 to 119; the sustain pedal is 64.
     ControlChange {
         number: u8,
+        channel: Option<u8>,
     },
-    PitchBend,
+    PitchBend {
+        channel: Option<u8>,
+    },
     /// An OSC address, such as `/chord/change`.
     Address {
         path: String,
@@ -120,170 +123,214 @@ pub enum GuiControlInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+pub struct ConsoleGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub(crate) description: Option<String>,
     pub(crate) path: String,
     pub(crate) source_ref: GuiObjectRef,
     pub(crate) object_key: String,
-    /// The declared name, or the name the rig is stored under.
+    /// The declared name, or the name the console is stored under.
     pub(crate) name: String,
-    /// The rig's position among the project's rigs, which Perform starts it by;
-    /// `None` when the project does not list it.
+    /// The console's position among the project's consoles, which Perform
+    /// starts it by; `None` when the project does not list it.
     pub perform_index: Option<u32>,
     pub(crate) frame_rate: u32,
-    pub(crate) live_marks: Vec<RigLiveMarks>,
+    pub(crate) live_marks: Vec<ConsoleLiveMarks>,
+    pub(crate) automations: Vec<ConsoleAutomation>,
     pub layers: Vec<SequenceLayer>,
     pub composition_graph: SequenceCompositionGraph,
-    pub(crate) voices: Vec<RigVoice>,
-    pub switches: Vec<RigSwitch>,
-    pub mappings: Vec<RigMapping>,
+    pub clips: Vec<ConsoleClip>,
+    /// The clips that play for the whole session, by id.
+    pub(crate) always: Vec<u32>,
+    pub events: Vec<ConsoleOn>,
     /// The active layout's fixtures and groups, each once, depth-first.
     pub targets: Vec<SequenceLane>,
     pub effect_definitions: Vec<SequenceEffectDefinition>,
     pub(crate) curve_library: Vec<SequenceCurveLibraryItem>,
     pub(crate) gradient_library: Vec<SequenceGradientLibraryItem>,
-    /// The active setup's input devices, which the rig's inputs choose from.
-    pub input_devices: Vec<RigInputDevice>,
-    pub(crate) max_stacked_voices: u32,
+    /// The active setup's input devices, which the console's events choose from.
+    pub input_devices: Vec<ConsoleInputDevice>,
+    /// The most copies of a clip `Play` actions play at once.
+    pub(crate) max_copies: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigLiveMarks {
-    /// The collection's name; marks parameters and `Mark` mappings refer to it.
+pub struct ConsoleLiveMarks {
+    /// The collection's name; marks parameters and `Mark` actions refer to it.
     pub(crate) key: String,
     pub(crate) description: Option<String>,
     pub(crate) color: String,
 }
 
-/// A clip a rig plays: a clip without timing.
+/// A value in `0..=1` that `Set` actions write, mapped onto each bound
+/// parameter's range.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigClip {
-    pub(crate) layer_id: u32,
+pub struct ConsoleAutomation {
+    pub(crate) id: u32,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    /// The value it holds until the first `Set`.
+    pub(crate) value: f32,
+    /// The parameters it sets: of console clips or of graph operator nodes.
+    pub(crate) bindings: Vec<SequenceAutomationTarget>,
+}
+
+/// A clip a console plays: a sequence clip without timing.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsoleClip {
+    pub id: u32,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub layer_id: u32,
     pub(crate) target: FixtureTarget,
     pub(crate) target_label: String,
     pub(crate) scope: SequenceClipScope,
     pub(crate) effect: SequenceEffectReference,
     pub(crate) effect_name: String,
+    /// A parameter a live automation sets carries that automation's id as
+    /// its `automation`.
     pub(crate) params: Vec<SequenceClipParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigVoice {
-    pub(crate) id: u32,
-    pub(crate) name: String,
-    pub(crate) description: Option<String>,
-    pub(crate) clip: RigClip,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RigControlRef {
+pub struct ConsoleControlRef {
     pub device: GuiObjectRef,
     pub control: u32,
 }
 
-/// A control a switch or mapping reads, with the names the rig's text uses.
+/// A control an event reads, with the names the console's text uses.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigInput {
-    pub(crate) control: RigControlRef,
+pub struct ConsoleInput {
+    pub(crate) control: ConsoleControlRef,
     pub(crate) device_name: String,
     pub(crate) control_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigInputDevice {
+pub struct ConsoleInputDevice {
     pub device: GuiObjectRef,
     pub(crate) name: String,
-    pub buttons: Vec<RigInputControl>,
-    /// Dials only drive `Control` mappings.
-    pub(crate) dials: Vec<RigInputControl>,
-    /// Keys only trigger clips and add marks.
-    pub(crate) keys: Vec<RigInputControl>,
+    pub buttons: Vec<ConsoleInputControl>,
+    pub axes: Vec<ConsoleInputControl>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigInputControl {
+pub struct ConsoleInputControl {
     pub control: u32,
     pub(crate) name: String,
     /// Whether it plays notes, as values played from a note need.
     pub(crate) notes: bool,
 }
 
+/// What an input event does.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RigSwitch {
+pub struct ConsoleOn {
     pub id: u32,
-    pub(crate) name: String,
-    pub(crate) description: Option<String>,
-    pub(crate) input: RigInput,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RigMapping {
-    pub id: u32,
-    pub(crate) name: String,
-    pub(crate) description: Option<String>,
-    pub(crate) input: RigInput,
-    /// `None` acts always.
-    pub when: Option<RigWhen>,
-    pub(crate) action: RigMappingAction,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigWhen {
-    On { switch_id: u32 },
-    Off { switch_id: u32 },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigMappingAction {
-    Trigger {
-        clip: RigClip,
-        length: RigTriggerLength,
-        voices: RigVoicePolicy,
-        values: Vec<RigPlayedValue>,
-    },
-    Mark {
-        marks: String,
-    },
-    Control {
-        target: RigControlTarget,
-        param: String,
-    },
-}
-
-/// A parameter each press of a trigger sets on the voice it starts.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RigPlayedValue {
-    pub(crate) param: String,
-    pub(crate) from: RigPlayedQuantity,
+    pub(crate) event: ConsoleEventKind,
+    pub(crate) input: ConsoleInput,
+    pub actions: Vec<ConsoleAction>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum RigPlayedQuantity {
+pub enum ConsoleEventKind {
+    /// A button pressed.
+    Press,
+    Release,
+    /// An axis moved.
+    Move,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ConsoleAction {
+    /// Play a copy of a clip for its length, on top of the copies playing.
+    Play {
+        clip_id: u32,
+        copies: u32,
+        length: ConsolePlayLength,
+        values: Vec<ConsolePlayedValue>,
+    },
+    /// Play one copy of a clip until it is stopped.
+    Start {
+        clip_id: u32,
+        values: Vec<ConsolePlayedValue>,
+    },
+    Stop {
+        clip_id: u32,
+    },
+    Toggle {
+        clip_id: u32,
+        values: Vec<ConsolePlayedValue>,
+    },
+    /// Add a mark to the live mark collection `into`.
+    Mark {
+        into: String,
+    },
+    /// Write the event's value into the live automation `into`.
+    Set {
+        into: u32,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ConsolePlayLength {
+    Fixed {
+        duration_seconds: f64,
+    },
+    /// From `shortest_seconds` at 0 to `longest_seconds` at 1 of `by`.
+    Scaled {
+        by: ConsoleLengthSource,
+        shortest_seconds: f64,
+        longest_seconds: f64,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ConsoleLengthSource {
+    /// The press's velocity; a computer key presses at 1.
+    Velocity,
+    Automation {
+        automation_id: u32,
+    },
+}
+
+/// A parameter a press sets on the copy it starts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsolePlayedValue {
+    pub(crate) param: String,
+    pub(crate) from: ConsolePlayedQuantity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ConsolePlayedQuantity {
     /// How hard the note was struck; a computer key or pedal plays at 1.
     Velocity,
-    /// The note's place in its key range.
+    /// The note's place in its button's note range.
     Pitch,
     /// The note's name, C to B up the chromatic scale.
     PitchClass,
@@ -297,61 +344,7 @@ pub enum RigPlayedQuantity {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum RigTriggerLength {
-    Fixed { duration_seconds: f64 },
-    Held,
-    Latched,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigVoicePolicy {
-    Retrigger,
-    Stack { count: u32 },
-    Mono,
-}
-
-/// The voices a `Control` mapping sets a parameter of.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigControlTarget {
-    Voice {
-        voice_id: u32,
-    },
-    /// Every voice of a `Trigger` mapping.
-    Trigger {
-        mapping_id: u32,
-    },
-}
-
-/// A named item of a rig.
-/// The clip of a voice or of a `Trigger` mapping.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigClipOwner {
-    Voice { id: u32 },
-    Trigger { mapping_id: u32 },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigClipEdit {
+pub enum ConsoleClipEdit {
     Layer {
         layer_id: u32,
     },
@@ -361,7 +354,9 @@ pub enum RigClipEdit {
     Scope {
         scope: SequenceClipScope,
     },
-    /// Play another effect; its required parameters start from `initial_color`.
+    /// Play another effect; its required parameters start from
+    /// `initial_color`, and the played values and automation bindings of the
+    /// old effect's parameters go.
     Definition {
         initial_color: String,
         effect: SequenceEffectReference,
@@ -372,37 +367,13 @@ pub enum RigClipEdit {
     },
 }
 
-/// A mapping's action as the editor chooses it.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum RigActionChoice {
-    /// A new trigger plays on the default layer for one second, restarting on
-    /// each press.
-    Trigger {
-        initial_color: String,
-        effect: SequenceEffectReference,
-        target: FixtureTarget,
-    },
-    Mark {
-        marks: String,
-    },
-    Control {
-        target: RigControlTarget,
-        param: String,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RigGuiEdit {
+pub enum ConsoleGuiEdit {
     SetFrameRate {
         frame_rate: u32,
     },
@@ -414,49 +385,49 @@ pub enum RigGuiEdit {
         name: String,
         color: String,
     },
-    AddVoice {
+    /// A new automation at 0 with no bindings; the name becomes a unique
+    /// `snake_case` name.
+    AddAutomation {
+        name: String,
+    },
+    SetAutomationValue {
+        id: u32,
+        value: f32,
+    },
+    SetAutomationBindings {
+        id: u32,
+        bindings: Vec<SequenceAutomationTarget>,
+    },
+    /// A new clip on the first layer over the whole target, named after its
+    /// effect.
+    AddClip {
         initial_color: String,
         effect: SequenceEffectReference,
         target: FixtureTarget,
     },
-    AddSwitch {
-        input: RigControlRef,
-    },
-    AddMapping {
-        input: RigControlRef,
-        action: RigActionChoice,
-    },
     EditClip {
-        owner: RigClipOwner,
-        edit: RigClipEdit,
-    },
-    SetSwitchInput {
         id: u32,
-        input: RigControlRef,
+        edit: ConsoleClipEdit,
     },
-    SetMappingInput {
+    SetAlways {
+        clip_ids: Vec<u32>,
+    },
+    /// A new event with no actions.
+    AddEvent {
+        event: ConsoleEventKind,
+        input: ConsoleControlRef,
+    },
+    /// Change what an event answers. Actions the new event cannot run go:
+    /// all but `Set` for a move, played values for all but a press, and
+    /// values played from a note for a control without notes.
+    SetEvent {
         id: u32,
-        input: RigControlRef,
+        event: ConsoleEventKind,
+        input: ConsoleControlRef,
     },
-    SetMappingWhen {
+    SetActions {
         id: u32,
-        when: Option<RigWhen>,
-    },
-    SetMappingAction {
-        id: u32,
-        action: RigActionChoice,
-    },
-    SetTriggerLength {
-        mapping_id: u32,
-        length: RigTriggerLength,
-    },
-    SetTriggerVoices {
-        mapping_id: u32,
-        voices: RigVoicePolicy,
-    },
-    SetTriggerValues {
-        mapping_id: u32,
-        values: Vec<RigPlayedValue>,
+        actions: Vec<ConsoleAction>,
     },
 }
 
@@ -467,6 +438,6 @@ pub enum RigGuiEdit {
     rename_all_fields = "camelCase"
 )]
 pub enum ProjectGuiEdit {
-    /// A new rig stored in the project, with the default layer drawn to the output.
-    AddRig { initial_color: String },
+    /// A new console stored in the project, with the default layer drawn to the output.
+    AddConsole { initial_color: String },
 }

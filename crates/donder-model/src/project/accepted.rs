@@ -3,15 +3,15 @@ use crate::effect::Clip;
 use crate::operator::OperatorDefinition;
 use crate::sequence::{CompositionGraphNode, CompositionGraphNodeKind, Sequence, SequenceId};
 mod automation;
+mod console;
 mod geometry;
 mod inputs;
 mod parameters;
 mod patch;
-mod rig;
-use crate::rig::{Mapping, Rig, RigClip, RigId, Trigger, Voice};
+use crate::console::{ClipUse, Console, ConsoleClip, ConsoleId};
+pub use console::{CONSOLE_SESSION, ConsoleBinding};
 use donder_language::compiler::Invocation;
 pub(super) use inputs::ProjectInputs;
-pub use rig::{RIG_SESSION, RigBinding};
 
 /// A sequence borrowed from the same accepted project as all its dependencies.
 #[derive(Clone, Copy)]
@@ -60,9 +60,12 @@ impl DonderProject {
         self.accepted_inputs.layouts.get(layout).map(AsRef::as_ref)
     }
 
-    pub fn accepted_rig(&self, id: &RigId) -> Option<AcceptedRig<'_>> {
-        self.get::<crate::Rig>(*id)
-            .map(|rig| AcceptedRig { project: self, rig })
+    pub fn accepted_console(&self, id: &ConsoleId) -> Option<AcceptedConsole<'_>> {
+        self.get::<crate::Console>(*id)
+            .map(|console| AcceptedConsole {
+                project: self,
+                console,
+            })
     }
 
     pub fn accepted_sequence(&self, id: &SequenceId) -> Option<AcceptedSequence<'_>> {
@@ -107,57 +110,43 @@ impl<'a> AcceptedSequence<'a> {
     }
 }
 
-/// A rig borrowed from the same accepted project as all its dependencies.
+/// A console borrowed from the same accepted project as all its dependencies.
 #[derive(Clone, Copy)]
-pub struct AcceptedRig<'a> {
+pub struct AcceptedConsole<'a> {
     project: &'a DonderProject,
-    rig: &'a Rig,
-}
-
-/// Who plays a rig clip: a scene voice, or a trigger mapping's voices.
-#[derive(Clone, Copy)]
-pub enum RigClipOrigin<'a> {
-    Voice(&'a Voice),
-    Trigger(&'a Mapping, &'a Trigger),
+    console: &'a Console,
 }
 
 #[derive(Clone, Copy)]
-pub struct AcceptedRigClip<'a> {
-    origin: RigClipOrigin<'a>,
-    clip: &'a RigClip,
-    inputs: &'a rig::RigClipInputs,
+pub struct AcceptedConsoleClip<'a> {
+    clip: &'a ConsoleClip,
+    clip_use: ClipUse,
+    inputs: &'a console::ConsoleClipInputs,
 }
 
-impl<'a> AcceptedRig<'a> {
-    pub fn rig(self) -> &'a Rig {
-        self.rig
+impl<'a> AcceptedConsole<'a> {
+    pub fn console(self) -> &'a Console {
+        self.console
     }
 
     /// The session clock: the whole playback range, with no authored windows.
     pub fn timing(self) -> &'a donder_runtime_types::SequenceTiming {
-        &self.project.accepted_inputs.rigs[&self.rig.id].timing
+        &self.project.accepted_inputs.consoles[&self.console.id].timing
     }
 
-    /// The scene's voices, then each trigger's clip.
-    pub fn clips(self) -> impl Iterator<Item = AcceptedRigClip<'a>> + 'a {
-        let origins = self.rig.voices.iter().map(RigClipOrigin::Voice).chain(
-            self.rig
-                .mappings
-                .iter()
-                .filter_map(|mapping| match &mapping.action {
-                    crate::rig::MappingAction::Trigger(trigger) => {
-                        Some(RigClipOrigin::Trigger(mapping, trigger))
-                    }
-                    crate::rig::MappingAction::Mark(_)
-                    | crate::rig::MappingAction::Control { .. } => None,
-                }),
-        );
-        origins
-            .zip(self.rig.clips())
-            .zip(self.project.accepted_inputs.rigs[&self.rig.id].clips.iter())
-            .map(|((origin, clip), inputs)| AcceptedRigClip {
-                origin,
+    /// The console's clips, in authored order.
+    pub fn clips(self) -> impl Iterator<Item = AcceptedConsoleClip<'a>> + 'a {
+        self.console
+            .clips
+            .iter()
+            .zip(
+                self.project.accepted_inputs.consoles[&self.console.id]
+                    .clips
+                    .iter(),
+            )
+            .map(move |(clip, inputs)| AcceptedConsoleClip {
                 clip,
+                clip_use: self.console.clip_use(clip.id),
                 inputs,
             })
     }
@@ -165,19 +154,29 @@ impl<'a> AcceptedRig<'a> {
     pub fn operators(self) -> impl Iterator<Item = AcceptedOperatorInputs<'a>> + 'a {
         operator_inputs(
             self.project,
-            &self.rig.composition_graph,
-            &self.project.accepted_inputs.rigs[&self.rig.id].operators,
+            &self.console.composition_graph,
+            &self.project.accepted_inputs.consoles[&self.console.id].operators,
         )
+    }
+
+    /// The index of the console's live automation that sets each automation
+    /// binding of operator `node`'s invocation, in binding order.
+    pub fn operator_automations(
+        self,
+        node: &crate::sequence::CompositionGraphNodeId,
+    ) -> &'a [usize] {
+        &self.project.accepted_inputs.consoles[&self.console.id].operator_automations[node]
     }
 }
 
-impl<'a> AcceptedRigClip<'a> {
-    pub fn origin(self) -> RigClipOrigin<'a> {
-        self.origin
+impl<'a> AcceptedConsoleClip<'a> {
+    pub fn clip(self) -> &'a ConsoleClip {
+        self.clip
     }
 
-    pub fn clip(self) -> &'a RigClip {
-        self.clip
+    /// Whether `Play` actions spawn copies of it, or one copy plays held.
+    pub fn clip_use(self) -> ClipUse {
+        self.clip_use
     }
 
     pub fn invocation(self) -> &'a Invocation {
@@ -185,8 +184,14 @@ impl<'a> AcceptedRigClip<'a> {
     }
 
     /// What sets each of the invocation's automation bindings.
-    pub fn bindings(self) -> &'a [RigBinding] {
+    pub fn bindings(self) -> &'a [ConsoleBinding] {
         &self.inputs.bindings
+    }
+
+    /// The parameters actions play on the copies they start, in the order
+    /// [`ConsoleBinding::Played`] numbers them.
+    pub fn played(self) -> &'a [donder_runtime_types::Identifier] {
+        &self.inputs.played
     }
 }
 

@@ -1,9 +1,9 @@
 mod params;
 pub(super) use params::clip_params;
-use params::graph_node_id;
 pub(super) use params::{
     composition_graph, curve_library, gradient_library, invocation_params, layers_to_gui,
 };
+use params::{graph_node_id, sequence_node_automation};
 
 /// The inspector's view of `clip_ids` in the requested sequence, in the
 /// requested order; ids the sequence does not have are skipped.
@@ -79,7 +79,7 @@ pub(super) fn project_sequence_clips(
         session,
         &sequence.layers,
         &sequence.composition_graph,
-        Some(sequence),
+        |node, param, value| sequence_node_automation(sequence, node, param, value),
     );
     GuiDocument::Sequence {
         document: SequenceGuiDocument {
@@ -157,10 +157,36 @@ fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomation
         .collect()
 }
 
-fn automation_target_to_gui(target: &AutomationTarget) -> SequenceAutomationTarget {
+/// The id of a sequence's or console's clip, as the editor sends it.
+pub(super) trait GuiClipId {
+    fn to_gui(&self) -> u32;
+    fn from_gui(id: u32) -> Self;
+}
+
+impl GuiClipId for donder_model::ClipId {
+    fn to_gui(&self) -> u32 {
+        self.0
+    }
+    fn from_gui(id: u32) -> Self {
+        Self(id)
+    }
+}
+
+impl GuiClipId for donder_model::ConsoleClipId {
+    fn to_gui(&self) -> u32 {
+        self.0
+    }
+    fn from_gui(id: u32) -> Self {
+        Self(id)
+    }
+}
+
+pub(super) fn automation_target_to_gui<Clip: GuiClipId>(
+    target: &AutomationTarget<Clip>,
+) -> SequenceAutomationTarget {
     match target {
         AutomationTarget::ClipParam { clip_id, param } => SequenceAutomationTarget::ClipParam {
-            clip_id: clip_id.0,
+            clip_id: clip_id.to_gui(),
             param: param.as_str().to_string(),
         },
         AutomationTarget::CompositionNodeParam { node_id, param } => {

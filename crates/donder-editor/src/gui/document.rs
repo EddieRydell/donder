@@ -73,7 +73,7 @@ pub fn project_gui_document(
         Kind::Setup => project_setup(session, &resolved),
         Kind::Controller => super::controller::project_document(session, &resolved),
         Kind::InputDevice => super::input_device::project_document(session, &resolved),
-        Kind::Rig => super::rig::project_rig(session, &resolved),
+        Kind::Console => super::console::project_console(session, &resolved),
         Kind::Patch => super::patch::project_document(session, &resolved),
         Kind::Layout => project_layout(session, &resolved),
         Kind::FixtureDefinition => project_fixture(session, &resolved),
@@ -94,7 +94,7 @@ pub fn project_gui_document(
         GuiDocument::Controller { document } => document.path.clone_from(&request.path),
         GuiDocument::Patch { document } => document.path.clone_from(&request.path),
         GuiDocument::InputDevice { document } => document.path.clone_from(&request.path),
-        GuiDocument::Rig { document } => document.path.clone_from(&request.path),
+        GuiDocument::Console { document } => document.path.clone_from(&request.path),
         GuiDocument::Blocked { .. } => {}
     }
     gui
@@ -299,7 +299,7 @@ pub fn gui_editor_order(kind: donder_model::ObjectKind) -> Option<u8> {
     Some(match kind {
         Kind::Project => 0,
         Kind::Sequence => 1,
-        Kind::Rig => 2,
+        Kind::Console => 2,
         Kind::Setup => 3,
         Kind::Layout => 4,
         Kind::FixtureDefinition => 5,

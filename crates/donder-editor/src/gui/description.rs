@@ -6,8 +6,8 @@ use donder_model::PatchId;
 use donder_model::ProjectEdit;
 use donder_model::SequenceId;
 use donder_model::SetupId;
+use donder_model::{ConsoleId, InputDeviceId};
 use donder_model::{CurveId, GradientId};
-use donder_model::{InputDeviceId, RigId};
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject};
@@ -80,10 +80,10 @@ pub(super) fn edit(
             value.description = description;
             ProjectEdit::Put(value.into())
         }
-        Kind::Rig => {
-            let id: RigId = resolved.id();
+        Kind::Console => {
+            let id: ConsoleId = resolved.id();
             let mut value = project
-                .get::<donder_model::Rig>(id)
+                .get::<donder_model::Console>(id)
                 .cloned()
                 .ok_or_else(missing)?;
             value.description = description;

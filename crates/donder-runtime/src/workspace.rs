@@ -1,6 +1,6 @@
 //! A show's playback workspace, carved from one buffer: the nodes' frame
 //! buffers, their state buffers, the one strip workspace programs run in, scan
-//! scratch frames, the automation scratch and a rig's state. [`Layout`]
+//! scratch frames, the automation scratch and a console's state. [`Layout`]
 //! counts every region once; [`Layout::size`] and [`carve`] walk them in the
 //! same order.
 use crate::format::{self, CrossingSegment, CurvePoint, NONE};
@@ -32,7 +32,7 @@ pub(crate) struct CachedClipColor {
     pub(crate) color: Color,
 }
 
-/// A clip's start and duration in ticks; a rig's commands move them.
+/// A clip's start and duration in ticks; a console's commands move them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Timing {
@@ -48,9 +48,10 @@ impl Timing {
     }
 }
 
-/// What a rig's commands change: clip timing, each layer's start order,
-/// control values and live marks. Empty for a sequence, but for live marks.
-pub(crate) struct RigState<'w> {
+/// What a console's commands change: clip timing, each layer's start order,
+/// live automation values and live marks. Empty for a sequence, but for live
+/// marks.
+pub(crate) struct ConsoleState<'w> {
     pub(crate) timing: &'w mut [Timing],
     pub(crate) layer_order: &'w mut [u32],
     pub(crate) layer_ends: &'w mut [u32],
@@ -69,7 +70,7 @@ pub(crate) struct Workspace<'w> {
     pub(crate) scratch: Scratch<'w>,
     pub(crate) gather: &'w mut [[u32; 2]],
     pub(crate) clip_colors: &'w mut [CachedClipColor],
-    pub(crate) rig: RigState<'w>,
+    pub(crate) console: ConsoleState<'w>,
     /// The frame the buffers last held, or [`NONE`], and whether they still
     /// hold it: a command since makes them stale.
     pub(crate) frame: &'w mut [u32; 2],
@@ -87,7 +88,7 @@ pub(crate) struct Layout {
     slots: StripSlots,
     scratch: [usize; 4],
     sample_count: usize,
-    rig: bool,
+    console: bool,
     clips: usize,
     layer_order: usize,
     bindings: usize,
@@ -121,7 +122,7 @@ impl Layout {
                 *total = (*total).max(need);
             }
         }
-        let rig = show.is_rig();
+        let console = show.is_console();
         Self {
             pixels: show.pixel_count(),
             output_bytes: s.outputs.iter().map(|output| output.width as usize).sum(),
@@ -136,10 +137,10 @@ impl Layout {
                 .map(|clip| s.targets[clip.target as usize].sample_count as usize)
                 .max()
                 .unwrap_or(0),
-            rig,
-            clips: if rig { s.clips.len() } else { 0 },
-            layer_order: if rig { s.layer_order.len() } else { 0 },
-            bindings: if rig { s.bindings.len() } else { 0 },
+            console,
+            clips: if console { s.clips.len() } else { 0 },
+            layer_order: if console { s.layer_order.len() } else { 0 },
+            bindings: if console { s.bindings.len() } else { 0 },
             collections: meta.collections as usize,
         }
     }
@@ -241,15 +242,15 @@ pub(crate) fn carve<'w>(
     let live_ticks = arena.values(layout.collections * LIVE_MARK_CAPACITY, 0)?;
     let frame = <&mut [u32; 2]>::try_from(arena.values(2, NONE)?).ok()?;
     if fresh {
-        if layout.rig {
+        if layout.console {
             for (timing, clip) in timing.iter_mut().zip(s.clips) {
                 *timing = Timing {
                     start: clip.start,
                     duration: clip.duration,
                 };
             }
-            for voice in s.voices {
-                timing[voice.clip as usize].start = DORMANT;
+            for &clip in s.voices {
+                timing[clip as usize].start = DORMANT;
             }
             layer_order.copy_from_slice(s.layer_order);
             for layer in s.layers {
@@ -272,7 +273,7 @@ pub(crate) fn carve<'w>(
         scratch,
         gather,
         clip_colors,
-        rig: RigState {
+        console: ConsoleState {
             timing,
             layer_order,
             layer_ends,

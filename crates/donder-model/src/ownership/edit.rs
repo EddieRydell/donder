@@ -6,6 +6,7 @@ mod link;
 use super::{Owned, OwnedMember};
 use crate::project::references::References;
 use crate::{
+    console::{Console, ConsoleId},
     controller::ControllerId,
     fixture::{FixtureDefinitionId, OwnedFixture},
     identity::{ObjectId, ObjectKind},
@@ -13,7 +14,6 @@ use crate::{
     layout::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId},
     patch::PatchId,
     project::{DonderProject, EditRejection},
-    rig::{Rig, RigId},
     sequence::SequenceId,
     setup::{Setup, SetupId},
 };
@@ -42,7 +42,7 @@ pub enum OwnershipSite {
 enum Slot {
     ProjectSetup,
     ProjectSequence(usize),
-    ProjectRig(usize),
+    ProjectConsole(usize),
     SetupLayout(SetupId),
     SetupPatch(SetupId),
     SetupController {
@@ -83,8 +83,8 @@ impl OwnershipSite {
                         &mut root.sequences.iter().map(|source| (*source.id()).into()),
                         member,
                     )?),
-                    Kind::Rig => Slot::ProjectRig(position(
-                        &mut root.rigs.iter().map(|source| (*source.id()).into()),
+                    Kind::Console => Slot::ProjectConsole(position(
+                        &mut root.consoles.iter().map(|source| (*source.id()).into()),
                         member,
                     )?),
                     _ => return Err(EditRejection::MemberNotInOwner),
@@ -260,15 +260,15 @@ fn make_reusable_candidate(
             project.sequences.insert(id, *value);
             id.into()
         }
-        Slot::ProjectRig(index) => {
+        Slot::ProjectConsole(index) => {
             let source = project
                 .root
-                .rigs
+                .consoles
                 .get_mut(*index)
-                .ok_or(EditRejection::Missing(ObjectKind::Rig))?;
+                .ok_or(EditRejection::Missing(ObjectKind::Console))?;
             let value = promote_member(source)?;
             let id = value.id;
-            project.rigs.insert(id, *value);
+            project.consoles.insert(id, *value);
             id.into()
         }
         Slot::SetupLayout(setup) => {
@@ -424,8 +424,8 @@ fn make_independent_candidate(
         Slot::ProjectSequence(index) => {
             copy_sequence(project, *index, name_of)?;
         }
-        Slot::ProjectRig(index) => {
-            copy_rig(project, *index, name_of)?;
+        Slot::ProjectConsole(index) => {
+            copy_console(project, *index, name_of)?;
         }
         Slot::SetupPatch(setup) => {
             copy_patch(project, setup)?;
@@ -616,29 +616,29 @@ fn copy_sequence(
     };
     Ok(())
 }
-fn copy_rig(
+fn copy_console(
     project: &mut DonderProject,
     index: usize,
     name_of: &dyn Fn(ObjectId) -> Option<Identifier>,
 ) -> Result<(), EditRejection> {
     let source = project
         .root
-        .rigs
+        .consoles
         .get(index)
-        .ok_or(EditRejection::Missing(ObjectKind::Rig))?;
+        .ok_or(EditRejection::Missing(ObjectKind::Console))?;
     let OwnedMember::Reference(id) = *source else {
-        return Err(EditRejection::AlreadyIndependent(ObjectKind::Rig));
+        return Err(EditRejection::AlreadyIndependent(ObjectKind::Console));
     };
     let name = next_local_name(
-        project.root.rigs.iter(),
+        project.root.consoles.iter(),
         preferred_name(name_of, id)?.as_str(),
     );
     let mut value = project
-        .get::<crate::Rig>(id)
-        .ok_or(EditRejection::Missing(ObjectKind::Rig))?
+        .get::<crate::Console>(id)
+        .ok_or(EditRejection::Missing(ObjectKind::Console))?
         .clone();
-    value.id = RigId(project.new_id());
-    project.root.rigs[index] = OwnedMember::Inline {
+    value.id = ConsoleId(project.new_id());
+    project.root.consoles[index] = OwnedMember::Inline {
         name,
         value: Box::new(value),
     };
@@ -646,28 +646,28 @@ fn copy_rig(
 }
 
 /// Follow objects of the active setup that were copied or replaced: active
-/// sequences and rigs that refer to one become independent before their
+/// sequences and consoles that refer to one become independent before their
 /// targets and controls change.
 fn follow_active(
     project: &mut DonderProject,
     renames: &Renames,
     name_of: &dyn Fn(ObjectId) -> Option<Identifier>,
 ) -> Result<(), EditRejection> {
-    for index in 0..project.root.rigs.len() {
-        let id = project.root.rigs[index].id();
-        let rig = project
-            .get::<crate::Rig>(*id)
-            .ok_or(EditRejection::Missing(ObjectKind::Rig))?;
-        if !renames.moves(rig) {
+    for index in 0..project.root.consoles.len() {
+        let id = project.root.consoles[index].id();
+        let console = project
+            .get::<crate::Console>(*id)
+            .ok_or(EditRejection::Missing(ObjectKind::Console))?;
+        if !renames.moves(console) {
             continue;
         }
-        if matches!(project.root.rigs[index], OwnedMember::Reference(_)) {
-            copy_rig(project, index, name_of)?;
+        if matches!(project.root.consoles[index], OwnedMember::Reference(_)) {
+            copy_console(project, index, name_of)?;
         }
         renames.apply(
-            project.root.rigs[index]
+            project.root.consoles[index]
                 .inline_mut()
-                .ok_or(EditRejection::Missing(ObjectKind::Rig))?,
+                .ok_or(EditRejection::Missing(ObjectKind::Console))?,
         );
     }
     for index in 0..project.root.sequences.len() {
@@ -743,27 +743,28 @@ fn add_sequence_candidate(
     Ok(id)
 }
 
-/// Add an independently owned rig to the active project.
-pub fn add_rig(
+/// Add an independently owned console to the active project.
+pub fn add_console(
     project: &mut DonderProject,
     frame_rate: u32,
     color: donder_runtime_types::Color,
-) -> Result<RigId, crate::EditError> {
+) -> Result<ConsoleId, crate::EditError> {
     project.checked_edit(|project| {
-        let name = next_local_name(project.root.rigs.iter(), "rig");
-        let id = RigId(project.new_id());
+        let name = next_local_name(project.root.consoles.iter(), "console");
+        let id = ConsoleId(project.new_id());
         let (layers, composition_graph) = default_composition(color);
-        project.root.rigs.push(OwnedMember::Inline {
+        project.root.consoles.push(OwnedMember::Inline {
             name,
-            value: Box::new(Rig {
+            value: Box::new(Console {
                 id,
                 description: None,
                 frame_rate,
                 live_marks: Vec::new(),
                 layers,
-                voices: Vec::new(),
-                switches: Vec::new(),
-                mappings: Vec::new(),
+                automations: Vec::new(),
+                clips: Vec::new(),
+                always: Vec::new(),
+                events: Vec::new(),
                 composition_graph,
             }),
         });
@@ -771,7 +772,7 @@ pub fn add_rig(
     })
 }
 
-/// A new sequence's or rig's composition: the default layer drawn straight
+/// A new sequence's or console's composition: the default layer drawn straight
 /// to the output.
 fn default_composition(
     color: donder_runtime_types::Color,

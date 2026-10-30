@@ -16,7 +16,7 @@ pub(crate) struct Project {
     pub description: Option<String>,
     pub setup: OwnedRecord<Setup>,
     pub sequences: Vec<OwnedNamedRecord<Sequence>>,
-    pub rigs: Vec<OwnedNamedRecord<Rig>>,
+    pub consoles: Vec<OwnedNamedRecord<Console>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -100,45 +100,46 @@ pub(crate) enum InputControl {
         description: Option<String>,
         input: ButtonInput,
     },
-    Dial {
+    Axis {
         name: Name,
         description: Option<String>,
-        input: DialInput,
+        input: AxisInput,
     },
-    Keys {
-        name: Name,
-        description: Option<String>,
-        input: Notes,
-    },
-}
-
-/// MIDI notes from `low` through `high`.
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Notes {
-    pub low: u8,
-    pub high: u8,
 }
 
 impl InputControl {
     pub(crate) fn name(&self) -> &Name {
         match self {
-            Self::Button { name, .. } | Self::Dial { name, .. } | Self::Keys { name, .. } => name,
+            Self::Button { name, .. } | Self::Axis { name, .. } => name,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) enum ButtonInput {
-    Key { code: KeyCode },
-    Note { note: u8 },
-    ControlChange { number: u8 },
-    Address { path: String },
+    Key {
+        code: KeyCode,
+    },
+    /// MIDI notes from `low` through `high`, each its own press.
+    Notes {
+        low: u8,
+        high: u8,
+        channel: Option<u8>,
+    },
+    ControlChange {
+        number: u8,
+        channel: Option<u8>,
+    },
+    Address {
+        path: String,
+    },
 }
 
+/// A MIDI input's `channel` is 1 to 16, or `none` for every channel.
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum DialInput {
-    ControlChange { number: u8 },
-    PitchBend,
+pub(crate) enum AxisInput {
+    ControlChange { number: u8, channel: Option<u8> },
+    PitchBend { channel: Option<u8> },
     Address { path: String, low: f32, high: f32 },
 }
 
@@ -468,14 +469,16 @@ pub(crate) struct Detached {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Rig {
+pub(crate) struct Console {
     pub description: Option<String>,
     pub frame_rate: u32,
     pub marks: Vec<LiveMarks>,
+    pub automations: Vec<LiveAutomation>,
     pub layers: Vec<Layer>,
-    pub scene: Vec<Voice>,
-    pub switches: Vec<Switch>,
-    pub mappings: Vec<Mapping>,
+    pub clips: Vec<ConsoleClip>,
+    /// Clips that play for the whole session, by name.
+    pub always: Vec<Name>,
+    pub events: Vec<On>,
     pub graph: Graph,
 }
 
@@ -487,7 +490,16 @@ pub(crate) struct LiveMarks {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Voice {
+pub(crate) struct LiveAutomation {
+    pub name: Name,
+    pub description: Option<String>,
+    /// The starting value, in `0..1`.
+    pub value: f32,
+    pub bindings: Vec<Binding>,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) struct ConsoleClip {
     pub name: Name,
     pub description: Option<String>,
     #[refers(Layer)]
@@ -502,65 +514,91 @@ pub(crate) struct Voice {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Switch {
-    pub name: Name,
-    pub description: Option<String>,
-    /// A button of an input device: `device.control`.
-    #[refers(Control)]
-    pub input: Reference,
+pub(crate) struct On {
+    pub event: InputEvent,
+    pub actions: Vec<Action>,
 }
 
+/// A control of an input device: `device.control`.
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Mapping {
-    pub name: Name,
-    pub description: Option<String>,
-    /// A button of an input device: `device.control`.
-    #[refers(Control)]
-    pub input: Reference,
-    pub when: Option<When>,
-    pub action: MappingAction,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum When {
-    On {
-        #[refers(Switch)]
-        switch: Name,
+pub(crate) enum InputEvent {
+    Press {
+        #[refers(Control)]
+        control: Reference,
     },
-    Off {
-        #[refers(Switch)]
-        switch: Name,
+    Release {
+        #[refers(Control)]
+        control: Reference,
+    },
+    Move {
+        #[refers(Control)]
+        control: Reference,
     },
 }
 
+impl InputEvent {
+    pub(crate) fn control(&self) -> &Reference {
+        match self {
+            Self::Press { control } | Self::Release { control } | Self::Move { control } => control,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum MappingAction {
-    Trigger {
-        #[refers(Layer)]
-        layer: Name,
-        #[refers(Fixture)]
-        target: Reference,
-        scope: Scope,
-        #[refers(Effect)]
-        effect: Reference,
-        params: Params,
-        length: TriggerLength,
-        voices: VoicePolicy,
+pub(crate) enum Action {
+    Play {
+        #[refers(Clip)]
+        clip: Name,
+        copies: u8,
+        length: PlayLength,
+        values: Vec<PlayedValue>,
+    },
+    Start {
+        #[refers(Clip)]
+        clip: Name,
+        values: Vec<PlayedValue>,
+    },
+    Stop {
+        #[refers(Clip)]
+        clip: Name,
+    },
+    Toggle {
+        #[refers(Clip)]
+        clip: Name,
         values: Vec<PlayedValue>,
     },
     Mark {
         #[refers(Marks)]
-        marks: Name,
+        into: Name,
     },
-    /// `voice` names a scene voice or a `Trigger` mapping.
-    Control {
-        #[refers(Voice)]
-        voice: Name,
-        param: Name,
+    Set {
+        #[refers(Automation)]
+        into: Name,
     },
 }
 
-/// A parameter each press sets on the voice it starts.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) enum PlayLength {
+    Fixed {
+        duration: Duration,
+    },
+    Scaled {
+        by: LengthSource,
+        shortest: Duration,
+        longest: Duration,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) enum LengthSource {
+    Velocity,
+    Automation {
+        #[refers(Automation)]
+        automation: Name,
+    },
+}
+
+/// A parameter a press sets on the copy it starts.
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct PlayedValue {
     pub param: Name,
@@ -574,21 +612,6 @@ pub(crate) enum PlayedQuantity {
     PitchClass,
     Fifths,
 }
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum TriggerLength {
-    Fixed { duration: Duration },
-    Held,
-    Latched,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum VoicePolicy {
-    Retrigger,
-    Stack { count: u8 },
-    Mono,
-}
-
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Curve {
     pub description: Option<String>,

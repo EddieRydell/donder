@@ -55,9 +55,9 @@ the library doesn't have, you can write it yourself (or ask an LLM to write it f
   the text view at any time. Every editor state is a document, every edit can be
   undone, and saving never rewrites a token you typed. A language server gives
   any editor diagnostics, completion and navigation (`donder lsp`).
-- **Play it live.** A rig maps buttons to effects: a key starts a chase, taps a
+- **Play it live.** A console maps buttons to effects: a key starts a chase, taps a
   beat a running effect follows, or drives a parameter while held. Only the
-  button presses travel; every device that plays the rig renders the frames
+  button presses travel; every device that plays the console renders the frames
   itself. → [Live input](docs/live_input.md)
 - **Plays on multiple platforms.** Stream live over E1.31 or Art-Net, export an FSEQ
   file and schedule it in FPP next to your existing shows, or upload to an ESP32
@@ -127,7 +127,7 @@ Not yet supported:
 - Code-signed installers
 - Importing xLights models and layouts
 - Non-pixel DMX fixtures such as moving heads
-- Audio input, and live input on a standalone ESP32. Rigs play
+- Audio input, and live input on a standalone ESP32. Consoles play
   from the computer keyboard, MIDI and OSC today; see [live input](docs/live_input.md).
 
 ## License

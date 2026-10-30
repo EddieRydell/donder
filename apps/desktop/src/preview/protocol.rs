@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::persistence::PersistedWindowState;
 use donder_editor::dto::{AudioTransportState, PlaybackSpeed, PreviewAppearance};
-use donder_runtime_types::{RigCommand, RigEvent, SampleTime};
+use donder_runtime_types::{ConsoleCommand, ConsoleEvent, SampleDuration, SampleTime};
 
 pub(crate) const PREVIEW_HOST_ARGUMENT: &str = "--donder-preview-host";
 
@@ -61,14 +61,14 @@ pub(crate) enum PreviewCommand {
         #[serde(skip)]
         instances: Vec<[f32; 4]>,
         #[serde(skip)]
-        /// The encoded show the Preview plays: a sequence's or a rig's.
+        /// The encoded show the Preview plays: a sequence's or a console's.
         show: Option<Vec<u8>>,
     },
-    /// Commands for the rig the content plays, in the order they apply. They
+    /// Commands for the console the content plays, in the order they apply. They
     /// travel as the frame's binary payload.
-    RigEvents {
+    ConsoleEvents {
         #[serde(skip)]
-        events: Vec<RigEvent>,
+        events: Vec<ConsoleEvent>,
     },
     SetClock {
         generation: u32,
@@ -122,7 +122,7 @@ pub(crate) fn write_command(
         PreviewCommand::ReplaceContent {
             instances, show, ..
         } => content_payload(instances, show.as_deref())?,
-        PreviewCommand::RigEvents { events } => rig_events_payload(events),
+        PreviewCommand::ConsoleEvents { events } => console_events_payload(events),
         _ => Vec::new(),
     };
     write_frame(writer, command, &payload)
@@ -138,8 +138,8 @@ pub(crate) fn read_command(
         PreviewCommand::ReplaceContent {
             instances, show, ..
         } => (*instances, *show) = read_content_payload(&payload)?,
-        PreviewCommand::RigEvents { events } => {
-            *events = read_rig_events_payload(&payload)?;
+        PreviewCommand::ConsoleEvents { events } => {
+            *events = read_console_events_payload(&payload)?;
         }
         _ => {}
     }
@@ -253,53 +253,72 @@ fn read_content_payload(payload: &[u8]) -> Result<PreviewContent, String> {
     Ok((instances, show))
 }
 
+/// Start a voice for the duration that follows.
 const START: u8 = 0;
 const STOP: u8 = 1;
 const MARK: u8 = 2;
-const CONTROL: u8 = 3;
-const RIG_EVENT_BYTES: usize = 11;
+const SET: u8 = 3;
+/// Start a voice until it is stopped.
+const HOLD: u8 = 4;
+const CONSOLE_EVENT_BYTES: usize = 11;
 
 /// Each event as its time in ticks, its command kind, the voice, collection or
-/// control index, and the control value (zero for other commands).
-fn rig_events_payload(events: &[RigEvent]) -> Vec<u8> {
-    let mut payload = Vec::with_capacity(events.len() * RIG_EVENT_BYTES);
+/// automation index, and four bytes more: a start's duration in ticks, a set's
+/// value, or zero.
+fn console_events_payload(events: &[ConsoleEvent]) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(events.len() * CONSOLE_EVENT_BYTES);
     for event in events {
-        let (kind, index, value) = match event.command {
-            RigCommand::Start { voice } => (START, voice, 0.0),
-            RigCommand::Stop { voice } => (STOP, voice, 0.0),
-            RigCommand::Mark { collection } => (MARK, collection, 0.0),
-            RigCommand::Control { control, value } => (CONTROL, control, value),
+        let (kind, index, more) = match event.command {
+            ConsoleCommand::Start {
+                voice,
+                duration: Some(duration),
+            } => (START, voice, duration.as_ticks().to_le_bytes()),
+            ConsoleCommand::Start {
+                voice,
+                duration: None,
+            } => (HOLD, voice, [0; 4]),
+            ConsoleCommand::Stop { voice } => (STOP, voice, [0; 4]),
+            ConsoleCommand::Mark { collection } => (MARK, collection, [0; 4]),
+            ConsoleCommand::Set { automation, value } => (SET, automation, value.to_le_bytes()),
         };
         payload.extend_from_slice(&event.time.as_ticks().to_le_bytes());
         payload.push(kind);
         payload.extend_from_slice(&index.to_le_bytes());
-        payload.extend_from_slice(&value.to_le_bytes());
+        payload.extend_from_slice(&more);
     }
     payload
 }
 
-fn read_rig_events_payload(payload: &[u8]) -> Result<Vec<RigEvent>, String> {
-    let invalid = || "Rig event payload is malformed.".to_string();
-    let (events, rest) = payload.as_chunks::<RIG_EVENT_BYTES>();
+fn read_console_events_payload(payload: &[u8]) -> Result<Vec<ConsoleEvent>, String> {
+    let invalid = || "Console event payload is malformed.".to_string();
+    let (events, rest) = payload.as_chunks::<CONSOLE_EVENT_BYTES>();
     if !rest.is_empty() {
         return Err(invalid());
     }
     events
         .iter()
         .map(|event| {
-            let [t0, t1, t2, t3, kind, i0, i1, v0, v1, v2, v3] = *event;
+            let [t0, t1, t2, t3, kind, i0, i1, m0, m1, m2, m3] = *event;
             let index = u16::from_le_bytes([i0, i1]);
+            let more = [m0, m1, m2, m3];
             let command = match kind {
-                START => RigCommand::Start { voice: index },
-                STOP => RigCommand::Stop { voice: index },
-                MARK => RigCommand::Mark { collection: index },
-                CONTROL => RigCommand::Control {
-                    control: index,
-                    value: f32::from_le_bytes([v0, v1, v2, v3]),
+                START => ConsoleCommand::Start {
+                    voice: index,
+                    duration: Some(SampleDuration::from_ticks(u32::from_le_bytes(more))),
+                },
+                HOLD => ConsoleCommand::Start {
+                    voice: index,
+                    duration: None,
+                },
+                STOP => ConsoleCommand::Stop { voice: index },
+                MARK => ConsoleCommand::Mark { collection: index },
+                SET => ConsoleCommand::Set {
+                    automation: index,
+                    value: f32::from_le_bytes(more),
                 },
                 _ => return Err(invalid()),
             };
-            Ok(RigEvent {
+            Ok(ConsoleEvent {
                 time: SampleTime::from_ticks(u32::from_le_bytes([t0, t1, t2, t3])),
                 command,
             })
@@ -312,7 +331,7 @@ mod tests {
     use super::{
         PreviewCommand, PreviewEvent, read_command, read_event, write_command, write_event,
     };
-    use donder_runtime_types::{RigCommand, RigEvent, SampleTime};
+    use donder_runtime_types::{ConsoleCommand, ConsoleEvent, SampleDuration, SampleTime};
 
     #[test]
     fn content_round_trips_through_a_binary_frame() {
@@ -350,43 +369,57 @@ mod tests {
     }
 
     #[test]
-    fn rig_events_and_preview_keys_round_trip() {
+    fn console_events_and_preview_keys_round_trip() {
         let events = vec![
-            RigEvent {
+            ConsoleEvent {
                 time: SampleTime::from_ticks(1_250_000),
-                command: RigCommand::Start { voice: 2 },
+                command: ConsoleCommand::Start {
+                    voice: 2,
+                    duration: Some(SampleDuration::from_ticks(400_000)),
+                },
             },
-            RigEvent {
+            ConsoleEvent {
                 time: SampleTime::from_ticks(1_250_000),
-                command: RigCommand::Control {
-                    control: 1,
+                command: ConsoleCommand::Start {
+                    voice: 3,
+                    duration: None,
+                },
+            },
+            ConsoleEvent {
+                time: SampleTime::from_ticks(1_250_000),
+                command: ConsoleCommand::Set {
+                    automation: 1,
                     value: 0.5,
                 },
             },
-            RigEvent {
+            ConsoleEvent {
                 time: SampleTime::from_ticks(u32::MAX),
-                command: RigCommand::Mark { collection: 0 },
+                command: ConsoleCommand::Mark { collection: 0 },
             },
         ];
         let mut bytes = Vec::new();
         write_command(
             &mut bytes,
-            &PreviewCommand::RigEvents {
+            &PreviewCommand::ConsoleEvents {
                 events: events.clone(),
             },
         )
         .unwrap();
-        write_command(&mut bytes, &PreviewCommand::RigEvents { events: vec![] }).unwrap();
+        write_command(
+            &mut bytes,
+            &PreviewCommand::ConsoleEvents { events: vec![] },
+        )
+        .unwrap();
         let mut reader = bytes.as_slice();
-        let Some(PreviewCommand::RigEvents { events: decoded }) =
+        let Some(PreviewCommand::ConsoleEvents { events: decoded }) =
             read_command(&mut reader).unwrap()
         else {
-            panic!("expected rig events");
+            panic!("expected console events");
         };
         assert_eq!(decoded, events);
         assert!(matches!(
             read_command(&mut reader),
-            Ok(Some(PreviewCommand::RigEvents { events })) if events.is_empty()
+            Ok(Some(PreviewCommand::ConsoleEvents { events })) if events.is_empty()
         ));
 
         let mut bytes = Vec::new();

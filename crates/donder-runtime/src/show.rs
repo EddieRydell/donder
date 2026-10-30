@@ -3,7 +3,7 @@
 //! core [`Show`] and workspace.
 use crate::format;
 use alloc::{boxed::Box, vec, vec::Vec};
-use donder_runtime_types::{RigEvent, SampleDuration, SampleTime, Shared};
+use donder_runtime_types::{ConsoleEvent, SampleDuration, SampleTime, Shared};
 
 use crate::playback::{Playback, SequenceFrame};
 use crate::view::{LoadError, Show};
@@ -44,7 +44,7 @@ impl ShowBytes {
     }
 }
 
-/// A show in memory: a sequence's, or a rig's, whose voices start and
+/// A show in memory: a sequence's, or a console's, whose voices start and
 /// stop on commands rather than at authored times. Authoring, elaboration,
 /// networking and pin timing are external.
 #[derive(Clone)]
@@ -169,9 +169,9 @@ impl ShowPlayback {
         self.playback().frame(time)
     }
 
-    /// Apply a rig command at its time. Commands arrive in time order; one
+    /// Apply a console command at its time. Commands arrive in time order; one
     /// the show does not address is ignored.
-    pub fn apply(&mut self, event: RigEvent) {
+    pub fn apply(&mut self, event: ConsoleEvent) {
         self.playback().apply(event);
     }
 }

@@ -1,5 +1,6 @@
 import layouts from <layouts/main.data.donder>;
 import patches from <patches/main.data.donder>;
+import devices from <input_devices/mpk_mini.data.donder>;
 
 Setup main {
   description: none,
@@ -28,7 +29,7 @@ Setup main {
     garage_door_matrix,
     left_magnolia,
   ],
-  input_devices: [],
+  input_devices: [devices.mpk_mini],
 }
 
 Controller nativity {

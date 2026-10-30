@@ -83,7 +83,7 @@ pub struct ShowBuilder<'id> {
     outputs: Vec<Output>,
     /// Live mark collections so far.
     collections: u32,
-    controls: Vec<Vec<format::ControlTarget>>,
+    live_automations: Vec<Vec<format::LiveTarget>>,
     brand: PhantomData<fn(&'id ()) -> &'id ()>,
 }
 
@@ -476,7 +476,7 @@ impl ShowBuilder<'_> {
                 parameter: u32::from(binding.param_index),
                 start: binding.start.as_ticks(),
                 duration: binding.duration.as_ticks(),
-                // A live marks binding's collection is set when the rig names it.
+                // A live marks binding's collection is set when the console names it.
                 curve: if kind == format::BINDING_LIVE_MARKS {
                     NONE
                 } else {
@@ -515,7 +515,7 @@ impl<'id> ShowBuilder<'id> {
             nodes: Vec::new(),
             outputs: Vec::new(),
             collections: 0,
-            controls: Vec::new(),
+            live_automations: Vec::new(),
             brand: PhantomData,
         }
     }
@@ -587,7 +587,7 @@ impl<'id> ShowBuilder<'id> {
     }
 
     /// A clip: `program` on `target` for `duration` from `start`, within
-    /// the show. A sequence's clips carry their authored `id`; a rig's
+    /// the show. A sequence's clips carry their authored `id`; a console's
     /// clips have none.
     pub fn clip(
         &mut self,
@@ -626,14 +626,10 @@ impl<'id> ShowBuilder<'id> {
         ClipHandle::new(clip)
     }
 
-    /// Make `clip` a rig voice that commands start, and that stops on a
-    /// command or `duration` after each start; returns its index in the
-    /// rig's voices.
-    pub fn voice(&mut self, clip: ClipHandle<'id>, duration: Option<SampleDuration>) -> u16 {
-        self.w.voices.push(format::Voice {
-            clip: clip.index as u32,
-            duration: duration.map_or(NONE, SampleDuration::as_ticks),
-        });
+    /// Make `clip` a console voice that commands start and stop; returns its
+    /// index in the console's voices.
+    pub fn voice(&mut self, clip: ClipHandle<'id>) -> u16 {
+        self.w.voices.push(clip.index as u32);
         (self.w.voices.len() - 1) as u16
     }
 
@@ -656,18 +652,38 @@ impl<'id> ShowBuilder<'id> {
         collection as u16
     }
 
-    /// A control that sets the given automation bindings of clips (indices
-    /// in each clip's bindings); returns its index.
-    pub fn control(&mut self, targets: impl IntoIterator<Item = (ClipHandle<'id>, u16)>) -> u16 {
+    /// A live automation that sets the given automation bindings of clips
+    /// (indices in each clip's bindings); returns its index.
+    pub fn live_automation(
+        &mut self,
+        targets: impl IntoIterator<Item = (ClipHandle<'id>, u16)>,
+    ) -> u16 {
         let targets = targets
             .into_iter()
-            .map(|(clip, binding)| format::ControlTarget {
-                clip: clip.index as u32,
+            .map(|(clip, binding)| format::LiveTarget {
+                plan: self.w.clips[clip.index].automation,
                 binding: u32::from(binding),
+                clip: clip.index as u32,
             })
             .collect();
-        self.controls.push(targets);
-        (self.controls.len() - 1) as u16
+        self.live_automations.push(targets);
+        (self.live_automations.len() - 1) as u16
+    }
+
+    /// Make live automation `automation` also set automation binding
+    /// `binding` of operator `operator`.
+    pub fn automate_operator(
+        &mut self,
+        automation: u16,
+        operator: SignalHandle<'id>,
+        binding: u16,
+    ) {
+        let plan = self.nodes[operator.index].automation;
+        self.live_automations[usize::from(automation)].push(format::LiveTarget {
+            plan,
+            binding: u32::from(binding),
+            clip: NONE,
+        });
     }
 
     /// Request each declared input exactly once. References can only point to
@@ -996,9 +1012,9 @@ impl<'id> ShowBuilder<'id> {
             });
             offset += output.bytes as u32;
         }
-        for targets in &self.controls {
-            let targets = push(&mut w.control_targets, targets.iter().copied());
-            w.controls.push(format::Control { targets });
+        for targets in &self.live_automations {
+            let targets = push(&mut w.live_targets, targets.iter().copied());
+            w.live_automations.push(format::LiveAutomation { targets });
         }
         self.clip_index.sort_unstable_by_key(|entry| entry.id);
         w.clip_index = core::mem::take(&mut self.clip_index);

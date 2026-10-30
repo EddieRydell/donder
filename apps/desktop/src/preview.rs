@@ -40,7 +40,7 @@ pub(crate) struct PreviewContentIdentity {
 pub(crate) struct PreviewContent {
     pub(crate) instances: Vec<[f32; 4]>,
     pub(crate) show: Option<Vec<u8>>,
-    /// The performance a rig show plays, whose commands follow it.
+    /// The performance a console show plays, whose commands follow it.
     pub(crate) performance: Option<u32>,
 }
 
@@ -429,7 +429,7 @@ fn run_sync_loop(
             .filter(|events| !events.is_empty())
         {
             performance_events += events.len();
-            if send(&writer, &PreviewCommand::RigEvents { events }).is_err() {
+            if send(&writer, &PreviewCommand::ConsoleEvents { events }).is_err() {
                 active.store(false, Ordering::Release);
                 break;
             }

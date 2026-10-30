@@ -49,7 +49,7 @@ binds values and automation (`Invocation`), `Invocation::instance` places it
 `donder_elaboration::prepare(project, sequence_id, retain)` (or
 `prepare_cached` with a `PreparationCache`) in
 `crates/donder-elaboration/src/lib.rs` returns a `PreparedShow` that owns the
-show's bytes; `arm` prepares a rig the same way (`rig.rs`).
+show's bytes; `arm` prepares a console the same way (`console.rs`).
 
 1. `selection::resolve` resolves the active setup, layout and the hardware
    outputs `retain` keeps.
@@ -85,7 +85,7 @@ borrows the show's bytes (`view.rs`) and its buffer as a private `Playback`.
    channel's maximum.
 3. `patch::evaluate` packs the root's frame into the outputs' bytes
    (`OutputFrame`s).
-4. `Playback::apply` applies a rig's `RigEvent`s between frames.
+4. `Playback::apply` applies a console's `ConsoleEvent`s between frames.
 
 ## Apply a GUI edit
 

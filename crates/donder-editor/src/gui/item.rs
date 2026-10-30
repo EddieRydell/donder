@@ -1,11 +1,14 @@
 //! The generic edits of an open object's parts: renaming, describing,
 //! coloring and deleting the item a `GuiItem` names.
-use donder_model::{MappingAction, MarkCollectionKey, ObjectKind, Rig, Sequence};
+use donder_model::{
+    Action, Console, ConsoleClipId, LengthSource, MarkCollectionKey, ObjectKind, PlayLength,
+    Sequence,
+};
 use donder_project_io::ProjectSession;
 
+use super::console::{automation_mut, clip_mut, console_mark_references_mut, live_marks_mut};
 use super::graph::{Composition, layer_mut, node_mut};
 use super::model::{mark_collection_mut, parse_color, parse_graph_node_id, typed_name};
-use super::rig::{live_marks_mut, mapping_mut, rig_mark_references_mut, switch_mut, voice_mut};
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::GuiItem;
 
@@ -50,13 +53,13 @@ fn edit_item(
             sequence_item(&mut draft, item, verb)?;
             session.project.put(draft).map_err(GuiMutationError::from)
         }
-        (ObjectKind::Rig, item, verb) => {
+        (ObjectKind::Console, item, verb) => {
             let mut draft = session
                 .project
-                .get::<Rig>(resolved.id())
+                .get::<Console>(resolved.id())
                 .cloned()
-                .ok_or_else(|| GuiMutationError::Invalid("Rig was not found.".into()))?;
-            rig_item(&mut draft, item, verb)?;
+                .ok_or_else(|| GuiMutationError::Invalid("Console was not found.".into()))?;
+            console_item(&mut draft, item, verb)?;
             session.project.put(draft).map_err(GuiMutationError::from)
         }
         _ => Err(unsupported()),
@@ -119,23 +122,23 @@ fn sequence_item(
     Ok(())
 }
 
-fn rig_item(rig: &mut Rig, item: GuiItem, verb: Verb) -> Result<(), GuiMutationError> {
+fn console_item(console: &mut Console, item: GuiItem, verb: Verb) -> Result<(), GuiMutationError> {
     let description = super::description::normalized;
     match (item, verb) {
         (GuiItem::MarkCollection { key }, Verb::Rename(name)) => {
-            // Renaming live marks renames every parameter and mapping naming them.
+            // Renaming live marks renames every parameter and action naming them.
             let to = MarkCollectionKey {
                 name: typed_name(&name)?,
             };
-            let from = live_marks_mut(rig, &key)?.key.clone();
-            live_marks_mut(rig, &key)?.key = to.clone();
-            rig_mark_references_mut(rig, |reference| {
+            let from = live_marks_mut(console, &key)?.key.clone();
+            live_marks_mut(console, &key)?.key = to.clone();
+            console_mark_references_mut(console, |reference| {
                 if reference.as_ref() == Some(&from) {
                     *reference = Some(to.clone());
                 }
             });
-            for mapping in &mut rig.mappings {
-                if let MappingAction::Mark(key) = &mut mapping.action
+            for action in console.events.iter_mut().flat_map(|on| &mut on.actions) {
+                if let Action::Mark(key) = action
                     && *key == from
                 {
                     *key = to.clone();
@@ -143,56 +146,76 @@ fn rig_item(rig: &mut Rig, item: GuiItem, verb: Verb) -> Result<(), GuiMutationE
             }
         }
         (GuiItem::MarkCollection { key }, Verb::Describe(text)) => {
-            live_marks_mut(rig, &key)?.description = description(text);
+            live_marks_mut(console, &key)?.description = description(text);
         }
         (GuiItem::MarkCollection { key }, Verb::Color(color)) => {
-            live_marks_mut(rig, &key)?.display_color = parse_color(&color)?;
+            live_marks_mut(console, &key)?.display_color = parse_color(&color)?;
         }
         (GuiItem::MarkCollection { key }, Verb::Delete) => {
-            let removed = live_marks_mut(rig, &key)?.key.clone();
-            rig_mark_references_mut(rig, |reference| {
+            // Parameters keep working with no marks; actions adding marks go.
+            let removed = live_marks_mut(console, &key)?.key.clone();
+            console_mark_references_mut(console, |reference| {
                 if reference.as_ref() == Some(&removed) {
                     *reference = None;
                 }
             });
-            rig.live_marks.retain(|marks| marks.key != removed);
+            for on in &mut console.events {
+                on.actions
+                    .retain(|action| !matches!(action, Action::Mark(key) if *key == removed));
+            }
+            console.live_marks.retain(|marks| marks.key != removed);
         }
-        (GuiItem::Voice { id }, Verb::Rename(name)) => {
-            voice_mut(rig, id)?.name = typed_name(&name)?
+        (GuiItem::Clip { id }, Verb::Rename(name)) => {
+            clip_mut(console, ConsoleClipId(id))?.name = typed_name(&name)?;
         }
-        (GuiItem::Switch { id }, Verb::Rename(name)) => {
-            switch_mut(rig, id)?.name = typed_name(&name)?;
+        (GuiItem::Clip { id }, Verb::Describe(text)) => {
+            clip_mut(console, ConsoleClipId(id))?.description = description(text);
         }
-        (GuiItem::Mapping { id }, Verb::Rename(name)) => {
-            mapping_mut(rig, id)?.name = typed_name(&name)?;
+        (GuiItem::Clip { id }, Verb::Delete) => {
+            // The actions that play the clip and the bindings to it go with it.
+            let id = clip_mut(console, ConsoleClipId(id))?.id;
+            console.clips.retain(|clip| clip.id != id);
+            console.always.retain(|clip| *clip != id);
+            for on in &mut console.events {
+                on.actions.retain(|action| action.clip() != Some(id));
+            }
+            console.forget_clip(id);
         }
-        (GuiItem::Voice { id }, Verb::Describe(text)) => {
-            voice_mut(rig, id)?.description = description(text);
+        (GuiItem::Automation { id }, Verb::Rename(name)) => {
+            automation_mut(console, id)?.name = typed_name(&name)?;
         }
-        (GuiItem::Switch { id }, Verb::Describe(text)) => {
-            switch_mut(rig, id)?.description = description(text);
+        (GuiItem::Automation { id }, Verb::Describe(text)) => {
+            automation_mut(console, id)?.description = description(text);
         }
-        (GuiItem::Mapping { id }, Verb::Describe(text)) => {
-            mapping_mut(rig, id)?.description = description(text);
+        (GuiItem::Automation { id }, Verb::Delete) => {
+            // Its `Set` actions go, and lengths it scaled scale by velocity.
+            let id = automation_mut(console, id)?.id;
+            console.automations.retain(|automation| automation.id != id);
+            for on in &mut console.events {
+                on.actions
+                    .retain(|action| !matches!(action, Action::Set(set) if *set == id));
+                for action in &mut on.actions {
+                    if let Action::Play(play) = action
+                        && let PlayLength::Scaled { by, .. } = &mut play.length
+                        && *by == LengthSource::Automation(id)
+                    {
+                        *by = LengthSource::Velocity;
+                    }
+                }
+            }
         }
-        (GuiItem::Voice { id }, Verb::Delete) => {
-            voice_mut(rig, id)?;
-            rig.voices.retain(|voice| voice.id.0 != id);
+        (GuiItem::Event { id }, Verb::Delete) => {
+            if !console.events.iter().any(|on| on.id.0 == id) {
+                return Err(GuiMutationError::Invalid("Event was not found.".into()));
+            }
+            console.events.retain(|on| on.id.0 != id);
         }
-        (GuiItem::Switch { id }, Verb::Delete) => {
-            switch_mut(rig, id)?;
-            rig.switches.retain(|switch| switch.id.0 != id);
-        }
-        (GuiItem::Mapping { id }, Verb::Delete) => {
-            mapping_mut(rig, id)?;
-            rig.mappings.retain(|mapping| mapping.id.0 != id);
-        }
-        (item, verb) => composition_item(rig, item, verb)?,
+        (item, verb) => composition_item(console, item, verb)?,
     }
     Ok(())
 }
 
-/// The layers and graph nodes sequences and rigs share.
+/// The layers and graph nodes sequences and consoles share.
 fn composition_item(
     composition: &mut impl Composition,
     item: GuiItem,

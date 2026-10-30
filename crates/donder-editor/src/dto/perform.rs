@@ -1,20 +1,20 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// Perform mode: the rigs the project can perform and the performance in progress.
+/// Perform mode: the consoles the project can perform and the performance in progress.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformSnapshot {
     /// Increases with every change, so a client keeps the latest of several.
     pub revision: u32,
-    pub rigs: Vec<PerformRig>,
+    pub consoles: Vec<PerformConsole>,
     pub session: Option<PerformSession>,
 }
 
-/// A rig of the project, by its position in the project's rigs.
+/// A console of the project, by its position in the project's consoles.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct PerformRig {
+pub struct PerformConsole {
     pub index: u32,
     pub name: String,
     /// The document that declares it.
@@ -24,16 +24,15 @@ pub struct PerformRig {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformSession {
-    pub rig: PerformRig,
+    pub console: PerformConsole,
     pub elapsed_seconds: f64,
-    pub switches: Vec<PerformSwitch>,
     /// The buttons held down.
     pub held: Vec<PerformButton>,
-    /// The `KeyboardEvent.code` of every key the rig plays from.
+    /// The `KeyboardEvent.code` of every key the console plays from.
     pub keys: Vec<String>,
-    /// The rig's MIDI connections, when it plays from MIDI.
+    /// The console's MIDI connections, when it plays from MIDI.
     pub midi: Option<PerformMidi>,
-    /// The rig's OSC listeners, when it plays from OSC.
+    /// The console's OSC listeners, when it plays from OSC.
     pub osc: Option<PerformOsc>,
 }
 
@@ -53,13 +52,6 @@ pub struct PerformOsc {
     pub ports: Vec<u16>,
     /// Why a port that is not listening failed to bind.
     pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct PerformSwitch {
-    pub name: String,
-    pub on: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

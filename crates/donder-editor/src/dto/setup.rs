@@ -39,8 +39,8 @@ pub enum GuiDocument {
     InputDevice {
         document: InputDeviceGuiDocument,
     },
-    Rig {
-        document: RigGuiDocument,
+    Console {
+        document: ConsoleGuiDocument,
     },
     Blocked {
         reason: String,
@@ -109,14 +109,14 @@ pub enum GuiEditCommand {
         driver: GuiInputDriver,
         controls: Vec<GuiInputControl>,
     },
-    Rig {
-        edit: RigGuiEdit,
+    Console {
+        edit: ConsoleGuiEdit,
     },
     Project {
         edit: ProjectGuiEdit,
     },
     /// The name becomes a `snake_case` name, which the edit reports; renaming
-    /// marks renames every parameter and mapping that names them.
+    /// marks renames every parameter and action that names them.
     Rename {
         item: GuiItem,
         name: String,
@@ -137,8 +137,8 @@ pub enum GuiEditCommand {
 }
 
 /// A part of the open object a generic edit names: the object itself, or one
-/// of its clips, mark collections (a rig's live marks), layers, graph nodes or
-/// rig behaviors.
+/// of its clips, mark collections (a console's live marks), layers, graph nodes,
+/// or a console's live automations and events.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -147,13 +147,25 @@ pub enum GuiEditCommand {
 )]
 pub enum GuiItem {
     Object,
-    Clip { id: u32 },
-    MarkCollection { key: String },
-    Layer { id: u32 },
-    GraphNode { node_id: String },
-    Voice { id: u32 },
-    Switch { id: u32 },
-    Mapping { id: u32 },
+    Clip {
+        id: u32,
+    },
+    MarkCollection {
+        key: String,
+    },
+    Layer {
+        id: u32,
+    },
+    GraphNode {
+        node_id: String,
+    },
+    Automation {
+        id: u32,
+    },
+    /// Events have no name or description; they are only deleted.
+    Event {
+        id: u32,
+    },
 }
 
 /// How an edit changed the open GUI document, relative to the document at the
@@ -228,7 +240,7 @@ pub struct ProjectGuiDocument {
     pub(crate) object_key: String,
     pub(crate) setup: GuiObjectRef,
     pub(crate) sequences: Vec<GuiObjectRef>,
-    pub rigs: Vec<GuiObjectRef>,
+    pub consoles: Vec<GuiObjectRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -365,7 +377,7 @@ pub enum OwnedObjectSlot {
     Setup,
     Layout,
     Patch,
-    /// Owned controllers, input devices, sequences and rigs are named.
+    /// Owned controllers, input devices, sequences and consoles are named.
     Controller {
         name: String,
     },
@@ -375,7 +387,7 @@ pub enum OwnedObjectSlot {
     Sequence {
         name: String,
     },
-    Rig {
+    Console {
         name: String,
     },
     Fixture {
@@ -399,7 +411,7 @@ impl From<&donder_project_io::OwnedObjectSlot> for OwnedObjectSlot {
             Slot::Sequence(name) => Self::Sequence {
                 name: name.as_str().to_string(),
             },
-            Slot::Rig(name) => Self::Rig {
+            Slot::Console(name) => Self::Console {
                 name: name.as_str().to_string(),
             },
             Slot::Fixture(id) => Self::Fixture { id: *id },
@@ -421,7 +433,7 @@ impl TryFrom<&OwnedObjectSlot> for donder_project_io::OwnedObjectSlot {
             OwnedObjectSlot::Controller { name: text } => Self::Controller(name(text)?),
             OwnedObjectSlot::InputDevice { name: text } => Self::InputDevice(name(text)?),
             OwnedObjectSlot::Sequence { name: text } => Self::Sequence(name(text)?),
-            OwnedObjectSlot::Rig { name: text } => Self::Rig(name(text)?),
+            OwnedObjectSlot::Console { name: text } => Self::Console(name(text)?),
             OwnedObjectSlot::Fixture { id } => Self::Fixture(*id),
         })
     }

@@ -5,7 +5,7 @@ use crate::types::{Identifier, Type};
 use crate::values::{Curve, CurvePoint};
 
 /// How a binding sets its parameter: a normalized curve mapped onto the
-/// parameter's range or options, or a rig's live mark collection.
+/// parameter's range or options, or a console's live mark collection.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AutomationMapping {
     Float {

@@ -253,15 +253,14 @@ pub enum Refers {
     Fixture,
     /// A control of an input device: `device.control`.
     Control,
-    /// A layer of the sequence or rig.
+    /// A layer of the sequence or console.
     Layer,
     Clip,
     /// A graph node, or `output`.
     Node,
     Marks,
-    Switch,
-    /// A rig's voice or mapping.
-    Voice,
+    /// A live automation of the console.
+    Automation,
 }
 
 /// A record's fields, or a variant's, in order.

@@ -1,3 +1,4 @@
+use crate::console::{Console, ConsoleId};
 use crate::controller::{Controller, ControllerId};
 use crate::effect::{
     CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
@@ -9,7 +10,6 @@ use crate::input_device::{InputDevice, InputDeviceId};
 use crate::layout::{Layout, LayoutId};
 use crate::operator::{OperatorDefinition, OperatorDefinitionId};
 use crate::patch::{Patch, PatchId};
-use crate::rig::{Rig, RigId};
 use crate::sequence::{Sequence, SequenceId};
 use crate::setup::{Setup, SetupId};
 use indexmap::IndexMap;
@@ -22,8 +22,8 @@ pub use objects::{ProjectObject, Reusable};
 mod accepted;
 pub(crate) mod references;
 pub use accepted::{
-    AcceptedClipInputs, AcceptedOperatorInputs, AcceptedRig, AcceptedRigClip, AcceptedSequence,
-    RIG_SESSION, RigBinding, RigClipOrigin,
+    AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
+    AcceptedSequence, CONSOLE_SESSION, ConsoleBinding,
 };
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;
@@ -38,7 +38,7 @@ pub struct ProjectData {
     pub controllers: IndexMap<ControllerId, Controller>,
     pub input_devices: IndexMap<InputDeviceId, InputDevice>,
     pub sequences: IndexMap<SequenceId, Sequence>,
-    pub rigs: IndexMap<RigId, Rig>,
+    pub consoles: IndexMap<ConsoleId, Console>,
     pub fixtures: IndexMap<FixtureDefinitionId, FixtureDefinition>,
     pub curves: IndexMap<CurveId, CurveDefinition>,
     pub gradients: IndexMap<GradientId, GradientDefinition>,
@@ -86,7 +86,7 @@ pub struct DonderProject {
     pub(crate) controllers: Shared<IndexMap<ControllerId, Controller>>,
     pub(crate) input_devices: Shared<IndexMap<InputDeviceId, InputDevice>>,
     pub(crate) sequences: Shared<IndexMap<SequenceId, Sequence>>,
-    pub(crate) rigs: Shared<IndexMap<RigId, Rig>>,
+    pub(crate) consoles: Shared<IndexMap<ConsoleId, Console>>,
     pub(crate) fixtures: Shared<IndexMap<FixtureDefinitionId, FixtureDefinition>>,
     curves: Shared<IndexMap<CurveId, CurveDefinition>>,
     gradients: Shared<IndexMap<GradientId, GradientDefinition>>,
@@ -105,7 +105,7 @@ impl PartialEq for DonderProject {
             && self.controllers == other.controllers
             && self.input_devices == other.input_devices
             && self.sequences == other.sequences
-            && self.rigs == other.rigs
+            && self.consoles == other.consoles
             && self.fixtures == other.fixtures
             && self.curves == other.curves
             && self.gradients == other.gradients
@@ -120,7 +120,7 @@ pub struct ProjectRoot {
     pub description: Option<String>,
     pub setup: crate::setup::OwnedSetup,
     pub sequences: Vec<crate::sequence::OwnedSequence>,
-    pub rigs: Vec<crate::rig::OwnedRig>,
+    pub consoles: Vec<crate::console::OwnedConsole>,
 }
 
 /// Why an edit of a project failed: the edit itself was refused, or the edited
@@ -223,7 +223,7 @@ impl DonderProject {
             controllers: data.controllers.into(),
             input_devices: data.input_devices.into(),
             sequences: data.sequences.into(),
-            rigs: data.rigs.into(),
+            consoles: data.consoles.into(),
             fixtures: data.fixtures.into(),
             curves: data.curves.into(),
             gradients: data.gradients.into(),
@@ -277,7 +277,7 @@ impl DonderProject {
             && self.patches.same_allocation(&other.patches)
             && self.controllers.same_allocation(&other.controllers)
             && self.input_devices.same_allocation(&other.input_devices)
-            && self.rigs.same_allocation(&other.rigs)
+            && self.consoles.same_allocation(&other.consoles)
             && self.definitions_same_allocation(other)
             && self.fixtures.same_allocation(&other.fixtures)
     }
