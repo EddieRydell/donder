@@ -46,6 +46,8 @@ pub enum ImportError {
     },
     /// The imported objects do not make a valid project.
     Project(String),
+    /// Pixels must be some positive distance apart.
+    PixelSpacing(f64),
 }
 
 impl fmt::Display for ImportError {
@@ -60,6 +62,10 @@ impl fmt::Display for ImportError {
             Self::Controller { name, message } => {
                 write!(f, "Controller {name} cannot be imported: {message}")
             }
+            Self::PixelSpacing(spacing) => write!(
+                f,
+                "Pixels cannot be {spacing} m apart; give a distance above zero."
+            ),
             Self::Project(message) => {
                 write!(f, "The imported show is not a valid project: {message}")
             }
@@ -344,6 +350,11 @@ pub fn import_show(
     show: &Utf8Path,
     options: &ImportOptions,
 ) -> Result<ImportReport, ImportError> {
+    if let Some(spacing) = options.pixel_spacing
+        && !(spacing.is_finite() && spacing > 0.0)
+    {
+        return Err(ImportError::PixelSpacing(spacing));
+    }
     let root = read(&show.join(LAYOUT_FILE))?;
     let networks_path = show.join(NETWORKS_FILE);
     let networks = if networks_path.exists() {
@@ -412,15 +423,28 @@ pub fn import_show(
         let transform = local.placement.transform();
         let mut nodes: Vec<_> = local.nodes.iter().collect();
         nodes.sort_by_key(|node| (node.string, node.offset));
-        let channels = match start {
-            Ok(start) => Some(
-                nodes
-                    .iter()
-                    .map(|node| {
-                        start + (node.string * local.string_nodes + node.offset) * per_pixel
-                    })
-                    .collect(),
-            ),
+        let channels = start.and_then(|start| {
+            nodes
+                .iter()
+                .map(|node| {
+                    node.string
+                        .checked_mul(local.string_nodes)
+                        .and_then(|before| before.checked_add(node.offset))
+                        .and_then(|index| index.checked_mul(per_pixel))
+                        .and_then(|offset| offset.checked_add(start))
+                        .ok_or_else(|| {
+                            UnroutedReason::OutOfRange(
+                                spec.element
+                                    .attribute("StartChannel")
+                                    .unwrap_or("1")
+                                    .to_string(),
+                            )
+                        })
+                })
+                .collect::<Result<Vec<u32>, _>>()
+        });
+        let channels = match channels {
+            Ok(channels) => Some(channels),
             Err(reason) => {
                 report.unrouted.push(Unrouted {
                     model: spec.name.clone(),

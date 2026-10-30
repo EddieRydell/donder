@@ -25,7 +25,12 @@ pub(super) fn arches(spec: &Spec) -> Result<Local, SkipReason> {
         .to_radians();
     let left_to_right = spec.left_to_right();
 
+    super::nodes(&[arches, arch_nodes, lights])?;
     let arch_lights = f64::from(arch_nodes * lights);
+    // xLights spreads an arch's lights over the gaps between them.
+    if arch_lights < 2.0 {
+        return Err(SkipReason::Unplaceable("each arch has one light"));
+    }
     let middle = (arch_lights - 1.0) / 2.0;
     let start = (PI - arc) / 2.0;
     let first_x = middle * (-FRAC_PI_2 + start).sin() * 2.0 + arch_lights;

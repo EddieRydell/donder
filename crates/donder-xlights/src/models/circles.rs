@@ -27,7 +27,7 @@ pub(super) fn circle(spec: &Spec) -> Result<Local, SkipReason> {
     let string_nodes = spec.count("NodesPerString", "parm2", 1)?;
     let center_percent = spec.count("centerPercent", "parm3", 0)?;
     let inside_out = spec.text("InsideOut") == Some("1");
-    let total = strings * string_nodes;
+    let total = super::nodes(&[strings, string_nodes])?;
     // Older files list the rings innermost first.
     let mut sizes: Vec<i64> = if spec.has("circleSizes") {
         spec.csv("circleSizes")?.into_iter().rev().collect()
@@ -100,7 +100,7 @@ pub(super) fn circle(spec: &Spec) -> Result<Local, SkipReason> {
 pub(super) fn wreath(spec: &Spec) -> Result<Local, SkipReason> {
     let strings = spec.count("NumStrings", "parm1", 1)?;
     let string_nodes = spec.count("NodesPerString", "parm2", 50)?;
-    let total = strings * string_nodes;
+    let total = super::nodes(&[strings, string_nodes])?;
     let bottom = spec.bottom_to_top(true);
     let radius = f64::from(total / 2);
     let mut step = 1.0 / f64::from(total.max(1));

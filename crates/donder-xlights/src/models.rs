@@ -147,6 +147,19 @@ impl<'a> Spec<'a> {
     }
 }
 
+/// The most nodes a model may have: as many pixels as a Donder fixture holds.
+const MOST_NODES: u32 = 1_000_000;
+
+/// The product of a model's counts, when it is a number of nodes a fixture
+/// can hold.
+pub(crate) fn nodes(counts: &[u32]) -> Result<u32, SkipReason> {
+    counts
+        .iter()
+        .try_fold(1_u32, |total, &count| total.checked_mul(count))
+        .filter(|total| *total <= MOST_NODES)
+        .ok_or(SkipReason::TooManyPixels)
+}
+
 /// How a node's colors are sent, and in how many channels.
 pub(crate) fn encoding(spec: &Spec) -> Result<PixelEncoding, SkipReason> {
     let text = spec.text("StringType").unwrap_or("RGB Nodes");

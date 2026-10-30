@@ -64,6 +64,9 @@ pub enum SkipReason {
         value: String,
     },
     NoPixels,
+    TooManyPixels,
+    /// A model xLights itself cannot lay out, as this describes it.
+    Unplaceable(&'static str),
     /// Placed by an xLights from before 2019, whose layout positions current
     /// xLights no longer reads.
     OldLayout,
@@ -82,6 +85,17 @@ pub enum UnroutedReason {
     StartChannel(String),
     /// The start channel counts from a model that is not in the layout.
     UnknownModel(String),
+    /// The start channel counts from a model that is not patched, for its
+    /// own reason.
+    Follows {
+        model: String,
+        reason: Box<UnroutedReason>,
+    },
+    /// The start channel counts on from a model whose channel count is
+    /// unknown.
+    UnknownSpan(String),
+    /// The start channel is past the last channel xLights can number.
+    OutOfRange(String),
     /// The start channel counts from itself, through other models.
     ChainLoop,
     UnknownUniverse(String),
@@ -123,6 +137,8 @@ impl fmt::Display for SkipReason {
             Self::Setting(setting) => write!(f, "its {setting} setting is not imported yet"),
             Self::Attribute { name, value } => write!(f, "its {name} is `{value}`"),
             Self::NoPixels => write!(f, "it has no pixels"),
+            Self::TooManyPixels => write!(f, "it has more pixels than a Donder fixture holds"),
+            Self::Unplaceable(what) => write!(f, "{what}, which leaves its pixels no place"),
             Self::OldLayout => write!(
                 f,
                 "it was placed by an xLights from before 2019; move it in a current xLights and save"
@@ -139,8 +155,34 @@ impl fmt::Display for UnroutedReason {
         match self {
             Self::StartChannel(text) => write!(f, "its start channel `{text}` is not understood"),
             Self::UnknownModel(model) => {
-                write!(f, "its start channel follows {model}, which is not patched")
+                write!(
+                    f,
+                    "its start channel follows {model}, which is not a model of the layout"
+                )
             }
+            Self::Follows { model, reason } => {
+                // Through a chain of unpatched models, to the one that starts it.
+                let (mut first, mut cause) = (model, reason.as_ref());
+                while let Self::Follows { model, reason } = cause {
+                    (first, cause) = (model, reason.as_ref());
+                }
+                if first == model {
+                    write!(
+                        f,
+                        "its start channel follows {model}, which is not patched: {cause}"
+                    )
+                } else {
+                    write!(
+                        f,
+                        "its start channel follows {model}, which follows {first}, which is not patched: {cause}"
+                    )
+                }
+            }
+            Self::UnknownSpan(model) => write!(
+                f,
+                "its start channel follows {model}, whose number of channels is unknown"
+            ),
+            Self::OutOfRange(text) => write!(f, "its start channel `{text}` is out of range"),
             Self::ChainLoop => write!(f, "its start channel follows itself"),
             Self::UnknownUniverse(text) => {
                 write!(f, "no controller sends the universe of `{text}`")

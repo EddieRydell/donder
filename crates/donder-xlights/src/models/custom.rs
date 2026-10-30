@@ -60,6 +60,9 @@ pub(super) fn custom(spec: &Spec) -> Result<Local, SkipReason> {
         }
     }
     cells.retain(|node, _| *node > 0);
+    if let Some(&last) = cells.keys().next_back() {
+        super::nodes(&[last])?;
+    }
     let all = || cells.values().flatten();
     let middle = |axis: fn(&(f64, f64, f64)) -> f64| {
         let low = all().map(axis).fold(f64::INFINITY, f64::min);

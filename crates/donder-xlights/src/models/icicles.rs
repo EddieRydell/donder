@@ -11,6 +11,7 @@ use glam::DVec3;
 pub(super) fn icicles(spec: &Spec) -> Result<Local, SkipReason> {
     let strings = spec.count("NumStrings", "parm1", 1)?;
     let string_lights = spec.count("NodesPerString", "parm2", 1)?;
+    super::nodes(&[strings, string_lights])?;
     let mut pattern = spec.csv("DropPattern")?;
     if !spec.has("DropPattern") {
         pattern = vec![3, 4, 5, 4];
