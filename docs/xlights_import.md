@@ -39,10 +39,9 @@ importer does not know refuses the model.
 Only models in xLights' default preview, or in all previews, are placed;
 the coordinates of other previews are their own.
 
-Models on a controller port keep the start channel the show saved, as they
-do when xLights loads a show: xLights' controller auto layout reassigns
-start channels only when loading finds that one has moved, which a show
-xLights saved does not.
+A show xLights saved keeps its start channels, models on controller ports
+included: xLights' controller auto layout reassigns start channels only
+when a model has moved on load, and in a saved show none has.
 
 ## Size
 
@@ -51,6 +50,8 @@ distance between neighbouring pixels in meters, and with it the layout's
 size, even when the layout has a ruler. Without it, a layout with a ruler
 takes its size from the last ruler, as xLights does, and one without takes
 neighbouring pixels to be 7.5 cm apart, the spacing of most pixel strings.
+A ruler in units xLights does not name fails the import unless
+`--pixel-spacing` is set.
 
 ## What is not imported
 
@@ -92,13 +93,14 @@ as xLights reports it: an unknown model, universe or controller, a chain
 that loops, a `>` chain after a model on No Controller, a chain after a
 group, or a chain after a model whose number of channels is unknown.
 
-Controllers that are not created, their outputs still numbered:
+Controllers that are not created still have their outputs numbered:
 
 - DDP, ZCPP, KiNET, OPC, Twinkly and xxx Ethernet controllers, serial
   controllers, xLights' NULL controller and player-only controllers, since
   Donder sends only E1.31 and Art-Net;
 - inactive controllers;
-- controllers whose address is not an IP address, whose E1.31 priority is
+- controllers whose address is not an IP address (or, for E1.31,
+  `MULTICAST`), whose E1.31 priority is
   outside 1 to 200, whose universes are out of range or repeated, whose
   outputs send another protocol, or with an output of no channels.
 

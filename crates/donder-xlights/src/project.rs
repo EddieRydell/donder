@@ -101,6 +101,8 @@ pub(crate) struct ShowModel {
     pub(crate) local: Result<Local, SkipReason>,
     /// Its first absolute channel, from 1, or why it has none.
     pub(crate) start: Result<u32, UnroutedReason>,
+    /// Its start channel as written.
+    pub(crate) start_channel: String,
     pub(crate) encoding: Option<PixelEncoding>,
     pub(crate) dimming: Option<Dimming>,
 }
@@ -235,6 +237,7 @@ pub(crate) fn read_models(root: &Element, networks: &Networks) -> (Vec<ShowModel
             description: model.common.description.clone(),
             local: status.and(model.local),
             start,
+            start_channel: model.common.start_channel.to_string(),
             encoding: model.common.string_type.encoding,
             dimming: model.common.dimming.clone().ok().flatten(),
         })
@@ -328,7 +331,7 @@ fn protocol(
     }
     let kind = controller
         .protocol
-        .ok_or(ControllerSkip::Protocol("unknown"))?;
+        .ok_or_else(|| ControllerSkip::UnknownProtocol(controller.protocol_name.clone()))?;
     if !matches!(kind, OutputType::E131 | OutputType::ArtNet) {
         return Err(ControllerSkip::Protocol(kind.name()));
     }
@@ -558,7 +561,7 @@ pub fn import_show(
                 .iter()
                 .map(|&index| start.checked_add(local.nodes[index].channel))
                 .collect::<Option<Vec<u32>>>()
-                .ok_or(UnroutedReason::OutOfRange(String::new())),
+                .ok_or_else(|| UnroutedReason::OutOfRange(model.start_channel.clone())),
             Err(reason) => Err(reason.clone()),
         };
         let channels = match channels {

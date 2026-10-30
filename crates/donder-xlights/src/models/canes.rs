@@ -120,6 +120,7 @@ fn layout(
             .find(|x| row(*x) == at)
             .map(|x| (cane * per_cane + x) as usize)
     };
+    super::lights(u64::from(strings.nodes), lights as u64)?;
     let string_type = &common.string_type;
     let mut nodes: Vec<Node> = (0..canes)
         .flat_map(|cane| {

@@ -6,6 +6,9 @@ use crate::read::{Name, Reader, Table, Use, strtod};
 use crate::report::SkipReason;
 use glam::{DVec3, Mat4, Vec3};
 
+/// The most points a MultiPoint may have: a light each.
+const MOST_POINTS: usize = 1_000_000;
+
 const MULTI_POINT: Table = &[
     (Name::Exact("NumPoints"), Use::Modeled),
     (Name::Exact("PointData"), Use::Modeled),
@@ -43,6 +46,9 @@ const MULTI_POINT: Table = &[
 /// with at least one point, and `SetDataFromString`.
 fn points(reader: &Reader) -> Result<Vec<Vec3>, SkipReason> {
     let count = reader.as_int("NumPoints", 2).max(1) as usize;
+    if count > MOST_POINTS {
+        return Err(SkipReason::TooManyPixels);
+    }
     let mut values: Vec<&str> = reader
         .as_string("PointData", "0.0, 0.0, 0.0, 0.0, 0.0, 0.0")
         .split(',')
@@ -88,7 +94,7 @@ pub(super) fn multi_point(
 /// points' bounds, then stretched back over them.
 fn layout(reader: &Reader, common: &Common, points: &[Vec3]) -> Result<Local, SkipReason> {
     account(reader, &[], &[MULTI_POINT], super::NO_CHILDREN)?;
-    if reader.as_int("MultiStrings", 1) > 1 {
+    if reader.as_int("MultiStrings", 1) != 1 {
         return Err(SkipReason::Setting("number of strings"));
     }
     // xLights: a right to left MultiPoint counts its channels down from

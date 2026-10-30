@@ -53,9 +53,20 @@ pub(super) fn icicles(
         Ok(strings) => strings,
         Err(reason) => return (Err(reason.clone()), Err(reason)),
     };
+    // A string type whose node holds a whole string has a node a string.
+    let nodes = if common.string_type.single_node {
+        u64::from(strings.count)
+    } else {
+        u64::from(strings.nodes)
+    };
     let span = Ok(Span {
         first: 0,
-        end: u64::from(strings.nodes) * u64::from(common.string_type.channels),
+        end: if nodes == 0 {
+            0
+        } else {
+            (nodes - 1) * u64::from(common.string_type.channels)
+                + u64::from(common.string_type.node_channels)
+        },
     });
     (span, layout(reader, common, &settings, &strings))
 }

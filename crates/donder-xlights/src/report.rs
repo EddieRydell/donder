@@ -110,8 +110,8 @@ pub enum UnroutedReason {
     OutOfRange(String),
     /// The start channel counts from itself, through other models.
     ChainLoop,
-    /// The start channel counts on with `<` from a model xLights resolves
-    /// later, which xLights cannot compute.
+    /// The start channel counts from a model xLights resolves after it,
+    /// so xLights cannot compute it.
     ChainOrder(String),
     /// The model, or the one its start channel follows with `>`, is on
     /// "No Controller".
@@ -125,7 +125,7 @@ pub enum UnroutedReason {
     UnknownController(String),
     /// Some channels are not on any controller output.
     OutsideOutputs,
-    /// Some channels are on a controller whose protocol Donder does not send.
+    /// Some channels are on a controller that is not imported, by name.
     UnsupportedController(String),
     /// A pixel's channels continue from one output into the next.
     SplitPixel,
@@ -143,6 +143,8 @@ pub struct SkippedController {
 pub enum ControllerSkip {
     /// It sends a protocol Donder has no output for, by xLights' name.
     Protocol(&'static str),
+    /// Its protocol is not one xLights sends, as written.
+    UnknownProtocol(String),
     /// A serial controller.
     Serial,
     /// xLights' NULL controller, which sends nothing.
@@ -205,7 +207,7 @@ impl fmt::Display for SkipReason {
             Self::StringType(kind) => {
                 write!(f, "its lights are {kind}, not RGB or RGBW pixels")
             }
-            Self::Setting(setting) => write!(f, "its {setting} is not imported"),
+            Self::Setting(setting) => write!(f, "the importer does not import its {setting}"),
             Self::Attribute { name, value } => write!(f, "its {name} is `{value}`"),
             Self::NoPixels => write!(f, "it has no pixels"),
             Self::TooManyPixels => write!(f, "it has more pixels than a Donder fixture holds"),
@@ -246,7 +248,7 @@ impl fmt::Display for UnroutedReason {
             Self::ChainLoop => write!(f, "its start channel follows itself"),
             Self::ChainOrder(model) => write!(
                 f,
-                "its start channel counts on with `<` from {model}, which xLights resolves later"
+                "its start channel counts from {model}, which xLights resolves after it"
             ),
             Self::NoController(model) => write!(f, "{model} is on No Controller"),
             Self::Duplicate(model) => write!(f, "another model is also named {model}"),
@@ -259,9 +261,10 @@ impl fmt::Display for UnroutedReason {
             }
             Self::UnknownController(name) => write!(f, "there is no controller {name}"),
             Self::OutsideOutputs => write!(f, "some of its channels are on no controller"),
-            Self::UnsupportedController(protocol) => {
-                write!(f, "some of its channels are on a {protocol} controller")
-            }
+            Self::UnsupportedController(controller) => write!(
+                f,
+                "some of its channels are on controller {controller}, which is not imported"
+            ),
             Self::SplitPixel => write!(f, "a pixel's channels run on into the next universe"),
         }
     }
@@ -271,6 +274,9 @@ impl fmt::Display for ControllerSkip {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Protocol(protocol) => write!(f, "Donder has no {protocol} output"),
+            Self::UnknownProtocol(protocol) => {
+                write!(f, "its protocol `{protocol}` is not one xLights sends")
+            }
             Self::Serial => write!(f, "Donder has no serial outputs"),
             Self::Null => write!(f, "it is xLights' NULL controller, which sends nothing"),
             Self::PlayerOnly => write!(f, "it only plays in xLights' player"),

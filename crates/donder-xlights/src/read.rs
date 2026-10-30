@@ -251,11 +251,11 @@ pub(crate) fn strtod(text: &str) -> Option<f64> {
     if matches!(bytes.get(at), Some(b'-' | b'+')) {
         at += 1;
     }
-    let rest = &text[at..];
-    if rest.len() >= 2 && rest[..2].eq_ignore_ascii_case("0x")
-        || rest.len() >= 3
-            && (rest[..3].eq_ignore_ascii_case("inf") || rest[..3].eq_ignore_ascii_case("nan"))
-    {
+    let rest = &bytes[at..];
+    let starts = |prefix: &[u8]| {
+        rest.len() >= prefix.len() && rest[..prefix.len()].eq_ignore_ascii_case(prefix)
+    };
+    if starts(b"0x") || starts(b"inf") || starts(b"nan") {
         return None;
     }
     let digits = |at: &mut usize| {
