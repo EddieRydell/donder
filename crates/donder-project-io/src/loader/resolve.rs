@@ -1264,7 +1264,9 @@ impl DomainResolver<'_> {
                         .operators
                         .get(&definition)
                         .map(|definition| definition.params().to_vec())
-                        .unwrap_or_default();
+                        .unwrap_or_else(|| {
+                            unreachable!("a resolved operator definition is stored")
+                        });
                     let params =
                         self.params(document, definition.into(), &declarations, marks, params)?;
                     (
@@ -1766,7 +1768,7 @@ impl DomainResolver<'_> {
             .effects
             .get(definition)
             .map(|definition| definition.params().to_vec())
-            .unwrap_or_default()
+            .unwrap_or_else(|| unreachable!("a resolved effect definition is stored"))
     }
 
     fn audio(

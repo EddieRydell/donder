@@ -343,7 +343,8 @@ impl Parser<'_> {
             }
             TokenKind::Color => {
                 let text = self.text(token.span).to_string();
-                let color = Color::from_hex(&text).unwrap_or(Color::BLACK);
+                let color = Color::from_hex(&text)
+                    .unwrap_or_else(|| unreachable!("color tokens have six hex digits"));
                 if color.to_hex() != text {
                     let message = format!("write `{}` in lowercase", color.to_hex());
                     self.diagnostics

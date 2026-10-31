@@ -26,7 +26,7 @@ import { DescriptionField } from "../DescriptionField";
 import { activeMarkCollection, defaultMarkColor } from "./marks";
 import { BeatDetectionDialog } from "./BeatDetectionDialog";
 import { MarkSubdivision } from "./MarkSubdivision";
-import { clipIdsOfKind, clipRefs, selectedClipId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
+import { MIN_CLIP_DURATION_SECONDS, clipIdsOfKind, clipRefs, selectedClipId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
@@ -223,7 +223,7 @@ function SelectedClipsInspector({
             clipIds={selectedClipIds}
             field="duration"
             label="Duration"
-            min={0.000000001}
+            min={MIN_CLIP_DURATION_SECONDS}
             value={durationSeconds}
             onCommit={(value) => void applyEdit({ type: "duration", durationSeconds: value })}
           />
@@ -570,13 +570,13 @@ function ClipInspectorPanel({
             <input
               key={`${clip.id}:duration:${clip.durationSeconds}`}
               type="number"
-              min={0.000000001}
+              min={MIN_CLIP_DURATION_SECONDS}
               step="any"
               defaultValue={clip.durationSeconds}
               onBlur={(event) => {
                 const nextDurationSeconds = Number(event.currentTarget.value);
                 if (!Number.isFinite(nextDurationSeconds) || roundToNanosecond(nextDurationSeconds) === clip.durationSeconds) return;
-                void editClip({ type: "duration", durationSeconds: Math.max(0.000000001, roundToNanosecond(nextDurationSeconds)) });
+                void editClip({ type: "duration", durationSeconds: Math.max(MIN_CLIP_DURATION_SECONDS, roundToNanosecond(nextDurationSeconds)) });
               }}
             />
           </label>

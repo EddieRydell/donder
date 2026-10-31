@@ -261,7 +261,8 @@ async fn update_config(
     let _upload = state.upload.lock().await;
     let mut storage = storage::access(state.storage).await;
     let mut config = DeviceConfig::load(&mut *storage)
-        .map_err(|_| "Saved configuration is damaged\n")?
+        .ok()
+        .flatten()
         .unwrap_or_else(network::default_config);
     change(&mut config);
     config

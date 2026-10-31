@@ -98,7 +98,7 @@ impl ControllerSender {
     fn terminate(&mut self) -> Result<(), OutputError> {
         match self {
             Self::E131(sender) => sender.terminate(),
-            Self::ArtNet(sender) => sender.blackout(),
+            Self::ArtNet(_) => Ok(()),
         }
     }
 }

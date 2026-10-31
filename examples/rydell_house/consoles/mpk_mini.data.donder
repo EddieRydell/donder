@@ -5,7 +5,7 @@ import devices from <input_devices/mpk_mini.data.donder>;
 
 Console mpk_mini {
   description: "Play the house from the MPK mini: pads fire hits, keys sweep wipes, knobs shape the look.",
-  frame_rate: 100,
+  frame_rate: 144,
   marks: [LiveMarks { name: beat, description: "Tapped on pad 8.", color: #22c55e }],
   automations: [
     LiveAutomation {

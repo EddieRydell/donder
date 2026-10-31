@@ -1,4 +1,4 @@
-import { markIndexAfterMove } from "./sequenceSelection";
+import { MIN_CLIP_DURATION_SECONDS, markIndexAfterMove } from "./sequenceSelection";
 import { hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
 import { OverlayPortal } from "../../OverlayPortal";
@@ -980,7 +980,7 @@ export function SequenceCanvas({
       commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "addAutomationClip",
         startSeconds: menu.startSeconds,
-        durationSeconds: Math.min(2, Math.max(0.000000001, document.durationSeconds - menu.startSeconds)),
+        durationSeconds: Math.min(2, Math.max(MIN_CLIP_DURATION_SECONDS, document.durationSeconds - menu.startSeconds)),
         rowTarget: targetAtLane(document, menu.laneIndex)
       } })
     );
