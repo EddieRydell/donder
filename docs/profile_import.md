@@ -92,8 +92,9 @@ Any model is refused when it:
   applies inconsistently;
 - has a dimming curve from a file, or one for each color;
 - has a start channel that counts from the model itself;
-- has more lights than a Donder fixture holds, 1,000,000, or settings that
-  would have the importer count more than that of anything;
+- has more than 1,000,000 lights, the most a Donder fixture holds, or
+  settings that would make the importer count past 1,000,000 of anything
+  (points, drops, strings or layer lines);
 - has a setting the importer does not know.
 
 Each type also refuses:
