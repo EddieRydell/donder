@@ -116,10 +116,9 @@ without migrations for now.
 Donder is currently very un user friendly. A lot of the UI is very vibe coded but I'm
 working on tuning it to be more intuitive and less janky. If you have trouble with something
 when creating a sequence or editing a profile, you can always ask an LLM to figure it
-out for you. I've found this works especially well for setting up layouts and fixtures. You can
-also ask an agent to manually import a Vixen profile and they usually do a pretty good job. An xLights
-show's layout, controllers and patch import into a new project with File > Import xLights Show; see
-[xLights import](docs/xlights_import.md).
+out for you. I've found this works especially well for setting up layouts and fixtures. The
+layout, controllers and patch of an xLights or Vixen profile import into a new project with
+File > Import Profile; see [profile import](docs/profile_import.md).
 
 Standalone playback supports classic ESP32 boards with 4 MB flash, including the
 QuinLED Dig-Quad, with up to 1,600 pixels on four outputs per controller. Larger

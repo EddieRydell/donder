@@ -57,14 +57,18 @@ enum Command {
         #[arg(long)]
         target: Vec<String>,
     },
-    /// Put an xLights show's layout, controllers and patch in this new
-    /// project, from the show folder holding `xlights_rgbeffects.xml`.
-    ImportXlights {
-        show: Utf8PathBuf,
+    /// Put a show's layout, controllers and patch in this new project, from
+    /// an xLights show folder or a Vixen profile folder.
+    Import {
+        profile: Utf8PathBuf,
         /// Meters between neighbouring pixels, which sets the layout's size;
-        /// defaults to the layout's ruler, or 7.5 cm without one.
+        /// defaults to an xLights layout's ruler, or else 7.5 cm.
         #[arg(long)]
         pixel_spacing: Option<f64>,
+        /// The Vixen preview to place shapes from, when the profile has
+        /// several enabled.
+        #[arg(long)]
+        preview: Option<String>,
     },
     /// Write the generated effect-language builtin reference.
     Builtins { output: Utf8PathBuf },
@@ -145,15 +149,19 @@ pub fn run(cli: Cli) -> Result<(), String> {
             Ok(())
         }
         Command::Lsp => lsp(),
-        Command::ImportXlights {
-            show,
+        Command::Import {
+            profile,
             pixel_spacing,
+            preview,
         } => {
             let mut session = load(&cli.path)?;
-            let report = donder_xlights::import_show(
+            let report = donder_import::import_profile(
                 &mut session,
-                &show,
-                &donder_xlights::ImportOptions { pixel_spacing },
+                &profile,
+                &donder_import::ImportOptions {
+                    pixel_spacing,
+                    preview,
+                },
             )
             .map_err(|error| error.to_string())?;
             donder_project_io::save_project(&session).map_err(|error| error.to_string())?;

@@ -1,0 +1,22 @@
+[package]
+name = "donder-import"
+edition.workspace = true
+version.workspace = true
+description = "Import an xLights show's or Vixen profile's layout, controllers and patch into a Donder project"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+camino.workspace = true
+donder-language.workspace = true
+donder-model.workspace = true
+donder-project-io.workspace = true
+donder-runtime-types.workspace = true
+glam.workspace = true
+quick-xml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

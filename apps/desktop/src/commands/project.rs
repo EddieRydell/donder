@@ -18,12 +18,12 @@ pub(crate) fn choose_new_project_parent_directory() -> Option<String> {
         .and_then(|path| path.to_str().map(ToString::to_string))
 }
 
-/// The folder of an xLights show, holding `xlights_rgbeffects.xml`.
+/// The folder of an xLights or Vixen profile.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn choose_xlights_show_directory() -> Option<String> {
+pub(crate) fn choose_profile_directory() -> Option<String> {
     rfd::FileDialog::new()
-        .set_title("Choose the xLights show folder")
+        .set_title("Choose the xLights show folder or Vixen profile folder")
         .pick_folder()
         .and_then(|path| path.to_str().map(ToString::to_string))
 }

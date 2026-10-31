@@ -51,7 +51,7 @@ impl DesktopState {
             WorkspaceTransition::OpenProject { .. }
                 | WorkspaceTransition::CreateProject { .. }
                 | WorkspaceTransition::CopyProject { .. }
-                | WorkspaceTransition::ImportXLights { .. }
+                | WorkspaceTransition::ImportProfile { .. }
                 | WorkspaceTransition::ReloadProject
         );
         let previous_epoch = snapshot.project_epoch;
@@ -92,16 +92,16 @@ impl DesktopState {
                 &directory_name,
                 matches!(request.decision, Some(TransitionDecision::Discard)),
             ),
-            WorkspaceTransition::ImportXLights {
+            WorkspaceTransition::ImportProfile {
                 parent_path,
                 directory_name,
                 initial_color,
-                show_path,
-            } => self.import_xlights_project_locked(
+                profile_path,
+            } => self.import_profile_project_locked(
                 &parent_path,
                 &directory_name,
                 &initial_color,
-                &show_path,
+                &profile_path,
             ),
             WorkspaceTransition::CloseApplication => {
                 self.device_playback

@@ -10,11 +10,11 @@ import { THEME_COLORS, THEME_METRICS } from "../theme";
 const NEW_PROJECT_EVENT = "donder:new-project";
 
 export function NewProjectDialog() {
-  const [mode, setMode] = useState<"createProject" | "copyProject" | "importXLights">("createProject");
+  const [mode, setMode] = useState<"createProject" | "copyProject" | "importProfile">("createProject");
   const [open, setOpen] = useState(false);
   const [directoryName, setDirectoryName] = useState("");
   const [parentPath, setParentPath] = useState("");
-  const [showPath, setShowPath] = useState("");
+  const [profilePath, setProfilePath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -29,17 +29,17 @@ export function NewProjectDialog() {
       setOpen(true);
       setError(null);
     };
-    const onImportXLights = () => {
-      setMode("importXLights");
+    const onImportProfile = () => {
+      setMode("importProfile");
       setOpen(true);
       setError(null);
     };
     window.addEventListener("donder:copy-project", onCopyProject);
-    window.addEventListener("donder:import-xlights", onImportXLights);
+    window.addEventListener("donder:import-profile", onImportProfile);
     window.addEventListener(NEW_PROJECT_EVENT, onNewProject);
     return () => {
       window.removeEventListener(NEW_PROJECT_EVENT, onNewProject);
-      window.removeEventListener("donder:import-xlights", onImportXLights);
+      window.removeEventListener("donder:import-profile", onImportProfile);
       window.removeEventListener("donder:copy-project", onCopyProject);
     };
   }, []);
@@ -50,7 +50,7 @@ export function NewProjectDialog() {
     return `${parentPath.replace(/[\\/]+$/, "")}/${directoryName}`;
   }, [directoryName, parentPath]);
   const createDisabled = creating || parentPath === "" || directoryName === "" || nameError !== null
-    || (mode === "importXLights" && showPath === "");
+    || (mode === "importProfile" && profilePath === "");
 
   async function browseParent() {
     try {
@@ -64,11 +64,11 @@ export function NewProjectDialog() {
     }
   }
 
-  async function browseShow() {
+  async function browseProfile() {
     try {
-      const selected = await commands.chooseXlightsShowDirectory();
+      const selected = await commands.chooseProfileDirectory();
       if (selected !== null) {
-        setShowPath(selected);
+        setProfilePath(selected);
         setError(null);
       }
     } catch (caught) {
@@ -85,8 +85,8 @@ export function NewProjectDialog() {
     try {
       const applied = await runWorkspaceTransition(mode === "createProject"
         ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor }
-        : mode === "importXLights"
-          ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor, showPath }
+        : mode === "importProfile"
+          ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor, profilePath }
           : { type: mode, parentPath, directoryName });
       if (!applied) {
         setError(useAppStore.getState().error);
@@ -96,7 +96,7 @@ export function NewProjectDialog() {
       setOpen(false);
       setDirectoryName("");
       setParentPath("");
-      setShowPath("");
+      setProfilePath("");
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -109,16 +109,16 @@ export function NewProjectDialog() {
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="dialog-overlay" />
         <AlertDialog.Content className="dialog-content new-project-dialog">
-          <AlertDialog.Title>{mode === "copyProject" ? "Create Standalone Project Copy" : mode === "importXLights" ? "Import xLights Show" : "New Project"}</AlertDialog.Title>
+          <AlertDialog.Title>{mode === "copyProject" ? "Create Standalone Project Copy" : mode === "importProfile" ? "Import Profile" : "New Project"}</AlertDialog.Title>
           {mode === "copyProject" && <AlertDialog.Description>Create and open a separate project containing the current show, imported definitions, and referenced audio. The copied files can be edited independently. Choose a new folder.</AlertDialog.Description>}
-          {mode === "importXLights" && <AlertDialog.Description>Create and open a new project with the layout, controllers and patch of an xLights show. Choose the show folder, which holds xlights_rgbeffects.xml.</AlertDialog.Description>}
+          {mode === "importProfile" && <AlertDialog.Description>Create and open a new project with the layout, controllers and patch of an xLights or Vixen profile. Choose the xLights show folder, which holds xlights_rgbeffects.xml, or the Vixen profile folder, which holds SystemData.</AlertDialog.Description>}
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
-            {mode === "importXLights" && (
+            {mode === "importProfile" && (
               <label>
-                <span>xLights show folder</span>
+                <span>Profile folder</span>
                 <div className="new-project-location-row">
-                  <input readOnly value={showPath} />
-                  <button type="button" disabled={creating} onClick={() => void browseShow()}>
+                  <input readOnly value={profilePath} />
+                  <button type="button" disabled={creating} onClick={() => void browseProfile()}>
                     <FolderOpen size={THEME_METRICS.iconSizeSmall} />
                     Browse...
                   </button>
@@ -157,7 +157,7 @@ export function NewProjectDialog() {
             <div className="dialog-actions">
               <AlertDialog.Cancel disabled={creating}>Cancel</AlertDialog.Cancel>
               <button type="submit" disabled={createDisabled}>
-                {creating ? "Creating..." : mode === "copyProject" ? "Create and open copy" : mode === "importXLights" ? "Import" : "Create"}
+                {creating ? "Creating..." : mode === "copyProject" ? "Create and open copy" : mode === "importProfile" ? "Import" : "Create"}
               </button>
             </div>
           </form>

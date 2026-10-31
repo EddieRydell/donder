@@ -421,32 +421,32 @@ impl DesktopState {
         self.open_created_project_locked(&root)
     }
 
-    /// A new project from the template, then the xLights show in
-    /// `show_path` imported into it. What was left out is written to
-    /// [`XLIGHTS_REPORT_FILE`] in the project.
-    pub(super) fn import_xlights_project_locked(
+    /// A new project from the template, then the profile in
+    /// `profile_path` imported into it. What was left out is written to
+    /// [`IMPORT_REPORT_FILE`] in the project.
+    pub(super) fn import_profile_project_locked(
         &self,
         parent_path: &str,
         directory_name: &str,
         initial_color: &str,
-        show_path: &str,
+        profile_path: &str,
     ) -> AppSnapshot {
         let root = match project_destination(parent_path, directory_name) {
             Ok(root) => root,
             Err(error) => {
-                return self.snapshot_with_error("project.importXLights", parent_path, &error);
+                return self.snapshot_with_error("project.importProfile", parent_path, &error);
             }
         };
         let files = match new_project_files(directory_name, initial_color) {
             Ok(files) => files,
             Err(error) => {
-                return self.snapshot_with_error("project.importXLights", root.as_str(), &error);
+                return self.snapshot_with_error("project.importProfile", root.as_str(), &error);
             }
         };
         let imported = {
             let _filesystem = lock_unpoisoned(&self.filesystem);
             write_new_project_files(&root, &files).and_then(|()| {
-                let imported = import_xlights(&root, Utf8Path::new(show_path));
+                let imported = import_profile(&root, Utf8Path::new(profile_path));
                 if imported.is_err() {
                     let _ = std::fs::remove_dir_all(&root);
                 }
@@ -456,7 +456,7 @@ impl DesktopState {
         let report = match imported {
             Ok(report) => report,
             Err(error) => {
-                return self.snapshot_with_error("project.importXLights", show_path, &error);
+                return self.snapshot_with_error("project.importProfile", profile_path, &error);
             }
         };
         let opened = self.open_created_project_locked(&root);
@@ -469,10 +469,10 @@ impl DesktopState {
             + report.dropped_members.len();
         self.update_snapshot(|snapshot| {
             snapshot.status = if left_out == 0 {
-                format!("Imported {} fixtures from xLights", report.fixtures)
+                format!("Imported {} fixtures", report.fixtures)
             } else {
                 format!(
-                    "Imported {} fixtures from xLights; {left_out} models, controllers and group members left out or not patched are listed in {XLIGHTS_REPORT_FILE}",
+                    "Imported {} fixtures; {left_out} models, controllers and group members left out or not patched are listed in {IMPORT_REPORT_FILE}",
                     report.fixtures
                 )
             };
@@ -646,14 +646,14 @@ fn project_destination(parent_path: &str, directory_name: &str) -> Result<Utf8Pa
     Ok(root)
 }
 
-/// Where an xLights import lists what it left out.
-const XLIGHTS_REPORT_FILE: &str = "xlights-import.txt";
+/// Where an import lists what it left out.
+const IMPORT_REPORT_FILE: &str = "import-report.txt";
 
-/// Import the xLights show at `show` into the new project at `root`.
-fn import_xlights(
+/// Import the profile at `profile` into the new project at `root`.
+fn import_profile(
     root: &Utf8Path,
-    show: &Utf8Path,
-) -> Result<donder_xlights::ImportReport, String> {
+    profile: &Utf8Path,
+) -> Result<donder_import::ImportReport, String> {
     let mut session =
         donder_project_io::check_project(root, &Default::default(), &mut Default::default())
             .into_session()
@@ -661,14 +661,14 @@ fn import_xlights(
                 let lines: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
                 format!("The new project does not load: {}", lines.join("; "))
             })?;
-    let report = donder_xlights::import_show(
+    let report = donder_import::import_profile(
         &mut session,
-        show,
-        &donder_xlights::ImportOptions::default(),
+        profile,
+        &donder_import::ImportOptions::default(),
     )
     .map_err(|error| error.to_string())?;
     donder_project_io::save_project(&session).map_err(|error| error.to_string())?;
-    std::fs::write(root.join(XLIGHTS_REPORT_FILE), report.to_string())
+    std::fs::write(root.join(IMPORT_REPORT_FILE), report.to_string())
         .map_err(|error| error.to_string())?;
     Ok(report)
 }

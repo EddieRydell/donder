@@ -13,7 +13,7 @@ export const FILE_MENU: AppMenuEntry[] = [
   item("file.newProject"),
   item("file.newSequence"),
   item("file.copyProject"),
-  item("file.importXLights"),
+  item("file.importProfile"),
   separator,
   item("file.openProject"),
   item("workbench.quickOpen"),
