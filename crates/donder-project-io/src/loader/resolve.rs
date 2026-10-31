@@ -19,8 +19,8 @@ use donder_model::GraphOperatorNode;
 use donder_model::ObjectId;
 use donder_model::ProjectData;
 use donder_model::{
-    Action, Console, ConsoleClip, ConsoleClipId, ConsoleId, InputEvent, LengthSource,
-    LiveAutomation, LiveAutomationId, LiveMarks, On, OnId, Play, PlayLength,
+    Action, Console, ConsoleClip, ConsoleClipId, ConsoleId, InputEvent, LengthSource, LiveMarks,
+    On, OnId, Play, PlayLength,
 };
 use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
@@ -1582,43 +1582,8 @@ impl DomainResolver<'_> {
             self.link_local(document, clip.0.span, span);
             Ok::<_, LoadError>((id, definition))
         };
-        let mut automation_ids = IndexMap::new();
-        for (automation, index) in console.automations.iter().zip(1..) {
-            automation_ids
-                .entry(name(&automation.name))
-                .or_insert((LiveAutomationId(index), automation.name.0.span));
-        }
-        let automation = |automation: &Name| {
-            let (id, span) = automation_ids
-                .get(&automation.0.value)
-                .copied()
-                .ok_or_else(|| {
-                    self.invalid(
-                        document,
-                        automation.0.span,
-                        format!("no live automation `{}`", automation.as_str()),
-                    )
-                })?;
-            self.link_local(document, automation.0.span, span);
-            Ok::<_, LoadError>(id)
-        };
         let (composition_graph, node_ids) =
             self.graph(document, &layer_ids, &marks, &console.graph)?;
-        let mut automations = Vec::with_capacity(console.automations.len());
-        for (live, index) in console.automations.iter().zip(1..) {
-            let bindings = live
-                .bindings
-                .iter()
-                .map(|binding| self.automation_target(document, &clip_ids, &node_ids, binding))
-                .collect::<Result<_, LoadError>>()?;
-            automations.push(LiveAutomation {
-                id: LiveAutomationId(index),
-                name: name(&live.name),
-                description: live.description.clone(),
-                value: live.value,
-                bindings,
-            });
-        }
         let always = console
             .always
             .iter()
@@ -1670,9 +1635,11 @@ impl DomainResolver<'_> {
                                     } => PlayLength::Scaled {
                                         by: match by {
                                             types::LengthSource::Velocity => LengthSource::Velocity,
-                                            types::LengthSource::Automation {
-                                                automation: source,
-                                            } => LengthSource::Automation(automation(source)?),
+                                            types::LengthSource::Axis { control } => {
+                                                LengthSource::Axis(
+                                                    self.control_ref(document, control)?,
+                                                )
+                                            }
                                         },
                                         shortest: DonderDuration(*shortest),
                                         longest: DonderDuration(*longest),
@@ -1710,7 +1677,9 @@ impl DomainResolver<'_> {
                             }
                             Action::Mark(MarkCollectionKey { name: name(into) })
                         }
-                        types::Action::Set { into } => Action::Set(automation(into)?),
+                        types::Action::Set { param } => Action::Set(
+                            self.automation_target(document, &clip_ids, &node_ids, param)?,
+                        ),
                     })
                 })
                 .collect::<Result<_, LoadError>>()?;
@@ -1739,7 +1708,6 @@ impl DomainResolver<'_> {
                     display_color: collection.color,
                 })
                 .collect(),
-            automations,
             layers,
             clips,
             always,

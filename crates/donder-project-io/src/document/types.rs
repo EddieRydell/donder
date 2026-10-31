@@ -473,7 +473,6 @@ pub(crate) struct Console {
     pub description: Option<String>,
     pub frame_rate: u32,
     pub marks: Vec<LiveMarks>,
-    pub automations: Vec<LiveAutomation>,
     pub layers: Vec<Layer>,
     pub clips: Vec<ConsoleClip>,
     /// Clips that play for the whole session, by name.
@@ -487,15 +486,6 @@ pub(crate) struct LiveMarks {
     pub name: Name,
     pub description: Option<String>,
     pub color: Color,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct LiveAutomation {
-    pub name: Name,
-    pub description: Option<String>,
-    /// The starting value, in `0..1`.
-    pub value: f32,
-    pub bindings: Vec<Binding>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -571,10 +561,8 @@ pub(crate) enum Action {
         #[refers(Marks)]
         into: Name,
     },
-    Set {
-        #[refers(Automation)]
-        into: Name,
-    },
+    /// Writes the event's value into a parameter.
+    Set { param: Binding },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -592,9 +580,9 @@ pub(crate) enum PlayLength {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) enum LengthSource {
     Velocity,
-    Automation {
-        #[refers(Automation)]
-        automation: Name,
+    Axis {
+        #[refers(Control)]
+        control: Reference,
     },
 }
 

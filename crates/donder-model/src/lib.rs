@@ -30,8 +30,8 @@ mod validation;
 
 pub use console::{
     Action, ClipUse, Console, ConsoleAutomationTarget, ConsoleClip, ConsoleClipId, InputEvent,
-    LengthSource, LiveAutomation, LiveAutomationId, LiveMarks, MAX_COPIES, On, OnId, OwnedConsole,
-    Play, PlayLength, PlayedQuantity, PlayedValue, sample_duration,
+    LengthSource, LiveMarks, MAX_COPIES, On, OnId, OwnedConsole, Play, PlayLength, PlayedQuantity,
+    PlayedValue, sample_duration,
 };
 pub use controller::{
     ArtNetConfig, ArtNetMode, Controller, ControllerPort, ControllerPortAddress, ControllerPortId,
@@ -95,8 +95,8 @@ pub use setup::authoring::{
 pub use setup::{OwnedSetup, Setup};
 pub use validation::{
     AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
-    EventProblem, InputProblem, LiveAutomationProblem, Member, MemberPart, NameProblem,
-    OwnershipProblem, ParamProblem, ProblemSite, ProjectValidationError, RegionProblem,
-    RouteProblem, SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
-    automation_target_param, validate_console, validate_project, validate_sequence,
+    EventProblem, InputProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem,
+    ProblemSite, ProjectValidationError, RegionProblem, RouteProblem, SequenceValidationError,
+    SetupProblem, TimingProblem, ValidationProblem, automation_target_param, validate_console,
+    validate_project, validate_sequence,
 };

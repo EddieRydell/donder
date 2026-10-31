@@ -7,7 +7,6 @@ export function InputDeviceEditor({ document }: { document: InputDeviceGuiDocume
   return <main className="setup-editor">
     <header className="object-overview-header"><div><span className="object-overview-eyebrow">{document.path}</span><h2>{document.device.name}</h2></div></header>
     <section className="setup-section"><InputDeviceForm
-      key={JSON.stringify([document.device.driver, document.device.controls])}
       device={document.device}
       keyCodes={document.keyCodes}
       limits={document.inputLimits}

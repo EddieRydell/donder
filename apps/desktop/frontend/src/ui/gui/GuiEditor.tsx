@@ -93,9 +93,6 @@ function ResourceEditor({
   if (gui.type === "inputDevice") {
     return <InputDeviceEditor document={gui.document} />;
   }
-  if (gui.type === "console") {
-    return <ConsoleEditor document={gui.document} />;
-  }
 
 
   if (gui.type === "fixture" || gui.type === "layout") return <CompositionEditor gui={gui} />;
@@ -193,6 +190,7 @@ function GuiEditorInner({
           setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
         />
       )}
+      {gui.type === "console" && <ConsoleEditor document={gui.document} selected={selected} setSelected={setSelected} />}
       <div className={`gui-inspector-resize-shell ${workspaceLayout.inspectorCollapsed ? "collapsed" : ""}`}>
         <WorkspaceResizeHandle
           ariaLabel="Resize inspector"

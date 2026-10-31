@@ -44,6 +44,10 @@ export type GuiFocus =
   | { type: "graphEdge"; edgeId: string }
   | { type: "automationClip"; id: number }
   | { type: "mark"; collectionKey: string; index: number }
+  /** An action of a console control, by its event and place among that event's actions. */
+  | { type: "consoleAction"; on: number; index: number }
+  /** An effect a console plays for the whole session. */
+  | { type: "consoleEffect"; id: number }
   | null;
 
 export const GUI_CANVAS = {

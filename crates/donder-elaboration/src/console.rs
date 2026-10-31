@@ -1,13 +1,13 @@
 //! Arming a console: its clips prepared once on the active setup, each with
 //! its pool of dormant voices and a live automation per voice for each
-//! parameter actions play, and its operators with the parameters its live
-//! automations set. The host routes input events to the commands that start
+//! parameter actions play, and its clips and operators with the parameters its
+//! `Set` actions write. The host routes input events to the commands that start
 //! and stop them.
 use crate::Retain;
 use crate::sequence::PreparationCache;
 use crate::stage::{self, Parts};
 use donder_model::{
-    ClipUse, ConsoleBinding, ConsoleClipId, ConsoleId, DonderProject, LiveAutomationId,
+    ClipUse, ConsoleAutomationTarget, ConsoleBinding, ConsoleClipId, ConsoleId, DonderProject,
     MarkCollectionKey,
 };
 use donder_runtime::{ClipHandle, PreparedShow, ShowBuilder, SignalHandle};
@@ -16,7 +16,7 @@ use donder_runtime_types::{
 };
 use indexmap::IndexMap;
 
-/// Automation bindings a live automation sets: a clip, and its binding.
+/// Automation bindings one live automation sets: a clip, and its binding.
 type Bindings<'a> = Vec<(ClipHandle<'a>, u16)>;
 
 /// A console ready to perform: its playback data and what its actions
@@ -25,8 +25,8 @@ pub struct ArmedConsole {
     pub prepared: PreparedShow,
     /// Each clip's voices and played parameters.
     pub clips: IndexMap<ConsoleClipId, ArmedClip>,
-    /// Each live automation.
-    pub automations: IndexMap<LiveAutomationId, u16>,
+    /// The live automation of each parameter `Set` actions write.
+    pub automations: IndexMap<ConsoleAutomationTarget, u16>,
     /// Each live mark collection.
     pub collections: IndexMap<MarkCollectionKey, u16>,
 }
@@ -80,10 +80,11 @@ pub fn arm(
         compact,
         cache,
         |clips| {
-            // Each live mark collection's and live automation's bindings, in the
+            // Each live mark collection's and set parameter's bindings, in the
             // console's order.
+            let set = console.set_targets();
             let mut collections: Vec<Bindings<'_>> = vec![Vec::new(); console.live_marks.len()];
-            let mut automations: Vec<Bindings<'_>> = vec![Vec::new(); console.automations.len()];
+            let mut automations: Vec<Bindings<'_>> = vec![Vec::new(); set.len()];
             // Each clip's played bindings, by voice, then parameter.
             let mut played: Vec<(ConsoleClipId, Vec<Vec<Bindings<'_>>>)> = Vec::new();
             for clip in accepted.clips() {
@@ -134,7 +135,7 @@ pub fn arm(
                     for index in 0..lowered.len() {
                         let binding = (handle, index as u16);
                         match clip.bindings()[source(index)] {
-                            ConsoleBinding::Automation(automation) => {
+                            ConsoleBinding::Set(automation) => {
                                 automations[automation].push(binding);
                             }
                             ConsoleBinding::Played(value) => voice_values[value].push(binding),
@@ -160,13 +161,12 @@ pub fn arm(
             for (marks, targets) in console.live_marks.iter().zip(collections) {
                 armed_collections.insert(marks.key.clone(), builder.live_marks(targets));
             }
-            let live = console
-                .automations
-                .iter()
+            let live = set
+                .into_iter()
                 .zip(automations)
-                .map(|(automation, targets)| {
+                .map(|(target, targets)| {
                     let index = builder.live_automation(targets);
-                    armed_automations.insert(automation.id, index);
+                    armed_automations.insert(target.clone(), index);
                     index
                 })
                 .collect::<Vec<_>>();
@@ -192,8 +192,8 @@ pub fn arm(
     })
 }
 
-/// Bind each built operator's automation bindings that a live automation
-/// sets, found by `curves`, to the live automation's index in `live`.
+/// Bind each built operator's automation bindings that a `Set` writes, found
+/// by `curves`, to the set parameter's live automation in `live`.
 fn automate_operators<'id>(
     builder: &mut ShowBuilder<'id>,
     automated: &[(SignalHandle<'id>, BoundProgram)],

@@ -167,21 +167,6 @@ pub(super) fn site_span(
                 let clip = nth(&console.clips, id.0)?;
                 with_param(&clip.name, &clip.params)
             }
-            Member::LiveAutomation(id) => {
-                let automation = nth(&console.automations, id.0)?;
-                match part {
-                    Some(MemberPart::Param(name)) => automation
-                        .bindings
-                        .iter()
-                        .map(|binding| match binding {
-                            types::Binding::ClipParam { param, .. }
-                            | types::Binding::NodeParam { param, .. } => param,
-                        })
-                        .find(|param| &param.0.value == name)
-                        .map(name_span),
-                    _ => Some(name_span(&automation.name)),
-                }
-            }
             Member::Event(id) => {
                 let on = nth(&console.events, id.0)?;
                 let control = on.event.control().span;

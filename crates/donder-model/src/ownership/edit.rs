@@ -761,7 +761,6 @@ pub fn add_console(
                 frame_rate,
                 live_marks: Vec::new(),
                 layers,
-                automations: Vec::new(),
                 clips: Vec::new(),
                 always: Vec::new(),
                 events: Vec::new(),

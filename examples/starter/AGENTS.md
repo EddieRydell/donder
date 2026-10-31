@@ -28,10 +28,9 @@ layers over time, automates their parameters, and combines layers through
 operators into its root node. A console is played live instead: its layers and
 graph are a sequence's, and its events turn button presses and axis moves into
 actions: playing, starting and stopping its clips, adding live marks and
-setting live automations bound to clip and operator node parameters
-(`ClipParam { clip, param }`, `NodeParam { node, param }`, as a sequence's
-automation binds them). Its `always` clips play for
-the whole session.
+setting clip and operator node parameters (`ClipParam { clip, param }`,
+`NodeParam { node, param }`) from an axis's position or a press's velocity. Its
+`always` clips play for the whole session.
 Directories are only organization: any declaration may live in any data
 document, or be written in place inside the object that owns it.
 
@@ -47,7 +46,7 @@ Data documents are strict so that the app and the text always agree:
 - Names are `snake_case` and unique where they are declared (fixtures and groups
   within their layout; layers, clips and mark collections within their
   sequence; controls within their input device; layers and graph nodes, clips,
-  live mark collections and live automations within their console). Types and variants are `PascalCase`: `Clip { ... }`, `WholeTarget`.
+  live mark collections within their console). Types and variants are `PascalCase`: `Clip { ... }`, `WholeTarget`.
 - Literals have one spelling: floats always have a `.` (`1.0`, never `1`),
   durations end in `s` (`2.5s`), distances in `m` (`0.35m`), colors are
   lowercase (`#ff8800`).
@@ -83,8 +82,8 @@ marks parameters name the console's live mark collections. Each clip is played
 either by `Play` actions (stacking up to `copies` at once) or by `Start`,
 `Toggle` and `always` (one copy until stopped), not both; `Stop` stops either.
 A `Move` of an axis only runs `Set`, and played `values` belong on `Press`
-events. A parameter is bound by at most one live automation, and a clip
-parameter a live automation binds is not also played.
+events. A parameter a `Set` writes holds its own value until the first `Set`, one
+control sets it, and a clip parameter a `Set` writes is not also played.
 `consoles/jam.data.donder` is a working console to start from.
 
 ## Writing effects and operators

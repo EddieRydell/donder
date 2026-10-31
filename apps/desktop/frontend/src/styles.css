@@ -4175,6 +4175,178 @@ fieldset.sequence-layer-row {
   width: 100%;
 }
 .setup-authoring-form .controller-port-row { flex-basis: 100%; flex-wrap: wrap; }
+
+/* Input device editor: controls as a grid of bordered cells. Borders belong to
+   .control-cell alone; the controls inside are borderless, square and fill it. */
+.setup-editor .input-device-form :is(select, input, textarea, button) { border-radius: var(--donder-radius-zero); }
+.setup-section:has(> .input-device-form) { border-radius: var(--donder-radius-zero); }
+.input-device-form fieldset { gap: var(--donder-space-9); }
+/* One grid for the header and every row, so their columns line up. A row only
+   groups its cells for dragging; it has no box of its own. */
+.control-grid {
+  display: grid;
+  flex-basis: 100%;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 var(--donder-border-width) var(--donder-border-width) 0;
+}
+.control-grid.keyboard { grid-template-columns: 24px minmax(80px, 1fr) minmax(100px, 1fr) minmax(60px, 1fr) 28px; }
+.control-grid.midi { grid-template-columns: 24px minmax(80px, 1.2fr) 72px minmax(280px, 2fr) 64px minmax(60px, 1fr) 28px; }
+.control-grid.osc { grid-template-columns: 24px minmax(80px, 1fr) 72px minmax(280px, 2fr) minmax(60px, 1fr) 28px; }
+.control-grid-row { display: contents; }
+.control-grid-row.drop-above > .control-cell { box-shadow: inset 0 var(--donder-border-width-strong) 0 var(--donder-accent); }
+.control-grid-row.drop-below > .control-cell { box-shadow: inset 0 calc(-1 * var(--donder-border-width-strong)) 0 var(--donder-accent); }
+.control-grid-row.dragging > .control-cell { opacity: 0.4; }
+/* Neighbouring cells overlap by one border width, so every line is drawn once. */
+.control-cell {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: var(--donder-border-width) solid var(--donder-border);
+  border-radius: var(--donder-radius-zero);
+  margin: 0 calc(-1 * var(--donder-border-width)) calc(-1 * var(--donder-border-width)) 0;
+}
+.control-cell.head {
+  align-items: center;
+  padding: var(--donder-space-3) var(--donder-space-5);
+  background: var(--donder-bg-panel);
+  color: var(--donder-text-muted);
+  font-size: var(--donder-font-size-xs);
+  font-weight: var(--donder-font-weight-semibold);
+  text-transform: var(--donder-text-transform-label);
+}
+/* The drag handle and remove button sit outside the bordered cells, and the header has nothing over them. */
+/* A cell holding a select and the numbers that go with it. */
+/* Its parts read as one phrase, each as wide as its content. */
+.setup-editor .control-grid .control-cell.compound :is(select, input) {
+  flex: none;
+  width: auto;
+  min-width: var(--donder-control-height-md);
+  field-sizing: content;
+}
+.control-cell.compound > span { align-self: center; color: var(--donder-text-muted); }
+.control-cell.compound > .learn-hint { padding: 0 var(--donder-space-5); color: var(--donder-text-accent); }
+.control-cell.learning { box-shadow: inset 0 0 0 var(--donder-border-width) var(--donder-accent); }
+.setup-editor .control-grid .control-icon.learn { flex: none; width: var(--donder-control-height-md); margin-left: auto; }
+.setup-editor .control-grid .control-icon.learn[aria-pressed="true"] { color: var(--donder-text-accent); }
+.control-cell.gutter { padding: 0; border-color: transparent; background: transparent; }
+/* Longer than the setup editor's own `.setup-editor input` skin, which sets a
+   border, radius, background and fixed height this grid replaces. */
+.setup-editor .control-grid .control-cell :is(input, select, textarea) {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: var(--donder-control-height-md);
+  padding: var(--donder-space-2) var(--donder-space-5);
+  border: 0;
+  border-radius: var(--donder-radius-zero);
+  background: transparent;
+}
+.control-cell :is(select, input[type="number"]) { appearance: none; }
+.control-cell input[type="number"]::-webkit-inner-spin-button,
+.control-cell input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.control-cell :is(input, select, textarea):focus {
+  outline: none;
+  background: var(--donder-surface-control);
+  box-shadow: inset 0 0 0 var(--donder-border-width) var(--donder-accent);
+}
+.control-cell :is(input, select, textarea)[aria-invalid="true"] { box-shadow: inset 0 0 0 var(--donder-border-width) var(--donder-danger); }
+.control-cell select option { background: var(--donder-bg-panel); }
+.control-cell.name input {
+  font-size: var(--donder-font-size-dialog);
+  font-weight: var(--donder-font-weight-semibold);
+}
+/* A description fills its cell on one line and grows to its text while it is edited. */
+.control-cell .description-field { position: relative; display: block; flex: 1; min-width: 0; min-height: var(--donder-control-height-md); color: inherit; font-size: inherit; }
+.setup-editor .control-grid .control-cell .description-field textarea {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  padding-block: var(--donder-space-4);
+  overflow: hidden;
+  resize: none;
+  white-space: pre;
+}
+.setup-editor .control-grid .control-cell .description-field textarea:focus {
+  position: static;
+  height: auto;
+  field-sizing: content;
+  white-space: pre-wrap;
+}
+/* Beats `.setup-editor button`, which would pad these icon buttons wider than their cells. */
+.setup-editor .control-grid .control-icon {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--donder-radius-zero);
+  background: transparent;
+  color: var(--donder-text-faint);
+}
+.setup-editor .control-grid .control-icon.handle { cursor: grab; }
+.setup-editor .control-grid .control-icon:is(.handle, .remove):hover:not(:disabled) { color: var(--donder-text-soft); filter: none; }
+.setup-editor .control-grid .control-icon.remove:hover:not(:disabled) { color: var(--donder-danger); }
+/* Remove and learn show when the row is hovered or has focus, and learn while it listens. */
+.setup-editor .control-grid .control-grid-row:not(:hover, :focus-within) .control-cell:not(.learning) .control-icon:is(.remove, .learn) { opacity: 0; }
+/* Adds a control; sits beside the driver settings, apart from the column labels. */
+.setup-editor .input-device-form .control-add {
+  display: grid;
+  place-items: center;
+  width: var(--donder-control-height-md);
+  height: var(--donder-control-height-md);
+  margin-left: auto;
+  padding: 0;
+}
+.control-grid-actions { flex-basis: 100%; display: flex; }
+.control-grid-submit { margin-left: auto; }
+
+/* The console's grid: every control, and the actions it runs when pressed, released or moved. */
+.control-grid.console { grid-template-columns: minmax(110px, 1fr) minmax(90px, 0.8fr) minmax(190px, 2fr) minmax(190px, 2fr); }
+.control-cell.group {
+  grid-column: 1 / -1;
+  padding: var(--donder-space-2) var(--donder-space-5);
+  background: var(--donder-bg-panel);
+  color: var(--donder-text-muted);
+  font-size: var(--donder-font-size-sm);
+  font-weight: var(--donder-font-weight-semibold);
+}
+.control-cell:not(.head, .group, .actions) > span { align-self: center; padding: 0 var(--donder-space-5); }
+.control-cell.name > span { font-size: var(--donder-font-size-dialog); font-weight: var(--donder-font-weight-semibold); }
+.control-cell .control-kind { color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); font-weight: normal; }
+.control-cell.actions { flex-wrap: wrap; align-items: center; gap: var(--donder-space-2); padding: var(--donder-space-2); }
+.control-cell.actions.span { grid-column: span 2; }
+.chip-list { display: flex; flex-wrap: wrap; gap: var(--donder-space-3); }
+.action-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: var(--donder-border-width) solid var(--donder-border);
+  background: var(--donder-surface-control);
+}
+.action-chip.selected { border-color: var(--donder-accent); background: var(--donder-surface-accent-selected); }
+.setup-editor .action-chip-body, .setup-editor .action-chip-remove, .setup-editor .action-add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--donder-space-3);
+  border: 0;
+  border-radius: var(--donder-radius-zero);
+  background: transparent;
+}
+.setup-editor .action-chip-body { padding: var(--donder-space-2) var(--donder-space-5); }
+.setup-editor .action-chip-remove { padding: 0 var(--donder-space-3); color: var(--donder-text-faint); }
+.setup-editor .action-chip:not(:hover, :focus-within) .action-chip-remove { opacity: 0; }
+.setup-editor .action-chip-remove:hover { color: var(--donder-danger); filter: none; }
+.action-chip-detail { color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); }
+.setup-editor .action-add {
+  justify-content: center;
+  width: var(--donder-control-height-sm);
+  height: var(--donder-control-height-sm);
+  padding: 0;
+  color: var(--donder-text-accent);
+}
+.setup-editor .action-add:hover { color: var(--donder-text-strong); filter: none; }
 .setup-element-actions {
   grid-column: 1 / -1;
   display: flex;

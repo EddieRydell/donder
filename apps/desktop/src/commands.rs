@@ -18,6 +18,7 @@ use donder_editor::dto::{
 mod app;
 mod audio;
 mod editor;
+mod learn;
 mod output;
 mod perform;
 mod preview;
@@ -28,6 +29,7 @@ mod workspace;
 pub(crate) use app::*;
 pub(crate) use audio::*;
 pub(crate) use editor::*;
+pub(crate) use learn::*;
 pub(crate) use output::*;
 pub(crate) use perform::*;
 pub(crate) use preview::*;
@@ -106,6 +108,8 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         stop_performing,
         perform_key,
         perform_release_all,
+        learn_input,
+        cancel_input_learn,
     ])
 }
 

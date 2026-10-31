@@ -13,8 +13,7 @@ use donder_model::Owned;
 use donder_model::Patch;
 use donder_model::Setup;
 use donder_model::{
-    Action, Console, ConsoleClipId, InputEvent, LengthSource, LiveAutomationId, PlayLength,
-    PlayedValue,
+    Action, Console, ConsoleClipId, InputEvent, LengthSource, PlayLength, PlayedValue,
 };
 use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio};
@@ -505,12 +504,6 @@ impl Encoder<'_> {
                 .map(|clip| name(&clip.name))
                 .ok_or_else(|| self.error("", "a console clip is missing"))
         };
-        let automation_name = |id: &LiveAutomationId| {
-            console
-                .automation(*id)
-                .map(|automation| name(&automation.name))
-                .ok_or_else(|| self.error("", "a live automation is missing"))
-        };
         let values = |values: &[PlayedValue]| {
             values
                 .iter()
@@ -537,29 +530,6 @@ impl Encoder<'_> {
                     color: marks.display_color,
                 })
                 .collect(),
-            automations: console
-                .automations
-                .iter()
-                .map(|automation| {
-                    Ok(types::LiveAutomation {
-                        name: name(&automation.name),
-                        description: automation.description.clone(),
-                        value: automation.value,
-                        bindings: automation
-                            .bindings
-                            .iter()
-                            .map(|binding| {
-                                self.binding(
-                                    &console.layers,
-                                    &console.composition_graph,
-                                    binding,
-                                    |clip| console.clip(*clip).map(|clip| name(&clip.name)),
-                                )
-                            })
-                            .collect::<Result<_, ExportProjectError>>()?,
-                    })
-                })
-                .collect::<Result<_, ExportProjectError>>()?,
             layers: Self::layers(&console.layers),
             clips: console
                 .clips
@@ -617,9 +587,9 @@ impl Encoder<'_> {
                                                     LengthSource::Velocity => {
                                                         types::LengthSource::Velocity
                                                     }
-                                                    LengthSource::Automation(id) => {
-                                                        types::LengthSource::Automation {
-                                                            automation: automation_name(id)?,
+                                                    LengthSource::Axis(control) => {
+                                                        types::LengthSource::Axis {
+                                                            control: self.control(control)?,
                                                         }
                                                     }
                                                 },
@@ -649,8 +619,13 @@ impl Encoder<'_> {
                                     Action::Mark(key) => types::Action::Mark {
                                         into: name(&key.name),
                                     },
-                                    Action::Set(id) => types::Action::Set {
-                                        into: automation_name(id)?,
+                                    Action::Set(target) => types::Action::Set {
+                                        param: self.binding(
+                                            &console.layers,
+                                            &console.composition_graph,
+                                            target,
+                                            |clip| console.clip(*clip).map(|clip| name(&clip.name)),
+                                        )?,
                                     },
                                 })
                             })

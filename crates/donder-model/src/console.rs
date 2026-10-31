@@ -1,6 +1,6 @@
 //! A console: a sequence built live from input devices. Each action edits it
 //! at the time of the event that runs it: `Play` and `Start`..`Stop` place
-//! clips, `Mark` adds a mark and `Set` writes an automation value. Its layers
+//! clips, `Mark` adds a mark and `Set` writes a parameter's value. Its layers
 //! and composition graph are a sequence's.
 use crate::effect::{ClipScope, EffectDefinitionId, ParamValue};
 pub(crate) use crate::identity::ConsoleId;
@@ -22,7 +22,6 @@ pub struct Console {
     pub description: Option<String>,
     pub frame_rate: u32,
     pub live_marks: Vec<LiveMarks>,
-    pub automations: Vec<LiveAutomation>,
     pub layers: Vec<SequenceLayer>,
     pub clips: Vec<ConsoleClip>,
     /// Clips that play for the whole session.
@@ -40,24 +39,10 @@ pub struct LiveMarks {
     pub display_color: Color,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct LiveAutomationId(pub u32);
-
-/// A value in `0..1` that `Set` actions write, mapped onto each bound
-/// parameter's declared range as sequence automation is. It holds `value`
+/// A parameter a `Set` action writes: a clip's, on every copy of the clip, or
+/// an operator node's. The value's `0..1` maps onto the parameter's declared
+/// range as sequence automation does, and the parameter holds its own value
 /// until the first `Set`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LiveAutomation {
-    pub id: LiveAutomationId,
-    pub name: Identifier,
-    pub description: Option<String>,
-    pub value: f32,
-    /// The parameters it sets: a clip's, on every copy of the clip, or an
-    /// operator node's.
-    pub bindings: Vec<ConsoleAutomationTarget>,
-}
-
-/// A parameter a live automation sets, bound as sequence automation binds.
 pub type ConsoleAutomationTarget = AutomationTarget<ConsoleClipId>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -129,9 +114,9 @@ pub enum Action {
     },
     /// Add a mark to a live collection.
     Mark(MarkCollectionKey),
-    /// Write the event's value into a live automation: an axis's position,
-    /// a press's velocity, or 0 for a release.
-    Set(LiveAutomationId),
+    /// Write the event's value into a parameter: an axis's position, a
+    /// press's velocity, or 0 for a release.
+    Set(ConsoleAutomationTarget),
 }
 
 impl Action {
@@ -179,12 +164,12 @@ pub enum PlayLength {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum LengthSource {
     /// The press's velocity; a computer key presses at 1.
     Velocity,
-    /// A live automation's current value.
-    Automation(LiveAutomationId),
+    /// An axis's current position; an axis not yet moved reads 0.
+    Axis(ControlRef),
 }
 
 impl PlayLength {
@@ -247,36 +232,50 @@ impl Console {
         self.clips.iter().find(|clip| clip.id == id)
     }
 
-    pub fn automation(&self, id: LiveAutomationId) -> Option<&LiveAutomation> {
-        self.automations
-            .iter()
-            .find(|automation| automation.id == id)
+    /// The parameters `Set` actions write, each once, in the order the
+    /// actions first name them: the order playback numbers them in.
+    pub fn set_targets(&self) -> Vec<&ConsoleAutomationTarget> {
+        let mut targets: Vec<&ConsoleAutomationTarget> = Vec::new();
+        for action in self.actions() {
+            if let Action::Set(target) = action
+                && !targets.contains(&target)
+            {
+                targets.push(target);
+            }
+        }
+        targets
     }
 
-    /// The live automation that sets `target`; validation allows one.
-    pub fn automation_setting(&self, target: &ConsoleAutomationTarget) -> Option<&LiveAutomation> {
-        self.automations
+    /// The control whose events `Set` `target`; validation allows one.
+    pub fn setter(&self, target: &ConsoleAutomationTarget) -> Option<&ControlRef> {
+        self.events
             .iter()
-            .find(|automation| automation.bindings.contains(target))
+            .find(|on| {
+                on.actions
+                    .iter()
+                    .any(|action| matches!(action, Action::Set(set) if set == target))
+            })
+            .map(|on| on.event.control())
     }
 
-    /// Forget every live automation binding to a deleted clip.
+    /// Forget every `Set` of a deleted clip's parameters.
     pub fn forget_clip(&mut self, clip: ConsoleClipId) {
-        self.remove_bindings(
+        self.forget_sets(
             |target| matches!(target, AutomationTarget::ClipParam { clip_id, .. } if *clip_id == clip),
         );
     }
 
-    /// Forget every live automation binding to a deleted graph node.
+    /// Forget every `Set` of a deleted graph node's parameters.
     pub fn forget_node(&mut self, node: &crate::sequence::CompositionGraphNodeId) {
-        self.remove_bindings(|target| {
+        self.forget_sets(|target| {
             matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if node_id == node)
         });
     }
 
-    fn remove_bindings(&mut self, matches: impl Fn(&ConsoleAutomationTarget) -> bool) {
-        for automation in &mut self.automations {
-            automation.bindings.retain(|target| !matches(target));
+    fn forget_sets(&mut self, matches: impl Fn(&ConsoleAutomationTarget) -> bool) {
+        for on in &mut self.events {
+            on.actions
+                .retain(|action| !matches!(action, Action::Set(target) if matches(target)));
         }
     }
 
@@ -296,9 +295,24 @@ impl Console {
             .map_or(ClipUse::Held, ClipUse::Played)
     }
 
-    /// Every control the console reads, in event order.
+    /// Every control the console reads: those its events answer, in event
+    /// order, then the axes that scale a length.
     pub fn inputs(&self) -> impl Iterator<Item = &ControlRef> {
-        self.events.iter().map(|on| on.event.control())
+        let lengths = self.actions().filter_map(|action| match action {
+            Action::Play(Play {
+                length:
+                    PlayLength::Scaled {
+                        by: LengthSource::Axis(control),
+                        ..
+                    },
+                ..
+            }) => Some(control),
+            _ => None,
+        });
+        self.events
+            .iter()
+            .map(|on| on.event.control())
+            .chain(lengths)
     }
 }
 

@@ -5,8 +5,8 @@ use crate::common;
 use camino::Utf8PathBuf;
 use donder_model::{
     Action, AutomationTarget, CompositionGraphNodeId, ConsoleValidationError, EditError,
-    EventProblem, InputControlKind, InputEvent, InputProblem, LiveAutomationProblem, Member,
-    NameProblem, PlayLength, ProjectValidationError, ValidationProblem,
+    EventProblem, InputControlKind, InputEvent, InputProblem, Member, NameProblem, PlayLength,
+    ProjectValidationError, ValidationProblem,
 };
 use donder_project_io::{check_project, project_source_texts};
 
@@ -39,7 +39,7 @@ fn starter_keyboard_and_jam_console_load_typed() {
     };
     let console = project.get::<donder_model::Console>(*console.id()).unwrap();
     assert_eq!(console.live_marks.len(), 1);
-    assert_eq!(console.automations.len(), 1);
+    assert_eq!(console.set_targets().len(), 1);
     assert_eq!(console.clips.len(), 3);
     assert_eq!(console.always, [console.clips[0].id]);
     assert!(console.inputs().all(|input| input.device == device.id));
@@ -49,7 +49,7 @@ fn starter_keyboard_and_jam_console_load_typed() {
         .map(|on| (&on.event, on.actions.as_slice()))
         .collect::<Vec<_>>();
     let (flash, wash) = (console.clips[1].id, console.clips[2].id);
-    let decay = console.automations[0].id;
+    let decay = console.set_targets()[0].clone();
     assert!(matches!(
         events.as_slice(),
         [
@@ -171,7 +171,7 @@ fn invalid_consoles_are_rejected_at_the_reference() {
             JAM,
             "param: decay_seconds",
             "param: accent",
-            "`accent` cannot be automated",
+            "`accent` cannot be set",
         ),
         (
             JAM,
@@ -181,9 +181,9 @@ fn invalid_consoles_are_rejected_at_the_reference() {
         ),
         (
             JAM,
-            "Set { into: decay }",
-            "Set { into: speed }",
-            "no live automation `speed`",
+            "ClipParam { clip: background",
+            "ClipParam { clip: burst",
+            "no clip `burst`",
         ),
         (
             JAM,
@@ -279,17 +279,18 @@ fn console_edits_are_validated_like_loading() {
     );
     rejected(
         &|console| {
-            let AutomationTarget::ClipParam { param, .. } = &mut console.automations[0].bindings[0]
+            let Action::Set(AutomationTarget::ClipParam { param, .. }) =
+                &mut console.events[4].actions[0]
             else {
-                unreachable!("the starter's automation sets a clip parameter")
+                unreachable!("the starter's boost key sets a clip parameter")
             };
             *param = donder_language::object_name("accent");
         },
         &|problem| {
             matches!(
                 problem,
-                ConsoleValidationError::Automation {
-                    problem: LiveAutomationProblem::NotAutomatable(_),
+                ConsoleValidationError::Event {
+                    problem: EventProblem::NotAutomatable(_),
                     ..
                 }
             )
@@ -297,16 +298,16 @@ fn console_edits_are_validated_like_loading() {
     );
     rejected(
         &|console| {
-            console.automations[0].bindings[0] = AutomationTarget::CompositionNodeParam {
+            console.events[4].actions[0] = Action::Set(AutomationTarget::CompositionNodeParam {
                 node_id: CompositionGraphNodeId(99),
                 param: donder_language::object_name("decay_seconds"),
-            };
+            });
         },
         &|problem| {
             matches!(
                 problem,
-                ConsoleValidationError::Automation {
-                    problem: LiveAutomationProblem::MissingNode,
+                ConsoleValidationError::Event {
+                    problem: EventProblem::MissingNode,
                     ..
                 }
             )

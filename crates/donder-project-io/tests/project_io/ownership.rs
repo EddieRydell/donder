@@ -90,7 +90,6 @@ const CONSOLE: &str = r#"  consoles: [
       description: none,
       frame_rate: 60,
       marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
-      automations: [],
       layers: [],
       clips: [],
       always: [],

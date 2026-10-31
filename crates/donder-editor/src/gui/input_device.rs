@@ -48,7 +48,7 @@ pub(super) fn project_input_device(
     }
 }
 
-fn gui_control(control: &InputControl) -> GuiInputControl {
+pub(super) fn gui_control(control: &InputControl) -> GuiInputControl {
     let (kind, input) = match &control.kind {
         InputControlKind::Button(input) => (
             GuiInputControlKind::Button,

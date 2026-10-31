@@ -118,7 +118,7 @@ does not also report the fields the error swallowed.
 **Every object other objects refer to has a name**: setups, controllers, ports,
 input devices, controls, layouts, fixtures, groups, fixture definitions, fixture
 shapes, patches, sequences, layers, clips, mark collections, graph operator
-nodes, consoles, console clips, live mark collections, live automations, curves
+nodes, consoles, console clips, live mark collections, curves
 and gradients. The name is the object's only identity: references use it, and the
 GUI shows and edits it. Objects nothing refers to (routes, automation clips,
 edges, console events) have no name. No document contains a numeric ID; loading assigns session
@@ -132,7 +132,7 @@ identities in document order.
 | Ports | their controller |
 | Controls | their input device |
 | Layers and graph nodes together; clips; mark collections | their sequence |
-| Layers and graph nodes together; clips; live mark collections; live automations | their console |
+| Layers and graph nodes together; clips; live mark collections | their console |
 
 A layer node is named by its layer and the output node is named `output`, so a
 graph node's name never collides with a layer's. The GUI derives names from what
@@ -143,8 +143,7 @@ converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 
 - a bare name resolves in the enclosing scope: a declaration of the same
   document, a layer, clip, node or mark collection of the same sequence, or a
-  layer, node, clip, live mark collection or live automation of the same
-  console;
+  layer, node, clip or live mark collection of the same console;
 - `alias.name` reaches a top-level declaration of an imported document;
 - `layout.fixture` reaches a fixture or group of a layout, whatever groups list
   it, so changing group membership changes no reference;
@@ -593,7 +592,7 @@ In the editor:
 A console is played live from input devices instead of on the timeline; it
 never plays on top of a sequence. Each action edits it at the time of the event
 that runs it: `Play` and `Start`..`Stop` place clips, `Mark` adds a mark and
-`Set` writes an automation value. See [Live input](live_input.md) for how a
+`Set` writes a parameter's value. See [Live input](live_input.md) for how a
 console plays.
 
 ```text
@@ -601,14 +600,6 @@ Console jam {
   description: "Play the outputs live from the keyboard.",
   frame_rate: 100,
   marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
-  automations: [
-    LiveAutomation {
-      name: decay,
-      description: "Lengthens the background's pulses while D is held.",
-      value: 0.0,
-      bindings: [ClipParam { clip: background, param: decay_seconds }],
-    },
-  ],
   layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
   clips: [
     ConsoleClip {
@@ -618,7 +609,12 @@ Console jam {
       target: elements.outputs_layout.all_outputs,
       scope: WholeTarget,
       effect: effects.MarkPulse,
-      params: { beats: beat, accent: gradients.cool_gradient, pulse_shape: curves.ease_down },
+      params: {
+        beats: beat,
+        accent: gradients.cool_gradient,
+        pulse_shape: curves.ease_down,
+        decay_seconds: 0.01,
+      },
     },
     ConsoleClip {
       name: flash,
@@ -651,8 +647,14 @@ Console jam {
     },
     On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
     On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
-    On { event: Press { control: devices.keyboard.boost }, actions: [Set { into: decay }] },
-    On { event: Release { control: devices.keyboard.boost }, actions: [Set { into: decay }] },
+    On {
+      event: Press { control: devices.keyboard.boost },
+      actions: [Set { param: ClipParam { clip: background, param: decay_seconds } }],
+    },
+    On {
+      event: Release { control: devices.keyboard.boost },
+      actions: [Set { param: ClipParam { clip: background, param: decay_seconds } }],
+    },
   ],
   graph: Graph {
     nodes: [
@@ -664,17 +666,10 @@ Console jam {
 }
 ```
 
-- `Console`: `description`, `frame_rate`, `marks`, `automations`, `layers`,
-  `clips`, `always`, `events`, `graph`.
+- `Console`: `description`, `frame_rate`, `marks`, `layers`, `clips`,
+  `always`, `events`, `graph`.
 - `LiveMarks`: `name`, `description`, `color`. A live mark collection starts
   empty each session and gains a mark each time a `Mark` action runs.
-- `LiveAutomation`: `name`, `description`, `value`, `bindings`. `value` is the
-  starting value, from 0 to 1, held until the first `Set`. Each binding is an
-  `AutomationClip`'s: `ClipParam { clip, param }`, an automatable parameter of
-  a console clip, set on every copy of the clip, or `NodeParam { node, param }`,
-  an automatable parameter of an operator node of the console's graph. The
-  value maps onto the parameter exactly as an automation curve does. Deleting a
-  bound clip or node removes its bindings.
 - `layers` and `graph` are exactly a sequence's `Layer` and `Graph`, with the
   same rules: the first layer is the default, a layer is in at most one layer
   node, there is one output node, and operator inputs on the output path are
@@ -690,15 +685,23 @@ Console jam {
   - `Play { clip, copies, length, values }` plays a copy of `clip` on top of
     those playing, up to `copies` (1 to 16) at once, reusing the oldest.
     `length` is `Fixed { duration }` or `Scaled { by, shortest, longest }`,
-    `by` being `Velocity` or `Automation { automation }`, a value from 0 to 1
-    read when the copy starts and mapped from `shortest` to `longest`.
+    `by` being `Velocity` or `Axis { control }` (a `device.control` axis; one
+    not yet moved reads 0), a value from 0 to 1 read when the copy starts and
+    mapped from `shortest` to `longest`.
   - `Start { clip, values }` plays one copy until stopped; it does nothing
     while the clip plays.
   - `Stop { clip }` stops every copy of the clip.
   - `Toggle { clip, values }` is `Start` while no copy plays, else `Stop`.
   - `Mark { into }` adds a mark to that live mark collection.
-  - `Set { into }` writes the event's value into that live automation: an
-    axis's position, a press's velocity, or 0 for a release.
+  - `Set { param }` writes the event's value into a parameter: an axis's
+    position, a press's velocity, or 0 for a release. `param` is
+    `ClipParam { clip, param }`, an automatable parameter of a console clip, set
+    on every copy of the clip, or `NodeParam { node, param }`, an automatable
+    parameter of an operator node of the console's graph. The value maps onto
+    the parameter exactly as an automation curve does, and the parameter holds
+    its own value until the first `Set`. One control sets a parameter, by any
+    of its events. Deleting a clip or node removes the `Set`s of its
+    parameters.
 
   `values` are `PlayedValue { param, from }`: each press sets that parameter
   of the copy it starts, `from` `Velocity`, `Pitch`, `PitchClass` or `Fifths`,
@@ -728,7 +731,7 @@ Gradient warm_gradient {
 
 The project, setups, controllers, input devices and their controls, layouts, fixtures
 and groups, fixture definitions, patches, sequences, layers, mark collections,
-clips, consoles, live mark collections, live automations, console clips, curves
+clips, consoles, live mark collections, console clips, curves
 and gradients have a `description`. The GUI edits an open object's description in
 the bar above its editor, and an item's with the item: a layout item's in its
 name dialog, a clip's in the clip inspector, a layer's in its graph node, and a
@@ -787,12 +790,11 @@ preparation does not repeat them.
 - A console's frame rate is positive and at most 1,000. Its clips follow the
   clip rules without timing and all target one layout, and `always` names each
   clip at most once. A clip is played either by `Play` actions or by `Start`,
-  `Toggle` and `always`, not both. Actions name existing clips, live mark
-  collections and automations; `copies` is 1 to 16; lengths are positive, fit
-  the playback clock and have `shortest` at most `longest`.
-- A live automation's `value` lies in 0..1, its bindings name automatable
-  parameters of the console's clips and operator nodes, and a parameter is
-  bound at most once; a clip parameter is never also played.
+  `Toggle` and `always`, not both. Actions name existing clips and live mark
+  collections; `Set` names an automatable parameter of a console clip or operator
+  node, which one control sets and no played value also sets; `copies` is 1 to
+  16; lengths are positive, fit the playback clock and have `shortest` at most
+  `longest`, and a length scaled by an axis names an axis.
 - Events read controls of input devices in the project's setup: `Press` and
   `Release` a button, and `Move` an axis, which runs only `Set`. Played values
   are only on `Press`, name automatable parameters of the clip, each at most

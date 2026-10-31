@@ -78,6 +78,15 @@ pub enum GuiInputControlKind {
     Axis,
 }
 
+/// What a device sent while an input was being learned: the kind of control it
+/// suits, and the input it reads. A MIDI input carries the channel it came on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LearnedInput {
+    pub kind: GuiInputControlKind,
+    pub input: GuiControlInput,
+}
+
 /// What a control reads. A keyboard reads keys; MIDI buttons read a range of
 /// notes or a control change, and MIDI axes a control change or pitch bend.
 /// OSC buttons read an address, and OSC axes an address and the range its
@@ -136,7 +145,6 @@ pub struct ConsoleGuiDocument {
     pub perform_index: Option<u32>,
     pub(crate) frame_rate: u32,
     pub(crate) live_marks: Vec<ConsoleLiveMarks>,
-    pub(crate) automations: Vec<ConsoleAutomation>,
     pub layers: Vec<SequenceLayer>,
     pub composition_graph: SequenceCompositionGraph,
     pub clips: Vec<ConsoleClip>,
@@ -163,20 +171,6 @@ pub struct ConsoleLiveMarks {
     pub(crate) color: String,
 }
 
-/// A value in `0..=1` that `Set` actions write, mapped onto each bound
-/// parameter's range.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ConsoleAutomation {
-    pub(crate) id: u32,
-    pub(crate) name: String,
-    pub(crate) description: Option<String>,
-    /// The value it holds until the first `Set`.
-    pub(crate) value: f32,
-    /// The parameters it sets: of console clips or of graph operator nodes.
-    pub(crate) bindings: Vec<SequenceAutomationTarget>,
-}
-
 /// A clip a console plays: a sequence clip without timing.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -190,8 +184,8 @@ pub struct ConsoleClip {
     pub(crate) scope: SequenceClipScope,
     pub(crate) effect: SequenceEffectReference,
     pub(crate) effect_name: String,
-    /// A parameter a live automation sets carries that automation's id as
-    /// its `automation`.
+    /// A console's parameters are always editable: one a control sets starts
+    /// at its own value, so none carries an `automation`.
     pub(crate) params: Vec<SequenceClipParam>,
 }
 
@@ -227,6 +221,8 @@ pub struct ConsoleInputControl {
     pub(crate) name: String,
     /// Whether it plays notes, as values played from a note need.
     pub(crate) notes: bool,
+    /// What the control reads.
+    pub(crate) input: GuiControlInput,
 }
 
 /// What an input event does.
@@ -279,9 +275,10 @@ pub enum ConsoleAction {
     Mark {
         into: String,
     },
-    /// Write the event's value into the live automation `into`.
+    /// Write the event's value into a parameter: an axis's position, a
+    /// press's velocity, or 0 for a release.
     Set {
-        into: u32,
+        target: SequenceAutomationTarget,
     },
 }
 
@@ -303,7 +300,7 @@ pub enum ConsolePlayLength {
     },
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -312,9 +309,8 @@ pub enum ConsolePlayLength {
 pub enum ConsoleLengthSource {
     /// The press's velocity; a computer key presses at 1.
     Velocity,
-    Automation {
-        automation_id: u32,
-    },
+    /// An axis's position; an axis not yet moved reads 0.
+    Axis { control: ConsoleControlRef },
 }
 
 /// A parameter a press sets on the copy it starts.
@@ -367,6 +363,18 @@ pub enum ConsoleClipEdit {
     },
 }
 
+/// How a control plays a new effect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ConsolePlayMode {
+    /// A copy that plays for a second.
+    ForTime,
+    /// One copy from the press to the release.
+    Held,
+    /// Start it, or stop it when it plays.
+    Toggle,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -374,6 +382,43 @@ pub enum ConsoleClipEdit {
     rename_all_fields = "camelCase"
 )]
 pub enum ConsoleGuiEdit {
+    /// A new effect and the actions that play it from a control. A press or
+    /// release plays it for a second or toggles it, and `Held` starts it on the
+    /// press and stops it on the release.
+    AddEffectAction {
+        control: ConsoleControlRef,
+        event: ConsoleEventKind,
+        mode: ConsolePlayMode,
+        initial_color: String,
+        effect: SequenceEffectReference,
+        target: FixtureTarget,
+    },
+    /// A new effect that plays for the whole session.
+    AddAlwaysEffect {
+        initial_color: String,
+        effect: SequenceEffectReference,
+        target: FixtureTarget,
+    },
+    /// An action added to what a control does on an event.
+    AddAction {
+        control: ConsoleControlRef,
+        event: ConsoleEventKind,
+        action: ConsoleAction,
+    },
+    /// Link a parameter to a control, or to none. An axis sets it when moved,
+    /// and a button by the press's velocity and 0 on the release; whatever
+    /// controlled it before lets go.
+    ControlParam {
+        target: SequenceAutomationTarget,
+        control: Option<ConsoleControlRef>,
+    },
+    /// Remove an action. An effect nothing plays or holds then goes with it,
+    /// and so does an event with no actions left. A removed `Set` takes the
+    /// other `Set`s of its parameter with it.
+    RemoveAction {
+        on: u32,
+        index: u32,
+    },
     SetFrameRate {
         frame_rate: u32,
     },
@@ -384,19 +429,6 @@ pub enum ConsoleGuiEdit {
     AddLiveMarks {
         name: String,
         color: String,
-    },
-    /// A new automation at 0 with no bindings; the name becomes a unique
-    /// `snake_case` name.
-    AddAutomation {
-        name: String,
-    },
-    SetAutomationValue {
-        id: u32,
-        value: f32,
-    },
-    SetAutomationBindings {
-        id: u32,
-        bindings: Vec<SequenceAutomationTarget>,
     },
     /// A new clip on the first layer over the whole target, named after its
     /// effect.

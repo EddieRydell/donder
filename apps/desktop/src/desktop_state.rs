@@ -57,6 +57,7 @@ pub(crate) struct DesktopServices {
     sequence_render: Arc<Mutex<crate::rendering::SequenceRenderService>>,
     live_output: Mutex<crate::output::LiveOutputService>,
     perform: Mutex<perform::PerformService>,
+    learn: Mutex<learn::LearnService>,
     device_playback: crate::device::playback::DevicePlaybackService,
     /// Runs while live output drives Donder controllers or a view lists them.
     discovery: Mutex<Option<crate::device::discovery::DeviceDiscovery>>,
@@ -150,6 +151,7 @@ impl DesktopState {
                     sequence_render,
                     live_output: Mutex::new(output),
                     perform: Mutex::new(perform::PerformService::default()),
+                    learn: Mutex::new(learn::LearnService::default()),
                     device_playback: crate::device::playback::DevicePlaybackService::new({
                         let weak = weak.clone();
                         move |error| {
@@ -451,6 +453,7 @@ pub(super) use editor_projection::{descriptor_for_path, generated_source_texts};
 mod device_playback;
 mod filesystem;
 mod gui_editing;
+mod learn;
 pub(crate) use gui_editing::gui_update;
 mod output_test;
 mod perform;

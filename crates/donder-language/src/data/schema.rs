@@ -259,8 +259,6 @@ pub enum Refers {
     /// A graph node, or `output`.
     Node,
     Marks,
-    /// A live automation of the console.
-    Automation,
 }
 
 /// A record's fields, or a variant's, in order.

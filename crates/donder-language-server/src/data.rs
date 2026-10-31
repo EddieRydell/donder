@@ -699,7 +699,6 @@ pub(crate) fn completions(
                 names.extend(local_names(document, "LiveMarks", "name"));
                 names
             }
-            Refers::Automation => local_names(document, "LiveAutomation", "name"),
             Refers::Node => {
                 let mut names = local_names(document, "OperatorNode", "name");
                 names.extend(local_names(document, "LayerNode", "layer"));

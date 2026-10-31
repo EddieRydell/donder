@@ -159,9 +159,6 @@ pub enum GuiItem {
     GraphNode {
         node_id: String,
     },
-    Automation {
-        id: u32,
-    },
     /// Events have no name or description; they are only deleted.
     Event {
         id: u32,

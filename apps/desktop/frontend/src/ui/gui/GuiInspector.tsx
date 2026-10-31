@@ -1,4 +1,5 @@
 import type { AutomationClipChooser, GuiFocus, ReadyGuiDocument, SequenceSelection } from "./shared";
+import { ConsoleInspector } from "./console/ConsoleInspector";
 import { SequenceInspector } from "./sequence/SequenceInspector";
 
 export function GuiInspector({
@@ -43,5 +44,6 @@ export function GuiInspector({
       />
     );
   }
+  if (gui.type === "console") return <ConsoleInspector document={gui.document} selected={selected} setSelected={setSelected} />;
   return null;
 }

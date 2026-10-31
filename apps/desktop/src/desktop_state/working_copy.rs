@@ -475,13 +475,17 @@ impl DesktopState {
             .as_deref()
             .and_then(|path| super::descriptor_for_path(&session, Utf8Path::new(path)));
         self.invalidate_prepared_project();
+        let performed = Arc::clone(&session);
         self.schedule_render_refresh(session);
         self.schedule_working_copy(false);
-        Ok(self.update_snapshot(|snapshot| {
+        self.update_snapshot(|snapshot| {
             snapshot.project_entries = entries;
             snapshot.active_document_descriptor = descriptor;
             snapshot.status = status.into();
-        }))
+        });
+        // A console being performed follows the edit.
+        self.rearm_performance(&performed);
+        Ok(self.snapshot())
     }
 
     pub(crate) fn reconcile_external_files(&self) -> Result<AppSnapshot, String> {

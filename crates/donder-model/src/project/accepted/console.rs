@@ -1,8 +1,8 @@
 //! Playback invocations of a console's clips and operators, admitted with the
-//! project like a sequence's. Each live automation binding, each parameter
-//! actions play on the copies they start, and each marks parameter reading a
-//! live collection is an automation binding on its clip or operator that
-//! playback sets.
+//! project like a sequence's. Each parameter a `Set` action writes, each
+//! parameter actions play on the copies they start, and each marks parameter
+//! reading a live collection is an automation binding on its clip or operator
+//! that playback sets.
 use super::inputs::{invalid, resolve_values};
 use super::parameters::{ClipTiming, MarkOrigin};
 use super::*;
@@ -13,7 +13,7 @@ use crate::validation::{AdmissionProblem, Member, ProjectValidationError, Valida
 use donder_language::compiler::ParamDecl;
 use donder_runtime_types::{
     AutomatedQuantity, AutomationMapping, Curve, CurvePoint, Identifier, PreparedAutomation,
-    SampleDuration, SampleTime, SequenceTiming,
+    SampleDuration, SampleTime, SequenceTiming, Value,
 };
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
@@ -28,7 +28,7 @@ pub(super) struct ConsoleInputs {
     /// In [`Console::clips`] order.
     pub(super) clips: Box<[ConsoleClipInputs]>,
     pub(super) operators: IndexMap<CompositionGraphNodeId, Invocation>,
-    /// The console's live automation that sets each of an operator's
+    /// The console's set parameter that sets each of an operator's
     /// automation bindings, in binding order.
     pub(super) operator_automations: IndexMap<CompositionGraphNodeId, Box<[usize]>>,
 }
@@ -46,8 +46,8 @@ pub(super) struct ConsoleClipInputs {
 /// What sets an automation binding of a console clip.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConsoleBinding {
-    /// The console's `index`th live automation, for every copy of the clip.
-    Automation(usize),
+    /// The console's `index`th set parameter, for every copy of the clip.
+    Set(usize),
     /// The clip's `index`th played parameter, for the copy each action
     /// starts.
     Played(usize),
@@ -103,17 +103,16 @@ fn admit_console(
             &operator.params,
             session(),
         )?;
-        // Each parameter a live automation sets, with its starting value.
+        // Each of its parameters a `Set` writes, starting at its own value.
         let mut automation = Vec::new();
         let mut automations = Vec::new();
-        for (index, live) in console.automations.iter().enumerate() {
-            for binding in &live.bindings {
-                if let AutomationTarget::CompositionNodeParam { node_id, param } = binding
-                    && *node_id == node.id
-                {
-                    automation.push(set_binding(definition.params(), param, live.value)?);
-                    automations.push(index);
-                }
+        for (index, target) in console.set_targets().into_iter().enumerate() {
+            if let AutomationTarget::CompositionNodeParam { node_id, param } = target
+                && *node_id == node.id
+            {
+                let start = starting_position(definition.params(), param, &values);
+                automation.push(set_binding(definition.params(), param, start)?);
+                automations.push(index);
             }
         }
         let compiled = definition.compiled();
@@ -151,16 +150,18 @@ fn admit_clip(
         &clip.param_overrides,
         session(),
     )?;
-    // Each set parameter with its starting value; validation checked that
-    // no parameter is set twice and that each is automatable.
+    // Each set parameter with its starting value, its own; validation
+    // checked that each is automatable and that no control plays it too.
     let mut set = Vec::new();
-    for (index, automation) in console.automations.iter().enumerate() {
-        for binding in &automation.bindings {
-            if let AutomationTarget::ClipParam { clip_id, param } = binding
-                && *clip_id == clip.id
-            {
-                set.push((ConsoleBinding::Automation(index), param, automation.value));
-            }
+    for (index, target) in console.set_targets().into_iter().enumerate() {
+        if let AutomationTarget::ClipParam { clip_id, param } = target
+            && *clip_id == clip.id
+        {
+            set.push((
+                ConsoleBinding::Set(index),
+                param,
+                starting_position(params, param, &values),
+            ));
         }
     }
     let mut played: Vec<Identifier> = Vec::new();
@@ -211,8 +212,36 @@ fn admit_clip(
     })
 }
 
-/// The binding of parameter `name` of `params` that a live automation or a
-/// played value sets, holding `value` until it is set.
+/// Where parameter `name` of `params` starts when a control sets it: its
+/// value's place in the parameter's range, until the control first writes.
+fn starting_position(params: &[ParamDecl], name: &Identifier, values: &[Value]) -> f32 {
+    let index = params
+        .iter()
+        .position(|param| &param.name == name)
+        .unwrap_or_else(|| unreachable!("validation resolves set parameters"));
+    let mapping = params[index]
+        .automation_mapping()
+        .unwrap_or_else(|| unreachable!("validation checks set parameters automate"));
+    match (&mapping, &values[index]) {
+        (AutomationMapping::Float { min, max }, Value::Float(value)) => (value - min) / (max - min),
+        (AutomationMapping::Int { min, max }, Value::Int(value)) => {
+            (value - min) as f32 / (max - min) as f32
+        }
+        (AutomationMapping::Bool, Value::Bool(value)) => f32::from(u8::from(*value)),
+        (AutomationMapping::Enum { values: options }, Value::Enum(option)) => {
+            let place = options.iter().position(|candidate| candidate == option);
+            place.map_or(0.0, |place| {
+                place as f32 / (options.len() - 1).max(1) as f32
+            })
+        }
+        // A curve has no position along its range to start from.
+        (AutomationMapping::Curve { .. }, _) => 0.0,
+        _ => unreachable!("a value has its parameter's type"),
+    }
+}
+
+/// The binding of parameter `name` of `params` that a `Set` or a played
+/// value sets, holding `value` until it is set.
 fn set_binding(
     params: &[ParamDecl],
     name: &Identifier,

@@ -49,7 +49,8 @@ function TypedParamValue({
   curveLibrary,
   gradientLibrary,
   markCollections,
-  automation = null
+  automation = null,
+  automationControl = null
 }: {
   param: SequenceClipParam;
   commitParam: (name: string, value: SequenceParamValue) => Promise<void>;
@@ -57,6 +58,8 @@ function TypedParamValue({
   gradientLibrary: SequenceGradientLibraryItem[];
   markCollections: Pick<SequenceMarkCollection, "key">[];
   automation?: ParamAutomationControls | null;
+  /** Controls that link the parameter to its automation, in place of a sequence's. */
+  automationControl?: ReactNode;
 }) {
   const host = useSequenceEditorHost();
 
@@ -73,7 +76,7 @@ function TypedParamValue({
     );
   }
 
-  const automationActions =
+  const automationActions = automationControl !== null ? automationControl :
     automation === null || !param.supportsAutomation
       ? null
       : automationBindingControl(host,

@@ -1,12 +1,9 @@
 //! The generic edits of an open object's parts: renaming, describing,
 //! coloring and deleting the item a `GuiItem` names.
-use donder_model::{
-    Action, Console, ConsoleClipId, LengthSource, MarkCollectionKey, ObjectKind, PlayLength,
-    Sequence,
-};
+use donder_model::{Action, Console, ConsoleClipId, MarkCollectionKey, ObjectKind, Sequence};
 use donder_project_io::ProjectSession;
 
-use super::console::{automation_mut, clip_mut, console_mark_references_mut, live_marks_mut};
+use super::console::{clip_mut, console_mark_references_mut, delete_clip, live_marks_mut};
 use super::graph::{Composition, layer_mut, node_mut};
 use super::model::{mark_collection_mut, parse_color, parse_graph_node_id, typed_name};
 use super::{GuiMutationError, ResolvedGuiObject};
@@ -174,35 +171,7 @@ fn console_item(console: &mut Console, item: GuiItem, verb: Verb) -> Result<(), 
         (GuiItem::Clip { id }, Verb::Delete) => {
             // The actions that play the clip and the bindings to it go with it.
             let id = clip_mut(console, ConsoleClipId(id))?.id;
-            console.clips.retain(|clip| clip.id != id);
-            console.always.retain(|clip| *clip != id);
-            for on in &mut console.events {
-                on.actions.retain(|action| action.clip() != Some(id));
-            }
-            console.forget_clip(id);
-        }
-        (GuiItem::Automation { id }, Verb::Rename(name)) => {
-            automation_mut(console, id)?.name = typed_name(&name)?;
-        }
-        (GuiItem::Automation { id }, Verb::Describe(text)) => {
-            automation_mut(console, id)?.description = description(text);
-        }
-        (GuiItem::Automation { id }, Verb::Delete) => {
-            // Its `Set` actions go, and lengths it scaled scale by velocity.
-            let id = automation_mut(console, id)?.id;
-            console.automations.retain(|automation| automation.id != id);
-            for on in &mut console.events {
-                on.actions
-                    .retain(|action| !matches!(action, Action::Set(set) if *set == id));
-                for action in &mut on.actions {
-                    if let Action::Play(play) = action
-                        && let PlayLength::Scaled { by, .. } = &mut play.length
-                        && *by == LengthSource::Automation(id)
-                    {
-                        *by = LengthSource::Velocity;
-                    }
-                }
-            }
+            delete_clip(console, id);
         }
         (GuiItem::Event { id }, Verb::Delete) => {
             if !console.events.iter().any(|on| on.id.0 == id) {

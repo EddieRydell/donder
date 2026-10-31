@@ -91,6 +91,16 @@ export const commands = {
 	stopPerforming: () => __TAURI_INVOKE<PerformSnapshot>("stop_performing").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
 	performKey: (code: string, pressed: boolean) => __TAURI_INVOKE<PerformSnapshot>("perform_key", { code, pressed }).then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
 	performReleaseAll: () => __TAURI_INVOKE<PerformSnapshot>("perform_release_all").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
+	/**
+	 *  Wait for the next note, knob or OSC message `driver` sends and return the input it reads;
+	 *  `None` when learning is cancelled or replaced. `token` names this request for
+	 *  `cancel_input_learn`.
+	 */
+	learnInput: (token: number, driver: GuiInputDriver) => typedError<{
+	kind: GuiInputControlKind,
+	input: GuiControlInput,
+} | null, string>(__TAURI_INVOKE("learn_input", { token, driver })),
+	cancelInputLearn: (token: number) => __TAURI_INVOKE<void>("cancel_input_learn", { token }),
 };
 
 /* Types */
@@ -181,22 +191,11 @@ export type ConsoleAction =
 { type: "start"; clipId: number; values: ConsolePlayedValue[] } | { type: "stop"; clipId: number } | { type: "toggle"; clipId: number; values: ConsolePlayedValue[] } | 
 /**  Add a mark to the live mark collection `into`. */
 { type: "mark"; into: string } | 
-/**  Write the event's value into the live automation `into`. */
-{ type: "set"; into: number };
-
 /**
- *  A value in `0..=1` that `Set` actions write, mapped onto each bound
- *  parameter's range.
+ *  Write the event's value into a parameter: an axis's position, a
+ *  press's velocity, or 0 for a release.
  */
-export type ConsoleAutomation = {
-	id: number,
-	name: string,
-	description: string | null,
-	/**  The value it holds until the first `Set`. */
-	value: number,
-	/**  The parameters it sets: of console clips or of graph operator nodes. */
-	bindings: SequenceAutomationTarget[],
-};
+{ type: "set"; target: SequenceAutomationTarget };
 
 /**  A clip a console plays: a sequence clip without timing. */
 export type ConsoleClip = {
@@ -210,8 +209,8 @@ export type ConsoleClip = {
 	effect: SequenceEffectReference,
 	effectName: string,
 	/**
-	 *  A parameter a live automation sets carries that automation's id as
-	 *  its `automation`.
+	 *  A console's parameters are always editable: one a control sets starts
+	 *  at its own value, so none carries an `automation`.
 	 */
 	params: SequenceClipParam[],
 };
@@ -250,7 +249,6 @@ export type ConsoleGuiDocument = {
 	performIndex: number | null,
 	frameRate: number,
 	liveMarks: ConsoleLiveMarks[],
-	automations: ConsoleAutomation[],
 	layers: SequenceLayer[],
 	compositionGraph: SequenceCompositionGraph,
 	clips: ConsoleClip[],
@@ -268,14 +266,31 @@ export type ConsoleGuiDocument = {
 	maxCopies: number,
 };
 
-export type ConsoleGuiEdit = { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
+export type ConsoleGuiEdit = 
+/**
+ *  A new effect and the actions that play it from a control. A press or
+ *  release plays it for a second or toggles it, and `Held` starts it on the
+ *  press and stops it on the release.
+ */
+{ type: "addEffectAction"; control: ConsoleControlRef; event: ConsoleEventKind; mode: ConsolePlayMode; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | 
+/**  A new effect that plays for the whole session. */
+{ type: "addAlwaysEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | 
+/**  An action added to what a control does on an event. */
+{ type: "addAction"; control: ConsoleControlRef; event: ConsoleEventKind; action: ConsoleAction } | 
+/**
+ *  Link a parameter to a control, or to none. An axis sets it when moved,
+ *  and a button by the press's velocity and 0 on the release; whatever
+ *  controlled it before lets go.
+ */
+{ type: "controlParam"; target: SequenceAutomationTarget; control: ConsoleControlRef | null } | 
+/**
+ *  Remove an action. An effect nothing plays or holds then goes with it,
+ *  and so does an event with no actions left. A removed `Set` takes the
+ *  other `Set`s of its parameter with it.
+ */
+{ type: "removeAction"; on: number; index: number } | { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
 /**  The name becomes a unique `snake_case` name. */
 { type: "addLiveMarks"; name: string; color: string } | 
-/**
- *  A new automation at 0 with no bindings; the name becomes a unique
- *  `snake_case` name.
- */
-{ type: "addAutomation"; name: string } | { type: "setAutomationValue"; id: number; value: number } | { type: "setAutomationBindings"; id: number; bindings: SequenceAutomationTarget[] } | 
 /**
  *  A new clip on the first layer over the whole target, named after its
  *  effect.
@@ -302,6 +317,8 @@ export type ConsoleInputControl = {
 	name: string,
 	/**  Whether it plays notes, as values played from a note need. */
 	notes: boolean,
+	/**  What the control reads. */
+	input: GuiControlInput,
 };
 
 export type ConsoleInputDevice = {
@@ -313,7 +330,9 @@ export type ConsoleInputDevice = {
 
 export type ConsoleLengthSource = 
 /**  The press's velocity; a computer key presses at 1. */
-{ type: "velocity" } | { type: "automation"; automationId: number };
+{ type: "velocity" } | 
+/**  An axis's position; an axis not yet moved reads 0. */
+{ type: "axis"; control: ConsoleControlRef };
 
 export type ConsoleLiveMarks = {
 	/**  The collection's name; marks parameters and `Mark` actions refer to it. */
@@ -333,6 +352,15 @@ export type ConsoleOn = {
 export type ConsolePlayLength = { type: "fixed"; durationSeconds: number } | 
 /**  From `shortest_seconds` at 0 to `longest_seconds` at 1 of `by`. */
 { type: "scaled"; by: ConsoleLengthSource; shortestSeconds: number; longestSeconds: number };
+
+/**  How a control plays a new effect. */
+export type ConsolePlayMode = 
+/**  A copy that plays for a second. */
+"forTime" | 
+/**  One copy from the press to the release. */
+"held" | 
+/**  Start it, or stop it when it plays. */
+"toggle";
 
 export type ConsolePlayedQuantity = 
 /**  How hard the note was struck; a computer key or pedal plays at 1. */
@@ -651,7 +679,7 @@ export type GuiInputLimits = {
  *  of its clips, mark collections (a console's live marks), layers, graph nodes,
  *  or a console's live automations and events.
  */
-export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: string } | { type: "automation"; id: number } | 
+export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: string } | 
 /**  Events have no name or description; they are only deleted. */
 { type: "event"; id: number };
 
@@ -783,6 +811,15 @@ export type LayoutGuiEdit =
 { type: "addMember"; id: number; to: number | null; before: number | null } | { type: "removeMember"; id: number; from: number | null } | 
 /**  Delete fixtures and groups everywhere. */
 { type: "removeItems"; ids: number[] } | { type: "duplicateFixture"; id: number } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; storage: FixtureStorage; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[]; root: number[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
+
+/**
+ *  What a device sent while an input was being learned: the kind of control it
+ *  suits, and the input it reads. A MIDI input carries the channel it came on.
+ */
+export type LearnedInput = {
+	kind: GuiInputControlKind,
+	input: GuiControlInput,
+};
 
 export type LiveOutputControllerSnapshot = {
 	id: string,

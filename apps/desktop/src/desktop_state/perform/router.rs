@@ -1,6 +1,6 @@
 //! Routing button presses, struck notes and moved axes to console commands.
 //! The host owns this state: which copies of each clip play and until when,
-//! each live automation's value, and which buttons are held. Devices that
+//! each set parameter's value, each axis's position, and which buttons are held. Devices that
 //! play the console only ever receive the commands.
 
 use donder_elaboration::ArmedConsole;
@@ -51,7 +51,7 @@ enum RoutedAction {
         collection: u16,
     },
     Set {
-        /// By index in the router's automations.
+        /// The parameter, by index in the router's automations.
         automation: usize,
     },
 }
@@ -69,8 +69,8 @@ enum RoutedLength {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum RoutedSource {
     Velocity,
-    /// By index in the router's automations.
-    Automation(usize),
+    /// An axis, by index in the router's inputs.
+    Axis(usize),
 }
 
 /// A parameter a press sets on the copy it starts.
@@ -115,7 +115,7 @@ impl RoutedClip {
     }
 }
 
-/// A live automation and the value it holds now.
+/// A set parameter's live automation, and the value last written to it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct RoutedAutomation {
     index: u16,
@@ -132,10 +132,25 @@ pub(crate) struct ConsoleRouter {
     events: Box<[RoutedOn]>,
     clips: Box<[RoutedClip]>,
     automations: Box<[RoutedAutomation]>,
+    /// Where each input's axis is now, by input index; an axis not yet moved is at 0.
+    axes: Box<[f32]>,
     /// The clips that play for the whole session, by index.
     always: Box<[usize]>,
     /// The presses held down.
     held: Vec<Press>,
+    /// Every input acted on, in order.
+    log: Vec<Logged>,
+}
+
+/// An input the router acted on, by its control and not its index, so a
+/// router for an edited console can act on it again.
+#[derive(Clone, Debug)]
+pub(crate) struct Logged {
+    control: ControlRef,
+    note: Option<u8>,
+    happening: Happening,
+    value: f32,
+    time: SampleTime,
 }
 
 /// One press: a button, or one note of a button reading notes.
@@ -177,7 +192,7 @@ impl ConsoleRouter {
             })
             .collect::<Option<Box<[_]>>>()?;
         let clip = |id| armed.clips.get_index_of(&id);
-        let automation = |id| armed.automations.get_index_of(&id);
+        let automation = |target| armed.automations.get_index_of(target);
         let events = console
             .events
             .iter()
@@ -213,9 +228,9 @@ impl ConsoleRouter {
                                     } => RoutedLength::Scaled {
                                         by: match by {
                                             LengthSource::Velocity => RoutedSource::Velocity,
-                                            LengthSource::Automation(id) => {
-                                                RoutedSource::Automation(automation(*id)?)
-                                            }
+                                            LengthSource::Axis(control) => RoutedSource::Axis(
+                                                inputs.iter().position(|input| input == control)?,
+                                            ),
                                         },
                                         shortest: sample_duration(shortest),
                                         longest: sample_duration(longest),
@@ -241,8 +256,8 @@ impl ConsoleRouter {
                             Action::Mark(key) => RoutedAction::Mark {
                                 collection: *armed.collections.get(key)?,
                             },
-                            Action::Set(id) => RoutedAction::Set {
-                                automation: automation(*id)?,
+                            Action::Set(target) => RoutedAction::Set {
+                                automation: automation(target)?,
                             },
                         })
                     })
@@ -260,16 +275,16 @@ impl ConsoleRouter {
                 })
             })
             .collect::<Option<Box<[_]>>>()?;
+        // A parameter holds its own value until written, so the first write is
+        // always sent.
         let automations = armed
             .automations
-            .iter()
-            .map(|(id, &index)| {
-                Some(RoutedAutomation {
-                    index,
-                    value: console.automation(*id)?.value,
-                })
+            .values()
+            .map(|&index| RoutedAutomation {
+                index,
+                value: f32::NAN,
             })
-            .collect::<Option<Box<[_]>>>()?;
+            .collect::<Box<[_]>>();
         let always = console
             .always
             .iter()
@@ -284,8 +299,10 @@ impl ConsoleRouter {
                 .map(|clip| RoutedClip::new(clip.voices.clone()))
                 .collect(),
             automations,
+            axes: vec![0.0; inputs.len()].into(),
             always,
             held: Vec::new(),
+            log: Vec::new(),
             inputs: inputs.into(),
         })
     }
@@ -293,6 +310,33 @@ impl ConsoleRouter {
     /// The controls the router reads, by input index.
     pub(crate) fn inputs(&self) -> &[ControlRef] {
         &self.inputs
+    }
+
+    /// Every input acted on so far, which leaves the router.
+    pub(crate) fn take_log(&mut self) -> Vec<Logged> {
+        std::mem::take(&mut self.log)
+    }
+
+    /// Act again on the inputs `log` holds, at their times, so this router
+    /// holds what the router that logged them did: held buttons, axis
+    /// positions, parameters set and marks added. An input of a control this
+    /// router does not read is left out. The commands that result.
+    pub(crate) fn resume(&mut self, log: Vec<Logged>) -> Vec<ConsoleEvent> {
+        let mut events = Vec::new();
+        for entry in log {
+            let Some(input) = self.inputs.iter().position(|input| *input == entry.control) else {
+                continue;
+            };
+            let touch = Touch {
+                press: Press {
+                    input,
+                    note: entry.note,
+                },
+                value: entry.value,
+            };
+            events.extend(self.touch(entry.happening, touch, entry.time));
+        }
+        events
     }
 
     /// Whether `input` is held down, or any of its notes.
@@ -425,7 +469,16 @@ impl ConsoleRouter {
                 };
                 self.held.swap_remove(held);
             }
-            Happening::Move => {}
+            Happening::Move => self.axes[press.input] = touch.value,
+        }
+        if let Some(control) = self.inputs.get(press.input) {
+            self.log.push(Logged {
+                control: control.clone(),
+                note: press.note,
+                happening,
+                value: touch.value,
+                time,
+            });
         }
         let mut commands = Vec::new();
         let events = std::mem::take(&mut self.events);
@@ -468,9 +521,7 @@ impl ConsoleRouter {
                     } => {
                         let scale = match by {
                             RoutedSource::Velocity => touch.value,
-                            RoutedSource::Automation(automation) => {
-                                self.automations[automation].value
-                            }
+                            RoutedSource::Axis(input) => self.axes[input],
                         };
                         let (shortest, longest) = (shortest.as_ticks(), longest.as_ticks());
                         let span = f64::from(longest - shortest) * f64::from(scale);
@@ -682,8 +733,10 @@ mod tests {
                 .zip(0..)
                 .map(|(&value, index)| RoutedAutomation { index, value })
                 .collect(),
+            axes: vec![0.0; inputs].into(),
             always: Box::new([]),
             held: Vec::new(),
+            log: Vec::new(),
         }
     }
 
@@ -869,7 +922,7 @@ mod tests {
     }
 
     #[test]
-    fn scaled_lengths_read_velocity_or_an_automation_at_the_start() {
+    fn scaled_lengths_read_velocity_or_an_axis_at_the_start() {
         let scaled = |by| RoutedLength::Scaled {
             by,
             shortest: seconds(1.0),
@@ -888,7 +941,7 @@ mod tests {
                 on(
                     1,
                     Happening::Press,
-                    vec![play(1, 1, scaled(RoutedSource::Automation(0)))],
+                    vec![play(1, 1, scaled(RoutedSource::Axis(2)))],
                 ),
                 on(
                     2,
@@ -907,7 +960,8 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(lengths(router.strike(0, 60, 0.5, at(0.0))), [seconds(2.0)]);
-        assert_eq!(lengths(router.press(1, at(0.0))), [seconds(1.5)]);
+        // An axis not yet moved reads 0.
+        assert_eq!(lengths(router.press(1, at(0.0))), [seconds(1.0)]);
         router.move_axis(2, 1.0, at(0.1));
         router.release(1, at(0.1));
         assert_eq!(lengths(router.press(1, at(5.0))), [seconds(3.0)]);

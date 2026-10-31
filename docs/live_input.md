@@ -8,7 +8,7 @@ session clock, instead of from a timeline.
 A console is a sequence built as you play: every action is an edit at the
 current time. Playing a clip places it from now for its length, starting and
 stopping a clip places it between the two, a mark goes into a collection now,
-and setting an automation changes its value from now on. Its layers and operator
+and setting a parameter changes its value from now on. Its layers and operator
 graph are a sequence's.
 
 Every device that plays a console runs the same Donder runtime, so only your
@@ -107,6 +107,18 @@ The setup lists the input devices you have, next to its controllers:
 setup lists. Device files are ordinary documents: share one, and anyone with the
 same hardware can copy it into their project.
 
+In the GUI a control is bound by using it. **+** adds a control and listens, and
+the learn button on a row, which shows while the pointer is over it, listens
+again. The next key, note, knob or OSC message sets the input and the kind: a
+note is a button, a control change or pitch bend is an axis, and an OSC message
+with no value or a value of 0 or 1 is a button, while any other value makes an
+axis from 0 to 1. A MIDI control reads any channel unless another control
+already reads that input, in which case it reads the channel the message came
+on. Selecting a note box of a range and pressing a key sets that end of the
+range. Esc stops listening. A performance that already reads the device supplies
+the messages; otherwise Donder opens the device, and starting a performance ends
+learning.
+
 ## Consoles
 
 A console has the same layers and operator graph as a sequence, plus what plays
@@ -115,13 +127,6 @@ live:
 - **Live mark collections** (`LiveMarks`): start empty each session and gain a
   mark each time a `Mark` action runs. Any effect with a marks parameter can
   read one, so effects such as MarkPulse react to the beat you tap.
-- **Live automations** (`LiveAutomation`): a value from 0 to 1 that `Set`
-  actions write, bound as sequence automation is to parameters of the
-  console's clips (`ClipParam { clip, param }`) and of the operator nodes of
-  its graph (`NodeParam { node, param }`). The value maps onto each bound
-  parameter's declared range, as sequence automation does, and holds until the
-  next `Set`; `value` is where it starts. A parameter is bound by at most one
-  automation.
 - **Clips** (`ConsoleClip`): a sequence clip without a start or a duration: a
   name, a layer, a fixture or group, a scope, an effect and its parameters.
   Actions name the clip they play.
@@ -139,8 +144,8 @@ An action is one of:
   at once, and when they all play the oldest is reused. `length` is
   `Fixed { duration }` or `Scaled { by, shortest, longest }`, where `by` is
   `Velocity` (how hard the press was; a computer key presses at 1) or
-  `Automation { automation }` (a live automation's current value), mapped from
-  `shortest` at 0 to `longest` at 1. The length is read once when the copy
+  `Axis { control }` (where an axis is now; one not yet moved reads 0), mapped
+  from `shortest` at 0 to `longest` at 1. The length is read once when the copy
   starts; later changes do not affect copies already playing.
 - **`Start { clip, values }`** plays one copy until it is stopped. Pressing
   again while the clip plays does nothing.
@@ -148,14 +153,37 @@ An action is one of:
 - **`Toggle { clip, values }`** starts the clip if no copy plays, and otherwise
   stops it.
 - **`Mark { into }`** adds a mark to a live mark collection.
-- **`Set { into }`** writes the event's value into a live automation: an axis's
-  position on `Move`, the velocity on `Press`, and 0 on `Release`.
+- **`Set { param }`** writes the event's value into a parameter of a clip
+  (`ClipParam { clip, param }`) or of an operator node of the console's graph
+  (`NodeParam { node, param }`): an axis's position on `Move`, the velocity on
+  `Press`, and 0 on `Release`. The value's `0..1` maps onto the parameter's
+  declared range, as sequence automation does, and the parameter holds its own
+  value until the first `Set`. One control sets a parameter, by any of its
+  events, and a played value cannot also set it.
 
 A clip is played either by `Play` actions or by `Start`, `Toggle` and `always`,
 not both; `Stop` stops either. A `Move` runs only `Set` actions.
 
 The only state a console keeps is which copies of each clip play, its live
-marks and its automation values.
+marks and the values `Set` actions have written.
+
+### Editing a console
+
+The GUI lists every control of the setup's input devices with what it does: a
+button has the actions it runs when pressed and when released, and an axis the
+parameters it sets when moved. **+** in a cell adds an action. Playing an
+effect adds the effect and its action together, as one edit: for a moment (a
+`Play` of one second), while held (`Start` on the press and `Stop` on the
+release) or toggled. Selecting an action opens it in the side panel, as a
+sequence's clips open, with its copies, length and played values, and the
+effect it plays: layer, target, scope, effect type and parameters. A parameter
+names the control that sets it from its row there, an axis by its position and
+a button by its velocity, and a pad's **+** can link a parameter to its
+velocity. Removing an action removes the effect it played when nothing else
+plays or holds it, with the stop that went with it, and removing a `Set`
+removes the control's other `Set`s of that parameter. Effects that play for
+the whole session are listed above the controls. A mark action's panel names
+the effects that read its collection.
 
 ### Played values
 
@@ -182,7 +210,7 @@ values: [
 The value's `0..1` maps onto the parameter's declared range, as with
 automation, and the parameter is a float, int, bool, enum or curve. Values are
 played only on `Press`, and the last three only from a button reading notes. A
-parameter a live automation binds cannot also be played. Played from a range of
+parameter a `Set` writes cannot also be played. Played from a range of
 notes, `Play` is polyphonic: each note takes a copy and plays it with its own
 values.
 
@@ -193,8 +221,8 @@ The starter project includes `consoles/jam.data.donder`, played from
 MarkPulse on every output that pulses on each beat of the live `beat`
 collection. A plays a 0.4 s `flash` on top of up to four others, S starts the
 `wash` and releasing S stops it, Space taps a beat into `beat`, and D sets the
-`decay` automation to 1 on press and 0 on release, lengthening the background's
-pulses while it is held.
+`decay_seconds` of the background to its highest on press and its lowest on
+release, lengthening the background's pulses while it is held.
 
 Effects a console plays are prepared when you start performing, once, with a
 pool of copies for each clip: as many as its largest `copies`, or one for a clip
@@ -212,6 +240,11 @@ clock. The Perform bar shows the console, the elapsed time and which buttons you
 hold, with toggles for live output and the Preview, and **Stop**. Live output
 plays a performance on E1.31 and Art-Net controllers only; starting one stops
 and releases the setup's Donder controllers.
+
+Edits to the console you are performing, or to an input device it reads, apply
+at once: Donder arms the console again on the same clock, replays your inputs
+into it, so held buttons, marks added and parameters set carry over, and keeps
+the MIDI and OSC ports it has open. `always` effects start again.
 
 While you perform, the console's keys go to the console before any editor
 shortcut, both in the main window and in the Preview window. Keys typed into a

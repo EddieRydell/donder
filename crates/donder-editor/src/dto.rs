@@ -23,12 +23,12 @@ pub use audio::{
 pub use diagnostics::{Rotation3Degrees, Scale3};
 pub use donder_project_io::{IoDiagnostic, TextPosition, TextRange};
 pub use live::{
-    ConsoleAction, ConsoleAutomation, ConsoleClip, ConsoleClipEdit, ConsoleControlRef,
-    ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInput, ConsoleInputControl,
-    ConsoleInputDevice, ConsoleLengthSource, ConsoleLiveMarks, ConsoleOn, ConsolePlayLength,
+    ConsoleAction, ConsoleClip, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind,
+    ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInput, ConsoleInputControl, ConsoleInputDevice,
+    ConsoleLengthSource, ConsoleLiveMarks, ConsoleOn, ConsolePlayLength, ConsolePlayMode,
     ConsolePlayedQuantity, ConsolePlayedValue, GuiControlInput, GuiInputControl,
-    GuiInputControlKind, GuiInputDriver, GuiInputLimits, InputDeviceGuiDocument, ProjectGuiEdit,
-    SetupInputDevice,
+    GuiInputControlKind, GuiInputDriver, GuiInputLimits, InputDeviceGuiDocument, LearnedInput,
+    ProjectGuiEdit, SetupInputDevice,
 };
 pub use output::{
     ControllerOutputTest, DonderDeviceClaim, DonderDeviceConnection, DonderDeviceNetwork,

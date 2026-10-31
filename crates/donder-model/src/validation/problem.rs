@@ -2,7 +2,7 @@
 //! one is written here, once, by `Display`.
 use std::fmt;
 
-use crate::console::{ConsoleClipId, LiveAutomationId, MAX_COPIES, OnId};
+use crate::console::{ConsoleClipId, MAX_COPIES, OnId};
 use crate::controller::{
     ARTNET_PORT_ADDRESS_MAX, ControllerPortId, ControllerValidationError, DMX_SLOT_LIMIT,
     E131_UNIVERSE_MAX, E131_UNIVERSE_MIN,
@@ -126,7 +126,6 @@ pub enum ConsoleValidationError {
     Name(NameProblem),
     Composition(CompositionProblem),
     DuplicateClipId(ConsoleClipId),
-    DuplicateAutomationId(LiveAutomationId),
     DuplicateEventId(OnId),
     Clip {
         clip: ConsoleClipId,
@@ -143,11 +142,6 @@ pub enum ConsoleValidationError {
     RepeatedAlwaysClip {
         clip: ConsoleClipId,
         name: Identifier,
-    },
-    Automation {
-        automation: LiveAutomationId,
-        name: Identifier,
-        problem: LiveAutomationProblem,
     },
     Event {
         event: OnId,
@@ -250,31 +244,24 @@ pub enum InputProblem {
     NotAnAxis,
 }
 
-/// A live automation of a console.
-#[derive(Clone, Debug, PartialEq)]
-pub enum LiveAutomationProblem {
-    ValueOutOfRange,
-    MissingClip,
-    MissingNode,
-    UnknownParam(Identifier),
-    NotAutomatable(Identifier),
-    /// Another binding sets the same parameter.
-    BoundTwice(Identifier),
-    /// Actions play the parameter on the copies they start.
-    Played(Identifier),
-}
-
 /// An event of a console and its actions.
 #[derive(Clone, Debug, PartialEq)]
 pub enum EventProblem {
     Input(InputProblem),
-    /// An axis's `Move` only sets live automations.
+    /// An axis's `Move` only sets parameters.
     AxisPlays,
     /// Played values on an event other than a press.
     ValuesWithoutPress,
     MissingClip,
+    MissingNode,
     MissingLiveMarks(Identifier),
-    MissingAutomation,
+    /// `Set` names a parameter its clip or operator does not have.
+    UnknownParam(Identifier),
+    NotAutomatable(Identifier),
+    /// Actions also play the parameter on the copies they start.
+    SetAlsoPlayed(Identifier),
+    /// Another control's events set the same parameter.
+    SetByOtherControl(Identifier),
     Copies(u8),
     DurationBeyondClock,
     NonPositiveDuration,
@@ -309,7 +296,6 @@ pub enum Member {
     Node(CompositionGraphNodeId),
     LiveMarks(Identifier),
     ConsoleClip(ConsoleClipId),
-    LiveAutomation(LiveAutomationId),
     Event(OnId),
     Control(InputControlId),
     Port(ControllerPortId),
@@ -430,33 +416,18 @@ impl ConsoleValidationError {
             | Self::RepeatedAlwaysClip { clip, .. } => {
                 Some(ProblemSite::of(Member::ConsoleClip(*clip)))
             }
-            Self::DuplicateAutomationId(automation) => {
-                Some(ProblemSite::of(Member::LiveAutomation(*automation)))
-            }
             Self::DuplicateEventId(event) => Some(ProblemSite::of(Member::Event(*event))),
             Self::Clip { clip, problem, .. } => Some(problem.site(Member::ConsoleClip(*clip))),
-            Self::Automation {
-                automation,
-                problem,
-                ..
-            } => {
-                let member = Member::LiveAutomation(*automation);
-                Some(match problem {
-                    LiveAutomationProblem::UnknownParam(param)
-                    | LiveAutomationProblem::NotAutomatable(param)
-                    | LiveAutomationProblem::BoundTwice(param)
-                    | LiveAutomationProblem::Played(param) => {
-                        ProblemSite::with(member, MemberPart::Param(param.clone()))
-                    }
-                    LiveAutomationProblem::ValueOutOfRange
-                    | LiveAutomationProblem::MissingClip
-                    | LiveAutomationProblem::MissingNode => ProblemSite::of(member),
-                })
-            }
             Self::Event { event, problem } => {
                 let member = Member::Event(*event);
                 Some(match problem {
                     EventProblem::Input(_) => ProblemSite::with(member, MemberPart::Input),
+                    EventProblem::UnknownParam(param)
+                    | EventProblem::NotAutomatable(param)
+                    | EventProblem::SetAlsoPlayed(param)
+                    | EventProblem::SetByOtherControl(param) => {
+                        ProblemSite::with(member, MemberPart::Param(param.clone()))
+                    }
                     EventProblem::ValueTwice(param)
                     | EventProblem::PitchWithoutNotes(param)
                     | EventProblem::UnknownValue(param)
@@ -466,8 +437,8 @@ impl ConsoleValidationError {
                     EventProblem::AxisPlays
                     | EventProblem::ValuesWithoutPress
                     | EventProblem::MissingClip
+                    | EventProblem::MissingNode
                     | EventProblem::MissingLiveMarks(_)
-                    | EventProblem::MissingAutomation
                     | EventProblem::Copies(_)
                     | EventProblem::DurationBeyondClock
                     | EventProblem::NonPositiveDuration
@@ -665,7 +636,6 @@ impl Member {
             Self::Node(_) => "graph node",
             Self::LiveMarks(_) => "live mark collection",
             Self::ConsoleClip(_) => "clip",
-            Self::LiveAutomation(_) => "live automation",
             Self::Event(_) => "event",
             Self::Control(_) => "control",
             Self::Port(_) => "port",
@@ -711,9 +681,6 @@ impl fmt::Display for ConsoleValidationError {
             Self::Name(problem) => problem.fmt(f),
             Self::Composition(problem) => problem.fmt(f),
             Self::DuplicateClipId(clip) => write!(f, "clip id {} is used twice", clip.0),
-            Self::DuplicateAutomationId(automation) => {
-                write!(f, "live automation id {} is used twice", automation.0)
-            }
             Self::DuplicateEventId(event) => write!(f, "event id {} is used twice", event.0),
             Self::Clip { name, problem, .. } => write!(f, "clip `{}`: {problem}", name.as_str()),
             Self::PlayedAndHeld { name, .. } => write!(
@@ -724,9 +691,6 @@ impl fmt::Display for ConsoleValidationError {
             Self::MissingAlwaysClip => f.write_str("`always` names a missing clip"),
             Self::RepeatedAlwaysClip { name, .. } => {
                 write!(f, "`always` lists clip `{}` twice", name.as_str())
-            }
-            Self::Automation { name, problem, .. } => {
-                write!(f, "live automation `{}`: {problem}", name.as_str())
             }
             Self::Event { problem, .. } => problem.fmt(f),
         }
@@ -860,43 +824,33 @@ impl fmt::Display for InputProblem {
     }
 }
 
-impl fmt::Display for LiveAutomationProblem {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ValueOutOfRange => f.write_str("the starting value must lie in 0..1"),
-            Self::MissingClip => f.write_str("a binding names a missing clip"),
-            Self::MissingNode => f.write_str("a binding names a missing operator node"),
-            Self::UnknownParam(param) => write!(f, "no parameter `{}`", param.as_str()),
-            Self::NotAutomatable(param) => write!(
-                f,
-                "`{}` cannot be automated; a live automation sets a float, int, bool, enum or curve parameter",
-                param.as_str()
-            ),
-            Self::BoundTwice(param) => write!(
-                f,
-                "parameter `{}` is bound by another live automation binding",
-                param.as_str()
-            ),
-            Self::Played(param) => write!(
-                f,
-                "parameter `{}` is also played by an action's values",
-                param.as_str()
-            ),
-        }
-    }
-}
-
 impl fmt::Display for EventProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Input(problem) => problem.fmt(f),
-            Self::AxisPlays => f.write_str("a `Move` can only `Set` live automations"),
+            Self::AxisPlays => f.write_str("a `Move` can only `Set` parameters"),
             Self::ValuesWithoutPress => f.write_str("only a `Press` plays values"),
             Self::MissingClip => f.write_str("an action names a missing clip"),
+            Self::MissingNode => f.write_str("`Set` names a missing operator node"),
+            Self::UnknownParam(param) => write!(f, "no parameter `{}`", param.as_str()),
+            Self::NotAutomatable(param) => write!(
+                f,
+                "`{}` cannot be set; `Set` writes a float, int, bool, enum or curve parameter",
+                param.as_str()
+            ),
+            Self::SetAlsoPlayed(param) => write!(
+                f,
+                "parameter `{}` is also played by an action's values",
+                param.as_str()
+            ),
+            Self::SetByOtherControl(param) => write!(
+                f,
+                "parameter `{}` is set by another control",
+                param.as_str()
+            ),
             Self::MissingLiveMarks(name) => {
                 write!(f, "no live mark collection `{}`", name.as_str())
             }
-            Self::MissingAutomation => f.write_str("`Set` names a missing live automation"),
             Self::Copies(count) => write!(
                 f,
                 "plays {count} copies; `Play` plays 1 to {MAX_COPIES} at once"

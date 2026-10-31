@@ -25,9 +25,9 @@ use indexmap::IndexMap;
 
 pub use problem::{
     AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
-    EventProblem, InputProblem, LiveAutomationProblem, Member, MemberPart, NameProblem,
-    OwnershipProblem, ParamProblem, ProblemSite, ProjectValidationError, RegionProblem,
-    RouteProblem, SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
+    EventProblem, InputProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem,
+    ProblemSite, ProjectValidationError, RegionProblem, RouteProblem, SequenceValidationError,
+    SetupProblem, TimingProblem, ValidationProblem,
 };
 
 pub(crate) const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
@@ -690,28 +690,15 @@ pub fn validate_console(
         .live_marks
         .iter()
         .map(|marks| (Member::LiveMarks(marks.key.name.clone()), &marks.key.name));
-    let automations = console
-        .automations
-        .iter()
-        .map(|automation| (Member::LiveAutomation(automation.id), &automation.name));
     let clips = console
         .clips
         .iter()
         .map(|clip| (Member::ConsoleClip(clip.id), &clip.name));
-    snake_case(
-        live_marks
-            .clone()
-            .chain(automations.clone())
-            .chain(clips.clone()),
-    )?;
+    snake_case(live_marks.clone().chain(clips.clone()))?;
     distinct(live_marks)?;
-    distinct(automations)?;
     distinct(clips)?;
     if let Some(clip) = first_repeat(&console.clips, |clip| clip.id) {
         return Err(Error::DuplicateClipId(clip.id));
-    }
-    if let Some(automation) = first_repeat(&console.automations, |automation| automation.id) {
-        return Err(Error::DuplicateAutomationId(automation.id));
     }
     if let Some(on) = first_repeat(&console.events, |on| on.id) {
         return Err(Error::DuplicateEventId(on.id));
@@ -767,50 +754,6 @@ pub fn validate_console(
                 clip: clip.id,
                 name: clip.name.clone(),
             });
-        }
-    }
-    let mut bound = HashSet::new();
-    for automation in &console.automations {
-        let fail = |problem| Error::Automation {
-            automation: automation.id,
-            name: automation.name.clone(),
-            problem,
-        };
-        if !(0.0..=1.0).contains(&automation.value) {
-            return Err(fail(LiveAutomationProblem::ValueOutOfRange));
-        }
-        for binding in &automation.bindings {
-            let name = || binding.param().clone();
-            let declaration = target_param(
-                project,
-                &console.composition_graph,
-                binding,
-                |clip: &ConsoleClipId| console.clip(*clip).map(|clip| clip.definition),
-            )
-            .map_err(|problem| {
-                fail(match problem {
-                    AutomationProblem::MissingClip => LiveAutomationProblem::MissingClip,
-                    AutomationProblem::MissingNode => LiveAutomationProblem::MissingNode,
-                    AutomationProblem::MissingParam(param) => {
-                        LiveAutomationProblem::UnknownParam(param)
-                    }
-                    _ => unreachable!("a target's parameter is missing or found"),
-                })
-            })?;
-            if declaration.automation_mapping().is_none() {
-                return Err(fail(LiveAutomationProblem::NotAutomatable(name())));
-            }
-            if !bound.insert(binding) {
-                return Err(fail(LiveAutomationProblem::BoundTwice(name())));
-            }
-            if let AutomationTarget::ClipParam { clip_id, param } = binding
-                && console.actions().any(|action| {
-                    action.clip() == Some(*clip_id)
-                        && action.values().iter().any(|value| &value.param == param)
-                })
-            {
-                return Err(fail(LiveAutomationProblem::Played(name())));
-            }
         }
     }
     let setup_devices = setup
@@ -896,10 +839,10 @@ fn validate_event<'a>(
                         if shortest.0 > longest.0 {
                             return Err(EventProblem::ShortestAboveLongest);
                         }
-                        if let LengthSource::Automation(id) = by
-                            && console.automation(*id).is_none()
+                        if let LengthSource::Axis(axis) = by
+                            && control(axis).map_err(EventProblem::Input)?.is_button()
                         {
-                            return Err(EventProblem::MissingAutomation);
+                            return Err(EventProblem::Input(InputProblem::NotAnAxis));
                         }
                     }
                 }
@@ -909,9 +852,40 @@ fn validate_event<'a>(
                     return Err(EventProblem::MissingLiveMarks(key.name.clone()));
                 }
             }
-            Action::Set(id) => {
-                if console.automation(*id).is_none() {
-                    return Err(EventProblem::MissingAutomation);
+            Action::Set(target) => {
+                let declaration = target_param(
+                    project,
+                    &console.composition_graph,
+                    target,
+                    |clip: &ConsoleClipId| console.clip(*clip).map(|clip| clip.definition),
+                )
+                .map_err(|problem| match problem {
+                    AutomationProblem::MissingClip => EventProblem::MissingClip,
+                    AutomationProblem::MissingNode => EventProblem::MissingNode,
+                    AutomationProblem::MissingParam(param) => EventProblem::UnknownParam(param),
+                    _ => unreachable!("a target's parameter is missing or found"),
+                })?;
+                let param = target.param();
+                if declaration.automation_mapping().is_none() {
+                    return Err(EventProblem::NotAutomatable(param.clone()));
+                }
+                if let AutomationTarget::ClipParam { clip_id, .. } = target
+                    && console.actions().any(|action| {
+                        action.clip() == Some(*clip_id)
+                            && action.values().iter().any(|value| &value.param == param)
+                    })
+                {
+                    return Err(EventProblem::SetAlsoPlayed(param.clone()));
+                }
+                // One control sets a parameter, by every event it answers.
+                if console.events.iter().any(|other| {
+                    other.event.control() != on.event.control()
+                        && other
+                            .actions
+                            .iter()
+                            .any(|action| matches!(action, Action::Set(set) if set == target))
+                }) {
+                    return Err(EventProblem::SetByOtherControl(param.clone()));
                 }
             }
             Action::Start { .. } | Action::Stop { .. } | Action::Toggle { .. } => {}
