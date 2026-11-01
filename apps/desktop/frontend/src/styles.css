@@ -2077,6 +2077,12 @@ html.donder-app-shell :is(
   white-space: nowrap;
 }
 
+.effect-param-range {
+  margin-left: var(--donder-space-6);
+  color: var(--donder-text-soft);
+  font-weight: var(--donder-font-weight-medium);
+}
+
 .effect-param-value-row,
 .param-source-row {
   display: grid;

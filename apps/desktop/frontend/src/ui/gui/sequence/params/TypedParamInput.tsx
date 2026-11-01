@@ -90,9 +90,9 @@ function TypedParamValue({
         );
   switch (param.value.type) {
     case "int":
-      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} range={param.range} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
     case "float":
-      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} range={param.range} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
     case "bool":
       return (
         <BoolParam
@@ -125,7 +125,7 @@ function TypedParamValue({
       );
     case "curve":
       return (
-        <ParamShell name={param.name} description={param.description} automated={automated}>
+        <ParamShell name={param.name} description={param.description} range={param.range} automated={automated}>
         <CurveValueEditor name={param.name} value={param.value.value} declarations={curveLibrary} range={param.range}
           commit={(value) => commit({ type: "curve", value })}
           disabled={automated} actions={automationActions} />
@@ -170,10 +170,20 @@ function TypedParamValue({
   }
 }
 
-function ParamShell({ name, description, automated = false, children }: { name: string; description: string | null; automated?: boolean; children: ReactNode }) {
+/** A param's name, followed by its declared range when it has one. */
+function ParamName({ name, range = null }: { name: string; range?: SequenceParamRange | null }) {
+  return (
+    <div className="effect-param-name">
+      {name}
+      {range !== null && <span className="effect-param-range">{range.min} to {range.max}</span>}
+    </div>
+  );
+}
+
+function ParamShell({ name, description, range = null, automated = false, children }: { name: string; description: string | null; range?: SequenceParamRange | null; automated?: boolean; children: ReactNode }) {
   return (
     <div className={`effect-param-group ${automated ? "effect-param-automated" : ""}`}>
-      <div className="effect-param-name">{name}</div>
+      <ParamName name={name} range={range} />
       {description !== null && <div className="effect-param-description">{description}</div>}
       {children}
     </div>
@@ -373,7 +383,7 @@ function CurveArrayParam({ name, values, declarations, range, commit }: { name: 
     const axis = curveAxis([], range);
     return values[values.length - 1] ?? { points: [{ time: 0, value: axis.min }, { time: 1, value: axis.max }], link: { type: "inline" } };
   };
-  return <ArrayShell name={name} values={values}
+  return <ArrayShell name={name} range={range} values={values}
     newValue={newValue}
     commit={commit}
     render={(value, index) => <CurveValueEditor name={`#${index + 1}`} value={value} declarations={declarations} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
@@ -388,12 +398,14 @@ function GradientArrayParam({ name, values, declarations, commit }: { name: stri
 
 function ArrayShell<T>({
   name,
+  range = null,
   values,
   newValue,
   commit,
   render
 }: {
   name: string;
+  range?: SequenceParamRange | null;
   values: T[];
   newValue: () => T;
   commit: (values: T[]) => Promise<void>;
@@ -402,7 +414,7 @@ function ArrayShell<T>({
   return (
     <div className="effect-param-group array-param-editor">
       <div className="array-param-header">
-        <div className="effect-param-name">{name}</div>
+        <ParamName name={name} range={range} />
         <button type="button" className="neutral-button" title="Add item" onClick={() => void commit([...values, newValue()])}>
           <Plus size={THEME_METRICS.iconSizeSmall} />
         </button>
