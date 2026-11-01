@@ -13,6 +13,6 @@ export function consoleComposition(document: ConsoleGuiDocument): CompositionEdi
     apply: (edit, origin) => runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "console", edit: { type: "composition", edit } }), origin),
     applyItem: applyConsoleItemEdit,
     automation: null,
-    operatorParamControl: (nodeId, param) => <KnobSelect document={document} target={{ type: "compositionNodeParam", nodeId, param }} label={param} />
+    operatorParamControl: (nodeId, param, range) => <KnobSelect document={document} target={{ type: "compositionNodeParam", nodeId, param }} label={param} range={range} />
   };
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { SequenceEditorHost } from "../../../editor/host";
-import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection } from "../../../editor/types";
+import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection, SequenceParamRange } from "../../../editor/types";
 import type { AutomationClipChooser, GuiItemEdit } from "../shared";
 
 /** What the layer and graph editors show of a sequence or console. */
@@ -23,7 +23,7 @@ export type CompositionEditing = {
     setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
   } | null;
   /** A console links operator parameters to its knobs instead. */
-  operatorParamControl: ((nodeId: string, param: string) => ReactNode) | null;
+  operatorParamControl: ((nodeId: string, param: string, range: SequenceParamRange | null) => ReactNode) | null;
 };
 
 export function sequenceComposition(

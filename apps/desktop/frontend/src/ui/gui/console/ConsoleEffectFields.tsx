@@ -37,7 +37,7 @@ export function EffectFields({ document, clip }: { document: ConsoleGuiDocument;
         {clip.params.map((param, index) => <div key={param.name} className={`clip-param-row ${index % 2 === 0 ? "clip-param-row-even" : "clip-param-row-odd"}`}>
           <TypedParamInput param={param} commitParam={(name, value) => editConsoleEffect(clip.id, { type: "param", name, value }).then(() => undefined)}
             curveLibrary={document.curveLibrary} gradientLibrary={document.gradientLibrary} markCollections={document.liveMarks}
-            automationControl={param.supportsAutomation ? <KnobSelect document={document} target={{ type: "clipParam", clipId: clip.id, param: param.name }} label={param.name} /> : null} />
+            automationControl={param.supportsAutomation ? <KnobSelect document={document} target={{ type: "clipParam", clipId: clip.id, param: param.name }} label={param.name} range={param.range} /> : null} />
         </div>)}
       </div>
     </>}

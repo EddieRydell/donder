@@ -1,4 +1,4 @@
-import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>, <effects/radial-wipe.donder>;
+import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>, <effects/radial-wipe.donder>, <effects/field-wipe.donder>;
 import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
 import setups from <setups/main.data.donder>;

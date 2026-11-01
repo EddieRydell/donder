@@ -1,10 +1,10 @@
-import type { ConsoleGuiDocument, SequenceAutomationTarget } from "../../../types";
+import type { ConsoleGuiDocument, SequenceAutomationTarget, SequenceParamRange } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { WindowFields } from "../WindowFields";
 import { applyConsoleEdit, controllerOf, controlKey, controlRef, setWindowOf } from "./consoleEditing";
 
 /** Which knob sets a parameter: none, or any axis of the setup's input devices. */
-export function KnobSelect({ document, target, label }: { document: ConsoleGuiDocument; target: SequenceAutomationTarget; label: string }) {
+export function KnobSelect({ document, target, label, range }: { document: ConsoleGuiDocument; target: SequenceAutomationTarget; label: string; range: SequenceParamRange | null }) {
   const current = controllerOf(document, target);
   const value = current === undefined ? "" : controlKey(current.input.control);
   const knobs = document.inputDevices.map((device) => ({ device, refs: device.axes.map((axis) => ({ axis, ref: controlRef(device, axis) })) }));
@@ -22,6 +22,6 @@ export function KnobSelect({ document, target, label }: { document: ConsoleGuiDo
       {refs.map(({ axis, ref }) => <option key={axis.control} value={controlKey(ref)}>{axis.name}</option>)}
     </optgroup>)}
   </select>
-    {current !== undefined && <WindowFields value={bounds} onChange={(next) => { void applyConsoleEdit({ type: "controlParam", target, control: current.input.control, window: next }); }} />}
+    {current !== undefined && <WindowFields value={bounds} range={range} onChange={(next) => { void applyConsoleEdit({ type: "controlParam", target, control: current.input.control, window: next }); }} />}
   </>;
 }

@@ -2118,6 +2118,11 @@ html.donder-app-shell :is(
   width: var(--donder-window-field-width);
 }
 
+.window-fields .window-result {
+  color: var(--donder-text-muted);
+  white-space: nowrap;
+}
+
 .effect-param-group .icon-button {
   display: inline-grid;
   width: 28px;

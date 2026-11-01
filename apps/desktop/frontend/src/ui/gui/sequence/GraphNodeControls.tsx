@@ -27,7 +27,7 @@ export function GraphNodeControls({ node, composition }: { node: SequenceGraphNo
       <TypedParamInput param={param} commitParam={(name, value) =>
         composition.apply({ type: "updateGraphOperatorParam", nodeId: node.id, name, value }).then(() => undefined)
       } curveLibrary={document.curveLibrary} gradientLibrary={document.gradientLibrary} markCollections={document.markCollections}
-        automationControl={composition.operatorParamControl === null || !param.supportsAutomation ? null : composition.operatorParamControl(node.id, param.name)}
+        automationControl={composition.operatorParamControl === null || !param.supportsAutomation ? null : composition.operatorParamControl(node.id, param.name, param.range)}
         automation={automation === null ? null : { target: { type: "compositionNodeParam", nodeId: node.id, param: param.name },
           automationClips: automation.automationClips, canCreateAutomationClip: document.layers.length > 0,
           automationClipChooser: automation.automationClipChooser, setAutomationClipChooser: automation.setAutomationClipChooser }} />

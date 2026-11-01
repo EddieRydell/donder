@@ -90,9 +90,9 @@ function TypedParamValue({
         );
   switch (param.value.type) {
     case "int":
-      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
     case "float":
-      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
     case "bool":
       return (
         <BoolParam
@@ -116,7 +116,7 @@ function TypedParamValue({
     case "enum":
       return (
         <ParamShell name={param.name} description={param.description} automated={automated}>
-          <ParamValueRow actions={automationActions}>
+          <ParamValueRow actions={automationActions} automated={automated}>
             <select value={param.value.value} disabled={automated} onChange={(event) => void commit({ type: "enum", value: event.currentTarget.value })}>
               {param.options.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
@@ -180,10 +180,11 @@ function ParamShell({ name, description, automated = false, children }: { name: 
   );
 }
 
-function ParamValueRow({ actions, children }: { actions: ReactNode; children: ReactNode }) {
+/** An automated parameter shows no value of its own: automation sets it, so only its controls remain. */
+function ParamValueRow({ actions, automated = false, children }: { actions: ReactNode; automated?: boolean; children: ReactNode }) {
   return (
     <div className="effect-param-value-row">
-      <div className="effect-param-value-control">{children}</div>
+      <div className="effect-param-value-control">{automated ? null : children}</div>
       {actions !== null && <div className="effect-param-actions">{actions}</div>}
     </div>
   );
@@ -267,6 +268,7 @@ function automationBindingControl(host: SequenceEditorHost,
       <>
         <WindowFields
           value={bounds}
+          range={param.range}
           onChange={(next) =>
             void runGuiEditCommand((request) =>
               commands.applyGuiEdit(request, { type: "sequence", edit: {

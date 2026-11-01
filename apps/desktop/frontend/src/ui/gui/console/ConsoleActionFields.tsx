@@ -80,7 +80,7 @@ function PlayedValues({ document, clipId, values, notes, onChange }: {
       }}>
         {PLAYED_QUANTITIES.map((choice) => <option key={choice.quantity} value={choice.quantity} disabled={choice.needsNote && !notes}>{choice.label}</option>)}
       </select></label>
-      <WindowFields value={value.window} onChange={(bounds) => { onChange(values.map((other, i) => i === index ? { ...other, window: bounds } : other)); }} />
+      <WindowFields value={value.window} range={document.clips.find((clip) => clip.id === clipId)?.params.find((param) => param.name === value.param)?.range ?? null} onChange={(bounds) => { onChange(values.map((other, i) => i === index ? { ...other, window: bounds } : other)); }} />
       <button type="button" onClick={() => { onChange(values.filter((_, i) => i !== index)); }}>Remove</button>
     </div>)}
     <button type="button" disabled={free === undefined} onClick={() => {

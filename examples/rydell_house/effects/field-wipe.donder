@@ -1,0 +1,141 @@
+-- A field of arrival times: each pixel lights when a mark's wipe reaches the time the
+-- field assigns to its location, so the shape depends on where a pixel is and not on
+-- which fixture holds it. Use WholeTarget scope for a wipe across several fixtures.
+-- With the field's rotated coordinates p and q (measured from its center, in units of the
+-- target's longer side), the arrival time is
+--   linear * p + saddle * p * q + radial * (p * p + q * q)
+-- Linear is a straight wipe along the direction, saddle makes hyperbolic fronts, and radial
+-- makes rings around the center; a negative value reverses a term.
+fn field_time(x: float, y: float, origin_x: float, origin_y: float, scale: float, angle_cos: float, angle_sin: float, linear: float, saddle: float, radial: float) -> float {
+  let dx = (x - origin_x) / scale;
+  let dy = (y - origin_y) / scale;
+  let p = dx * angle_cos + dy * angle_sin;
+  let q = dy * angle_cos - dx * angle_sin;
+  linear * p + saddle * p * q + radial * (p * p + q * q)
+}
+
+-- The pixel's arrival time scaled to 0..1 by the field's extremes over the target. Only the
+-- target's corners are sampled, so a quadratic's inner extremum can fall outside; the clamp holds it.
+fn field_position(origin_x: float, origin_y: float, scale: float, angle_cos: float, angle_sin: float, linear: float, saddle: float, radial: float) -> float {
+  let arrival = field_time(pixel.x, pixel.y, origin_x, origin_y, scale, angle_cos, angle_sin, linear, saddle, radial);
+  let corner_a = field_time(target.min_x, target.min_y, origin_x, origin_y, scale, angle_cos, angle_sin, linear, saddle, radial);
+  let corner_b = field_time(target.max_x, target.min_y, origin_x, origin_y, scale, angle_cos, angle_sin, linear, saddle, radial);
+  let corner_c = field_time(target.min_x, target.max_y, origin_x, origin_y, scale, angle_cos, angle_sin, linear, saddle, radial);
+  let corner_d = field_time(target.max_x, target.max_y, origin_x, origin_y, scale, angle_cos, angle_sin, linear, saddle, radial);
+  let field_min = min(min(corner_a, corner_b), min(corner_c, corner_d));
+  let field_max = max(max(corner_a, corner_b), max(corner_c, corner_d));
+  clamp((arrival - field_min) / (field_max - field_min), 0.0, 1.0)
+}
+
+effect MarkFieldWipe {
+  param beats: marks;
+  param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
+  param gradients: array<gradient>;
+  param offset_seconds: float in -1.0..1.0 = 0.0;
+  param wipe_seconds: float in 0.01..10.0 = 0.5;
+  param pulse_width: float in 0.01..1.0 = 0.15;
+  param direction_angle: float in 0.0..360.0 = 0.0;
+  -- Where the field is centered on the target: 0 is the left or top edge, 1 the right or bottom.
+  param center_x: float in 0.0..1.0 = 0.5;
+  param center_y: float in 0.0..1.0 = 0.5;
+  param linear: float in -1.0..1.0 = 1.0;
+  param saddle: float in -4.0..4.0 = 0.0;
+  param radial: float in -4.0..4.0 = 0.0;
+  param wipe_positions: array<curve> in 0.0..1.0;
+  param pulse_shape: curve in 0.0..1.0;
+  param overlap_marks: bool = false;
+
+  -- Overlap and mark timing work as in MarkWipe: at most the 32 latest wipes overlap.
+  sample {
+    let now = time - offset_seconds;
+    let latest = mark_last_index(beats, now);
+    let live = latest - mark_last_index(beats, now - wipe_seconds);
+    let travel_end = max(0.0, 1.0 - pulse_width);
+    let width = target.max_x - target.min_x;
+    let height = target.max_y - target.min_y;
+    let scale = max(width, height);
+    let radians = direction_angle * 0.017453292519943295;
+    let angle_cos = cos(radians);
+    let angle_sin = sin(radians);
+    let origin_x = target.min_x + center_x * width;
+    let origin_y = target.min_y + center_y * height;
+    max for back in 0..min(live, if overlap_marks { 32 } else { 1 }) {
+      let mark = latest - back;
+      let hit_time = mark_at(beats, mark);
+      guard hit_time + offset_seconds >= 0.0;
+      let child_progress = (now - hit_time) / wipe_seconds;
+      let selected_gradient = gradients[mark % len(gradients)];
+      let wipe_position = wipe_positions[mark % len(wipe_positions)];
+      let position = field_position(origin_x, origin_y, scale, angle_cos, angle_sin, linear, saddle, radial);
+      let query_position = if travel_end > 0.0 { child_progress / travel_end } else { 1.0 };
+      let hit = travel_end * curve_last_crossing(wipe_position, position, query_position);
+      let pulse_progress = (child_progress - hit) / pulse_width;
+      let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
+      let gradient_position =
+        if gradient_mode == ThroughEffect { child_progress }
+        else if gradient_mode == AcrossItems { position }
+        else { pulse_progress };
+      gradient_color_scaled(selected_gradient, gradient_position, level)
+    }
+  }
+}
+
+-- The clip-driven counterpart of MarkFieldWipe, in the manner of Wipe: the field is fixed for the
+-- clip and the pulse sweeps across it `passes` times over the clip's duration.
+effect FieldWipe {
+  param gradient: gradient;
+  param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
+  -- Pass lights a pixel only while the pulse crosses it; On keeps it lit after,
+  -- Off lights it before.
+  param mode: enum { Pass, On, Off } = Pass;
+  param pulse_width: float in 0.01..1.0 = 0.15;
+  param direction_angle: float in 0.0..360.0 = 0.0;
+  -- Where the field is centered on the target: 0 is the left or top edge, 1 the right or bottom.
+  param center_x: float in 0.0..1.0 = 0.5;
+  param center_y: float in 0.0..1.0 = 0.5;
+  param linear: float in -1.0..1.0 = 1.0;
+  param saddle: float in -4.0..4.0 = 0.0;
+  param radial: float in -4.0..4.0 = 0.0;
+  -- How many times the pulse sweeps across, one pass after another.
+  param passes: int in 1..100 = 1;
+  param wipe_position: curve in 0.0..1.0;
+  param reverse: bool = false;
+  param extend_to_start: bool = false;
+  param extend_to_end: bool = false;
+  param pulse_shape: curve in 0.0..1.0;
+
+  sample {
+    let radians = direction_angle * 0.017453292519943295;
+    let width = target.max_x - target.min_x;
+    let height = target.max_y - target.min_y;
+    let position = field_position(
+      target.min_x + center_x * width,
+      target.min_y + center_y * height,
+      max(width, height),
+      cos(radians),
+      sin(radians),
+      linear,
+      saddle,
+      radial
+    );
+    let chase_value = if reverse { 1.0 - position } else { position };
+    let travel_start = if extend_to_start { -pulse_width } else { 0.0 };
+    let travel_end = if extend_to_end { 1.0 } else { max(0.0, 1.0 - pulse_width) };
+    -- Each pass sweeps an equal share of the travel; the latest pass to reach
+    -- the pixel lights it.
+    let sweep = (travel_end - travel_start) / passes;
+    let first_hit = travel_start + sweep * value_or(curve_first_crossing(wipe_position, chase_value), chase_value);
+    let pass = clamp(floor((progress - first_hit) / sweep), 0.0, passes - 1.0);
+    let hit = first_hit + pass * sweep;
+    let pulse_progress = (progress - hit) / pulse_width;
+    let level =
+      if pulse_progress < 0.0 { if mode == Off { 1.0 } else { 0.0 } }
+      else if pulse_progress > 1.0 { if mode == On && pass == passes - 1 { 1.0 } else { 0.0 } }
+      else { pulse_shape[pulse_progress] };
+    let gradient_position =
+      if gradient_mode == ThroughEffect { progress }
+      else if gradient_mode == AcrossItems { position }
+      else { clamp(pulse_progress, 0.0, 1.0) };
+    gradient_color_scaled(gradient, gradient_position, level)
+  }
+}
