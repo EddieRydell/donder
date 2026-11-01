@@ -2077,10 +2077,39 @@ html.donder-app-shell :is(
   white-space: nowrap;
 }
 
+.effect-param-range,
+.effect-param-control-range {
+  color: var(--donder-text-soft);
+  font-style: italic;
+  font-weight: var(--donder-font-weight-medium);
+}
+
 .effect-param-range {
   margin-left: var(--donder-space-6);
-  color: var(--donder-text-soft);
-  font-weight: var(--donder-font-weight-medium);
+}
+
+/* A number's range sits inside the right of its box, in place of the spin buttons. */
+.effect-param-control-label {
+  position: relative;
+  display: block;
+}
+
+.effect-param-control-label input[type="number"] {
+  padding-right: 9em;
+}
+
+.effect-param-control-label input[type="number"]::-webkit-inner-spin-button,
+.effect-param-control-label input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.effect-param-control-range {
+  position: absolute;
+  top: 50%;
+  right: var(--donder-space-6);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .effect-param-value-row,

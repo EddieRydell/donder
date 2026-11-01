@@ -90,9 +90,9 @@ function TypedParamValue({
         );
   switch (param.value.type) {
     case "int":
-      return <ParamShell name={param.name} description={param.description} range={param.range} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
     case "float":
-      return <ParamShell name={param.name} description={param.description} range={param.range} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
     case "bool":
       return (
         <BoolParam
@@ -170,12 +170,16 @@ function TypedParamValue({
   }
 }
 
-/** A param's name, followed by its declared range when it has one. */
+function formatRange(range: SequenceParamRange) {
+  return `${roundCurveValue(range.min)}..${roundCurveValue(range.max)}`;
+}
+
+/** A param's name, followed by its declared range when it has one and no value box can show it. */
 function ParamName({ name, range = null }: { name: string; range?: SequenceParamRange | null }) {
   return (
     <div className="effect-param-name">
       {name}
-      {range !== null && <span className="effect-param-range">{range.min} to {range.max}</span>}
+      {range !== null && <span className="effect-param-range">{formatRange(range)}</span>}
     </div>
   );
 }
@@ -483,6 +487,7 @@ function NumberParam({
           }
         }}
       />
+      {range !== null && <span className="effect-param-control-range">{formatRange(range)}</span>}
     </label>
   );
 }
