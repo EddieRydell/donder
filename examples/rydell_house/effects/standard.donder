@@ -179,16 +179,21 @@ effect MarkChase {
     let pulse_duration = pulse_overlap / item_count;
     let travel_end = max(0.0, 1.0 - pulse_duration);
     let hit = travel_end * curve_first_crossing(chase_position, position);
+    -- A pixel the chase crossed since the last frame lights: its pulse lasts at least as long as
+    -- that gap, so no pixel falls between two frames. Frame times round to the frame rate, so
+    -- the gap is up to one frame longer than `frames_elapsed` says.
+    let frame_step = (frames_elapsed + 1) / (frame_rate * chase_seconds);
+    let visible = max(pulse_duration, frame_step);
     let now = time - offset_seconds;
     let latest = mark_last_index(beats, now - chase_seconds * hit);
-    let live = latest - mark_last_index(beats, now - chase_seconds);
+    let live = latest - mark_last_index(beats, now - chase_seconds * (1.0 + visible));
     max for back in 0..min(live, if overlap_marks { 32 } else { 1 }) {
       let mark = latest - back;
       let hit_time = mark_at(beats, mark);
       guard hit_time + offset_seconds >= 0.0;
       let child_progress = (now - hit_time) / chase_seconds;
       let selected_gradient = gradients[mark % len(gradients)];
-      let pulse_progress = (child_progress - hit) / pulse_duration;
+      let pulse_progress = (child_progress - hit) / visible;
       let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
       let gradient_position =
         if gradient_mode == ThroughEffect { child_progress }

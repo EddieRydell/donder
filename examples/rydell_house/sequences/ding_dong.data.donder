@@ -77732,7 +77732,9 @@ Sequence ding_dong {
       start: 1.770975s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77740,7 +77742,9 @@ Sequence ding_dong {
       start: 2.043255s,
       duration: 1.051544s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77748,7 +77752,9 @@ Sequence ding_dong {
       start: 2.323597s,
       duration: 0.356099s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77756,7 +77762,9 @@ Sequence ding_dong {
       start: 2.40277s,
       duration: 0.960788s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77764,7 +77772,9 @@ Sequence ding_dong {
       start: 2.524738s,
       duration: 1.073502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77772,7 +77782,9 @@ Sequence ding_dong {
       start: 2.679696s,
       duration: 1.211127s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77780,7 +77792,9 @@ Sequence ding_dong {
       start: 2.886678s,
       duration: 1.310233s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77788,7 +77802,9 @@ Sequence ding_dong {
       start: 3.094799s,
       duration: 1.30336s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_8, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_8, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77796,7 +77812,9 @@ Sequence ding_dong {
       start: 3.363558s,
       duration: 1.273493s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_9, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_9, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77804,7 +77822,9 @@ Sequence ding_dong {
       start: 3.59824s,
       duration: 1.038811s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_10, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_10, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77812,7 +77832,9 @@ Sequence ding_dong {
       start: 3.890823s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_11, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_11, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77820,7 +77842,9 @@ Sequence ding_dong {
       start: 4.196911s,
       duration: 0.356206s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_12, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_12, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77828,7 +77852,9 @@ Sequence ding_dong {
       start: 4.276191s,
       duration: 0.949383s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77836,7 +77862,9 @@ Sequence ding_dong {
       start: 4.398159s,
       duration: 1.062097s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77844,7 +77872,9 @@ Sequence ding_dong {
       start: 4.497613s,
       duration: 1.275308s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_15, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_15, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77852,7 +77882,9 @@ Sequence ding_dong {
       start: 4.725389s,
       duration: 1.27989s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_16, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_16, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77860,7 +77892,9 @@ Sequence ding_dong {
       start: 4.93351s,
       duration: 1.273017s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_17, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_17, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77868,7 +77902,9 @@ Sequence ding_dong {
       start: 5.225574s,
       duration: 1.224697s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_18, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_18, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77876,7 +77912,9 @@ Sequence ding_dong {
       start: 5.407584s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77884,7 +77922,9 @@ Sequence ding_dong {
       start: 5.688721s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_20, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_20, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77892,7 +77932,9 @@ Sequence ding_dong {
       start: 6.005279s,
       duration: 0.356313s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_21, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_21, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77900,7 +77942,9 @@ Sequence ding_dong {
       start: 6.084559s,
       duration: 1.052029s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_22, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_22, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77908,7 +77952,9 @@ Sequence ding_dong {
       start: 6.206527s,
       duration: 1.164744s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_23, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_23, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77916,7 +77962,9 @@ Sequence ding_dong {
       start: 6.361592s,
       duration: 1.188124s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_24, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_24, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77924,7 +77972,9 @@ Sequence ding_dong {
       start: 6.545571s,
       duration: 1.290804s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_25, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_25, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77932,7 +77982,9 @@ Sequence ding_dong {
       start: 6.795215s,
       duration: 1.242407s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77940,7 +77992,9 @@ Sequence ding_dong {
       start: 7.035492s,
       duration: 1.268346s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_27, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_27, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77948,7 +78002,9 @@ Sequence ding_dong {
       start: 7.261151s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_28, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_28, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77956,7 +78012,9 @@ Sequence ding_dong {
       start: 7.549716s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_29, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_29, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77964,7 +78022,9 @@ Sequence ding_dong {
       start: 7.836375s,
       duration: 0.356206s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_30, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_30, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77972,7 +78032,9 @@ Sequence ding_dong {
       start: 7.915654s,
       duration: 1.164731s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77980,7 +78042,9 @@ Sequence ding_dong {
       start: 8.037622s,
       duration: 1.255985s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77988,7 +78052,9 @@ Sequence ding_dong {
       start: 8.192581s,
       duration: 1.254089s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -77996,7 +78062,9 @@ Sequence ding_dong {
       start: 8.399138s,
       duration: 1.302011s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_34, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_34, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78004,7 +78072,9 @@ Sequence ding_dong {
       start: 8.592403s,
       duration: 1.335101s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_35, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_35, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78012,7 +78082,9 @@ Sequence ding_dong {
       start: 8.874203s,
       duration: 1.275308s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_36, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_36, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78020,7 +78092,9 @@ Sequence ding_dong {
       start: 9.148634s,
       duration: 1.000877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_37, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_37, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78028,7 +78102,9 @@ Sequence ding_dong {
       start: 9.390053s,
       duration: 1.082405s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_38, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_38, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78036,7 +78112,9 @@ Sequence ding_dong {
       start: 9.701149s,
       duration: 0.356206s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_39, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_39, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78044,7 +78122,9 @@ Sequence ding_dong {
       start: 9.780535s,
       duration: 1.13965s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_40, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_40, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78052,7 +78132,9 @@ Sequence ding_dong {
       start: 9.927504s,
       duration: 1.302349s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_41, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_41, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78060,7 +78142,9 @@ Sequence ding_dong {
       start: 10.057355s,
       duration: 1.254514s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_42, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_42, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78068,7 +78152,9 @@ Sequence ding_dong {
       start: 10.264337s,
       duration: 1.310233s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_43, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_43, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78076,7 +78162,9 @@ Sequence ding_dong {
       start: 10.472458s,
       duration: 1.294846s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_44, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_44, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78084,7 +78172,9 @@ Sequence ding_dong {
       start: 10.739402s,
       duration: 1.275308s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_45, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_45, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78092,7 +78182,9 @@ Sequence ding_dong {
       start: 10.987345s,
       duration: 1.027365s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_46, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_46, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78100,7 +78192,9 @@ Sequence ding_dong {
       start: 11.229853s,
       duration: 1.081315s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_47, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_47, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78108,7 +78202,9 @@ Sequence ding_dong {
       start: 11.57457s,
       duration: 0.356206s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_48, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_48, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78116,7 +78212,9 @@ Sequence ding_dong {
       start: 11.653849s,
       duration: 1.069s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_49, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_49, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78124,7 +78222,9 @@ Sequence ding_dong {
       start: 11.767304s,
       duration: 1.218878s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_50, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_50, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78132,7 +78232,9 @@ Sequence ding_dong {
       start: 11.87573s,
       duration: 1.249998s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_51, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_51, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78140,7 +78242,9 @@ Sequence ding_dong {
       start: 12.103048s,
       duration: 1.250463s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_52, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_52, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78148,7 +78252,9 @@ Sequence ding_dong {
       start: 12.311168s,
       duration: 1.273018s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_53, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_53, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78156,7 +78262,9 @@ Sequence ding_dong {
       start: 12.578113s,
       duration: 1.249817s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_54, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_54, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78164,7 +78272,9 @@ Sequence ding_dong {
       start: 12.81606s,
       duration: 1.01187s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_55, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_55, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78172,7 +78282,9 @@ Sequence ding_dong {
       start: 13.06638s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_56, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_56, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78180,7 +78292,9 @@ Sequence ding_dong {
       start: 13.353511s,
       duration: 0.385633s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_57, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_57, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78188,7 +78302,9 @@ Sequence ding_dong {
       start: 13.462218s,
       duration: 1.234504s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_58, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_58, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78196,7 +78312,9 @@ Sequence ding_dong {
       start: 13.584186s,
       duration: 1.358632s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_59, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_59, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78204,7 +78322,9 @@ Sequence ding_dong {
       start: 13.663179s,
       duration: 1.343211s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_60, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_60, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78212,7 +78332,9 @@ Sequence ding_dong {
       start: 13.92323s,
       duration: 1.310943s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_61, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_61, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78220,7 +78342,9 @@ Sequence ding_dong {
       start: 14.172874s,
       duration: 1.284732s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_62, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_62, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78228,7 +78352,9 @@ Sequence ding_dong {
       start: 14.413151s,
       duration: 1.268346s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_63, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_63, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78236,7 +78362,9 @@ Sequence ding_dong {
       start: 14.63881s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_64, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_64, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78244,7 +78372,9 @@ Sequence ding_dong {
       start: 14.942818s,
       duration: 0.979584s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_65, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_65, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78252,7 +78382,9 @@ Sequence ding_dong {
       start: 15.234173s,
       duration: 0.378392s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_66, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_66, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78260,7 +78392,9 @@ Sequence ding_dong {
       start: 15.335638s,
       duration: 0.994897s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_67, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_67, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78268,7 +78402,9 @@ Sequence ding_dong {
       start: 15.457606s,
       duration: 1.086463s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_68, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_68, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78276,7 +78412,9 @@ Sequence ding_dong {
       start: 15.543841s,
       duration: 0.786694s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_69, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_69, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78284,7 +78422,9 @@ Sequence ding_dong {
       start: 15.776797s,
       duration: 0.767272s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_70, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_70, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78292,7 +78432,9 @@ Sequence ding_dong {
       start: 16.011585s,
       duration: 0.773479s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_71, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_71, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78300,7 +78442,9 @@ Sequence ding_dong {
       start: 23.918807s,
       duration: 7.718938s,
       curve: [(0.0, 0.0), (0.0897, 1.0), (0.895, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78308,7 +78452,9 @@ Sequence ding_dong {
       start: 23.918807s,
       duration: 7.718938s,
       curve: [(0.0, 0.0), (0.0897, 1.0), (0.895, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78316,7 +78462,9 @@ Sequence ding_dong {
       start: 23.918807s,
       duration: 1.607337s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_72, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_72, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78324,7 +78472,9 @@ Sequence ding_dong {
       start: 25.526144s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_73, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_73, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78332,7 +78482,9 @@ Sequence ding_dong {
       start: 25.636955s,
       duration: 1.273052s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_74, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_74, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78340,7 +78492,9 @@ Sequence ding_dong {
       start: 25.689832s,
       duration: 1.330245s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_75, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_75, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78348,7 +78502,9 @@ Sequence ding_dong {
       start: 26.201609s,
       duration: 1.259156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_76, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_76, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78356,7 +78512,9 @@ Sequence ding_dong {
       start: 26.201609s,
       duration: 1.259156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_77, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_77, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78364,7 +78522,9 @@ Sequence ding_dong {
       start: 26.201609s,
       duration: 1.259156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_78, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_78, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78372,7 +78532,9 @@ Sequence ding_dong {
       start: 26.201609s,
       duration: 1.259156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_79, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_79, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78380,7 +78542,9 @@ Sequence ding_dong {
       start: 26.201609s,
       duration: 1.259156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_80, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_80, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78388,7 +78552,9 @@ Sequence ding_dong {
       start: 26.201609s,
       duration: 1.259156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_81, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_81, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78396,7 +78562,9 @@ Sequence ding_dong {
       start: 26.201609s,
       duration: 1.259156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_82, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_82, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78404,7 +78572,9 @@ Sequence ding_dong {
       start: 26.703383s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_83, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_83, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78412,7 +78582,9 @@ Sequence ding_dong {
       start: 27.32772s,
       duration: 1.287032s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_84, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_84, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78420,7 +78592,9 @@ Sequence ding_dong {
       start: 27.460765s,
       duration: 1.28908s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_85, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_85, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78428,7 +78602,9 @@ Sequence ding_dong {
       start: 27.597651s,
       duration: 1.599076s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_86, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_86, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78436,7 +78612,9 @@ Sequence ding_dong {
       start: 29.196727s,
       duration: 1.233356s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_87, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_87, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78444,7 +78622,9 @@ Sequence ding_dong {
       start: 29.3757s,
       duration: 1.20489s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_88, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_88, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78452,7 +78632,9 @@ Sequence ding_dong {
       start: 29.428577s,
       duration: 1.285326s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_89, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_89, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78460,7 +78642,9 @@ Sequence ding_dong {
       start: 29.868565s,
       duration: 1.279993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_90, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_90, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78468,7 +78652,9 @@ Sequence ding_dong {
       start: 29.868565s,
       duration: 1.279993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_91, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_91, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78476,7 +78662,9 @@ Sequence ding_dong {
       start: 29.868565s,
       duration: 1.279993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_92, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_92, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78484,7 +78672,9 @@ Sequence ding_dong {
       start: 29.868565s,
       duration: 1.279993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_93, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_93, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78492,7 +78682,9 @@ Sequence ding_dong {
       start: 29.868565s,
       duration: 1.279993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_94, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_94, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78500,7 +78692,9 @@ Sequence ding_dong {
       start: 29.868565s,
       duration: 1.279993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_95, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_95, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78508,7 +78702,9 @@ Sequence ding_dong {
       start: 29.868565s,
       duration: 1.279993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_96, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_96, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78516,7 +78712,9 @@ Sequence ding_dong {
       start: 30.430083s,
       duration: 1.277033s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_97, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_97, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78524,7 +78722,9 @@ Sequence ding_dong {
       start: 31.148558s,
       duration: 1.164588s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_98, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_98, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78532,7 +78732,9 @@ Sequence ding_dong {
       start: 31.19881s,
       duration: 1.236311s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_99, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_99, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78540,7 +78742,9 @@ Sequence ding_dong {
       start: 31.283515s,
       duration: 1.252648s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_100, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_100, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78548,7 +78752,9 @@ Sequence ding_dong {
       start: 31.998735s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_101, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_101, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78556,7 +78762,9 @@ Sequence ding_dong {
       start: 32.098359s,
       duration: 1.2352s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_102, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_102, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78564,7 +78772,9 @@ Sequence ding_dong {
       start: 32.196574s,
       duration: 1.26838s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_103, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_103, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78572,7 +78782,9 @@ Sequence ding_dong {
       start: 32.914805s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_104, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_104, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78580,7 +78792,9 @@ Sequence ding_dong {
       start: 33.000859s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_105, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_105, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78588,7 +78802,9 @@ Sequence ding_dong {
       start: 33.113741s,
       duration: 1.330244s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_106, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_106, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78596,7 +78812,9 @@ Sequence ding_dong {
       start: 33.836281s,
       duration: 1.27131s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_107, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_107, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78604,7 +78822,9 @@ Sequence ding_dong {
       start: 33.97803s,
       duration: 1.215615s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_108, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_108, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78612,7 +78832,9 @@ Sequence ding_dong {
       start: 34.060208s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_109, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_109, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78620,7 +78842,9 @@ Sequence ding_dong {
       start: 34.754103s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_110, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_110, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78628,7 +78852,9 @@ Sequence ding_dong {
       start: 34.884674s,
       duration: 1.204253s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_111, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_111, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78636,7 +78862,9 @@ Sequence ding_dong {
       start: 35.020859s,
       duration: 1.23047s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_112, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_112, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78644,7 +78872,9 @@ Sequence ding_dong {
       start: 35.6988s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_113, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_113, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78652,7 +78882,9 @@ Sequence ding_dong {
       start: 35.784855s,
       duration: 1.24877s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_114, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_114, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78660,7 +78892,9 @@ Sequence ding_dong {
       start: 35.885148s,
       duration: 1.266656s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_115, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_115, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78668,7 +78902,9 @@ Sequence ding_dong {
       start: 36.620534s,
       duration: 0.999093s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_116, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_116, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78676,7 +78912,9 @@ Sequence ding_dong {
       start: 36.721714s,
       duration: 0.99401s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_117, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_117, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78684,7 +78922,9 @@ Sequence ding_dong {
       start: 36.798557s,
       duration: 0.734097s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_118, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_118, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78692,7 +78932,9 @@ Sequence ding_dong {
       start: 37.033625s,
       duration: 0.980374s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_119, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_119, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78700,7 +78942,9 @@ Sequence ding_dong {
       start: 37.151804s,
       duration: 1.029875s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_120, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_120, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78708,7 +78952,9 @@ Sequence ding_dong {
       start: 37.291773s,
       duration: 0.722226s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_121, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_121, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78716,7 +78962,9 @@ Sequence ding_dong {
       start: 37.532654s,
       duration: 1.032353s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_122, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_122, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78724,7 +78972,9 @@ Sequence ding_dong {
       start: 37.715724s,
       duration: 0.906293s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_123, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_123, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78732,7 +78982,9 @@ Sequence ding_dong {
       start: 37.802566s,
       duration: 0.651575s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_124, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_124, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78740,7 +78992,9 @@ Sequence ding_dong {
       start: 38.181679s,
       duration: 0.513879s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_125, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_125, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78748,7 +79002,9 @@ Sequence ding_dong {
       start: 38.24316s,
       duration: 0.452398s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_126, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_126, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78756,7 +79012,9 @@ Sequence ding_dong {
       start: 38.773834s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_127, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_127, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78764,7 +79022,9 @@ Sequence ding_dong {
       start: 39.015253s,
       duration: 1.082405s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_128, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_128, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78772,7 +79032,9 @@ Sequence ding_dong {
       start: 39.243036s,
       duration: 0.367636s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_129, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_129, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78780,7 +79042,9 @@ Sequence ding_dong {
       start: 39.333745s,
       duration: 0.960682s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_130, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_130, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78788,7 +79052,9 @@ Sequence ding_dong {
       start: 39.455713s,
       duration: 1.107801s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_131, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_131, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78796,7 +79062,9 @@ Sequence ding_dong {
       start: 39.661761s,
       duration: 1.275308s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_132, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_132, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78804,7 +79072,9 @@ Sequence ding_dong {
       start: 39.889537s,
       duration: 1.293898s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_133, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_133, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78812,7 +79082,9 @@ Sequence ding_dong {
       start: 40.097658s,
       duration: 1.322994s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_134, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_134, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78820,7 +79092,9 @@ Sequence ding_dong {
       start: 40.364602s,
       duration: 1.302068s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_135, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_135, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78828,7 +79102,9 @@ Sequence ding_dong {
       start: 40.563514s,
       duration: 1.000566s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_136, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_136, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78836,7 +79112,9 @@ Sequence ding_dong {
       start: 40.563514s,
       duration: 7.339203s,
       curve: [(0.0, 0.0), (0.0475, 1.0), (0.9225, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78844,7 +79122,9 @@ Sequence ding_dong {
       start: 40.80253s,
       duration: 1.042687s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_137, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_137, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78852,7 +79132,9 @@ Sequence ding_dong {
       start: 41.051236s,
       duration: 0.425337s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_138, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_138, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78860,7 +79142,9 @@ Sequence ding_dong {
       start: 41.183435s,
       duration: 0.924221s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_139, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_139, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78868,7 +79152,9 @@ Sequence ding_dong {
       start: 41.275156s,
       duration: 1.065706s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_140, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_140, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78876,7 +79162,9 @@ Sequence ding_dong {
       start: 41.420652s,
       duration: 1.263976s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_141, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_141, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78884,7 +79172,9 @@ Sequence ding_dong {
       start: 41.66667s,
       duration: 1.215142s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_142, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_142, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78892,7 +79182,9 @@ Sequence ding_dong {
       start: 41.900524s,
       duration: 1.210585s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_143, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_143, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78900,7 +79192,9 @@ Sequence ding_dong {
       start: 42.107656s,
       duration: 1.240111s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_144, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_144, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78908,7 +79202,9 @@ Sequence ding_dong {
       start: 42.340862s,
       duration: 1.061929s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_145, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_145, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78916,7 +79212,9 @@ Sequence ding_dong {
       start: 42.594261s,
       duration: 1.129723s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_146, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_146, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78924,7 +79222,9 @@ Sequence ding_dong {
       start: 42.947329s,
       duration: 0.310699s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_147, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_147, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78932,7 +79232,9 @@ Sequence ding_dong {
       start: 43.050453s,
       duration: 0.919987s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_148, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_148, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78940,7 +79242,9 @@ Sequence ding_dong {
       start: 43.111109s,
       duration: 1.053563s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_149, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_149, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78948,7 +79252,9 @@ Sequence ding_dong {
       start: 43.258028s,
       duration: 1.265311s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_150, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_150, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78956,7 +79262,9 @@ Sequence ding_dong {
       start: 43.491438s,
       duration: 1.234071s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_151, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_151, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78964,7 +79272,9 @@ Sequence ding_dong {
       start: 43.723984s,
       duration: 1.232961s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_152, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_152, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78972,7 +79282,9 @@ Sequence ding_dong {
       start: 43.97044s,
       duration: 1.25574s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_153, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_153, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78980,7 +79292,9 @@ Sequence ding_dong {
       start: 44.164672s,
       duration: 1.001175s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_154, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_154, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78988,7 +79302,9 @@ Sequence ding_dong {
       start: 44.403822s,
       duration: 1.078004s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_155, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_155, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -78996,7 +79312,9 @@ Sequence ding_dong {
       start: 44.725509s,
       duration: 0.349225s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_156, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_156, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79004,7 +79322,9 @@ Sequence ding_dong {
       start: 44.875221s,
       duration: 1.011679s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_157, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_157, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79012,7 +79332,9 @@ Sequence ding_dong {
       start: 44.956945s,
       duration: 1.175189s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_158, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_158, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79020,7 +79342,9 @@ Sequence ding_dong {
       start: 45.074734s,
       duration: 1.268787s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_159, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_159, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79028,7 +79352,9 @@ Sequence ding_dong {
       start: 45.324828s,
       duration: 1.231257s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_160, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_160, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79036,7 +79362,9 @@ Sequence ding_dong {
       start: 45.556113s,
       duration: 1.231927s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_161, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_161, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79044,7 +79372,9 @@ Sequence ding_dong {
       start: 45.812418s,
       duration: 1.241838s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_162, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_162, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79052,7 +79382,9 @@ Sequence ding_dong {
       start: 45.996452s,
       duration: 1.057804s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_163, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_163, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79060,7 +79392,9 @@ Sequence ding_dong {
       start: 46.281608s,
       duration: 1.061213s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_164, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_164, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79068,7 +79402,9 @@ Sequence ding_dong {
       start: 46.556085s,
       duration: 0.370465s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_165, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_165, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79076,7 +79412,9 @@ Sequence ding_dong {
       start: 46.666072s,
       duration: 1.184564s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_166, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_166, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79084,7 +79422,9 @@ Sequence ding_dong {
       start: 46.78804s,
       duration: 1.255985s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_167, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_167, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79092,7 +79432,9 @@ Sequence ding_dong {
       start: 46.92655s,
       duration: 1.253639s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_168, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_168, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79100,7 +79442,9 @@ Sequence ding_dong {
       start: 47.183188s,
       duration: 1.227835s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_169, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_169, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79108,7 +79452,9 @@ Sequence ding_dong {
       start: 47.410298s,
       duration: 1.242517s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_170, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_170, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79116,7 +79462,9 @@ Sequence ding_dong {
       start: 47.643178s,
       duration: 1.208534s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_171, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_171, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79124,7 +79472,9 @@ Sequence ding_dong {
       start: 47.902717s,
       duration: 1.039022s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_172, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_172, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79132,7 +79482,9 @@ Sequence ding_dong {
       start: 48.180189s,
       duration: 1.006376s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_173, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_173, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79140,7 +79492,9 @@ Sequence ding_dong {
       start: 48.411023s,
       duration: 0.440689s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_174, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_174, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79148,7 +79502,9 @@ Sequence ding_dong {
       start: 48.530847s,
       duration: 1.233924s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_175, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_175, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79156,7 +79512,9 @@ Sequence ding_dong {
       start: 48.652815s,
       duration: 1.301712s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_176, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_176, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79164,7 +79522,9 @@ Sequence ding_dong {
       start: 48.764492s,
       duration: 1.33924s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_177, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_177, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79172,7 +79532,9 @@ Sequence ding_dong {
       start: 48.999988s,
       duration: 1.241611s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_178, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_178, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79180,7 +79542,9 @@ Sequence ding_dong {
       start: 49.257488s,
       duration: 1.286582s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_179, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_179, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79188,7 +79552,9 @@ Sequence ding_dong {
       start: 49.48982s,
       duration: 1.275308s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_180, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_180, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79196,7 +79562,9 @@ Sequence ding_dong {
       start: 49.764771s,
       duration: 1.000357s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_181, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_181, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79204,7 +79572,9 @@ Sequence ding_dong {
       start: 50.018899s,
       duration: 1.062049s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_182, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_182, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79212,7 +79582,9 @@ Sequence ding_dong {
       start: 50.324988s,
       duration: 0.356949s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_183, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_183, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79220,7 +79592,9 @@ Sequence ding_dong {
       start: 50.404267s,
       duration: 1.097544s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_184, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_184, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79228,7 +79602,9 @@ Sequence ding_dong {
       start: 50.54407s,
       duration: 1.180696s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_185, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_185, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79236,7 +79612,9 @@ Sequence ding_dong {
       start: 50.619684s,
       duration: 1.307554s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_186, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_186, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79244,7 +79622,9 @@ Sequence ding_dong {
       start: 50.853466s,
       duration: 1.295251s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_187, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_187, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79252,7 +79632,9 @@ Sequence ding_dong {
       start: 51.080948s,
       duration: 1.286629s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_188, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_188, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79260,7 +79642,9 @@ Sequence ding_dong {
       start: 51.328531s,
       duration: 1.260524s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_189, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_189, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79268,7 +79652,9 @@ Sequence ding_dong {
       start: 51.501811s,
       duration: 1.087244s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_190, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_190, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79276,7 +79662,9 @@ Sequence ding_dong {
       start: 51.816798s,
       duration: 0.994985s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_191, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_191, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79284,7 +79672,9 @@ Sequence ding_dong {
       start: 52.148717s,
       duration: 0.330823s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_192, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_192, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79292,7 +79682,9 @@ Sequence ding_dong {
       start: 52.212636s,
       duration: 1.290179s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_193, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_193, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79300,7 +79692,9 @@ Sequence ding_dong {
       start: 52.367577s,
       duration: 1.325659s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_194, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_194, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79308,7 +79702,9 @@ Sequence ding_dong {
       start: 52.47954s,
       duration: 1.213696s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_195, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_195, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79316,7 +79712,9 @@ Sequence ding_dong {
       start: 52.673648s,
       duration: 1.322032s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_196, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_196, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79324,7 +79722,9 @@ Sequence ding_dong {
       start: 52.919878s,
       duration: 1.299514s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_197, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_197, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79332,7 +79732,9 @@ Sequence ding_dong {
       start: 53.163569s,
       duration: 1.256062s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_198, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_198, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79340,7 +79742,9 @@ Sequence ding_dong {
       start: 53.409638s,
       duration: 1.009993s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_199, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_199, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79348,7 +79752,9 @@ Sequence ding_dong {
       start: 53.693236s,
       duration: 1.009904s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_200, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_200, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79356,7 +79762,9 @@ Sequence ding_dong {
       start: 53.99568s,
       duration: 0.338044s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_201, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_201, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79364,7 +79772,9 @@ Sequence ding_dong {
       start: 54.086056s,
       duration: 0.994897s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_202, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_202, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79372,7 +79782,9 @@ Sequence ding_dong {
       start: 54.219392s,
       duration: 1.106532s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_203, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_203, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79380,7 +79792,9 @@ Sequence ding_dong {
       start: 54.333724s,
       duration: 0.747229s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_204, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_204, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79388,7 +79802,9 @@ Sequence ding_dong {
       start: 54.527215s,
       duration: 0.728814s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_205, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_205, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79396,7 +79812,9 @@ Sequence ding_dong {
       start: 54.70314s,
       duration: 0.787081s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_206, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_206, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79404,7 +79822,9 @@ Sequence ding_dong {
       start: 62.64161s,
       duration: 7.385414s,
       curve: [(0.0, 0.0), (0.0475, 1.0), (0.9225, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79412,7 +79832,9 @@ Sequence ding_dong {
       start: 62.719162s,
       duration: 1.556421s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_207, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_207, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79420,7 +79842,9 @@ Sequence ding_dong {
       start: 64.951005s,
       duration: 1.27571s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_208, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_208, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79428,7 +79852,9 @@ Sequence ding_dong {
       start: 64.951005s,
       duration: 1.27571s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_209, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_209, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79436,7 +79862,9 @@ Sequence ding_dong {
       start: 64.951005s,
       duration: 1.27571s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_210, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_210, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79444,7 +79872,9 @@ Sequence ding_dong {
       start: 64.951005s,
       duration: 1.27571s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_211, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_211, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79452,7 +79882,9 @@ Sequence ding_dong {
       start: 64.951005s,
       duration: 1.27571s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_212, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_212, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79460,7 +79892,9 @@ Sequence ding_dong {
       start: 64.951005s,
       duration: 1.27571s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_213, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_213, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79468,7 +79902,9 @@ Sequence ding_dong {
       start: 64.951005s,
       duration: 1.27571s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_214, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_214, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79476,7 +79912,9 @@ Sequence ding_dong {
       start: 66.334173s,
       duration: 1.646172s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_215, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_215, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79484,7 +79922,9 @@ Sequence ding_dong {
       start: 68.626328s,
       duration: 1.293502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_216, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_216, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79492,7 +79932,9 @@ Sequence ding_dong {
       start: 68.626328s,
       duration: 1.293502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_217, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_217, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79500,7 +79942,9 @@ Sequence ding_dong {
       start: 68.626328s,
       duration: 1.293502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_218, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_218, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79508,7 +79952,9 @@ Sequence ding_dong {
       start: 68.626328s,
       duration: 1.293502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_219, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_219, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79516,7 +79962,9 @@ Sequence ding_dong {
       start: 68.626328s,
       duration: 1.293502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_220, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_220, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79524,7 +79972,9 @@ Sequence ding_dong {
       start: 68.626328s,
       duration: 1.293502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_221, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_221, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79532,7 +79982,9 @@ Sequence ding_dong {
       start: 68.626328s,
       duration: 1.293502s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_222, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_222, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79540,7 +79992,9 @@ Sequence ding_dong {
       start: 76.95172s,
       duration: 0.499094s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_223, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_223, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79548,7 +80002,9 @@ Sequence ding_dong {
       start: 84.319213s,
       duration: 0.554459s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: color_wash_224, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_224, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -79556,7 +80012,9 @@ Sequence ding_dong {
       start: 110.741731s,
       duration: 3.845208s,
       curve: [(0.0, 1.0), (0.9035, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

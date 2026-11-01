@@ -94,6 +94,33 @@ pub use workspace::{
 // Shared serialized edit contract for desktop and browser clients.
 // Tauri-Specta exports the TypeScript representation in bindings.ts.
 
+/// The part of a normalized `0..1` value a binding uses, as fractions: 0 lands
+/// on `low` and 1 on `high`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiWindow {
+    pub(crate) low: f32,
+    pub(crate) high: f32,
+}
+
+impl From<donder_model::Window> for GuiWindow {
+    fn from(window: donder_model::Window) -> Self {
+        Self {
+            low: window.low,
+            high: window.high,
+        }
+    }
+}
+
+impl From<GuiWindow> for donder_model::Window {
+    fn from(window: GuiWindow) -> Self {
+        Self {
+            low: window.low,
+            high: window.high,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -168,6 +195,11 @@ pub enum SequenceGuiEdit {
     UnbindAutomationParam {
         automation_clip_id: u32,
         target: SequenceAutomationTarget,
+    },
+    SetAutomationWindow {
+        automation_clip_id: u32,
+        target: SequenceAutomationTarget,
+        window: GuiWindow,
     },
     RebindDetachedAutomation {
         automation_clip_id: u32,

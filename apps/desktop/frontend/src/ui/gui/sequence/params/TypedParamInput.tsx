@@ -12,6 +12,7 @@ import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, 
 
 import { ColorPicker } from "../../../ColorPicker";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
+import { WindowFields } from "../../WindowFields";
 
 /** The select value for a marks parameter with no collection; collection keys are never empty. */
 const NO_MARK_COLLECTION = "";
@@ -261,23 +262,39 @@ function automationBindingControl(host: SequenceEditorHost,
 
   const choosing = automationClipChooser !== null && automationTargetsEqual(automationClipChooser.target, target);
   if (param.automation !== null) {
+    const { automationClipId, window: bounds } = param.automation;
     return (
-      <button
-        type="button"
-        className="neutral-button icon-button"
-        title="Unlink automation"
-        onClick={() =>
-          void runGuiEditCommand((request) =>
-            commands.applyGuiEdit(request, { type: "sequence", edit: {
-              type: "unbindAutomationParam",
-              automationClipId: param.automation?.automationClipId ?? 0,
-              target
-            } })
-          )
-        }
-      >
-        <Link2Off size={THEME_METRICS.iconSizeSmall} />
-      </button>
+      <>
+        <WindowFields
+          value={bounds}
+          onChange={(next) =>
+            void runGuiEditCommand((request) =>
+              commands.applyGuiEdit(request, { type: "sequence", edit: {
+                type: "setAutomationWindow",
+                automationClipId,
+                target,
+                window: next
+              } })
+            )
+          }
+        />
+        <button
+          type="button"
+          className="neutral-button icon-button"
+          title="Unlink automation"
+          onClick={() =>
+            void runGuiEditCommand((request) =>
+              commands.applyGuiEdit(request, { type: "sequence", edit: {
+                type: "unbindAutomationParam",
+                automationClipId,
+                target
+              } })
+            )
+          }
+        >
+          <Link2Off size={THEME_METRICS.iconSizeSmall} />
+        </button>
+      </>
     );
   }
   return (

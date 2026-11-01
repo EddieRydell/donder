@@ -134,6 +134,43 @@ pub fn automation_curve_is_normalized(curve: &Curve) -> bool {
         .all(|point| (0.0..=1.0).contains(&point.value))
 }
 
+/// The part of a normalized `0..1` value a binding uses: 0 lands on `low` and
+/// 1 on `high`, so a window of `0.0..0.7` caps the parameter at 70% of its
+/// range and `low > high` inverts it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Window {
+    pub low: f32,
+    pub high: f32,
+}
+
+impl Window {
+    pub const FULL: Self = Self {
+        low: 0.0,
+        high: 1.0,
+    };
+
+    pub fn is_normalized(self) -> bool {
+        (0.0..=1.0).contains(&self.low) && (0.0..=1.0).contains(&self.high)
+    }
+
+    pub fn apply(self, value: f32) -> f32 {
+        self.low + (self.high - self.low) * value
+    }
+
+    fn apply_to_curve(self, curve: &Curve) -> Curve {
+        Curve {
+            points: curve
+                .points
+                .iter()
+                .map(|point| CurvePoint {
+                    position: point.position,
+                    value: self.apply(point.value),
+                })
+                .collect(),
+        }
+    }
+}
+
 impl AutomationClip {
     fn end(&self) -> core::time::Duration {
         self.start.0.saturating_add(self.duration.0)
@@ -239,10 +276,19 @@ impl AutomationClip {
         self.bindings = retained;
     }
 
-    pub fn bind(&mut self, target: AutomationTarget) {
+    pub fn bind(&mut self, target: AutomationTarget, window: Window) {
         self.detached_bindings
             .retain(|binding| binding.target != target);
-        self.bindings.push(AutomationBinding { target });
+        self.bindings.push(AutomationBinding { target, window });
+    }
+
+    /// The curve as `target` sees it, through the window of its binding.
+    fn windowed_curve(&self, target: &AutomationTarget) -> Option<Curve> {
+        let binding = self
+            .bindings
+            .iter()
+            .find(|binding| &binding.target == target)?;
+        Some(binding.window.apply_to_curve(&self.curve))
     }
 }
 
@@ -258,33 +304,30 @@ impl Sequence {
     /// envelope holds its first value, and each gap holds the value the
     /// previous clip ended on.
     pub fn automation_envelope(&self, target: &AutomationTarget) -> Option<AutomationEnvelope> {
+        // Each clip with its curve through its own window.
         let mut clips = self
             .automation_clips
             .iter()
-            .filter(|clip| {
-                clip.bindings
-                    .iter()
-                    .any(|binding| &binding.target == target)
-            })
+            .filter_map(|clip| Some((clip, clip.windowed_curve(target)?)))
             .collect::<Vec<_>>();
-        if let [clip] = clips.as_slice() {
+        if let [(clip, curve)] = clips.as_slice() {
             return Some(AutomationEnvelope {
                 start: clip.start.clone(),
                 duration: clip.duration.clone(),
-                curve: clip.curve.clone(),
+                curve: curve.clone(),
             });
         }
-        clips.sort_by_key(|clip| clip.start.0);
-        let start = clips.first()?.start.0;
-        let end = clips.iter().map(|clip| clip.end()).max()?;
+        clips.sort_by_key(|(clip, _)| clip.start.0);
+        let start = clips.first()?.0.start.0;
+        let end = clips.iter().map(|(clip, _)| clip.end()).max()?;
         let span = (end - start).as_secs_f64();
         let position =
             |seconds: f64| ((seconds - start.as_secs_f64()) / span).clamp(0.0, 1.0) as f32;
         let last = clips.len() - 1;
         let mut points = Vec::new();
         let mut held = None;
-        for (index, clip) in clips.iter().enumerate() {
-            if clip.curve.points.is_empty() {
+        for (index, (clip, curve)) in clips.iter().enumerate() {
+            if curve.points.is_empty() {
                 continue;
             }
             let clip_start = clip.start.0.as_secs_f64();
@@ -299,15 +342,15 @@ impl Sequence {
                 }
                 points.push(CurvePoint {
                     position: start_position,
-                    value: sample_curve(&clip.curve, 0.0),
+                    value: sample_curve(curve, 0.0),
                 });
             }
-            points.extend(clip.curve.points.iter().map(|point| CurvePoint {
+            points.extend(curve.points.iter().map(|point| CurvePoint {
                 position: position(clip_start + f64::from(point.position) * clip_duration),
                 value: point.value,
             }));
             if index < last {
-                let value = sample_curve(&clip.curve, 1.0);
+                let value = sample_curve(curve, 1.0);
                 points.push(CurvePoint {
                     position: position(clip_start + clip_duration),
                     value,
@@ -360,6 +403,7 @@ pub struct AutomationClipId(pub u32);
 #[derive(Clone, Debug, PartialEq)]
 pub struct AutomationBinding {
     pub target: AutomationTarget,
+    pub window: Window,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -402,6 +446,7 @@ impl<Clip> AutomationTarget<Clip> {
 /// `mapping` comes from the target parameter declaration.
 pub fn automation_value_at<'a>(
     clip: &AutomationClip,
+    window: Window,
     mapping: &'a AutomationMapping,
     sample_seconds: f64,
 ) -> Option<AutomationValue<'a>> {
@@ -411,7 +456,7 @@ pub fn automation_value_at<'a>(
     } else {
         ((sample_seconds - clip.start.as_seconds_f64()) / duration).clamp(0.0, 1.0) as f32
     };
-    automation_value_at_position(&clip.curve, mapping, position)
+    automation_value_at_position(&window.apply_to_curve(&clip.curve), mapping, position)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

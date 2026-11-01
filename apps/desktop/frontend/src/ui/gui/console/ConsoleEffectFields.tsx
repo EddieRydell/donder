@@ -1,31 +1,11 @@
 import { THEME_COLORS } from "../../../theme";
-import type { ConsoleClip, ConsoleGuiDocument, SequenceClipParam, SequenceClipScope } from "../../../types";
-import { guiObjectKey } from "../../../workspace/guiIdentity";
+import type { ConsoleClip, ConsoleGuiDocument, SequenceClipScope } from "../../../types";
 import { DescriptionField } from "../DescriptionField";
 import { NameField } from "../sequence/NameField";
 import { EffectDefinitionPicker, effectReferencesEqual } from "../sequence/definitionMenu";
 import { TypedParamInput } from "../sequence/params/TypedParamInput";
-import { applyConsoleEdit, applyConsoleItemEdit, controllerOf, controlKey, controlRef, editConsoleEffect } from "./consoleEditing";
-
-/** Which control sets a parameter: none, or any button or axis of the setup's devices. */
-function ParamControl({ document, clipId, param }: { document: ConsoleGuiDocument; clipId: number; param: SequenceClipParam }) {
-  const target = { type: "clipParam", clipId, param: param.name } as const;
-  const current = controllerOf(document, target);
-  const value = current === undefined ? "" : controlKey(current.input.control);
-  const controls = document.inputDevices.map((device) => ({ device, controls: [...device.buttons, ...device.axes] }));
-  const listed = controls.some(({ device, controls: all }) => all.some((control) => controlKey(controlRef(device, control)) === value));
-  return <select aria-label={`Control ${param.name} from`} value={value} title="Set this from a control: an axis by its position, a button by its velocity" onChange={(event) => {
-    const key = event.currentTarget.value;
-    const chosen = controls.flatMap(({ device, controls: all }) => all.map((control) => controlRef(device, control))).find((ref) => controlKey(ref) === key);
-    void applyConsoleEdit({ type: "controlParam", target, control: chosen ?? null });
-  }}>
-    <option value="">Not controlled</option>
-    {current !== undefined && !listed && <option value={value} disabled>{current.input.controlName}</option>}
-    {controls.map(({ device, controls: all }) => <optgroup key={guiObjectKey(device.device)} label={device.name}>
-      {all.map((control) => <option key={control.control} value={controlKey(controlRef(device, control))}>{control.name}</option>)}
-    </optgroup>)}
-  </select>;
-}
+import { applyConsoleItemEdit, editConsoleEffect } from "./consoleEditing";
+import { KnobSelect } from "./KnobSelect";
 
 /** An effect the console plays: its name, layer, target, scope, effect type and parameters. */
 export function EffectFields({ document, clip }: { document: ConsoleGuiDocument; clip: ConsoleClip }) {
@@ -57,7 +37,7 @@ export function EffectFields({ document, clip }: { document: ConsoleGuiDocument;
         {clip.params.map((param, index) => <div key={param.name} className={`clip-param-row ${index % 2 === 0 ? "clip-param-row-even" : "clip-param-row-odd"}`}>
           <TypedParamInput param={param} commitParam={(name, value) => editConsoleEffect(clip.id, { type: "param", name, value }).then(() => undefined)}
             curveLibrary={document.curveLibrary} gradientLibrary={document.gradientLibrary} markCollections={document.liveMarks}
-            automationControl={param.supportsAutomation ? <ParamControl document={document} clipId={clip.id} param={param} /> : null} />
+            automationControl={param.supportsAutomation ? <KnobSelect document={document} target={{ type: "clipParam", clipId: clip.id, param: param.name }} label={param.name} /> : null} />
         </div>)}
       </div>
     </>}

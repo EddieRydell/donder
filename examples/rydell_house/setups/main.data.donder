@@ -29,7 +29,24 @@ Setup main {
     garage_door_matrix,
     left_magnolia,
   ],
-  input_devices: [devices.mpk_mini],
+  input_devices: [
+    devices.mpk_mini,
+    InputDevice input_device_2 {
+      description: none,
+      driver: Keyboard,
+      controls: [
+        Button { name: control_1, description: none, input: Key { code: KeyA } },
+        Button { name: control_2, description: none, input: Key { code: KeyS } },
+        Button { name: control_3, description: none, input: Key { code: KeyD } },
+        Button { name: control_4, description: none, input: Key { code: KeyF } },
+        Button { name: control_5, description: none, input: Key { code: KeyG } },
+        Button { name: control_6, description: none, input: Key { code: KeyH } },
+        Button { name: control_7, description: none, input: Key { code: KeyJ } },
+        Button { name: control_8, description: none, input: Key { code: KeyK } },
+        Button { name: control_9, description: none, input: Key { code: KeyL } },
+      ],
+    },
+  ],
 }
 
 Controller nativity {

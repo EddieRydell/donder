@@ -328,16 +328,19 @@ fn param_automation(
     value: &mut SequenceParamValue,
 ) -> Option<SequenceParamAutomation> {
     let envelope = sequence.automation_envelope(target)?;
-    let clip = sequence.automation_clips.iter().find(|clip| {
-        clip.bindings
+    let (clip, binding) = sequence.automation_clips.iter().find_map(|clip| {
+        let binding = clip
+            .bindings
             .iter()
-            .any(|binding| &binding.target == target)
+            .find(|binding| &binding.target == target)?;
+        Some((clip, binding))
     })?;
     if let SequenceParamValue::Curve { value } = value {
         value.points = curve_points(&envelope.curve_in_range(start, duration));
     }
     Some(SequenceParamAutomation {
         automation_clip_id: clip.id.0,
+        window: binding.window.into(),
     })
 }
 

@@ -329,10 +329,11 @@ fn library_id<I: TryFrom<ObjectId>>(id: ObjectId) -> Result<I, GuiMutationError>
 
 pub(super) fn automation_binding_value_at(
     clip: &AutomationClip,
+    window: Window,
     mapping: &AutomationMapping,
     seconds: f64,
 ) -> Result<ParamValue, GuiMutationError> {
-    automation_value_at(clip, mapping, seconds)
+    automation_value_at(clip, window, mapping, seconds)
         .map(|value| match value {
             AutomationValue::Int(value) => ParamValue::Int(value),
             AutomationValue::Float(value) => ParamValue::Float(value),
@@ -452,7 +453,7 @@ use std::fs;
 use camino::Utf8PathBuf;
 use donder_language::{Distance, Point3, Rotation3 as DomainRotation3, Scale3 as DomainScale3};
 use donder_model::{
-    AssetId, AutomationClip, CompositionGraphNodeId, MarkCollection, MarkCollectionKey,
+    AssetId, AutomationClip, CompositionGraphNodeId, MarkCollection, MarkCollectionKey, Window,
     automation_value_at,
 };
 use donder_model::{Clip, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue};

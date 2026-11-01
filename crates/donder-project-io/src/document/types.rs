@@ -445,8 +445,15 @@ pub(crate) struct AutomationClip {
     pub start: Duration,
     pub duration: Duration,
     pub curve: Vec<(f32, f32)>,
-    pub bindings: Vec<Binding>,
+    pub bindings: Vec<Bound>,
     pub detached: Vec<Detached>,
+}
+
+/// A binding with the window of the curve's `0..1` it uses, as `(low, high)`.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) struct Bound {
+    pub binding: Binding,
+    pub window: (f32, f32),
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -561,8 +568,9 @@ pub(crate) enum Action {
         #[refers(Marks)]
         into: Name,
     },
-    /// Writes the event's value into a parameter.
-    Set { param: Binding },
+    /// Writes the event's value, through `window` as `(low, high)`, into a
+    /// parameter.
+    Set { param: Binding, window: (f32, f32) },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -591,6 +599,7 @@ pub(crate) enum LengthSource {
 pub(crate) struct PlayedValue {
     pub param: Name,
     pub from: PlayedQuantity,
+    pub window: (f32, f32),
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

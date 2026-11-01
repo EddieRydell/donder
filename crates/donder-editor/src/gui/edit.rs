@@ -122,8 +122,12 @@ pub(super) fn edit_sequence(
                     let bindings = clip
                         .bindings
                         .iter()
-                        .filter_map(|binding| rebind(&binding.target))
-                        .map(|target| AutomationBinding { target })
+                        .filter_map(|binding| {
+                            Some(AutomationBinding {
+                                target: rebind(&binding.target)?,
+                                window: binding.window,
+                            })
+                        })
                         .collect::<Vec<_>>();
                     let detached = clip
                         .detached_bindings
@@ -342,7 +346,7 @@ pub(super) fn edit_sequence(
                 detached_bindings: Vec::new(),
             };
             require_available_automation_target(&draft, &target, &clip)?;
-            clip.bindings.push(AutomationBinding { target });
+            clip.bind(target, Window::FULL);
             draft.automation_clips.push(clip);
         }
         SequenceGuiEdit::SplitAutomationClip { id, time_seconds } => {
@@ -388,7 +392,22 @@ pub(super) fn edit_sequence(
             automation_target_mapping(session, &sequence_id, &target)?;
             let clip = automation_clip_mut(&mut draft, automation_clip_id)?.clone();
             require_available_automation_target(&draft, &target, &clip)?;
-            automation_clip_mut(&mut draft, automation_clip_id)?.bind(target);
+            automation_clip_mut(&mut draft, automation_clip_id)?.bind(target, Window::FULL);
+        }
+        SequenceGuiEdit::SetAutomationWindow {
+            automation_clip_id,
+            target,
+            window,
+        } => {
+            let target = automation_target_from_gui(target)?;
+            let binding = automation_clip_mut(&mut draft, automation_clip_id)?
+                .bindings
+                .iter_mut()
+                .find(|binding| binding.target == target)
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Automation binding was not found.".to_string())
+                })?;
+            binding.window = window.into();
         }
         SequenceGuiEdit::UnbindAutomationParam {
             automation_clip_id,
@@ -424,7 +443,8 @@ pub(super) fn edit_sequence(
                 AutomationTarget::CompositionNodeParam { .. } => clip.start.as_seconds_f64(),
             };
             let mapping = automation_target_mapping(session, &sequence_id, &binding.target)?;
-            let value = automation_binding_value_at(&clip, &mapping, sample_seconds)?;
+            let value =
+                automation_binding_value_at(&clip, binding.window, &mapping, sample_seconds)?;
             match &target {
                 AutomationTarget::ClipParam { clip_id, param } => {
                     clip_mut(sequence, clip_id.0)?
@@ -461,7 +481,7 @@ pub(super) fn edit_sequence(
                 ));
             }
             clip.detached_bindings.remove(detached_index as usize);
-            clip.bind(target);
+            clip.bind(target, Window::FULL);
         }
         SequenceGuiEdit::DiscardDetachedAutomation {
             automation_clip_id,
@@ -588,7 +608,7 @@ use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
     CompositionGraphNodeKind, DetachedAutomationBinding, Mark, MarkCollection, MarkCollectionKey,
-    SequenceAudio as DomainSequenceAudio, SequenceId, automation_curve_is_normalized,
+    SequenceAudio as DomainSequenceAudio, SequenceId, Window, automation_curve_is_normalized,
 };
 use donder_model::{Clip, ClipId};
 use donder_project_io::{ProjectSession, ensure_document_can_reference_object};

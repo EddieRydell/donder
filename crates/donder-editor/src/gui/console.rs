@@ -3,7 +3,7 @@ use donder_model::{
     Action, ClipScope, CompositionGraphNodeKind, Console, ConsoleClipId, ConsoleId, ControlRef,
     EffectDefinitionId, FixtureInstanceId, FixtureTarget as DomainFixtureTarget, InputDevice,
     InputDeviceId, InputEvent, LengthSource, LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId,
-    Play, PlayLength, PlayedQuantity, PlayedValue, SequenceLayerId,
+    Play, PlayLength, PlayedQuantity, PlayedValue, SequenceLayerId, Window,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 
@@ -145,6 +145,7 @@ fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
                     PlayedQuantity::PitchClass => ConsolePlayedQuantity::PitchClass,
                     PlayedQuantity::Fifths => ConsolePlayedQuantity::Fifths,
                 },
+                window: value.window.into(),
             })
             .collect()
     };
@@ -191,8 +192,9 @@ fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
         Action::Mark(key) => ConsoleAction::Mark {
             into: key.name.as_str().to_string(),
         },
-        Action::Set(target) => ConsoleAction::Set {
+        Action::Set { target, window } => ConsoleAction::Set {
             target: automation_target_to_gui(target),
+            window: (*window).into(),
         },
     }
 }
@@ -214,6 +216,7 @@ fn action_from_gui(
                         ConsolePlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
                         ConsolePlayedQuantity::Fifths => PlayedQuantity::Fifths,
                     },
+                    window: value.window.into(),
                 })
             })
             .collect::<Result<Vec<_>, GuiMutationError>>()
@@ -270,7 +273,10 @@ fn action_from_gui(
         ConsoleAction::Mark { into } => Action::Mark(MarkCollectionKey {
             name: identifier(&into)?,
         }),
-        ConsoleAction::Set { target } => Action::Set(automation_target_from_gui(target)?),
+        ConsoleAction::Set { target, window } => Action::Set {
+            target: automation_target_from_gui(target)?,
+            window: window.into(),
+        },
     })
 }
 
@@ -454,10 +460,10 @@ pub(super) fn edit_console(
                 return Err(GuiMutationError::Invalid("Action was not found.".into()));
             }
             let removed = actions.remove(index);
-            if let Action::Set(target) = &removed {
+            if let Action::Set { target, .. } = &removed {
                 for on in &mut draft.events {
                     on.actions
-                        .retain(|action| !matches!(action, Action::Set(set) if set == target));
+                        .retain(|action| !matches!(action, Action::Set { target: set, .. } if set == target));
                 }
             }
             // An effect nothing plays or holds goes, with the stops that were left for it.
@@ -476,12 +482,18 @@ pub(super) fn edit_console(
             }
             draft.events.retain(|on| !on.actions.is_empty());
         }
-        ConsoleGuiEdit::ControlParam { target, control } => {
+        ConsoleGuiEdit::ControlParam {
+            target,
+            control,
+            window,
+        } => {
             let target = automation_target_from_gui(target)?;
+            let window = Window::from(window);
             // Whatever controlled the parameter before lets go of it.
             for on in &mut draft.events {
-                on.actions
-                    .retain(|action| !matches!(action, Action::Set(set) if *set == target));
+                on.actions.retain(
+                    |action| !matches!(action, Action::Set { target: set, .. } if *set == target),
+                );
             }
             if let Some(control) = control {
                 let control = control_from_gui(session, owner, &control)?;
@@ -497,20 +509,23 @@ pub(super) fn edit_console(
                         &mut draft,
                         ConsoleEventKind::Press,
                         control.clone(),
-                        Action::Set(target.clone()),
+                        Action::Set {
+                            target: target.clone(),
+                            window,
+                        },
                     );
                     push_action(
                         &mut draft,
                         ConsoleEventKind::Release,
                         control,
-                        Action::Set(target),
+                        Action::Set { target, window },
                     );
                 } else {
                     push_action(
                         &mut draft,
                         ConsoleEventKind::Move,
                         control,
-                        Action::Set(target),
+                        Action::Set { target, window },
                     );
                 }
             }
@@ -542,7 +557,8 @@ pub(super) fn edit_console(
             on.event = input_event(event, input);
             match event {
                 ConsoleEventKind::Move => {
-                    on.actions.retain(|action| matches!(action, Action::Set(_)));
+                    on.actions
+                        .retain(|action| matches!(action, Action::Set { .. }));
                 }
                 ConsoleEventKind::Release => {
                     on.actions.iter_mut().for_each(|action| {
@@ -655,7 +671,7 @@ fn values_mut(action: &mut Action) -> Option<&mut Vec<PlayedValue>> {
     match action {
         Action::Play(play) => Some(&mut play.values),
         Action::Start { values, .. } | Action::Toggle { values, .. } => Some(values),
-        Action::Stop { .. } | Action::Mark(_) | Action::Set(_) => None,
+        Action::Stop { .. } | Action::Mark(_) | Action::Set { .. } => None,
     }
 }
 

@@ -196644,7 +196644,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196652,7 +196654,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196660,7 +196664,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196668,7 +196674,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.4476), (1.0, 0.2768)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196676,7 +196684,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.7249), (1.0, 0.7976)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196684,7 +196694,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196692,7 +196704,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196700,7 +196714,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196708,7 +196724,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196716,7 +196734,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196724,7 +196744,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196732,7 +196754,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196740,7 +196764,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196748,7 +196774,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.4476), (1.0, 0.2768)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196756,7 +196784,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.7249), (1.0, 0.7976)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196764,7 +196794,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196772,7 +196804,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196780,7 +196814,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196788,7 +196824,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196796,7 +196834,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196804,7 +196844,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196812,7 +196854,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196820,7 +196864,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196828,7 +196874,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196836,7 +196884,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196844,7 +196894,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196852,7 +196904,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196860,7 +196914,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196868,7 +196924,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196876,7 +196934,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196884,7 +196944,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196892,7 +196954,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196900,7 +196964,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196908,7 +196974,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.4476), (1.0, 0.2768)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196916,7 +196984,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.7249), (1.0, 0.7976)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196924,7 +196994,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196932,7 +197004,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196940,7 +197014,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196948,7 +197024,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196956,7 +197034,9 @@ Sequence carol_of_the_bells {
       start: 72.2558s,
       duration: 1.251586s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196964,7 +197044,9 @@ Sequence carol_of_the_bells {
       start: 74.480536s,
       duration: 1.291888s,
       curve: [(0.0, 1.0), (0.765, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196972,7 +197054,9 @@ Sequence carol_of_the_bells {
       start: 74.480536s,
       duration: 1.291888s,
       curve: [(0.0, 1.0), (0.765, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196980,7 +197064,9 @@ Sequence carol_of_the_bells {
       start: 74.480536s,
       duration: 1.291888s,
       curve: [(0.0, 1.0), (0.765, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196988,7 +197074,9 @@ Sequence carol_of_the_bells {
       start: 74.480536s,
       duration: 1.291888s,
       curve: [(0.0, 1.0), (0.765, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -196996,7 +197084,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_140, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_140, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197004,7 +197094,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_141, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_141, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197012,7 +197104,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_142, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_142, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197020,7 +197114,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_143, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_143, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197028,7 +197124,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_144, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_144, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197036,7 +197134,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_145, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_145, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197044,7 +197144,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_146, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_146, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197052,7 +197154,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_147, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_147, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197060,7 +197164,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_148, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_148, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197068,7 +197174,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_149, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_149, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197076,7 +197184,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_150, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_150, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197084,7 +197194,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_151, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_151, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197092,7 +197204,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_152, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_152, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197100,7 +197214,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_153, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_153, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197108,7 +197224,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_154, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_154, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197116,7 +197234,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_155, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_155, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197124,7 +197244,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_156, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_156, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197132,7 +197254,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_157, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_157, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197140,7 +197264,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_158, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_158, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197148,7 +197274,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_159, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_159, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197156,7 +197284,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_160, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_160, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197164,7 +197294,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_161, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_161, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197172,7 +197304,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_162, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_162, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197180,7 +197314,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_163, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_163, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197188,7 +197324,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_164, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_164, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197196,7 +197334,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_165, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_165, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197204,7 +197344,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_166, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_166, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197212,7 +197354,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_167, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_167, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197220,7 +197364,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_168, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_168, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197228,7 +197374,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_169, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_169, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197236,7 +197384,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_170, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_170, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197244,7 +197394,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_171, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_171, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197252,7 +197404,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_172, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_172, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197260,7 +197414,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_173, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_173, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197268,7 +197424,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_174, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_174, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197276,7 +197434,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_175, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_175, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197284,7 +197444,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_176, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_176, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197292,7 +197454,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_177, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_177, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197300,7 +197464,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_178, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_178, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197308,7 +197474,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_179, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_179, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197316,7 +197484,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_180, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_180, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197324,7 +197494,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_181, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_181, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197332,7 +197504,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_182, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_182, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197340,7 +197514,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_183, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_183, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197348,7 +197524,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_184, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_184, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197356,7 +197534,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_185, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_185, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197364,7 +197544,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_186, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_186, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197372,7 +197554,9 @@ Sequence carol_of_the_bells {
       start: 75.608428s,
       duration: 1.15124s,
       curve: [(0.0, 1.0), (0.6341, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_187, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_187, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197380,7 +197564,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.1604, 0.0), (0.6599, 0.523), (1.0, 1.0)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: center_hub }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: center_hub }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197388,7 +197574,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.6333), (1.0, 0.2681)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197396,7 +197584,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.4461, 0.2542), (1.0, 0.3415)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197404,7 +197594,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.7291), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197412,7 +197604,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.1604, 0.0), (0.6599, 0.523), (1.0, 1.0)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: center_hub }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: center_hub }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197420,7 +197614,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.6333), (1.0, 0.2681)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197428,7 +197624,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.4461, 0.2542), (1.0, 0.3415)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197436,7 +197634,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.7291), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197444,7 +197644,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.1604, 0.0), (0.6765, 0.3573), (1.0, 1.0)],
-      bindings: [ClipParam { clip: pin_wheel_11, param: center_hub }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_11, param: center_hub }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197452,7 +197654,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.6333), (1.0, 0.2681)],
-      bindings: [ClipParam { clip: pin_wheel_11, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_11, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197460,7 +197664,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.4461, 0.1899), (1.0, 0.2773)],
-      bindings: [ClipParam { clip: pin_wheel_11, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_11, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197468,7 +197674,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.7291), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_11, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_11, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197476,7 +197684,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.1604, 0.0), (0.6599, 0.523), (1.0, 1.0)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: center_hub }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: center_hub }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197484,7 +197694,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.6333), (1.0, 0.2681)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197492,7 +197704,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.0), (0.4461, 0.2542), (1.0, 0.3415)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197500,7 +197714,9 @@ Sequence carol_of_the_bells {
       start: 76.759668s,
       duration: 1.410058s,
       curve: [(0.0, 0.7291), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197508,7 +197724,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197516,7 +197734,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197524,7 +197744,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197532,7 +197754,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197540,7 +197764,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197548,7 +197774,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_8, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_8, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197556,7 +197784,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_9, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_9, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197564,7 +197794,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_10, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_10, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197572,7 +197804,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_11, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_11, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197580,7 +197814,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197588,7 +197824,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197596,7 +197834,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_16, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_16, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197604,7 +197844,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_17, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_17, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197612,7 +197854,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_18, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_18, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197620,7 +197864,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197628,7 +197874,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_20, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_20, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197636,7 +197884,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_21, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_21, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197644,7 +197894,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_22, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_22, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197652,7 +197904,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_23, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_23, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197660,7 +197914,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_24, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_24, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197668,7 +197924,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_25, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_25, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197676,7 +197934,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197684,7 +197944,9 @@ Sequence carol_of_the_bells {
       start: 78.971072s,
       duration: 1.112977s,
       curve: [(0.0, 1.0), (0.6913, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_27, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_27, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197692,7 +197954,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197700,7 +197964,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197708,7 +197974,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.7003), (1.0, 0.9725)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197716,7 +197984,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.4391), (1.0, 0.2684)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197724,7 +197994,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197732,7 +198004,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197740,7 +198014,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197748,7 +198024,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6547), (1.0, 0.8373)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197756,7 +198034,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197764,7 +198044,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197772,7 +198054,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197780,7 +198064,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197788,7 +198074,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.7003), (1.0, 0.9725)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197796,7 +198084,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.4391), (1.0, 0.2684)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197804,7 +198094,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197812,7 +198104,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197820,7 +198114,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197828,7 +198124,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6547), (1.0, 0.8373)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197836,7 +198134,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197844,7 +198144,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197852,7 +198154,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.647, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_28, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_28, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197860,7 +198164,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197868,7 +198174,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197876,7 +198184,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.7003), (1.0, 0.9725)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197884,7 +198194,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.4391), (1.0, 0.2684)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197892,7 +198204,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197900,7 +198214,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197908,7 +198224,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197916,7 +198234,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6547), (1.0, 0.8373)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197924,7 +198244,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197932,7 +198254,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197940,7 +198264,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197948,7 +198274,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197956,7 +198284,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.7003), (1.0, 0.9725)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197964,7 +198294,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.4391), (1.0, 0.2684)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197972,7 +198304,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197980,7 +198314,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197988,7 +198324,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.3173), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -197996,7 +198334,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6547), (1.0, 0.8373)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198004,7 +198344,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198012,7 +198354,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198020,7 +198364,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.647, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_29, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_29, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198028,7 +198374,9 @@ Sequence carol_of_the_bells {
       start: 83.475533s,
       duration: 1.12116s,
       curve: [(0.0, 1.0), (0.647, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_30, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_30, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198036,7 +198384,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198044,7 +198394,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198052,7 +198404,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198060,7 +198414,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198068,7 +198424,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.7283), (1.0, 0.801)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198076,7 +198434,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198084,7 +198444,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198092,7 +198454,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198100,7 +198464,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.336), (1.0, 0.5068)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198108,7 +198474,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198116,7 +198484,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198124,7 +198494,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198132,7 +198504,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198140,7 +198514,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198148,7 +198524,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.7283), (1.0, 0.801)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198156,7 +198534,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198164,7 +198544,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198172,7 +198554,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198180,7 +198564,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.336), (1.0, 0.5068)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198188,7 +198574,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198196,7 +198584,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198204,7 +198594,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198212,7 +198604,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198220,7 +198614,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198228,7 +198624,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.7604), (1.0, 0.8331)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198236,7 +198634,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198244,7 +198644,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198252,7 +198654,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198260,7 +198664,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.4459), (1.0, 0.6167)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198268,7 +198674,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198276,7 +198684,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198284,7 +198694,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198292,7 +198704,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1678), (1.0, 0.44)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198300,7 +198714,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.6708), (1.0, 0.5)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198308,7 +198724,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.7283), (1.0, 0.801)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198316,7 +198734,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 1.0), (0.8037, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198324,7 +198744,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.3173), (1.0, 0.2024)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198332,7 +198754,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.8322), (1.0, 0.56)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198340,7 +198764,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.336), (1.0, 0.5068)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198348,7 +198774,9 @@ Sequence carol_of_the_bells {
       start: 85.708004s,
       duration: 1.278283s,
       curve: [(0.0, 0.1703), (1.0, 0.243)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198356,7 +198784,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 1.0), (0.7927, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198364,7 +198794,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4885), (1.0, 0.3432)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198372,7 +198804,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.2896), (1.0, 0.4536)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198380,7 +198814,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4645), (1.0, 0.4307)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198388,7 +198824,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 1.0), (0.7927, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198396,7 +198834,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4885), (1.0, 0.3432)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198404,7 +198844,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.2896), (1.0, 0.4536)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198412,7 +198854,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4645), (1.0, 0.4307)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198420,7 +198864,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 1.0), (0.52, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198428,7 +198874,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 1.0), (0.7927, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198436,7 +198884,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4885), (1.0, 0.3432)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198444,7 +198894,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.5464), (1.0, 0.7104)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198452,7 +198904,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4645), (1.0, 0.4307)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198460,7 +198914,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 1.0), (0.7927, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198468,7 +198924,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4885), (1.0, 0.3432)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198476,7 +198934,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.2896), (1.0, 0.4536)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198484,7 +198944,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 0.4645), (1.0, 0.4307)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198492,7 +198954,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 1.0), (0.52, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198500,7 +198964,9 @@ Sequence carol_of_the_bells {
       start: 87.958466s,
       duration: 1.127028s,
       curve: [(0.0, 1.0), (0.52, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198508,7 +198974,9 @@ Sequence carol_of_the_bells {
       start: 88.890565s,
       duration: 0.194928s,
       curve: [(0.0, 1.0), (1.0, 0.4471)],
-      bindings: [ClipParam { clip: color_wash_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198516,7 +198984,9 @@ Sequence carol_of_the_bells {
       start: 88.890565s,
       duration: 0.194928s,
       curve: [(0.0, 1.0), (1.0, 0.4471)],
-      bindings: [ClipParam { clip: color_wash_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198524,7 +198994,9 @@ Sequence carol_of_the_bells {
       start: 88.890565s,
       duration: 0.194928s,
       curve: [(0.0, 1.0), (1.0, 0.4471)],
-      bindings: [ClipParam { clip: color_wash_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198532,7 +199004,9 @@ Sequence carol_of_the_bells {
       start: 88.890565s,
       duration: 0.194928s,
       curve: [(0.0, 1.0), (1.0, 0.4471)],
-      bindings: [ClipParam { clip: color_wash_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198540,7 +199014,9 @@ Sequence carol_of_the_bells {
       start: 88.890565s,
       duration: 0.194928s,
       curve: [(0.0, 1.0), (1.0, 0.4471)],
-      bindings: [ClipParam { clip: color_wash_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198548,7 +199024,9 @@ Sequence carol_of_the_bells {
       start: 88.890565s,
       duration: 0.194928s,
       curve: [(0.0, 1.0), (1.0, 0.4471)],
-      bindings: [ClipParam { clip: color_wash_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198556,7 +199034,9 @@ Sequence carol_of_the_bells {
       start: 88.890565s,
       duration: 0.194928s,
       curve: [(0.0, 1.0), (1.0, 0.4471)],
-      bindings: [ClipParam { clip: color_wash_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: color_wash_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198564,7 +199044,9 @@ Sequence carol_of_the_bells {
       start: 89.085494s,
       duration: 1.118861s,
       curve: [(0.0, 1.0), (0.7521, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_242, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_242, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198572,7 +199054,9 @@ Sequence carol_of_the_bells {
       start: 89.085494s,
       duration: 1.118861s,
       curve: [(0.0, 1.0), (0.7521, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_245, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_245, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198580,7 +199064,9 @@ Sequence carol_of_the_bells {
       start: 89.085494s,
       duration: 1.118861s,
       curve: [(0.0, 1.0), (0.7521, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_246, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_246, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198588,7 +199074,9 @@ Sequence carol_of_the_bells {
       start: 91.199527s,
       duration: 0.916478s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_254, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_254, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198596,7 +199084,9 @@ Sequence carol_of_the_bells {
       start: 91.199527s,
       duration: 0.916478s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_255, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_255, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198604,7 +199094,9 @@ Sequence carol_of_the_bells {
       start: 108.079107s,
       duration: 19.133216s,
       curve: [(0.0, 1.0), (0.817, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -198612,7 +199104,9 @@ Sequence carol_of_the_bells {
       start: 108.079107s,
       duration: 19.133216s,
       curve: [(0.0, 0.5463), (1.0, 0.6564)],
-      bindings: [ClipParam { clip: pin_wheel_33, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_33, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

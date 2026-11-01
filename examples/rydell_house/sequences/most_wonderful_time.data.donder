@@ -159675,7 +159675,9 @@ Sequence most_wonderful_time {
       start: 1.242292s,
       duration: 5.437708s,
       curve: [(0.0, 1.0), (0.87, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159683,7 +159685,9 @@ Sequence most_wonderful_time {
       start: 1.242292s,
       duration: 1.096515s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159691,7 +159695,9 @@ Sequence most_wonderful_time {
       start: 1.242292s,
       duration: 1.096515s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159699,7 +159705,9 @@ Sequence most_wonderful_time {
       start: 1.242292s,
       duration: 5.437708s,
       curve: [(0.0, 1.0), (0.87, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159707,7 +159715,9 @@ Sequence most_wonderful_time {
       start: 2.09s,
       duration: 1.07s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159715,7 +159725,9 @@ Sequence most_wonderful_time {
       start: 2.09s,
       duration: 1.07s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159723,7 +159735,9 @@ Sequence most_wonderful_time {
       start: 3.024164s,
       duration: 1.035836s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159731,7 +159745,9 @@ Sequence most_wonderful_time {
       start: 3.024164s,
       duration: 1.035836s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159739,7 +159755,9 @@ Sequence most_wonderful_time {
       start: 3.87s,
       duration: 1.05s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159747,7 +159765,9 @@ Sequence most_wonderful_time {
       start: 3.87s,
       duration: 1.05s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159755,7 +159775,9 @@ Sequence most_wonderful_time {
       start: 4.799849s,
       duration: 1.096515s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_11, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_11, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159763,7 +159785,9 @@ Sequence most_wonderful_time {
       start: 4.799849s,
       duration: 1.096515s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159771,7 +159795,9 @@ Sequence most_wonderful_time {
       start: 5.61s,
       duration: 1.07s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159779,7 +159805,9 @@ Sequence most_wonderful_time {
       start: 5.61s,
       duration: 1.07s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159787,7 +159815,9 @@ Sequence most_wonderful_time {
       start: 8.306506s,
       duration: 3.595956s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.9088, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159795,7 +159825,9 @@ Sequence most_wonderful_time {
       start: 8.306506s,
       duration: 3.595956s,
       curve: [(0.0, 0.0), (0.094, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_130, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_130, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159803,7 +159835,9 @@ Sequence most_wonderful_time {
       start: 8.306506s,
       duration: 3.595956s,
       curve: [(0.0, 0.0), (0.094, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_131, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_131, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159811,7 +159845,9 @@ Sequence most_wonderful_time {
       start: 8.306506s,
       duration: 3.595956s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.9088, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159819,7 +159855,9 @@ Sequence most_wonderful_time {
       start: 8.467205s,
       duration: 3.435257s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159827,7 +159865,9 @@ Sequence most_wonderful_time {
       start: 15.15631s,
       duration: 5.385708s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159835,7 +159875,9 @@ Sequence most_wonderful_time {
       start: 15.228861s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_145, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_145, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159843,7 +159885,9 @@ Sequence most_wonderful_time {
       start: 15.228861s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_146, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_146, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159851,7 +159895,9 @@ Sequence most_wonderful_time {
       start: 15.228861s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_147, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_147, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159859,7 +159905,9 @@ Sequence most_wonderful_time {
       start: 15.228861s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_148, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_148, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159867,7 +159915,9 @@ Sequence most_wonderful_time {
       start: 15.228861s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_149, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_149, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159875,7 +159925,9 @@ Sequence most_wonderful_time {
       start: 22.276528s,
       duration: 1.093405s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159883,7 +159935,9 @@ Sequence most_wonderful_time {
       start: 22.276528s,
       duration: 1.093405s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159891,7 +159945,9 @@ Sequence most_wonderful_time {
       start: 22.276528s,
       duration: 1.093405s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159899,7 +159955,9 @@ Sequence most_wonderful_time {
       start: 22.276528s,
       duration: 1.093405s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159907,7 +159965,9 @@ Sequence most_wonderful_time {
       start: 22.276528s,
       duration: 1.093405s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159915,7 +159975,9 @@ Sequence most_wonderful_time {
       start: 23.267362s,
       duration: 1.115498s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159923,7 +159985,9 @@ Sequence most_wonderful_time {
       start: 23.267362s,
       duration: 1.115498s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159931,7 +159995,9 @@ Sequence most_wonderful_time {
       start: 23.267362s,
       duration: 1.115498s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159939,7 +160005,9 @@ Sequence most_wonderful_time {
       start: 23.267362s,
       duration: 1.115498s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159947,7 +160015,9 @@ Sequence most_wonderful_time {
       start: 23.267362s,
       duration: 1.115498s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159955,7 +160025,9 @@ Sequence most_wonderful_time {
       start: 24.095755s,
       duration: 1.163519s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159963,7 +160035,9 @@ Sequence most_wonderful_time {
       start: 24.095755s,
       duration: 1.163519s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159971,7 +160045,9 @@ Sequence most_wonderful_time {
       start: 24.095755s,
       duration: 1.163519s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159979,7 +160055,9 @@ Sequence most_wonderful_time {
       start: 24.095755s,
       duration: 1.163519s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159987,7 +160065,9 @@ Sequence most_wonderful_time {
       start: 24.095755s,
       duration: 1.163519s,
       curve: [(0.0, 0.0), (0.1788, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -159995,7 +160075,9 @@ Sequence most_wonderful_time {
       start: 26.063177s,
       duration: 1.73118s,
       curve: [(0.0, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160003,7 +160085,9 @@ Sequence most_wonderful_time {
       start: 26.063177s,
       duration: 1.73118s,
       curve: [(0.0, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160011,7 +160095,9 @@ Sequence most_wonderful_time {
       start: 26.063177s,
       duration: 1.73118s,
       curve: [(0.0, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160019,7 +160105,9 @@ Sequence most_wonderful_time {
       start: 26.063177s,
       duration: 1.73118s,
       curve: [(0.0, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160027,7 +160115,9 @@ Sequence most_wonderful_time {
       start: 26.063177s,
       duration: 1.73118s,
       curve: [(0.0, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160035,7 +160125,9 @@ Sequence most_wonderful_time {
       start: 27.794357s,
       duration: 1.754349s,
       curve: [(0.0, 1.0), (0.7798, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_8, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_8, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160043,7 +160135,9 @@ Sequence most_wonderful_time {
       start: 27.794357s,
       duration: 1.754349s,
       curve: [(0.0, 1.0), (0.7798, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_9, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_9, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160051,7 +160145,9 @@ Sequence most_wonderful_time {
       start: 27.794357s,
       duration: 1.754349s,
       curve: [(0.0, 1.0), (0.7798, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_10, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_10, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160059,7 +160155,9 @@ Sequence most_wonderful_time {
       start: 27.794357s,
       duration: 1.754349s,
       curve: [(0.0, 1.0), (0.7798, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_11, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_11, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160067,7 +160165,9 @@ Sequence most_wonderful_time {
       start: 27.794357s,
       duration: 1.754349s,
       curve: [(0.0, 1.0), (0.7798, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_12, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_12, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160075,7 +160175,9 @@ Sequence most_wonderful_time {
       start: 29.488615s,
       duration: 3.570342s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.9088, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160083,7 +160185,9 @@ Sequence most_wonderful_time {
       start: 29.488615s,
       duration: 3.570342s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.9088, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160091,7 +160195,9 @@ Sequence most_wonderful_time {
       start: 29.548706s,
       duration: 3.510251s,
       curve: [(0.0, 0.0), (0.094, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_165, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_165, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160099,7 +160205,9 @@ Sequence most_wonderful_time {
       start: 29.548706s,
       duration: 3.510251s,
       curve: [(0.0, 0.0), (0.094, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_166, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_166, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160107,7 +160215,9 @@ Sequence most_wonderful_time {
       start: 29.6237s,
       duration: 3.435257s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160115,7 +160225,9 @@ Sequence most_wonderful_time {
       start: 36.312805s,
       duration: 5.385708s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160123,7 +160235,9 @@ Sequence most_wonderful_time {
       start: 36.312805s,
       duration: 5.385708s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_15, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_15, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160131,7 +160245,9 @@ Sequence most_wonderful_time {
       start: 36.312805s,
       duration: 5.385708s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_16, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_16, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160139,7 +160255,9 @@ Sequence most_wonderful_time {
       start: 36.312805s,
       duration: 5.385708s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_17, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_17, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160147,7 +160265,9 @@ Sequence most_wonderful_time {
       start: 36.312805s,
       duration: 5.385708s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_18, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_18, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160155,7 +160275,9 @@ Sequence most_wonderful_time {
       start: 36.385355s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_180, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_180, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160163,7 +160285,9 @@ Sequence most_wonderful_time {
       start: 36.385355s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_181, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_181, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160171,7 +160295,9 @@ Sequence most_wonderful_time {
       start: 36.385355s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_182, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_182, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160179,7 +160305,9 @@ Sequence most_wonderful_time {
       start: 36.385355s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_183, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_183, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160187,7 +160315,9 @@ Sequence most_wonderful_time {
       start: 36.385355s,
       duration: 5.185244s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_184, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_184, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160195,7 +160325,9 @@ Sequence most_wonderful_time {
       start: 43.699949s,
       duration: 1.072155s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_34, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_34, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160203,7 +160335,9 @@ Sequence most_wonderful_time {
       start: 43.699949s,
       duration: 1.072155s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_35, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_35, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160211,7 +160345,9 @@ Sequence most_wonderful_time {
       start: 44.680197s,
       duration: 1.082741s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_36, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_36, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160219,7 +160355,9 @@ Sequence most_wonderful_time {
       start: 44.680197s,
       duration: 1.082741s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_37, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_37, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160227,7 +160365,9 @@ Sequence most_wonderful_time {
       start: 45.542673s,
       duration: 1.280302s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_38, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_38, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160235,7 +160375,9 @@ Sequence most_wonderful_time {
       start: 45.542673s,
       duration: 1.280302s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_39, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_39, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160243,7 +160385,9 @@ Sequence most_wonderful_time {
       start: 46.385306s,
       duration: 1.064648s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_40, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_40, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160251,7 +160395,9 @@ Sequence most_wonderful_time {
       start: 46.385306s,
       duration: 1.064648s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_41, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_41, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160259,7 +160405,9 @@ Sequence most_wonderful_time {
       start: 47.321658s,
       duration: 2.733242s,
       curve: [(0.0, 0.0), (0.1272, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_240, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_240, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160267,7 +160415,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160275,7 +160425,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_42, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_42, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160283,7 +160435,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_20, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_20, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160291,7 +160445,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_21, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_21, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160299,7 +160455,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_43, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_43, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160307,7 +160465,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_22, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_22, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160315,7 +160475,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_23, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_23, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160323,7 +160485,9 @@ Sequence most_wonderful_time {
       start: 50.631977s,
       duration: 6.688517s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_24, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_24, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160331,7 +160495,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_25, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_25, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160339,7 +160505,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_44, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_44, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160347,7 +160515,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160355,7 +160525,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_27, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_27, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160363,7 +160535,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_45, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_45, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160371,7 +160545,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_28, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_28, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160379,7 +160555,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_29, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_29, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160387,7 +160565,9 @@ Sequence most_wonderful_time {
       start: 57.646374s,
       duration: 5.402972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_30, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_30, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160395,7 +160575,9 @@ Sequence most_wonderful_time {
       start: 63.185253s,
       duration: 3.118794s,
       curve: [(0.0, 1.0), (0.87, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_46, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_46, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160403,7 +160585,9 @@ Sequence most_wonderful_time {
       start: 63.185253s,
       duration: 1.096515s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_47, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_47, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160411,7 +160595,9 @@ Sequence most_wonderful_time {
       start: 63.185253s,
       duration: 1.096515s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_48, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_48, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160419,7 +160605,9 @@ Sequence most_wonderful_time {
       start: 63.185253s,
       duration: 3.118794s,
       curve: [(0.0, 1.0), (0.87, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_49, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_49, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160427,7 +160615,9 @@ Sequence most_wonderful_time {
       start: 63.988543s,
       duration: 1.114418s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_50, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_50, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160435,7 +160625,9 @@ Sequence most_wonderful_time {
       start: 63.988543s,
       duration: 1.114418s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_51, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_51, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160443,7 +160635,9 @@ Sequence most_wonderful_time {
       start: 64.967126s,
       duration: 1.035835s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_52, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_52, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160451,7 +160645,9 @@ Sequence most_wonderful_time {
       start: 64.967126s,
       duration: 1.035835s,
       curve: [(0.0, 1.0), (0.6194, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_53, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_53, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160459,7 +160655,9 @@ Sequence most_wonderful_time {
       start: 66.623639s,
       duration: 3.570342s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.9088, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_54, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_54, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160467,7 +160665,9 @@ Sequence most_wonderful_time {
       start: 66.623639s,
       duration: 3.570342s,
       curve: [(0.0, 0.0), (0.094, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_389, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_389, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160475,7 +160675,9 @@ Sequence most_wonderful_time {
       start: 66.623639s,
       duration: 3.570342s,
       curve: [(0.0, 0.0), (0.094, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_390, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_390, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160483,7 +160685,9 @@ Sequence most_wonderful_time {
       start: 66.623639s,
       duration: 3.570342s,
       curve: [(0.0, 0.0), (0.0977, 1.0), (0.9088, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_55, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_55, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160491,7 +160695,9 @@ Sequence most_wonderful_time {
       start: 66.758724s,
       duration: 3.435257s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160499,7 +160705,9 @@ Sequence most_wonderful_time {
       start: 66.758724s,
       duration: 3.435257s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160507,7 +160715,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160515,7 +160725,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_34, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_34, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160523,7 +160735,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_35, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_35, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160531,7 +160745,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_36, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_36, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160539,7 +160755,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_37, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_37, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160547,7 +160765,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_38, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_38, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160555,7 +160775,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_39, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_39, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160563,7 +160785,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_40, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_40, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160571,7 +160795,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_41, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_41, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160579,7 +160805,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_42, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_42, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160587,7 +160815,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_43, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_43, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160595,7 +160825,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_44, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_44, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160603,7 +160835,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_45, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_45, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160611,7 +160845,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_46, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_46, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160619,7 +160855,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_47, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_47, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160627,7 +160865,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_48, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_48, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160635,7 +160875,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_49, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_49, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160643,7 +160885,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_50, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_50, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160651,7 +160895,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_51, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_51, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160659,7 +160905,9 @@ Sequence most_wonderful_time {
       start: 73.5376s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_52, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_52, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160667,7 +160915,9 @@ Sequence most_wonderful_time {
       start: 73.81804s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_56, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_56, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160675,7 +160925,9 @@ Sequence most_wonderful_time {
       start: 84.723858s,
       duration: 3.483373s,
       curve: [(0.0, 1.0), (0.8387, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_425, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_425, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160683,7 +160935,9 @@ Sequence most_wonderful_time {
       start: 84.723858s,
       duration: 3.483373s,
       curve: [(0.0, 1.0), (0.8387, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_427, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_427, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160691,7 +160945,9 @@ Sequence most_wonderful_time {
       start: 84.723858s,
       duration: 3.483373s,
       curve: [(0.0, 1.0), (0.8387, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_428, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_428, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160699,7 +160955,9 @@ Sequence most_wonderful_time {
       start: 84.723858s,
       duration: 3.483373s,
       curve: [(0.0, 1.0), (0.8387, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_429, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_429, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160707,7 +160965,9 @@ Sequence most_wonderful_time {
       start: 95.402758s,
       duration: 3.587215s,
       curve: [(0.0, 0.0), (0.1143, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_57, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_57, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160715,7 +160975,9 @@ Sequence most_wonderful_time {
       start: 95.402758s,
       duration: 3.587215s,
       curve: [(0.0, 0.0), (0.1143, 1.0), (0.8996, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_58, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_58, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160723,7 +160985,9 @@ Sequence most_wonderful_time {
       start: 100.676336s,
       duration: 1.792169s,
       curve: [(0.0, 0.0), (0.0848, 1.0), (0.5346, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_555, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_555, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160731,7 +160995,9 @@ Sequence most_wonderful_time {
       start: 100.676336s,
       duration: 1.792169s,
       curve: [(0.0, 0.0), (0.0848, 1.0), (0.5346, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_559, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_559, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160742,7 +161008,9 @@ Sequence most_wonderful_time {
         (0.0, 0.0), (0.1069, 1.0), (0.2341, 0.951), (0.3171, 0.6515), (0.4424, 1.0), (0.57, 1.0),
         (0.66, 0.4), (0.73, 1.0), (0.9567, 1.0), (1.0, 0.0),
       ],
-      bindings: [ClipParam { clip: clip_579, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_579, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160753,7 +161021,9 @@ Sequence most_wonderful_time {
         (0.0, 0.0), (0.1069, 1.0), (0.2341, 0.951), (0.3171, 0.6515), (0.4424, 1.0), (0.57, 1.0),
         (0.66, 0.4), (0.73, 1.0), (0.9567, 1.0), (1.0, 0.0),
       ],
-      bindings: [ClipParam { clip: clip_581, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_581, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160761,7 +161031,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_59, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_59, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160769,7 +161041,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_60, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_60, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160777,7 +161051,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_61, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_61, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160785,7 +161061,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_62, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_62, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160793,7 +161071,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_63, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_63, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160801,7 +161081,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_64, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_64, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160809,7 +161091,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_65, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_65, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160817,7 +161101,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_66, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_66, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160825,7 +161111,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_67, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_67, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160833,7 +161121,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_68, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_68, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160841,7 +161131,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_69, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_69, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160849,7 +161141,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_70, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_70, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160857,7 +161151,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_71, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_71, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160865,7 +161161,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_72, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_72, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160873,7 +161171,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_73, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_73, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160881,7 +161181,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_74, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_74, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160889,7 +161191,9 @@ Sequence most_wonderful_time {
       start: 114.896914s,
       duration: 4.065114s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_75, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_75, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160897,7 +161201,9 @@ Sequence most_wonderful_time {
       start: 118.838929s,
       duration: 1.74437s,
       curve: [(0.0, 0.0), (0.1032, 1.0), (0.8904, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_828, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_828, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160905,7 +161211,9 @@ Sequence most_wonderful_time {
       start: 118.838929s,
       duration: 1.74437s,
       curve: [(0.0, 0.0), (0.1032, 1.0), (0.8904, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_829, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_829, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160913,7 +161221,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_76, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_76, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160921,7 +161231,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_77, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_77, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160929,7 +161241,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_78, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_78, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160937,7 +161251,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_79, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_79, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160945,7 +161261,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_80, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_80, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160953,7 +161271,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_968, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_968, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160961,7 +161281,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_53, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_53, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160969,7 +161291,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_81, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_81, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160977,7 +161301,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_82, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_82, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160985,7 +161311,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_83, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_83, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -160993,7 +161321,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_969, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_969, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161001,7 +161331,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_84, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_84, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161009,7 +161341,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_85, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_85, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161017,7 +161351,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_86, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_86, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161025,7 +161361,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_87, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_87, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161033,7 +161371,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_88, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_88, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161041,7 +161381,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_89, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_89, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161049,7 +161391,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_90, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_90, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161057,7 +161401,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_91, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_91, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161065,7 +161411,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_92, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_92, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161073,7 +161421,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_93, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_93, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161081,7 +161431,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_94, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_94, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161089,7 +161441,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_95, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_95, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161097,7 +161451,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_96, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_96, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161105,7 +161461,9 @@ Sequence most_wonderful_time {
       start: 121.991948s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_97, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_97, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161113,7 +161471,9 @@ Sequence most_wonderful_time {
       start: 141.860503s,
       duration: 5.771339s,
       curve: [(0.0, 0.0), (0.0203, 1.0), (0.8912, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_98, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_98, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161121,7 +161481,9 @@ Sequence most_wonderful_time {
       start: 141.860503s,
       duration: 5.771339s,
       curve: [(0.0, 0.0), (0.0203, 1.0), (0.8912, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_99, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_99, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161129,7 +161491,9 @@ Sequence most_wonderful_time {
       start: 141.860503s,
       duration: 5.687029s,
       curve: [(0.0, 0.0), (0.0203, 1.0), (0.8912, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_100, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_100, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161137,7 +161501,9 @@ Sequence most_wonderful_time {
       start: 141.860503s,
       duration: 5.771339s,
       curve: [(0.0, 0.0), (0.0203, 1.0), (0.8912, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_101, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_101, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -161145,7 +161511,9 @@ Sequence most_wonderful_time {
       start: 141.860503s,
       duration: 5.771339s,
       curve: [(0.0, 0.0), (0.0203, 1.0), (0.8912, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_102, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_102, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

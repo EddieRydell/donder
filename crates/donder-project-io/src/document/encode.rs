@@ -16,7 +16,7 @@ use donder_model::{
     Action, Console, ConsoleClipId, InputEvent, LengthSource, PlayLength, PlayedValue,
 };
 use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
-use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio};
+use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio, Window};
 use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver, PlayedQuantity,
     SequenceCompositionGraph, SequenceLayer,
@@ -56,6 +56,10 @@ fn spanned(value: DataValue) -> Spanned<DataValue> {
 
 fn meters(micrometers: i32) -> Meters {
     Meters(i64::from(micrometers))
+}
+
+fn window_document(window: Window) -> (f32, f32) {
+    (window.low, window.high)
 }
 
 fn point(point: &Point3) -> (Meters, Meters, Meters) {
@@ -515,6 +519,7 @@ impl Encoder<'_> {
                         PlayedQuantity::PitchClass => types::PlayedQuantity::PitchClass,
                         PlayedQuantity::Fifths => types::PlayedQuantity::Fifths,
                     },
+                    window: window_document(value.window),
                 })
                 .collect()
         };
@@ -619,13 +624,14 @@ impl Encoder<'_> {
                                     Action::Mark(key) => types::Action::Mark {
                                         into: name(&key.name),
                                     },
-                                    Action::Set(target) => types::Action::Set {
+                                    Action::Set { target, window } => types::Action::Set {
                                         param: self.binding(
                                             &console.layers,
                                             &console.composition_graph,
                                             target,
                                             |clip| console.clip(*clip).map(|clip| name(&clip.name)),
                                         )?,
+                                        window: window_document(*window),
                                     },
                                 })
                             })
@@ -729,8 +735,13 @@ impl Encoder<'_> {
                         bindings: clip
                             .bindings
                             .iter()
-                            .map(|binding_value| binding(&binding_value.target))
-                            .collect::<Result<_, _>>()?,
+                            .map(|bound| {
+                                Ok(types::Bound {
+                                    binding: binding(&bound.target)?,
+                                    window: window_document(bound.window),
+                                })
+                            })
+                            .collect::<Result<_, ExportProjectError>>()?,
                         detached: clip
                             .detached_bindings
                             .iter()

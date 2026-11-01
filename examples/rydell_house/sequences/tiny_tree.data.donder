@@ -89435,7 +89435,9 @@ Sequence tiny_tree {
       start: 19.727539s,
       duration: 3.895122s,
       curve: [(0.0, 0.0), (0.1044, 1.0), (0.6948, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_81, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_81, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89443,7 +89445,9 @@ Sequence tiny_tree {
       start: 19.727539s,
       duration: 3.895122s,
       curve: [(0.0, 0.0), (0.1044, 1.0), (0.6948, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_82, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_82, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89451,7 +89455,9 @@ Sequence tiny_tree {
       start: 35.073199s,
       duration: 1.919323s,
       curve: [(0.0, 0.0), (0.1086, 1.0), (0.8023, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_143, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_143, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89459,7 +89465,9 @@ Sequence tiny_tree {
       start: 37.458264s,
       duration: 1.619955s,
       curve: [(0.0, 1.0), (0.67, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_144, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_144, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89467,7 +89475,9 @@ Sequence tiny_tree {
       start: 37.458264s,
       duration: 1.619955s,
       curve: [(0.0, 1.0), (0.67, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_145, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_145, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89475,7 +89485,9 @@ Sequence tiny_tree {
       start: 41.27167s,
       duration: 1.612851s,
       curve: [(0.0, 1.0), (0.7032, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_187, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_187, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89483,7 +89495,9 @@ Sequence tiny_tree {
       start: 41.27167s,
       duration: 1.612851s,
       curve: [(0.0, 1.0), (0.7032, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_196, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_196, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89491,7 +89505,9 @@ Sequence tiny_tree {
       start: 42.730093s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_218, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_218, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89499,7 +89515,9 @@ Sequence tiny_tree {
       start: 42.730093s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_219, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_219, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89507,7 +89525,9 @@ Sequence tiny_tree {
       start: 50.449462s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_222, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_222, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89515,7 +89535,9 @@ Sequence tiny_tree {
       start: 50.449462s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_223, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_223, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89523,7 +89545,9 @@ Sequence tiny_tree {
       start: 79.888068s,
       duration: 3.066227s,
       curve: [(0.0, 0.0), (0.1002, 1.0), (0.7475, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_417, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_417, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89531,7 +89555,9 @@ Sequence tiny_tree {
       start: 94.6308s,
       duration: 1.919323s,
       curve: [(0.0, 0.0), (0.1086, 1.0), (0.8023, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_475, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_475, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89539,7 +89565,9 @@ Sequence tiny_tree {
       start: 97.015866s,
       duration: 1.619955s,
       curve: [(0.0, 1.0), (0.67, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_476, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_476, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89547,7 +89575,9 @@ Sequence tiny_tree {
       start: 97.015866s,
       duration: 1.619955s,
       curve: [(0.0, 1.0), (0.67, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_477, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_477, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89555,7 +89585,9 @@ Sequence tiny_tree {
       start: 100.829272s,
       duration: 1.612851s,
       curve: [(0.0, 1.0), (0.7032, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_518, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_518, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89563,7 +89595,9 @@ Sequence tiny_tree {
       start: 100.829272s,
       duration: 1.612851s,
       curve: [(0.0, 1.0), (0.7032, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_528, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_528, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89571,7 +89605,9 @@ Sequence tiny_tree {
       start: 102.287695s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_550, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_550, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89579,7 +89615,9 @@ Sequence tiny_tree {
       start: 102.287695s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_551, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_551, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89587,7 +89625,9 @@ Sequence tiny_tree {
       start: 110.007063s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_555, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_555, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89595,7 +89635,9 @@ Sequence tiny_tree {
       start: 110.007063s,
       duration: 1.812475s,
       curve: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_556, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_556, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89603,7 +89645,9 @@ Sequence tiny_tree {
       start: 115.419983s,
       duration: 3.893963s,
       curve: [(0.0, 0.0), (0.0601, 1.0), (0.7032, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_590, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_590, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -89611,7 +89655,9 @@ Sequence tiny_tree {
       start: 115.419983s,
       duration: 3.893963s,
       curve: [(0.0, 0.0), (0.0601, 1.0), (0.7032, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_591, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_591, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

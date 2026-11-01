@@ -56571,7 +56571,9 @@ Sequence hometown_christmas {
       start: 15.17192s,
       duration: 2.22252s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56579,7 +56581,9 @@ Sequence hometown_christmas {
       start: 29.612975s,
       duration: 3.45972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56587,7 +56591,9 @@ Sequence hometown_christmas {
       start: 36.328415s,
       duration: 5.39305s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56595,7 +56601,9 @@ Sequence hometown_christmas {
       start: 43.656606s,
       duration: 1.115498s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56603,7 +56611,9 @@ Sequence hometown_christmas {
       start: 43.656606s,
       duration: 1.115498s,
       curve: [(0.0, 0.1413), (1.0, 0.1099)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56611,7 +56621,9 @@ Sequence hometown_christmas {
       start: 43.656606s,
       duration: 1.115498s,
       curve: [(0.0, 0.2198), (0.1125, 0.2322), (1.0, 0.23)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56619,7 +56631,9 @@ Sequence hometown_christmas {
       start: 43.656606s,
       duration: 1.115498s,
       curve: [(0.0, 0.8525), (1.0, 0.6462)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56627,7 +56641,9 @@ Sequence hometown_christmas {
       start: 43.656606s,
       duration: 1.115498s,
       curve: [(0.0, 0.7546), (1.0, 0.6397)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56635,7 +56651,9 @@ Sequence hometown_christmas {
       start: 44.64744s,
       duration: 1.115498s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56643,7 +56661,9 @@ Sequence hometown_christmas {
       start: 44.64744s,
       duration: 1.115498s,
       curve: [(0.0, 0.1024), (1.0, 0.0355)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56651,7 +56671,9 @@ Sequence hometown_christmas {
       start: 44.64744s,
       duration: 1.115498s,
       curve: [(0.0, 0.2198), (0.1125, 0.2322), (1.0, 0.23)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56659,7 +56681,9 @@ Sequence hometown_christmas {
       start: 44.64744s,
       duration: 1.115498s,
       curve: [(0.0, 1.0), (1.0, 0.6449)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56667,7 +56691,9 @@ Sequence hometown_christmas {
       start: 44.64744s,
       duration: 1.115498s,
       curve: [(0.0, 0.2204), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56675,7 +56701,9 @@ Sequence hometown_christmas {
       start: 45.523853s,
       duration: 1.299122s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56683,7 +56711,9 @@ Sequence hometown_christmas {
       start: 45.523853s,
       duration: 1.299122s,
       curve: [(0.0, 0.0855), (1.0, 0.0304)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56691,7 +56721,9 @@ Sequence hometown_christmas {
       start: 45.523853s,
       duration: 1.299122s,
       curve: [(0.0, 0.2198), (0.1125, 0.2322), (1.0, 0.23)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56699,7 +56731,9 @@ Sequence hometown_christmas {
       start: 45.523853s,
       duration: 1.299122s,
       curve: [(0.0, 0.9134), (1.0, 0.7071)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56707,7 +56741,9 @@ Sequence hometown_christmas {
       start: 45.523853s,
       duration: 1.299122s,
       curve: [(0.0, 0.6464), (1.0, 0.5585)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56715,7 +56751,9 @@ Sequence hometown_christmas {
       start: 46.410966s,
       duration: 1.038988s,
       curve: [(0.0, 0.0), (0.0774, 1.0), (0.271, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56723,7 +56761,9 @@ Sequence hometown_christmas {
       start: 46.410966s,
       duration: 1.038988s,
       curve: [(0.0, 0.1413), (1.0, 0.1099)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56731,7 +56771,9 @@ Sequence hometown_christmas {
       start: 46.410966s,
       duration: 1.038988s,
       curve: [(0.0, 0.2198), (0.1125, 0.2322), (1.0, 0.23)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56739,7 +56781,9 @@ Sequence hometown_christmas {
       start: 46.410966s,
       duration: 1.038988s,
       curve: [(0.0, 0.8525), (1.0, 0.6462)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56747,7 +56791,9 @@ Sequence hometown_christmas {
       start: 46.410966s,
       duration: 1.038988s,
       curve: [(0.0, 0.7546), (1.0, 0.6397)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56755,7 +56801,9 @@ Sequence hometown_christmas {
       start: 50.631977s,
       duration: 6.688987s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56763,7 +56811,9 @@ Sequence hometown_christmas {
       start: 57.688855s,
       duration: 5.360491s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56771,7 +56821,9 @@ Sequence hometown_christmas {
       start: 66.747998s,
       duration: 3.45972s,
       curve: [(0.0, 0.0), (0.1014, 1.0), (0.9014, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56779,7 +56831,9 @@ Sequence hometown_christmas {
       start: 73.81804s,
       duration: 6.668801s,
       curve: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56787,7 +56841,9 @@ Sequence hometown_christmas {
       start: 73.81804s,
       duration: 6.668801s,
       curve: [(0.0, 0.5778), (1.0, 0.3969)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56795,7 +56851,9 @@ Sequence hometown_christmas {
       start: 73.81804s,
       duration: 6.668801s,
       curve: [(0.0, 0.235), (1.0, 0.2031)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: y_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: y_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -56803,7 +56861,9 @@ Sequence hometown_christmas {
       start: 121.96024s,
       duration: 6.674s,
       curve: [(0.0, 0.0), (0.1051, 1.0), (0.8959, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

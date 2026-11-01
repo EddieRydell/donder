@@ -195,7 +195,7 @@ export type ConsoleAction =
  *  Write the event's value into a parameter: an axis's position, a
  *  press's velocity, or 0 for a release.
  */
-{ type: "set"; target: SequenceAutomationTarget };
+{ type: "set"; target: SequenceAutomationTarget; window: GuiWindow };
 
 /**  A clip a console plays: a sequence clip without timing. */
 export type ConsoleClip = {
@@ -280,9 +280,10 @@ export type ConsoleGuiEdit =
 /**
  *  Link a parameter to a control, or to none. An axis sets it when moved,
  *  and a button by the press's velocity and 0 on the release; whatever
- *  controlled it before lets go.
+ *  controlled it before lets go. The control's value reaches the
+ *  parameter through `window`.
  */
-{ type: "controlParam"; target: SequenceAutomationTarget; control: ConsoleControlRef | null } | 
+{ type: "controlParam"; target: SequenceAutomationTarget; control: ConsoleControlRef | null; window: GuiWindow } | 
 /**
  *  Remove an action. An effect nothing plays or holds then goes with it,
  *  and so does an event with no actions left. A removed `Set` takes the
@@ -376,6 +377,7 @@ export type ConsolePlayedQuantity =
 export type ConsolePlayedValue = {
 	param: string,
 	from: ConsolePlayedQuantity,
+	window: GuiWindow,
 };
 
 export type ControllerGuiDocument = {
@@ -724,6 +726,15 @@ export type GuiPixelRoute = {
 export type GuiPixelSpan = {
 	start: number,
 	count: number,
+};
+
+/**
+ *  The part of a normalized `0..1` value a binding uses, as fractions: 0 lands
+ *  on `low` and 1 on `high`.
+ */
+export type GuiWindow = {
+	low: number,
+	high: number,
 };
 
 /**  Bringing an unreferenced document into the project from the root document. */
@@ -1111,6 +1122,7 @@ export type SequenceAudio = {
 
 export type SequenceAutomationBinding = {
 	target: SequenceAutomationTarget,
+	window: GuiWindow,
 };
 
 export type SequenceAutomationClip = {
@@ -1484,7 +1496,7 @@ export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } 
  *  half shares the left half's automation, so automation continues across
  *  the cut.
  */
-{ type: "splitClips"; ids: number[]; timeSeconds: number } | { type: "retargetClip"; id: number; target: FixtureTarget } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "bindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; automationClipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; automationClipId: number; detachedIndex: number } | 
+{ type: "splitClips"; ids: number[]; timeSeconds: number } | { type: "retargetClip"; id: number; target: FixtureTarget } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "bindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "setAutomationWindow"; automationClipId: number; target: SequenceAutomationTarget; window: GuiWindow } | { type: "rebindDetachedAutomation"; automationClipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; automationClipId: number; detachedIndex: number } | 
 /**
  *  Each name becomes a unique `snake_case` name; the edit reports the
  *  names made, in order.
@@ -1552,6 +1564,8 @@ export type SequenceMarkRef = {
 
 export type SequenceParamAutomation = {
 	automationClipId: number,
+	/**  The part of the clip's `0..1` the binding uses. */
+	window: GuiWindow,
 };
 
 export type SequenceParamKind = "int" | "float" | "bool" | "color" | "enum" | "curve" | "gradient" | "intArray" | "floatArray" | "boolArray" | "colorArray" | "curveArray" | "gradientArray" | "marks";

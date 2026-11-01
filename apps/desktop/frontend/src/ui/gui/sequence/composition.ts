@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { SequenceEditorHost } from "../../../editor/host";
 import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection } from "../../../editor/types";
 import type { AutomationClipChooser, GuiItemEdit } from "../shared";
@@ -15,12 +16,14 @@ export type CompositionEditing = {
   apply: (edit: CompositionGuiEdit, origin?: GuiDocumentRequest | null) => Promise<unknown>;
   /** Rename, describe, color or delete a layer or graph node. */
   applyItem: (edit: GuiItemEdit) => Promise<unknown>;
-  /** Sequences automate operator parameters; consoles have no timeline to automate on. */
+  /** Sequences automate operator parameters with automation clips; consoles have no timeline. */
   automation: {
     automationClips: SequenceAutomationClip[];
     automationClipChooser: AutomationClipChooser;
     setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
   } | null;
+  /** A console links operator parameters to its knobs instead. */
+  operatorParamControl: ((nodeId: string, param: string) => ReactNode) | null;
 };
 
 export function sequenceComposition(
@@ -33,6 +36,7 @@ export function sequenceComposition(
     layerUses: (layerId) => document.clips.filter((clip) => clip.layerId === layerId).length,
     apply: (edit, origin) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit } }), origin),
     applyItem: (edit) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, edit)),
-    automation
+    automation,
+    operatorParamControl: null
   };
 }

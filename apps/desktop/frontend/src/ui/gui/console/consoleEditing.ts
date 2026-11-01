@@ -1,8 +1,7 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
-import type { ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, GuiControlInput, GuiEditUpdate, SequenceAutomationTarget } from "../../../types";
+import type { ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, GuiControlInput, GuiEditUpdate, GuiWindow, SequenceAutomationTarget } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import type { CompositionEditing } from "../sequence/composition";
 import { automationTargetsEqual, type GuiFocus, type GuiItemEdit } from "../shared";
 
 /** Apply an edit to the open console; a rejected edit's error is shown and rethrown. */
@@ -17,16 +16,6 @@ export async function applyConsoleItemEdit(edit: GuiItemEdit): Promise<void> {
 
 export function editConsoleEffect(id: number, edit: ConsoleClipEdit) {
   return applyConsoleEdit({ type: "editClip", id, edit });
-}
-
-export function consoleComposition(document: ConsoleGuiDocument): CompositionEditing {
-  return {
-    document: { ...document, markCollections: document.liveMarks },
-    layerUses: (layerId) => document.clips.filter((clip) => clip.layerId === layerId).length,
-    apply: (edit, origin) => runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "console", edit: { type: "composition", edit } }), origin),
-    applyItem: applyConsoleItemEdit,
-    automation: null
-  };
 }
 
 /** The console's reference to a control of an input device. */
@@ -65,16 +54,6 @@ export function focusOnEffect(update: GuiEditUpdate, name: string | undefined): 
   return { type: "consoleEffect", id: effect.id };
 }
 
-/** The action an edit that linked `target` to a control left to select. */
-export function focusOnSet(update: GuiEditUpdate, target: SequenceAutomationTarget): GuiFocus {
-  if (update.change.type !== "document" || update.change.document.type !== "console") return null;
-  for (const on of update.change.document.document.events) {
-    const index = on.actions.findIndex((action) => action.type === "set" && automationTargetsEqual(action.target, target));
-    if (index >= 0) return { type: "consoleAction", on: on.id, index };
-  }
-  return null;
-}
-
 /** The effect and parameter, or operator and parameter, a `Set` writes: `flash.level`. */
 export function targetLabel(document: ConsoleGuiDocument, target: SequenceAutomationTarget): string {
   if (target.type === "clipParam") return `${document.clips.find((clip) => clip.id === target.clipId)?.name ?? "Missing effect"}.${target.param}`;
@@ -87,34 +66,22 @@ export function controllerOf(document: ConsoleGuiDocument, target: SequenceAutom
   return document.events.find((on) => on.actions.some((action) => action.type === "set" && automationTargetsEqual(action.target, target)));
 }
 
+/** A binding that uses the whole range of its parameter. */
+export const FULL_WINDOW: GuiWindow = { low: 0, high: 1 };
+
+/** The window the `Set` of `target` writes through; the whole range while no control sets it. */
+export function setWindowOf(document: ConsoleGuiDocument, target: SequenceAutomationTarget): GuiWindow {
+  for (const on of document.events) {
+    for (const action of on.actions) {
+      if (action.type === "set" && automationTargetsEqual(action.target, target)) return action.window;
+    }
+  }
+  return FULL_WINDOW;
+}
+
 /** A control as the key a select uses for it. */
 export function controlKey(control: ConsoleControlRef): string {
   return `${guiObjectKey(control.device)}:${control.control}`;
-}
-
-/** A group of parameters a control can be linked to: those of one effect or operator. */
-export type ParameterGroup = { label: string; params: { name: string; target: SequenceAutomationTarget }[] };
-
-/** The parameters no control controls yet, and no played value sets, by effect then operator. */
-export function freeParameters(document: ConsoleGuiDocument): { effects: ParameterGroup[]; operators: ParameterGroup[] } {
-  const played = (clipId: number, param: string) => document.events.some((on) => on.actions.some((action) =>
-    (action.type === "play" || action.type === "start" || action.type === "toggle") && action.clipId === clipId && action.values.some((value) => value.param === param)));
-  const effects = document.clips.map((clip): ParameterGroup => ({
-    label: clip.name,
-    params: clip.params
-      .filter((param) => param.supportsAutomation && !played(clip.id, param.name))
-      .map((param) => ({ name: param.name, target: { type: "clipParam", clipId: clip.id, param: param.name } as const }))
-      .filter(({ target }) => controllerOf(document, target) === undefined)
-  })).filter((group) => group.params.length > 0);
-  const operators = document.compositionGraph.nodes.flatMap((node): ParameterGroup[] => {
-    if (node.kind.type !== "operator") return [];
-    const params = node.kind.params
-      .filter((param) => param.supportsAutomation)
-      .map((param) => ({ name: param.name, target: { type: "compositionNodeParam", nodeId: node.id, param: param.name } as const }))
-      .filter(({ target }) => controllerOf(document, target) === undefined);
-    return params.length === 0 ? [] : [{ label: node.kind.name, params }];
-  });
-  return { effects, operators };
 }
 
 /** The effects whose marks parameters read the live mark collection `key`. */

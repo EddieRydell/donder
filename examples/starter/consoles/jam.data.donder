@@ -57,11 +57,15 @@ Console jam {
     On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
     On {
       event: Press { control: devices.keyboard.boost },
-      actions: [Set { param: ClipParam { clip: background, param: decay_seconds } }],
+      actions: [
+        Set { param: ClipParam { clip: background, param: decay_seconds }, window: (0.0, 1.0) },
+      ],
     },
     On {
       event: Release { control: devices.keyboard.boost },
-      actions: [Set { param: ClipParam { clip: background, param: decay_seconds } }],
+      actions: [
+        Set { param: ClipParam { clip: background, param: decay_seconds }, window: (0.0, 1.0) },
+      ],
     },
   ],
   graph: Graph {

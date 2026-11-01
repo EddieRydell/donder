@@ -153,11 +153,13 @@ An action is one of:
 - **`Toggle { clip, values }`** starts the clip if no copy plays, and otherwise
   stops it.
 - **`Mark { into }`** adds a mark to a live mark collection.
-- **`Set { param }`** writes the event's value into a parameter of a clip
+- **`Set { param, window }`** writes the event's value into a parameter of a clip
   (`ClipParam { clip, param }`) or of an operator node of the console's graph
   (`NodeParam { node, param }`): an axis's position on `Move`, the velocity on
-  `Press`, and 0 on `Release`. The value's `0..1` maps onto the parameter's
-  declared range, as sequence automation does, and the parameter holds its own
+  `Press`, and 0 on `Release`. The value's `0..1`, through `window` (a `(low,
+  high)` part of `0..1`, so `(0.0, 0.7)` makes the knob's top 70% of the
+  range), maps onto the parameter's declared range, as sequence automation
+  does, and the parameter holds its own
   value until the first `Set`. One control sets a parameter, by any of its
   events, and a played value cannot also set it.
 
@@ -169,21 +171,19 @@ marks and the values `Set` actions have written.
 
 ### Editing a console
 
-The GUI lists every control of the setup's input devices with what it does: a
-button has the actions it runs when pressed and when released, and an axis the
-parameters it sets when moved. **+** in a cell adds an action. Playing an
-effect adds the effect and its action together, as one edit: for a moment (a
-`Play` of one second), while held (`Start` on the press and `Stop` on the
-release) or toggled. Selecting an action opens it in the side panel, as a
-sequence's clips open, with its copies, length and played values, and the
-effect it plays: layer, target, scope, effect type and parameters. A parameter
-names the control that sets it from its row there, an axis by its position and
-a button by its velocity, and a pad's **+** can link a parameter to its
-velocity. Removing an action removes the effect it played when nothing else
-plays or holds it, with the stop that went with it, and removing a `Set`
-removes the control's other `Set`s of that parameter. Effects that play for
-the whole session are listed above the controls. A mark action's panel names
-the effects that read its collection.
+The GUI lists every button of the setup's input devices, edge to edge like a
+sequence's grid, with the actions it runs when pressed and when released. **+**
+in a cell adds an action. Playing an effect adds the effect and its action
+together, as one edit: for a moment (a `Play` of one second), while held
+(`Start` on the press and `Stop` on the release) or toggled. Selecting an
+action opens it in the side panel, as a sequence's clips open, with its copies,
+length and played values, and the effect it plays: layer, target, scope, effect
+type and parameters. Knobs (axes) are not rows of the grid: a parameter of an
+effect, or of an operator in the layers and operators editor, picks the knob that
+sets it from its own row, by the knob's position. Removing an action removes the
+effect it played when nothing else plays or holds it, with the stop that went with
+it. Effects that play for the whole session are listed above the controls. A mark
+action's panel names the effects that read its collection.
 
 ### Played values
 
@@ -192,8 +192,8 @@ starts from how it was played, so every note sounds its own way:
 
 ```text
 values: [
-  PlayedValue { param: level, from: Velocity },
-  PlayedValue { param: position, from: Fifths },
+  PlayedValue { param: level, from: Velocity, window: (0.2, 1.0) },
+  PlayedValue { param: position, from: Fifths, window: (0.0, 1.0) },
 ],
 ```
 
@@ -207,8 +207,8 @@ values: [
 - `Fifths`: the note's name round the circle of fifths, C at 0, G at 1/12, D
   at 2/12 and on to F at 11/12, so the notes of a chord sit close together.
 
-The value's `0..1` maps onto the parameter's declared range, as with
-automation, and the parameter is a float, int, bool, enum or curve. Values are
+The value's `0..1`, through `window`, maps onto the parameter's declared range,
+as with automation, and the parameter is a float, int, bool, enum or curve. Values are
 played only on `Press`, and the last three only from a button reading notes. A
 parameter a `Set` writes cannot also be played. Played from a range of
 notes, `Play` is polyphonic: each note takes a copy and plays it with its own

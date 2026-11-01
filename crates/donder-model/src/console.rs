@@ -8,6 +8,7 @@ use crate::input_device::ControlRef;
 use crate::layout::FixtureTarget;
 use crate::sequence::{
     AutomationTarget, MarkCollectionKey, SequenceCompositionGraph, SequenceLayer, SequenceLayerId,
+    Window,
 };
 use donder_language::DonderDuration;
 use donder_runtime_types::{Color, Identifier};
@@ -40,9 +41,9 @@ pub struct LiveMarks {
 }
 
 /// A parameter a `Set` action writes: a clip's, on every copy of the clip, or
-/// an operator node's. The value's `0..1` maps onto the parameter's declared
-/// range as sequence automation does, and the parameter holds its own value
-/// until the first `Set`.
+/// an operator node's. The value's `0..1`, through the action's window, maps
+/// onto the parameter's declared range as sequence automation does, and the
+/// parameter holds its own value until the first `Set`.
 pub type ConsoleAutomationTarget = AutomationTarget<ConsoleClipId>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -115,8 +116,11 @@ pub enum Action {
     /// Add a mark to a live collection.
     Mark(MarkCollectionKey),
     /// Write the event's value into a parameter: an axis's position, a
-    /// press's velocity, or 0 for a release.
-    Set(ConsoleAutomationTarget),
+    /// press's velocity, or 0 for a release, through `window`.
+    Set {
+        target: ConsoleAutomationTarget,
+        window: Window,
+    },
 }
 
 impl Action {
@@ -127,7 +131,7 @@ impl Action {
             Self::Start { clip, .. } | Self::Stop { clip } | Self::Toggle { clip, .. } => {
                 Some(*clip)
             }
-            Self::Mark(_) | Self::Set(_) => None,
+            Self::Mark(_) | Self::Set { .. } => None,
         }
     }
 
@@ -136,7 +140,7 @@ impl Action {
         match self {
             Self::Play(play) => &play.values,
             Self::Start { values, .. } | Self::Toggle { values, .. } => values,
-            Self::Stop { .. } | Self::Mark(_) | Self::Set(_) => &[],
+            Self::Stop { .. } | Self::Mark(_) | Self::Set { .. } => &[],
         }
     }
 }
@@ -189,11 +193,13 @@ pub fn sample_duration(duration: &DonderDuration) -> donder_runtime_types::Sampl
 }
 
 /// A parameter a press sets on the copy it starts, from how it was played.
-/// The value's `0..1` maps onto the parameter's range as automation does.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// The value's `0..1`, through `window`, maps onto the parameter's range as
+/// automation does.
+#[derive(Clone, Debug, PartialEq)]
 pub struct PlayedValue {
     pub param: Identifier,
     pub from: PlayedQuantity,
+    pub window: Window,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -237,7 +243,7 @@ impl Console {
     pub fn set_targets(&self) -> Vec<&ConsoleAutomationTarget> {
         let mut targets: Vec<&ConsoleAutomationTarget> = Vec::new();
         for action in self.actions() {
-            if let Action::Set(target) = action
+            if let Action::Set { target, .. } = action
                 && !targets.contains(&target)
             {
                 targets.push(target);
@@ -251,9 +257,9 @@ impl Console {
         self.events
             .iter()
             .find(|on| {
-                on.actions
-                    .iter()
-                    .any(|action| matches!(action, Action::Set(set) if set == target))
+                on.actions.iter().any(
+                    |action| matches!(action, Action::Set { target: set, .. } if set == target),
+                )
             })
             .map(|on| on.event.control())
     }
@@ -275,7 +281,7 @@ impl Console {
     fn forget_sets(&mut self, matches: impl Fn(&ConsoleAutomationTarget) -> bool) {
         for on in &mut self.events {
             on.actions
-                .retain(|action| !matches!(action, Action::Set(target) if matches(target)));
+                .retain(|action| !matches!(action, Action::Set { target, .. } if matches(target)));
         }
     }
 

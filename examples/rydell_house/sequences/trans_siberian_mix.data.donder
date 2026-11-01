@@ -96098,7 +96098,9 @@ Sequence trans_siberian_mix {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96106,7 +96108,9 @@ Sequence trans_siberian_mix {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96114,7 +96118,9 @@ Sequence trans_siberian_mix {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_34, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_34, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96122,7 +96128,9 @@ Sequence trans_siberian_mix {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_35, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_35, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96130,7 +96138,9 @@ Sequence trans_siberian_mix {
       start: 55.996149s,
       duration: 3.803605s,
       curve: [(0.0, 0.965), (1.0, 1.0)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96138,7 +96148,9 @@ Sequence trans_siberian_mix {
       start: 59.799754s,
       duration: 3.923312s,
       curve: [(0.0, 1.0), (1.0, 0.853)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96146,7 +96158,9 @@ Sequence trans_siberian_mix {
       start: 141.259515s,
       duration: 6.467743s,
       curve: [(0.0, 0.5165), (1.0, 0.6999)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96154,7 +96168,9 @@ Sequence trans_siberian_mix {
       start: 147.74059s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_296, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_296, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96162,7 +96178,9 @@ Sequence trans_siberian_mix {
       start: 147.74059s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_297, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_297, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96170,7 +96188,9 @@ Sequence trans_siberian_mix {
       start: 147.74059s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_298, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_298, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96178,7 +96198,9 @@ Sequence trans_siberian_mix {
       start: 147.74059s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_299, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_299, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96186,7 +96208,9 @@ Sequence trans_siberian_mix {
       start: 148.524186s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_300, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_300, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96194,7 +96218,9 @@ Sequence trans_siberian_mix {
       start: 148.524186s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_301, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_301, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96202,7 +96228,9 @@ Sequence trans_siberian_mix {
       start: 148.524186s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_302, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_302, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96210,7 +96238,9 @@ Sequence trans_siberian_mix {
       start: 148.524186s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_303, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_303, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96218,7 +96248,9 @@ Sequence trans_siberian_mix {
       start: 149.332476s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_304, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_304, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96226,7 +96258,9 @@ Sequence trans_siberian_mix {
       start: 149.332476s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_305, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_305, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96234,7 +96268,9 @@ Sequence trans_siberian_mix {
       start: 149.332476s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_306, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_306, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96242,7 +96278,9 @@ Sequence trans_siberian_mix {
       start: 149.332476s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_307, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_307, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96250,7 +96288,9 @@ Sequence trans_siberian_mix {
       start: 150.151887s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_308, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_308, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96258,7 +96298,9 @@ Sequence trans_siberian_mix {
       start: 150.151887s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_309, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_309, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96266,7 +96308,9 @@ Sequence trans_siberian_mix {
       start: 150.151887s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_310, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_310, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96274,7 +96318,9 @@ Sequence trans_siberian_mix {
       start: 150.151887s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_311, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_311, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96282,7 +96328,9 @@ Sequence trans_siberian_mix {
       start: 150.974889s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_312, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_312, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96290,7 +96338,9 @@ Sequence trans_siberian_mix {
       start: 150.974889s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_313, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_313, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96298,7 +96348,9 @@ Sequence trans_siberian_mix {
       start: 150.974889s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_314, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_314, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96306,7 +96358,9 @@ Sequence trans_siberian_mix {
       start: 150.974889s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_315, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_315, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96314,7 +96368,9 @@ Sequence trans_siberian_mix {
       start: 151.7808s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_316, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_316, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96322,7 +96378,9 @@ Sequence trans_siberian_mix {
       start: 151.7808s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_317, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_317, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96330,7 +96388,9 @@ Sequence trans_siberian_mix {
       start: 151.7808s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_318, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_318, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96338,7 +96398,9 @@ Sequence trans_siberian_mix {
       start: 151.7808s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_319, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_319, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96346,7 +96408,9 @@ Sequence trans_siberian_mix {
       start: 152.577509s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_320, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_320, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96354,7 +96418,9 @@ Sequence trans_siberian_mix {
       start: 152.577509s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_321, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_321, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96362,7 +96428,9 @@ Sequence trans_siberian_mix {
       start: 152.577509s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_322, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_322, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96370,7 +96438,9 @@ Sequence trans_siberian_mix {
       start: 152.577509s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_323, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_323, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96378,7 +96448,9 @@ Sequence trans_siberian_mix {
       start: 153.400511s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_324, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_324, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96386,7 +96458,9 @@ Sequence trans_siberian_mix {
       start: 153.400511s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_325, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_325, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96394,7 +96468,9 @@ Sequence trans_siberian_mix {
       start: 154.144631s,
       duration: 3.370555s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_326, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_326, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96402,7 +96478,9 @@ Sequence trans_siberian_mix {
       start: 154.144631s,
       duration: 3.370555s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_327, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_327, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96410,7 +96488,9 @@ Sequence trans_siberian_mix {
       start: 154.144631s,
       duration: 3.370555s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_328, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_328, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96418,7 +96498,9 @@ Sequence trans_siberian_mix {
       start: 157.424521s,
       duration: 1.280347s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_335, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_335, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96426,7 +96508,9 @@ Sequence trans_siberian_mix {
       start: 157.424521s,
       duration: 1.319667s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_336, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_336, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -96434,7 +96518,9 @@ Sequence trans_siberian_mix {
       start: 157.424521s,
       duration: 1.280347s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_337, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_337, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

@@ -13684,7 +13684,9 @@ Sequence holy {
       start: 20.353s,
       duration: 6.145s,
       curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_66, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_66, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -13692,7 +13694,9 @@ Sequence holy {
       start: 20.353s,
       duration: 6.145s,
       curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_67, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_67, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -13700,7 +13704,9 @@ Sequence holy {
       start: 20.353s,
       duration: 6.145s,
       curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_68, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_68, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -13708,7 +13714,9 @@ Sequence holy {
       start: 20.353s,
       duration: 6.145s,
       curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_69, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_69, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -13716,7 +13724,9 @@ Sequence holy {
       start: 20.353s,
       duration: 6.145s,
       curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_70, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_70, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -13724,7 +13734,9 @@ Sequence holy {
       start: 99.46875s,
       duration: 7.99675s,
       curve: [(0.0, 0.5438), (1.0, 0.7613)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -13732,7 +13744,9 @@ Sequence holy {
       start: 103.053s,
       duration: 2s,
       curve: [(0.0, 0.443), (1.0, 0.8116)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -13740,7 +13754,9 @@ Sequence holy {
       start: 108.40625s,
       duration: 8.5905s,
       curve: [(0.0, 0.5941), (1.0, 0.9742)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

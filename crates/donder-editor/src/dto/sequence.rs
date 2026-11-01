@@ -79,6 +79,7 @@ pub struct SequenceAutomationClip {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceAutomationBinding {
     pub(crate) target: SequenceAutomationTarget,
+    pub(crate) window: GuiWindow,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -272,6 +273,8 @@ pub struct SequenceClipParam {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceParamAutomation {
     pub(crate) automation_clip_id: u32,
+    /// The part of the clip's `0..1` the binding uses.
+    pub(crate) window: GuiWindow,
 }
 
 /// Inclusive declared range of an `int`, `float`, or `curve` param.

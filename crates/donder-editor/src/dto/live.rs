@@ -279,6 +279,7 @@ pub enum ConsoleAction {
     /// press's velocity, or 0 for a release.
     Set {
         target: SequenceAutomationTarget,
+        window: GuiWindow,
     },
 }
 
@@ -314,11 +315,12 @@ pub enum ConsoleLengthSource {
 }
 
 /// A parameter a press sets on the copy it starts.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsolePlayedValue {
     pub(crate) param: String,
     pub(crate) from: ConsolePlayedQuantity,
+    pub(crate) window: GuiWindow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -407,10 +409,12 @@ pub enum ConsoleGuiEdit {
     },
     /// Link a parameter to a control, or to none. An axis sets it when moved,
     /// and a button by the press's velocity and 0 on the release; whatever
-    /// controlled it before lets go.
+    /// controlled it before lets go. The control's value reaches the
+    /// parameter through `window`.
     ControlParam {
         target: SequenceAutomationTarget,
         control: Option<ConsoleControlRef>,
+        window: GuiWindow,
     },
     /// Remove an action. An effect nothing plays or holds then goes with it,
     /// and so does an event with no actions left. A removed `Set` takes the

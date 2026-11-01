@@ -144,6 +144,7 @@ fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomation
                 .iter()
                 .map(|binding| SequenceAutomationBinding {
                     target: automation_target_to_gui(&binding.target),
+                    window: binding.window.into(),
                 })
                 .collect(),
             detached_bindings: clip

@@ -224,6 +224,7 @@ pub enum AutomationProblem {
     Region(RegionProblem),
     InvalidCurve(CurveValidationError),
     CurveOutOfRange,
+    WindowOutOfRange,
     BindsTwice,
     NotAutomatable(Identifier),
     MissingClip,
@@ -270,6 +271,8 @@ pub enum EventProblem {
     PitchWithoutNotes(Identifier),
     UnknownValue(Identifier),
     ValueNotAutomatable(Identifier),
+    /// A `Set`'s or played value's window leaves `0..1`.
+    WindowOutOfRange(Identifier),
 }
 
 /// Rules found while binding a validated project for playback.
@@ -425,7 +428,8 @@ impl ConsoleValidationError {
                     EventProblem::UnknownParam(param)
                     | EventProblem::NotAutomatable(param)
                     | EventProblem::SetAlsoPlayed(param)
-                    | EventProblem::SetByOtherControl(param) => {
+                    | EventProblem::SetByOtherControl(param)
+                    | EventProblem::WindowOutOfRange(param) => {
                         ProblemSite::with(member, MemberPart::Param(param.clone()))
                     }
                     EventProblem::ValueTwice(param)
@@ -796,6 +800,7 @@ impl fmt::Display for AutomationProblem {
                 write!(f, "invalid automation curve: {}", curve_error(error))
             }
             Self::CurveOutOfRange => f.write_str("automation curve values must lie in 0..1"),
+            Self::WindowOutOfRange => f.write_str("a binding's window must lie in 0..1"),
             Self::BindsTwice => f.write_str("the automation clip binds one parameter twice"),
             Self::NotAutomatable(param) => {
                 write!(f, "parameter `{}` cannot be automated", param.as_str())
@@ -866,6 +871,9 @@ impl fmt::Display for EventProblem {
                 "`{}` is played from a note, but the input plays no notes",
                 param.as_str()
             ),
+            Self::WindowOutOfRange(param) => {
+                write!(f, "`{}`'s window must lie in 0..1", param.as_str())
+            }
             Self::UnknownValue(param) => write!(f, "no parameter `{}`", param.as_str()),
             Self::ValueNotAutomatable(param) => write!(
                 f,

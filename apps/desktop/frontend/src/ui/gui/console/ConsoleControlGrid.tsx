@@ -7,7 +7,7 @@ import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { OverlayPortal } from "../../OverlayPortal";
 import { DefinitionMenuItems, definitionTree, effectReferenceKey } from "../sequence/definitionMenu";
 import type { GuiFocus } from "../shared";
-import { answers, applyConsoleEdit, controlRef, focusOnEffect, focusOnSet, freeParameters, inputLabel, targetLabel, type ParameterGroup } from "./consoleEditing";
+import { answers, applyConsoleEdit, controlRef, focusOnEffect, inputLabel, targetLabel } from "./consoleEditing";
 
 type Entry = { on: ConsoleOn; index: number; action: ConsoleAction };
 
@@ -67,18 +67,17 @@ function ActionChip({ document, entry, selected, setSelected }: {
 }
 
 /** A cell's actions, and the menu that adds another. */
-function ActionCell({ document, device, control, event, selected, setSelected, className }: {
+function ActionCell({ document, device, control, event, selected, setSelected }: {
   document: ConsoleGuiDocument;
   device: ConsoleInputDevice;
   control: ConsoleInputControl;
   event: ConsoleEventKind;
   selected: GuiFocus;
   setSelected: (focus: GuiFocus) => void;
-  className?: string;
 }) {
   const entries = document.events.flatMap((on): Entry[] => answers(on, event, device, control)
     ? on.actions.map((action, index) => ({ on, index, action })) : []);
-  return <div className={className === undefined ? "control-cell actions" : `control-cell actions ${className}`}>
+  return <div className="control-cell actions">
     {entries.map((entry) => <ActionChip key={`${entry.on.id}:${entry.index}`} document={document} entry={entry} selected={selected} setSelected={setSelected} />)}
     <AddActionMenu document={document} device={device} control={control} event={event} setSelected={setSelected} />
   </div>;
@@ -107,61 +106,44 @@ function AddActionMenu({ document, device, control, event, setSelected }: {
     void applyConsoleEdit({ type: "addEffectAction", control: ref, event, mode, initialColor: THEME_COLORS.white, effect: definition.effect, target: target.target })
       .then((update: GuiEditUpdate) => { setSelected(focusOnEffect(update, update.created[0])); });
   };
-  const { Root, Trigger, Portal, Content, Item, Sub, SubTrigger, SubContent, Separator } = DropdownMenu;
+  const { Root, Trigger, Portal, Content, Item, Sub, SubTrigger, SubContent } = DropdownMenu;
   const submenu = (label: string, children: ReactNode, disabled = false) => <Sub>
     <SubTrigger className="menu-item" disabled={disabled}>{label}</SubTrigger>
     <Portal container={container}><SubContent className="menu-content">{children}</SubContent></Portal>
   </Sub>;
   const effects = (mode: ConsolePlayMode) => <DefinitionMenuItems menu={DropdownMenu} tree={tree} label={(definition) => definition.name}
     itemKey={(definition) => effectReferenceKey(definition.effect)} onSelect={(definition) => { addEffect(mode, definition); }} empty="No effects" disabled={target === undefined} />;
-  const free = freeParameters(document);
-  const link = (group: ParameterGroup) => submenu(group.label, group.params.map(({ name, target }) => <Item key={name} className="menu-item" onSelect={() => {
-    void applyConsoleEdit({ type: "controlParam", target, control: ref }).then((update) => { setSelected(focusOnSet(update, target)); });
-  }}>{name}</Item>));
-  const setParameter = free.effects.length + free.operators.length === 0
-    ? <Item className="menu-item" disabled>No parameters left to control</Item>
-    : <>
-      {free.effects.map(link)}
-      {free.effects.length > 0 && free.operators.length > 0 && <Separator className="menu-separator" />}
-      {free.operators.map(link)}
-    </>;
-  const axis = event === "move";
   return <Root>
     <Trigger className="action-add" aria-label="Add an action" title="Add an action"><Plus size={THEME_METRICS.iconSizeSmall} aria-hidden /></Trigger>
     <Portal container={container}>
       <Content className="menu-content" align="start" sideOffset={THEME_METRICS.menuOffset}>
-        {!axis && PLAY_MODES.filter((choice) => event === "press" || choice.releaseToo).map((choice) => (
+        {PLAY_MODES.filter((choice) => event === "press" || choice.releaseToo).map((choice) => (
           <span key={choice.mode}>{submenu(choice.label, effects(choice.mode), target === undefined)}</span>
         ))}
-        {!axis && submenu("Stop an effect", document.clips.length === 0
+        {submenu("Stop an effect", document.clips.length === 0
           ? <Item className="menu-item" disabled>No effects</Item>
           : document.clips.map((clip) => <Item key={clip.id} className="menu-item" onSelect={() => {
             void applyConsoleEdit({ type: "addAction", control: ref, event, action: { type: "stop", clipId: clip.id } });
           }}>{clip.name}</Item>))}
-        {!axis && submenu("Add a live mark", document.liveMarks.length === 0
+        {submenu("Add a live mark", document.liveMarks.length === 0
           ? <Item className="menu-item" disabled>No live mark collections</Item>
           : document.liveMarks.map((marks) => <Item key={marks.key} className="menu-item" onSelect={() => {
             void applyConsoleEdit({ type: "addAction", control: ref, event, action: { type: "mark", into: marks.key } });
           }}>{marks.key}</Item>))}
-        {submenu(axis ? "Control a parameter" : "Link a parameter to velocity", setParameter)}
       </Content>
     </Portal>
   </Root>;
 }
 
-/** Every control of the setup's input devices with what it does: buttons when pressed and released, axes when moved. */
+/** Every button of the setup's input devices with what it does when pressed and released. Knobs are linked from the parameters they set. */
 export function ConsoleControlGrid({ document, selected, setSelected }: {
   document: ConsoleGuiDocument;
   selected: GuiFocus;
   setSelected: (focus: GuiFocus) => void;
 }) {
-  if (document.inputDevices.every((device) => device.buttons.length === 0 && device.axes.length === 0)) {
-    return <p className="object-overview-empty">Add an input device with buttons or axes to the project's setup to play this console.</p>;
+  if (document.inputDevices.every((device) => device.buttons.length === 0)) {
+    return <p className="object-overview-empty">Add an input device with buttons to the project's setup to play this console.</p>;
   }
-  const label = (control: ConsoleInputControl, axis: boolean) => <>
-    <div className="control-cell name"><span>{control.name}{axis && <span className="control-kind"> axis</span>}</span></div>
-    <div className="control-cell"><span>{inputLabel(control.input)}</span></div>
-  </>;
   return <div className="control-grid console">
     <div className="control-grid-row">
       <div className="control-cell head"><span>Control</span></div>
@@ -169,18 +151,15 @@ export function ConsoleControlGrid({ document, selected, setSelected }: {
       <div className="control-cell head"><span>When pressed</span></div>
       <div className="control-cell head"><span>When released</span></div>
     </div>
-    {document.inputDevices.flatMap((device) => [
+    {document.inputDevices.filter((device) => device.buttons.length > 0).flatMap((device) => [
       <div className="control-grid-row" key={`${guiObjectKey(device.device)}:name`}>
         <div className="control-cell group"><span>{device.name}</span></div>
       </div>,
       ...device.buttons.map((control) => <div className="control-grid-row" key={`${guiObjectKey(device.device)}:${control.control}`}>
-        {label(control, false)}
+        <div className="control-cell name"><span>{control.name}</span></div>
+        <div className="control-cell"><span>{inputLabel(control.input)}</span></div>
         <ActionCell document={document} device={device} control={control} event="press" selected={selected} setSelected={setSelected} />
         <ActionCell document={document} device={device} control={control} event="release" selected={selected} setSelected={setSelected} />
-      </div>),
-      ...device.axes.map((control) => <div className="control-grid-row" key={`${guiObjectKey(device.device)}:${control.control}`}>
-        {label(control, true)}
-        <ActionCell document={document} device={device} control={control} event="move" selected={selected} setSelected={setSelected} className="span" />
       </div>)
     ])}
   </div>;

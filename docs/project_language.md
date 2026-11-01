@@ -496,7 +496,9 @@ Sequence layer_test {
       start: 0s,
       duration: 249.753832s,
       curve: [(0.0, 0.505), (0.103248, 0.787)],
-      bindings: [NodeParam { node: afterglow, param: seconds }],
+      bindings: [
+        Bound { binding: NodeParam { node: afterglow, param: seconds }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],
@@ -532,10 +534,19 @@ Sequence layer_test {
   `to: afterglow.input` names an operator input and `to: root` the root
   node. `position` is the node's place on the graph canvas.
 - `AutomationClip`: `row` (the fixture or group whose automation row holds it),
-  `start`, `duration`, `curve`, `bindings` and `detached`. A binding is
-  `ClipParam { clip, param }` or `NodeParam { node, param }`; a detached binding
-  is `Detached { binding }`. Deleting
-  a bound clip or node removes its bindings; a clip may be bound to nothing.
+  `start`, `duration`, `curve`, `bindings` and `detached`. A target is
+  `ClipParam { clip, param }` or `NodeParam { node, param }`; a binding is
+  `Bound { binding, window }` and a detached binding is `Detached { binding }`.
+  Deleting a bound clip or node removes its bindings; a clip may be bound to
+  nothing.
+
+Every place a `0..1` value reaches a parameter (an automation binding, a
+console's `Set` and a console's `PlayedValue`) has a `window: (low, high)`, the
+part of `0..1` the binding uses: the value `v` becomes `low + (high - low) * v`
+before it maps onto the parameter's range. `(0.0, 1.0)` is the whole range,
+`(0.0, 0.7)` stops at 70% of it and `(1.0, 0.0)` inverts it. Both ends lie in
+`0..1`. The window belongs to the binding, so one clip bound to two parameters
+has a window for each, and a detached binding keeps none.
 
 Layers produce signals, operators combine and transform them, and the single
 root node is what plays. Nodes not connected to the root may remain while
@@ -547,7 +558,7 @@ Every fixture or group has one clip row and one automation row. A member of
 several groups shows its rows under each, and every copy holds the same clips.
 An automation clip's row is only placement: moving it between rows does not
 change its bindings. One clip can bind several parameters. The curve's `0..1`
-value maps onto each parameter's declared range (a curve parameter's point
+value, through the binding's window, maps onto each parameter's declared range (a curve parameter's point
 values), an enum's options in order, or a bool (on at 0.5). Several clips may
 bind the same parameter if they do not overlap in time; preparation merges them
 into one envelope. Before the first clip the parameter holds that clip's first
@@ -574,9 +585,12 @@ In the editor:
   and `progress` start again at zero; it gains the same automation bindings as
   the left half, so automation continues across the cut. Alt snaps the line to
   marks, and Escape returns to selecting.
-- Curve points keep their authored order. Clicking the line adds a point,
-  double-clicking a point removes it, and a dragged point stays between its
-  neighbors, so a step (two points at one time) never reorders. Shift aligns
+- Curve points keep their authored order and edit as in FL Studio's automation
+  clips, minus tension (segments are straight). Clicking anywhere in a clip below
+  its header adds a point there and drags it; the header moves the clip. A point
+  wins over the clip edge it sits on. Right-clicking a point removes it, and a
+  right-drag removes every point it sweeps over (a curve keeps one). A dragged
+  point stays between its neighbors, so a step (two points at one time) never reorders. Shift aligns
   the dragged point's time or value with a neighbor; Alt snaps clip edges and
   point times to visible marks. Committing a curve drops points that cannot
   affect sampling.
@@ -649,11 +663,15 @@ Console jam {
     On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
     On {
       event: Press { control: devices.keyboard.boost },
-      actions: [Set { param: ClipParam { clip: background, param: decay_seconds } }],
+      actions: [
+        Set { param: ClipParam { clip: background, param: decay_seconds }, window: (0.0, 1.0) },
+      ],
     },
     On {
       event: Release { control: devices.keyboard.boost },
-      actions: [Set { param: ClipParam { clip: background, param: decay_seconds } }],
+      actions: [
+        Set { param: ClipParam { clip: background, param: decay_seconds }, window: (0.0, 1.0) },
+      ],
     },
   ],
   graph: Graph {
@@ -693,19 +711,20 @@ Console jam {
   - `Stop { clip }` stops every copy of the clip.
   - `Toggle { clip, values }` is `Start` while no copy plays, else `Stop`.
   - `Mark { into }` adds a mark to that live mark collection.
-  - `Set { param }` writes the event's value into a parameter: an axis's
+  - `Set { param, window }` writes the event's value into a parameter: an axis's
     position, a press's velocity, or 0 for a release. `param` is
     `ClipParam { clip, param }`, an automatable parameter of a console clip, set
     on every copy of the clip, or `NodeParam { node, param }`, an automatable
-    parameter of an operator node of the console's graph. The value maps onto
-    the parameter exactly as an automation curve does, and the parameter holds
+    parameter of an operator node of the console's graph. The value, through
+    `window`, maps onto the parameter exactly as an automation curve does, and
+    the parameter holds
     its own value until the first `Set`. One control sets a parameter, by any
     of its events. Deleting a clip or node removes the `Set`s of its
     parameters.
 
-  `values` are `PlayedValue { param, from }`: each press sets that parameter
-  of the copy it starts, `from` `Velocity`, `Pitch`, `PitchClass` or `Fifths`,
-  mapped onto the parameter's range as automation is.
+  `values` are `PlayedValue { param, from, window }`: each press sets that
+  parameter of the copy it starts, `from` `Velocity`, `Pitch`, `PitchClass` or
+  `Fifths`, through `window`, mapped onto the parameter's range as automation is.
 - Every input device a console of the project reads must be among the project
   setup's `input_devices`, and its clips target the setup's layout.
 
@@ -785,8 +804,8 @@ preparation does not repeat them.
   are checked even on disconnected branches.
 - Active automation bindings target existing parameters that support
   automation. A clip binds a target at most once (active or detached), and clips
-  that bind the same target do not overlap. Automation curve values lie in
-  0..1.
+  that bind the same target do not overlap. Automation curve values and every
+  binding window's ends lie in 0..1.
 - A console's frame rate is positive and at most 1,000. Its clips follow the
   clip rules without timing and all target one layout, and `always` names each
   clip at most once. A clip is played either by `Play` actions or by `Start`,

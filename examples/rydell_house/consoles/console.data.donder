@@ -1,0 +1,53 @@
+import setups from <setups/main.data.donder>;
+import effects from <effects/radial-wipe.donder>;
+import layouts from <layouts/main.data.donder>;
+import gradients from <gradients/vixen_gradients.data.donder>;
+import devices from <input_devices/mpk_mini.data.donder>;
+
+Console console {
+  description: none,
+  frame_rate: 100,
+  marks: [],
+  layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+  clips: [
+    ConsoleClip {
+      name: radial_wipe_2,
+      description: none,
+      layer: default,
+      target: layouts.main.house_and_trees,
+      scope: WholeTarget,
+      effect: effects.RadialWipe,
+      params: {
+        gradient: gradients.white_blue_blue,
+        shape: Circle,
+        pulse_percent: 50.0,
+        center_x: 99.95,
+        center_y: 100.0,
+        passes: 1,
+        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+      },
+    },
+  ],
+  always: [],
+  events: [
+    On {
+      event: Press { control: setups.main.input_devices.input_device_2.control_1 },
+      actions: [
+        Play { clip: radial_wipe_2, copies: 10, length: Fixed { duration: 1s }, values: [] },
+      ],
+    },
+    On {
+      event: Move { control: devices.mpk_mini.knob_1 },
+      actions: [
+        Set { param: ClipParam { clip: radial_wipe_2, param: center_x }, window: (0.0, 1.0) },
+      ],
+    },
+  ],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 80.0) },
+      RootNode { position: (420.0, 80.0) },
+    ],
+    edges: [Edge { from: default, to: root }],
+  },
+}

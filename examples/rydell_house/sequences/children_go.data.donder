@@ -29225,7 +29225,9 @@ Sequence children_go {
       start: 5.25s,
       duration: 3.578125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29233,7 +29235,9 @@ Sequence children_go {
       start: 5.261537s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29241,7 +29245,9 @@ Sequence children_go {
       start: 5.261537s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29249,7 +29255,9 @@ Sequence children_go {
       start: 5.261537s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29257,7 +29265,9 @@ Sequence children_go {
       start: 5.261537s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29265,7 +29275,9 @@ Sequence children_go {
       start: 5.267907s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_8, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_8, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29273,7 +29285,9 @@ Sequence children_go {
       start: 5.267907s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_9, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_9, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29281,7 +29295,9 @@ Sequence children_go {
       start: 5.296875s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_10, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_10, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29289,7 +29305,9 @@ Sequence children_go {
       start: 5.296875s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_11, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_11, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29297,7 +29315,9 @@ Sequence children_go {
       start: 5.296875s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_12, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_12, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29305,7 +29325,9 @@ Sequence children_go {
       start: 5.296875s,
       duration: 3.53125s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29313,7 +29335,9 @@ Sequence children_go {
       start: 5.328125s,
       duration: 3.484375s,
       curve: [(0.0, 0.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: butterfly_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29321,7 +29345,9 @@ Sequence children_go {
       start: 10.808412s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_51, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_51, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29329,7 +29355,9 @@ Sequence children_go {
       start: 10.808412s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_52, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_52, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29337,7 +29365,9 @@ Sequence children_go {
       start: 10.808412s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_53, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_53, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29345,7 +29375,9 @@ Sequence children_go {
       start: 10.808412s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_54, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_54, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29353,7 +29385,9 @@ Sequence children_go {
       start: 10.814782s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_55, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_55, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29361,7 +29395,9 @@ Sequence children_go {
       start: 10.814782s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_56, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_56, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29369,7 +29405,9 @@ Sequence children_go {
       start: 10.828125s,
       duration: 2.174875s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_57, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_57, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29377,7 +29415,9 @@ Sequence children_go {
       start: 10.84375s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_58, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_58, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29385,7 +29425,9 @@ Sequence children_go {
       start: 10.84375s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_59, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_59, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29393,7 +29435,9 @@ Sequence children_go {
       start: 10.84375s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_60, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_60, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29401,7 +29445,9 @@ Sequence children_go {
       start: 10.84375s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_61, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_61, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29409,7 +29455,9 @@ Sequence children_go {
       start: 10.84375s,
       duration: 2.15925s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_62, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_62, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29417,7 +29465,9 @@ Sequence children_go {
       start: 25.152162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_63, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_63, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29425,7 +29475,9 @@ Sequence children_go {
       start: 25.152162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_64, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_64, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29433,7 +29485,9 @@ Sequence children_go {
       start: 25.152162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_65, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_65, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29441,7 +29495,9 @@ Sequence children_go {
       start: 25.152162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_66, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_66, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29449,7 +29505,9 @@ Sequence children_go {
       start: 25.158532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.1213, 0.6451), (0.9287, 0.6632), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_67, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_67, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29457,7 +29515,9 @@ Sequence children_go {
       start: 25.158532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_68, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_68, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29465,7 +29525,9 @@ Sequence children_go {
       start: 25.158532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.1213, 0.6451), (0.9287, 0.6632), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_69, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_69, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29473,7 +29535,9 @@ Sequence children_go {
       start: 25.158532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_70, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_70, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29481,7 +29545,9 @@ Sequence children_go {
       start: 25.177s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.1592, 0.5009), (0.8233, 0.503), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_71, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_71, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29489,7 +29555,9 @@ Sequence children_go {
       start: 25.177s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_72, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_72, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29497,7 +29565,9 @@ Sequence children_go {
       start: 25.1875s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_73, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_73, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29505,7 +29575,9 @@ Sequence children_go {
       start: 25.1875s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_74, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_74, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29513,7 +29585,9 @@ Sequence children_go {
       start: 25.1875s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_75, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_75, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29521,7 +29595,9 @@ Sequence children_go {
       start: 25.1875s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_76, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_76, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29529,7 +29605,9 @@ Sequence children_go {
       start: 25.203125s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_77, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_77, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29537,7 +29615,9 @@ Sequence children_go {
       start: 58.391647s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_133, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_133, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29545,7 +29625,9 @@ Sequence children_go {
       start: 58.475162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_134, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_134, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29553,7 +29635,9 @@ Sequence children_go {
       start: 58.475162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_135, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_135, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29561,7 +29645,9 @@ Sequence children_go {
       start: 58.475162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_136, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_136, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29569,7 +29655,9 @@ Sequence children_go {
       start: 58.475162s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_137, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_137, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29577,7 +29665,9 @@ Sequence children_go {
       start: 58.481532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_138, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_138, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29585,7 +29675,9 @@ Sequence children_go {
       start: 58.481532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_139, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_139, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29593,7 +29685,9 @@ Sequence children_go {
       start: 58.481532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_140, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_140, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29601,7 +29695,9 @@ Sequence children_go {
       start: 58.481532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_141, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_141, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29609,7 +29705,9 @@ Sequence children_go {
       start: 58.481532s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_142, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_142, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29617,7 +29715,9 @@ Sequence children_go {
       start: 58.5s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_143, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_143, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29625,7 +29725,9 @@ Sequence children_go {
       start: 58.5105s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_144, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_144, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29633,7 +29735,9 @@ Sequence children_go {
       start: 58.5105s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_145, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_145, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29641,7 +29745,9 @@ Sequence children_go {
       start: 58.5105s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_146, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_146, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29649,7 +29755,9 @@ Sequence children_go {
       start: 58.5105s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_147, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_147, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29657,7 +29765,9 @@ Sequence children_go {
       start: 58.526125s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_148, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_148, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29665,7 +29775,9 @@ Sequence children_go {
       start: 93.193912s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_183, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_183, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29673,7 +29785,9 @@ Sequence children_go {
       start: 93.193912s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_184, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_184, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29681,7 +29795,9 @@ Sequence children_go {
       start: 93.193912s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_185, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_185, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29689,7 +29805,9 @@ Sequence children_go {
       start: 93.193912s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_186, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_186, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29697,7 +29815,9 @@ Sequence children_go {
       start: 93.200282s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0622, 0.4757), (0.954, 0.622), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_187, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_187, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29705,7 +29825,9 @@ Sequence children_go {
       start: 93.200282s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_188, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_188, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29713,7 +29835,9 @@ Sequence children_go {
       start: 93.200282s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0622, 0.4757), (0.954, 0.622), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_189, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_189, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29721,7 +29845,9 @@ Sequence children_go {
       start: 93.200282s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.1234, 0.4483), (0.9266, 0.59), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_190, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_190, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29729,7 +29855,9 @@ Sequence children_go {
       start: 93.200282s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_191, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_191, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29737,7 +29865,9 @@ Sequence children_go {
       start: 93.21875s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_192, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_192, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29745,7 +29875,9 @@ Sequence children_go {
       start: 93.22925s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_193, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_193, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29753,7 +29885,9 @@ Sequence children_go {
       start: 93.22925s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_194, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_194, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29761,7 +29895,9 @@ Sequence children_go {
       start: 93.22925s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_195, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_195, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29769,7 +29905,9 @@ Sequence children_go {
       start: 93.22925s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_196, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_196, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29777,7 +29915,9 @@ Sequence children_go {
       start: 93.244875s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_197, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_197, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29785,7 +29925,9 @@ Sequence children_go {
       start: 114.892907s,
       duration: 4.34375s,
       curve: [(0.0, 0.6177), (1.0, 0.6131)],
-      bindings: [ClipParam { clip: clip_400, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_400, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29793,7 +29935,9 @@ Sequence children_go {
       start: 114.892907s,
       duration: 4.34375s,
       curve: [(0.0, 0.6177), (1.0, 0.6131)],
-      bindings: [ClipParam { clip: clip_402, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_402, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29801,7 +29945,9 @@ Sequence children_go {
       start: 114.892907s,
       duration: 4.34375s,
       curve: [(0.0, 0.6657), (1.0, 0.6749)],
-      bindings: [ClipParam { clip: clip_403, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_403, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29809,7 +29955,9 @@ Sequence children_go {
       start: 121.252282s,
       duration: 4.34375s,
       curve: [(0.0, 0.6451), (1.0, 0.5788)],
-      bindings: [ClipParam { clip: clip_473, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_473, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29817,7 +29965,9 @@ Sequence children_go {
       start: 121.252282s,
       duration: 4.34375s,
       curve: [(0.0, 0.6451), (1.0, 0.5788)],
-      bindings: [ClipParam { clip: clip_475, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_475, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29825,7 +29975,9 @@ Sequence children_go {
       start: 121.252282s,
       duration: 4.34375s,
       curve: [(0.0, 0.4895), (1.0, 0.4254)],
-      bindings: [ClipParam { clip: clip_476, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_476, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29833,7 +29985,9 @@ Sequence children_go {
       start: 128.439782s,
       duration: 2.192375s,
       curve: [(0.0, 0.5078), (1.0, 0.3819)],
-      bindings: [ClipParam { clip: clip_550, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_550, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29841,7 +29995,9 @@ Sequence children_go {
       start: 128.439782s,
       duration: 2.192375s,
       curve: [(0.0, 0.5078), (1.0, 0.3819)],
-      bindings: [ClipParam { clip: clip_552, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_552, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29849,7 +30005,9 @@ Sequence children_go {
       start: 128.439782s,
       duration: 2.192375s,
       curve: [(0.0, 0.2193), (1.0, 0.5353)],
-      bindings: [ClipParam { clip: clip_553, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_553, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29857,7 +30015,9 @@ Sequence children_go {
       start: 134.522037s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_198, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_198, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29865,7 +30025,9 @@ Sequence children_go {
       start: 134.522037s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_199, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_199, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29873,7 +30035,9 @@ Sequence children_go {
       start: 134.522037s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_200, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_200, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29881,7 +30045,9 @@ Sequence children_go {
       start: 134.522037s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_201, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_201, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29889,7 +30055,9 @@ Sequence children_go {
       start: 134.528407s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_202, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_202, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29897,7 +30065,9 @@ Sequence children_go {
       start: 134.528407s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_203, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_203, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29905,7 +30075,9 @@ Sequence children_go {
       start: 134.528407s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_204, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_204, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29913,7 +30085,9 @@ Sequence children_go {
       start: 134.528407s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_205, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_205, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29921,7 +30095,9 @@ Sequence children_go {
       start: 134.528407s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_206, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_206, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29929,7 +30105,9 @@ Sequence children_go {
       start: 134.546875s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_207, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_207, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29937,7 +30115,9 @@ Sequence children_go {
       start: 134.557375s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_208, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_208, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29945,7 +30125,9 @@ Sequence children_go {
       start: 134.557375s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_209, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_209, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29953,7 +30135,9 @@ Sequence children_go {
       start: 134.557375s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_210, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_210, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29961,7 +30145,9 @@ Sequence children_go {
       start: 134.557375s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_211, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_211, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -29969,7 +30155,9 @@ Sequence children_go {
       start: 134.573s,
       duration: 4.406s,
       curve: [(0.0, 0.0), (0.0791, 1.0), (0.9013, 0.9952), (0.9949, 0.0298)],
-      bindings: [ClipParam { clip: butterfly_212, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_212, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

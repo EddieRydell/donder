@@ -83379,7 +83379,9 @@ Sequence joy_to_the_world {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83387,7 +83389,9 @@ Sequence joy_to_the_world {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83395,7 +83399,9 @@ Sequence joy_to_the_world {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83403,7 +83409,9 @@ Sequence joy_to_the_world {
       start: 44.201592s,
       duration: 7.941601s,
       curve: [(0.0, 0.0), (0.1065, 1.0), (1.0, 1.0)],
-      bindings: [ClipParam { clip: clip_34, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_34, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83411,7 +83419,9 @@ Sequence joy_to_the_world {
       start: 141.259515s,
       duration: 6.467743s,
       curve: [(0.0, 0.5165), (1.0, 0.6999)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83419,7 +83429,9 @@ Sequence joy_to_the_world {
       start: 147.74059s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_277, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_277, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83427,7 +83439,9 @@ Sequence joy_to_the_world {
       start: 147.74059s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_278, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_278, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83435,7 +83449,9 @@ Sequence joy_to_the_world {
       start: 147.74059s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_279, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_279, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83443,7 +83459,9 @@ Sequence joy_to_the_world {
       start: 148.524186s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_280, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_280, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83451,7 +83469,9 @@ Sequence joy_to_the_world {
       start: 148.524186s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_281, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_281, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83459,7 +83479,9 @@ Sequence joy_to_the_world {
       start: 148.524186s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_282, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_282, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83467,7 +83489,9 @@ Sequence joy_to_the_world {
       start: 149.332476s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_283, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_283, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83475,7 +83499,9 @@ Sequence joy_to_the_world {
       start: 149.332476s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_284, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_284, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83483,7 +83509,9 @@ Sequence joy_to_the_world {
       start: 149.332476s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_285, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_285, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83491,7 +83519,9 @@ Sequence joy_to_the_world {
       start: 150.151887s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_286, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_286, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83499,7 +83529,9 @@ Sequence joy_to_the_world {
       start: 150.151887s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_287, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_287, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83507,7 +83539,9 @@ Sequence joy_to_the_world {
       start: 150.151887s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_288, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_288, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83515,7 +83549,9 @@ Sequence joy_to_the_world {
       start: 150.974889s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_289, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_289, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83523,7 +83559,9 @@ Sequence joy_to_the_world {
       start: 150.974889s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_290, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_290, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83531,7 +83569,9 @@ Sequence joy_to_the_world {
       start: 150.974889s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_291, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_291, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83539,7 +83579,9 @@ Sequence joy_to_the_world {
       start: 151.7808s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_292, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_292, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83547,7 +83589,9 @@ Sequence joy_to_the_world {
       start: 151.7808s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_293, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_293, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83555,7 +83599,9 @@ Sequence joy_to_the_world {
       start: 151.7808s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_294, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_294, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83563,7 +83609,9 @@ Sequence joy_to_the_world {
       start: 152.577509s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_295, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_295, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83571,7 +83619,9 @@ Sequence joy_to_the_world {
       start: 152.577509s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_296, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_296, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83579,7 +83629,9 @@ Sequence joy_to_the_world {
       start: 152.577509s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_297, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_297, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83587,7 +83639,9 @@ Sequence joy_to_the_world {
       start: 153.400511s,
       duration: 0.686604s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_298, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_298, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83595,7 +83649,9 @@ Sequence joy_to_the_world {
       start: 154.144631s,
       duration: 3.370555s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_299, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_299, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83603,7 +83659,9 @@ Sequence joy_to_the_world {
       start: 154.144631s,
       duration: 3.370555s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_300, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_300, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83611,7 +83669,9 @@ Sequence joy_to_the_world {
       start: 154.144631s,
       duration: 3.370555s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_301, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_301, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83619,7 +83679,9 @@ Sequence joy_to_the_world {
       start: 157.424521s,
       duration: 1.280347s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_308, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_308, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83627,7 +83689,9 @@ Sequence joy_to_the_world {
       start: 157.424521s,
       duration: 1.319667s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_309, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_309, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -83635,7 +83699,9 @@ Sequence joy_to_the_world {
       start: 157.424521s,
       duration: 1.280347s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_310, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_310, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

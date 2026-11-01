@@ -66803,7 +66803,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_58, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_58, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66811,7 +66813,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_59, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_59, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66819,7 +66823,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_60, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_60, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66827,7 +66833,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_61, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_61, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66835,7 +66843,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_62, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_62, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66843,7 +66853,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_63, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_63, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66851,7 +66863,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_66, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_66, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66859,7 +66873,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_67, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_67, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66867,7 +66883,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_68, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_68, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66875,7 +66893,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_69, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_69, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66883,7 +66903,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_72, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_72, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66891,7 +66913,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_73, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_73, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66899,7 +66923,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_74, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_74, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66907,7 +66933,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_75, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_75, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66915,7 +66943,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_76, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_76, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66923,7 +66953,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_77, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_77, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66931,7 +66963,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_78, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_78, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66939,7 +66973,9 @@ Sequence inner_demons {
       start: 12.723279s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_79, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_79, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66947,7 +66983,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_92, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_92, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66955,7 +66993,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_93, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_93, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66963,7 +67003,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_94, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_94, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66971,7 +67013,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_95, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_95, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66979,7 +67023,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_96, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_96, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66987,7 +67033,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_97, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_97, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -66995,7 +67043,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_98, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_98, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67003,7 +67053,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_99, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_99, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67011,7 +67063,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_100, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_100, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67019,7 +67073,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_101, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_101, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67027,7 +67083,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_102, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_102, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67035,7 +67093,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_103, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_103, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67043,7 +67103,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_104, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_104, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67051,7 +67113,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_105, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_105, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67059,7 +67123,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_106, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_106, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67067,7 +67133,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_107, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_107, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67075,7 +67143,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_108, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_108, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67083,7 +67153,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_109, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_109, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67091,7 +67163,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_110, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_110, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67099,7 +67173,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_111, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_111, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67107,7 +67183,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_112, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_112, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67115,7 +67193,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_113, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_113, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67123,7 +67203,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_114, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_114, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67131,7 +67213,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_115, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_115, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67139,7 +67223,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_116, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_116, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67147,7 +67233,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_117, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_117, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67155,7 +67243,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_118, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_118, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67163,7 +67253,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_119, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_119, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67171,7 +67263,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_120, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_120, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67179,7 +67273,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_121, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_121, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67187,7 +67283,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_122, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_122, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67195,7 +67293,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_123, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_123, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67203,7 +67303,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_124, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_124, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67211,7 +67313,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_125, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_125, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67219,7 +67323,9 @@ Sequence inner_demons {
       start: 14.387871s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_126, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_126, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67227,7 +67333,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.05), (0.0431, 1.0), (0.9, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67235,7 +67343,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.0523), (0.4966, 0.058), (0.7791, 0.0694), (1.0, 0.0866)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67243,7 +67353,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.7425), (1.0, 0.5433)],
-      bindings: [ClipParam { clip: pin_wheel_1, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_1, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67251,7 +67363,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.05), (0.0431, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67259,7 +67373,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.7425), (1.0, 0.5433)],
-      bindings: [ClipParam { clip: pin_wheel_2, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_2, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67267,7 +67383,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67275,7 +67393,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.0523), (0.4966, 0.058), (0.7791, 0.0694), (1.0, 0.0866)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67283,7 +67403,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.7425), (1.0, 0.5433)],
-      bindings: [ClipParam { clip: pin_wheel_3, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_3, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67291,7 +67413,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.05), (0.0431, 1.0), (0.9, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67299,7 +67423,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.0523), (0.4966, 0.058), (0.7791, 0.0694), (1.0, 0.0866)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67307,7 +67433,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.7425), (1.0, 0.5433)],
-      bindings: [ClipParam { clip: pin_wheel_4, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_4, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67315,7 +67443,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.05), (0.0431, 1.0), (0.9, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67323,7 +67453,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.0523), (0.4966, 0.058), (0.7791, 0.0694), (1.0, 0.0866)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67331,7 +67463,9 @@ Sequence inner_demons {
       start: 14.432564s,
       duration: 13.975862s,
       curve: [(0.0, 0.7425), (1.0, 0.5433)],
-      bindings: [ClipParam { clip: pin_wheel_5, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_5, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67339,7 +67473,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.3526), (1.0, 0.19)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67347,7 +67483,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.7454), (1.0, 0.5623)],
-      bindings: [ClipParam { clip: pin_wheel_6, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_6, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67355,7 +67493,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.19), (1.0, 0.3526)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67363,7 +67503,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.2738), (1.0, 0.457)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67371,7 +67513,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.413), (1.0, 0.6717)],
-      bindings: [ClipParam { clip: pin_wheel_7, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_7, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67379,7 +67523,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.3526), (1.0, 0.19)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67387,7 +67533,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.7454), (1.0, 0.5623)],
-      bindings: [ClipParam { clip: pin_wheel_8, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_8, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67395,7 +67543,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.19), (1.0, 0.3526)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67403,7 +67553,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.2738), (1.0, 0.457)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67411,7 +67563,9 @@ Sequence inner_demons {
       start: 29.899386s,
       duration: 0.834904s,
       curve: [(0.0, 0.413), (1.0, 0.6717)],
-      bindings: [ClipParam { clip: pin_wheel_9, param: x_offset }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_9, param: x_offset }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67419,7 +67573,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_127, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_127, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67427,7 +67583,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_128, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_128, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67435,7 +67593,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_129, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_129, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67443,7 +67603,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_130, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_130, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67451,7 +67613,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_131, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_131, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67459,7 +67623,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_132, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_132, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67467,7 +67633,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_133, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_133, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67475,7 +67643,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_134, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_134, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67483,7 +67653,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_135, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_135, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67491,7 +67663,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_136, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_136, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67499,7 +67673,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_137, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_137, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67507,7 +67683,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_138, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_138, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67515,7 +67693,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_139, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_139, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67523,7 +67703,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_140, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_140, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67531,7 +67713,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_141, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_141, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67539,7 +67723,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_142, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_142, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67547,7 +67733,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_143, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_143, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67555,7 +67743,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_144, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_144, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67563,7 +67753,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_145, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_145, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67571,7 +67763,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_146, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_146, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67579,7 +67773,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_147, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_147, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67587,7 +67783,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_148, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_148, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67595,7 +67793,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_149, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_149, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67603,7 +67803,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_150, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_150, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67611,7 +67813,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_151, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_151, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67619,7 +67823,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_152, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_152, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67627,7 +67833,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_153, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_153, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67635,7 +67843,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_154, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_154, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67643,7 +67853,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_155, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_155, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67651,7 +67863,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_156, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_156, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67659,7 +67873,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_157, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_157, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67667,7 +67883,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_158, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_158, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67675,7 +67893,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_159, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_159, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67683,7 +67903,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_160, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_160, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67691,7 +67913,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_161, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_161, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67699,7 +67923,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_162, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_162, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67707,7 +67933,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_163, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_163, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67715,7 +67943,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_164, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_164, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67723,7 +67953,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_165, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_165, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67731,7 +67963,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_166, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_166, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67739,7 +67973,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_167, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_167, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67747,7 +67983,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_168, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_168, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67755,7 +67993,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_169, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_169, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67763,7 +68003,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_170, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_170, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67771,7 +68013,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_171, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_171, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67779,7 +68023,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_172, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_172, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67787,7 +68033,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_173, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_173, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67795,7 +68043,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_174, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_174, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67803,7 +68053,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_175, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_175, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67811,7 +68063,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_176, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_176, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67819,7 +68073,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_177, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_177, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67827,7 +68083,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_178, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_178, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67835,7 +68093,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_179, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_179, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67843,7 +68103,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_180, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_180, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67851,7 +68113,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_181, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_181, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67859,7 +68123,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_182, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_182, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67867,7 +68133,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_183, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_183, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67875,7 +68143,9 @@ Sequence inner_demons {
       start: 32.45678s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_184, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_184, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67883,7 +68153,9 @@ Sequence inner_demons {
       start: 35.041766s,
       duration: 0.79689s,
       curve: [(0.0, 1.0), (0.7, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_232, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_232, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67891,7 +68163,9 @@ Sequence inner_demons {
       start: 36.732459s,
       duration: 0.923829s,
       curve: [(0.0, 1.0), (0.7, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_233, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_233, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67899,7 +68173,9 @@ Sequence inner_demons {
       start: 36.732459s,
       duration: 0.923829s,
       curve: [(0.0, 1.0), (0.7, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_234, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_234, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67907,7 +68183,9 @@ Sequence inner_demons {
       start: 37.570897s,
       duration: 0.843972s,
       curve: [(0.0, 1.0), (0.8204, 0.9954), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67915,7 +68193,9 @@ Sequence inner_demons {
       start: 37.570897s,
       duration: 0.843972s,
       curve: [(0.0, 0.3712), (1.0, 0.1812)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67923,7 +68203,9 @@ Sequence inner_demons {
       start: 37.570897s,
       duration: 0.843972s,
       curve: [(0.0, 0.6022), (1.0, 0.8622)],
-      bindings: [ClipParam { clip: pin_wheel_10, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_10, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67931,7 +68213,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_71, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_71, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67939,7 +68223,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_72, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_72, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67947,7 +68233,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_73, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_73, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67955,7 +68243,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_74, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_74, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67963,7 +68253,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_75, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_75, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67971,7 +68263,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_76, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_76, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67979,7 +68273,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_77, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_77, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67987,7 +68283,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_78, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_78, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -67995,7 +68293,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_79, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_79, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68003,7 +68303,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_80, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_80, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68011,7 +68313,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_81, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_81, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68019,7 +68323,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_82, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_82, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68027,7 +68333,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_83, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_83, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68035,7 +68343,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_84, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_84, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68043,7 +68353,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_85, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_85, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68051,7 +68363,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_86, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_86, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68059,7 +68373,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_87, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_87, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68067,7 +68383,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_88, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_88, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68075,7 +68393,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_89, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_89, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68083,7 +68403,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_90, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_90, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68091,7 +68413,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_91, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_91, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68099,7 +68423,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_92, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_92, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68107,7 +68433,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_93, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_93, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68115,7 +68443,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_94, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_94, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68123,7 +68453,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_95, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_95, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68131,7 +68463,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_96, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_96, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68139,7 +68473,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_97, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_97, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68147,7 +68483,9 @@ Sequence inner_demons {
       start: 39.302512s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_98, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_98, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68155,7 +68493,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_11, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_11, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68163,7 +68503,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_11, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_11, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68171,7 +68513,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68179,7 +68523,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_12, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_12, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68187,7 +68533,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68195,7 +68543,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_13, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_13, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68203,7 +68553,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68211,7 +68563,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_14, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_14, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68219,7 +68573,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68227,7 +68583,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_15, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_15, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68235,7 +68593,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68243,7 +68603,9 @@ Sequence inner_demons {
       start: 40.987815s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_16, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_16, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68251,7 +68613,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_235, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_235, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68259,7 +68623,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_236, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_236, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68267,7 +68633,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_237, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_237, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68275,7 +68643,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_238, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_238, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68283,7 +68653,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_239, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_239, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68291,7 +68663,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_240, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_240, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68299,7 +68673,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_241, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_241, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68307,7 +68683,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_242, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_242, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68315,7 +68693,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_243, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_243, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68323,7 +68703,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_244, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_244, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68331,7 +68713,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_245, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_245, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68339,7 +68723,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_246, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_246, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68347,7 +68733,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_247, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_247, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68355,7 +68743,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_248, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_248, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68363,7 +68753,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_249, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_249, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68371,7 +68763,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_250, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_250, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68379,7 +68773,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_251, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_251, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68387,7 +68783,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_252, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_252, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68395,7 +68793,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_253, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_253, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68403,7 +68803,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_254, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_254, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68411,7 +68813,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_255, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_255, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68419,7 +68823,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_256, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_256, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68427,7 +68833,9 @@ Sequence inner_demons {
       start: 41.857169s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_257, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_257, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68435,7 +68843,9 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68443,7 +68853,9 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68451,7 +68863,9 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 0.6813), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_17, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_17, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68459,7 +68873,9 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68467,7 +68883,9 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68475,7 +68893,9 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 0.6813), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_18, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_18, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68483,7 +68903,9 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68491,39 +68913,49 @@ Sequence inner_demons {
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
       row: layouts.main.mega_tree,
-      start: 44.30987s,
-      duration: 0.950092s,
-      curve: [(0.0, 0.6813), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_19, param: twist }],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.main.star_points,
-      start: 44.30987s,
-      duration: 0.950092s,
-      curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: intensity }],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.main.star_points,
-      start: 44.30987s,
-      duration: 0.950092s,
-      curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: size }],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.main.star_points,
       start: 44.30987s,
       duration: 0.950092s,
       curve: [(0.0, 0.6813), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_20, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_19, param: twist }, window: (0.0, 1.0) },
+      ],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.star_points,
+      start: 44.30987s,
+      duration: 0.950092s,
+      curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: intensity }, window: (0.0, 1.0) },
+      ],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.star_points,
+      start: 44.30987s,
+      duration: 0.950092s,
+      curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: size }, window: (0.0, 1.0) },
+      ],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.star_points,
+      start: 44.30987s,
+      duration: 0.950092s,
+      curve: [(0.0, 0.6813), (1.0, 0.5609)],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_20, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68531,7 +68963,9 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68539,7 +68973,9 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68547,7 +68983,9 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 0.2418), (1.0, 0.892)],
-      bindings: [ClipParam { clip: pin_wheel_21, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_21, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68555,7 +68993,9 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68563,7 +69003,9 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68571,7 +69013,9 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 0.2418), (1.0, 0.892)],
-      bindings: [ClipParam { clip: pin_wheel_22, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_22, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68579,7 +69023,9 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68587,39 +69033,49 @@ Sequence inner_demons {
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
       row: layouts.main.mega_tree,
-      start: 46.157782s,
-      duration: 0.743431s,
-      curve: [(0.0, 0.2418), (1.0, 0.892)],
-      bindings: [ClipParam { clip: pin_wheel_23, param: twist }],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.main.star_points,
-      start: 46.157782s,
-      duration: 0.743431s,
-      curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: intensity }],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.main.star_points,
-      start: 46.157782s,
-      duration: 0.743431s,
-      curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: thickness }],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.main.star_points,
       start: 46.157782s,
       duration: 0.743431s,
       curve: [(0.0, 0.2418), (1.0, 0.892)],
-      bindings: [ClipParam { clip: pin_wheel_24, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_23, param: twist }, window: (0.0, 1.0) },
+      ],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.star_points,
+      start: 46.157782s,
+      duration: 0.743431s,
+      curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: intensity }, window: (0.0, 1.0) },
+      ],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.star_points,
+      start: 46.157782s,
+      duration: 0.743431s,
+      curve: [(0.0, 1.0), (1.0, 0.58)],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: thickness }, window: (0.0, 1.0) },
+      ],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.star_points,
+      start: 46.157782s,
+      duration: 0.743431s,
+      curve: [(0.0, 0.2418), (1.0, 0.892)],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_24, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68627,7 +69083,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.950092s,
       curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68635,7 +69093,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.950092s,
       curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68643,7 +69103,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.950092s,
       curve: [(0.0, 0.0655), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_25, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_25, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68651,7 +69113,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.938057s,
       curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68659,7 +69123,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.938057s,
       curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68667,7 +69133,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.938057s,
       curve: [(0.0, 0.0655), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_26, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_26, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68675,7 +69143,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.950092s,
       curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68683,7 +69153,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.950092s,
       curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68691,7 +69163,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.950092s,
       curve: [(0.0, 0.0655), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_27, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_27, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68699,7 +69173,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.938057s,
       curve: [(0.0, 1.0), (0.77, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68707,7 +69183,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.938057s,
       curve: [(0.0, 0.0), (0.2217, 0.2054), (1.0, 0.2689)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: size }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: size }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68715,7 +69193,9 @@ Sequence inner_demons {
       start: 51.140903s,
       duration: 0.938057s,
       curve: [(0.0, 0.0655), (1.0, 0.5609)],
-      bindings: [ClipParam { clip: pin_wheel_28, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_28, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68723,7 +69203,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68731,7 +69213,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.86), (1.0, 0.18)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68739,7 +69223,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68747,7 +69233,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.2051), (1.0, 0.457)],
-      bindings: [ClipParam { clip: pin_wheel_29, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_29, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68755,7 +69243,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68763,7 +69253,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.86), (1.0, 0.18)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68771,7 +69263,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68779,7 +69273,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.2051), (1.0, 0.457)],
-      bindings: [ClipParam { clip: pin_wheel_30, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_30, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68787,7 +69283,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68795,7 +69293,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.86), (1.0, 0.18)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68803,7 +69303,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68811,7 +69313,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.2051), (1.0, 0.457)],
-      bindings: [ClipParam { clip: pin_wheel_31, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_31, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68819,7 +69323,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (0.1171, 1.0), (0.78, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68827,7 +69333,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.86), (1.0, 0.18)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: movement }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: movement }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68835,7 +69343,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 1.0), (1.0, 0.58)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: thickness }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: thickness }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68843,7 +69353,9 @@ Sequence inner_demons {
       start: 52.988815s,
       duration: 0.743431s,
       curve: [(0.0, 0.2051), (1.0, 0.457)],
-      bindings: [ClipParam { clip: pin_wheel_32, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_32, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68851,7 +69363,9 @@ Sequence inner_demons {
       start: 56.412263s,
       duration: 0.746413s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_260, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_260, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68859,7 +69373,9 @@ Sequence inner_demons {
       start: 56.412263s,
       duration: 0.746413s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_261, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_261, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68867,7 +69383,9 @@ Sequence inner_demons {
       start: 56.412263s,
       duration: 0.746413s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_262, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_262, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68875,7 +69393,9 @@ Sequence inner_demons {
       start: 56.412263s,
       duration: 0.746413s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_263, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_263, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68883,7 +69403,9 @@ Sequence inner_demons {
       start: 68.609947s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_274, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_274, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68891,7 +69413,9 @@ Sequence inner_demons {
       start: 68.609947s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_275, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_275, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68899,7 +69423,9 @@ Sequence inner_demons {
       start: 68.609947s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_276, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_276, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68907,7 +69433,9 @@ Sequence inner_demons {
       start: 68.609947s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_277, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_277, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68915,7 +69443,9 @@ Sequence inner_demons {
       start: 68.609947s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_278, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_278, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68923,7 +69453,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_279, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_279, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68931,7 +69463,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_280, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_280, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68939,7 +69473,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_281, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_281, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68947,7 +69483,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_282, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_282, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68955,7 +69493,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_283, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_283, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68963,7 +69503,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_284, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_284, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68971,7 +69513,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_285, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_285, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68979,7 +69523,9 @@ Sequence inner_demons {
       start: 70.274539s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_286, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_286, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68987,7 +69533,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_291, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_291, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -68995,7 +69543,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_292, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_292, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69003,7 +69553,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_293, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_293, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69011,7 +69563,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_294, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_294, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69019,7 +69573,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_295, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_295, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69027,7 +69583,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_296, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_296, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69035,7 +69593,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_297, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_297, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69043,7 +69603,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_298, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_298, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69051,7 +69613,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_299, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_299, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69059,7 +69623,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_300, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_300, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69067,7 +69633,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_301, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_301, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69075,7 +69643,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_302, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_302, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69083,7 +69653,9 @@ Sequence inner_demons {
       start: 88.343449s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_303, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_303, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69091,7 +69663,9 @@ Sequence inner_demons {
       start: 89.552895s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_304, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_304, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69099,7 +69673,9 @@ Sequence inner_demons {
       start: 89.552895s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_305, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_305, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69107,7 +69683,9 @@ Sequence inner_demons {
       start: 89.552895s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_306, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_306, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69115,7 +69693,9 @@ Sequence inner_demons {
       start: 89.552895s,
       duration: 0.844359s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_307, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_307, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69123,7 +69703,9 @@ Sequence inner_demons {
       start: 95.189181s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_114, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_114, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69131,7 +69713,9 @@ Sequence inner_demons {
       start: 95.189181s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_115, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_115, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69139,7 +69723,9 @@ Sequence inner_demons {
       start: 95.189181s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_116, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_116, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69147,7 +69733,9 @@ Sequence inner_demons {
       start: 95.189181s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_117, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_117, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69155,7 +69743,9 @@ Sequence inner_demons {
       start: 95.189181s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_118, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_118, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69163,7 +69753,9 @@ Sequence inner_demons {
       start: 96.398627s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_119, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_119, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69171,7 +69763,9 @@ Sequence inner_demons {
       start: 96.398627s,
       duration: 1.061413s,
       curve: [(0.0, 1.0), (0.5746, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_120, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_120, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69179,7 +69773,9 @@ Sequence inner_demons {
       start: 98.08393s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69187,7 +69783,9 @@ Sequence inner_demons {
       start: 98.08393s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_33, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_33, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69195,7 +69793,9 @@ Sequence inner_demons {
       start: 98.953283s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_321, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_321, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69203,7 +69803,9 @@ Sequence inner_demons {
       start: 98.953283s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_322, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_322, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69211,7 +69813,9 @@ Sequence inner_demons {
       start: 98.953283s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_323, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_323, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69219,7 +69823,9 @@ Sequence inner_demons {
       start: 98.953283s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_324, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_324, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69227,7 +69833,9 @@ Sequence inner_demons {
       start: 114.743547s,
       duration: 0.86095s,
       curve: [(0.0, 1.0), (0.6652, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: pin_wheel_34, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_34, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69235,7 +69843,9 @@ Sequence inner_demons {
       start: 114.743547s,
       duration: 0.86095s,
       curve: [(0.0, 0.56), (1.0, 0.11)],
-      bindings: [ClipParam { clip: pin_wheel_34, param: twist }],
+      bindings: [
+        Bound { binding: ClipParam { clip: pin_wheel_34, param: twist }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69243,7 +69853,9 @@ Sequence inner_demons {
       start: 115.612901s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_326, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_326, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69251,7 +69863,9 @@ Sequence inner_demons {
       start: 115.612901s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_327, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_327, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69259,7 +69873,9 @@ Sequence inner_demons {
       start: 115.612901s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_328, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_328, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69267,7 +69883,9 @@ Sequence inner_demons {
       start: 115.612901s,
       duration: 1.110453s,
       curve: [(0.0, 1.0), (0.6969, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_329, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_329, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69275,7 +69893,9 @@ Sequence inner_demons {
       start: 124.46649s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_343, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_343, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69283,7 +69903,9 @@ Sequence inner_demons {
       start: 124.49961s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_344, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_344, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69291,7 +69913,9 @@ Sequence inner_demons {
       start: 124.49961s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_345, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_345, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69299,7 +69923,9 @@ Sequence inner_demons {
       start: 124.49961s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_346, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_346, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69307,7 +69933,9 @@ Sequence inner_demons {
       start: 124.49961s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_347, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_347, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69315,7 +69943,9 @@ Sequence inner_demons {
       start: 124.49961s,
       duration: 2.011504s,
       curve: [(0.0, 1.0), (0.75, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_348, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_348, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69323,7 +69953,9 @@ Sequence inner_demons {
       start: 126.131082s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_349, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_349, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69331,7 +69963,9 @@ Sequence inner_demons {
       start: 126.131082s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_350, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_350, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69339,7 +69973,9 @@ Sequence inner_demons {
       start: 126.131082s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_351, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_351, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69347,7 +69983,9 @@ Sequence inner_demons {
       start: 126.131082s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.92, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_352, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_352, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69355,7 +69993,9 @@ Sequence inner_demons {
       start: 126.164202s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_353, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_353, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69363,7 +70003,9 @@ Sequence inner_demons {
       start: 126.164202s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_354, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_354, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69371,7 +70013,9 @@ Sequence inner_demons {
       start: 126.164202s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_355, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_355, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69379,7 +70023,9 @@ Sequence inner_demons {
       start: 126.164202s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_356, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_356, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69387,7 +70033,9 @@ Sequence inner_demons {
       start: 126.164202s,
       duration: 14.003165s,
       curve: [(0.0, 0.05), (0.0241, 1.0), (0.89, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_357, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_357, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69395,7 +70043,9 @@ Sequence inner_demons {
       start: 144.199992s,
       duration: 0.567008s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_358, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_358, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69403,7 +70053,9 @@ Sequence inner_demons {
       start: 144.199992s,
       duration: 0.567008s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_359, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_359, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69411,7 +70063,9 @@ Sequence inner_demons {
       start: 144.199992s,
       duration: 0.567008s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_360, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_360, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69419,7 +70073,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_361, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_361, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69427,7 +70083,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_362, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_362, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69435,7 +70093,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_363, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_363, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69443,7 +70103,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_364, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_364, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69451,7 +70113,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_365, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_365, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69459,7 +70123,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_366, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_366, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69467,7 +70133,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_367, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_367, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69475,7 +70143,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_368, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_368, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69483,7 +70153,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_369, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_369, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -69491,7 +70163,9 @@ Sequence inner_demons {
       start: 144.233111s,
       duration: 0.533889s,
       curve: [(0.0, 1.0), (0.6145, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: clip_370, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: clip_370, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

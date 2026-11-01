@@ -6,7 +6,8 @@ import { LayerList } from "../sequence/sequenceLayers";
 import type { GuiFocus } from "../shared";
 import { PlayFields } from "./ConsoleActionFields";
 import { EffectFields } from "./ConsoleEffectFields";
-import { applyConsoleEdit, applyConsoleItemEdit, consoleComposition, marksReaders, targetLabel } from "./consoleEditing";
+import { consoleComposition } from "./consoleComposition";
+import { applyConsoleEdit, applyConsoleItemEdit, marksReaders, targetLabel } from "./consoleEditing";
 
 type Tab = "selection" | "layers";
 

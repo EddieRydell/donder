@@ -463,6 +463,9 @@ fn validate_sequence_since(
                 .push(clip);
         }
         for binding in &clip.bindings {
+            if !binding.window.is_normalized() {
+                return Err(fail(AutomationProblem::WindowOutOfRange));
+            }
             let declaration =
                 automation_target_param(project, sequence, &binding.target).map_err(fail)?;
             if declaration.automation_mapping().is_none() {
@@ -803,7 +806,7 @@ fn validate_event<'a>(
             if on
                 .actions
                 .iter()
-                .any(|action| !matches!(action, Action::Set(_))) =>
+                .any(|action| !matches!(action, Action::Set { .. })) =>
         {
             return Err(EventProblem::AxisPlays);
         }
@@ -852,7 +855,10 @@ fn validate_event<'a>(
                     return Err(EventProblem::MissingLiveMarks(key.name.clone()));
                 }
             }
-            Action::Set(target) => {
+            Action::Set { target, window } => {
+                if !window.is_normalized() {
+                    return Err(EventProblem::WindowOutOfRange(target.param().clone()));
+                }
                 let declaration = target_param(
                     project,
                     &console.composition_graph,
@@ -883,7 +889,7 @@ fn validate_event<'a>(
                         && other
                             .actions
                             .iter()
-                            .any(|action| matches!(action, Action::Set(set) if set == target))
+                            .any(|action| matches!(action, Action::Set { target: set, .. } if set == target))
                 }) {
                     return Err(EventProblem::SetByOtherControl(param.clone()));
                 }
@@ -906,6 +912,9 @@ fn validate_event<'a>(
             }
             if !played.insert(&value.param) {
                 return Err(EventProblem::ValueTwice(name()));
+            }
+            if !value.window.is_normalized() {
+                return Err(EventProblem::WindowOutOfRange(name()));
             }
             if value.from.needs_note() && input.notes().is_none() {
                 return Err(EventProblem::PitchWithoutNotes(name()));

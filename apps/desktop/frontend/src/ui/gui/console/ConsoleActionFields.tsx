@@ -1,5 +1,6 @@
 import type { ConsoleAction, ConsoleGuiDocument, ConsolePlayLength, ConsolePlayedQuantity, ConsolePlayedValue } from "../../../types";
-import { controllerOf, controlKey, controlRef } from "./consoleEditing";
+import { WindowFields } from "../WindowFields";
+import { controllerOf, controlKey, controlRef, FULL_WINDOW } from "./consoleEditing";
 
 /** Every quantity but velocity needs a button that reads notes. */
 const PLAYED_QUANTITIES: { quantity: ConsolePlayedQuantity; label: string; needsNote: boolean }[] = [
@@ -79,10 +80,11 @@ function PlayedValues({ document, clipId, values, notes, onChange }: {
       }}>
         {PLAYED_QUANTITIES.map((choice) => <option key={choice.quantity} value={choice.quantity} disabled={choice.needsNote && !notes}>{choice.label}</option>)}
       </select></label>
+      <WindowFields value={value.window} onChange={(bounds) => { onChange(values.map((other, i) => i === index ? { ...other, window: bounds } : other)); }} />
       <button type="button" onClick={() => { onChange(values.filter((_, i) => i !== index)); }}>Remove</button>
     </div>)}
     <button type="button" disabled={free === undefined} onClick={() => {
-      if (free !== undefined) onChange([...values, { param: free, from: "velocity" }]);
+      if (free !== undefined) onChange([...values, { param: free, from: "velocity", window: FULL_WINDOW }]);
     }}>Add played value</button>
   </div>;
 }

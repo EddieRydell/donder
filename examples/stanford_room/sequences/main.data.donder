@@ -1107,7 +1107,9 @@ Sequence main {
         (0.75276816, 0.101), (0.75929064, 0.939), (0.79641813, 0.939), (0.80043215, 0.287),
         (0.8871074, 1.0), (1.0, 1.0),
       ],
-      bindings: [NodeParam { node: hue_shift_2, param: shift }],
+      bindings: [
+        Bound { binding: NodeParam { node: hue_shift_2, param: shift }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -1119,9 +1121,9 @@ Sequence main {
         (0.48856378, 0.885), (0.6742658, 0.0), (0.86589456, 1.0), (1.0, 0.0),
       ],
       bindings: [
-        ClipParam { clip: gradient, param: angle },
-        ClipParam { clip: gradient_2, param: angle },
-        ClipParam { clip: gradient_3, param: angle },
+        Bound { binding: ClipParam { clip: gradient, param: angle }, window: (0.0, 1.0) },
+        Bound { binding: ClipParam { clip: gradient_2, param: angle }, window: (0.0, 1.0) },
+        Bound { binding: ClipParam { clip: gradient_3, param: angle }, window: (0.0, 1.0) },
       ],
       detached: [],
     },

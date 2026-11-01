@@ -31,7 +31,7 @@ use donder_model::{
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
     DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, Mark,
     MarkCollection, MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph,
-    SequenceId, SequenceLayer, SequenceLayerId,
+    SequenceId, SequenceLayer, SequenceLayerId, Window,
 };
 use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControl, InputControlId, InputControlKind,
@@ -125,6 +125,10 @@ fn distance(meters: Meters) -> Option<Distance> {
 
 fn name(name: &Name) -> Identifier {
     name.0.value.clone()
+}
+
+fn window((low, high): (f32, f32)) -> Window {
+    Window { low, high }
 }
 
 impl DomainResolver<'_> {
@@ -1449,7 +1453,12 @@ impl DomainResolver<'_> {
             let bindings = clip
                 .bindings
                 .iter()
-                .map(|target| binding(target).map(|target| AutomationBinding { target }))
+                .map(|bound| {
+                    binding(&bound.binding).map(|target| AutomationBinding {
+                        target,
+                        window: window(bound.window),
+                    })
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             let detached_bindings = clip
                 .detached
@@ -1602,6 +1611,7 @@ impl DomainResolver<'_> {
                             types::PlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
                             types::PlayedQuantity::Fifths => PlayedQuantity::Fifths,
                         },
+                        window: window(value.window),
                     }
                 })
                 .collect()
@@ -1677,9 +1687,14 @@ impl DomainResolver<'_> {
                             }
                             Action::Mark(MarkCollectionKey { name: name(into) })
                         }
-                        types::Action::Set { param } => Action::Set(
-                            self.automation_target(document, &clip_ids, &node_ids, param)?,
-                        ),
+                        types::Action::Set {
+                            param,
+                            window: set_window,
+                        } => Action::Set {
+                            target: self
+                                .automation_target(document, &clip_ids, &node_ids, param)?,
+                            window: window(*set_window),
+                        },
                     })
                 })
                 .collect::<Result<_, LoadError>>()?;

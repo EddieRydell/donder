@@ -13,7 +13,8 @@ import { NameField } from "../sequence/NameField";
 import { EffectDefinitionPicker } from "../sequence/definitionMenu";
 import { defaultMarkColor } from "../sequence/marks";
 import { ConsoleControlGrid } from "./ConsoleControlGrid";
-import { applyConsoleEdit, applyConsoleItemEdit, consoleComposition, focusOnEffect, marksReaders } from "./consoleEditing";
+import { consoleComposition } from "./consoleComposition";
+import { applyConsoleEdit, applyConsoleItemEdit, focusOnEffect, marksReaders } from "./consoleEditing";
 
 export function ConsoleEditor({ document, selected, setSelected }: {
   document: ConsoleGuiDocument;
@@ -33,13 +34,13 @@ export function ConsoleEditor({ document, selected, setSelected }: {
   const target = document.targets[0];
   const performIndex = document.performIndex;
   const iconSize = THEME_METRICS.iconSizeSmall;
-  return <main className="setup-editor">
+  return <main className="setup-editor console-editor">
     <header className="object-overview-header">
       <div><span className="object-overview-eyebrow">Console · {document.path}</span><h2>{document.name}</h2></div>
       {performIndex !== null && <button type="button" disabled={performing} onClick={() => { startPerforming(performIndex); }}><Play aria-hidden="true" /> Perform</button>}
     </header>
-    <div className="setup-sections">
-      <section className="setup-section">
+    <div className="console-sections">
+      <section className="console-section">
         <div className="object-overview-group-header"><h3>Always playing</h3>
           <EffectDefinitionPicker definitions={document.effectDefinitions} label="Add effect" disabled={target === undefined} onSelect={(definition) => {
             if (target !== undefined) void applyConsoleEdit({ type: "addAlwaysEffect", initialColor: THEME_COLORS.white, effect: definition.effect, target: target.target })
@@ -62,12 +63,12 @@ export function ConsoleEditor({ document, selected, setSelected }: {
         </div>
       </section>
 
-      <section className="setup-section">
+      <section className="console-section">
         <h3>Controls</h3>
         <ConsoleControlGrid document={document} selected={selected} setSelected={setSelected} />
       </section>
 
-      <section className="setup-section">
+      <section className="console-section">
         <div className="object-overview-group-header"><h3>Live marks</h3>
           <button type="button" onClick={() => void applyConsoleEdit({ type: "addLiveMarks", name: "Live marks", color: defaultMarkColor(document.liveMarks.length) })}>Add live marks</button>
         </div>
@@ -87,7 +88,7 @@ export function ConsoleEditor({ document, selected, setSelected }: {
         })}
       </section>
 
-      <details className="setup-section">
+      <details className="console-section">
         <summary><h3>Settings</h3></summary>
         <div className="inspector-inline-row">
           <label>Frame rate<input key={document.frameRate} type="number" min={1} step={1} defaultValue={document.frameRate} onBlur={(event) => {

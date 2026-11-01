@@ -57,8 +57,8 @@ fn starter_keyboard_and_jam_console_load_typed() {
             (InputEvent::Press(_), [Action::Start { clip: started, .. }]),
             (InputEvent::Release(_), [Action::Stop { clip: stopped }]),
             (InputEvent::Press(_), [Action::Mark(_)]),
-            (InputEvent::Press(_), [Action::Set(pressed)]),
-            (InputEvent::Release(_), [Action::Set(released)]),
+            (InputEvent::Press(_), [Action::Set { target: pressed, .. }]),
+            (InputEvent::Release(_), [Action::Set { target: released, .. }]),
         ] if play.clip == flash
             && play.copies == 4
             && matches!(play.length, PlayLength::Fixed(_))
@@ -279,8 +279,10 @@ fn console_edits_are_validated_like_loading() {
     );
     rejected(
         &|console| {
-            let Action::Set(AutomationTarget::ClipParam { param, .. }) =
-                &mut console.events[4].actions[0]
+            let Action::Set {
+                target: AutomationTarget::ClipParam { param, .. },
+                ..
+            } = &mut console.events[4].actions[0]
             else {
                 unreachable!("the starter's boost key sets a clip parameter")
             };
@@ -298,10 +300,13 @@ fn console_edits_are_validated_like_loading() {
     );
     rejected(
         &|console| {
-            console.events[4].actions[0] = Action::Set(AutomationTarget::CompositionNodeParam {
-                node_id: CompositionGraphNodeId(99),
-                param: donder_language::object_name("decay_seconds"),
-            });
+            console.events[4].actions[0] = Action::Set {
+                target: AutomationTarget::CompositionNodeParam {
+                    node_id: CompositionGraphNodeId(99),
+                    param: donder_language::object_name("decay_seconds"),
+                },
+                window: donder_model::Window::FULL,
+            };
         },
         &|problem| {
             matches!(

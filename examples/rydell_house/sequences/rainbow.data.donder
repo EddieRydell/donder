@@ -26447,7 +26447,9 @@ Sequence rainbow {
       start: 24.181s,
       duration: 7.592s,
       curve: [(0.0, 1.0), (0.9703, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_4, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_4, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26455,7 +26457,9 @@ Sequence rainbow {
       start: 24.702664s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_5, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_5, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26463,7 +26467,9 @@ Sequence rainbow {
       start: 24.76109s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_6, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_6, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26471,7 +26477,9 @@ Sequence rainbow {
       start: 24.76109s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_7, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_7, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26479,7 +26487,9 @@ Sequence rainbow {
       start: 24.761747s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_8, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_8, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26487,7 +26497,9 @@ Sequence rainbow {
       start: 24.913s,
       duration: 6.86s,
       curve: [(0.0, 1.0), (0.9703, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_9, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_9, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26495,7 +26507,9 @@ Sequence rainbow {
       start: 24.913s,
       duration: 6.86s,
       curve: [(0.0, 1.0), (0.9703, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_10, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_10, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26503,7 +26517,9 @@ Sequence rainbow {
       start: 24.913s,
       duration: 6.86s,
       curve: [(0.0, 1.0), (0.9703, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_11, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_11, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26511,7 +26527,9 @@ Sequence rainbow {
       start: 25.064166s,
       duration: 6.296124s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_12, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_12, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26519,7 +26537,9 @@ Sequence rainbow {
       start: 25.263s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_13, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_13, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26527,7 +26547,9 @@ Sequence rainbow {
       start: 25.263s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_14, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_14, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26535,7 +26557,9 @@ Sequence rainbow {
       start: 25.263s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_15, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_15, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26543,7 +26567,9 @@ Sequence rainbow {
       start: 25.29536s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_16, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_16, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26551,7 +26577,9 @@ Sequence rainbow {
       start: 25.29536s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_17, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_17, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26559,7 +26587,9 @@ Sequence rainbow {
       start: 25.63s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_18, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_18, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26567,7 +26597,9 @@ Sequence rainbow {
       start: 25.63s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_19, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_19, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26575,7 +26607,9 @@ Sequence rainbow {
       start: 25.63s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_20, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_20, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26583,7 +26617,9 @@ Sequence rainbow {
       start: 25.63s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_21, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_21, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26591,7 +26627,9 @@ Sequence rainbow {
       start: 25.63s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_22, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_22, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26599,7 +26637,9 @@ Sequence rainbow {
       start: 25.64734s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_23, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_23, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26607,7 +26647,9 @@ Sequence rainbow {
       start: 25.64734s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_24, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_24, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26615,7 +26657,9 @@ Sequence rainbow {
       start: 25.64734s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_25, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_25, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26623,7 +26667,9 @@ Sequence rainbow {
       start: 25.64734s,
       duration: 6.507s,
       curve: [(0.0, 1.0), (0.9727, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_26, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_26, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26631,7 +26677,9 @@ Sequence rainbow {
       start: 86.305683s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_33, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_33, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26639,7 +26687,9 @@ Sequence rainbow {
       start: 86.307s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_34, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_34, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26647,7 +26697,9 @@ Sequence rainbow {
       start: 86.307s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_35, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_35, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26655,7 +26707,9 @@ Sequence rainbow {
       start: 87.781683s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_36, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_36, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26663,7 +26717,9 @@ Sequence rainbow {
       start: 87.783s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_37, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_37, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26671,7 +26727,9 @@ Sequence rainbow {
       start: 87.783s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_38, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_38, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26679,7 +26737,9 @@ Sequence rainbow {
       start: 89.238226s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_39, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_39, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26687,7 +26747,9 @@ Sequence rainbow {
       start: 89.258683s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_40, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_40, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26695,7 +26757,9 @@ Sequence rainbow {
       start: 89.26s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_41, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_41, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26703,7 +26767,9 @@ Sequence rainbow {
       start: 89.26s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_42, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_42, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26711,7 +26777,9 @@ Sequence rainbow {
       start: 90.618226s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_43, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_43, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26719,7 +26787,9 @@ Sequence rainbow {
       start: 90.638683s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_44, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_44, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26727,7 +26797,9 @@ Sequence rainbow {
       start: 90.64s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_45, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_45, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26735,7 +26807,9 @@ Sequence rainbow {
       start: 90.64s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_46, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_46, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26743,7 +26817,9 @@ Sequence rainbow {
       start: 92.038226s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_47, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_47, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26751,7 +26827,9 @@ Sequence rainbow {
       start: 92.058683s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_48, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_48, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26759,7 +26837,9 @@ Sequence rainbow {
       start: 92.06s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_49, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_49, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26767,7 +26847,9 @@ Sequence rainbow {
       start: 92.06s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_50, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_50, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26775,7 +26857,9 @@ Sequence rainbow {
       start: 94.881226s,
       duration: 1.156s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_104, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_104, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26783,7 +26867,9 @@ Sequence rainbow {
       start: 94.881683s,
       duration: 1.213s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_105, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_105, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26791,7 +26877,9 @@ Sequence rainbow {
       start: 94.883s,
       duration: 1.213s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_106, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_106, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26799,7 +26887,9 @@ Sequence rainbow {
       start: 94.883s,
       duration: 1.213s,
       curve: [(0.0, 1.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_107, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_107, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26807,7 +26897,9 @@ Sequence rainbow {
       start: 96.96s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_108, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_108, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26815,7 +26907,9 @@ Sequence rainbow {
       start: 96.96s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_109, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_109, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26823,7 +26917,9 @@ Sequence rainbow {
       start: 96.99028s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_110, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_110, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26831,7 +26927,9 @@ Sequence rainbow {
       start: 96.99028s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_111, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_111, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26839,7 +26937,9 @@ Sequence rainbow {
       start: 97.02355s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_112, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_112, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26847,7 +26947,9 @@ Sequence rainbow {
       start: 97.02355s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_113, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_113, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26855,7 +26957,9 @@ Sequence rainbow {
       start: 97.05196s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_114, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_114, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26863,7 +26967,9 @@ Sequence rainbow {
       start: 97.05196s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_115, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_115, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26871,7 +26977,9 @@ Sequence rainbow {
       start: 97.08168s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_116, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_116, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26879,7 +26987,9 @@ Sequence rainbow {
       start: 97.08168s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_117, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_117, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26887,7 +26997,9 @@ Sequence rainbow {
       start: 97.11224s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_118, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_118, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26895,7 +27007,9 @@ Sequence rainbow {
       start: 97.11224s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_119, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_119, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26903,7 +27017,9 @@ Sequence rainbow {
       start: 97.13794s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_120, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_120, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26911,7 +27027,9 @@ Sequence rainbow {
       start: 97.13794s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_121, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_121, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26919,7 +27037,9 @@ Sequence rainbow {
       start: 97.17037s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_122, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_122, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26927,7 +27047,9 @@ Sequence rainbow {
       start: 97.17037s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_123, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_123, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26935,7 +27057,9 @@ Sequence rainbow {
       start: 97.20467s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_124, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_124, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26943,7 +27067,9 @@ Sequence rainbow {
       start: 97.20467s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_125, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_125, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26951,7 +27077,9 @@ Sequence rainbow {
       start: 97.23159s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_126, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_126, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26959,7 +27087,9 @@ Sequence rainbow {
       start: 97.23159s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_127, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_127, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26967,7 +27097,9 @@ Sequence rainbow {
       start: 97.280296s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_128, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_128, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26975,7 +27107,9 @@ Sequence rainbow {
       start: 97.280296s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_129, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_129, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26983,7 +27117,9 @@ Sequence rainbow {
       start: 97.328497s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_130, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_130, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26991,7 +27127,9 @@ Sequence rainbow {
       start: 97.328497s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_131, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_131, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -26999,7 +27137,9 @@ Sequence rainbow {
       start: 97.346572s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_132, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_132, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -27007,7 +27147,9 @@ Sequence rainbow {
       start: 97.346572s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_133, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_133, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -27015,7 +27157,9 @@ Sequence rainbow {
       start: 97.388747s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_134, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_134, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -27023,7 +27167,9 @@ Sequence rainbow {
       start: 97.388747s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_135, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_135, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -27031,7 +27177,9 @@ Sequence rainbow {
       start: 97.503223s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_136, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_136, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -27039,7 +27187,9 @@ Sequence rainbow {
       start: 97.503223s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_137, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_137, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -27047,7 +27197,9 @@ Sequence rainbow {
       start: 97.617699s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_138, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_138, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
     AutomationClip {
@@ -27055,7 +27207,9 @@ Sequence rainbow {
       start: 97.617699s,
       duration: 5.336s,
       curve: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)],
-      bindings: [ClipParam { clip: butterfly_139, param: intensity }],
+      bindings: [
+        Bound { binding: ClipParam { clip: butterfly_139, param: intensity }, window: (0.0, 1.0) },
+      ],
       detached: [],
     },
   ],

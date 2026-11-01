@@ -63,6 +63,11 @@ export type SequenceRowLayout = {
   bottom: number;
 };
 
+/** The least height a row of this kind keeps: an automation row needs room to edit its curve. */
+export function minRowHeight(kind: SequenceRowKind): number {
+  return kind === "automation" ? THEME_METRICS.automationRowMinHeight : THEME_METRICS.sequenceMinLaneHeight;
+}
+
 export function automationLaneRowHeight(laneHeight: number): number {
   return clamp(
     laneHeight * THEME_METRICS.automationRowHeightRatio,
@@ -84,7 +89,7 @@ export function persistRowHeights(heights: SequenceRowHeightMap): PersistedSeque
 export function restoreRowHeights(lanes: SequenceLane[], persisted: PersistedSequenceViewportState["rowHeights"] | undefined, defaultHeight: number): SequenceRowHeightMap {
   return Object.fromEntries(lanes.map((lane) => [lane.target.fixture, {
     clips: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "clips")] ?? defaultHeight, THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight),
-    automation: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "automation")] ?? automationLaneRowHeight(defaultHeight), THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight)
+    automation: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "automation")] ?? automationLaneRowHeight(defaultHeight), minRowHeight("automation"), THEME_METRICS.sequenceMaxLaneHeight)
   }]));
 }
 
@@ -267,6 +272,11 @@ function automationCurveCanvasPoints(curve: AutomationCurvePoint[], curveRect: C
   return curve.map((point) => ({ x: graph.x + clamp(point.time, 0, 1) * graph.width, y: graph.y + (1 - clamp(point.value, 0, 1)) * graph.height }));
 }
 
+function hitAutomationCurvePointAt(clip: AutomationClipLayout, index: number, x: number, y: number): boolean {
+  const point = automationCurveCanvasPoints(clip.clip.curve, clip.curveRect)[index];
+  return point !== undefined && Math.hypot(point.x - x, point.y - y) <= THEME_METRICS.automationHitRadius;
+}
+
 export function hitAutomationCurvePoint(clip: AutomationClipLayout, x: number, y: number): number | null {
   const points = automationCurveCanvasPoints(clip.clip.curve, clip.curveRect);
   for (let index = points.length - 1; index >= 0; index -= 1) {
@@ -276,28 +286,15 @@ export function hitAutomationCurvePoint(clip: AutomationClipLayout, x: number, y
   return null;
 }
 
-/** The point on the drawn line under the cursor, and the curve index it would be inserted at. */
-export function hitAutomationCurveLine(clip: AutomationClipLayout, x: number, y: number): { index: number; point: AutomationCurvePoint } | null {
-  const line = automationCurveDisplayPoints(automationCurveCanvasPoints(clip.clip.curve, clip.curveRect), clip.rect);
-  // Segment i runs from the point before curve index i to curve index i.
-  for (let index = 0; index < line.length - 1; index += 1) {
-    const start = line[index];
-    const end = line[index + 1];
-    if (start === undefined || end === undefined) continue;
-    if (distanceToSegment(x, y, start, end) > THEME_METRICS.automationHitRadius) continue;
-    const vertical = Math.abs(end.x - start.x) < THEME_METRICS.visualLineWidth;
-    const lineY = vertical ? y : start.y + ((end.y - start.y) * (x - start.x)) / (end.x - start.x);
-    return { index, point: automationCurvePointFromCanvas(clip.curveRect, x, lineY) };
+/** The curve point under the cursor in any automation clip, found before the clips themselves so a point on a clip's edge is grabbed, not the edge. */
+export function hitAutomationPoint<T extends AutomationClipLayout>(clips: T[], x: number, y: number): { layout: T; index: number } | null {
+  for (let clipIndex = clips.length - 1; clipIndex >= 0; clipIndex -= 1) {
+    const layout = clips[clipIndex];
+    if (layout === undefined) continue;
+    const index = hitAutomationCurvePoint(layout, x, y);
+    if (index !== null) return { layout, index };
   }
   return null;
-}
-
-function distanceToSegment(x: number, y: number, start: { x: number; y: number }, end: { x: number; y: number }) {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const lengthSquared = dx * dx + dy * dy;
-  const amount = lengthSquared === 0 ? 0 : clamp(((x - start.x) * dx + (y - start.y) * dy) / lengthSquared, 0, 1);
-  return Math.hypot(x - (start.x + amount * dx), y - (start.y + amount * dy));
 }
 
 export function automationCurvePointFromCanvas(curveRect: CanvasRect, x: number, y: number): AutomationCurvePoint {
@@ -311,9 +308,17 @@ export function moveAutomationCurvePoint(curve: AutomationCurvePoint[], index: n
   return curve.map((candidate, candidateIndex) => candidateIndex === index ? { time, value: point.value } : candidate);
 }
 
-export function insertAutomationCurvePoint(curve: AutomationCurvePoint[], index: number, point: AutomationCurvePoint) {
-  const time = clamp(point.time, curve[index - 1]?.time ?? 0, curve[index]?.time ?? 1);
-  return [...curve.slice(0, index), { time, value: point.value }, ...curve.slice(index)];
+/** A new point lands where it was clicked, after every point at or before its time. */
+export function insertAutomationCurvePoint(curve: AutomationCurvePoint[], point: AutomationCurvePoint): { curve: AutomationCurvePoint[]; index: number } {
+  const after = curve.findIndex((candidate) => candidate.time > point.time);
+  const index = after === -1 ? curve.length : after;
+  return { curve: [...curve.slice(0, index), point, ...curve.slice(index)], index };
+}
+
+/** The curve without the points under the cursor, as a right-drag sweeps them away; a curve keeps one point. */
+export function eraseAutomationCurvePoints(curve: AutomationCurvePoint[], clip: AutomationClipLayout, x: number, y: number): AutomationCurvePoint[] {
+  const kept = curve.filter((_, index) => !hitAutomationCurvePointAt(clip, index, x, y));
+  return kept.length === 0 ? curve.slice(0, 1) : kept;
 }
 
 export function removeAutomationCurvePoint(curve: AutomationCurvePoint[], index: number) {

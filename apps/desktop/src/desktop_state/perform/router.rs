@@ -6,7 +6,7 @@
 use donder_elaboration::ArmedConsole;
 use donder_model::{
     Action, Console, ControlRef, DonderProject, InputEvent, LengthSource, NoteRange, PlayLength,
-    PlayedQuantity, sample_duration,
+    PlayedQuantity, Window, sample_duration,
 };
 use donder_runtime_types::{ConsoleCommand, ConsoleEvent, SampleDuration, SampleTime};
 
@@ -53,6 +53,7 @@ enum RoutedAction {
     Set {
         /// The parameter, by index in the router's automations.
         automation: usize,
+        window: Window,
     },
 }
 
@@ -77,6 +78,7 @@ enum RoutedSource {
 #[derive(Clone, Debug, PartialEq)]
 struct RoutedValue {
     source: PlayedQuantity,
+    window: Window,
     /// The automation that sets it on each of the clip's voices.
     automations: Box<[u16]>,
 }
@@ -204,6 +206,7 @@ impl ConsoleRouter {
                         .map(|value| {
                             Some(RoutedValue {
                                 source: value.from,
+                                window: value.window,
                                 automations: played.get(&value.param)?.clone(),
                             })
                         })
@@ -256,8 +259,9 @@ impl ConsoleRouter {
                             Action::Mark(key) => RoutedAction::Mark {
                                 collection: *armed.collections.get(key)?,
                             },
-                            Action::Set(target) => RoutedAction::Set {
+                            Action::Set { target, window } => RoutedAction::Set {
                                 automation: automation(target)?,
+                                window: *window,
                             },
                         })
                     })
@@ -568,13 +572,14 @@ impl ConsoleRouter {
             RoutedAction::Mark { collection } => commands.push(ConsoleCommand::Mark {
                 collection: *collection,
             }),
-            RoutedAction::Set { automation } => {
+            RoutedAction::Set { automation, window } => {
                 let automation = &mut self.automations[*automation];
-                if automation.value != touch.value {
-                    automation.value = touch.value;
+                let value = window.apply(touch.value);
+                if automation.value != value {
+                    automation.value = value;
                     commands.push(ConsoleCommand::Set {
                         automation: automation.index,
-                        value: touch.value,
+                        value,
                     });
                 }
             }
@@ -609,7 +614,7 @@ impl ConsoleRouter {
         for value in values {
             commands.push(ConsoleCommand::Set {
                 automation: value.automations[position],
-                value: played(value.source, velocity, note),
+                value: value.window.apply(played(value.source, velocity, note)),
             });
         }
     }
@@ -905,7 +910,10 @@ mod tests {
             vec![on(
                 0,
                 Happening::Move,
-                vec![RoutedAction::Set { automation: 0 }],
+                vec![RoutedAction::Set {
+                    automation: 0,
+                    window: Window::FULL,
+                }],
             )],
         );
         assert_eq!(
@@ -946,7 +954,10 @@ mod tests {
                 on(
                     2,
                     Happening::Move,
-                    vec![RoutedAction::Set { automation: 0 }],
+                    vec![RoutedAction::Set {
+                        automation: 0,
+                        window: Window::FULL,
+                    }],
                 ),
             ],
         );
@@ -981,6 +992,7 @@ mod tests {
                         clip: 0,
                         values: Box::new([RoutedValue {
                             source: PlayedQuantity::Pitch,
+                            window: Window::FULL,
                             automations: Box::new([7]),
                         }]),
                     }],

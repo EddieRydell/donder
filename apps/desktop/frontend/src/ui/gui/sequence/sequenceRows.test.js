@@ -27,7 +27,7 @@ const heights = () => layout.restoreRowHeights(lanes, undefined, mainHeight);
 test("each target retains exactly two logical rows and hidden automation heights survive history and restart", () => {
   const sizes = heights();
   sizes[10].clips = THEME_METRICS.sequenceMaxLaneHeight;
-  sizes[10].automation = THEME_METRICS.sequenceMinLaneHeight;
+  sizes[10].automation = THEME_METRICS.automationRowMinHeight;
   const persisted = layout.persistRowHeights(sizes);
   const reordered = [lanes[1], lanes[0], lanes[2]];
   const restored = layout.restoreRowHeights(reordered, JSON.parse(JSON.stringify(persisted)), mainHeight);
