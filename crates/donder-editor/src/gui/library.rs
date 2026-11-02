@@ -3,7 +3,7 @@ use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked, model};
 use crate::dto::{
-    CurveGuiDocument, GradientGuiDocument, GuiDocument, SequenceCurvePoint, SequenceGradientStop,
+    CurveGuiDocument, GradientGuiDocument, GuiDocument, SequenceCurvePoint, SequenceGradient,
 };
 
 pub(super) fn project_curve(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
@@ -38,7 +38,7 @@ pub(super) fn project_gradient(
             description: definition.description.clone(),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
-            stops: model::gradient_stops(&definition.gradient),
+            gradient: model::gradient_dto(&definition.gradient),
         },
     }
 }
@@ -71,7 +71,7 @@ pub(super) fn edit_curve(
 pub(super) fn edit_gradient(
     session: &mut ProjectSession,
     resolved: &ResolvedGuiObject,
-    stops: Vec<SequenceGradientStop>,
+    gradient: SequenceGradient,
 ) -> Result<(), GuiMutationError> {
     let mut definition = session
         .project
@@ -79,7 +79,7 @@ pub(super) fn edit_gradient(
         .get(&resolved.id::<GradientId>())
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Gradient definition was not found.".into()))?;
-    let gradient = model::gradient_from_stops(stops)?;
+    let gradient = model::gradient_from_dto(gradient)?;
     gradient
         .validate()
         .map_err(|error| GuiMutationError::Invalid(format!("Invalid gradient: {error:?}")))?;

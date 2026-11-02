@@ -30,6 +30,7 @@ fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
                 "gradient",
                 Value::Gradient(
                     Gradient {
+                        space: donder_runtime_types::GradientSpace::LinearRgb,
                         stops: vec![GradientStop {
                             position: 0.0,
                             color: Color::from_bytes([255, 255, 255]),

@@ -23,7 +23,10 @@ Sequence hidden_daggers {
       target: layouts.main.desk,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: spin,
@@ -35,12 +38,12 @@ Sequence hidden_daggers {
       scope: PerFixture,
       effect: effects.Spin,
       params: {
-        gradient: [(0.0, #ff0000)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: ThroughEffect,
         pulse_overlap: 10.0,
-        chase_position: [(0.0, 0.0), (1.0, 1.0)],
+        chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         revolutions: 8,
-        pulse_shape: [(0.0, 0.0), (0.176, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.176, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -52,7 +55,10 @@ Sequence hidden_daggers {
       target: layouts.main.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
-      params: { gradient: [(0.379, #ff0000), (1.0, #ff9800)], angle: 60.0 },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.379, #ff0000), (1.0, #ff9800)] },
+        angle: 60.0,
+      },
     },
   ],
   graph: Graph {

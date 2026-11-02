@@ -444,7 +444,7 @@ pub(crate) struct AutomationClip {
     pub row: Reference,
     pub start: Duration,
     pub duration: Duration,
-    pub curve: Vec<(f32, f32)>,
+    pub curve: CurveValue,
     pub bindings: Vec<Bound>,
     pub detached: Vec<Detached>,
 }
@@ -615,8 +615,34 @@ pub(crate) struct Curve {
     pub points: Vec<(f32, f32)>,
 }
 
+/// A curve written in place, where only its value matters: a declaration's
+/// fields without its description.
+#[derive(Clone, Debug, PartialEq, Data)]
+#[data(name = "Curve")]
+pub(crate) struct CurveValue {
+    pub points: Vec<(f32, f32)>,
+}
+
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Gradient {
     pub description: Option<String>,
+    pub space: GradientSpace,
     pub stops: Vec<(f32, Color)>,
+}
+
+/// A gradient written in place, where only its value matters: a declaration's
+/// fields without its description.
+#[derive(Clone, Debug, PartialEq, Data)]
+#[data(name = "Gradient")]
+pub(crate) struct GradientValue {
+    pub space: GradientSpace,
+    pub stops: Vec<(f32, Color)>,
+}
+
+/// The color space a gradient interpolates in.
+#[derive(Clone, Copy, Debug, PartialEq, Data)]
+pub(crate) enum GradientSpace {
+    LinearRgb,
+    Hsv,
+    Oklab,
 }

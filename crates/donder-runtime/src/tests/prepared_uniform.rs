@@ -37,7 +37,7 @@ fn uniform_resource_samples_preserve_branches_and_empty_gradient_defaults() {
         let result = playback::lower(&bind(
             &effect,
             &[
-                ("colors", Value::Gradient(Gradient { stops: vec![] }.into())),
+                ("colors", Value::Gradient(Gradient { space: donder_runtime_types::GradientSpace::LinearRgb, stops: vec![] }.into())),
                 ("values", Value::Array(vec![].into())),
             ],
         ))

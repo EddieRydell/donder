@@ -243,6 +243,7 @@ fn populated_value(ty: &Type) -> Value {
         ))),
         Type::Curve => Value::Curve(Shared::new(ramp())),
         Type::Gradient => Value::Gradient(Shared::new(Gradient {
+            space: donder_runtime_types::GradientSpace::LinearRgb,
             stops: vec![
                 GradientStop {
                     position: 0.0,

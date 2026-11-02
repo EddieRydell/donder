@@ -262,7 +262,7 @@ pub(crate) fn param_value_from_gui(
                 value.link,
             )? {
                 Some(id) => OwnedGradient::Reference(library_id(id)?),
-                None => OwnedGradient::Inline(gradient_from_stops(value.stops)?),
+                None => OwnedGradient::Inline(gradient_from_dto(value.gradient)?),
             },
         ),
         SequenceParamValue::IntArray { values } => ParamValue::Array(
@@ -384,22 +384,33 @@ pub(super) fn curve_points(curve: &Curve) -> Vec<SequenceCurvePoint> {
         .collect()
 }
 
-pub(super) fn gradient_stops(gradient: &Gradient) -> Vec<SequenceGradientStop> {
-    gradient
-        .stops
-        .iter()
-        .map(|stop| SequenceGradientStop {
-            time: stop.position,
-            value: stop.color.to_hex(),
-        })
-        .collect()
+pub(super) fn gradient_dto(gradient: &Gradient) -> SequenceGradient {
+    SequenceGradient {
+        space: match gradient.space {
+            GradientSpace::LinearRgb => SequenceGradientSpace::LinearRgb,
+            GradientSpace::Hsv => SequenceGradientSpace::Hsv,
+            GradientSpace::Oklab => SequenceGradientSpace::Oklab,
+        },
+        stops: gradient
+            .stops
+            .iter()
+            .map(|stop| SequenceGradientStop {
+                time: stop.position,
+                value: stop.color.to_hex(),
+            })
+            .collect(),
+    }
 }
 
-pub(super) fn gradient_from_stops(
-    stops: Vec<SequenceGradientStop>,
-) -> Result<Gradient, GuiMutationError> {
+pub(super) fn gradient_from_dto(gradient: SequenceGradient) -> Result<Gradient, GuiMutationError> {
     Ok(Gradient {
-        stops: stops
+        space: match gradient.space {
+            SequenceGradientSpace::LinearRgb => GradientSpace::LinearRgb,
+            SequenceGradientSpace::Hsv => GradientSpace::Hsv,
+            SequenceGradientSpace::Oklab => GradientSpace::Oklab,
+        },
+        stops: gradient
+            .stops
             .into_iter()
             .map(|stop| {
                 Ok(GradientStop {
@@ -463,14 +474,14 @@ use donder_project_io::SourceIdentity;
 use donder_project_io::{DocumentId, ProjectSession, ReferencedAsset};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::{AutomationMapping, AutomationValue};
-use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientSpace, GradientStop};
 use indexmap::IndexMap;
 
 use super::GuiMutationError;
 use crate::dto::{
     FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceClipScope, SequenceCurvePoint,
-    SequenceEffectReference, SequenceGradientStop, SequenceGraphOperator, SequenceLibraryLink,
-    SequenceParamValue,
+    SequenceEffectReference, SequenceGradient, SequenceGradientSpace, SequenceGradientStop,
+    SequenceGraphOperator, SequenceLibraryLink, SequenceParamValue,
 };
 
 pub(super) fn create_object_document(

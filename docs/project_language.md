@@ -469,7 +469,7 @@ Sequence layer_test {
       target: elements.outputs_layout.all_outputs,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: gradients.ember_core_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: { gradient: gradients.ember_core_gradient, pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] } },
     },
   ],
   graph: Graph {
@@ -495,7 +495,7 @@ Sequence layer_test {
       row: elements.outputs_layout.all_outputs,
       start: 0s,
       duration: 249.753832s,
-      curve: [(0.0, 0.505), (0.103248, 0.787)],
+      curve: Curve { points: [(0.0, 0.505), (0.103248, 0.787)] },
       bindings: [
         Bound { binding: NodeParam { node: afterglow, param: seconds }, window: (0.0, 1.0) },
       ],
@@ -519,9 +519,10 @@ Sequence layer_test {
   parameter present keeps its value, even if it equals the default. Values are
   typed by the definition and written in its parameter order: ints, floats,
   bools, colors, enum options (`Forward`), mark collections by name, curves and
-  gradients by reference or as literals, and arrays as lists. A curve literal is
-  a list of `(position, value)` float tuples; a gradient literal is a list of
-  `(position, color)` tuples. A marks value may be `none`: no collection, so the
+  gradients by reference or as literals, and arrays as lists. A literal is a
+  declaration's fields without its `description` and name, in the same form:
+  `Curve { points: [(position, value), ...] }` and
+  `Gradient { space: LinearRgb, stops: [(position, #color), ...] }`. A marks value may be `none`: no collection, so the
   effect sees no marks. New effects and operators start with `none`, and deleting
   a collection sets the values that named it to `none`.
 - `Graph`: `nodes` and `edges`. A node is one of:
@@ -742,9 +743,25 @@ Curve ease_down {
 
 Gradient warm_gradient {
   description: none,
+  space: LinearRgb,
   stops: [(0.0, #fff4d6), (0.35, #ffb000), (1.0, #ff2a00)],
 }
 ```
+
+A gradient's `space` is how it interpolates between stops; the stops themselves
+are the same colors in every space:
+
+- `LinearRgb` lerps the red, green and blue channels.
+- `Hsv` lerps hue, saturation and value, with hue along the shorter arc. A gray
+  stop takes its hue from the nearest stop that has one, and a black stop its
+  hue and saturation, so a fade to black stays one hue.
+- `Oklab` lerps Oklab's lightness and opponent axes, treating the channels as
+  linear light, so mixes keep an even lightness instead of dipping through
+  muddy midpoints.
+
+The preparation step stores each stop's color in the space's own coordinates
+(for Oklab, cube-rooted LMS), so playback lerps and then decodes once per
+sample.
 
 ### Descriptions
 

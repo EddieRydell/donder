@@ -3,6 +3,7 @@ import effects from <effects/standard.donder>, <effects/impact-burst.donder>;
 import operators from <operators/standard.donder>;
 import devices from <input_devices/mpk_mini.data.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
+import effects_2 from <effects/field-wipe.donder>;
 
 Console mpk_mini {
   description: "Play the house from the MPK mini: pads fire hits, keys sweep wipes, knobs shape the look.",
@@ -24,7 +25,7 @@ Console mpk_mini {
       params: {
         beats: beat1,
         accent: gradients.white_light_green_blue,
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         decay_seconds: 0.8,
         cluster_width_pixels: 15,
         clusters_per_mark: 30,
@@ -32,44 +33,24 @@ Console mpk_mini {
       },
     },
     ConsoleClip {
-      name: mark_chase,
+      name: mark_field_wipe,
       description: none,
       layer: default,
-      target: layouts.main.mega_tree,
+      target: layouts.main.everything,
       scope: WholeTarget,
-      effect: effects.MarkChase,
+      effect: effects_2.MarkFieldWipe,
       params: {
         beats: beat2,
-        gradient_mode: PerPulse,
-        gradients: [gradients.white_to_light_blue],
-        chase_seconds: 0.4,
-        pulse_overlap: 100.0,
-        section_width_pixels: 7,
-        chase_position: [
-          (0.0, 1.0), (0.132, 0.626), (0.309, 0.324), (0.515, 0.155), (0.746, 0.052), (1.0, 0.0),
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.033, #ffffff), (0.266, #ff7200), (0.601, #b900ff)],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
-        overlap_marks: true,
-      },
-    },
-    ConsoleClip {
-      name: mark_chase_2,
-      description: none,
-      layer: default,
-      target: layouts.main.mega_tree,
-      scope: WholeTarget,
-      effect: effects.MarkChase,
-      params: {
-        beats: beat3,
-        gradient_mode: PerPulse,
-        gradients: [[(0.0, #ffffff), (0.656, #ff3e00)]],
-        chase_seconds: 0.4,
-        pulse_overlap: 100.0,
-        section_width_pixels: 7,
-        chase_position: [
-          (0.0, 0.0), (0.173, 0.405), (0.338, 0.685), (0.504, 0.869), (0.713, 0.964), (1.0, 1.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        wipe_seconds: 0.3,
+        pulse_width: 0.4,
+        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         overlap_marks: true,
       },
     },
@@ -84,21 +65,43 @@ Console mpk_mini {
     },
     On { event: Press { control: devices.mpk_mini.pad_3 }, actions: [Mark { into: beat3 }] },
     On {
-      event: Press { control: devices.mpk_mini.pad_7 },
-      actions: [Toggle { clip: mark_chase, values: [] }, Toggle { clip: mark_chase_2, values: [] }],
-    },
-    On {
       event: Move { control: devices.mpk_mini.knob_1 },
       actions: [
         Set {
           param: ClipParam { clip: mark_pulse, param: cluster_width_pixels },
           window: (0.0, 1.0),
         },
+        Set {
+          param: ClipParam { clip: mark_field_wipe, param: direction_angle },
+          window: (1.0, 0.0),
+        },
       ],
     },
     On {
       event: Move { control: devices.mpk_mini.knob_2 },
       actions: [Set { param: NodeParam { node: hue_shift, param: shift }, window: (0.0, 1.0) }],
+    },
+    On {
+      event: Press { control: devices.mpk_mini.pad_7 },
+      actions: [Toggle { clip: mark_field_wipe, values: [] }],
+    },
+    On {
+      event: Move { control: devices.mpk_mini.knob_3 },
+      actions: [
+        Set { param: ClipParam { clip: mark_field_wipe, param: linear }, window: (0.0, 1.0) },
+      ],
+    },
+    On {
+      event: Move { control: devices.mpk_mini.knob_4 },
+      actions: [
+        Set { param: ClipParam { clip: mark_field_wipe, param: saddle }, window: (0.0, 1.0) },
+      ],
+    },
+    On {
+      event: Move { control: devices.mpk_mini.knob_5 },
+      actions: [
+        Set { param: ClipParam { clip: mark_field_wipe, param: radial }, window: (0.0, 1.0) },
+      ],
     },
   ],
   graph: Graph {

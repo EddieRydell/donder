@@ -24,7 +24,7 @@ Console console {
         center_x: 99.95,
         center_y: 100.0,
         passes: 1,
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
   ],

@@ -27,7 +27,7 @@ pub struct SequenceGradientLibraryItem {
     pub path: String,
     pub object_key: String,
     pub display_name: String,
-    pub stops: Vec<SequenceGradientStop>,
+    pub gradient: SequenceGradient,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

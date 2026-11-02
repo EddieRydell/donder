@@ -204,6 +204,7 @@ fn curve() -> Arc<Curve> {
 
 fn gradient() -> Arc<Gradient> {
     Arc::new(Gradient {
+        space: donder_runtime_types::GradientSpace::LinearRgb,
         stops: vec![
             color_point(0.0, 255, 32, 16),
             color_point(0.28, 255, 184, 24),

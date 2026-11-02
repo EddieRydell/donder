@@ -472,7 +472,7 @@ impl Loader {
                         GradientId(self.intern(identity.clone().into())),
                         GradientDefinition {
                             description: gradient.description.clone(),
-                            gradient: resolve::gradient(&gradient.stops),
+                            gradient: resolve::gradient(gradient.space, &gradient.stops),
                         },
                     );
                 }

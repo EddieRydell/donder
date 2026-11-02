@@ -152,6 +152,7 @@ const UNIFORM_RESOURCES: &str = "effect UniformResources {
 
 fn uniform_gradient() -> Gradient {
     Gradient {
+        space: donder_runtime_types::GradientSpace::LinearRgb,
         stops: vec![
             GradientStop {
                 position: 0.0,
@@ -522,7 +523,13 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
     let invocation = playback::lower(
         &effect
             .invoke(
-                vec![Value::Gradient(Gradient { stops: vec![] }.into())],
+                vec![Value::Gradient(
+                    Gradient {
+                        space: donder_runtime_types::GradientSpace::LinearRgb,
+                        stops: vec![],
+                    }
+                    .into(),
+                )],
                 Box::new([]),
             )
             .unwrap(),

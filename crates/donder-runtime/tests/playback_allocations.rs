@@ -489,6 +489,7 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
     .unwrap();
     let shape = curve(&[(0.0, 0.0), (0.4, 1.0), (1.0, 0.0)]);
     let gradient = Value::Gradient(Arc::new(Gradient {
+        space: donder_runtime_types::GradientSpace::LinearRgb,
         stops: vec![GradientStop {
             position: 0.0,
             color: Color::from_bytes([255, 128, 64]),
@@ -660,6 +661,7 @@ fn authored_value(ty: &Type, range: Option<ParamRange>) -> Value {
             .map(|(position, value)| (position, min + (max - min) * value)),
         )),
         Type::Gradient => Value::Gradient(Arc::new(Gradient {
+            space: donder_runtime_types::GradientSpace::LinearRgb,
             stops: [
                 (0.0, [255, 32, 16]),
                 (0.5, [24, 220, 255]),

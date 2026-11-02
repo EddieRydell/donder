@@ -35,7 +35,7 @@ Sequence layer_test {
         reverse: true,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -47,7 +47,10 @@ Sequence layer_test {
       target: elements.outputs_layout.all_outputs,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: gradients.ember_core_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.ember_core_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: spin_2,
@@ -66,7 +69,7 @@ Sequence layer_test {
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -79,12 +82,12 @@ Sequence layer_test {
       scope: PerFixture,
       effect: effects.Spin,
       params: {
-        gradient: [(0.0, #ffffff), (0.123, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.123, #ffffff)] },
         pulse_overlap: 80.0,
         section_width_pixels: 1,
-        chase_position: [(0.0, 1.0), (1.0, 0.0)],
+        chase_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         revolutions: 25,
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -97,8 +100,8 @@ Sequence layer_test {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
-        gradient: [(0.0, #ffffff), (0.104, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.104, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -111,8 +114,8 @@ Sequence layer_test {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
-        gradient: [(0.0, #ffffff), (0.104, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.104, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -124,7 +127,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_03,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_5,
@@ -135,7 +141,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_04,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_6,
@@ -146,7 +155,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_05,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_7,
@@ -157,7 +169,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_06,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_8,
@@ -168,7 +183,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_07,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_9,
@@ -179,7 +197,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_08,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_10,
@@ -190,7 +211,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_09,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_11,
@@ -201,7 +225,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_10,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_12,
@@ -212,7 +239,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_11,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_13,
@@ -223,7 +253,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_12,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_14,
@@ -234,7 +267,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_13,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_15,
@@ -245,7 +281,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_14,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_16,
@@ -256,7 +295,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_15,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_17,
@@ -267,7 +309,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_16,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_18,
@@ -278,7 +323,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_17,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_19,
@@ -289,7 +337,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_18,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_20,
@@ -300,7 +351,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_01,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_21,
@@ -311,7 +365,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_02,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_22,
@@ -322,7 +379,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_23,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_23,
@@ -333,7 +393,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_24,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_24,
@@ -344,7 +407,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_25,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_25,
@@ -355,7 +421,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_26,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_26,
@@ -366,7 +435,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_27,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_27,
@@ -377,7 +449,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_28,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_28,
@@ -388,7 +463,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_29,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_29,
@@ -399,7 +477,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_30,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_30,
@@ -410,7 +491,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_21,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_31,
@@ -421,7 +505,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_22,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_32,
@@ -432,7 +519,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_19,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_33,
@@ -443,7 +533,10 @@ Sequence layer_test {
       target: elements.outputs_layout.output_20,
       scope: PerFixture,
       effect: effects.Pulse,
-      params: { gradient: gradients.mint_violet_gradient, pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: gradients.mint_violet_gradient,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: wipe,
@@ -474,7 +567,7 @@ Sequence layer_test {
         beats: wipe_marks,
         gradients: [gradients.ember_core_gradient],
         wipe_seconds: 0.8,
-        direction_angle: [(0.0, 0.0), (1.0, 1.0)],
+        direction_angle: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         wipe_positions: [curves.ease_up],
         pulse_shape: curves.ease_down,
       },

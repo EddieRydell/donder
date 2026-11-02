@@ -1,5 +1,5 @@
 use crate::Shared as Arc;
-use crate::values::{Color, Curve, Gradient, Marks};
+use crate::values::{Color, Curve, Gradient, GradientSpace, Marks};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -152,7 +152,10 @@ impl Type {
             Self::Color => Value::Color(Color::BLACK),
             Self::Marks => Value::Marks(Arc::new(Marks::empty())),
             Self::Curve => Value::Curve(Arc::new(Curve { points: Vec::new() })),
-            Self::Gradient => Value::Gradient(Arc::new(Gradient { stops: Vec::new() })),
+            Self::Gradient => Value::Gradient(Arc::new(Gradient {
+                space: GradientSpace::LinearRgb,
+                stops: Vec::new(),
+            })),
             Self::Array(_) => Value::Array(Arc::from([])),
             Self::Enum(options) => Value::Enum(options[0].clone()),
         }

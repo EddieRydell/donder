@@ -252,8 +252,20 @@ impl Curve {
     }
 }
 
+/// The color space a gradient interpolates in between its stops.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum GradientSpace {
+    /// Straight lines between the stops' channels.
+    LinearRgb,
+    /// Hue, saturation and value, with hue along the shorter arc.
+    Hsv,
+    /// Oklab: even lightness between stops.
+    Oklab,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Gradient {
+    pub space: GradientSpace,
     pub stops: Vec<GradientStop>,
 }
 
@@ -264,9 +276,10 @@ pub enum GradientValidationError {
 }
 
 impl Gradient {
-    /// Bitwise equality of the stops.
+    /// Bitwise equality of the space and stops.
     pub fn same(&self, other: &Self) -> bool {
-        self.stops.len() == other.stops.len()
+        self.space == other.space
+            && self.stops.len() == other.stops.len()
             && self
                 .stops
                 .iter()
@@ -277,6 +290,7 @@ impl Gradient {
     /// A hash consistent with [`Self::same`].
     pub(crate) fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
         use core::hash::Hash;
+        self.space.hash(state);
         self.stops.len().hash(state);
         for stop in &self.stops {
             stop.position.to_bits().hash(state);

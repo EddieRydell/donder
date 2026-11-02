@@ -41,7 +41,7 @@ Clip {
   target: layouts.main.desk_leg_left,
   scope: WholeTarget,
   effect: effects.MarkPulse,
-  params: { beats: marks_2, accent: [(0.0, #ffffff)] },
+  params: { beats: marks_2, accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] } },
 }
 ```
 

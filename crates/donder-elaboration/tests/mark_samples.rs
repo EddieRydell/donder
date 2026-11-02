@@ -132,6 +132,7 @@ fn configured_project(
     set("offset_seconds", ParamValue::Float(0.125));
     set(effect.duration_param(), ParamValue::Float(1.0));
     let accent = ParamValue::Gradient(OwnedGradient::Inline(Gradient {
+        space: donder_runtime_types::GradientSpace::LinearRgb,
         stops: vec![GradientStop {
             position: 0.0,
             color: Color::from_bytes([255, 128, 64]),

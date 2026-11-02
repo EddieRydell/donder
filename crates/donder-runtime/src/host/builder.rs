@@ -196,14 +196,15 @@ impl ShowBuilder<'_> {
             color: donder_runtime_types::Color::BLACK,
             inverse: 0.0,
         }];
-        let stops: Vec<_> = gradient
-            .stops
+        let encoded =
+            donder_runtime_types::sampling::encode_gradient_stops(gradient.space, &gradient.stops);
+        let stops: Vec<_> = encoded
             .iter()
             .enumerate()
             .map(|(index, stop)| format::GradientStop {
                 position: stop.position,
                 color: stop.color,
-                inverse: gradient.stops.get(index + 1).map_or(0.0, |next| {
+                inverse: encoded.get(index + 1).map_or(0.0, |next| {
                     donder_runtime_types::sampling::Stop::inverse(stop, next)
                 }),
             })
@@ -219,7 +220,10 @@ impl ShowBuilder<'_> {
             .copied(),
         );
         let index = w.gradients.len() as u32;
-        w.gradients.push(format::Gradient { stops });
+        w.gradients.push(format::Gradient {
+            stops,
+            space: format::Gradient::encode_space(gradient.space),
+        });
         self.interner
             .gradients
             .push((Shared::clone(gradient), index));

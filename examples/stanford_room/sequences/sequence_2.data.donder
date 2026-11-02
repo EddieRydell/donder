@@ -19,7 +19,10 @@ Sequence sequence_2 {
       target: layouts.main.desk_legs,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
   ],
   graph: Graph {

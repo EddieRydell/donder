@@ -10,7 +10,9 @@ export function LibraryEditor({ gui }: { gui: Extract<GuiDocument, { type: "curv
       <p className="param-source-description">Shared {gui.type} declaration. {"Changes here affect every parameter linked to this definition. To customize one parameter, return to it and choose Unlink and customize."}</p>
       {gui.type === "curve"
         ? <CurveParam name={gui.document.objectKey} points={gui.document.points} commit={async (points) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "curve", points })); }} />
-        : <GradientParam name={gui.document.objectKey} points={gui.document.stops} commit={async (stops) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "gradient", stops })); }} />}
+        : <GradientParam name={gui.document.objectKey} space={gui.document.gradient.space} points={gui.document.gradient.stops}
+          commit={async (stops) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "gradient", gradient: { space: gui.document.gradient.space, stops } })); }}
+          commitSpace={async (space) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "gradient", gradient: { space, stops: gui.document.gradient.stops } })); }} />}
     </section>
   </main>;
 }

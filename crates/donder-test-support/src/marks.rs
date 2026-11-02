@@ -43,6 +43,7 @@ pub fn mark_show(count: usize, pulse: bool) -> Workload {
     );
     let gradient = Value::Gradient(
         Gradient {
+            space: donder_runtime_types::GradientSpace::LinearRgb,
             stops: vec![GradientStop {
                 position: 0.0,
                 color: Color::from_bytes([193, 89, 47]),

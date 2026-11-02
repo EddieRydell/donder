@@ -106,8 +106,16 @@ pub(super) fn curve(points: &[(f32, f32)]) -> Curve {
     }
 }
 
-pub(super) fn gradient(stops: &[(f32, donder_runtime_types::Color)]) -> Gradient {
+pub(super) fn gradient(
+    space: types::GradientSpace,
+    stops: &[(f32, donder_runtime_types::Color)],
+) -> Gradient {
     Gradient {
+        space: match space {
+            types::GradientSpace::LinearRgb => donder_runtime_types::GradientSpace::LinearRgb,
+            types::GradientSpace::Hsv => donder_runtime_types::GradientSpace::Hsv,
+            types::GradientSpace::Oklab => donder_runtime_types::GradientSpace::Oklab,
+        },
         stops: stops
             .iter()
             .map(|&(position, color)| GradientStop { position, color })
@@ -1474,7 +1482,7 @@ impl DomainResolver<'_> {
                 start: DonderTime(clip.start),
                 duration: DonderDuration(clip.duration),
                 row_target: self.fixture_target(document, &clip.row)?,
-                curve: curve(&clip.curve),
+                curve: curve(&clip.curve.points),
                 bindings,
                 detached_bindings,
             });
@@ -1910,8 +1918,8 @@ impl DomainResolver<'_> {
                 };
                 ParamValue::Curve(OwnedCurve::Reference(curve))
             }
-            (Type::Curve, DataValue::List(_)) => ParamValue::Curve(OwnedCurve::Inline(curve(
-                &self.decode::<Vec<(f32, f32)>>(document, value)?,
+            (Type::Curve, DataValue::Record(..)) => ParamValue::Curve(OwnedCurve::Inline(curve(
+                &self.decode::<types::CurveValue>(document, value)?.points,
             ))),
             (Type::Gradient, DataValue::Reference(segments)) => {
                 let ObjectId::Gradient(gradient) = self.loader.resolve_reference(
@@ -1924,9 +1932,13 @@ impl DomainResolver<'_> {
                 };
                 ParamValue::Gradient(OwnedGradient::Reference(gradient))
             }
-            (Type::Gradient, DataValue::List(_)) => ParamValue::Gradient(OwnedGradient::Inline(
-                gradient(&self.decode::<Vec<(f32, donder_runtime_types::Color)>>(document, value)?),
-            )),
+            (Type::Gradient, DataValue::Record(..)) => {
+                let literal = self.decode::<types::GradientValue>(document, value)?;
+                ParamValue::Gradient(OwnedGradient::Inline(gradient(
+                    literal.space,
+                    &literal.stops,
+                )))
+            }
             (Type::Array(item), DataValue::List(items)) => ParamValue::Array(
                 items
                     .iter()
@@ -1984,8 +1996,12 @@ fn describe(ty: &Type, marks: &[(Identifier, TextSpan)]) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-        Type::Curve => "a curve: a reference or `[(position, value), ...]`".into(),
-        Type::Gradient => "a gradient: a reference or `[(position, #color), ...]`".into(),
+        Type::Curve => {
+            "a curve: a reference or `Curve { points: [(position, value), ...] }`".into()
+        }
+        Type::Gradient => "a gradient: a reference or \
+            `Gradient { space: LinearRgb, stops: [(position, #color), ...] }`"
+            .into(),
         Type::Array(item) => format!("a list of {}", describe(item, marks)),
         Type::Void => "no value".into(),
     }

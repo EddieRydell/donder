@@ -176,6 +176,7 @@ fn edited_operator_parameters_validate_inline_resources() {
     operator.params.insert(
         Identifier::new("colors".into()).unwrap(),
         ParamValue::Gradient(OwnedGradient::Inline(Gradient {
+            space: donder_runtime_types::GradientSpace::LinearRgb,
             stops: vec![GradientStop {
                 position: f32::NAN,
                 color: Color::BLACK,

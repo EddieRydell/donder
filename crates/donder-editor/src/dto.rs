@@ -507,8 +507,24 @@ pub struct SequenceCurveValue {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGradientValue {
-    pub stops: Vec<SequenceGradientStop>,
+    pub gradient: SequenceGradient,
     pub link: SequenceLibraryLink,
+}
+
+/// A gradient's value: the color space it interpolates in and its stops.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceGradient {
+    pub space: SequenceGradientSpace,
+    pub stops: Vec<SequenceGradientStop>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SequenceGradientSpace {
+    LinearRgb,
+    Hsv,
+    Oklab,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]

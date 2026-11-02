@@ -731,7 +731,7 @@ impl Encoder<'_> {
                         row: self.fixture_target(&clip.row_target)?,
                         start: clip.start.0,
                         duration: clip.duration.0,
-                        curve: curve_points(&clip.curve),
+                        curve: curve_value(&clip.curve),
                         bindings: clip
                             .bindings
                             .iter()
@@ -825,13 +825,15 @@ impl Encoder<'_> {
             ParamValue::Curve(OwnedCurve::Reference(id)) => {
                 self.object_reference(ObjectKind::Curve, *id)?.encode()
             }
-            ParamValue::Curve(OwnedCurve::Inline(curve)) => curve_points(curve).encode(),
+            ParamValue::Curve(OwnedCurve::Inline(curve)) => curve_value(curve).encode(),
             ParamValue::Gradient(OwnedGradient::Reference(id)) => {
                 self.object_reference(ObjectKind::Gradient, *id)?.encode()
             }
-            ParamValue::Gradient(OwnedGradient::Inline(gradient)) => {
-                gradient_stops(gradient).encode()
+            ParamValue::Gradient(OwnedGradient::Inline(gradient)) => types::GradientValue {
+                space: gradient_space(gradient.space),
+                stops: gradient_stops(gradient),
             }
+            .encode(),
             ParamValue::Array(items) => DataValue::List(
                 items
                     .iter()
@@ -1049,6 +1051,20 @@ fn curve_points(curve: &Curve) -> Vec<(f32, f32)> {
         .collect()
 }
 
+fn curve_value(curve: &Curve) -> types::CurveValue {
+    types::CurveValue {
+        points: curve_points(curve),
+    }
+}
+
+fn gradient_space(space: donder_runtime_types::GradientSpace) -> types::GradientSpace {
+    match space {
+        donder_runtime_types::GradientSpace::LinearRgb => types::GradientSpace::LinearRgb,
+        donder_runtime_types::GradientSpace::Hsv => types::GradientSpace::Hsv,
+        donder_runtime_types::GradientSpace::Oklab => types::GradientSpace::Oklab,
+    }
+}
+
 fn gradient_stops(gradient: &Gradient) -> Vec<(f32, donder_runtime_types::Color)> {
     gradient
         .stops
@@ -1067,6 +1083,7 @@ pub(crate) fn curve_document(definition: &donder_model::CurveDefinition) -> type
 pub(crate) fn gradient_document(definition: &donder_model::GradientDefinition) -> types::Gradient {
     types::Gradient {
         description: definition.description.clone(),
+        space: gradient_space(definition.gradient.space),
         stops: gradient_stops(&definition.gradient),
     }
 }

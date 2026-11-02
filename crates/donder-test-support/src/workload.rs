@@ -137,6 +137,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
     for index in 0..layers {
         let gradient = Value::Gradient(
             Gradient {
+                space: donder_runtime_types::GradientSpace::LinearRgb,
                 stops: vec![GradientStop {
                     position: 0.0,
                     color: Color::from_bytes([

@@ -88,6 +88,7 @@ impl ParamValue {
                 ],
             }))),
             Type::Gradient => Some(Self::Gradient(OwnedGradient::Inline(Gradient {
+                space: donder_runtime_types::GradientSpace::LinearRgb,
                 stops: vec![donder_runtime_types::GradientStop {
                     position: 0.0,
                     color,

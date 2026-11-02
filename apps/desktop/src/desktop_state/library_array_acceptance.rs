@@ -62,7 +62,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         document
     };
     let document = edit(SequenceGuiEdit::AddClip {
-        initial_color: document.gradient_library[0].stops[0].value.clone(),
+        initial_color: document.gradient_library[0].gradient.stops[0].value.clone(),
         effect: definition.effect.clone(),
         target: document.lanes[0].target.clone(),
         scope: SequenceClipScope::PerFixture,
@@ -111,7 +111,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         link: source(&curve.path, &curve.object_key, &curve.display_name),
     };
     let gradient = SequenceGradientValue {
-        stops: gradient.stops.clone(),
+        gradient: gradient.gradient.clone(),
         link: source(&gradient.path, &gradient.object_key, &gradient.display_name),
     };
     for (name, value) in [
@@ -148,7 +148,8 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
             }
             SequenceParamValue::GradientArray { values } => {
                 values[0].link = SequenceLibraryLink::Inline;
-                values[0].stops[0].value = values[0].stops.last().unwrap().value.clone();
+                values[0].gradient.stops[0].value =
+                    values[0].gradient.stops.last().unwrap().value.clone();
             }
             _ => panic!("wrong array editor"),
         }

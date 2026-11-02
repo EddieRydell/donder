@@ -431,6 +431,7 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
         ],
     };
     let gradient = Gradient {
+        space: donder_runtime_types::GradientSpace::LinearRgb,
         stops: vec![
             GradientStop {
                 position: 0.0,
@@ -443,7 +444,13 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
         ],
     };
     for shape in [&curve, &Curve { points: vec![] }] {
-        for colors in [&gradient, &Gradient { stops: vec![] }] {
+        for colors in [
+            &gradient,
+            &Gradient {
+                space: donder_runtime_types::GradientSpace::LinearRgb,
+                stops: vec![],
+            },
+        ] {
             let invocation = playback::lower(&bind(
                 &effect,
                 &[
@@ -525,6 +532,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
         } }",
     );
     let gradient = Gradient {
+        space: donder_runtime_types::GradientSpace::LinearRgb,
         stops: vec![
             GradientStop {
                 position: 0.0,

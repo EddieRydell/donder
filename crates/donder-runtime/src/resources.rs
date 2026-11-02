@@ -6,7 +6,7 @@ use crate::format::{
     NONE, ResourceRef,
 };
 use bytemuck::{Pod, Zeroable};
-use donder_runtime_types::{MarkWindow, sampling};
+use donder_runtime_types::{GradientSpace, MarkWindow, sampling};
 
 use crate::view::Show;
 
@@ -255,9 +255,10 @@ impl<'a> Show<'a> {
     }
 
     #[inline(never)]
-    pub(crate) fn gradient(&self, index: u32) -> &'a [GradientStop] {
+    pub(crate) fn gradient(&self, index: u32) -> (GradientSpace, &'a [GradientStop]) {
         let s = &self.s;
-        s.gradients[index as usize].stops.get(s.gradient_stops)
+        let gradient = &s.gradients[index as usize];
+        (gradient.space(), gradient.stops.get(s.gradient_stops))
     }
 
     #[inline(never)]

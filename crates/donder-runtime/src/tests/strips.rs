@@ -260,6 +260,7 @@ fn gradient(variant: usize) -> Value {
     let colors = ["#ff2000", "#20ff40", "#3040ff"];
     Value::Gradient(
         Gradient {
+            space: donder_runtime_types::GradientSpace::LinearRgb,
             stops: [0.0, 0.5, 1.0]
                 .into_iter()
                 .enumerate()

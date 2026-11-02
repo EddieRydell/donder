@@ -340,6 +340,7 @@ fn fusion_preserves_resource_parameters() {
                 "colors",
                 Value::Gradient(
                     Gradient {
+                        space: donder_runtime_types::GradientSpace::LinearRgb,
                         stops: vec![
                             GradientStop {
                                 position: 0.0,
@@ -372,7 +373,13 @@ fn fusion_preserves_resource_parameters() {
             ),
             (
                 "unused_colors",
-                Value::Gradient(Gradient { stops: vec![] }.into()),
+                Value::Gradient(
+                    Gradient {
+                        space: donder_runtime_types::GradientSpace::LinearRgb,
+                        stops: vec![],
+                    }
+                    .into(),
+                ),
             ),
             ("unused_beats", Value::Marks(Marks::empty().into())),
         ],

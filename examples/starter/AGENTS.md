@@ -74,7 +74,9 @@ Clip {
 `params` lists only the parameters that differ from the effect's defaults, in
 the order the effect declares them. Enum values are the option names
 (`direction: Inward`), curves and gradients are references or literals
-(`[(0.0, 1.0), (1.0, 0.0)]`, `[(0.0, #ffffff), (1.0, #ff2a00)]`), and mark
+(`Curve { points: [(0.0, 1.0), (1.0, 0.0)] }`,
+`Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #ff2a00)] }`; a gradient's
+`space` is `LinearRgb`, `Hsv` or `Oklab`), and mark
 parameters name one of the sequence's mark collections.
 
 A console's `ConsoleClip` is the same without `start` and `duration`, and its

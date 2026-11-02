@@ -290,7 +290,13 @@ fn gradients_with_no_stops_are_black() {
                 &[(
                     "gradient",
                     "gradient",
-                    Value::Gradient(Gradient { stops: vec![] }.into())
+                    Value::Gradient(
+                        Gradient {
+                            space: donder_runtime_types::GradientSpace::LinearRgb,
+                            stops: vec![]
+                        }
+                        .into()
+                    )
                 )],
                 expression,
             ),

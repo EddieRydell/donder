@@ -1,6 +1,8 @@
 //! The arithmetic programs run. Floats follow IEEE 754: NaN and infinities
 //! propagate through the hardware, so nothing here tests for them.
-use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use alloc::vec::Vec;
+
+use crate::values::{Color, Curve, CurvePoint, Gradient, GradientSpace, GradientStop};
 
 #[cfg(test)]
 mod tests;
@@ -279,7 +281,108 @@ pub fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
     if gradient.stops.is_empty() {
         return Color::BLACK;
     }
-    sample_gradient_stops(&gradient.stops, position)
+    let stops = encode_gradient_stops(gradient.space, &gradient.stops);
+    sample_gradient_stops(gradient.space, &stops, position)
+}
+
+/// A gradient's stops with their colors in the coordinates `space`
+/// interpolates in, which [`sample_gradient_stops`] takes: the colors
+/// themselves for linear RGB; hue (in turns, unwrapped along the shorter arc
+/// from each stop to the next), saturation and value for HSV; cube-rooted LMS
+/// for Oklab. A color whose hue or saturation means nothing, gray or black,
+/// takes it from the nearest stop that has one.
+pub fn encode_gradient_stops(space: GradientSpace, stops: &[GradientStop]) -> Vec<GradientStop> {
+    let mut encoded: Vec<GradientStop> = stops
+        .iter()
+        .map(|stop| GradientStop {
+            position: stop.position,
+            color: space.encode(stop.color),
+        })
+        .collect();
+    if space == GradientSpace::Hsv {
+        let mut hues: Vec<f32> = encoded.iter().map(|stop| stop.color.red).collect();
+        let mut saturations: Vec<f32> = encoded.iter().map(|stop| stop.color.green).collect();
+        let hue_means_something: Vec<bool> = encoded
+            .iter()
+            .map(|stop| stop.color.green > 0.0 && stop.color.blue > 0.0)
+            .collect();
+        let saturation_means_something: Vec<bool> =
+            encoded.iter().map(|stop| stop.color.blue > 0.0).collect();
+        borrow_from_neighbors(&mut hues, &hue_means_something);
+        borrow_from_neighbors(&mut saturations, &saturation_means_something);
+        let mut previous = hues.first().copied().unwrap_or(0.0);
+        for ((stop, hue), saturation) in encoded.iter_mut().zip(hues).zip(saturations) {
+            let step = hue - previous;
+            previous += step - libm::floorf(step + 0.5);
+            stop.color.red = previous;
+            stop.color.green = saturation;
+        }
+    }
+    encoded
+}
+
+/// Replaces each value that means nothing with the one before it that does,
+/// or for a leading run the first that does.
+fn borrow_from_neighbors(values: &mut [f32], means_something: &[bool]) {
+    let Some(first) = means_something.iter().position(|&valid| valid) else {
+        return;
+    };
+    let mut last = values[first];
+    for (value, &valid) in values.iter_mut().zip(means_something) {
+        if valid {
+            last = *value;
+        } else {
+            *value = last;
+        }
+    }
+}
+
+impl GradientSpace {
+    /// `color` as the coordinates this space interpolates in, before hue
+    /// unwrapping.
+    fn encode(self, color: Color) -> Color {
+        match self {
+            Self::LinearRgb => color,
+            Self::Hsv => Color {
+                red: color_hue(color),
+                green: color_saturation(color),
+                blue: color_intensity(color),
+            },
+            Self::Oklab => {
+                let (red, green, blue) = (color.red, color.green, color.blue);
+                Color {
+                    red: libm::cbrtf(
+                        0.412_221_47 * red + 0.536_332_55 * green + 0.051_445_995 * blue,
+                    ),
+                    green: libm::cbrtf(
+                        0.211_903_5 * red + 0.680_699_5 * green + 0.107_396_96 * blue,
+                    ),
+                    blue: libm::cbrtf(
+                        0.088_302_46 * red + 0.281_718_85 * green + 0.629_978_7 * blue,
+                    ),
+                }
+            }
+        }
+    }
+
+    /// The color at coordinates [`Self::encode`] and interpolation produced.
+    #[inline(always)]
+    fn decode(self, coordinates: Color) -> Color {
+        match self {
+            Self::LinearRgb => coordinates,
+            Self::Hsv => hsv(coordinates.red, coordinates.green, coordinates.blue),
+            Self::Oklab => {
+                let l = coordinates.red * coordinates.red * coordinates.red;
+                let m = coordinates.green * coordinates.green * coordinates.green;
+                let s = coordinates.blue * coordinates.blue * coordinates.blue;
+                Color {
+                    red: 4.076_741_7 * l - 3.307_711_6 * m + 0.230_969_93 * s,
+                    green: -1.268_438 * l + 2.609_757_4 * m - 0.341_319_4 * s,
+                    blue: -0.004_196_086 * l - 0.703_418_6 * m + 1.707_614_7 * s,
+                }
+            }
+        }
+    }
 }
 
 /// A gradient stop as an image or an authored value holds it.
@@ -304,16 +407,18 @@ impl Stop for GradientStop {
     }
 }
 
-/// A gradient's color at `position`. Equal-position stops form a step: the
-/// last stop wins at the exact position. A gradient has at least one stop.
-pub fn sample_gradient_stops<S: Stop>(stops: &[S], position: f32) -> Color {
+/// A gradient's color at `position`, from stops whose colors
+/// [`encode_gradient_stops`] put in `space`'s coordinates. Equal-position
+/// stops form a step: the last stop wins at the exact position. A gradient
+/// has at least one stop.
+pub fn sample_gradient_stops<S: Stop>(space: GradientSpace, stops: &[S], position: f32) -> Color {
     let first = &stops[0];
     if stops.len() == 1 || position < first.position() {
-        return first.color();
+        return space.decode(first.color());
     }
     let last = &stops[stops.len() - 1];
     if position >= last.position() {
-        return last.color();
+        return space.decode(last.color());
     }
     // Gradients hold a few stops: a scan finds the span. It ends before the
     // last stop, which is past `position`.
@@ -323,11 +428,11 @@ pub fn sample_gradient_stops<S: Stop>(stops: &[S], position: f32) -> Color {
     }
     let previous = &stops[index - 1];
     let stop = &stops[index];
-    mix_colors(
+    space.decode(mix_colors(
         previous.color(),
         stop.color(),
         (position - previous.position()) * previous.inverse(stop),
-    )
+    ))
 }
 
 #[inline(always)]
@@ -533,9 +638,14 @@ pub fn smoothstep(value: f32) -> f32 {
 }
 
 #[inline(always)]
-pub fn gradient_color_scaled<S: Stop>(stops: &[S], position: f32, scale: f32) -> Color {
+pub fn gradient_color_scaled<S: Stop>(
+    space: GradientSpace,
+    stops: &[S],
+    position: f32,
+    scale: f32,
+) -> Color {
     scale_color(
-        sample_gradient_stops(stops, position),
+        sample_gradient_stops(space, stops, position),
         clamp_float(scale, 0.0, 1.0),
     )
 }

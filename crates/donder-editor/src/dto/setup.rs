@@ -99,7 +99,7 @@ pub enum GuiEditCommand {
         points: Vec<SequenceCurvePoint>,
     },
     Gradient {
-        stops: Vec<SequenceGradientStop>,
+        gradient: SequenceGradient,
     },
     Controller {
         config: SetupControllerConfig,
@@ -224,7 +224,7 @@ pub struct GradientGuiDocument {
     pub(crate) description: Option<String>,
     pub(crate) path: String,
     pub(crate) object_key: String,
-    pub(crate) stops: Vec<SequenceGradientStop>,
+    pub(crate) gradient: SequenceGradient,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

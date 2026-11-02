@@ -8,6 +8,7 @@
 //! target. The format is trusted: preparation wrote it, so playback checks
 //! only its version.
 use bytemuck::{Pod, Zeroable};
+use donder_runtime_types::GradientSpace;
 
 /// No index: an absent optional reference.
 pub(crate) const NONE: u32 = u32::MAX;
@@ -316,7 +317,33 @@ pub(crate) struct CrossingSegment {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Gradient {
+    /// The stops' colors in the coordinates of `space`.
     pub(crate) stops: Range,
+    pub(crate) space: u32,
+}
+
+pub(crate) const SPACE_LINEAR_RGB: u32 = 0;
+pub(crate) const SPACE_HSV: u32 = 1;
+pub(crate) const SPACE_OKLAB: u32 = 2;
+
+impl Gradient {
+    pub(crate) fn encode_space(space: GradientSpace) -> u32 {
+        match space {
+            GradientSpace::LinearRgb => SPACE_LINEAR_RGB,
+            GradientSpace::Hsv => SPACE_HSV,
+            GradientSpace::Oklab => SPACE_OKLAB,
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn space(&self) -> GradientSpace {
+        match self.space {
+            SPACE_LINEAR_RGB => GradientSpace::LinearRgb,
+            SPACE_HSV => GradientSpace::Hsv,
+            SPACE_OKLAB => GradientSpace::Oklab,
+            _ => unreachable!("shows hold known gradient spaces"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]

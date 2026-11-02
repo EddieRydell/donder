@@ -73,8 +73,8 @@ pub fn apply_edit(
         (Kind::Curve, GuiEditCommand::Curve { points }) => {
             super::library::edit_curve(session, &resolved, points).map(none)
         }
-        (Kind::Gradient, GuiEditCommand::Gradient { stops }) => {
-            super::library::edit_gradient(session, &resolved, stops).map(none)
+        (Kind::Gradient, GuiEditCommand::Gradient { gradient }) => {
+            super::library::edit_gradient(session, &resolved, gradient).map(none)
         }
         (Kind::Controller, GuiEditCommand::Controller { config, ports }) => {
             super::controller::edit(session, &resolved, config, ports).map(none)

@@ -7,18 +7,22 @@
 //!   variant with named fields is written like a record.
 //!
 //! The Rust names are the language names, so a type's definition is its
-//! schema.
+//! schema. `#[data(name = "Gradient")]` on a record names it otherwise, for a
+//! declaration's fields without its description, written in place.
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as Tokens;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, FieldsNamed, Ident, parse_macro_input};
 
-#[proc_macro_derive(Data, attributes(refers))]
+#[proc_macro_derive(Data, attributes(refers, data))]
 pub fn derive_data(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let output = match &input.data {
         Data::Struct(data) => match &data.fields {
-            Fields::Named(fields) => record(&input.ident, fields),
+            Fields::Named(fields) => match language_name(&input) {
+                Ok(name) => record(&input.ident, &name, fields),
+                Err(error) => error.to_compile_error(),
+            },
             _ => error(&input.ident, "a record needs named fields"),
         },
         Data::Enum(data) => {
@@ -38,6 +42,26 @@ pub fn derive_data(input: TokenStream) -> TokenStream {
         Data::Union(_) => error(&input.ident, "unions are not data"),
     };
     output.into()
+}
+
+/// The record's language name: its Rust name unless `#[data(name = "...")]`.
+fn language_name(input: &DeriveInput) -> syn::Result<String> {
+    let mut name = input.ident.to_string();
+    for attr in input
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("data"))
+    {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("name") {
+                name = meta.value()?.parse::<syn::LitStr>()?.value();
+                Ok(())
+            } else {
+                Err(meta.error("expected `name = \"...\"`"))
+            }
+        })?;
+    }
+    Ok(name)
 }
 
 fn error(ident: &Ident, message: &str) -> Tokens {
@@ -102,9 +126,8 @@ fn field_shapes(fields: &FieldsNamed) -> Tokens {
     quote!(vec![#(#shapes),*])
 }
 
-fn record(ident: &Ident, fields: &FieldsNamed) -> Tokens {
+fn record(ident: &Ident, text: &str, fields: &FieldsNamed) -> Tokens {
     let schema = schema();
-    let text = ident.to_string();
     let (reads, build) = read_fields(fields);
     let writes = write_fields(fields, |name| quote!(&self.#name));
     let shapes = field_shapes(fields);

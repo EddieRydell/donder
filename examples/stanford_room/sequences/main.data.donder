@@ -194,8 +194,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.1,
         cluster_width_pixels: 100,
@@ -212,15 +212,17 @@ Sequence main {
       effect: effects.MarkChase,
       params: {
         beats: beats,
-        gradients: [[(0.0, #ffffff), (0.12, #9c00ff)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.12, #9c00ff)] }],
         offset_seconds: -0.07,
         chase_seconds: 0.4,
         pulse_overlap: 25.0,
         section_width_pixels: 1,
-        chase_position: [
-          (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)],
+        chase_position: Curve {
+          points: [
+            (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -234,8 +236,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.1,
         cluster_width_pixels: 100,
@@ -252,15 +254,17 @@ Sequence main {
       effect: effects.MarkChase,
       params: {
         beats: beats,
-        gradients: [[(0.0, #ffffff), (0.12, #9c00ff)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.12, #9c00ff)] }],
         offset_seconds: -0.07,
         chase_seconds: 0.4,
         pulse_overlap: 25.0,
         section_width_pixels: 1,
-        chase_position: [
-          (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)],
+        chase_position: Curve {
+          points: [
+            (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -274,8 +278,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.15,
         cluster_width_pixels: 100,
@@ -292,8 +296,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.2,
         cluster_width_pixels: 1000,
@@ -310,8 +314,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.12,
         cluster_width_pixels: 1000,
@@ -328,8 +332,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (0.367, 0.219), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.367, 0.219), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.3,
         cluster_width_pixels: 1000,
@@ -346,8 +350,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.1,
         cluster_width_pixels: 1000,
@@ -364,15 +368,19 @@ Sequence main {
       effect: effects.MarkChase,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)]],
+        gradients: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)] },
+        ],
         offset_seconds: -0.1,
         chase_seconds: 0.35,
         pulse_overlap: 50.0,
         section_width_pixels: 1,
-        chase_position: [
-          (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)],
+        chase_position: Curve {
+          points: [
+            (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -386,15 +394,19 @@ Sequence main {
       effect: effects.MarkChase,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)]],
+        gradients: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)] },
+        ],
         offset_seconds: -0.1,
         chase_seconds: 0.35,
         pulse_overlap: 50.0,
         section_width_pixels: 1,
-        chase_position: [
-          (0.0, 1.0), (0.207, 0.529), (0.401, 0.281), (0.579, 0.126), (0.778, 0.037), (1.0, 0.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)],
+        chase_position: Curve {
+          points: [
+            (0.0, 1.0), (0.207, 0.529), (0.401, 0.281), (0.579, 0.126), (0.778, 0.037), (1.0, 0.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -408,15 +420,19 @@ Sequence main {
       effect: effects.MarkChase,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)]],
+        gradients: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)] },
+        ],
         offset_seconds: -0.1,
         chase_seconds: 0.35,
         pulse_overlap: 50.0,
         section_width_pixels: 1,
-        chase_position: [
-          (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)],
+        chase_position: Curve {
+          points: [
+            (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -430,15 +446,27 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)]],
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)],
+          },
+        ],
         offset_seconds: -0.1,
         wipe_seconds: 0.4,
         pulse_width: 0.6,
-        direction_angle: [(0.0, 1.0), (0.259, 0.0), (0.5, 1.0), (0.738, 0.0), (1.0, 0.638)],
+        direction_angle: Curve {
+          points: [(0.0, 1.0), (0.259, 0.0), (0.5, 1.0), (0.738, 0.0), (1.0, 0.638)],
+        },
         wipe_positions: [
-          [(0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -452,8 +480,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.3,
         cluster_width_pixels: 1000,
@@ -469,11 +497,13 @@ Sequence main {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         pulse_width: 0.5,
         direction_angle: 90.0,
-        wipe_position: [(0.0, 0.0), (0.157, 0.512), (0.355, 0.779), (0.644, 0.937), (1.0, 1.0)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        wipe_position: Curve {
+          points: [(0.0, 0.0), (0.157, 0.512), (0.355, 0.779), (0.644, 0.937), (1.0, 1.0)],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -486,11 +516,13 @@ Sequence main {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         pulse_width: 0.5,
         direction_angle: 270.0,
-        wipe_position: [(0.0, 0.0), (0.157, 0.512), (0.355, 0.779), (0.644, 0.937), (1.0, 1.0)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        wipe_position: Curve {
+          points: [(0.0, 0.0), (0.157, 0.512), (0.355, 0.779), (0.644, 0.937), (1.0, 1.0)],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -504,18 +536,30 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)]],
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)],
+          },
+        ],
         offset_seconds: -0.08,
         wipe_seconds: 0.3,
         pulse_width: 0.6,
-        direction_angle: [
-          (0.0, 0.539), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1), (0.746, 0.405),
-          (0.765, 0.871), (1.0, 0.788),
-        ],
+        direction_angle: Curve {
+          points: [
+            (0.0, 0.539), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1), (0.746, 0.405),
+            (0.765, 0.871), (1.0, 0.788),
+          ],
+        },
         wipe_positions: [
-          [(0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -529,15 +573,17 @@ Sequence main {
       effect: effects.MarkChase,
       params: {
         beats: beats,
-        gradients: [[(0.0, #ffffff), (0.12, #9c00ff)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.12, #9c00ff)] }],
         offset_seconds: -0.07,
         chase_seconds: 0.7,
         pulse_overlap: 25.0,
         section_width_pixels: 1,
-        chase_position: [
-          (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)],
+        chase_position: Curve {
+          points: [
+            (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -551,8 +597,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.4,
         cluster_width_pixels: 1000,
@@ -569,15 +615,17 @@ Sequence main {
       effect: effects.MarkChase,
       params: {
         beats: beats,
-        gradients: [[(0.0, #ffffff), (0.12, #9c00ff)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.12, #9c00ff)] }],
         offset_seconds: -0.07,
         chase_seconds: 0.7,
         pulse_overlap: 25.0,
         section_width_pixels: 1,
-        chase_position: [
-          (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
-        ],
-        pulse_shape: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)],
+        chase_position: Curve {
+          points: [
+            (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963), (1.0, 1.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.381, 0.156), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -591,8 +639,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.4,
         cluster_width_pixels: 1000,
@@ -609,8 +657,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.08,
         decay_seconds: 0.3,
         cluster_width_pixels: 1000,
@@ -625,7 +673,7 @@ Sequence main {
       target: layouts.main.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
-      params: { gradient: [(0.0, #ff0000), (1.0, #ffa600)] },
+      params: { gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (1.0, #ffa600)] } },
     },
     Clip {
       name: mark_wipe_3,
@@ -638,18 +686,30 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)]],
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)],
+          },
+        ],
         offset_seconds: -0.08,
         wipe_seconds: 0.3,
         pulse_width: 0.6,
-        direction_angle: [
-          (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
-          (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
-        ],
+        direction_angle: Curve {
+          points: [
+            (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
+            (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
+          ],
+        },
         wipe_positions: [
-          [(0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -663,18 +723,30 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)]],
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)],
+          },
+        ],
         offset_seconds: -0.08,
         wipe_seconds: 0.2,
         pulse_width: 0.4,
-        direction_angle: [
-          (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
-          (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
-        ],
+        direction_angle: Curve {
+          points: [
+            (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
+            (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
+          ],
+        },
         wipe_positions: [
-          [(0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -688,18 +760,30 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)]],
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)],
+          },
+        ],
         offset_seconds: -0.08,
         wipe_seconds: 0.3,
         pulse_width: 0.6,
-        direction_angle: [
-          (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
-          (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
-        ],
+        direction_angle: Curve {
+          points: [
+            (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
+            (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
+          ],
+        },
         wipe_positions: [
-          [(0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -713,18 +797,30 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)]],
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)],
+          },
+        ],
         offset_seconds: -0.08,
         wipe_seconds: 0.3,
         pulse_width: 0.6,
-        direction_angle: [
-          (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
-          (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
-        ],
+        direction_angle: Curve {
+          points: [
+            (0.0, 0.539), (0.123, 0.783), (0.287, 0.552), (0.338, 0.086), (0.439, 0.1),
+            (0.746, 0.405), (0.765, 0.871), (1.0, 0.788),
+          ],
+        },
         wipe_positions: [
-          [(0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -738,15 +834,27 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: melody,
-        gradients: [[(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)]],
+        gradients: [
+          Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.255, #ff6900), (0.622, #ff0000)],
+          },
+        ],
         offset_seconds: -0.1,
         wipe_seconds: 0.4,
         pulse_width: 0.6,
-        direction_angle: [(0.0, 0.638), (0.262, 0.0), (0.5, 1.0), (0.741, 0.0), (1.0, 1.0)],
+        direction_angle: Curve {
+          points: [(0.0, 0.638), (0.262, 0.0), (0.5, 1.0), (0.741, 0.0), (1.0, 1.0)],
+        },
         wipe_positions: [
-          [(0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.142, 0.664), (0.307, 0.344), (0.528, 0.135), (0.732, 0.057),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -758,7 +866,7 @@ Sequence main {
       target: layouts.main.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
-      params: { gradient: [(0.0, #ff00d6), (1.0, #6aff00)] },
+      params: { gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff00d6), (1.0, #6aff00)] } },
     },
     Clip {
       name: gradient_3,
@@ -769,7 +877,7 @@ Sequence main {
       target: layouts.main.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
-      params: { gradient: [(0.0, #ff0000), (1.0, #ff00c3)] },
+      params: { gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (1.0, #ff00c3)] } },
     },
     Clip {
       name: mark_pulse_12_2,
@@ -782,8 +890,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: melody,
-        accent: [(0.186, #000cff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.186, #000cff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.1,
         cluster_width_pixels: 13,
         clusters_per_mark: 4,
@@ -801,13 +909,17 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: bars,
-        gradients: [[(0.0, #ffffff), (0.226, #0014ff)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.226, #0014ff)] }],
         offset_seconds: -0.1,
         wipe_seconds: 0.3,
         pulse_width: 0.8,
-        direction_angle: [(0.0, 0.0), (1.0, 1.0)],
-        wipe_positions: [[(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)]],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        direction_angle: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+        wipe_positions: [
+          Curve {
+            points: [(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)],
+          },
+        ],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -821,13 +933,17 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: bars,
-        gradients: [[(0.0, #ffffff), (0.226, #00ffb3)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.226, #00ffb3)] }],
         offset_seconds: -0.1,
         wipe_seconds: 0.3,
         pulse_width: 0.8,
-        direction_angle: [(0.0, 0.0), (1.0, 1.0)],
-        wipe_positions: [[(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)]],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        direction_angle: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+        wipe_positions: [
+          Curve {
+            points: [(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)],
+          },
+        ],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -841,8 +957,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #0500ff)],
-        pulse_shape: [(0.0, 0.616), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #0500ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.616), (1.0, 0.0)] },
         offset_seconds: -0.1,
         decay_seconds: 0.1,
         cluster_width_pixels: 1,
@@ -860,8 +976,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: offbeats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 0.616), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.616), (1.0, 0.0)] },
         offset_seconds: -0.1,
         decay_seconds: 0.15,
         cluster_width_pixels: 1,
@@ -879,8 +995,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: melody,
-        accent: [(0.186, #00ffb4)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.186, #00ffb4)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.1,
         cluster_width_pixels: 13,
         clusters_per_mark: 4,
@@ -897,8 +1013,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #00ffc5)],
-        pulse_shape: [(0.0, 0.616), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #00ffc5)] },
+        pulse_shape: Curve { points: [(0.0, 0.616), (1.0, 0.0)] },
         offset_seconds: -0.1,
         decay_seconds: 0.1,
         cluster_width_pixels: 1,
@@ -916,8 +1032,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.1,
         decay_seconds: 0.2,
         cluster_width_pixels: 1,
@@ -935,8 +1051,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: melody,
-        accent: [(0.0, #ffffff), (0.186, #ffd500)],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.186, #ffd500)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         offset_seconds: -0.1,
         cluster_width_pixels: 13,
         clusters_per_mark: 6,
@@ -953,15 +1069,20 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: bars,
-        gradients: [[(0.0, #ffffff), (0.187, #ff6000)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.187, #ff6000)] }],
         offset_seconds: -0.1,
         wipe_seconds: 0.4,
         pulse_width: 0.7,
-        direction_angle: [(0.0, 1.0), (1.0, 0.0)],
+        direction_angle: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         wipe_positions: [
-          [(0.0, 1.0), (0.139, 0.667), (0.298, 0.405), (0.528, 0.167), (0.754, 0.048), (1.0, 0.0)],
+          Curve {
+            points: [
+              (0.0, 1.0), (0.139, 0.667), (0.298, 0.405), (0.528, 0.167), (0.754, 0.048),
+              (1.0, 0.0),
+            ],
+          },
         ],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -975,13 +1096,17 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: bars,
-        gradients: [[(0.0, #ffffff)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         offset_seconds: -0.1,
         wipe_seconds: 0.3,
         pulse_width: 0.8,
-        direction_angle: [(0.0, 0.0), (1.0, 1.0)],
-        wipe_positions: [[(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)]],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        direction_angle: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+        wipe_positions: [
+          Curve {
+            points: [(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)],
+          },
+        ],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -995,8 +1120,8 @@ Sequence main {
       effect: effects.MarkPulse,
       params: {
         beats: beats,
-        accent: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 1.0), (0.197, 0.243), (1.0, 0.0)],
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (0.197, 0.243), (1.0, 0.0)] },
         offset_seconds: -0.1,
         decay_seconds: 0.2,
         cluster_width_pixels: 1,
@@ -1014,13 +1139,17 @@ Sequence main {
       effect: effects.MarkWipe,
       params: {
         beats: bars,
-        gradients: [[(0.0, #ffffff)]],
+        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         offset_seconds: -0.1,
         wipe_seconds: 0.3,
         pulse_width: 0.8,
-        direction_angle: [(0.0, 0.0), (1.0, 1.0)],
-        wipe_positions: [[(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)]],
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        direction_angle: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+        wipe_positions: [
+          Curve {
+            points: [(0.0, 1.0), (0.143, 0.524), (0.329, 0.246), (0.607, 0.087), (1.0, 0.0)],
+          },
+        ],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
   ],
@@ -1093,20 +1222,22 @@ Sequence main {
       row: layouts.main.desk,
       start: 61.125797272s,
       duration: 36.798931122s,
-      curve: [
-        (0.018230757, 0.077), (0.092281826, 0.022), (0.1511425, 0.0), (0.18640064, 0.0),
-        (0.19577466, 0.034), (0.20514855, 0.0), (0.21434218, 0.034), (0.21920946, 0.01),
-        (0.23187816, 0.0), (0.23218864, 0.498), (0.2500351, 0.477), (0.2740107, 0.577),
-        (0.27496928, 0.278), (0.2884843, 0.287), (0.30650434, 0.191), (0.3122708, 0.221),
-        (0.32037976, 0.203), (0.32344317, 0.914), (0.33821967, 0.866), (0.35461786, 0.89),
-        (0.36011797, 0.859), (0.36282235, 0.462), (0.40195397, 0.436), (0.4055791, 0.471),
-        (0.40763327, 0.126), (0.44690514, 0.247), (0.44873118, 0.495), (0.5107621, 0.0),
-        (0.52649736, 0.0), (0.5439182, 0.171), (0.55943877, 0.613), (0.5753282, 0.171),
-        (0.5825646, 1.0), (0.6203989, 0.475), (0.6270757, 0.474), (0.62828416, 0.062),
-        (0.6635459, 0.053), (0.6698189, 0.545), (0.71062344, 0.567), (0.711125, 0.0),
-        (0.75276816, 0.101), (0.75929064, 0.939), (0.79641813, 0.939), (0.80043215, 0.287),
-        (0.8871074, 1.0), (1.0, 1.0),
-      ],
+      curve: Curve {
+        points: [
+          (0.018230757, 0.077), (0.092281826, 0.022), (0.1511425, 0.0), (0.18640064, 0.0),
+          (0.19577466, 0.034), (0.20514855, 0.0), (0.21434218, 0.034), (0.21920946, 0.01),
+          (0.23187816, 0.0), (0.23218864, 0.498), (0.2500351, 0.477), (0.2740107, 0.577),
+          (0.27496928, 0.278), (0.2884843, 0.287), (0.30650434, 0.191), (0.3122708, 0.221),
+          (0.32037976, 0.203), (0.32344317, 0.914), (0.33821967, 0.866), (0.35461786, 0.89),
+          (0.36011797, 0.859), (0.36282235, 0.462), (0.40195397, 0.436), (0.4055791, 0.471),
+          (0.40763327, 0.126), (0.44690514, 0.247), (0.44873118, 0.495), (0.5107621, 0.0),
+          (0.52649736, 0.0), (0.5439182, 0.171), (0.55943877, 0.613), (0.5753282, 0.171),
+          (0.5825646, 1.0), (0.6203989, 0.475), (0.6270757, 0.474), (0.62828416, 0.062),
+          (0.6635459, 0.053), (0.6698189, 0.545), (0.71062344, 0.567), (0.711125, 0.0),
+          (0.75276816, 0.101), (0.75929064, 0.939), (0.79641813, 0.939), (0.80043215, 0.287),
+          (0.8871074, 1.0), (1.0, 1.0),
+        ],
+      },
       bindings: [
         Bound { binding: NodeParam { node: hue_shift_2, param: shift }, window: (0.0, 1.0) },
       ],
@@ -1116,10 +1247,12 @@ Sequence main {
       row: layouts.main.desk,
       start: 64.443359s,
       duration: 39.604469s,
-      curve: [
-        (0.0, 0.0), (0.13066296, 1.0), (0.20126168, 0.546), (0.29100838, 0.077),
-        (0.48856378, 0.885), (0.6742658, 0.0), (0.86589456, 1.0), (1.0, 0.0),
-      ],
+      curve: Curve {
+        points: [
+          (0.0, 0.0), (0.13066296, 1.0), (0.20126168, 0.546), (0.29100838, 0.077),
+          (0.48856378, 0.885), (0.6742658, 0.0), (0.86589456, 1.0), (1.0, 0.0),
+        ],
+      },
       bindings: [
         Bound { binding: ClipParam { clip: gradient, param: angle }, window: (0.0, 1.0) },
         Bound { binding: ClipParam { clip: gradient_2, param: angle }, window: (0.0, 1.0) },

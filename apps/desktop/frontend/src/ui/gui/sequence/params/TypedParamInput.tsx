@@ -7,7 +7,7 @@ import { ArrowDown, ArrowUp, ChevronRight, FlipHorizontal2, FlipVertical2, Link2
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
-import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibraryLink } from "../../../../editor/types";
+import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../editor/types";
 
 
 import { ColorPicker } from "../../../ColorPicker";
@@ -395,7 +395,7 @@ function CurveArrayParam({ name, values, declarations, range, commit }: { name: 
 
 function GradientArrayParam({ name, values, declarations, commit }: { name: string; values: SequenceGradientValue[]; declarations: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
   return <ArrayShell name={name} values={values}
-    newValue={(): SequenceGradientValue => values[values.length - 1] ?? { stops: [{ time: 0, value: CURVE_EDITOR.defaultColor }], link: { type: "inline" } }}
+    newValue={(): SequenceGradientValue => values[values.length - 1] ?? { gradient: { space: "linearRgb", stops: [{ time: 0, value: CURVE_EDITOR.defaultColor }] }, link: { type: "inline" } }}
     commit={commit}
     render={(value, index) => <GradientValueEditor name={`#${index + 1}`} value={value} declarations={declarations} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
@@ -530,12 +530,13 @@ function GradientValueEditor({ name, value, declarations, commit }: {
   declarations: SequenceGradientLibraryItem[];
   commit: (value: SequenceGradientValue) => Promise<void>;
 }) {
-  const points = normalizeSequenceGradientStops(value.stops);
+  const { space } = value.gradient;
+  const points = normalizeSequenceGradientStops(value.gradient.stops);
   return <LibraryValueShell name={name} label="gradient" libraryLink={value.link} declarations={declarations}
-    points={points} commit={(stops) => commit({ stops, link: { type: "inline" } })}
-    link={(gradient) => commit({ stops: gradient.stops, link: { type: "library", path: gradient.path, objectKey: gradient.objectKey, displayName: gradient.displayName } })}
-    unlink={() => commit({ stops: points, link: { type: "inline" } })}
-    render={(props) => <GradientParam name={name} {...props} />} />;
+    points={points} commit={(stops) => commit({ gradient: { space, stops }, link: { type: "inline" } })}
+    link={(item) => commit({ gradient: item.gradient, link: { type: "library", path: item.path, objectKey: item.objectKey, displayName: item.displayName } })}
+    unlink={() => commit({ gradient: { space, stops: points }, link: { type: "inline" } })}
+    render={(props) => <GradientParam name={name} space={space} commitSpace={(next) => commit({ gradient: { space: next, stops: points }, link: { type: "inline" } })} {...props} />} />;
 }
 
 type LibraryItem = { path: string; objectKey: string; displayName: string };
@@ -954,15 +955,19 @@ export function CurveParam({
 
 export function GradientParam({
   name,
+  space,
   points,
   commit,
+  commitSpace,
   readOnly = false,
   requestInlineEdit,
   showName = true
 }: {
   name: string;
+  space: SequenceGradientSpace;
   points: EditedSequenceGradientStop[];
   commit: (points: EditedSequenceGradientStop[]) => Promise<void>;
+  commitSpace: (space: SequenceGradientSpace) => Promise<void>;
   readOnly?: boolean;
   requestInlineEdit?: () => void;
   showName?: boolean;
@@ -1084,10 +1089,25 @@ export function GradientParam({
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerCancel);
   };
-  const gradient = gradientCss(drafts);
+  const gradient = gradientCss(drafts, space);
   return (
     <div className="effect-param-group color-curve-editor">
       {showName && <div className="effect-param-name">{name}</div>}
+      <div className="param-source-row">
+        <select
+          title={`${name} gradient interpolation`}
+          value={space}
+          onChange={(event) => {
+            if (readOnly) {
+              requestInlineEdit?.();
+              return;
+            }
+            void commitSpace(event.currentTarget.value as SequenceGradientSpace);
+          }}
+        >
+          {GRADIENT_SPACES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </div>
       <div
         ref={gradientRef}
         className="color-curve-gradient"
@@ -1219,13 +1239,20 @@ function nearestColorPointIndex(points: EditedSequenceGradientStop[], point: Edi
   return bestIndex;
 }
 
-function gradientCss(points: EditedSequenceGradientStop[]) {
+/** The gradient spaces, each with the CSS color space its editor strip approximates it in. */
+const GRADIENT_SPACES: { value: SequenceGradientSpace; label: string; css: string }[] = [
+  { value: "linearRgb", label: "Linear RGB", css: "" },
+  { value: "hsv", label: "HSV", css: "in hsl " },
+  { value: "oklab", label: "Oklab", css: "in oklab " }
+];
+
+function gradientCss(points: EditedSequenceGradientStop[], space: SequenceGradientSpace) {
   const stops = sortCurvePoints(points)
     .filter((point) => isHexColor(point.value))
     .map((point) => `${point.value} ${clamp(point.time, 0, 1) * 100}%`);
   if (stops.length === 0) return CURVE_EDITOR.emptyGradient;
   if (stops.length === 1) return stops[0]?.split(" ")[0] ?? CURVE_EDITOR.emptyGradient;
-  return `linear-gradient(90deg, ${stops.join(", ")})`;
+  return `linear-gradient(${GRADIENT_SPACES.find((option) => option.value === space)?.css ?? ""}90deg, ${stops.join(", ")})`;
 }
 
 function roundCurveValue(value: number) {

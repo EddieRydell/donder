@@ -6,7 +6,10 @@ use alloc::vec;
 
 #[test]
 fn empty_gradient_is_valid_and_samples_black() {
-    let gradient = Gradient { stops: vec![] };
+    let gradient = Gradient {
+        space: crate::GradientSpace::LinearRgb,
+        stops: vec![],
+    };
     assert!(gradient.validate().is_ok());
     assert_eq!(sample_gradient(&gradient, 0.5), Color::BLACK);
 }

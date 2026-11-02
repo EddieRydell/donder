@@ -383,7 +383,7 @@ pub(in crate::gui) fn gradient_library(
             path: identity.document().to_string(),
             object_key: identity.object().to_string(),
             display_name: identity.object().to_string(),
-            stops: gradient_stops(&definition.gradient),
+            gradient: gradient_dto(&definition.gradient),
         })
         .collect()
 }
@@ -476,7 +476,7 @@ fn param_value_to_gui(
         },
         ParamValue::Gradient(source) => SequenceParamValue::Gradient {
             value: SequenceGradientValue {
-                stops: gradient_stops(match source {
+                gradient: gradient_dto(match source {
                     OwnedGradient::Inline(gradient) => gradient,
                     OwnedGradient::Reference(id) => {
                         &session
@@ -519,7 +519,7 @@ fn default_param_value(value: &EffectValue, ty: &Type) -> Option<SequenceParamVa
         },
         EffectValue::Gradient(gradient) => SequenceParamValue::Gradient {
             value: SequenceGradientValue {
-                stops: gradient_stops(gradient),
+                gradient: gradient_dto(gradient),
                 link: SequenceLibraryLink::Inline,
             },
         },
@@ -549,7 +549,7 @@ fn library_link(id: &donder_project_io::SourceIdentity) -> SequenceLibraryLink {
     }
 }
 
-use crate::gui::model::{curve_points, gradient_stops};
+use crate::gui::model::{curve_points, gradient_dto};
 
 fn array_param_value(
     session: &ProjectSession,

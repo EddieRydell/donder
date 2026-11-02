@@ -32,7 +32,7 @@ use crate::sampling::{
 use crate::sections::{RunSections, SectionsView, single_section_query};
 use crate::view::{ProgramView, Show};
 use core::cell::Cell;
-use donder_runtime_types::{Color, InstructionWord, MarkWindow};
+use donder_runtime_types::{Color, GradientSpace, InstructionWord, MarkWindow};
 
 pub(crate) use crate::dsl::bytecode::STRIP;
 const MASK: usize = STRIP - 1;
@@ -1553,7 +1553,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn gradient(&self, handle: Handle) -> &'m [GradientStop] {
+    fn gradient(&self, handle: Handle) -> (GradientSpace, &'m [GradientStop]) {
         match handle.kind() {
             Ok(index) => self.bound.show.gradient(index),
             Err(_) => unreachable!("show gradients resolve when bound"),
@@ -1596,25 +1596,27 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     fn gradient_strip(
         sel: Sel<'_>,
         dst: ColorDst<'_>,
-        stops: &[GradientStop],
+        (space, stops): (GradientSpace, &[GradientStop]),
         position: Src<'_, f32>,
         scale: Option<Src<'_, f32>>,
     ) {
         match scale {
             Some(scale) => pick_color(sel, dst, |i| {
-                gradient_color_scaled(stops, position.at(i), scale.at(i))
+                gradient_color_scaled(space, stops, position.at(i), scale.at(i))
             }),
-            None => pick_color(sel, dst, |i| sample_gradient_stops(stops, position.at(i))),
+            None => pick_color(sel, dst, |i| {
+                sample_gradient_stops(space, stops, position.at(i))
+            }),
         }
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn gradient_at(&self, gradient: Handle, position: f32, scale: Option<f32>) -> Color {
-        let stops = self.gradient(gradient);
+        let (space, stops) = self.gradient(gradient);
         match scale {
-            Some(scale) => gradient_color_scaled(stops, position, scale),
-            None => sample_gradient_stops(stops, position),
+            Some(scale) => gradient_color_scaled(space, stops, position, scale),
+            None => sample_gradient_stops(space, stops, position),
         }
     }
 

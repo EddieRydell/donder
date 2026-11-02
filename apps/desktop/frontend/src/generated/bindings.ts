@@ -541,7 +541,7 @@ export type GradientGuiDocument = {
 	description: string | null,
 	path: string,
 	objectKey: string,
-	stops: SequenceGradientStop[],
+	gradient: SequenceGradient,
 };
 
 /**
@@ -599,7 +599,7 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "ownership"; member: OwnershipMember; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "console"; edit: ConsoleGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
+export type GuiEditCommand = { type: "ownership"; member: OwnershipMember; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; gradient: SequenceGradient } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "console"; edit: ConsoleGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
 /**
  *  The name becomes a `snake_case` name, which the edit reports; renaming
  *  marks renames every parameter and action that names them.
@@ -1406,12 +1406,20 @@ export type SequenceFollowMode =
 /**  The playhead holds a fixed screen position while the timeline scrolls under it. */
 "continuous";
 
+/**  A gradient's value: the color space it interpolates in and its stops. */
+export type SequenceGradient = {
+	space: SequenceGradientSpace,
+	stops: SequenceGradientStop[],
+};
+
 export type SequenceGradientLibraryItem = {
 	path: string,
 	objectKey: string,
 	displayName: string,
-	stops: SequenceGradientStop[],
+	gradient: SequenceGradient,
 };
+
+export type SequenceGradientSpace = "linearRgb" | "hsv" | "oklab";
 
 export type SequenceGradientStop = {
 	time: number,
@@ -1419,7 +1427,7 @@ export type SequenceGradientStop = {
 };
 
 export type SequenceGradientValue = {
-	stops: SequenceGradientStop[],
+	gradient: SequenceGradient,
 	link: SequenceLibraryLink,
 };
 

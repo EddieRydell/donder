@@ -99,7 +99,10 @@ Sequence holy {
       target: layouts.main.radio_sign,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0535af)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0535af)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_2,
@@ -110,7 +113,10 @@ Sequence holy {
       target: layouts.main.penguin_right_foot,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff9100)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff9100)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_3,
@@ -121,7 +127,10 @@ Sequence holy {
       target: layouts.main.penguin_left_foot,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff9100)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff9100)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_4,
@@ -132,7 +141,10 @@ Sequence holy {
       target: layouts.main.penguin_left_wing,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_5,
@@ -143,7 +155,10 @@ Sequence holy {
       target: layouts.main.penguin_body,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_6,
@@ -154,7 +169,10 @@ Sequence holy {
       target: layouts.main.penguin_right_wing,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_7,
@@ -165,7 +183,10 @@ Sequence holy {
       target: layouts.main.penguin_belly,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_8,
@@ -176,7 +197,10 @@ Sequence holy {
       target: layouts.main.penguin_beak,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff9100)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff9100)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_9,
@@ -187,7 +211,10 @@ Sequence holy {
       target: layouts.main.penguin_head,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_5,
@@ -201,7 +228,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #ffffff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -638,7 +665,10 @@ Sequence holy {
       target: layouts.main.tree_rb,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: clip_28,
@@ -1260,7 +1290,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #faffa8)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #faffa8)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 1500,
@@ -1282,7 +1312,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #faffa8)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #faffa8)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 1500,
@@ -1304,7 +1334,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #faffa8)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #faffa8)] },
         minimum_level: 0.0,
         maximum_level: 98.0,
         average_pulse_time_ms: 1500,
@@ -1326,7 +1356,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #faffa8)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #faffa8)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 1500,
@@ -1348,7 +1378,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #faffa8)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #faffa8)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 1500,
@@ -1370,7 +1400,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #faffa8)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #faffa8)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 1500,
@@ -1389,7 +1419,10 @@ Sequence holy {
       target: layouts.main.jesus,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_12,
@@ -1400,7 +1433,10 @@ Sequence holy {
       target: layouts.main.jesus,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: wipe_1,
@@ -1412,17 +1448,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1616,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1435,17 +1471,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.165,
         direction_angle: 270.0,
         passes: 2,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1458,7 +1494,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #00ff00)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+        ],
         direction: Backwards,
         iterations: 5.0,
         repeat: 2,
@@ -1482,7 +1521,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #00ff00)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+        ],
         direction: Backwards,
         iterations: 5.0,
         repeat: 2,
@@ -1506,7 +1548,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #00ff00)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+        ],
         direction: Backwards,
         iterations: 5.0,
         repeat: 2,
@@ -1530,7 +1575,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #00ff00)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+        ],
         direction: Backwards,
         iterations: 5.0,
         repeat: 2,
@@ -1554,7 +1602,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #00ff00)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+        ],
         direction: Backwards,
         iterations: 5.0,
         repeat: 2,
@@ -1578,17 +1629,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1601,17 +1652,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.165,
         direction_angle: 270.0,
         passes: 2,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1624,17 +1675,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.165,
         direction_angle: 270.0,
         passes: 2,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1647,17 +1698,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1616,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1670,17 +1721,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1693,17 +1744,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1716,17 +1767,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1739,17 +1790,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1762,17 +1813,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1785,17 +1836,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1808,17 +1859,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1831,17 +1882,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1854,17 +1905,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1877,17 +1928,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1900,17 +1951,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1923,17 +1974,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1946,17 +1997,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2208,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1969,17 +2020,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2208,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -1992,17 +2043,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2208,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2015,17 +2066,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2223,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2038,17 +2089,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2257,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2061,17 +2112,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2218,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2084,17 +2135,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2218,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2107,17 +2158,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2257,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2130,17 +2181,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2647,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2153,17 +2204,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2647,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2176,17 +2227,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2668,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2199,17 +2250,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2676,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2222,17 +2273,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2661,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2245,17 +2296,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2676,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2268,17 +2319,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.2676,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2291,17 +2342,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.3249,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2314,17 +2365,17 @@ Sequence holy {
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.3249,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2337,17 +2388,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.4259,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2362,7 +2413,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 999,
@@ -2382,7 +2433,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2390,7 +2441,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2403,7 +2454,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2411,7 +2462,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2424,7 +2475,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2432,7 +2483,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2445,7 +2496,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2453,7 +2504,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2466,7 +2517,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2474,7 +2525,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2487,7 +2538,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2495,7 +2546,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2508,7 +2559,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2516,7 +2567,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2529,7 +2580,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2537,7 +2588,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2550,7 +2601,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2558,7 +2609,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2571,7 +2622,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2579,7 +2630,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2592,7 +2643,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -2600,7 +2651,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2613,7 +2664,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #fffaa9)], [(0.0, #0000ff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #fffaa9)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
         direction: Left,
         iterations: 2,
         repeat: 3,
@@ -2633,7 +2687,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #fffaa9)], [(0.0, #0000ff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #fffaa9)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
         direction: Down,
         iterations: 4,
         repeat: 1,
@@ -2653,7 +2710,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #fffaa9)], [(0.0, #0000ff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #fffaa9)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
         direction: HorizontalExpand,
         iterations: 2,
         repeat: 5,
@@ -2673,7 +2733,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #fffaa9)], [(0.0, #0000ff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #fffaa9)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
         direction: Left,
         iterations: 2,
         repeat: 3,
@@ -2693,7 +2756,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #fffaa9)], [(0.0, #0000ff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #fffaa9)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
         direction: Down,
         iterations: 3,
         repeat: 1,
@@ -2713,17 +2779,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1544,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2736,17 +2802,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1563,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2759,17 +2825,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.11,
         direction_angle: 90.0,
         passes: 3,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2782,8 +2848,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 4.522613,
@@ -2806,8 +2872,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 4.522613,
@@ -2830,8 +2896,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 4.522613,
@@ -2854,8 +2920,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 4.522613,
@@ -2878,8 +2944,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 4.522613,
@@ -2899,17 +2965,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.0863,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -2922,8 +2988,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -2946,8 +3016,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 35.0,
         count: 23.115578,
@@ -2970,8 +3044,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -2991,8 +3069,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 30.0,
         count: 12.562814,
@@ -3015,8 +3097,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3039,8 +3125,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3060,8 +3150,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3084,8 +3178,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3108,8 +3206,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3134,7 +3236,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 20.105,
         maximum_level: 49.208,
         average_pulse_time_ms: 400,
@@ -3156,7 +3258,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 20.105,
         maximum_level: 49.208,
         average_pulse_time_ms: 400,
@@ -3176,8 +3278,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3197,8 +3303,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3218,8 +3328,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 10.0,
         count: 12.562814,
@@ -3241,7 +3355,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #ffffff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -3261,17 +3375,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3284,17 +3398,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3307,17 +3421,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3330,17 +3444,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3353,17 +3467,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ffffff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3376,17 +3490,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1737,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3399,17 +3513,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.1737,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3422,17 +3536,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 1.0), (1.0, 0.0)],
+        wipe_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3445,17 +3559,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3468,17 +3582,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3491,17 +3605,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3514,17 +3628,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3537,17 +3651,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #0000ff)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3560,17 +3674,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ff0000)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -3583,7 +3697,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -3603,7 +3717,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -3623,7 +3737,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -3681,7 +3795,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -3701,7 +3815,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -3721,7 +3835,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -3741,7 +3855,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -3875,15 +3989,15 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
-        gradient: [(0.0, #ff0000)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: ThroughEffect,
         pulse_overlap: 89.307,
         section_width_pixels: 1,
-        chase_position: [(0.0, 0.0), (1.0, 1.0)],
+        chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -4997,7 +5111,10 @@ Sequence holy {
       target: layouts.main.shepherd_left,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_14,
@@ -5008,7 +5125,10 @@ Sequence holy {
       target: layouts.main.shepherd_right,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_181,
@@ -5077,7 +5197,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 5,
         repeat: 1,
@@ -5097,7 +5217,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 5,
         repeat: 1,
@@ -5117,7 +5237,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 5,
         repeat: 1,
@@ -5289,7 +5409,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -5309,7 +5429,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -5329,7 +5449,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -5348,7 +5468,10 @@ Sequence holy {
       target: layouts.main.shepherd_left,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_16,
@@ -5359,7 +5482,10 @@ Sequence holy {
       target: layouts.main.shepherd_right,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_198,
@@ -5371,7 +5497,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 3,
         repeat: 1,
@@ -5391,15 +5517,15 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
-        gradient: [(0.0, #ff0000)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: ThroughEffect,
         pulse_overlap: 85.742,
         section_width_pixels: 1,
-        chase_position: [(0.0, 0.0), (1.0, 1.0)],
+        chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -5563,7 +5689,10 @@ Sequence holy {
       target: layouts.main.big_sheep,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_18,
@@ -5574,7 +5703,10 @@ Sequence holy {
       target: layouts.main.little_sheep,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_207,
@@ -5586,7 +5718,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Compress,
         iterations: 5,
         repeat: 1,
@@ -5700,7 +5832,10 @@ Sequence holy {
       target: layouts.main.big_sheep,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_20,
@@ -5711,7 +5846,10 @@ Sequence holy {
       target: layouts.main.little_sheep,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_213,
@@ -6407,9 +6545,9 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ffffff), (0.849, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 100.0)],
-        width_curve: [(0.0, 16.881), (1.0, 49.788)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.849, #0000ff)] },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
+        width_curve: Curve { points: [(0.0, 16.881), (1.0, 49.788)] },
         center_x: 50.0,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -6428,7 +6566,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #008000)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
         butterfly_type: Type2,
         color_scheme: Gradient,
         direction: Forward,
@@ -6448,8 +6586,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenPinwheel,
       params: {
-        colors: [[(0.0, #00ff00)], [(0.0, #0000ff)]],
-        levels: [[(0.0, 100.0), (1.0, 100.0)], [(0.0, 100.0), (1.0, 100.0)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
+        levels: [
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+        ],
         color_type: Standard,
         motion: Iterations,
         arms: 5,
@@ -6478,7 +6622,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #008000)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
         butterfly_type: Type2,
         color_scheme: Gradient,
         direction: Forward,
@@ -6498,7 +6642,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #008000)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
         butterfly_type: Type2,
         color_scheme: Gradient,
         direction: Forward,
@@ -6518,7 +6662,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #008000)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
         butterfly_type: Type2,
         color_scheme: Gradient,
         direction: Forward,
@@ -6538,7 +6682,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #008000)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
         butterfly_type: Type2,
         color_scheme: Gradient,
         direction: Forward,
@@ -6558,34 +6702,41 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenPinwheel,
       params: {
-        colors: [[(0.0, #00ff00)], [(0.0, #0000ff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
         levels: [
-          [
-            (0.0, 0.0), (0.02, 6.279), (0.04, 12.533), (0.06, 18.738), (0.08, 24.869),
-            (0.1, 30.902), (0.12, 36.812), (0.14, 42.578), (0.16, 48.175), (0.18, 53.583),
-            (0.2, 58.779), (0.22, 63.742), (0.24, 68.455), (0.26, 72.897), (0.28, 77.051),
-            (0.3, 80.902), (0.32, 84.433), (0.34, 87.631), (0.36, 90.483), (0.38, 92.978),
-            (0.4, 95.106), (0.42, 96.858), (0.44, 98.229), (0.46, 99.211), (0.48, 99.803),
-            (0.5, 100.0), (0.52, 99.803), (0.54, 99.211), (0.56, 98.229), (0.58, 96.858),
-            (0.6, 95.106), (0.62, 92.978), (0.64, 90.483), (0.66, 87.631), (0.68, 84.433),
-            (0.7, 80.902), (0.72, 77.051), (0.74, 72.897), (0.76, 68.455), (0.78, 63.742),
-            (0.8, 58.779), (0.82, 53.583), (0.84, 48.175), (0.86, 42.578), (0.88, 36.812),
-            (0.9, 30.902), (0.92, 24.869), (0.94, 18.738), (0.96, 12.533), (0.98, 6.279),
-            (1.0, 0.0),
-          ],
-          [
-            (0.0, 0.0), (0.02, 6.279), (0.04, 12.533), (0.06, 18.738), (0.08, 24.869),
-            (0.1, 30.902), (0.12, 36.812), (0.14, 42.578), (0.16, 48.175), (0.18, 53.583),
-            (0.2, 58.779), (0.22, 63.742), (0.24, 68.455), (0.26, 72.897), (0.28, 77.051),
-            (0.3, 80.902), (0.32, 84.433), (0.34, 87.631), (0.36, 90.483), (0.38, 92.978),
-            (0.4, 95.106), (0.42, 96.858), (0.44, 98.229), (0.46, 99.211), (0.48, 99.803),
-            (0.5, 100.0), (0.52, 99.803), (0.54, 99.211), (0.56, 98.229), (0.58, 96.858),
-            (0.6, 95.106), (0.62, 92.978), (0.64, 90.483), (0.66, 87.631), (0.68, 84.433),
-            (0.7, 80.902), (0.72, 77.051), (0.74, 72.897), (0.76, 68.455), (0.78, 63.742),
-            (0.8, 58.779), (0.82, 53.583), (0.84, 48.175), (0.86, 42.578), (0.88, 36.812),
-            (0.9, 30.902), (0.92, 24.869), (0.94, 18.738), (0.96, 12.533), (0.98, 6.279),
-            (1.0, 0.0),
-          ],
+          Curve {
+            points: [
+              (0.0, 0.0), (0.02, 6.279), (0.04, 12.533), (0.06, 18.738), (0.08, 24.869),
+              (0.1, 30.902), (0.12, 36.812), (0.14, 42.578), (0.16, 48.175), (0.18, 53.583),
+              (0.2, 58.779), (0.22, 63.742), (0.24, 68.455), (0.26, 72.897), (0.28, 77.051),
+              (0.3, 80.902), (0.32, 84.433), (0.34, 87.631), (0.36, 90.483), (0.38, 92.978),
+              (0.4, 95.106), (0.42, 96.858), (0.44, 98.229), (0.46, 99.211), (0.48, 99.803),
+              (0.5, 100.0), (0.52, 99.803), (0.54, 99.211), (0.56, 98.229), (0.58, 96.858),
+              (0.6, 95.106), (0.62, 92.978), (0.64, 90.483), (0.66, 87.631), (0.68, 84.433),
+              (0.7, 80.902), (0.72, 77.051), (0.74, 72.897), (0.76, 68.455), (0.78, 63.742),
+              (0.8, 58.779), (0.82, 53.583), (0.84, 48.175), (0.86, 42.578), (0.88, 36.812),
+              (0.9, 30.902), (0.92, 24.869), (0.94, 18.738), (0.96, 12.533), (0.98, 6.279),
+              (1.0, 0.0),
+            ],
+          },
+          Curve {
+            points: [
+              (0.0, 0.0), (0.02, 6.279), (0.04, 12.533), (0.06, 18.738), (0.08, 24.869),
+              (0.1, 30.902), (0.12, 36.812), (0.14, 42.578), (0.16, 48.175), (0.18, 53.583),
+              (0.2, 58.779), (0.22, 63.742), (0.24, 68.455), (0.26, 72.897), (0.28, 77.051),
+              (0.3, 80.902), (0.32, 84.433), (0.34, 87.631), (0.36, 90.483), (0.38, 92.978),
+              (0.4, 95.106), (0.42, 96.858), (0.44, 98.229), (0.46, 99.211), (0.48, 99.803),
+              (0.5, 100.0), (0.52, 99.803), (0.54, 99.211), (0.56, 98.229), (0.58, 96.858),
+              (0.6, 95.106), (0.62, 92.978), (0.64, 90.483), (0.66, 87.631), (0.68, 84.433),
+              (0.7, 80.902), (0.72, 77.051), (0.74, 72.897), (0.76, 68.455), (0.78, 63.742),
+              (0.8, 58.779), (0.82, 53.583), (0.84, 48.175), (0.86, 42.578), (0.88, 36.812),
+              (0.9, 30.902), (0.92, 24.869), (0.94, 18.738), (0.96, 12.533), (0.98, 6.279),
+              (1.0, 0.0),
+            ],
+          },
         ],
         color_type: Standard,
         motion: Iterations,
@@ -6615,8 +6766,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
-        colors: [[(0.0, #ffffff)], [(0.0, #3c3c3c)]],
-        levels: [[(0.0, 100.0), (1.0, 100.0)], [(0.0, 100.0), (1.0, 100.0)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #3c3c3c)] },
+        ],
+        levels: [
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+        ],
         interval_ms: 50.0,
         enable_static: false,
         group_level: 2,
@@ -6633,17 +6790,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 180.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6656,8 +6813,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
-        colors: [[(0.0, #ffffff)], [(0.0, #3c3c3c)]],
-        levels: [[(0.0, 100.0), (1.0, 100.0)], [(0.0, 100.0), (1.0, 100.0)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #3c3c3c)] },
+        ],
+        levels: [
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+        ],
         interval_ms: 50.0,
         enable_static: false,
         group_level: 2,
@@ -6674,8 +6837,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
-        colors: [[(0.0, #ffffff)], [(0.0, #3c3c3c)]],
-        levels: [[(0.0, 100.0), (1.0, 100.0)], [(0.0, 100.0), (1.0, 100.0)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #3c3c3c)] },
+        ],
+        levels: [
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+        ],
         interval_ms: 50.0,
         enable_static: false,
         group_level: 2,
@@ -6692,8 +6861,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
-        colors: [[(0.0, #ffffff)], [(0.0, #3c3c3c)]],
-        levels: [[(0.0, 100.0), (1.0, 100.0)], [(0.0, 100.0), (1.0, 100.0)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #3c3c3c)] },
+        ],
+        levels: [
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+        ],
         interval_ms: 50.0,
         enable_static: false,
         group_level: 2,
@@ -6710,8 +6885,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenPinwheel,
       params: {
-        colors: [[(0.0, #ffffff)], [(0.0, #0000ff)]],
-        levels: [[(0.0, 100.0), (1.0, 100.0)], [(0.0, 100.0), (1.0, 100.0)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
+        levels: [
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+        ],
         color_type: Standard,
         motion: Iterations,
         arms: 3,
@@ -6740,7 +6921,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -6748,7 +6929,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: true,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6761,7 +6942,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -6769,7 +6950,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6782,7 +6963,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -6790,7 +6971,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6803,7 +6984,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -6811,7 +6992,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6824,7 +7005,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -6832,7 +7013,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6845,7 +7026,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
-        colors: [[(0.0, #00ff00)], [(0.0, #0000ff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
         direction: Left,
         iterations: 4,
         repeat: 1,
@@ -6865,7 +7049,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -6873,7 +7057,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6886,7 +7070,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -6894,7 +7078,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6909,7 +7093,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #ffffff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -6929,17 +7113,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -6952,7 +7136,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #008000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
@@ -6969,7 +7153,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #008000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
@@ -6986,7 +7170,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #008000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
@@ -7003,7 +7187,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #008000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
@@ -7020,7 +7204,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #008000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #008000)] }],
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
@@ -7039,7 +7223,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7061,7 +7245,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7083,7 +7267,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7105,7 +7289,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7127,7 +7311,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7149,7 +7333,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7171,7 +7355,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7193,7 +7377,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -7212,7 +7396,10 @@ Sequence holy {
       target: layouts.main.shepherd_left,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_22,
@@ -7223,7 +7410,10 @@ Sequence holy {
       target: layouts.main.shepherd_right,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_23,
@@ -7234,7 +7424,10 @@ Sequence holy {
       target: layouts.main.shepherd_left,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_24,
@@ -7245,7 +7438,10 @@ Sequence holy {
       target: layouts.main.shepherd_right,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_25,
@@ -7256,7 +7452,10 @@ Sequence holy {
       target: layouts.main.joseph,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_26,
@@ -7267,7 +7466,10 @@ Sequence holy {
       target: layouts.main.jesus,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_27,
@@ -7278,7 +7480,10 @@ Sequence holy {
       target: layouts.main.mary,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_28,
@@ -7289,7 +7494,10 @@ Sequence holy {
       target: layouts.main.stable,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_29,
@@ -7300,7 +7508,10 @@ Sequence holy {
       target: layouts.main.joseph,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_30,
@@ -7311,7 +7522,10 @@ Sequence holy {
       target: layouts.main.jesus,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_31,
@@ -7322,7 +7536,10 @@ Sequence holy {
       target: layouts.main.mary,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_275,
@@ -7334,8 +7551,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 152241.0,
@@ -7352,8 +7575,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 481195.0,
@@ -7370,8 +7599,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 689817.0,
@@ -7388,8 +7623,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 5698.0,
@@ -7406,8 +7647,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 934830.0,
@@ -7424,8 +7671,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 770554.0,
@@ -7442,8 +7695,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 273329.0,
@@ -7460,8 +7719,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 318305.0,
@@ -7478,8 +7743,14 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
-        outer_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        inner_colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        outer_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        inner_colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         flake_type: Three,
         count: 4.0,
         random_seed: 432533.0,
@@ -7495,7 +7766,10 @@ Sequence holy {
       target: layouts.main.stable,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_33,
@@ -7506,7 +7780,10 @@ Sequence holy {
       target: layouts.main.camel,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_34,
@@ -7517,7 +7794,10 @@ Sequence holy {
       target: layouts.main.camel,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_284,
@@ -7529,7 +7809,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -7537,7 +7817,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7550,7 +7830,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -7558,7 +7838,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7571,7 +7851,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -7579,7 +7859,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7592,7 +7872,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -7600,7 +7880,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7613,7 +7893,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -7621,7 +7901,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7634,7 +7914,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -7642,7 +7922,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7655,7 +7935,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
-        gradient: [(0.0, #00ff00)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         mode: Pass,
         shape: Burst,
         pulse_percent: 33.0,
@@ -7663,7 +7943,7 @@ Sequence holy {
         center_y: 0.0,
         reverse: false,
         passes: 1,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7676,17 +7956,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ff0000)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7699,17 +7979,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ff0000)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7722,17 +8002,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #ff0000)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
         mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7747,7 +8027,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #ffffdc)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffdc)] },
         minimum_level: 12.0,
         maximum_level: 44.0,
         average_pulse_time_ms: 899,
@@ -7767,7 +8047,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenFireworks,
       params: {
-        colors: [[(0.0, #ffffff)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         color_type: Standard,
         source: RandomExplosions,
         explosion_marks: none,
@@ -7796,7 +8076,10 @@ Sequence holy {
       target: layouts.main.nativity,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.01), (1.0, 0.01)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.01), (1.0, 0.01)] },
+      },
     },
     Clip {
       name: wipe_60,
@@ -7808,17 +8091,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #7f7f7f)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #7f7f7f)] },
         gradient_mode: PerPulse,
         mode: Off,
         pulse_width: 0.33,
         direction_angle: 270.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7831,17 +8114,17 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
-        gradient: [(0.0, #7f7f7f)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #7f7f7f)] },
         gradient_mode: PerPulse,
         mode: On,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
-        wipe_position: [(0.0, 0.0), (1.0, 1.0)],
+        wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
         extend_to_end: false,
-        pulse_shape: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -7856,7 +8139,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #ffffdc), (0.0219, #0000ff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffdc), (0.0219, #0000ff)] },
         minimum_level: 1.0,
         maximum_level: 97.0,
         average_pulse_time_ms: 899,
@@ -7875,7 +8158,10 @@ Sequence holy {
       target: layouts.main.nativity,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.5), (1.0, 0.5)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.5), (1.0, 0.5)] },
+      },
     },
     Clip {
       name: butterfly_6,
@@ -7887,7 +8173,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #ffffff), (1.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #00ff00)] },
         butterfly_type: Type1,
         color_scheme: Gradient,
         motion: Iterations,
@@ -7911,7 +8197,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #ffffff), (1.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #00ff00)] },
         butterfly_type: Type1,
         color_scheme: Gradient,
         motion: Iterations,
@@ -7935,7 +8221,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #ffffff), (1.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #00ff00)] },
         butterfly_type: Type1,
         color_scheme: Gradient,
         motion: Iterations,
@@ -7959,7 +8245,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
-        color_gradient: [(0.0, #ffffff), (1.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #00ff00)] },
         butterfly_type: Type3,
         color_scheme: Gradient,
         motion: Iterations,
@@ -7982,7 +8268,10 @@ Sequence holy {
       target: layouts.main.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_38,
@@ -7993,7 +8282,10 @@ Sequence holy {
       target: layouts.main.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_39,
@@ -8004,7 +8296,10 @@ Sequence holy {
       target: layouts.main.garage_matrix,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_40,
@@ -8015,7 +8310,10 @@ Sequence holy {
       target: layouts.main.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_41,
@@ -8026,7 +8324,10 @@ Sequence holy {
       target: layouts.main.neighbor_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_42,
@@ -8037,7 +8338,10 @@ Sequence holy {
       target: layouts.main.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 0.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_294,
@@ -8049,7 +8353,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #ff0000)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] }],
         direction: Up,
         garland_type: Type4,
         iterations: 1,
@@ -8067,7 +8371,10 @@ Sequence holy {
       target: layouts.main.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: clip_295,
@@ -10738,7 +11045,10 @@ Sequence holy {
       target: layouts.main.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_45,
@@ -10749,7 +11059,10 @@ Sequence holy {
       target: layouts.main.garage_matrix,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_46,
@@ -10760,7 +11073,10 @@ Sequence holy {
       target: layouts.main.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_47,
@@ -10771,7 +11087,10 @@ Sequence holy {
       target: layouts.main.neighbor_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_48,
@@ -10782,7 +11101,10 @@ Sequence holy {
       target: layouts.main.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ff0000)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: clip_435,
@@ -10870,7 +11192,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenFireworks,
       params: {
-        colors: [[(0.0, #ffffff)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
@@ -10893,7 +11215,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenFireworks,
       params: {
-        colors: [[(0.0, #ffffff)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
@@ -10916,7 +11238,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenFireworks,
       params: {
-        colors: [[(0.0, #ffffff)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
@@ -10939,7 +11261,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenFireworks,
       params: {
-        colors: [[(0.0, #ffffff)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
@@ -10962,7 +11284,7 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenFireworks,
       params: {
-        colors: [[(0.0, #ffffff)]],
+        colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
@@ -11574,9 +11896,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 75.732)],
-        width_curve: [(0.0, 68.453), (1.0, 74.284)],
+        color_gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
+        },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 75.732)] },
+        width_curve: Curve { points: [(0.0, 68.453), (1.0, 74.284)] },
         center_x: 45.421207,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -11595,9 +11920,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 75.732)],
-        width_curve: [(0.0, 68.453), (1.0, 74.284)],
+        color_gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
+        },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 75.732)] },
+        width_curve: Curve { points: [(0.0, 68.453), (1.0, 74.284)] },
         center_x: 45.421207,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -11616,9 +11944,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 75.732)],
-        width_curve: [(0.0, 68.453), (1.0, 74.284)],
+        color_gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
+        },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 75.732)] },
+        width_curve: Curve { points: [(0.0, 68.453), (1.0, 74.284)] },
         center_x: 45.421207,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -11637,9 +11968,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 75.732)],
-        width_curve: [(0.0, 68.453), (1.0, 74.284)],
+        color_gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
+        },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 75.732)] },
+        width_curve: Curve { points: [(0.0, 68.453), (1.0, 74.284)] },
         center_x: 45.421207,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -11658,9 +11992,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 75.732)],
-        width_curve: [(0.0, 68.453), (1.0, 74.284)],
+        color_gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
+        },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 75.732)] },
+        width_curve: Curve { points: [(0.0, 68.453), (1.0, 74.284)] },
         center_x: 45.421207,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -11679,9 +12016,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 75.732)],
-        width_curve: [(0.0, 68.453), (1.0, 74.284)],
+        color_gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
+        },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 75.732)] },
+        width_curve: Curve { points: [(0.0, 68.453), (1.0, 74.284)] },
         center_x: 45.421207,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -11700,9 +12040,12 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
-        radius_curve: [(0.0, 0.0), (1.0, 75.732)],
-        width_curve: [(0.0, 68.453), (1.0, 74.284)],
+        color_gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ff0000), (0.0, #00ff00), (1.0, #0000ff)],
+        },
+        radius_curve: Curve { points: [(0.0, 0.0), (1.0, 75.732)] },
+        width_curve: Curve { points: [(0.0, 68.453), (1.0, 74.284)] },
         center_x: 45.421207,
         center_y: 50.0,
         acceleration: GentleIn,
@@ -11721,8 +12064,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11745,8 +12091,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11769,8 +12118,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11793,8 +12145,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11817,8 +12172,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11838,8 +12196,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11862,8 +12223,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11886,8 +12250,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11910,8 +12277,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11934,8 +12304,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11958,8 +12331,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -11979,8 +12355,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12003,8 +12382,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12029,7 +12411,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #ffffff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -12049,8 +12431,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12070,8 +12455,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12091,8 +12479,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12115,8 +12506,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12136,8 +12530,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12160,8 +12557,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12181,8 +12581,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12204,7 +12607,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #ffffff)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -12224,8 +12627,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12245,8 +12651,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12266,8 +12675,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12287,8 +12699,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12311,8 +12726,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12332,8 +12750,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12356,8 +12777,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12380,8 +12804,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12404,8 +12831,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12428,8 +12858,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12452,8 +12885,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12476,8 +12912,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12500,8 +12939,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12524,8 +12966,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12548,8 +12993,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12572,8 +13020,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12596,8 +13047,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12620,8 +13074,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12644,8 +13101,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12668,8 +13128,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12692,7 +13155,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Forward,
         iterations: 9.0,
         repeat: 1,
@@ -12713,7 +13179,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Forward,
         iterations: 9.0,
         repeat: 1,
@@ -12734,7 +13203,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Forward,
         iterations: 9.0,
         repeat: 1,
@@ -12755,7 +13227,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Forward,
         iterations: 9.0,
         repeat: 1,
@@ -12776,7 +13251,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenSpiral,
       params: {
-        colors: [[(0.0, #008000)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Forward,
         iterations: 9.0,
         repeat: 1,
@@ -12799,7 +13277,7 @@ Sequence holy {
       params: {
         color_handling: GradientPerPulse,
         static_color: #ffffff,
-        color_gradient: [(0.0, #00ff00)],
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
         average_pulse_time_ms: 400,
@@ -12819,8 +13297,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12840,8 +13321,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenMeteors,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
-        tail_taper: [(0.0, 100.0), (1.0, 0.0)],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
+        tail_taper: Curve { points: [(0.0, 100.0), (1.0, 0.0)] },
         color_type: Palette,
         speed: 25.0,
         count: 33.16583,
@@ -12861,7 +13345,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         garland_type: Type0,
         iterations: 20,
         spacing: 100.0,
@@ -12878,7 +13365,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         garland_type: Type3,
         iterations: 20,
         spacing: 100.0,
@@ -12895,7 +13385,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         garland_type: Type0,
         iterations: 20,
         spacing: 100.0,
@@ -12912,7 +13405,10 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         garland_type: Type0,
         iterations: 20,
         spacing: 100.0,
@@ -12928,7 +13424,10 @@ Sequence holy {
       target: layouts.main.fletch_peak,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.138, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.138, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_50,
@@ -12939,7 +13438,10 @@ Sequence holy {
       target: layouts.main.windows,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_51,
@@ -12950,7 +13452,10 @@ Sequence holy {
       target: layouts.main.above_door,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1676, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1676, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_52,
@@ -12961,7 +13466,10 @@ Sequence holy {
       target: layouts.main.garage,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_53,
@@ -12972,7 +13480,10 @@ Sequence holy {
       target: layouts.main.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_54,
@@ -12983,7 +13494,10 @@ Sequence holy {
       target: layouts.main.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_55,
@@ -12994,7 +13508,10 @@ Sequence holy {
       target: layouts.main.wreath_1,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_56,
@@ -13005,7 +13522,10 @@ Sequence holy {
       target: layouts.main.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.0937, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.0937, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_57,
@@ -13016,7 +13536,10 @@ Sequence holy {
       target: layouts.main.inside_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.0937, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.0937, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_58,
@@ -13027,7 +13550,10 @@ Sequence holy {
       target: layouts.main.middle_roof,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1134, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1134, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_59,
@@ -13038,7 +13564,10 @@ Sequence holy {
       target: layouts.main.tree_rb,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.0937, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.0937, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: clip_529,
@@ -13050,7 +13579,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #ffffff), (0.849, #0000ff)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.849, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Up,
         garland_type: Type0,
         iterations: 1,
@@ -13069,7 +13602,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #ffffff), (0.6623, #0000ff)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.6623, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Up,
         garland_type: Type0,
         iterations: 1,
@@ -13088,7 +13625,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #ffffff), (0.6623, #0000ff)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.6623, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Up,
         garland_type: Type0,
         iterations: 1,
@@ -13107,7 +13648,11 @@ Sequence holy {
       scope: WholeTarget,
       effect: vixen.VixenGarlands,
       params: {
-        colors: [[(0.0, #ffffff), (0.849, #0000ff)], [(0.0, #0000ff)], [(0.0, #ffffff)]],
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.849, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        ],
         direction: Up,
         garland_type: Type0,
         iterations: 1,
@@ -13125,7 +13670,10 @@ Sequence holy {
       target: layouts.main.left_roof,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.138, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.138, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_61,
@@ -13136,7 +13684,10 @@ Sequence holy {
       target: layouts.main.above_garage,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_62,
@@ -13147,7 +13698,10 @@ Sequence holy {
       target: layouts.main.fran_wreath,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_63,
@@ -13158,7 +13712,10 @@ Sequence holy {
       target: layouts.main.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_64,
@@ -13169,7 +13726,10 @@ Sequence holy {
       target: layouts.main.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_65,
@@ -13180,7 +13740,10 @@ Sequence holy {
       target: layouts.main.tree_lb,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1454, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1454, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_66,
@@ -13191,7 +13754,10 @@ Sequence holy {
       target: layouts.main.wreath_2,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_67,
@@ -13202,7 +13768,10 @@ Sequence holy {
       target: layouts.main.front_door,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_68,
@@ -13213,7 +13782,10 @@ Sequence holy {
       target: layouts.main.right_magnolia,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_69,
@@ -13224,7 +13796,10 @@ Sequence holy {
       target: layouts.main.right_roof,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.0888, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.0888, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_70,
@@ -13235,7 +13810,10 @@ Sequence holy {
       target: layouts.main.left_magnolia,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_71,
@@ -13246,7 +13824,10 @@ Sequence holy {
       target: layouts.main.wreath_3,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_72,
@@ -13257,7 +13838,10 @@ Sequence holy {
       target: layouts.main.tree_rf,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_73,
@@ -13268,7 +13852,10 @@ Sequence holy {
       target: layouts.main.fran_window,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.1602, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_74,
@@ -13279,7 +13866,10 @@ Sequence holy {
       target: layouts.main.tree_lf,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 0.0), (0.042, 1.0), (1.0, 1.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.042, 1.0), (1.0, 1.0)] },
+      },
     },
     Clip {
       name: pulse_75,
@@ -13291,8 +13881,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
-        gradient: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -13305,8 +13895,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
-        gradient: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -13319,8 +13909,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
-        gradient: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -13333,8 +13923,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
-        gradient: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -13347,8 +13937,8 @@ Sequence holy {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
-        gradient: [(0.0, #ffffff)],
-        pulse_shape: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)],
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.0053), (0.4989, 1.0), (1.0, 0.0)] },
       },
     },
     Clip {
@@ -13360,7 +13950,10 @@ Sequence holy {
       target: layouts.main.fletch_peak,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_81,
@@ -13371,7 +13964,10 @@ Sequence holy {
       target: layouts.main.windows,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_82,
@@ -13382,7 +13978,10 @@ Sequence holy {
       target: layouts.main.above_door,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_83,
@@ -13393,7 +13992,10 @@ Sequence holy {
       target: layouts.main.garage,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_84,
@@ -13404,7 +14006,10 @@ Sequence holy {
       target: layouts.main.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_85,
@@ -13415,7 +14020,10 @@ Sequence holy {
       target: layouts.main.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_86,
@@ -13426,7 +14034,10 @@ Sequence holy {
       target: layouts.main.wreath_1,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_87,
@@ -13437,7 +14048,10 @@ Sequence holy {
       target: layouts.main.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_88,
@@ -13448,7 +14062,10 @@ Sequence holy {
       target: layouts.main.inside_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_89,
@@ -13459,7 +14076,10 @@ Sequence holy {
       target: layouts.main.middle_roof,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_90,
@@ -13470,7 +14090,10 @@ Sequence holy {
       target: layouts.main.tree_rb,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_91,
@@ -13481,7 +14104,10 @@ Sequence holy {
       target: layouts.main.left_roof,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_92,
@@ -13492,7 +14118,10 @@ Sequence holy {
       target: layouts.main.above_garage,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_93,
@@ -13503,7 +14132,10 @@ Sequence holy {
       target: layouts.main.fran_wreath,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_94,
@@ -13514,7 +14146,10 @@ Sequence holy {
       target: layouts.main.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_95,
@@ -13525,7 +14160,10 @@ Sequence holy {
       target: layouts.main.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_96,
@@ -13536,7 +14174,10 @@ Sequence holy {
       target: layouts.main.tree_lb,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_97,
@@ -13547,7 +14188,10 @@ Sequence holy {
       target: layouts.main.wreath_2,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_98,
@@ -13558,7 +14202,10 @@ Sequence holy {
       target: layouts.main.front_door,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_99,
@@ -13569,7 +14216,10 @@ Sequence holy {
       target: layouts.main.right_magnolia,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_100,
@@ -13580,7 +14230,10 @@ Sequence holy {
       target: layouts.main.right_roof,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_101,
@@ -13591,7 +14244,10 @@ Sequence holy {
       target: layouts.main.left_magnolia,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_102,
@@ -13602,7 +14258,10 @@ Sequence holy {
       target: layouts.main.wreath_3,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_103,
@@ -13613,7 +14272,10 @@ Sequence holy {
       target: layouts.main.nativity,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 0.5009), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 0.5009), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_104,
@@ -13624,7 +14286,10 @@ Sequence holy {
       target: layouts.main.radio_sign,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_105,
@@ -13635,7 +14300,10 @@ Sequence holy {
       target: layouts.main.tree_rf,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_106,
@@ -13646,7 +14314,10 @@ Sequence holy {
       target: layouts.main.fran_window,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
     Clip {
       name: pulse_107,
@@ -13657,7 +14328,10 @@ Sequence holy {
       target: layouts.main.tree_lf,
       scope: WholeTarget,
       effect: effects.Pulse,
-      params: { gradient: [(0.0, #0000ff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+      params: {
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
     },
   ],
   graph: Graph {
@@ -13683,7 +14357,7 @@ Sequence holy {
       row: layouts.main.arch_tunnel,
       start: 20.353s,
       duration: 6.145s,
-      curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
+      curve: Curve { points: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)] },
       bindings: [
         Bound { binding: ClipParam { clip: clip_66, param: intensity }, window: (0.0, 1.0) },
       ],
@@ -13693,7 +14367,7 @@ Sequence holy {
       row: layouts.main.garage_matrix,
       start: 20.353s,
       duration: 6.145s,
-      curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
+      curve: Curve { points: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)] },
       bindings: [
         Bound { binding: ClipParam { clip: clip_67, param: intensity }, window: (0.0, 1.0) },
       ],
@@ -13703,7 +14377,7 @@ Sequence holy {
       row: layouts.main.mega_tree,
       start: 20.353s,
       duration: 6.145s,
-      curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
+      curve: Curve { points: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)] },
       bindings: [
         Bound { binding: ClipParam { clip: clip_68, param: intensity }, window: (0.0, 1.0) },
       ],
@@ -13713,7 +14387,7 @@ Sequence holy {
       row: layouts.main.neighbor_trees,
       start: 20.353s,
       duration: 6.145s,
-      curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
+      curve: Curve { points: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)] },
       bindings: [
         Bound { binding: ClipParam { clip: clip_69, param: intensity }, window: (0.0, 1.0) },
       ],
@@ -13723,7 +14397,7 @@ Sequence holy {
       row: layouts.main.star_points,
       start: 20.353s,
       duration: 6.145s,
-      curve: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)],
+      curve: Curve { points: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)] },
       bindings: [
         Bound { binding: ClipParam { clip: clip_70, param: intensity }, window: (0.0, 1.0) },
       ],
@@ -13733,7 +14407,7 @@ Sequence holy {
       row: layouts.main.garage_matrix,
       start: 99.46875s,
       duration: 7.99675s,
-      curve: [(0.0, 0.5438), (1.0, 0.7613)],
+      curve: Curve { points: [(0.0, 0.5438), (1.0, 0.7613)] },
       bindings: [
         Bound { binding: ClipParam { clip: pin_wheel_1, param: thickness }, window: (0.0, 1.0) },
       ],
@@ -13743,7 +14417,7 @@ Sequence holy {
       row: layouts.main.nativity,
       start: 103.053s,
       duration: 2s,
-      curve: [(0.0, 0.443), (1.0, 0.8116)],
+      curve: Curve { points: [(0.0, 0.443), (1.0, 0.8116)] },
       bindings: [
         Bound { binding: ClipParam { clip: pin_wheel_2, param: thickness }, window: (0.0, 1.0) },
       ],
@@ -13753,7 +14427,7 @@ Sequence holy {
       row: layouts.main.garage_matrix,
       start: 108.40625s,
       duration: 8.5905s,
-      curve: [(0.0, 0.5941), (1.0, 0.9742)],
+      curve: Curve { points: [(0.0, 0.5941), (1.0, 0.9742)] },
       bindings: [
         Bound { binding: ClipParam { clip: pin_wheel_3, param: thickness }, window: (0.0, 1.0) },
       ],
