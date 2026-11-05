@@ -266,8 +266,8 @@ fixture transforms.
   follows IEEE 754 arithmetic. Color `+` adds, `*` of two colors multiplies
   channels, and `*` with a number scales. Authored hex colors are 8-bit per
   channel (`#ff8000` is 1, 0.502, 0). Only output to controllers converts:
-  each channel is clamped to 0..1 and becomes a byte through the port's gamma
-  table, so NaN and negative light are off. Hue is measured in turns and `hsv` wraps it in both directions.
+  each channel is clamped to 0..1 and becomes a byte through the route's gamma
+  and brightness, rounded or dithered, so NaN and negative light are off. Hue is measured in turns and `hsv` wraps it in both directions.
   `intensity` is HSV value (the maximum channel); grayscale colors have hue and
   saturation zero.
 

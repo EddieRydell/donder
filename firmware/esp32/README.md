@@ -33,7 +33,7 @@ Every build has access point or station networking, mDNS discovery,
 Wi-Fi upload and continuous four-output WS281x playback on the second core, on
 the reference-board pins. The only feature is:
 
-- `dig-quad`: QuinLED Dig-Quad pins and a 25/255 brightness cap.
+- `dig-quad`: QuinLED Dig-Quad pins.
 
 From the repository root:
 

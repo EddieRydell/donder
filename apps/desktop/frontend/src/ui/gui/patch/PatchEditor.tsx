@@ -36,7 +36,7 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
       id: Math.max(0, ...draft.routes.map((route) => route.id)) + 1,
       layout: layout.sourceRef, fixture: fixture.id, pixels: null,
       controller: controller.sourceRef, port: port.id, startSlot: 0,
-      encoding: { type: "rgb", order: [...RGB_ORDER] }, gamma: 1, brightness: 1
+      encoding: { type: "rgb", order: [...RGB_ORDER] }, gamma: 1, brightness: 1, dither: false
     }] });
   };
   const disabled = pending || stale;
@@ -117,5 +117,8 @@ function RouteFields({ document, route, disabled, onChange }: { document: PatchG
     </Field>)}
     <Field label="Gamma"><NumberField name="Gamma" value={route.gamma} step={0.1} min={0.01} defaultValue={1} disabled={disabled} onCommit={(gamma) => { onChange({ ...route, gamma }); }} /></Field>
     <Field label="Brightness"><NumberField name="Brightness" value={route.brightness} step={0.01} min={0} max={1} defaultValue={1} disabled={disabled} onCommit={(brightness) => { onChange({ ...route, brightness }); }} /></Field>
+    <Field label="Dither" tip="Vary each channel over frames so dim levels keep their color; for outputs that receive every frame">
+      <Toggle name="Dither" checked={route.dither} disabled={disabled} onChange={(dither) => { onChange({ ...route, dither }); }} />
+    </Field>
   </div>;
 }

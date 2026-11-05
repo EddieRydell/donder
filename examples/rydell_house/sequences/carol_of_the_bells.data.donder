@@ -72468,7 +72468,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -72546,7 +72545,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -74047,7 +74045,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -74125,7 +74122,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -75264,7 +75260,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -75321,7 +75316,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -75638,7 +75632,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -75695,7 +75688,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -83633,7 +83625,6 @@ Sequence carol_of_the_bells {
         particle_fade: 50,
         intensity: 100.0,
         random_seed: 10309.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -83652,7 +83643,6 @@ Sequence carol_of_the_bells {
         hue_shift: Curve { points: [(0.0, 59.0), (1.0, 59.0)] },
         intensity: 100.0,
         random_seed: 76971.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83809,7 +83799,6 @@ Sequence carol_of_the_bells {
         particle_fade: 50,
         intensity: 100.0,
         random_seed: 74204.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -83828,7 +83817,6 @@ Sequence carol_of_the_bells {
         hue_shift: Curve { points: [(0.0, 59.0), (1.0, 59.0)] },
         intensity: 100.0,
         random_seed: 92590.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -84028,7 +84016,6 @@ Sequence carol_of_the_bells {
         hue_shift: Curve { points: [(0.0, 59.0), (1.0, 59.0)] },
         intensity: 100.0,
         random_seed: 37597.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -84057,7 +84044,6 @@ Sequence carol_of_the_bells {
         particle_fade: 50,
         intensity: 100.0,
         random_seed: 19232.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -84141,7 +84127,6 @@ Sequence carol_of_the_bells {
         particle_fade: 50,
         intensity: 100.0,
         random_seed: 18455.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -84160,7 +84145,6 @@ Sequence carol_of_the_bells {
         hue_shift: Curve { points: [(0.0, 59.0), (1.0, 59.0)] },
         intensity: 100.0,
         random_seed: 24637.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87147,7 +87131,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 35,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87198,7 +87181,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 54,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87246,7 +87228,6 @@ Sequence carol_of_the_bells {
         intensity: 100.0,
         random_seed: 379340.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87381,7 +87362,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 100,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87429,7 +87409,6 @@ Sequence carol_of_the_bells {
         intensity: 100.0,
         random_seed: 889494.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87480,7 +87459,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 100,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87531,7 +87509,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 27,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87582,7 +87559,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 46,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87633,7 +87609,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 35,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87684,7 +87659,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 30,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87735,7 +87709,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 34,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87786,7 +87759,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 54,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87941,7 +87913,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 100,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -87992,7 +87963,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 27,
         string_length: 16,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88043,7 +88013,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88094,7 +88063,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 400,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88145,7 +88113,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 2,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88196,7 +88163,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 29,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88247,7 +88213,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 35,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88298,7 +88263,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 95,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88349,7 +88313,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 39,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88548,7 +88511,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 140,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88596,7 +88558,6 @@ Sequence carol_of_the_bells {
         intensity: 100.0,
         random_seed: 59792.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88647,7 +88608,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 400,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88698,7 +88658,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 200,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88749,7 +88708,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 200,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88800,7 +88758,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 28,
         string_length: 16,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88848,7 +88805,6 @@ Sequence carol_of_the_bells {
         intensity: 100.0,
         random_seed: 992851.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88899,7 +88855,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 400,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88950,7 +88905,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89001,7 +88955,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 27,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89052,7 +89005,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 35,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89103,7 +89055,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 68,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89154,7 +89105,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 83,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89205,7 +89155,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89256,7 +89205,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 29,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89307,7 +89255,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 24,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89358,7 +89305,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 48,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89409,7 +89355,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 21,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89460,7 +89405,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89563,7 +89507,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 4,
         string_length: 200,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89614,7 +89557,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89665,7 +89607,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89716,7 +89657,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89767,7 +89707,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89818,7 +89757,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 1,
         string_length: 47,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89866,7 +89804,6 @@ Sequence carol_of_the_bells {
         intensity: 100.0,
         random_seed: 344016.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89917,7 +89854,6 @@ Sequence carol_of_the_bells {
         orientation: Vertical,
         string_count: 6,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95616,7 +95552,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -95718,7 +95653,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -95870,7 +95804,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -95972,7 +95905,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -99367,7 +99299,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99420,7 +99351,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99451,7 +99381,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99482,7 +99411,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99513,7 +99441,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99564,7 +99491,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99617,7 +99543,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99690,7 +99615,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99721,7 +99645,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99752,7 +99675,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99783,7 +99705,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99834,7 +99755,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99887,7 +99807,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99918,7 +99837,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -99949,7 +99867,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100002,7 +99919,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100033,7 +99949,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100064,7 +99979,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100095,7 +100009,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100126,7 +100039,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100157,7 +100069,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100188,7 +100099,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100219,7 +100129,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100250,7 +100159,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100281,7 +100189,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100332,7 +100239,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100363,7 +100269,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100442,7 +100347,6 @@ Sequence carol_of_the_bells {
         speed: 10.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100506,7 +100410,6 @@ Sequence carol_of_the_bells {
         speed: 10.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100684,7 +100587,6 @@ Sequence carol_of_the_bells {
         speed: 10.0,
         line_density: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -100748,7 +100650,6 @@ Sequence carol_of_the_bells {
         speed: 10.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -104276,7 +104177,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104355,7 +104255,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104413,7 +104312,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104492,7 +104390,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104545,7 +104442,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -104624,7 +104520,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104683,7 +104578,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104741,7 +104635,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104799,7 +104692,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -104852,7 +104744,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -104904,7 +104795,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -104953,7 +104843,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105022,7 +104911,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105111,7 +104999,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105180,7 +105067,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105229,7 +105115,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105276,7 +105161,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105345,7 +105229,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105372,7 +105255,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105399,7 +105281,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105426,7 +105307,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105453,7 +105333,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105480,7 +105359,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105507,7 +105385,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105534,7 +105411,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105562,7 +105438,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105590,7 +105465,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105618,7 +105492,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105646,7 +105519,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105674,7 +105546,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105702,7 +105573,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105730,7 +105600,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105758,7 +105627,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105786,7 +105654,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105814,7 +105681,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105842,7 +105708,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105870,7 +105735,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105898,7 +105762,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105926,7 +105789,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105954,7 +105816,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -105982,7 +105843,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -106010,7 +105870,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -106038,7 +105897,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -106066,7 +105924,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -106094,7 +105951,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -106122,7 +105978,6 @@ Sequence carol_of_the_bells {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -106325,7 +106180,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -106381,7 +106235,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -107161,7 +107014,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -107217,7 +107069,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -109490,7 +109341,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -109546,7 +109396,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -109730,7 +109579,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -109786,7 +109634,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -114466,7 +114313,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -114546,7 +114392,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -114578,7 +114423,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114678,7 +114522,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -114737,7 +114580,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -114790,7 +114632,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114842,7 +114683,6 @@ Sequence carol_of_the_bells {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114862,7 +114702,6 @@ Sequence carol_of_the_bells {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114882,7 +114721,6 @@ Sequence carol_of_the_bells {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114902,7 +114740,6 @@ Sequence carol_of_the_bells {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114922,7 +114759,6 @@ Sequence carol_of_the_bells {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114942,7 +114778,6 @@ Sequence carol_of_the_bells {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114962,7 +114797,6 @@ Sequence carol_of_the_bells {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -114982,7 +114816,6 @@ Sequence carol_of_the_bells {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -115090,7 +114923,6 @@ Sequence carol_of_the_bells {
         speed: 10.0,
         line_density: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -115198,7 +115030,6 @@ Sequence carol_of_the_bells {
         speed: 10.0,
         line_density: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -115248,7 +115079,6 @@ Sequence carol_of_the_bells {
         speed: 10.0,
         line_density: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -119357,7 +119187,6 @@ Sequence carol_of_the_bells {
         particle_fade: 86,
         intensity: 100.0,
         random_seed: 46268.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -119415,7 +119244,6 @@ Sequence carol_of_the_bells {
         particle_fade: 86,
         intensity: 100.0,
         random_seed: 27363.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -168505,7 +168333,6 @@ Sequence carol_of_the_bells {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },

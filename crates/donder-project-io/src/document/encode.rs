@@ -357,6 +357,7 @@ impl Encoder<'_> {
                         },
                         gamma: route.gamma,
                         brightness: route.brightness,
+                        dither: route.dither,
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,

@@ -375,7 +375,13 @@ pub(super) fn build(
         builder.fixture(0, geometry.clone());
         let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
-        builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
+        builder.route(
+            port,
+            target,
+            OutputEncoding::Rgb(RgbOrder::Grb),
+            None,
+            false,
+        );
         build(builder, target)
     })
 }

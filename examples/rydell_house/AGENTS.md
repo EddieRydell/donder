@@ -130,9 +130,10 @@ say why.
 
 `effects/vixen.donder` holds approximate ports of Vixen 3 effects for shows
 converted from Vixen. They keep Vixen's parameter names and scales, so curves
-use percentage values `0..100`, and pixel effects work on a grid of one cell per
-`pixel_size` layout units. They look close to Vixen's effects, not identical.
-Read a definition's comment before using it.
+use percentage values `0..100`, and pixel effects work on each pixel's exact
+position, stretched around the target's center by `scale_x` and `scale_y`.
+They look close to Vixen's effects, not identical. Read a definition's comment
+before using it.
 
 ## Checking the show
 

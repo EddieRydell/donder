@@ -431,6 +431,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
   ],
 }
@@ -438,7 +439,10 @@ Patch outputs {
 
 - `Route`: `target` (a fixture; groups are not routed), `pixels`, `controller`,
   `port` (a port of that controller), `start_slot`, `encoding`, `gamma`,
-  `brightness`.
+  `brightness`, `dither`.
+- `dither: true` varies each byte over an eight-frame cycle so it averages to
+  the exact level, keeping dim colors' hue. It suits outputs that receive every
+  frame at a high rate; at a long FSEQ step the cycle shows as flicker.
 - `pixels` is `PixelSpan { start, count }`, or `none` to route the whole target,
   including later pixel-count edits.
 - `encoding` is `Rgb { order: (r, g, b) }` or `Rgbw { order: (r, g, b, w) }`,

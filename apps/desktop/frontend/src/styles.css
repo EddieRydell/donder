@@ -4049,6 +4049,7 @@ button.status-chip:hover {
 }
 
 .kit-status-error { color: var(--donder-danger); font-size: var(--donder-font-size-sm); }
+.kit-status-warning { color: var(--donder-warning); font-size: var(--donder-font-size-sm); }
 
 .kit-path-list { display: grid; gap: var(--donder-space-2); margin: 0; padding: 0; color: var(--donder-text-muted); font-family: var(--donder-font-code); font-size: var(--donder-font-size-sm); list-style: none; }
 

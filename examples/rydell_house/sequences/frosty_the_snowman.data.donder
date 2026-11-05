@@ -357,7 +357,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -381,7 +380,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -405,7 +403,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -555,7 +552,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -579,7 +575,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -603,7 +598,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -753,7 +747,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -777,7 +770,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -801,7 +793,6 @@ Sequence frosty_the_snowman {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -822,7 +813,6 @@ Sequence frosty_the_snowman {
         iterations: 1,
         swag: 1,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -843,7 +833,6 @@ Sequence frosty_the_snowman {
         iterations: 1,
         swag: 1,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -864,7 +853,6 @@ Sequence frosty_the_snowman {
         iterations: 1,
         swag: 1,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1011,7 +999,6 @@ Sequence frosty_the_snowman {
         iterations: 1,
         swag: 1,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1032,7 +1019,6 @@ Sequence frosty_the_snowman {
         iterations: 1,
         swag: 1,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1053,7 +1039,6 @@ Sequence frosty_the_snowman {
         iterations: 1,
         swag: 1,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2510,7 +2495,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2533,7 +2517,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2556,7 +2539,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2579,7 +2561,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2602,7 +2583,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2625,7 +2605,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2648,7 +2627,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2671,7 +2649,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2694,7 +2671,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2717,7 +2693,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2740,7 +2715,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2763,7 +2737,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2786,7 +2759,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2809,7 +2781,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2832,7 +2803,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2855,7 +2825,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2878,7 +2847,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2901,7 +2869,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2924,7 +2891,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2947,7 +2913,6 @@ Sequence frosty_the_snowman {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3394,7 +3359,6 @@ Sequence frosty_the_snowman {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3427,7 +3391,6 @@ Sequence frosty_the_snowman {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6336,7 +6299,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6360,7 +6322,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6384,7 +6345,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6408,7 +6368,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6432,7 +6391,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6456,7 +6414,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6480,7 +6437,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6504,7 +6460,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6528,7 +6483,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6552,7 +6506,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6576,7 +6529,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6600,7 +6552,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6624,7 +6575,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6648,7 +6598,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6672,7 +6621,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6696,7 +6644,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6720,7 +6667,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6744,7 +6690,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6768,7 +6713,6 @@ Sequence frosty_the_snowman {
         highlight: true,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {

@@ -15,6 +15,8 @@ pub struct SequenceExportOptions {
     pub ports: Vec<SequenceExportPort>,
     /// The whole-millisecond FSEQ step closest to the authored frame rate.
     pub fseq_step_millis: u8,
+    /// The longest FSEQ step that plays as smoothly as live output.
+    pub fseq_smooth_step_millis: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]

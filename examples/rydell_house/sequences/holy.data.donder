@@ -1508,7 +1508,6 @@ Sequence holy {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1535,7 +1534,6 @@ Sequence holy {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1562,7 +1560,6 @@ Sequence holy {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1589,7 +1586,6 @@ Sequence holy {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1616,7 +1612,6 @@ Sequence holy {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2674,7 +2669,6 @@ Sequence holy {
         highlight: true,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2697,7 +2691,6 @@ Sequence holy {
         highlight: true,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2720,7 +2713,6 @@ Sequence holy {
         highlight: true,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2743,7 +2735,6 @@ Sequence holy {
         highlight: true,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2766,7 +2757,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2859,7 +2849,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 16,
         string_length: 250,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2883,7 +2872,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2907,7 +2895,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2931,7 +2918,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 6,
         string_length: 100,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2952,7 +2938,6 @@ Sequence holy {
         tail_length: 13.0,
         random_seed: 911110.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3003,7 +2988,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 16,
         string_length: 250,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3031,7 +3015,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3056,7 +3039,6 @@ Sequence holy {
         tail_length: 28.0,
         random_seed: 80824.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3084,7 +3066,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3112,7 +3093,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 6,
         string_length: 100,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3137,7 +3117,6 @@ Sequence holy {
         tail_length: 28.0,
         random_seed: 988014.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3165,7 +3144,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 400,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3193,7 +3171,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 28,
         string_length: 16,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3221,7 +3198,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 27,
         string_length: 16,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3290,7 +3266,6 @@ Sequence holy {
         tail_length: 28.0,
         random_seed: 345514.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3315,7 +3290,6 @@ Sequence holy {
         tail_length: 28.0,
         random_seed: 875123.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3340,7 +3314,6 @@ Sequence holy {
         tail_length: 28.0,
         random_seed: 964335.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3704,7 +3677,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3724,7 +3696,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3744,7 +3715,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3802,7 +3772,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3822,7 +3791,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3842,7 +3810,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3862,7 +3829,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5204,7 +5170,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5224,7 +5189,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5244,7 +5208,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5416,7 +5379,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5436,7 +5398,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5456,7 +5417,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5504,7 +5464,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5725,7 +5684,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6553,7 +6511,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6573,7 +6530,6 @@ Sequence holy {
         iterations: 16,
         background_chunks: 3,
         background_skips: 2,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6608,7 +6564,6 @@ Sequence holy {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -6629,7 +6584,6 @@ Sequence holy {
         iterations: 16,
         background_chunks: 3,
         background_skips: 2,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6649,7 +6603,6 @@ Sequence holy {
         iterations: 13,
         background_chunks: 3,
         background_skips: 2,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6669,7 +6622,6 @@ Sequence holy {
         iterations: 13,
         background_chunks: 3,
         background_skips: 2,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6689,7 +6641,6 @@ Sequence holy {
         iterations: 13,
         background_chunks: 3,
         background_skips: 2,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6752,7 +6703,6 @@ Sequence holy {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -6907,7 +6857,6 @@ Sequence holy {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -7036,7 +6985,6 @@ Sequence holy {
         highlight: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7140,7 +7088,6 @@ Sequence holy {
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7157,7 +7104,6 @@ Sequence holy {
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7174,7 +7120,6 @@ Sequence holy {
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7191,7 +7136,6 @@ Sequence holy {
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7208,7 +7152,6 @@ Sequence holy {
         garland_type: Type1,
         iterations: 11,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7562,7 +7505,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 152241.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7586,7 +7528,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 481195.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7610,7 +7551,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 689817.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7634,7 +7574,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 5698.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7658,7 +7597,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 934830.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7682,7 +7620,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 770554.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7706,7 +7643,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 273329.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7730,7 +7666,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 318305.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7754,7 +7689,6 @@ Sequence holy {
         flake_type: Three,
         count: 4.0,
         random_seed: 432533.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8063,7 +7997,6 @@ Sequence holy {
         particle_fade: 58,
         intensity: 100.0,
         random_seed: 8116.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -8184,7 +8117,6 @@ Sequence holy {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8208,7 +8140,6 @@ Sequence holy {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8232,7 +8163,6 @@ Sequence holy {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8256,7 +8186,6 @@ Sequence holy {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8359,7 +8288,6 @@ Sequence holy {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11201,7 +11129,6 @@ Sequence holy {
         particles: 54,
         particle_fade: 74,
         random_seed: 925213.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -11224,7 +11151,6 @@ Sequence holy {
         particles: 54,
         particle_fade: 74,
         random_seed: 286761.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -11247,7 +11173,6 @@ Sequence holy {
         particles: 54,
         particle_fade: 74,
         random_seed: 561525.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -11270,7 +11195,6 @@ Sequence holy {
         particles: 54,
         particle_fade: 74,
         random_seed: 584924.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -11293,7 +11217,6 @@ Sequence holy {
         particles: 54,
         particle_fade: 74,
         random_seed: 462252.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -11907,7 +11830,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11931,7 +11853,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11955,7 +11876,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11979,7 +11899,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12003,7 +11922,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12027,7 +11945,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12051,7 +11968,6 @@ Sequence holy {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12078,7 +11994,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 16,
         string_length: 250,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12105,7 +12020,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12132,7 +12046,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12159,7 +12072,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 6,
         string_length: 100,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12183,7 +12095,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 828344.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12210,7 +12121,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 27,
         string_length: 16,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12237,7 +12147,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 400,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12264,7 +12173,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 28,
         string_length: 16,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12291,7 +12199,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 100,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12318,7 +12225,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 150,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12342,7 +12248,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 53977.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12369,7 +12274,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 46,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12396,7 +12300,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 83,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12442,7 +12345,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 379131.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12466,7 +12368,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 671635.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12493,7 +12394,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 46,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12517,7 +12417,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 282797.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12544,7 +12443,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 83,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12568,7 +12466,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 268345.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12592,7 +12489,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 777796.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12638,7 +12534,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 547932.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12662,7 +12557,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 443510.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12686,7 +12580,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 974930.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12713,7 +12606,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12737,7 +12629,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 906638.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12764,7 +12655,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 167,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12791,7 +12681,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12818,7 +12707,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 400,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12845,7 +12733,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12872,7 +12759,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 150,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12899,7 +12785,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 300,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12926,7 +12811,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 400,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12953,7 +12837,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12980,7 +12863,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13007,7 +12889,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13034,7 +12915,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 2,
         string_length: 25,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13061,7 +12941,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 47,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13088,7 +12967,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13115,7 +12993,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13142,7 +13019,6 @@ Sequence holy {
         orientation: Vertical,
         string_count: 1,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13166,7 +13042,6 @@ Sequence holy {
         thickness: 60.0,
         blend: false,
         show_3d: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13190,7 +13065,6 @@ Sequence holy {
         thickness: 60.0,
         blend: false,
         show_3d: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13214,7 +13088,6 @@ Sequence holy {
         thickness: 60.0,
         blend: false,
         show_3d: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13238,7 +13111,6 @@ Sequence holy {
         thickness: 60.0,
         blend: false,
         show_3d: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13262,7 +13134,6 @@ Sequence holy {
         thickness: 60.0,
         blend: false,
         show_3d: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13308,7 +13179,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 459494.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13332,7 +13202,6 @@ Sequence holy {
         tail_length: 8.0,
         random_seed: 721805.0,
         positioning: Locations,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13352,7 +13221,6 @@ Sequence holy {
         garland_type: Type0,
         iterations: 20,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13372,7 +13240,6 @@ Sequence holy {
         garland_type: Type3,
         iterations: 20,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13392,7 +13259,6 @@ Sequence holy {
         garland_type: Type0,
         iterations: 20,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13412,7 +13278,6 @@ Sequence holy {
         garland_type: Type0,
         iterations: 20,
         spacing: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13589,7 +13454,6 @@ Sequence holy {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13612,7 +13476,6 @@ Sequence holy {
         iterations: 1,
         spacing: 10.0,
         intensity: 57.417236,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13635,7 +13498,6 @@ Sequence holy {
         iterations: 1,
         spacing: 10.0,
         intensity: 57.417236,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13658,7 +13520,6 @@ Sequence holy {
         iterations: 1,
         spacing: 10.0,
         intensity: 62.682846,
-        pixel_size: 0.05,
       },
     },
     Clip {

@@ -7714,7 +7714,6 @@ Sequence hometown_christmas {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17299,7 +17298,6 @@ Sequence hometown_christmas {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17675,7 +17673,6 @@ Sequence hometown_christmas {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20523,7 +20520,6 @@ Sequence hometown_christmas {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -22171,7 +22167,6 @@ Sequence hometown_christmas {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -23861,7 +23856,6 @@ Sequence hometown_christmas {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -26939,7 +26933,6 @@ Sequence hometown_christmas {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -27083,7 +27076,6 @@ Sequence hometown_christmas {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27534,7 +27526,6 @@ Sequence hometown_christmas {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28093,7 +28084,6 @@ Sequence hometown_christmas {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -36586,7 +36576,6 @@ Sequence hometown_christmas {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -61296,7 +61285,6 @@ Sequence hometown_christmas {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {

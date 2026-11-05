@@ -8867,7 +8867,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -8950,7 +8949,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21175,7 +21173,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21263,7 +21260,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -43755,7 +43751,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -43825,7 +43820,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -56136,7 +56130,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -56227,7 +56220,6 @@ Sequence jing_jing_jing {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -87265,7 +87257,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -88205,7 +88196,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89145,7 +89135,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -90084,7 +90073,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -91023,7 +91011,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -91963,7 +91950,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -92902,7 +92888,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -93841,7 +93826,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -94780,7 +94764,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95720,7 +95703,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -96660,7 +96642,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -97599,7 +97580,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -98539,7 +98519,6 @@ Sequence jing_jing_jing {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {

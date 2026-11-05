@@ -506,7 +506,6 @@ Sequence ira {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -530,7 +529,6 @@ Sequence ira {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -554,7 +552,6 @@ Sequence ira {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -578,7 +575,6 @@ Sequence ira {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -602,7 +598,6 @@ Sequence ira {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -626,7 +621,6 @@ Sequence ira {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -714,7 +708,6 @@ Sequence ira {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {

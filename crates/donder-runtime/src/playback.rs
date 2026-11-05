@@ -91,7 +91,7 @@ fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize
     };
     *workspace.frame = [frame, 1];
     let buffer = evaluate_frame(show, workspace, time, frames_elapsed);
-    crate::patch::evaluate(show, workspace.buffers[buffer], workspace.outputs);
+    crate::patch::evaluate(show, workspace.buffers[buffer], workspace.outputs, frame);
     buffer
 }
 

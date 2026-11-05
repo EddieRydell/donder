@@ -1342,7 +1342,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1369,7 +1368,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1396,7 +1394,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1423,7 +1420,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1518,7 +1514,6 @@ Sequence here_comes_the_sun {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2771,7 +2766,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -2954,7 +2948,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -3120,7 +3113,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -3473,7 +3465,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -3802,7 +3793,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -6213,7 +6203,6 @@ Sequence here_comes_the_sun {
         particle_fade: 30,
         intensity: 100.0,
         random_seed: 47814.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -6246,7 +6235,6 @@ Sequence here_comes_the_sun {
         particle_fade: 30,
         intensity: 100.0,
         random_seed: 70192.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -9298,7 +9286,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -9412,7 +9399,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -9505,7 +9491,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -9598,7 +9583,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -9780,7 +9764,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -9818,7 +9801,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -9855,7 +9837,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -9892,7 +9873,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -9915,7 +9895,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -9952,7 +9931,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10003,7 +9981,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10040,7 +10017,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10077,7 +10053,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10114,7 +10089,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10151,7 +10125,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10174,7 +10147,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10211,7 +10183,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10248,7 +10219,6 @@ Sequence here_comes_the_sun {
         speed: 10.0,
         line_density: 3.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11942,7 +11912,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14312,7 +14281,6 @@ Sequence here_comes_the_sun {
         particle_fade: 30,
         intensity: 100.0,
         random_seed: 73503.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -14345,7 +14313,6 @@ Sequence here_comes_the_sun {
         particle_fade: 30,
         intensity: 100.0,
         random_seed: 95881.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -19621,7 +19588,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -19731,7 +19697,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -19821,7 +19786,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -19911,7 +19875,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -20121,7 +20084,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -23094,7 +23056,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23206,7 +23167,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29102,7 +29062,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29129,7 +29088,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31236,7 +31194,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31263,7 +31220,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -33370,7 +33326,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -33397,7 +33352,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -34420,7 +34374,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38147,7 +38100,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38174,7 +38126,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38201,7 +38152,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38228,7 +38178,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -40335,7 +40284,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -40362,7 +40310,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -43465,7 +43412,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -47132,7 +47078,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -47159,7 +47104,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -49266,7 +49210,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -49293,7 +49236,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -51400,7 +51342,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -51427,7 +51368,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -52450,7 +52390,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -56357,7 +56296,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -56384,7 +56322,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -56411,7 +56348,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -56438,7 +56374,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -58545,7 +58480,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -58572,7 +58506,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -61675,7 +61608,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -65582,7 +65514,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -65609,7 +65540,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -67716,7 +67646,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -67743,7 +67672,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -69850,7 +69778,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -69877,7 +69804,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -70900,7 +70826,6 @@ Sequence here_comes_the_sun {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -74754,7 +74679,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -74778,7 +74702,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75828,7 +75751,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75852,7 +75774,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75876,7 +75797,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75900,7 +75820,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75924,7 +75843,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75948,7 +75866,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75972,7 +75889,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -75996,7 +75912,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76020,7 +75935,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76044,7 +75958,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76068,7 +75981,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76092,7 +76004,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76116,7 +76027,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76140,7 +76050,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76164,7 +76073,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76188,7 +76096,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76212,7 +76119,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76236,7 +76142,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76260,7 +76165,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76284,7 +76188,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76308,7 +76211,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76332,7 +76234,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76356,7 +76257,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76380,7 +76280,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76404,7 +76303,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76428,7 +76326,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76452,7 +76349,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76476,7 +76372,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -76500,7 +76395,6 @@ Sequence here_comes_the_sun {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78117,7 +78011,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78958,7 +78851,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79205,7 +79097,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79372,7 +79263,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80173,7 +80063,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80240,7 +80129,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80447,7 +80335,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80554,7 +80441,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81356,7 +81242,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81509,7 +81394,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81538,7 +81422,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -81652,7 +81535,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -81745,7 +81627,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -81838,7 +81719,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -82020,7 +81900,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -82062,7 +81941,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82903,7 +82781,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83150,7 +83027,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83317,7 +83193,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83344,7 +83219,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -84185,7 +84059,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -84392,7 +84265,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -84419,7 +84291,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -85220,7 +85091,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -85367,7 +85237,6 @@ Sequence here_comes_the_sun {
         acceleration: StrongOut,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -85396,7 +85265,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -85506,7 +85374,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -85596,7 +85463,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -85686,7 +85552,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -85896,7 +85761,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -85919,7 +85783,6 @@ Sequence here_comes_the_sun {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -86762,7 +86625,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -86843,7 +86705,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -86941,7 +86802,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -87107,7 +86967,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -87374,7 +87233,6 @@ Sequence here_comes_the_sun {
         offset_percentage: true,
         blade_type: ThreeD,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -87404,7 +87262,6 @@ Sequence here_comes_the_sun {
         blend: true,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {

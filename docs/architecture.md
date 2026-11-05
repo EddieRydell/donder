@@ -171,8 +171,8 @@ fail and does not allocate. The VM and record layouts are private to the
 runtime; callers build shows only through `ShowBuilder`'s owner-bound
 handles: one `clip` call places a bound program on a target for a while,
 `operator` and `mix` build the graph, and `route` packs a target into a
-port through an optional gamma table, which the builder writes once. Equal
-programs are written once.
+port through an optional gamma and brightness table, which the builder writes
+once. Equal programs are written once.
 
 Evaluation pushes whole frames through the signal graph. The nodes run in
 topological order, each into a frame buffer that is reused once its last
@@ -181,8 +181,12 @@ found by a binary search over its clips' start order and latest ends; an
 operator runs over every pixel and reads its inputs' frames of this frame at
 any pixel; a mix keeps each channel's maximum. A layer or operator that reads
 `previous` (at most 16) copies its frame into a state buffer once it has run,
-which it reads on the next frame. Colors are 16 bits per channel throughout;
-only packing the output bytes narrows them, through each route's gamma lookup.
+which it reads on the next frame. Colors are 32-bit floats per channel
+throughout; only packing the output bytes narrows them. Packing clamps each
+channel to 0..1 and reads it through the route's table, interpolated, as a
+level in 1/256 of a byte, then rounds it to the nearest byte or, on a dithered
+route, against a threshold that cycles over eight frames and is offset per
+pixel, so the bytes average to the exact level.
 The builder asserts the limits on frame buffers, state buffers and scans per
 program (8).
 

@@ -40,7 +40,7 @@ pub(crate) fn targets<S>(
 }
 
 /// Each selected port's routes, in slot order, with their gamma and
-/// brightness as a lookup table.
+/// brightness as a lookup table in 1/256 of a byte.
 pub(crate) fn prepare<S>(
     builder: &mut ShowBuilder<'_>,
     selected: &Selection<'_, S>,
@@ -61,15 +61,15 @@ pub(crate) fn prepare<S>(
             let encoding = selected.encodings[&route.id];
             let lookup = (route.gamma != 1.0 || route.brightness != 1.0).then(|| {
                 std::array::from_fn(|index| {
-                    ((index as f32 / 255.0).powf(route.gamma) * route.brightness * 255.0)
+                    ((index as f32 / 255.0).powf(route.gamma) * route.brightness * 255.0 * 256.0)
                         .round()
-                        .clamp(0.0, 255.0) as u8
+                        .clamp(0.0, 255.0 * 256.0) as u16
                 })
             });
             // Admission checked non-overlap and the complete port width.
             let start = usize::from(route.start_slot);
             builder.padding(output, start - cursor);
-            let count = builder.route(output, target, encoding, lookup);
+            let count = builder.route(output, target, encoding, lookup, route.dither);
             cursor = start + count * encoding.channel_count();
         }
         builder.padding(output, usize::from(port.port.slot_count) - cursor);

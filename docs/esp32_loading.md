@@ -193,8 +193,6 @@ transmits.
   - Unplug the ESP32 module from the Dig-Quad to flash firmware over USB.
   - UART0 is handed over to LED output during boot, so serial capture is
     unavailable on this board.
-  - This build caps output at 25/255 of authored values as a brightness ceiling,
-    not a current limit.
 
 Device timing and DMA completion do not show that LEDs lit. Hardware results state
 separately whether LEDs or an oscilloscope were attached.

@@ -199,7 +199,6 @@ Sequence sequence_2 {
         color_type: Normal,
         plasma_style: 3,
         line_density: 0.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -217,7 +216,6 @@ Sequence sequence_2 {
           Gradient { space: LinearRgb, stops: [(0.0, #000000), (0.253, #000000)] },
         ],
         color_type: Normal,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -238,7 +236,6 @@ Sequence sequence_2 {
         color_type: Normal,
         plasma_style: 1,
         line_density: 0.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -259,7 +256,6 @@ Sequence sequence_2 {
         color_type: Normal,
         plasma_style: 4,
         line_density: 0.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -280,7 +276,6 @@ Sequence sequence_2 {
         color_type: Normal,
         plasma_style: 3,
         line_density: 1.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -301,7 +296,6 @@ Sequence sequence_2 {
         color_type: Normal,
         plasma_style: 2,
         line_density: 0.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -323,7 +317,6 @@ Sequence sequence_2 {
         plasma_style: 3,
         speed: 6.0,
         line_density: 0.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -345,7 +338,6 @@ Sequence sequence_2 {
         plasma_style: 2,
         speed: 6.0,
         line_density: 0.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -361,7 +353,9 @@ Sequence sequence_2 {
         colors: [
           Gradient {
             space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.145, #f100ff), (0.955, #ff0000), (1.0, #000000)],
+            stops: [
+              (0.0, #ffffff), (0.145, #f100ff), (0.791, #ff0000), (0.943, #ff0000), (1.0, #000000),
+            ],
           },
           Gradient { space: LinearRgb, stops: [(0.0, #000000), (0.253, #000000)] },
           Gradient { space: LinearRgb, stops: [(0.0, #000000), (0.253, #000000)] },
@@ -370,7 +364,6 @@ Sequence sequence_2 {
         plasma_style: 1,
         speed: 6.0,
         line_density: 0.0,
-        pixel_size: 0.001,
       },
     },
     Clip {
@@ -499,6 +492,221 @@ Sequence sequence_2 {
         ],
         pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         overlap_marks: true,
+      },
+    },
+    Clip {
+      name: wipe,
+      description: none,
+      layer: default,
+      start: 354.931551651s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Hsv,
+          stops: [(0.0, #ffffff), (0.182, #0017ff), (0.529, #00ffb5)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 40.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: wipe_2,
+      description: none,
+      layer: default,
+      start: 355.102365403s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Hsv,
+          stops: [(0.0, #ffffff), (0.182, #0017ff), (0.529, #00ffb5)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 40.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: wipe_3,
+      description: none,
+      layer: default,
+      start: 356.62971884s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Oklab,
+          stops: [(0.0, #ffffff), (0.182, #ff0000), (0.529, #ff9300)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 190.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: wipe_3_2,
+      description: none,
+      layer: default,
+      start: 357.029268858s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Oklab,
+          stops: [(0.0, #ffffff), (0.182, #ff0000), (0.529, #ff9300)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 310.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: wipe_4,
+      description: none,
+      layer: default,
+      start: 361.782551089s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Hsv,
+          stops: [(0.0, #ffffff), (0.182, #ff8800), (0.529, #ff00f3)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 40.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: wipe_2_2,
+      description: none,
+      layer: default,
+      start: 361.953364841s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Hsv,
+          stops: [(0.0, #ffffff), (0.182, #ff8800), (0.529, #ff00f3)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 40.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: wipe_3_3,
+      description: none,
+      layer: default,
+      start: 363.413002263s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Oklab,
+          stops: [(0.0, #ffffff), (0.182, #00ffc0), (0.529, #0005ff)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 190.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: wipe_3_2_2,
+      description: none,
+      layer: default,
+      start: 363.846410289s,
+      duration: 1s,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Oklab,
+          stops: [(0.0, #ffffff), (0.182, #00ffc0), (0.529, #0005ff)],
+        },
+        pulse_width: 0.8,
+        direction_angle: 310.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 1.0), (0.129, 0.671), (0.276, 0.418), (0.504, 0.185), (0.732, 0.084), (1.0, 0.0),
+          ],
+        },
+        reverse: false,
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+    Clip {
+      name: vixen_butterfly,
+      description: none,
+      layer: default,
+      start: 282.090561141s,
+      duration: 9.374734524s,
+      target: layouts.main.desk_top,
+      scope: WholeTarget,
+      effect: effects_2.VixenButterfly,
+      params: {
+        color_gradient: Gradient { space: Oklab, stops: [(0.0, #9a6533), (0.39, #000000)] },
+        butterfly_type: Type5,
+        color_scheme: Gradient,
       },
     },
   ],

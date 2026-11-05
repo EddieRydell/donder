@@ -764,15 +764,18 @@ impl<'id> ShowBuilder<'id> {
         self.outputs[output.index].bytes += bytes;
     }
 
-    /// Append the target's physical pixel order, each channel byte through
-    /// `lookup` if there is one. Returns the pixels it routes. Output width and all byte spans follow from
+    /// Append the target's physical pixel order, each channel through
+    /// `lookup` if there is one: the output at each input byte, in 1/256 of a
+    /// byte. `dither` rounds the bytes against a threshold cycling over frames
+    /// instead of to the nearest. Returns the pixels it routes. Output width and all byte spans follow from
     /// storage actually reserved here, never caller-supplied offsets.
     pub fn route(
         &mut self,
         output: OutputHandle<'id>,
         target: TargetHandle<'id>,
         encoding: OutputEncoding,
-        lookup: Option<[u8; 256]>,
+        lookup: Option<[u16; 256]>,
+        dither: bool,
     ) -> usize {
         if self.targets[target.index].pixels.is_empty() {
             return 0;
@@ -819,6 +822,7 @@ impl<'id> ShowBuilder<'id> {
                 },
                 order,
                 lookup,
+                dither: u32::from(dither),
             });
             start_slot += (end - start) * channels;
         }

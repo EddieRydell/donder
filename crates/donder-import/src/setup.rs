@@ -402,6 +402,7 @@ pub(crate) fn build(
                 encoding: fixture.encoding,
                 gamma,
                 brightness,
+                dither: false,
             });
         }
         report.pixels += fixture.pixels.len();

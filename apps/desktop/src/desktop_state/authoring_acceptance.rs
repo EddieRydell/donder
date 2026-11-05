@@ -440,6 +440,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             },
             gamma: 1.0,
             brightness: 1.0,
+            dither: false,
         },
         GuiPixelRoute {
             id: 2,
@@ -452,6 +453,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             encoding: GuiPixelEncoding::Rgb { order: [1, 0, 2] },
             gamma: 1.0,
             brightness: 1.0,
+            dither: false,
         },
     ];
     state.open_file_path(&setup.patch_ref.path);

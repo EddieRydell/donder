@@ -35,6 +35,9 @@ pub struct PixelRoute {
     pub encoding: PixelEncoding,
     pub gamma: f32,
     pub brightness: f32,
+    /// Vary each byte over frames so it averages to the exact level, for
+    /// outputs that receive every frame.
+    pub dither: bool,
 }
 
 impl Patch {

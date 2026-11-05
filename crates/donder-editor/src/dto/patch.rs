@@ -42,6 +42,7 @@ pub struct GuiPixelRoute {
     pub encoding: GuiPixelEncoding,
     pub gamma: f32,
     pub brightness: f32,
+    pub dither: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

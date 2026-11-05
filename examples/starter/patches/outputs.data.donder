@@ -13,6 +13,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_02,
@@ -23,6 +24,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_03,
@@ -33,6 +35,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_04,
@@ -43,6 +46,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_05,
@@ -53,6 +57,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_06,
@@ -63,6 +68,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_07,
@@ -73,6 +79,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_08,
@@ -83,6 +90,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_09,
@@ -93,6 +101,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_10,
@@ -103,6 +112,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_11,
@@ -113,6 +123,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_12,
@@ -123,6 +134,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_13,
@@ -133,6 +145,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_14,
@@ -143,6 +156,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_15,
@@ -153,6 +167,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_16,
@@ -163,6 +178,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_17,
@@ -173,6 +189,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_18,
@@ -183,6 +200,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_19,
@@ -193,6 +211,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_20,
@@ -203,6 +222,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_21,
@@ -213,6 +233,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_22,
@@ -223,6 +244,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_23,
@@ -233,6 +255,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_24,
@@ -243,6 +266,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_25,
@@ -253,6 +277,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_26,
@@ -263,6 +288,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_27,
@@ -273,6 +299,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_28,
@@ -283,6 +310,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_29,
@@ -293,6 +321,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
     Route {
       target: layouts.outputs_layout.output_30,
@@ -303,6 +332,7 @@ Patch outputs {
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
+      dither: false,
     },
   ],
 }

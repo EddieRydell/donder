@@ -211,7 +211,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 4,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -235,7 +234,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 4,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -259,7 +257,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 4,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -970,7 +967,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6694,7 +6690,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6814,7 +6809,6 @@ Sequence rainbow {
         background_chunks: 8,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6837,7 +6831,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6861,7 +6854,6 @@ Sequence rainbow {
         background_chunks: 8,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6885,7 +6877,6 @@ Sequence rainbow {
         background_chunks: 8,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6909,7 +6900,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7029,7 +7019,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7053,7 +7042,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7077,7 +7065,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7101,7 +7088,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7189,7 +7175,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7213,7 +7198,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7237,7 +7221,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7293,7 +7276,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7317,7 +7299,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7341,7 +7322,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7365,7 +7345,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7389,7 +7368,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7413,7 +7391,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7437,7 +7414,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7461,7 +7437,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7485,7 +7460,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7509,7 +7483,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7533,7 +7506,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8172,7 +8144,6 @@ Sequence rainbow {
         iterations: 1,
         swag: 3,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8199,7 +8170,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 3,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8226,7 +8196,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 3,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8253,7 +8222,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 3,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8423,7 +8391,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8922,7 +8889,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8999,7 +8965,6 @@ Sequence rainbow {
         iterations: 1,
         swag: 3,
         intensity_per_iteration: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -9766,7 +9731,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -9933,7 +9897,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10454,7 +10417,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10477,7 +10439,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10542,7 +10503,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10593,7 +10553,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10630,7 +10589,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10681,7 +10639,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10718,7 +10675,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10783,7 +10739,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10806,7 +10761,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10857,7 +10811,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10894,7 +10847,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10917,7 +10869,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11066,7 +11017,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11159,7 +11109,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11330,7 +11279,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11436,7 +11384,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12029,7 +11976,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12052,7 +11998,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12201,7 +12146,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12224,7 +12168,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12373,7 +12316,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12396,7 +12338,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12545,7 +12486,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12568,7 +12508,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12717,7 +12656,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12740,7 +12678,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12889,7 +12826,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12912,7 +12848,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13061,7 +12996,6 @@ Sequence rainbow {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13084,7 +13018,6 @@ Sequence rainbow {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14135,7 +14068,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14158,7 +14090,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14181,7 +14112,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14204,7 +14134,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14227,7 +14156,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14250,7 +14178,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14273,7 +14200,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14296,7 +14222,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14319,7 +14244,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14342,7 +14266,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14365,7 +14288,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14388,7 +14310,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14411,7 +14332,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14434,7 +14354,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14457,7 +14376,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14480,7 +14398,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14503,7 +14420,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14526,7 +14442,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14549,7 +14464,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14572,7 +14486,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14595,7 +14508,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14618,7 +14530,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14641,7 +14552,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14664,7 +14574,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14687,7 +14596,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14710,7 +14618,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14733,7 +14640,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14756,7 +14662,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14779,7 +14684,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14802,7 +14706,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14825,7 +14728,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14848,7 +14750,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14871,7 +14772,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14894,7 +14794,6 @@ Sequence rainbow {
         highlight: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25434,7 +25333,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25458,7 +25356,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25482,7 +25379,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25506,7 +25402,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25530,7 +25425,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25554,7 +25448,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25578,7 +25471,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25602,7 +25494,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25626,7 +25517,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25650,7 +25540,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25674,7 +25563,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25698,7 +25586,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25722,7 +25609,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25746,7 +25632,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25770,7 +25655,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25794,7 +25678,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25818,7 +25701,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25842,7 +25724,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25866,7 +25747,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25890,7 +25770,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25914,7 +25793,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25938,7 +25816,6 @@ Sequence rainbow {
         background_chunks: 7,
         background_skips: 9,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25962,7 +25839,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25986,7 +25862,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26010,7 +25885,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26034,7 +25908,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26058,7 +25931,6 @@ Sequence rainbow {
         background_chunks: 7,
         background_skips: 9,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26082,7 +25954,6 @@ Sequence rainbow {
         background_chunks: 4,
         background_skips: 9,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26106,7 +25977,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26130,7 +26000,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26154,7 +26023,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26178,7 +26046,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26202,7 +26069,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26226,7 +26092,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26250,7 +26115,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26274,7 +26138,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26298,7 +26161,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26322,7 +26184,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26346,7 +26207,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26370,7 +26230,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26394,7 +26253,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26418,7 +26276,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26442,7 +26299,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26466,7 +26322,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26490,7 +26345,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26514,7 +26368,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26538,7 +26391,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26562,7 +26414,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26586,7 +26437,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26610,7 +26460,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26634,7 +26483,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26658,7 +26506,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26682,7 +26529,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26706,7 +26552,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26730,7 +26575,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26754,7 +26598,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26778,7 +26621,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26802,7 +26644,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26826,7 +26667,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26850,7 +26690,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26874,7 +26713,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26898,7 +26736,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26922,7 +26759,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26946,7 +26782,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26970,7 +26805,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26994,7 +26828,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27018,7 +26851,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27042,7 +26874,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27066,7 +26897,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27090,7 +26920,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27114,7 +26943,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27138,7 +26966,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27162,7 +26989,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27186,7 +27012,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27210,7 +27035,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27234,7 +27058,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27258,7 +27081,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27282,7 +27104,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27332,7 +27153,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27356,7 +27176,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27380,7 +27199,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27404,7 +27222,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27428,7 +27245,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27452,7 +27268,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27476,7 +27291,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27500,7 +27314,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27524,7 +27337,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27548,7 +27360,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27572,7 +27383,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27596,7 +27406,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27620,7 +27429,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27644,7 +27452,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27668,7 +27475,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27692,7 +27498,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27716,7 +27521,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27740,7 +27544,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27764,7 +27567,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27788,7 +27590,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27812,7 +27613,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27836,7 +27636,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27860,7 +27659,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27884,7 +27682,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27908,7 +27705,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27932,7 +27728,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27956,7 +27751,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27980,7 +27774,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28004,7 +27797,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28028,7 +27820,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28052,7 +27843,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28076,7 +27866,6 @@ Sequence rainbow {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
   ],

@@ -8,7 +8,7 @@ import type { GuiDocumentRequest, SequenceExportOptions, VideoExportProgress } f
 import { Button, Dialog, Field, IconButton, NumberField, Select, Toggle, type SelectOption } from "../../kit";
 
 /** Common FPP frame steps, offered beside the step closest to the authored rate. */
-const FSEQ_PRESET_STEPS = [20, 25, 50];
+const FSEQ_PRESET_STEPS = [10, 20, 25, 50];
 const FSEQ_MAX_STEP = 255;
 const MILLIS_PER_SECOND = 1000;
 const CUSTOM_STEP = "custom";
@@ -119,6 +119,9 @@ export function SequenceExportDialog() {
         />
         {customStep && <NumberField name="Custom FSEQ frame step" integer min={1} max={FSEQ_MAX_STEP} step={1} defaultValue={options.fseqStepMillis} unit="ms" disabled={locked} value={stepMillis} onCommit={(value) => { setSaved(null); setStepMillis(value); }} />}
       </Field>}
+      {options !== null && stepValid && stepMillis > options.fseqSmoothStepMillis && <p role="status" className="kit-status-warning">
+        Steps over {options.fseqSmoothStepMillis} ms play less smoothly than live output, and dithered routes flicker.
+      </p>}
       {options !== null && <Field label="Video">
         <Select name="Video frame rate" disabled={locked} value={String(videoFrameRate)} options={VIDEO_FRAME_RATE_OPTIONS} onChange={(value) => { setSaved(null); setVideoFrameRate(Number(value)); }} />
       </Field>}

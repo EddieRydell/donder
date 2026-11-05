@@ -7702,7 +7702,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7731,7 +7730,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7760,7 +7758,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7789,7 +7786,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7818,7 +7814,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7847,7 +7842,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7876,7 +7870,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7905,7 +7898,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7934,7 +7926,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7963,7 +7954,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7992,7 +7982,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8021,7 +8010,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8044,7 +8032,6 @@ Sequence joy_to_the_world {
         speed: 3.0,
         line_density: 59.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8513,7 +8500,6 @@ Sequence joy_to_the_world {
         hue_shift: Curve { points: [(0.0, 0.0), (0.6526, 0.0), (0.7222, 27.777), (1.0, 27.777)] },
         intensity: 100.0,
         random_seed: 50805.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8696,7 +8682,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8725,7 +8710,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8754,7 +8738,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -8783,7 +8766,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13825,7 +13807,6 @@ Sequence joy_to_the_world {
         },
         intensity: 100.0,
         random_seed: 73389.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13845,7 +13826,6 @@ Sequence joy_to_the_world {
         },
         intensity: 100.0,
         random_seed: 94220.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13865,7 +13845,6 @@ Sequence joy_to_the_world {
         },
         intensity: 100.0,
         random_seed: 64294.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13885,7 +13864,6 @@ Sequence joy_to_the_world {
         },
         intensity: 100.0,
         random_seed: 90989.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15020,7 +14998,6 @@ Sequence joy_to_the_world {
         iterations: 30,
         background_chunks: 1,
         background_skips: 2,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15065,7 +15042,6 @@ Sequence joy_to_the_world {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15085,7 +15061,6 @@ Sequence joy_to_the_world {
         iterations: 30,
         background_chunks: 1,
         background_skips: 2,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20514,7 +20489,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20541,7 +20515,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20568,7 +20541,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20595,7 +20567,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20622,7 +20593,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20649,7 +20619,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20676,7 +20645,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20703,7 +20671,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20730,7 +20697,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20757,7 +20723,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20784,7 +20749,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20811,7 +20775,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20838,7 +20801,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20865,7 +20827,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20892,7 +20853,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20919,7 +20879,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20996,7 +20955,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21088,7 +21046,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21138,7 +21095,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21174,7 +21130,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21210,7 +21165,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -22716,7 +22670,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -22808,7 +22761,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -22858,7 +22810,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -22894,7 +22845,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -22922,7 +22872,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22949,7 +22898,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22976,7 +22924,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23003,7 +22950,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23030,7 +22976,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23057,7 +23002,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23084,7 +23028,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23111,7 +23054,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23138,7 +23080,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23165,7 +23106,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23214,7 +23154,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -23242,7 +23181,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23269,7 +23207,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23296,7 +23233,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23323,7 +23259,6 @@ Sequence joy_to_the_world {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24636,7 +24571,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24677,7 +24611,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24732,7 +24665,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24787,7 +24719,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24828,7 +24759,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24883,7 +24813,6 @@ Sequence joy_to_the_world {
         blend: false,
         show_3d: true,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26853,7 +26782,6 @@ Sequence joy_to_the_world {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26877,7 +26805,6 @@ Sequence joy_to_the_world {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26901,7 +26828,6 @@ Sequence joy_to_the_world {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27111,7 +27037,6 @@ Sequence joy_to_the_world {
         acceleration: GentleIn,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27454,7 +27379,6 @@ Sequence joy_to_the_world {
         orientation: Vertical,
         string_count: 4,
         string_length: 200,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27901,7 +27825,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27926,7 +27849,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27951,7 +27873,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27976,7 +27897,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28001,7 +27921,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28026,7 +27945,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28051,7 +27969,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28076,7 +27993,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28101,7 +28017,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28706,7 +28621,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28745,7 +28659,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28784,7 +28697,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28823,7 +28735,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28862,7 +28773,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28887,7 +28797,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28912,7 +28821,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28937,7 +28845,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28962,7 +28869,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29014,7 +28920,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29548,7 +29453,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29615,7 +29519,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29654,7 +29557,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29693,7 +29595,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29732,7 +29633,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29771,7 +29671,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29796,7 +29695,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29821,7 +29719,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29846,7 +29743,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29871,7 +29767,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29937,7 +29832,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29961,7 +29855,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29985,7 +29878,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30458,7 +30350,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30497,7 +30388,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30536,7 +30426,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30575,7 +30464,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30614,7 +30502,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30639,7 +30526,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30664,7 +30550,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30689,7 +30574,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30714,7 +30598,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31229,7 +31112,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31254,7 +31136,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31293,7 +31174,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31346,7 +31226,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31371,7 +31250,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31410,7 +31288,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31435,7 +31312,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31460,7 +31336,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31485,7 +31360,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31986,7 +31860,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32039,7 +31912,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32078,7 +31950,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32103,7 +31974,6 @@ Sequence joy_to_the_world {
         repeat: 1,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32156,7 +32026,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32181,7 +32050,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32206,7 +32074,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32231,7 +32098,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32256,7 +32122,6 @@ Sequence joy_to_the_world {
         repeat: 2,
         highlight: false,
         show_3d: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32486,7 +32351,6 @@ Sequence joy_to_the_world {
         iterations: 78,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32534,7 +32398,6 @@ Sequence joy_to_the_world {
         iterations: 78,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32585,7 +32448,6 @@ Sequence joy_to_the_world {
         iterations: 58,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32605,7 +32467,6 @@ Sequence joy_to_the_world {
         iterations: 78,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32628,7 +32489,6 @@ Sequence joy_to_the_world {
         iterations: 58,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -32665,7 +32525,6 @@ Sequence joy_to_the_world {
         iterations: 58,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -33068,7 +32927,6 @@ Sequence joy_to_the_world {
         iterations: 77,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -33484,7 +33342,6 @@ Sequence joy_to_the_world {
         iterations: 77,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -33568,7 +33425,6 @@ Sequence joy_to_the_world {
         iterations: 77,
         background_chunks: 1,
         background_skips: 4,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -77745,7 +77601,6 @@ Sequence joy_to_the_world {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -77986,7 +77841,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78341,7 +78195,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78474,7 +78327,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78551,7 +78403,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78684,7 +78535,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78761,7 +78611,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -78894,7 +78743,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79027,7 +78875,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79104,7 +78951,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79237,7 +79083,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79370,7 +79215,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79447,7 +79291,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79524,7 +79367,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79657,7 +79499,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79734,7 +79575,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79867,7 +79707,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79944,7 +79783,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80077,7 +79915,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80154,7 +79991,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80287,7 +80123,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80364,7 +80199,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80497,7 +80331,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80574,7 +80407,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80707,7 +80539,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80784,7 +80615,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80861,7 +80691,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -80994,7 +80823,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81071,7 +80899,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81148,7 +80975,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81281,7 +81107,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81358,7 +81183,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81491,7 +81315,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81624,7 +81447,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81701,7 +81523,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81778,7 +81599,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81911,7 +81731,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -81988,7 +81807,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82065,7 +81883,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82198,7 +82015,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82275,7 +82091,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82408,7 +82223,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82485,7 +82299,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82618,7 +82431,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82695,7 +82507,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82786,7 +82597,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82947,7 +82757,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83038,7 +82847,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83129,7 +82937,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83290,7 +83097,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83339,7 +83145,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83500,7 +83305,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83591,7 +83395,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83682,7 +83485,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83843,7 +83645,6 @@ Sequence joy_to_the_world {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -83992,7 +83793,6 @@ Sequence joy_to_the_world {
         offset_percentage: false,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -85644,7 +85444,6 @@ Sequence joy_to_the_world {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -91842,7 +91641,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -91865,7 +91663,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -91888,7 +91685,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -92471,7 +92267,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -92494,7 +92289,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -92517,7 +92311,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -92799,7 +92592,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -92822,7 +92614,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -92845,7 +92636,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -93743,7 +93533,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -93766,7 +93555,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -93789,7 +93577,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -94295,7 +94082,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -94318,7 +94104,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -94341,7 +94126,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -94847,7 +94631,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -94870,7 +94653,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -94893,7 +94675,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95168,7 +94949,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95191,7 +94971,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95214,7 +94993,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95489,7 +95267,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95554,7 +95331,6 @@ Sequence joy_to_the_world {
         speed: 13.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95577,7 +95353,6 @@ Sequence joy_to_the_world {
         speed: 13.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -95600,7 +95375,6 @@ Sequence joy_to_the_world {
         speed: 13.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -96055,7 +95829,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -96078,7 +95851,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -96101,7 +95873,6 @@ Sequence joy_to_the_world {
         speed: 2.0,
         line_density: 0.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {

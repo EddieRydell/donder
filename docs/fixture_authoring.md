@@ -197,7 +197,8 @@ targets to ordered member instances. Playback does not generate shapes or
 resolve names, imports, or groups per frame. Pixels are ordered by shape order,
 then along each shape, reversed where a shape says so.
 
-RGB/RGBW encoding, channel order, brightness, and gamma belong to LED routes.
+RGB/RGBW encoding, channel order, brightness, gamma, and dithering belong to
+LED routes.
 Routes can select pixel ranges. Changing counts or shape order changes those
 ranges, so review the patch when changing fixture wiring. Routes target
 fixtures; effects target whole fixtures or groups.

@@ -10832,7 +10832,6 @@ Sequence tiny_tree {
         iterations: 1,
         spacing: 52.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10860,7 +10859,6 @@ Sequence tiny_tree {
         iterations: 1,
         spacing: 21.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26996,7 +26994,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30221,7 +30218,6 @@ Sequence tiny_tree {
         iterations: 1,
         spacing: 41.2841,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30475,7 +30471,6 @@ Sequence tiny_tree {
         iterations: 1,
         spacing: 41.2841,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -33772,7 +33767,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -34024,7 +34018,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -37403,7 +37396,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 15459.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -37444,7 +37436,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 64493.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -43414,7 +43405,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 12022.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -43454,7 +43444,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 87423.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -64233,7 +64222,6 @@ Sequence tiny_tree {
         iterations: 1,
         spacing: 49.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -79333,7 +79321,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82587,7 +82574,6 @@ Sequence tiny_tree {
         iterations: 1,
         spacing: 41.2841,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -82841,7 +82827,6 @@ Sequence tiny_tree {
         iterations: 1,
         spacing: 41.2841,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -86082,7 +86067,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -86361,7 +86345,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -89740,7 +89723,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 15459.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -89781,7 +89763,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 64493.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -95773,7 +95754,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 12022.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -95813,7 +95793,6 @@ Sequence tiny_tree {
         particle_fade: 63,
         intensity: 100.0,
         random_seed: 87423.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -103947,7 +103926,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 16,
         string_length: 10,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -103983,7 +103961,6 @@ Sequence tiny_tree {
         orientation: Vertical,
         string_count: 32,
         string_length: 50,
-        pixel_size: 0.05,
       },
     },
     Clip {

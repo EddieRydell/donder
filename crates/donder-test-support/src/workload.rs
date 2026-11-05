@@ -24,7 +24,7 @@ pub struct Workload {
     pub count: usize,
     pub layers: Vec<Vec<Clip>>,
     pub operators: Vec<BoundProgram>,
-    pub lookup: Option<[u8; 256]>,
+    pub lookup: Option<[u16; 256]>,
 }
 
 impl Workload {
@@ -82,6 +82,7 @@ impl Workload {
                 target,
                 OutputEncoding::Rgb(RgbOrder::Grb),
                 self.lookup,
+                false,
             );
             Some(signal)
         })
@@ -261,11 +262,11 @@ pub fn unstaged(program: &mut BytecodeProgram) {
 }
 
 // The firmware receives this host-prepared lookup as data.
-pub fn gamma_lookup() -> [u8; 256] {
-    core::array::from_fn(|value| ((value as f32 / 255.0).powf(2.2) * 255.0).round() as u8)
+pub fn gamma_lookup() -> [u16; 256] {
+    core::array::from_fn(|value| ((value as f32 / 255.0).powf(2.2) * 255.0 * 256.0).round() as u16)
 }
 
-pub fn apply_gamma(show: &mut Workload, lookup: [u8; 256]) {
+pub fn apply_gamma(show: &mut Workload, lookup: [u16; 256]) {
     show.lookup = Some(lookup);
 }
 

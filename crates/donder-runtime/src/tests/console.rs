@@ -41,7 +41,13 @@ fn console(
         builder.fixture(0, geometry.clone());
         let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
-        builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Rgb), None);
+        builder.route(
+            port,
+            target,
+            OutputEncoding::Rgb(RgbOrder::Rgb),
+            None,
+            false,
+        );
         let window = SampleDuration::from_ticks(SESSION);
         let handles: Vec<_> = effects
             .iter()
@@ -98,7 +104,13 @@ fn archived_console_plays_like_the_prepared_one() {
         builder.fixture(0, geometry.clone());
         let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
-        builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Rgb), None);
+        builder.route(
+            port,
+            target,
+            OutputEncoding::Rgb(RgbOrder::Rgb),
+            None,
+            false,
+        );
         let effect = builder.clip(
             None,
             &white(),

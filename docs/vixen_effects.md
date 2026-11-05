@@ -15,8 +15,12 @@ copies its Vixen settings across:
   supplies them; each definition's comment names Vixen's default.
 - `colors` and `levels` arrays pair by index, and a shorter `levels` array
   reuses its last curve.
-- Pixel effects work on a grid of one cell per `pixel_size` layout units over
-  the target's bounds, with y = 0 at the bottom. Meteors and Snowflakes can
+- Vixen draws pixel effects on a grid of cells. The ports run its formulas on
+  each pixel's exact position instead, in a frame spanning the target's bounds
+  with y = 0 at the bottom. A frame unit is a hundredth of the target's larger
+  extent, so a feature Vixen sizes in cells (a meteor's width, a garland's sag,
+  a flake) is that many hundredths of the target. `scale_x` and `scale_y`
+  (default 1) stretch the pattern around the target's center. Meteors and Snowflakes can
   instead use Vixen's Strings layout: `string_count` strings of
   `string_length` consecutive pixels.
 - Pinwheel, Fireworks and Spirograph move a fixed amount per Vixen frame, so

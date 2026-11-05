@@ -2,12 +2,7 @@ extern crate alloc;
 
 /// Encode GRB output bytes for the classic ESP32's 8-bit I2S1 parallel mode.
 /// Every WS281x bit becomes `100` or `110` at a 2.4 MHz sample rate.
-pub(crate) fn encode(
-    outputs: &[impl AsRef<[u8]>],
-    pixels: usize,
-    buffer: &mut [u8],
-    brightness: u8,
-) {
+pub(crate) fn encode(outputs: &[impl AsRef<[u8]>], pixels: usize, buffer: &mut [u8]) {
     assert!(!outputs.is_empty() && outputs.len() <= 8);
     let data_samples = pixels * 24 * 3;
     assert!(buffer.len() >= data_samples && buffer.len().is_multiple_of(4));
@@ -18,8 +13,7 @@ pub(crate) fn encode(
     for byte_index in 0..pixels * 3 {
         let mut channels = [0_u8; 8];
         for (lane, output) in outputs.iter().enumerate() {
-            let value = output.as_ref().get(byte_index).copied().unwrap_or(0);
-            channels[lane] = (u16::from(value) * u16::from(brightness) / u16::from(u8::MAX)) as u8;
+            channels[lane] = output.as_ref().get(byte_index).copied().unwrap_or(0);
         }
         for bit in (0..8).rev() {
             let mut high_lanes = 0;
@@ -51,7 +45,7 @@ mod tests {
     fn bits_are_constant_three_sample_cells_in_msb_first_lane_order() {
         let outputs = vec![vec![0b1010_0101], vec![0b0101_1010]];
         let mut buffer = vec![0xff; 72];
-        encode(&outputs, 1, &mut buffer, u8::MAX);
+        encode(&outputs, 1, &mut buffer);
 
         let expected_high = [0b01, 0b10, 0b01, 0b10, 0b10, 0b01, 0b10, 0b01];
         for (bit, expected) in expected_high.into_iter().enumerate() {
@@ -70,7 +64,7 @@ mod tests {
     fn shorter_outputs_are_zero_padded_and_reset_samples_stay_low() {
         let outputs = vec![vec![], vec![0xff; 3]];
         let mut buffer = vec![0xff; 80];
-        encode(&outputs, 1, &mut buffer, u8::MAX);
+        encode(&outputs, 1, &mut buffer);
 
         for bit in 0..24 {
             let offset = bit * 3;

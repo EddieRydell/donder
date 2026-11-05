@@ -8,9 +8,6 @@ use esp_hal::{
     peripherals::{GPIO1, GPIO3, GPIO4, GPIO16},
 };
 
-// Conservative commissioning limit until device power configuration exists.
-pub(crate) const MAX_CHANNEL_VALUE: u8 = 25;
-
 pub(crate) fn output_pins(
     led1: GPIO16<'static>,
     led2: GPIO3<'static>,

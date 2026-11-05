@@ -27,6 +27,10 @@ const PRODUCER: &str = concat!("Donder ", env!("CARGO_PKG_VERSION"));
 pub struct FseqStep(NonZeroU8);
 
 impl FseqStep {
+    /// The longest step that plays as smoothly as live output: longer steps
+    /// show motion in visible jumps and flicker on dithered routes.
+    pub const SMOOTH_MILLIS: u8 = 10;
+
     pub fn from_millis(millis: u8) -> Option<Self> {
         NonZeroU8::new(millis).map(Self)
     }
@@ -39,6 +43,10 @@ impl FseqStep {
 
     pub fn millis(self) -> u8 {
         self.0.get()
+    }
+
+    pub fn is_smooth(self) -> bool {
+        self.millis() <= Self::SMOOTH_MILLIS
     }
 }
 

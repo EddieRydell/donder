@@ -80,7 +80,7 @@ fn strips_preserve_local_and_subset_target_addressing() {
                     TargetScope::WholeTarget,
                 ));
                 let port = builder.port(0, 0);
-                builder.route(port, full, OutputEncoding::Rgb(RgbOrder::Rgb), None);
+                builder.route(port, full, OutputEncoding::Rgb(RgbOrder::Rgb), None, false);
                 let effect = builder.clip(
                     None,
                     &source,

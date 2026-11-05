@@ -41,6 +41,7 @@ fn inline_fields() -> String {
           encoding: Rgb {{ order: (0, 1, 2) }},
           gamma: 1.0,
           brightness: 1.0,
+          dither: false,
         }},
       ],
     }},

@@ -294,6 +294,7 @@ pub(crate) struct Route {
     pub encoding: Encoding,
     pub gamma: f32,
     pub brightness: f32,
+    pub dither: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

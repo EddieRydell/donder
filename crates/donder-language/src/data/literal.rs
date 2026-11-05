@@ -128,30 +128,39 @@ pub(super) fn integer(text: &str) -> Result<i64, Invalid> {
     }
 }
 
-/// A duration in its one spelling, `s` included: `12.5s`.
+/// Seconds typed by a person, in any decimal spelling and with or without the
+/// `s`: `12.5s`, `12.50`, `012s`, `.5s`, `3.s`.
 pub fn parse_duration(text: &str) -> Result<Duration, String> {
-    let digits = text
-        .strip_suffix('s')
-        .ok_or_else(|| format!("expected a duration like `1.5s`, found `{text}`"))?;
-    duration(digits).map_err(|invalid| invalid.message)
+    seconds(text.strip_suffix('s').unwrap_or(text))
 }
 
-/// `text` without its `s`.
-pub(super) fn duration(text: &str) -> Result<Duration, Invalid> {
+/// Decimal seconds, exact to the nanosecond.
+fn seconds(text: &str) -> Result<Duration, String> {
     let (seconds, fraction) = text.split_once('.').unwrap_or((text, ""));
-    let invalid = || format!("`{text}s` is not a duration");
-    let seconds = seconds.parse::<u64>().map_err(|_| invalid())?;
+    let fraction = fraction.trim_end_matches('0');
+    let digits = |part: &str| part.bytes().all(|byte| byte.is_ascii_digit());
+    if (seconds.is_empty() && fraction.is_empty()) || !digits(seconds) || !digits(fraction) {
+        return Err(format!("`{text}` is not a number of seconds"));
+    }
     if fraction.len() > 9 {
         return Err("durations are exact to the nanosecond: at most nine decimals".into());
     }
-    let nanos = if fraction.is_empty() {
+    let seconds = if seconds.is_empty() {
         0
     } else {
-        format!("{fraction:0<9}")
-            .parse::<u32>()
-            .map_err(|_| invalid())?
+        seconds
+            .parse::<u64>()
+            .map_err(|_| format!("`{text}` seconds is out of range"))?
     };
-    let value = Duration::new(seconds, nanos);
+    let nanos = format!("{fraction:0<9}")
+        .parse::<u32>()
+        .map_err(|_| format!("`{text}` is not a number of seconds"))?;
+    Ok(Duration::new(seconds, nanos))
+}
+
+/// `text` without its `s`, in its one spelling.
+pub(super) fn duration(text: &str) -> Result<Duration, Invalid> {
+    let value = seconds(text)?;
     let canonical = canonical_duration(value);
     if canonical == format!("{text}s") {
         Ok(value)

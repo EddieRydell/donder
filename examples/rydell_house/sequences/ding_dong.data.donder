@@ -556,7 +556,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -579,7 +578,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -630,7 +628,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -653,7 +650,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -676,7 +672,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -699,7 +694,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -722,7 +716,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -745,7 +738,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -768,7 +760,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -791,7 +782,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -814,7 +804,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -837,7 +826,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -860,7 +848,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -883,7 +870,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -906,7 +892,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -929,7 +914,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -952,7 +936,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -975,7 +958,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -998,7 +980,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1021,7 +1002,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1044,7 +1024,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1067,7 +1046,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1090,7 +1068,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1113,7 +1090,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1136,7 +1112,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1159,7 +1134,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1182,7 +1156,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1205,7 +1178,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1228,7 +1200,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1251,7 +1222,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1274,7 +1244,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1297,7 +1266,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1320,7 +1288,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1343,7 +1310,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1366,7 +1332,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1389,7 +1354,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1542,7 +1506,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1617,7 +1580,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1718,7 +1680,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1741,7 +1702,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1764,7 +1724,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1787,7 +1746,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1810,7 +1768,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1833,7 +1790,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -1856,7 +1812,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2009,7 +1964,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2084,7 +2038,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2185,7 +2138,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2208,7 +2160,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2231,7 +2182,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2306,7 +2256,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2407,7 +2356,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2560,7 +2508,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2583,7 +2530,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2658,7 +2604,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2759,7 +2704,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2912,7 +2856,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2935,7 +2878,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2958,7 +2900,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -2981,7 +2922,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3004,7 +2944,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3027,7 +2966,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3050,7 +2988,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3073,7 +3010,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3226,7 +3162,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3379,7 +3314,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3402,7 +3336,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3425,7 +3358,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3448,7 +3380,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3601,7 +3532,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3754,7 +3684,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -3884,7 +3813,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -4302,7 +4230,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -4992,7 +4919,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -5540,7 +5466,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6024,7 +5949,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6494,7 +6418,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7016,7 +6939,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -7434,7 +7356,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -10556,7 +10477,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11026,7 +10946,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11392,7 +11311,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -11888,7 +11806,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12343,7 +12260,6 @@ Sequence ding_dong {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -12393,7 +12309,6 @@ Sequence ding_dong {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -12417,7 +12332,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12806,7 +12720,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12843,7 +12756,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12915,7 +12827,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13057,7 +12968,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13077,7 +12987,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13111,7 +13020,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13145,7 +13053,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13165,7 +13072,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13185,7 +13091,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13205,7 +13110,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13347,7 +13251,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13475,7 +13378,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13495,7 +13397,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13581,7 +13482,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -13970,7 +13870,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14007,7 +13906,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14096,7 +13994,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14175,7 +14072,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14198,7 +14094,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14287,7 +14182,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14324,7 +14218,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14347,7 +14240,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14370,7 +14262,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14393,7 +14284,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14552,7 +14442,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14666,7 +14555,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14686,7 +14574,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14824,7 +14711,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -14896,7 +14782,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15026,7 +14911,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15186,7 +15070,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15366,7 +15249,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15386,7 +15268,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15528,7 +15409,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15802,7 +15682,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15916,7 +15795,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15936,7 +15814,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16022,7 +15899,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16302,7 +16178,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16484,7 +16359,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16578,7 +16452,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16598,7 +16471,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16670,7 +16542,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17268,7 +17139,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17288,7 +17158,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17325,7 +17194,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17397,7 +17265,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17459,7 +17326,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17576,7 +17442,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17694,7 +17559,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17766,7 +17630,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17803,7 +17666,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17903,7 +17765,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -17940,7 +17801,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18197,7 +18057,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18298,7 +18157,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18477,7 +18335,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18500,7 +18357,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18523,7 +18379,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18598,7 +18453,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18621,7 +18475,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18696,7 +18549,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18719,7 +18571,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18768,7 +18619,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -18790,7 +18640,6 @@ Sequence ding_dong {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -19041,7 +18890,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -19318,7 +19166,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -19383,7 +19230,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -19406,7 +19252,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -19471,7 +19316,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -19748,7 +19592,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -19771,7 +19614,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20006,7 +19848,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20057,7 +19898,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20348,7 +20188,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20625,7 +20464,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20690,7 +20528,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20713,7 +20550,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -20736,7 +20572,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -21013,7 +20848,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -21036,7 +20870,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -21313,7 +21146,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -21336,7 +21168,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -21585,7 +21416,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -21890,7 +21720,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -21955,7 +21784,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22006,7 +21834,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22043,7 +21870,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22320,7 +22146,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22343,7 +22168,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22578,7 +22402,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22615,7 +22438,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -22920,7 +22742,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23197,7 +23018,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23220,7 +23040,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23285,7 +23104,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23308,7 +23126,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23585,7 +23402,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23608,7 +23424,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23882,7 +23697,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23902,7 +23716,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24092,7 +23905,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24216,7 +24028,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24236,7 +24047,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24256,7 +24066,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24276,7 +24085,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24612,7 +24420,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24660,7 +24467,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24784,7 +24590,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24870,7 +24675,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25120,7 +24924,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25258,7 +25061,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25278,7 +25080,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25408,7 +25209,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25456,7 +25256,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25594,7 +25393,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25614,7 +25412,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25752,7 +25549,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25860,7 +25656,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26186,7 +25981,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26310,7 +26104,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26330,7 +26123,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26350,7 +26142,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26370,7 +26161,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26494,7 +26284,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26902,7 +26691,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27026,7 +26814,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27077,7 +26864,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27260,7 +27046,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27513,7 +27298,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27550,7 +27334,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27573,7 +27356,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27596,7 +27378,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27751,7 +27532,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27774,7 +27554,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28010,7 +27789,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -28520,7 +28298,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29160,7 +28937,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -29720,7 +29496,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30230,7 +30005,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -30726,7 +30500,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31170,7 +30943,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -31614,7 +31386,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -34762,7 +34533,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -35206,7 +34976,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -35598,7 +35367,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -36054,7 +35822,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -36484,7 +36251,6 @@ Sequence ding_dong {
         background_chunks: 2,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -36719,7 +36485,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38233,7 +37998,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38253,7 +38017,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38417,7 +38180,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38451,7 +38213,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38471,7 +38232,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38491,7 +38251,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -38511,7 +38270,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -39763,7 +39521,6 @@ Sequence ding_dong {
         vertical_fade: true,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -41210,7 +40967,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -41233,7 +40989,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -41400,7 +41155,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -41437,7 +41191,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -41460,7 +41213,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -41483,7 +41235,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -41506,7 +41257,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -47748,7 +47498,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -53370,7 +53119,6 @@ Sequence ding_dong {
         vertical_fade: false,
         shimmer: false,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -53790,7 +53538,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -53984,7 +53731,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -54702,7 +54448,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -55250,7 +54995,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -55746,7 +55490,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -56190,7 +55933,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -56764,7 +56506,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -57130,7 +56871,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -60252,7 +59992,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -60670,7 +60409,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -61048,7 +60786,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -61518,7 +61255,6 @@ Sequence ding_dong {
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -70559,7 +70295,6 @@ Sequence ding_dong {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -74023,7 +73758,6 @@ Sequence ding_dong {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -77151,7 +76885,6 @@ Sequence ding_dong {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -79953,7 +79686,6 @@ Sequence ding_dong {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },

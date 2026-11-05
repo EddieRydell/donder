@@ -117,6 +117,7 @@ fn project_route(session: &ProjectSession, route: &PixelRoute) -> GuiPixelRoute 
         },
         gamma: route.gamma,
         brightness: route.brightness,
+        dither: route.dither,
     }
 }
 
@@ -161,6 +162,7 @@ pub(super) fn replace(
                 },
                 gamma: route.gamma,
                 brightness: route.brightness,
+                dither: route.dither,
             })
         })
         .collect::<Result<_, _>>()?;

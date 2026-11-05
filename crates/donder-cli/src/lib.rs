@@ -43,7 +43,7 @@ enum Command {
     Render {
         /// The sequence's declared name.
         sequence: String,
-        /// A time to sample, like `12.5s`; repeat for several.
+        /// A time to sample in seconds, like `12.5s` or `12.5`; repeat for several.
         #[arg(long, value_parser = donder_language::data::parse_duration)]
         at: Vec<Duration>,
         /// Sample every `--step` from `--from` through `--to`.
@@ -232,6 +232,13 @@ fn export_fseq(
         }
         None => donder_output::FseqStep::nearest(sequence.frame_rate),
     };
+    if !step.is_smooth() {
+        println!(
+            "warning: {} ms per frame plays less smoothly than live output; use {} ms or less",
+            step.millis(),
+            donder_output::FseqStep::SMOOTH_MILLIS
+        );
+    }
     let prepared = donder_elaboration::prepare(project, id, donder_elaboration::Retain::All)
         .ok_or("The sequence cannot be played on the active setup.")?;
     let setup = project

@@ -84,6 +84,7 @@ impl DesktopState {
         Ok(SequenceExportOptions {
             ports,
             fseq_step_millis: donder_output::FseqStep::nearest(frame_rate).millis(),
+            fseq_smooth_step_millis: donder_output::FseqStep::SMOOTH_MILLIS,
         })
     }
 

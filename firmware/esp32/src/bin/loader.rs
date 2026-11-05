@@ -952,9 +952,5 @@ fn encode_frame(frame: Option<SequenceFrame<'_>>, buffer: &mut [u8]) {
         }
         None => OUTPUT_LANES,
     };
-    #[cfg(feature = "dig-quad")]
-    let brightness = dig_quad::MAX_CHANNEL_VALUE;
-    #[cfg(not(feature = "dig-quad"))]
-    let brightness = u8::MAX;
-    ws281x_parallel::encode(&lanes[..count], OUTPUT_PIXELS, buffer, brightness);
+    ws281x_parallel::encode(&lanes[..count], OUTPUT_PIXELS, buffer);
 }

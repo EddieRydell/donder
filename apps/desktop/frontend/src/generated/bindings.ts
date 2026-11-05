@@ -727,6 +727,7 @@ export type GuiPixelRoute = {
 	encoding: GuiPixelEncoding,
 	gamma: number,
 	brightness: number,
+	dither: boolean,
 };
 
 export type GuiPixelSpan = {
@@ -1395,6 +1396,8 @@ export type SequenceExportOptions = {
 	ports: SequenceExportPort[],
 	/**  The whole-millisecond FSEQ step closest to the authored frame rate. */
 	fseqStepMillis: number,
+	/**  The longest FSEQ step that plays as smoothly as live output. */
+	fseqSmoothStepMillis: number,
 };
 
 export type SequenceExportPort = {

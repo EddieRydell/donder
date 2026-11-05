@@ -6,9 +6,12 @@
 -- Curves use positions 0..1 and Vixen's percentage values 0..100; an empty
 -- curve reads as 100. Gradients and curves must be supplied. `colors` and
 -- `levels` pair by index, and a shorter `levels` array reuses its last curve.
--- Pixel effects work on a grid of one cell per `pixel_size` layout units over
--- the target's bounds. Pinwheel, Fireworks and Spirograph move a fixed amount
--- per Vixen frame, so they take the source show's `frame_interval_ms`.
+-- Vixen draws pixel effects on a grid of cells; these run its formulas on each
+-- pixel's exact position instead. Their frame spans the target's bounds in units
+-- of a hundredth of its larger extent, so a feature Vixen sizes in cells is that
+-- many hundredths of the target, and scale_x and scale_y stretch the pattern
+-- around the target's center. Pinwheel, Fireworks and Spirograph move a fixed
+-- amount per Vixen frame, so they take the source show's `frame_interval_ms`.
 --
 -- Adapted from Vixen. Copyright 2023 Vixen Team.
 -- Redistribution and use in source and binary forms, with or without
@@ -30,26 +33,32 @@
 -- ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
--- The grid's width and height in cells, and the pixel's cell, y = 0 at the bottom.
-fn grid_w(size: float) -> float { floor((target.max_x - target.min_x) / size) + 1.0 }
-fn grid_h(size: float) -> float { floor((target.max_y - target.min_y) / size) + 1.0 }
-fn grid_x(size: float) -> float { floor((pixel.x - target.min_x) / size) }
-fn grid_y(size: float) -> float { floor((pixel.y - target.min_y) / size) }
+-- The frame's width and height, and the pixel's position in it: x in 0..w - 1
+-- and y in 0..h - 1 with y = 0 at the bottom, like Vixen's cell indexes. A
+-- one-point target is a single unit, as Vixen's one-cell grid.
+fn frame_unit() -> float {
+  let extent = max(target.max_x - target.min_x, target.max_y - target.min_y);
+  if extent > 0.0 { extent / 100.0 } else { 1.0 }
+}
+fn frame_w() -> float { (target.max_x - target.min_x) / frame_unit() + 1.0 }
+fn frame_h() -> float { (target.max_y - target.min_y) / frame_unit() + 1.0 }
+fn frame_x(scale: float) -> float { (frame_w() - 1.0) / 2.0 + (pixel.x - (target.min_x + target.max_x) / 2.0) / (frame_unit() * scale) }
+fn frame_y(scale: float) -> float { (frame_h() - 1.0) / 2.0 + (pixel.y - (target.min_y + target.max_y) / 2.0) / (frame_unit() * scale) }
 
 -- Vixen's Strings layout: string_count strings of string_length consecutive
 -- pixels, x the string and y the pixel along it (Horizontal swaps them).
--- Locations uses the layout grid.
-fn string_w(strings: bool, across: bool, count: float, length: float, size: float) -> float {
-  if !strings { grid_w(size) } else if across { length } else { count }
+-- Locations uses the frame.
+fn string_w(strings: bool, across: bool, count: float, length: float) -> float {
+  if !strings { frame_w() } else if across { length } else { count }
 }
-fn string_h(strings: bool, across: bool, count: float, length: float, size: float) -> float {
-  if !strings { grid_h(size) } else if across { count } else { length }
+fn string_h(strings: bool, across: bool, count: float, length: float) -> float {
+  if !strings { frame_h() } else if across { count } else { length }
 }
-fn string_x(strings: bool, across: bool, length: int, size: float) -> float {
-  if !strings { grid_x(size) } else if across { pixel.index % length } else { pixel.index // length }
+fn string_x(strings: bool, across: bool, length: int, scale: float) -> float {
+  if !strings { frame_x(scale) } else if across { pixel.index % length } else { pixel.index // length }
 }
-fn string_y(strings: bool, across: bool, length: int, size: float) -> float {
-  if !strings { grid_y(size) } else if across { pixel.index // length } else { pixel.index % length }
+fn string_y(strings: bool, across: bool, length: int, scale: float) -> float {
+  if !strings { frame_y(scale) } else if across { pixel.index // length } else { pixel.index % length }
 }
 
 -- BASIC: Set Level.
@@ -302,18 +311,19 @@ effect VixenPinwheel {
   param blade_type: enum { Flat, ThreeD, InvertedThreeD, Fan } = Flat;
   param intensity: float in 0.0..100.0 = 100.0;
   param random_seed: float in 0.0..1000000.0 = 0.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
   param frame_interval_ms: float in 1.0..1000.0 = 50.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
     let ox = x_offset * 2.0 - 100.0;
     let oy = y_offset * 2.0 - 100.0;
-    let cx = floor(w / 2.0) + round(if offset_percentage { ox * w / 100.0 } else { ox });
-    let cy = floor(h / 2.0) + round(if offset_percentage { -oy * h / 100.0 } else { oy });
-    let dx = grid_x(pixel_size) - cx;
-    let dy = grid_y(pixel_size) - cy;
+    let cx = w / 2.0 + (if offset_percentage { ox * w / 100.0 } else { ox });
+    let cy = h / 2.0 + (if offset_percentage { -oy * h / 100.0 } else { oy });
+    let dx = frame_x(scale_x) - cx;
+    let dy = frame_y(scale_y) - cy;
     let radius = sqrt(dx * dx + dy * dy);
     let basis =
       if !offset_percentage { sqrt((w - cx) * (w - cx) + (h - cy) * (h - cy)) }
@@ -367,27 +377,30 @@ effect VixenButterfly {
   param use_base_color: bool = false;
   param base_color: color = #000000;
   param intensity: float in 0.0..100.0 = 100.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let x = grid_x(pixel_size);
-    let y = h - 1.0 - grid_y(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
+    let x = frame_x(scale_x);
+    let y = h - 1.0 - frame_y(scale_y);
     let repetitions: float =
       if butterfly_type == Type4 { repeat * 6.0 }
       else if butterfly_type == Type1 || butterfly_type == Type5 { repeat * 3.0 }
       else { repeat };
     -- Speed maps 0..100 to -80..80; a negative speed runs backward.
     let travel = time * (speed * 1.6 - 80.0) / 10.0;
-    let position = if motion == Speed { abs(travel) % 1.0 } else { (progress * iterations) % 1.0 };
+    -- Vixen wraps the position every iteration, which jumps the pattern back by
+    -- `repetitions` radians; this one keeps running at the same rate.
+    let position = if motion == Speed { abs(travel) } else { progress * iterations };
     let state = position * repetitions;
     let backward = if motion == Speed { travel < 0.0 } else { direction == Backward };
     let offset = if backward { state } else { -state };
     let value =
       if butterfly_type == Type2 || butterfly_type == Type3 {
-        let frame = floor(h * state) % h;
-        let f = if frame < floor(h / 2.0) { frame + 1.0 } else { h - frame };
+        let frame = (h * state) % h;
+        let f = 1.0 + min(frame, h - frame);
         let f = if butterfly_type == Type3 { f * 0.1 + h / 60.0 } else { f };
         let xx = (x - w / 2.0) / f;
         let yy = (y - h / 2.0) / f;
@@ -415,16 +428,17 @@ effect VixenColorwash {
   param vertical_fade: bool = false;
   param shimmer: bool = false;
   param intensity: float in 0.0..100.0 = 100.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
     -- Shimmer blanks every other 50 ms frame.
     guard !(shimmer && floor(time * 20.0) % 2.0 != 0.0);
     let c = color_gradient[(progress * iterations) % 1.0];
-    let half_w = (grid_w(pixel_size) - 1.0) / 2.0;
-    let half_h = (grid_h(pixel_size) - 1.0) / 2.0;
-    let fade_x = if horizontal_fade && half_w > 0.0 { abs(half_w - grid_x(pixel_size)) / half_w } else { -1.0 };
-    let fade_y = if vertical_fade && half_h > 0.0 { abs(half_h - grid_y(pixel_size)) / half_h } else { -1.0 };
+    let half_w = (frame_w() - 1.0) / 2.0;
+    let half_h = (frame_h() - 1.0) / 2.0;
+    let fade_x = if horizontal_fade && half_w > 0.0 { abs(half_w - frame_x(scale_x)) / half_w } else { -1.0 };
+    let fade_y = if vertical_fade && half_h > 0.0 { abs(half_h - frame_y(scale_y)) / half_h } else { -1.0 };
     let v = intensity(c) * intensity / 100.0;
     let v = if fade_x < 0.0 { v } else if wash_type == Center { v * (1.0 - fade_x) } else if wash_type == Outer { v * fade_x } else { v / (1.0 - fade_x) };
     let v = if fade_y < 0.0 { v } else if wash_type == Center { v * (1.0 - fade_y) } else if wash_type == Outer { v * fade_y } else { v / (1.0 - fade_y) };
@@ -440,13 +454,14 @@ effect VixenPlasma {
   param speed: float in 0.0..100.0 = 10.0;
   param line_density: float in 0.0..100.0 = 10.0;
   param intensity: float in 0.0..100.0 = 100.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let x = grid_x(pixel_size) / w;
-    let y = (h - 1.0 - grid_y(pixel_size)) / h;
+    let w = frame_w();
+    let h = frame_h();
+    let x = frame_x(scale_x) / w;
+    let y = (h - 1.0 - frame_y(scale_y)) / h;
     let t = (progress * 100.0 * speed + 1.0) / ((101.0 - speed) * 3.0);
     let cx = x + 0.5 * sin(t / 5.0);
     let cy = y + 0.5 * cos(t / 3.0);
@@ -481,13 +496,14 @@ effect VixenBars {
   param highlight: bool = false;
   param show_3d: bool = false;
   param intensity: float in 0.0..100.0 = 100.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let x = grid_x(pixel_size);
-    let y = h - 1.0 - grid_y(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
+    let x = frame_x(scale_x);
+    let y = h - 1.0 - frame_y(scale_y);
     let horizontal =
       direction == Left || direction == Right || direction == AlternateLeft || direction == AlternateRight
       || direction == HorizontalExpand || direction == HorizontalCompress;
@@ -502,17 +518,17 @@ effect VixenBars {
       else if direction == Compress { max(y, h - y - 1.0) }
       else { h - y - 1.0 };
     let count: float = len(colors) * repeat;
-    let bar_size = floor(length / count) + 1.0;
+    let bar_size = length / count;
     let position = (progress * iterations) % 1.0;
     let alternate =
       direction == AlternateUp || direction == AlternateDown || direction == AlternateLeft || direction == AlternateRight;
     -- Alternate modes jump a whole bar at a time.
-    let offset = if alternate { floor(position * count) * bar_size } else { floor(position * count * bar_size) };
+    let offset = if alternate { floor(position * count) * bar_size } else { position * count * bar_size };
     let n = coordinate + offset + 1.0;
     let within = n % bar_size;
     let result = colors[int((n % (len(colors) * bar_size)) / bar_size)][within / bar_size];
-    let s = if highlight && within == 0.0 { 0.0 } else { saturation(result) };
-    let v = if show_3d { intensity(result) * (bar_size - within - 1.0) / bar_size } else { intensity(result) };
+    let s = if highlight && within < 1.0 { 0.0 } else { saturation(result) };
+    let v = if show_3d { intensity(result) * (bar_size - within) / bar_size } else { intensity(result) };
     hsv(hue(result), s, v * intensity / 100.0)
   }
 }
@@ -534,25 +550,26 @@ effect VixenBorder {
   param x_offset: float in 0.0..100.0 = 50.0;
   param y_offset: float in 0.0..100.0 = 50.0;
   param intensity: float in 0.0..100.0 = 100.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
     let simple = border_mode == Simple;
-    let inset_x = if simple { 0.0 } else { floor((100.0 - border_size) * w / 200.0) };
-    let inset_y = if simple { 0.0 } else { floor((100.0 - border_height) * h / 200.0) };
-    let shift_x = if simple { 0.0 } else { round((x_offset * 2.0 - 100.0) * (w - inset_x) / 100.0) };
-    let shift_y = if simple { 0.0 } else { round((y_offset * 2.0 - 100.0) * (h - inset_y) / 100.0) };
-    let x = grid_x(pixel_size) - shift_x;
-    let y = h - 1.0 - grid_y(pixel_size) - shift_y;
+    let inset_x = if simple { 0.0 } else { (100.0 - border_size) * w / 200.0 };
+    let inset_y = if simple { 0.0 } else { (100.0 - border_height) * h / 200.0 };
+    let shift_x = if simple { 0.0 } else { (x_offset * 2.0 - 100.0) * (w - inset_x) / 100.0 };
+    let shift_y = if simple { 0.0 } else { (y_offset * 2.0 - 100.0) * (h - inset_y) / 100.0 };
+    let x = frame_x(scale_x) - shift_x;
+    let y = h - 1.0 - frame_y(scale_y) - shift_y;
     guard x >= inset_x && x < w - inset_x && y >= inset_y && y < h - inset_y;
-    let shared: float = if simple { simple_border_width } else { round((2.0 + thickness * (min(w, h) - 2.0) / 100.0) / 2.0) };
+    let shared: float = if simple { simple_border_width } else { (2.0 + thickness * (min(w, h) - 2.0) / 100.0) / 2.0 };
     let independent = !simple && border_type == Independent;
-    let top = if independent { floor(top_thickness * h / 100.0) } else { shared };
-    let bottom = if independent { floor(bottom_thickness * h / 100.0) } else { shared };
-    let left = if independent { floor(left_thickness * w / 100.0) } else { shared };
-    let right = if independent { floor(right_thickness * w / 100.0) } else { shared };
+    let top = if independent { top_thickness * h / 100.0 } else { shared };
+    let bottom = if independent { bottom_thickness * h / 100.0 } else { shared };
+    let left = if independent { left_thickness * w / 100.0 } else { shared };
+    let right = if independent { right_thickness * w / 100.0 } else { shared };
     guard x < inset_x + left || x >= w - inset_x - right || y < inset_y + bottom || y >= h - inset_y - top;
     let position =
       if gradient_mode == Across { x / w }
@@ -577,16 +594,17 @@ effect VixenSpiral {
   param blend: bool = false;
   param show_3d: bool = false;
   param intensity: float in 0.0..100.0 = 100.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let x = grid_x(pixel_size);
-    let y = h - 1.0 - grid_y(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
+    let x = frame_x(scale_x);
+    let y = h - 1.0 - frame_y(scale_y);
     let count = len(colors) * repeat;
-    let delta = max(1.0, floor(w / count));
-    let thick = floor(delta * (1.0 + thickness * 0.99) / 100.0) + 1.0;
+    let delta = w / count;
+    let thick = delta * (1.0 + thickness * 0.99) / 100.0;
     let gap = delta - thick;
     let position = (progress * iterations) % 1.0;
     let growth =
@@ -594,9 +612,9 @@ effect VixenSpiral {
       else if grow { gap * position }
       else if shrink { gap * (1.0 - position) }
       else { 0.0 };
-    let thick = thick + floor(growth);
-    let shift = if direction == None { 0.0 } else if direction == Backwards { -floor(position * w) } else { floor(position * w) };
-    let strand = (x - shift - floor(y * (rotation * 3.0 - 150.0) / h)) % w;
+    let thick = thick + growth;
+    let shift = if direction == None { 0.0 } else if direction == Backwards { -position * w } else { position * w };
+    let strand = (x - shift - y * (rotation * 3.0 - 150.0) / h) % w;
     -- The strand starting at or before this cell owns it.
     let index = floor(strand / delta);
     let within = strand - index * delta;
@@ -604,7 +622,7 @@ effect VixenSpiral {
     let color_position = if blend { (h - y - 1.0) / h } else { within / thick };
     let c = colors[int(index) % len(colors)][color_position];
     let v =
-      if show_3d { if direction == Backwards { (thick - within) / thick } else { (within + 1.0) / thick } }
+      if show_3d { if direction == Backwards { (thick - within) / thick } else { within / thick } }
       else { intensity(c) };
     hsv(hue(c), saturation(c), v * intensity / 100.0)
   }
@@ -620,13 +638,14 @@ effect VixenShockwave {
   param acceleration: enum { Linear, GentleIn, GentleOut, StrongOut } = GentleIn;
   param blend_edges: bool = true;
   param scaled_radius: bool = true;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let dx = grid_x(pixel_size) - floor(w * center_x / 100.0);
-    let dy = grid_y(pixel_size) - floor(h * (100.0 - center_y) / 100.0);
+    let w = frame_w();
+    let h = frame_h();
+    let dx = frame_x(scale_x) - w * center_x / 100.0;
+    let dy = frame_y(scale_y) - h * (100.0 - center_y) / 100.0;
     let t = progress;
     let eased =
       if acceleration == GentleIn { t * sqrt(t) }
@@ -651,13 +670,14 @@ effect VixenGarlands {
   param iterations: int in 1..100 = 1;
   param spacing: float in 0.0..100.0 = 10.0;
   param intensity: float in 0.0..100.0 = 100.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let x = grid_x(pixel_size);
-    let y = h - 1.0 - grid_y(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
+    let x = frame_x(scale_x);
+    let y = h - 1.0 - frame_y(scale_y);
     let sideways = direction == Left || direction == Right;
     let height = if sideways { w } else { h };
     let across = if sideways { y } else { x };
@@ -666,19 +686,21 @@ effect VixenGarlands {
       else if direction == Right { x }
       else if direction == Down { h - y - 1.0 }
       else { y };
-    let separation = floor(round(1.0 + spacing * 0.19) * h / 100.0) + 3.0;
+    let separation = (1.0 + spacing * 0.19) * h / 100.0 + 3.0;
     let m = across % 5.0;
     let sag =
-      if garland_type == Type1 { if m == 2.0 { 2.0 } else if m == 1.0 || m == 3.0 { 1.0 } else { 0.0 } }
-      else if garland_type == Type2 { if m == 2.0 { 4.0 } else if m == 1.0 || m == 3.0 { 2.0 } else { 0.0 } }
+      if garland_type == Type1 { max(0.0, 2.0 - abs(m - 2.0)) }
+      else if garland_type == Type2 { max(0.0, 4.0 - 2.0 * abs(m - 2.0)) }
       else if garland_type == Type3 { 2.0 * min(across % 6.0, 6.0 - across % 6.0) }
-      else if garland_type == Type4 && (m == 1.0 || m == 3.0) { 2.0 }
+      else if garland_type == Type4 { max(0.0, 2.0 - 2.0 * abs(abs(m - 2.0) - 1.0)) }
       else { 0.0 };
     -- `state` sweeps the ring stack down through the rows each iteration.
-    let state = floor((1.0 - (progress * iterations) % 1.0) * height * separation);
+    let state = (1.0 - (progress * iterations) % 1.0) * height * separation;
+    -- Rings are lines one unit thick.
     let free_ring = (state - sag - row) / separation;
-    let ring = if free_ring == floor(free_ring) && free_ring >= 0.0 && row >= height - free_ring - 1.0 { free_ring } else { -1.0 };
-    let settled = height - row - 1.0;
+    let falling = round(free_ring);
+    let ring = if abs(free_ring - falling) * separation <= 0.5 && falling >= 0.0 && row >= height - falling - 1.0 { falling } else { -1.0 };
+    let settled = round(height - row - 1.0);
     let ring = if settled >= 0.0 && state - settled * separation - sag <= row { max(ring, settled) } else { ring };
     guard ring >= 0.0;
     let color_position = ring / height * (len(colors) - 1);
@@ -698,27 +720,28 @@ effect VixenCurtain {
   param iterations: int in 1..100 = 1;
   param swag: int in 0..100 = 1;
   param intensity_per_iteration: bool = false;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
     let phase = (progress * iterations) % 1.0;
     let position = 1.0 - value_or(position_curve[phase], 100.0) / 100.0;
     let level = value_or(intensity_curve[if intensity_per_iteration { phase } else { progress }], 100.0) / 100.0;
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
     let vertical = edge == Bottom || edge == Middle || edge == Top;
     let paired = edge == Center || edge == Middle;
     let length = if vertical { h } else { w };
     let cross_length = if vertical { w } else { h };
-    let coordinate = if vertical { grid_y(pixel_size) } else { grid_x(pixel_size) };
-    let cross = if vertical { grid_x(pixel_size) } else { grid_y(pixel_size) };
+    let coordinate = if vertical { frame_y(scale_y) } else { frame_x(scale_x) };
+    let cross = if vertical { frame_x(scale_x) } else { frame_y(scale_y) };
     -- Fold a paired curtain onto one half; distance runs from the curtain's edge.
     let half = if paired { length / 2.0 } else { length };
     let distance =
       if paired { if coordinate < half { coordinate } else { length - 1.0 - coordinate } }
       else if edge == Left || edge == Top { length - 1.0 - coordinate }
       else { coordinate };
-    let swag_length = if h > 1.0 { floor(swag * w / 40.0) } else { 0.0 };
+    let swag_length = if h > 1.0 { swag * w / 40.0 } else { 0.0 };
     let covered_length = (position * length + swag_length * position * 2.0) / (if paired { 2.0 } else { 1.0 });
     let covered_length = if direction == Open { half - covered_length } else { covered_length };
     -- The swag hangs past the curtain's edge, shorter farther out.
@@ -744,34 +767,35 @@ effect VixenSpirograph {
   param animate: bool = true;
   param intensity: float in 0.0..100.0 = 100.0;
   param random_seed: float in 0.0..1000000.0 = 0.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
   param frame_interval_ms: float in 1.0..1000.0 = 50.0;
 
   sample {
-    let frame = floor(time * 1000.0 / frame_interval_ms);
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let cx = floor(w / 2.0);
-    let cy = floor(h / 2.0);
-    let x = grid_x(pixel_size);
-    let y = h - 1.0 - grid_y(pixel_size);
+    let frame = time * 1000.0 / frame_interval_ms;
+    let w = frame_w();
+    let h = frame_h();
+    let cx = w / 2.0;
+    let cy = h / 2.0;
+    let x = frame_x(scale_x);
+    let y = h - 1.0 - frame_y(scale_y);
     let outer = cx * outer_circle_radius / 100.0;
     let inner = min(outer, cx * inner_circle_radius / 100.0);
     guard inner > 0.0;
     let state = frame * speed;
     let d = cx * (1.0 + distance * 0.99) / 100.0;
-    let d = if animate { floor(d + state / 2.0) % 100.0 } else { d };
+    let d = if animate { (d + state / 2.0) % 100.0 } else { d };
     guard sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) <= outer - inner + d + 0.75;
     let samples = floor((1.0 + spirograph_range * 2.99) * 18.0);
     let bin = round((1.0 + color_range * 1.99) / len(colors));
     first for ordinal in 0..int(samples) {
       let point = samples - ordinal;
-      let angle = (point + round(state % 1440.0)) * 0.017453292519943295;
-      let rx = round((outer - inner) * cos(angle) + d * cos((outer - inner) / inner * angle) + cx);
-      let ry = round((outer - inner) * sin(angle) + d * sin((outer - inner) / inner * angle) + cy);
-      guard rx == x && ry == y;
+      let angle = (point + state % 1440.0) * 0.017453292519943295;
+      let rx = (outer - inner) * cos(angle) + d * cos((outer - inner) / inner * angle) + cx;
+      let ry = (outer - inner) * sin(angle) + d * sin((outer - inner) / inner * angle) + cy;
+      guard abs(rx - x) <= 0.5 && abs(ry - y) <= 0.5;
       let level = intensity / 100.0;
-      let pick = rand((random_seed * 31.0 + frame) * 31.0 + point);
+      let pick = rand((random_seed * 31.0 + floor(frame)) * 31.0 + point);
       if color_type == Rainbow { hsv(pick, 1.0, level) }
       else {
         let i = if color_type == Random { pick * len(colors) } else { sqrt((rx - cx) * (rx - cx) + (ry - cy) * (ry - cy)) / (1.0 + color_range * 1.99) * 100.0 / bin };
@@ -801,13 +825,14 @@ effect VixenFire {
   param hue_shift: curve in 0.0..100.0;
   param intensity: float in 0.0..100.0 = 100.0;
   param random_seed: float in 0.0..1000000.0 = 0.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let x = grid_x(pixel_size);
-    let y = grid_y(pixel_size);
+    let w = frame_w();
+    let h = frame_h();
+    let x = frame_x(scale_x);
+    let y = frame_y(scale_y);
     let vertical = location == Bottom || location == Top;
     let rows = if vertical { h } else { w };
     let sx = if vertical { x } else { y };
@@ -848,16 +873,17 @@ effect VixenFireworks {
   param particle_fade: int in 0..100 = 50;
   param intensity: float in 0.0..100.0 = 100.0;
   param random_seed: float in 0.0..1000000.0 = 0.0;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
   param frame_interval_ms: float in 1.0..1000.0 = 50.0;
 
   sample {
     let frame = time * 1000.0 / frame_interval_ms;
     let frames = duration * 1000.0 / frame_interval_ms;
-    let w = grid_w(pixel_size);
-    let h = grid_h(pixel_size);
-    let x = grid_x(pixel_size) + 0.5;
-    let y = grid_y(pixel_size) + 0.5;
+    let w = frame_w();
+    let h = frame_h();
+    let x = frame_x(scale_x);
+    let y = frame_y(scale_y);
     let count = if source == MarkCollection { len(explosion_marks) } else { explosions };
     -- A particle fades out over particle_fade / 2 frames.
     let life = max(1.0, particle_fade / 2.0);
@@ -925,17 +951,18 @@ effect VixenMeteors {
   param orientation: enum { Vertical, Horizontal } = Vertical;
   param string_count: int in 1..10000 = 1;
   param string_length: int in 1..10000 = 1;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
     let strings = positioning == Strings;
     let across = orientation == Horizontal;
-    let w = string_w(strings, across, string_count, string_length, pixel_size);
-    let h = string_h(strings, across, string_count, string_length, pixel_size);
-    let x = string_x(strings, across, string_length, pixel_size) + 0.5;
-    let y = string_y(strings, across, string_length, pixel_size) + 0.5;
+    let w = string_w(strings, across, string_count, string_length);
+    let h = string_h(strings, across, string_count, string_length);
+    let x = string_x(strings, across, string_length, scale_x) + 0.5;
+    let y = string_y(strings, across, string_length, scale_y) + 0.5;
     let length = 1.0 + tail_length * 0.99;
-    let tail = max(1.0, if h < 10.0 { floor(length / 10.0) } else { floor(h * length / 100.0) });
+    let tail = max(1.0, if h < 10.0 { length / 10.0 } else { h * length / 100.0 });
     let explode = meteor_effect == Explode;
     let base = rand(random_seed);
     -- Explode paths run from the center, the others cross the whole grid.
@@ -981,20 +1008,27 @@ effect VixenMeteors {
   }
 }
 
--- Whether offset (dx, dy) from a flake's center is one of its points, for
--- Vixen's flake kinds 1 (one point) to 9 (45 points).
+-- Whether |offset| (ax, ay) from a flake's center lies on a cross with arms
+-- `reach` long, one unit thick.
+fn flake_cross(ax: float, ay: float, reach: float) -> bool {
+  (ax <= 0.5 && ay <= reach + 0.5) || (ay <= 0.5 && ax <= reach + 0.5)
+}
+
+-- Whether offset (dx, dy) from a flake's center lies in its shape, for Vixen's
+-- flake kinds 1 (a dot) to 9 (a 45-point star), drawn one unit thick.
 fn flake_point(kind: float, dx: float, dy: float) -> bool {
   let ax = abs(dx);
   let ay = abs(dy);
-  if kind <= 1.0 { ax + ay == 0.0 }
-  else if kind == 2.0 { ax == 0.0 && ay <= 1.0 }
-  else if kind == 3.0 { ax + ay <= 1.0 }
-  else if kind == 4.0 { (ay == 0.0 && ax <= 2.0) || (ax == 0.0 && ay <= 2.0) }
-  else if kind == 5.0 { ax + ay <= 1.0 || (ax == 1.0 && ay == 2.0) || (ax == 2.0 && ay == 1.0) }
-  else if kind == 6.0 { (ay == 0.0 && ax <= 3.0) || (ax == 0.0 && ay <= 3.0) }
-  else if kind == 7.0 { (ay == 0.0 && ax <= 3.0) || (ax == 0.0 && ay <= 3.0) || (ax == 1.0 && ay == 1.0) }
-  else if kind == 8.0 { (ax <= 1.0 && ay <= 2.0) || (ax == 2.0 && ay <= 1.0) || (ay == 0.0 && ax <= 4.0) || (ax == 0.0 && ay <= 4.0) }
-  else { (ax == ay && ax <= 4.0) || (ax == 2.0 && ay == 3.0) || (ax == 3.0 && ay == 2.0) || (ax == 0.0 && ay <= 5.0) || (ay == 0.0 && ax <= 5.0) }
+  let diagonal = abs(ax - ay) <= 0.5;
+  if kind <= 1.0 { ax <= 0.5 && ay <= 0.5 }
+  else if kind == 2.0 { ax <= 0.5 && ay <= 1.5 }
+  else if kind == 3.0 { flake_cross(ax, ay, 1.0) }
+  else if kind == 4.0 { flake_cross(ax, ay, 2.0) }
+  else if kind == 5.0 { flake_cross(ax, ay, 1.0) || (abs(ax - 1.0) <= 0.5 && abs(ay - 2.0) <= 0.5) || (abs(ax - 2.0) <= 0.5 && abs(ay - 1.0) <= 0.5) }
+  else if kind == 6.0 { flake_cross(ax, ay, 3.0) }
+  else if kind == 7.0 { flake_cross(ax, ay, 3.0) || (diagonal && max(ax, ay) <= 1.5) }
+  else if kind == 8.0 { (ax <= 1.5 && ay <= 2.5) || (ax <= 2.5 && ay <= 1.5) || flake_cross(ax, ay, 4.0) }
+  else { (diagonal && max(ax, ay) <= 4.5) || (abs(ax - 2.0) <= 0.5 && abs(ay - 3.0) <= 0.5) || (abs(ax - 3.0) <= 0.5 && abs(ay - 2.0) <= 0.5) || flake_cross(ax, ay, 5.0) }
 }
 
 -- PIXEL: Snowflakes falling, in random directions or exploding, on a Strings or
@@ -1023,24 +1057,25 @@ effect VixenSnowflakes {
   param orientation: enum { Vertical, Horizontal } = Vertical;
   param string_count: int in 1..10000 = 1;
   param string_length: int in 1..10000 = 1;
-  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
     let strings = positioning == Strings;
     let across = orientation == Horizontal;
-    let w = string_w(strings, across, string_count, string_length, pixel_size);
-    let h = string_h(strings, across, string_count, string_length, pixel_size);
-    let x = string_x(strings, across, string_length, pixel_size);
-    let y = string_y(strings, across, string_length, pixel_size);
+    let w = string_w(strings, across, string_count, string_length);
+    let h = string_h(strings, across, string_count, string_length);
+    let x = string_x(strings, across, string_length, scale_x);
+    let y = string_y(strings, across, string_length, scale_y);
     let level = intensity / 100.0;
     let explode = snowflake_effect == Explode;
     let fixed_kind: float =
       if flake_type == Single { 1 } else if flake_type == Three { 2 } else if flake_type == Five { 3 }
       else if flake_type == Nine { 4 } else if flake_type == Thirteen { 5 } else if flake_type == ThirteenV2 { 6 }
       else if flake_type == Seventeen { 7 } else if flake_type == TwentyNine { 8 } else if flake_type == FortyFive { 9 } else { 0 };
-    let ground = if snow_build_up { min(h, floor(initial_build_up * h / 100.0 + (1.0 + build_up_speed * 0.79) * time / 5.0)) } else { 0.0 };
+    let ground = if snow_build_up { min(h, initial_build_up * h / 100.0 + (1.0 + build_up_speed * 0.79) * time / 5.0) } else { 0.0 };
     let base = rand(random_seed);
-    -- The newest covering flake point as slot * 128 + its point.
+    -- The newest covering flake, times 2, plus 1 on its center.
     let code = last for slot in 0..int(1.0 + count * 0.99) {
       let key = rand(base + slot);
       let kind = if fixed_kind > 0.0 { fixed_kind } else { 1.0 + floor(rand(key + 0.05) * 9.0) };
@@ -1060,23 +1095,22 @@ effect VixenSnowflakes {
       let ux = sin(degrees * 0.017453292519943295);
       let uy = cos(degrees * 0.017453292519943295);
       let offset = (rand(trip_key + 0.3) - 0.5) * (abs(uy) * w + abs(ux) * h);
-      let cx = round(if explode { w / 2.0 + ux * along } else { w / 2.0 + ux * (along - span / 2.0) + uy * offset });
-      let cy = round(if explode { h / 2.0 + uy * along } else { h / 2.0 + uy * (along - span / 2.0) - ux * offset });
-      guard cy >= ground && abs(x - cx) <= reach && abs(y - cy) <= reach && flake_point(kind, x - cx, y - cy);
-      (slot * 8.0 + trip % 8.0) * 128.0 + (x - cx + 5.0) * 11.0 + y - cy + 5.0
+      let cx = (if explode { w / 2.0 + ux * along } else { w / 2.0 + ux * (along - span / 2.0) + uy * offset });
+      let cy = (if explode { h / 2.0 + uy * along } else { h / 2.0 + uy * (along - span / 2.0) - ux * offset });
+      guard cy >= ground && abs(x - cx) <= reach + 0.5 && abs(y - cy) <= reach + 0.5 && flake_point(kind, x - cx, y - cy);
+      (slot * 8.0 + trip % 8.0) * 2.0 + (if abs(x - cx) <= 0.5 && abs(y - cy) <= 0.5 { 1.0 } else { 0.0 })
     } else { -1.0 };
     guard code >= 0.0 else if y < ground { outer_colors[0][progress] * level } else { rgb(0.0, 0.0, 0.0) };
-    let flake = floor(code / 128.0);
-    let point = code - flake * 128.0;
+    let flake = floor(code / 2.0);
+    let center = code - flake * 2.0 == 1.0;
     let flake_key = rand(base + flake);
     let brightness = if random_brightness { rand(flake_key + 0.4) * 0.8 + 0.2 } else { 1.0 };
     let outer = outer_colors[int(rand(flake_key + 0.5) * len(outer_colors))][progress];
     let inner = inner_colors[int(rand(flake_key + 0.6) * len(inner_colors))][progress];
-    -- Point 60 is the flake's center.
-    let c = if point == 60.0 { inner } else { outer };
-    if color_type == Rainbow && point != 60.0 { hsv(rand(flake_key + 0.7), 1.0, brightness * level) }
+    let c = if center { inner } else { outer };
+    if color_type == Rainbow && !center { hsv(rand(flake_key + 0.7), 1.0, brightness * level) }
     else if color_type == Range {
-      let other = if point == 60.0 { inner_colors[int(rand(flake_key + 0.8) * len(inner_colors))][progress] } else { outer_colors[int(rand(flake_key + 0.8) * len(outer_colors))][progress] };
+      let other = if center { inner_colors[int(rand(flake_key + 0.8) * len(inner_colors))][progress] } else { outer_colors[int(rand(flake_key + 0.8) * len(outer_colors))][progress] };
       hsv(mix(hue(c), hue(other), rand(flake_key + 0.9)), saturation(c), brightness * level)
     }
     else { c * (brightness * level) }

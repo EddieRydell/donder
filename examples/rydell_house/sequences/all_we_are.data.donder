@@ -3834,7 +3834,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -3885,7 +3884,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -4536,7 +4534,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -4587,7 +4584,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -4639,7 +4635,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -4691,7 +4686,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -5043,7 +5037,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -5094,7 +5087,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -5505,7 +5497,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -5556,7 +5547,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -6005,7 +5995,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6033,7 +6022,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6061,7 +6049,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6089,7 +6076,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6117,7 +6103,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6145,7 +6130,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6173,7 +6157,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6201,7 +6184,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6229,7 +6211,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6257,7 +6238,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -6285,7 +6265,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6313,7 +6292,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6341,7 +6319,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6369,7 +6346,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6397,7 +6373,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6425,7 +6400,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6453,7 +6427,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -6481,7 +6454,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6509,7 +6481,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6537,7 +6508,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6565,7 +6535,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6593,7 +6562,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6621,7 +6589,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6649,7 +6616,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6677,7 +6643,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6705,7 +6670,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6733,7 +6697,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6761,7 +6724,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6789,7 +6751,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6817,7 +6778,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -6845,7 +6805,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -12242,7 +12201,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -12294,7 +12252,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -12346,7 +12303,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -12398,7 +12354,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -12450,7 +12405,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -12775,7 +12729,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -13078,7 +13031,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -13404,7 +13356,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -14405,7 +14356,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -14443,7 +14393,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -14481,7 +14430,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -15761,7 +15709,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15779,7 +15726,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 1.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15797,7 +15743,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15815,7 +15760,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15833,7 +15777,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15851,7 +15794,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15869,7 +15811,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15887,7 +15828,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15905,7 +15845,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15923,7 +15862,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15941,7 +15879,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15959,7 +15896,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15977,7 +15913,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 2.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -15995,7 +15930,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 3.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16013,7 +15947,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16031,7 +15964,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16049,7 +15981,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16067,7 +15998,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16085,7 +16015,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16103,7 +16032,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16121,7 +16049,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 4.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16139,7 +16066,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 5.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16157,7 +16083,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16175,7 +16100,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16193,7 +16117,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16211,7 +16134,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16229,7 +16151,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16247,7 +16168,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16265,7 +16185,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 6.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16283,7 +16202,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 7.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16301,7 +16219,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16319,7 +16236,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -16344,7 +16260,6 @@ Sequence all_we_are {
         plasma_style: 4,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -16369,7 +16284,6 @@ Sequence all_we_are {
         plasma_style: 3,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -16394,7 +16308,6 @@ Sequence all_we_are {
         plasma_style: 5,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -16419,7 +16332,6 @@ Sequence all_we_are {
         plasma_style: 6,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -16444,7 +16356,6 @@ Sequence all_we_are {
         plasma_style: 7,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -16469,7 +16380,6 @@ Sequence all_we_are {
         plasma_style: 8,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -16494,7 +16404,6 @@ Sequence all_we_are {
         plasma_style: 9,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -16519,7 +16428,6 @@ Sequence all_we_are {
         plasma_style: 10,
         speed: 1.0,
         line_density: 40.0,
-        pixel_size: 0.1,
       },
     },
     Clip {
@@ -17900,7 +17808,6 @@ Sequence all_we_are {
         positioning: Locations,
         orientation: Horizontal,
         string_count: 1,
-        pixel_size: 0.3,
       },
     },
     Clip {
@@ -17925,7 +17832,6 @@ Sequence all_we_are {
         positioning: Locations,
         orientation: Horizontal,
         string_count: 1,
-        pixel_size: 0.3,
       },
     },
     Clip {
@@ -17950,7 +17856,6 @@ Sequence all_we_are {
         positioning: Locations,
         orientation: Horizontal,
         string_count: 1,
-        pixel_size: 0.3,
       },
     },
     Clip {
@@ -21443,7 +21348,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21481,7 +21385,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21600,7 +21503,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21656,7 +21558,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21714,7 +21615,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -21770,7 +21670,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -23915,7 +23814,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23946,7 +23844,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -23977,7 +23874,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24008,7 +23904,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24039,7 +23934,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24070,7 +23964,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24101,7 +23994,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24132,7 +24024,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24163,7 +24054,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24194,7 +24084,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24225,7 +24114,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24256,7 +24144,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24287,7 +24174,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24318,7 +24204,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24349,7 +24234,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24380,7 +24264,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24411,7 +24294,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24442,7 +24324,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24473,7 +24354,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24504,7 +24384,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24535,7 +24414,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24566,7 +24444,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24597,7 +24474,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24628,7 +24504,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24659,7 +24534,6 @@ Sequence all_we_are {
         background_chunks: 1,
         background_skips: 2,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24745,7 +24619,6 @@ Sequence all_we_are {
         particle_fade: 50,
         intensity: 100.0,
         random_seed: 13220.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -24764,7 +24637,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (0.6397, 83.242), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 89671.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -24966,7 +24838,6 @@ Sequence all_we_are {
         particle_fade: 50,
         intensity: 100.0,
         random_seed: 9148.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -24985,7 +24856,6 @@ Sequence all_we_are {
         hue_shift: Curve { points: [(0.0, 0.0), (0.6397, 83.242), (1.0, 100.0)] },
         intensity: 100.0,
         random_seed: 92515.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25269,7 +25139,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25293,7 +25162,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25317,7 +25185,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25341,7 +25208,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25365,7 +25231,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25389,7 +25254,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25413,7 +25277,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25437,7 +25300,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25461,7 +25323,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25525,7 +25386,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25589,7 +25449,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -25638,7 +25497,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25659,7 +25517,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25680,7 +25537,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25701,7 +25557,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25722,7 +25577,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25743,7 +25597,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25764,7 +25617,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25785,7 +25637,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25806,7 +25657,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25827,7 +25677,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25848,7 +25697,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25869,7 +25717,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25890,7 +25737,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25911,7 +25757,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25932,7 +25777,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25953,7 +25797,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25974,7 +25817,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -25995,7 +25837,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26019,7 +25860,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26043,7 +25883,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26067,7 +25906,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26091,7 +25929,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26115,7 +25952,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26139,7 +25975,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26163,7 +25998,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26187,7 +26021,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26211,7 +26044,6 @@ Sequence all_we_are {
         acceleration: GentleOut,
         blend_edges: true,
         scaled_radius: true,
-        pixel_size: 0.02,
       },
     },
     Clip {
@@ -26261,7 +26093,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26297,7 +26128,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26333,7 +26163,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26369,7 +26198,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26405,7 +26233,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26441,7 +26268,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26490,7 +26316,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -26541,7 +26366,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26577,7 +26401,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26613,7 +26436,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26649,7 +26471,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26685,7 +26506,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26721,7 +26541,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26757,7 +26576,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26806,7 +26624,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -26843,7 +26660,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26879,7 +26695,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26915,7 +26730,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26951,7 +26765,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -26987,7 +26800,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27023,7 +26835,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27059,7 +26870,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27095,7 +26905,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27131,7 +26940,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27167,7 +26975,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27203,7 +27010,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27239,7 +27045,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27275,7 +27080,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27311,7 +27115,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27347,7 +27150,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27383,7 +27185,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27419,7 +27220,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27455,7 +27255,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27505,7 +27304,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27541,7 +27339,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27577,7 +27374,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27613,7 +27409,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27649,7 +27444,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27685,7 +27479,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27721,7 +27514,6 @@ Sequence all_we_are {
         iterations: 1,
         spacing: 10.0,
         intensity: 100.0,
-        pixel_size: 0.05,
       },
     },
     Clip {
@@ -27891,7 +27683,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },
@@ -27929,7 +27720,6 @@ Sequence all_we_are {
         offset_percentage: true,
         blade_type: Fan,
         intensity: 100.0,
-        pixel_size: 0.05,
         frame_interval_ms: 23.0,
       },
     },

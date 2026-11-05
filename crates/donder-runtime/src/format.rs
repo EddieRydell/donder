@@ -452,12 +452,16 @@ pub(crate) struct Route {
     pub(crate) order: [u8; 4],
     /// Its lookup table, or [`NONE`].
     pub(crate) lookup: u32,
+    /// 1 when its bytes dither over frames, else 0.
+    pub(crate) dither: u32,
 }
 
+/// A route's gamma and brightness: the output at each input byte, in 1/256 of
+/// a byte.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Lookup {
-    pub(crate) table: [u8; 256],
+    pub(crate) table: [u16; 256],
 }
 
 impl Default for Lookup {
