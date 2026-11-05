@@ -32,7 +32,7 @@ impl DesktopState {
         let query = if request.match_case {
             request.query.clone()
         } else {
-            request.query.to_lowercase()
+            request.query.chars().flat_map(char::to_lowercase).collect()
         };
         let mut response = ProjectSearchResponse {
             request_id: request.request_id,
@@ -59,18 +59,16 @@ impl DesktopState {
                 continue;
             };
             let relative = relative.as_str().replace('\\', "/");
-            let filename = if request.match_case {
-                relative.clone()
-            } else {
-                relative.to_lowercase()
-            };
-            if let Some(column) = filename.find(&query) {
+            if let Some(column) = match_columns(&relative, &query, request.match_case)
+                .first()
+                .copied()
+            {
                 push_match(
                     &mut response,
                     ProjectSearchMatch {
                         path: relative.clone(),
                         line: 0,
-                        column: column as u32,
+                        column,
                         preview: relative.clone(),
                         kind: ProjectSearchMatchKind::Filename,
                     },
@@ -104,18 +102,13 @@ impl DesktopState {
                 text
             };
             for (line_index, line) in text.lines().enumerate() {
-                let haystack = if request.match_case {
-                    line.to_string()
-                } else {
-                    line.to_lowercase()
-                };
-                for (column, _) in haystack.match_indices(&query) {
+                for column in match_columns(line, &query, request.match_case) {
                     push_match(
                         &mut response,
                         ProjectSearchMatch {
                             path: relative.clone(),
                             line: line_index as u32,
-                            column: line[..column].chars().count() as u32,
+                            column,
                             preview: line.trim().to_string(),
                             kind: ProjectSearchMatchKind::Content,
                         },
@@ -134,6 +127,26 @@ impl DesktopState {
         }
         Ok(response)
     }
+}
+
+/// The character column of each match of `query` in `text`. Lowercasing can
+/// change a character's byte length, so a case-insensitive match is located in
+/// the lowercased text and mapped back to the character it came from.
+fn match_columns(text: &str, query: &str, match_case: bool) -> Vec<u32> {
+    let mut folded = String::with_capacity(text.len());
+    let mut origin = Vec::with_capacity(text.len());
+    for (column, character) in text.chars().enumerate() {
+        if match_case {
+            folded.push(character);
+        } else {
+            folded.extend(character.to_lowercase());
+        }
+        origin.resize(folded.len(), column as u32);
+    }
+    folded
+        .match_indices(query)
+        .map(|(byte, _)| origin[byte])
+        .collect()
 }
 
 fn push_match(response: &mut ProjectSearchResponse, item: ProjectSearchMatch) {

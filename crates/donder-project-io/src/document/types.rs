@@ -424,7 +424,7 @@ pub(crate) enum Node {
         params: Params,
         position: (f32, f32),
     },
-    /// Named `output`.
+    /// Named [`ROOT_NODE`](donder_language::data::ROOT_NODE).
     RootNode { position: (f32, f32) },
 }
 
@@ -433,7 +433,7 @@ pub(crate) struct Edge {
     /// A node, whose single output the edge carries.
     #[refers(Node)]
     pub from: Name,
-    /// `operator.input`, or `output`.
+    /// `operator.input`, or the root.
     #[refers(Node)]
     pub to: Reference,
 }

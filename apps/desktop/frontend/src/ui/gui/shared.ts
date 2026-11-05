@@ -40,7 +40,7 @@ export function automationTargetsEqual(
 
 export type GuiFocus =
   | { type: "clip"; id: number }
-  | { type: "graphNode"; nodeId: string }
+  | { type: "graphNode"; nodeId: number }
   | { type: "graphEdge"; edgeId: string }
   | { type: "automationClip"; id: number }
   | { type: "mark"; collectionKey: string; index: number }

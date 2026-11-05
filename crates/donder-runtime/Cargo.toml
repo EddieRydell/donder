@@ -18,7 +18,6 @@ iram = []
 donder-runtime-types.workspace = true
 bytemuck.workspace = true
 libm.workspace = true
-micromath.workspace = true
 
 [dev-dependencies]
 donder-test-support.workspace = true

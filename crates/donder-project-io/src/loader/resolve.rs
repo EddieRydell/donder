@@ -29,9 +29,9 @@ use donder_model::{
 use donder_model::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, Mark,
-    MarkCollection, MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph,
-    SequenceId, SequenceLayer, SequenceLayerId, Window,
+    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, Mark, MarkCollection,
+    MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph, SequenceId,
+    SequenceLayer, SequenceLayerId, Window,
 };
 use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControl, InputControlId, InputControlKind,
@@ -1296,7 +1296,7 @@ impl DomainResolver<'_> {
                     )
                 }
                 types::Node::RootNode { position } => (
-                    donder_language::object_name("root"),
+                    donder_language::object_name(donder_language::data::ROOT_NODE),
                     true,
                     position,
                     CompositionGraphNodeKind::Root,
@@ -1323,7 +1323,7 @@ impl DomainResolver<'_> {
                 let (from, ..) = self.node(document, &node_ids, &edge.from.0)?;
                 let (to, input) = match edge.to.segments.as_slice() {
                     [to] => match self.node(document, &node_ids, to)? {
-                        (to, true, _) => (to, "input".to_string()),
+                        (to, true, _) => (to, None),
                         _ => {
                             return Err(self.invalid(
                                 document,
@@ -1344,7 +1344,7 @@ impl DomainResolver<'_> {
                                     ),
                                 );
                             }
-                            (to, input.value.as_str().to_string())
+                            (to, Some(input.value.clone()))
                         }
                         _ => {
                             return Err(self.invalid(
@@ -1356,12 +1356,7 @@ impl DomainResolver<'_> {
                     },
                     _ => return Err(self.loader.unresolved(document, &edge.to)),
                 };
-                Ok(EffectGraphEdge {
-                    from,
-                    from_port: GraphPortId("output".to_string()),
-                    to,
-                    to_port: GraphPortId(input),
-                })
+                Ok(EffectGraphEdge { from, to, input })
             })
             .collect::<Result<Vec<_>, LoadError>>()?;
         Ok((SequenceCompositionGraph { nodes, edges }, node_ids))

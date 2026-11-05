@@ -45,7 +45,6 @@ tauri.workspace = true
 tauri-specta.workspace = true
 wgpu.workspace = true
 winit.workspace = true
-uuid.workspace = true
 
 [build-dependencies]
 tauri-build.workspace = true

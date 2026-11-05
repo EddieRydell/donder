@@ -391,7 +391,9 @@ impl Encoder<'_> {
         match &node.kind {
             CompositionGraphNodeKind::Layer { layer_id } => self.layer_name(layers, layer_id),
             CompositionGraphNodeKind::Operator(operator) => Ok(name(&operator.name)),
-            CompositionGraphNodeKind::Root => Ok(name(&donder_language::object_name("root"))),
+            CompositionGraphNodeKind::Root => Ok(name(&donder_language::object_name(
+                donder_language::data::ROOT_NODE,
+            ))),
         }
     }
 
@@ -452,18 +454,8 @@ impl Encoder<'_> {
                 .edges
                 .iter()
                 .map(|edge| {
-                    let to = graph
-                        .nodes
-                        .iter()
-                        .find(|node| node.id == edge.to)
-                        .ok_or_else(|| self.error("", "an edge's node is missing"))?;
                     let mut segments = vec![self.node_name(layers, graph, &edge.to)?.0.value];
-                    if !matches!(to.kind, CompositionGraphNodeKind::Root) {
-                        segments.push(
-                            Identifier::new(edge.to_port.0.clone())
-                                .map_err(|_| self.error(&edge.to_port.0, "invalid input name"))?,
-                        );
-                    }
+                    segments.extend(edge.input.clone());
                     Ok(types::Edge {
                         from: self.node_name(layers, graph, &edge.from)?,
                         to: Reference::new(segments),

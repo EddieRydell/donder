@@ -185,7 +185,7 @@ export type ClipRasterSettings = {
 export type CommandId = AppCommandId | EditorCommandId;
 
 /**  Edits to the layers and composition graph that sequences and consoles share. */
-export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceParamValue };
+export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: number[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; connection: SequenceGraphEdge } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: number; name: string; value: SequenceParamValue };
 
 export type ConsoleAction = 
 /**  Play a copy of a clip for its length, on top of the copies playing. */
@@ -687,7 +687,7 @@ export type GuiInputLimits = {
  *  of its clips, mark collections (a console's live marks), layers, graph nodes,
  *  or a console's live automations and events.
  */
-export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: string } | 
+export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: number } | 
 /**  Events have no name or description; they are only deleted. */
 { type: "event"; id: number };
 
@@ -1149,7 +1149,7 @@ export type SequenceAutomationResize =
 /**  The content scales with the clip. */
 "stretch";
 
-export type SequenceAutomationTarget = { type: "clipParam"; clipId: number; param: string } | { type: "compositionNodeParam"; nodeId: string; param: string };
+export type SequenceAutomationTarget = { type: "clipParam"; clipId: number; param: string } | { type: "compositionNodeParam"; nodeId: number; param: string };
 
 /**  Beats and downbeats detected in a sequence's audio, in ascending seconds. */
 export type SequenceBeatDetection = {
@@ -1441,18 +1441,16 @@ export type SequenceGradientValue = {
 };
 
 export type SequenceGraphEdge = {
-	fromNode: string,
-	fromPort: string,
-	toNode: string,
-	toPort: string,
+	fromNode: number,
+	toNode: number,
+	/**  The operator input the edge feeds; `None` for the root's one input. */
+	input: string | null,
 };
 
 export type SequenceGraphNode = {
-	id: string,
+	id: number,
 	x: number,
 	y: number,
-	inputs: SequenceGraphPortDefinition[],
-	outputs: SequenceGraphPortDefinition[],
 	kind: SequenceGraphNodeKind,
 };
 
@@ -1461,7 +1459,7 @@ export type SequenceGraphNodeKind = { type: "layer"; layerId: number; layerName:
 name: string; operator: SequenceGraphOperator; params: SequenceClipParam[] } | { type: "root" };
 
 export type SequenceGraphNodePosition = {
-	nodeId: string,
+	nodeId: number,
 	x: number,
 	y: number,
 };
@@ -1477,14 +1475,9 @@ export type SequenceGraphOperatorDefinition = {
 	displayName: string,
 	/**  The script's description of the operator. */
 	description: string | null,
-	inputs: SequenceGraphPortDefinition[],
-	outputs: SequenceGraphPortDefinition[],
+	/**  The operator's inputs, in declaration order. */
+	inputs: string[],
 	params: SequenceEffectDefinitionParam[],
-};
-
-export type SequenceGraphPortDefinition = {
-	sourceName: string,
-	displayName: string,
 };
 
 export type SequenceGuiDocument = {

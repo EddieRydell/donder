@@ -295,7 +295,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
     use donder_model::GraphOperatorNode;
     use donder_model::{
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
-        GraphNodePosition, GraphPortId,
+        GraphNodePosition,
     };
     let (mut project, layer_test) = starter_with_layer_test();
     let invert = *project
@@ -339,15 +339,13 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
     sequence.composition_graph.edges = vec![
         EffectGraphEdge {
             from: layer,
-            from_port: GraphPortId("output".into()),
             to: CompositionGraphNodeId(10000),
-            to_port: GraphPortId("input".into()),
+            input: Some(donder_language::object_name("input")),
         },
         EffectGraphEdge {
             from: CompositionGraphNodeId(10000),
-            from_port: GraphPortId("output".into()),
             to: output,
-            to_port: GraphPortId("input".into()),
+            input: None,
         },
     ];
     sequence

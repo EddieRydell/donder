@@ -21,7 +21,7 @@ import { sameGuiDocument } from "../snapshotState";
 import { guiRequestKind } from "../workspace/guiIdentity";
 import { resolveDocumentSyncFailure } from "../store";
 import { NAVIGATE_TO_TEXT_EVENT, navigateToText, type TextNavigation } from "../workspace/navigation";
-import { displayedProjectHealth } from "../workspace/helpers";
+import { displayedProjectHealth, sameWorkspacePath } from "../workspace/helpers";
 import { Button, IconButton, Tip } from "./kit";
 
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
@@ -199,9 +199,7 @@ function EditorPaneContent({
               icon={FileText}
               onClick={() => {
                 const diagnostic = snapshot.diagnostics.find((item) =>
-                  item.path === activePath
-                  || item.path.endsWith(`/${activePath}`)
-                  || item.path.endsWith(`\\${activePath}`)
+                  sameWorkspacePath(item.path, activePath, snapshot.projectRoot)
                 );
                 void navigateToText(activePath, diagnostic?.range ?? null);
               }}

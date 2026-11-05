@@ -67,7 +67,7 @@ pub use layout::{
     OwnedLayout,
 };
 pub use operator::{
-    GraphOperatorNode, GraphValidationError, OperatorDefinition, OperatorPortDefinition,
+    GraphOperatorNode, GraphValidationError, OperatorDefinition,
     composition_graph_root_dependencies, param_matches_type, validate_composition_graph,
 };
 pub use ownership::edit::{
@@ -84,10 +84,9 @@ pub use project::{
 pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationEnvelope,
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, Mark,
-    MarkCollection, MarkCollectionKey, OwnedSequence, Sequence, SequenceAudio,
-    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, Window,
-    automation_curve_is_normalized, automation_value_at,
+    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, Mark, MarkCollection,
+    MarkCollectionKey, OwnedSequence, Sequence, SequenceAudio, SequenceCompositionGraph,
+    SequenceLayer, SequenceLayerId, Window, automation_curve_is_normalized, automation_value_at,
 };
 pub use setup::authoring::{
     attach_controller, attach_input_device, detach_controller, detach_input_device,

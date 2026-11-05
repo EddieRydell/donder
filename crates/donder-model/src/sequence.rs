@@ -73,16 +73,14 @@ pub struct GraphNodePosition {
     pub y: f32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+/// Every node but the root has one output; an edge carries it to an input.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct EffectGraphEdge {
     pub from: CompositionGraphNodeId,
-    pub from_port: GraphPortId,
     pub to: CompositionGraphNodeId,
-    pub to_port: GraphPortId,
+    /// The operator input the edge feeds; `None` for the root's one input.
+    pub input: Option<Identifier>,
 }
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct GraphPortId(pub String);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MarkCollection {

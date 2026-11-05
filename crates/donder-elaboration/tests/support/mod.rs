@@ -1,7 +1,7 @@
 use donder_language::compiler::{CompiledDefinition, compile_script};
 use donder_model::{
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
-    GraphNodePosition, GraphPortId, SequenceId,
+    GraphNodePosition, SequenceId,
 };
 use donder_model::{DonderProject, ProjectEdit};
 use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
@@ -12,7 +12,7 @@ pub(crate) fn append_operator(
     compiled: CompiledDefinition,
 ) {
     let definition = OperatorDefinitionId(project.new_id());
-    let input = compiled.inputs()[0].name.as_str().to_owned();
+    let input = compiled.inputs()[0].name.clone();
     let mut sequence = project.get::<donder_model::Sequence>(*id).unwrap().clone();
     let graph = &mut sequence.composition_graph;
     let output = graph
@@ -57,7 +57,7 @@ pub(crate) fn append_operator(
         .enumerate()
     {
         edge.to = mix.clone();
-        edge.to_port = GraphPortId(format!("s{index}"));
+        edge.input = Some(donder_runtime_types::Identifier::new(format!("s{index}")).unwrap());
     }
     graph.nodes.extend([
         CompositionGraphNode {
@@ -78,15 +78,13 @@ pub(crate) fn append_operator(
     graph.edges.extend([
         EffectGraphEdge {
             from: mix,
-            from_port: GraphPortId("output".into()),
             to: operator.clone(),
-            to_port: GraphPortId(input),
+            input: Some(input),
         },
         EffectGraphEdge {
             from: operator,
-            from_port: GraphPortId("output".into()),
             to: output,
-            to_port: GraphPortId("input".into()),
+            input: None,
         },
     ]);
     project

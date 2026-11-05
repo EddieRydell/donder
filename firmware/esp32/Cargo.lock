@@ -529,7 +529,6 @@ dependencies = [
  "bytemuck",
  "donder-runtime-types",
  "libm",
- "micromath",
 ]
 
 [[package]]

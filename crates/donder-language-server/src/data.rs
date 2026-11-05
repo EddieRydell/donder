@@ -702,7 +702,7 @@ pub(crate) fn completions(
             Refers::Node => {
                 let mut names = local_names(document, "OperatorNode", "name");
                 names.extend(local_names(document, "LayerNode", "layer"));
-                names.push("root".into());
+                names.push(donder_language::data::ROOT_NODE.into());
                 names
             }
         }

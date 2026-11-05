@@ -30,7 +30,7 @@ the library doesn't have, you can write it yourself (or ask an LLM to write it f
   but Donder's DSL is an array language (similar to APL or shader languages), so sequences
   can be evaluated at near native performance compared to a traditional VM.
   For example, **PixelBlaze claims performance of 30 fps for 800 LEDs on a single
-  ESP32, whereas Donder can run at around 100 fps with 300 pixels on
+  ESP32, whereas Donder can run at around 100 fps with 200 pixels on
   4 different outputs on the same hardware (this can vary depending on how many stacked effects
   and operators you have in a sequence)**.
 - **A layer graph** Layers feed a node graph of operators:
@@ -121,7 +121,7 @@ layout, controllers and patch of an xLights or Vixen profile import into a new p
 File > Import Profile; see [profile import](docs/profile_import.md).
 
 Standalone playback supports classic ESP32 boards with 4 MB flash, including the
-QuinLED Dig-Quad, with up to 1,600 pixels on four outputs per controller. Larger
+QuinLED Dig-Quad, with up to 800 pixels on four outputs of 200 per controller. Larger
 displays use live E1.31/Art-Net output or FSEQ export.
 
 Not yet supported:

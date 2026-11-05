@@ -204,11 +204,9 @@ pub struct SequenceCompositionGraph {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphNode {
-    pub id: String,
+    pub id: u32,
     pub(crate) x: f32,
     pub(crate) y: f32,
-    pub(crate) inputs: Vec<SequenceGraphPortDefinition>,
-    pub(crate) outputs: Vec<SequenceGraphPortDefinition>,
     pub kind: SequenceGraphNodeKind,
 }
 
@@ -242,16 +240,9 @@ pub struct SequenceGraphOperatorDefinition {
     pub(crate) display_name: String,
     /// The script's description of the operator.
     pub(crate) description: Option<String>,
-    pub(crate) inputs: Vec<SequenceGraphPortDefinition>,
-    pub(crate) outputs: Vec<SequenceGraphPortDefinition>,
+    /// The operator's inputs, in declaration order.
+    pub(crate) inputs: Vec<String>,
     pub(crate) params: Vec<SequenceEffectDefinitionParam>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceGraphPortDefinition {
-    pub(crate) source_name: String,
-    pub(crate) display_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

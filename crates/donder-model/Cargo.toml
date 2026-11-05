@@ -7,7 +7,6 @@ authors = ["Donder"]
 license = "MIT"
 
 [dependencies]
-camino.workspace = true
 donder-language.workspace = true
 donder-runtime-types = { workspace = true, features = ["atomic"] }
 glam.workspace = true

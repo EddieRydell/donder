@@ -256,10 +256,13 @@ pub enum Refers {
     /// A layer of the sequence or console.
     Layer,
     Clip,
-    /// A graph node, or `output`.
+    /// A graph node, or [`ROOT_NODE`].
     Node,
     Marks,
 }
+
+/// The name of a composition graph's root node, which edges reach as `to: root`.
+pub const ROOT_NODE: &str = "root";
 
 /// A record's fields, or a variant's, in order.
 pub type Fields = Vec<(&'static str, Shape)>;

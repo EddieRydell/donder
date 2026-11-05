@@ -1,6 +1,6 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{Retain, prepare};
-use donder_model::{AutomationTarget, CompositionGraphNodeKind, EffectGraphEdge, GraphPortId};
+use donder_model::{AutomationTarget, CompositionGraphNodeKind, EffectGraphEdge};
 use donder_runtime_types::SampleTime;
 
 #[test]
@@ -57,9 +57,8 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                 .clone();
             reference.composition_graph.edges = vec![EffectGraphEdge {
                 from: layer,
-                from_port: GraphPortId("output".into()),
                 to: output,
-                to_port: GraphPortId("input".into()),
+                input: None,
             }];
             for automation in &mut reference.automation_clips {
                 automation.bindings.retain(|binding| {

@@ -18,7 +18,7 @@ pub use parser::parse;
 pub use printer::{ListSplice, list_item, print, print_spliced};
 pub use schema::{
     Data, Decoder, Definition, FieldReader, Fields, Meters, NO_SPAN, Name, OwnedNamedRecord,
-    OwnedRecord, Params, Path, Record, Reference, Refers, Schema, Shape, declaration,
+    OwnedRecord, Params, Path, ROOT_NODE, Record, Reference, Refers, Schema, Shape, declaration,
     decode_record, field, record, spanned, variant,
 };
 pub use tree::{

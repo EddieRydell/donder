@@ -2,7 +2,7 @@
 //! link to an object written elsewhere; objects owned in place are not
 //! references of their owner.
 use super::{DonderProject, ProjectRoot};
-use crate::console::{Console, InputEvent};
+use crate::console::{Action, Console, InputEvent, LengthSource, Play, PlayLength};
 use crate::effect::{Clip, ParamValue};
 use crate::identity::ObjectId;
 use crate::layout::{Layout, LayoutFixtureKind};
@@ -145,6 +145,15 @@ macro_rules! walks {
             }
             for on in & $($m)* console.events {
                 $visit!(f, changed, owner, (& $($m)* on.event).control_mut_or_ref().device);
+                for action in & $($m)* on.actions {
+                    if let Action::Play(Play {
+                        length: PlayLength::Scaled { by: LengthSource::Axis(control), .. },
+                        ..
+                    }) = action
+                    {
+                        $visit!(f, changed, owner, control.device);
+                    }
+                }
             }
             graph(owner, & $($m)* console.composition_graph, f, changed);
         }

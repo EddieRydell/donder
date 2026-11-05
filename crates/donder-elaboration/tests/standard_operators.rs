@@ -3,7 +3,7 @@ use donder_model::DonderProject;
 use donder_model::GraphOperatorNode;
 use donder_model::{
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
-    GraphNodePosition, GraphPortId, Sequence, SequenceCompositionGraph, SequenceId,
+    GraphNodePosition, Sequence, SequenceCompositionGraph, SequenceId,
 };
 use donder_runtime_types::SampleTime;
 
@@ -39,12 +39,19 @@ fn node(id: u32, kind: CompositionGraphNodeKind) -> CompositionGraphNode {
     }
 }
 
-fn edge(from: u32, to: u32, port: &str) -> EffectGraphEdge {
+fn edge(from: u32, to: u32, input: &str) -> EffectGraphEdge {
     EffectGraphEdge {
         from: CompositionGraphNodeId(from),
-        from_port: GraphPortId("output".into()),
         to: CompositionGraphNodeId(to),
-        to_port: GraphPortId(port.into()),
+        input: Some(donder_runtime_types::Identifier::new(input.to_string()).unwrap()),
+    }
+}
+
+fn to_root(from: u32, root: u32) -> EffectGraphEdge {
+    EffectGraphEdge {
+        from: CompositionGraphNodeId(from),
+        to: CompositionGraphNodeId(root),
+        input: None,
     }
 }
 
@@ -118,8 +125,8 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
             edge(0, 1, "source"),
             edge(1, 2, "source"),
             edge(1, 3, "source"),
-            edge(2, 4, "input"),
-            edge(3, 4, "input"),
+            to_root(2, 4),
+            to_root(3, 4),
         ],
     };
     project.put(sequence.clone()).unwrap();
@@ -170,14 +177,14 @@ fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -
         node(1, layer(1)),
         node(2, CompositionGraphNodeKind::Root),
     ];
-    let mut edges = vec![edge(0, 2, "input")];
+    let mut edges = vec![to_root(0, 2)];
     let mut previous = 1;
     for (id, (name, port)) in (10..).zip(operators) {
         nodes.push(node(id, project_operator(&project, id, name)));
         edges.push(edge(previous, id, port));
         previous = id;
     }
-    edges.push(edge(previous, 2, "input"));
+    edges.push(to_root(previous, 2));
     sequence.composition_graph = SequenceCompositionGraph { nodes, edges };
     project.put(sequence).unwrap();
     prepare(&project, &id, Retain::All).unwrap()

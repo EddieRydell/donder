@@ -45,7 +45,7 @@ libm = "0.2.16"
 mdns-sd = { version = "0.21.4", default-features = false }
 midir = "0.11.1"
 micromath = { version = "2.1.0", default-features = false }
-notify = "=8.2.0"
+notify = "8.2.1"
 openh264 = "0.9.8"
 quick-xml = "0.42.0"
 proc-macro2 = "1.0.107"
@@ -68,8 +68,6 @@ tauri-build = "2.6.3"
 tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "typescript"] }
 tempfile = "3.27.0"
 tract-onnx = "0.23.8"
-uuid = { version = "1.26.0", features = ["serde", "v4"] }
-webbrowser = "1.2.4"
 zstd = "0.14.0"
 wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "dx12", "metal", "gles", "vulkan", "wgsl", "webgl", "webgpu"] }
 winit = "0.30.13"

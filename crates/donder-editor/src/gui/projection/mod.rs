@@ -1,9 +1,9 @@
 mod params;
 pub(super) use params::clip_params;
+use params::sequence_node_automation;
 pub(super) use params::{
     composition_graph, curve_library, gradient_library, invocation_params, layers_to_gui,
 };
-use params::{graph_node_id, sequence_node_automation};
 
 /// The inspector's view of `clip_ids` in the requested sequence, in the
 /// requested order; ids the sequence does not have are skipped.
@@ -192,7 +192,7 @@ pub(super) fn automation_target_to_gui<Clip: GuiClipId>(
         },
         AutomationTarget::CompositionNodeParam { node_id, param } => {
             SequenceAutomationTarget::CompositionNodeParam {
-                node_id: graph_node_id(node_id),
+                node_id: node_id.0,
                 param: param.as_str().to_string(),
             }
         }

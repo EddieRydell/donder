@@ -56,7 +56,7 @@ pub(crate) fn prepare<'id>(
     for edge in &graph.edges {
         let from = indexes[&edge.from];
         let to = indexes[&edge.to];
-        incoming[to].push((&edge.to_port, from));
+        incoming[to].push((edge.input.as_ref(), from));
         outgoing[from].push(to);
         indegree[to] += 1;
         if dependencies.contains(&graph.nodes[to].id) {
@@ -95,11 +95,10 @@ pub(crate) fn prepare<'id>(
                     let inputs = operator
                         .definition()
                         .inputs()
-                        .iter()
                         .map(|input| {
                             let sources = incoming[index]
                                 .iter()
-                                .filter(|(port, _)| port.0 == input.source_name)
+                                .filter(|(port, _)| *port == Some(input))
                                 .map(|(_, source)| *source)
                                 .collect();
                             fan_in(sources, &mut pending, &mut order)

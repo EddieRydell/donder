@@ -134,7 +134,7 @@ identities in document order.
 | Layers and graph nodes together; clips; mark collections | their sequence |
 | Layers and graph nodes together; clips; live mark collections | their console |
 
-A layer node is named by its layer and the output node is named `output`, so a
+A layer node is named by its layer and the root node is named `root`, so a
 graph node's name never collides with a layer's. The GUI derives names from what
 it creates (`pulse`, `pulse_2`, `afterglow`), and a name typed in the GUI is
 converted to `snake_case` (`Glow Trail` becomes `glow_trail`).

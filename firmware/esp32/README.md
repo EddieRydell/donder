@@ -21,9 +21,10 @@ locations espup reports:
 CARGO_TARGET_DIR for their child processes only, building into this directory's
 `target/`. Never run host builds with `+esp`.
 
-The esp-hal SDK crates are patched together to upstream revision
-`0eb3e53b4a2e555d2136ce9dc83e18c6692b9673`, because the published radio beta
-targets an older HAL. Keep them on one source, build with `--locked`, and remove
+The esp-hal SDK crates are patched together to fork revision
+`01dc1ee5066fda0750342561376bb3852aa6df78` (upstream `0eb3e53b` plus the
+`I2sParallel::send` hang fix, merged upstream as esp-rs/esp-hal#6641 but not yet
+released), because the published radio beta targets an older HAL. Keep them on one source, build with `--locked`, and remove
 the patches together once a compatible release exists and the board checks are
 repeated.
 

@@ -2,38 +2,18 @@ import type { SequenceCompositionGraph, SequenceGraphEdge } from "../../../edito
 
 export const GRAPH_NEUTRAL_EDGE_COLOR = "var(--donder-graph-edge-neutral)";
 
-export type GraphEdgeIdParts = {
-  fromNode: string;
-  fromPort: string;
-  toNode: string;
-  toPort: string;
-};
-
 export type GraphEdgeLineage = {
   color: string;
   label: string;
 };
 
-export function graphEdgeId(edge: GraphEdgeIdParts) {
-  return JSON.stringify([edge.fromNode, edge.fromPort, edge.toNode, edge.toPort]);
-}
-
-export function parseGraphEdgeId(edgeId: string): GraphEdgeIdParts | null {
-  try {
-    const value: unknown = JSON.parse(edgeId);
-    if (!Array.isArray(value) || value.length !== 4 || !value.every((part) => typeof part === "string")) {
-      return null;
-    }
-    const [fromNode, fromPort, toNode, toPort] = value as [string, string, string, string];
-    return { fromNode, fromPort, toNode, toPort };
-  } catch {
-    return null;
-  }
+export function graphEdgeId(edge: SequenceGraphEdge) {
+  return JSON.stringify([edge.fromNode, edge.toNode, edge.input]);
 }
 
 export function graphEdgeLineages(graph: SequenceCompositionGraph) {
-  const incoming = new Map<string, SequenceGraphEdge[]>();
-  const layerColors = new Map<string, string>();
+  const incoming = new Map<number, SequenceGraphEdge[]>();
+  const layerColors = new Map<number, string>();
   for (const node of graph.nodes) {
     if (node.kind.type === "layer") layerColors.set(node.id, node.kind.layerColor);
   }
@@ -59,10 +39,10 @@ export function graphEdgeLineages(graph: SequenceCompositionGraph) {
 }
 
 function traceUpstreamLayerColors(
-  nodeId: string,
-  incoming: Map<string, SequenceGraphEdge[]>,
-  layerColors: Map<string, string>,
-  visited: Set<string>
+  nodeId: number,
+  incoming: Map<number, SequenceGraphEdge[]>,
+  layerColors: Map<number, string>,
+  visited: Set<number>
 ) {
   const layerColor = layerColors.get(nodeId);
   if (layerColor !== undefined) return new Set([layerColor]);

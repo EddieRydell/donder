@@ -510,7 +510,7 @@ pub(super) fn automation_target_from_gui<Clip: GuiClipId>(
         },
         SequenceAutomationTarget::CompositionNodeParam { node_id, param } => {
             AutomationTarget::CompositionNodeParam {
-                node_id: parse_graph_node_id(&node_id)?,
+                node_id: donder_model::CompositionGraphNodeId(node_id),
                 param: identifier(&param)?,
             }
         }
@@ -617,8 +617,7 @@ use donder_runtime_types::AutomationMapping;
 use super::model::{
     automation_binding_value_at, automation_clip_mut, clip_mut, clip_scope, curve_from_points,
     default_automation_curve, effect_ref_from_gui, identifier, layout_target_to_clip_target,
-    mark_collection_mut, parse_color, parse_graph_node_id, register_sequence_audio_asset,
-    required_param_values,
+    mark_collection_mut, parse_color, register_sequence_audio_asset, required_param_values,
 };
 use super::projection::GuiClipId;
 use super::{GuiMutationError, ResolvedGuiObject};

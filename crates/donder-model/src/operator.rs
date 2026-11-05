@@ -16,30 +16,16 @@ pub struct GraphOperatorNode {
     pub params: IndexMap<Identifier, ParamValue>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OperatorPortDefinition {
-    pub source_name: String,
-    pub display_name: String,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorDefinition {
     pub(crate) id: OperatorDefinitionId,
     compiled: Box<CompiledDefinition>,
-    inputs: Vec<OperatorPortDefinition>,
-    output: OperatorPortDefinition,
 }
 
 impl OperatorDefinition {
     pub fn new(id: OperatorDefinitionId, compiled: CompiledDefinition) -> Self {
         Self {
             id,
-            inputs: compiled
-                .inputs()
-                .iter()
-                .map(|OperatorInputDecl { name }| port(name.as_str(), name.as_str()))
-                .collect(),
-            output: port("output", "Output"),
             compiled: Box::new(compiled),
         }
     }
@@ -49,11 +35,12 @@ impl OperatorDefinition {
     pub fn name(&self) -> &str {
         self.compiled.name().as_str()
     }
-    pub fn inputs(&self) -> &[OperatorPortDefinition] {
-        &self.inputs
-    }
-    pub fn output(&self) -> &OperatorPortDefinition {
-        &self.output
+    /// The operator's inputs, in declaration order.
+    pub fn inputs(&self) -> impl Iterator<Item = &Identifier> {
+        self.compiled
+            .inputs()
+            .iter()
+            .map(|OperatorInputDecl { name }| name)
     }
     pub fn params(&self) -> &[ParamDecl] {
         self.compiled.params()
@@ -66,12 +53,6 @@ impl OperatorDefinition {
     }
 }
 
-fn port(name: &str, display_name: &str) -> OperatorPortDefinition {
-    OperatorPortDefinition {
-        source_name: name.to_string(),
-        display_name: display_name.to_string(),
-    }
-}
 /// Why a composition graph cannot be evaluated.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GraphValidationError {
@@ -79,18 +60,17 @@ pub enum GraphValidationError {
     MissingOperator(CompositionGraphNodeId),
     RootCount(usize),
     MissingEdgeNode(CompositionGraphNodeId),
-    UnknownOutputPort {
+    /// An edge leaves the root, which has no output.
+    EdgeFromRoot(CompositionGraphNodeId),
+    /// An edge names an input its target does not have.
+    UnknownInput {
         node: CompositionGraphNodeId,
-        port: String,
-    },
-    UnknownInputPort {
-        node: CompositionGraphNodeId,
-        port: String,
+        input: Option<Identifier>,
     },
     DuplicateEdge(CompositionGraphNodeId),
     UnconnectedInput {
         node: CompositionGraphNodeId,
-        port: String,
+        input: Identifier,
     },
     Cycle,
     UnknownParam {
@@ -115,8 +95,8 @@ impl GraphValidationError {
             | Self::MissingOperator(node)
             | Self::MissingEdgeNode(node)
             | Self::DuplicateEdge(node)
-            | Self::UnknownOutputPort { node, .. }
-            | Self::UnknownInputPort { node, .. }
+            | Self::EdgeFromRoot(node)
+            | Self::UnknownInput { node, .. }
             | Self::UnconnectedInput { node, .. }
             | Self::UnknownParam { node, .. }
             | Self::WrongParamType { node, .. }
@@ -136,10 +116,17 @@ impl std::fmt::Display for GraphValidationError {
                 "a composition graph has exactly one root node, not {count}"
             ),
             Self::MissingEdgeNode(_) => f.write_str("an edge names a missing graph node"),
-            Self::UnknownOutputPort { port, .. } => write!(f, "no output port `{port}`"),
-            Self::UnknownInputPort { port, .. } => write!(f, "no input port `{port}`"),
+            Self::EdgeFromRoot(_) => f.write_str("the root has no output"),
+            Self::UnknownInput {
+                input: Some(input), ..
+            } => write!(f, "no input `{}`", input.as_str()),
+            Self::UnknownInput { input: None, .. } => {
+                f.write_str("an edge to an operator names its input")
+            }
             Self::DuplicateEdge(_) => f.write_str("an edge appears twice"),
-            Self::UnconnectedInput { port, .. } => write!(f, "input `{port}` is not connected"),
+            Self::UnconnectedInput { input, .. } => {
+                write!(f, "input `{}` is not connected", input.as_str())
+            }
             Self::Cycle => f.write_str("the composition graph contains a cycle"),
             Self::UnknownParam { param, .. } => write!(f, "no parameter `{}`", param.as_str()),
             Self::WrongParamType { param, .. } => {
@@ -189,7 +176,7 @@ pub fn validate_composition_graph(
     let connected_inputs = graph
         .edges
         .iter()
-        .map(|edge| (&edge.to, edge.to_port.0.as_str()))
+        .filter_map(|edge| Some((&edge.to, edge.input.as_ref()?)))
         .collect::<HashSet<_>>();
     let root_dependencies = composition_graph_root_dependencies(graph);
     for node in &graph.nodes {
@@ -199,11 +186,11 @@ pub fn validate_composition_graph(
             let definition = definitions
                 .get(&operator.operator)
                 .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone()))?;
-            for input in &definition.inputs {
-                if !connected_inputs.contains(&(&node.id, input.source_name.as_str())) {
+            for input in definition.inputs() {
+                if !connected_inputs.contains(&(&node.id, input)) {
                     return Err(GraphValidationError::UnconnectedInput {
                         node: node.id.clone(),
-                        port: input.source_name.clone(),
+                        input: input.clone(),
                     });
                 }
             }
@@ -244,12 +231,7 @@ fn validate_edge<'a>(
         &'a crate::sequence::CompositionGraphNode,
     >,
     definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
-    edges: &mut HashSet<(
-        &'a crate::sequence::CompositionGraphNodeId,
-        &'a str,
-        &'a crate::sequence::CompositionGraphNodeId,
-        &'a str,
-    )>,
+    edges: &mut HashSet<&'a EffectGraphEdge>,
 ) -> Result<(), GraphValidationError> {
     let from = nodes
         .get(&edge.from)
@@ -257,30 +239,25 @@ fn validate_edge<'a>(
     let to = nodes
         .get(&edge.to)
         .ok_or_else(|| GraphValidationError::MissingEdgeNode(edge.to.clone()))?;
-    if !output_ports(from, definitions)?
-        .iter()
-        .any(|port| port == &edge.from_port.0)
-    {
-        return Err(GraphValidationError::UnknownOutputPort {
-            node: edge.from.clone(),
-            port: edge.from_port.0.clone(),
-        });
+    if matches!(from.kind, CompositionGraphNodeKind::Root) {
+        return Err(GraphValidationError::EdgeFromRoot(edge.from.clone()));
     }
-    if !input_ports(to, definitions)?
-        .iter()
-        .any(|port| port.source_name == edge.to_port.0)
-    {
-        return Err(GraphValidationError::UnknownInputPort {
+    let known = match (&to.kind, &edge.input) {
+        (CompositionGraphNodeKind::Root, None) => true,
+        (CompositionGraphNodeKind::Operator(operator), Some(input)) => definitions
+            .get(&operator.operator)
+            .ok_or_else(|| GraphValidationError::MissingOperator(to.id.clone()))?
+            .inputs()
+            .any(|declared| declared == input),
+        _ => false,
+    };
+    if !known {
+        return Err(GraphValidationError::UnknownInput {
             node: edge.to.clone(),
-            port: edge.to_port.0.clone(),
+            input: edge.input.clone(),
         });
     }
-    if !edges.insert((
-        &edge.from,
-        edge.from_port.0.as_str(),
-        &edge.to,
-        edge.to_port.0.as_str(),
-    )) {
+    if !edges.insert(edge) {
         return Err(GraphValidationError::DuplicateEdge(edge.to.clone()));
     }
     Ok(())
@@ -324,34 +301,6 @@ fn validate_acyclic(graph: &SequenceCompositionGraph) -> Result<(), GraphValidat
         Ok(())
     } else {
         Err(GraphValidationError::Cycle)
-    }
-}
-
-fn input_ports(
-    node: &crate::sequence::CompositionGraphNode,
-    definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
-) -> Result<Vec<OperatorPortDefinition>, GraphValidationError> {
-    match &node.kind {
-        CompositionGraphNodeKind::Layer { .. } => Ok(Vec::new()),
-        CompositionGraphNodeKind::Operator(operator) => definitions
-            .get(&operator.operator)
-            .map(|definition| definition.inputs.clone())
-            .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone())),
-        CompositionGraphNodeKind::Root => Ok(vec![port("input", "Input")]),
-    }
-}
-
-fn output_ports(
-    node: &crate::sequence::CompositionGraphNode,
-    definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
-) -> Result<Vec<String>, GraphValidationError> {
-    match &node.kind {
-        CompositionGraphNodeKind::Layer { .. } => Ok(vec!["output".to_string()]),
-        CompositionGraphNodeKind::Operator(operator) => definitions
-            .get(&operator.operator)
-            .map(|definition| vec![definition.output.source_name.clone()])
-            .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone())),
-        CompositionGraphNodeKind::Root => Ok(Vec::new()),
     }
 }
 

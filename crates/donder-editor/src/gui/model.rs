@@ -66,18 +66,6 @@ pub(super) fn clip_mut(
         .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))
 }
 
-pub(super) fn parse_graph_node_id(value: &str) -> Result<CompositionGraphNodeId, GuiMutationError> {
-    if let Some(id) = value.strip_prefix("node:") {
-        return id
-            .parse::<u32>()
-            .map(CompositionGraphNodeId)
-            .map_err(|_| GuiMutationError::Invalid("Invalid graph node id.".to_string()));
-    }
-    Err(GuiMutationError::Invalid(
-        "Invalid graph node id.".to_string(),
-    ))
-}
-
 pub(super) fn graph_operator_from_gui(
     session: &ProjectSession,
     operator: &SequenceGraphOperator,
@@ -464,8 +452,7 @@ use std::fs;
 use camino::Utf8PathBuf;
 use donder_language::{Distance, Point3, Rotation3 as DomainRotation3, Scale3 as DomainScale3};
 use donder_model::{
-    AssetId, AutomationClip, CompositionGraphNodeId, MarkCollection, MarkCollectionKey, Window,
-    automation_value_at,
+    AssetId, AutomationClip, MarkCollection, MarkCollectionKey, Window, automation_value_at,
 };
 use donder_model::{Clip, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue};
 use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};

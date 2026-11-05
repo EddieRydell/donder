@@ -96,10 +96,9 @@ pub(in crate::gui) fn composition_graph(
             .edges
             .iter()
             .map(|edge| SequenceGraphEdge {
-                from_node: graph_node_id(&edge.from),
-                from_port: edge.from_port.0.clone(),
-                to_node: graph_node_id(&edge.to),
-                to_port: edge.to_port.0.clone(),
+                from_node: edge.from.0,
+                to_node: edge.to.0,
+                input: edge.input.as_ref().map(|input| input.as_str().to_string()),
             })
             .collect(),
     }
@@ -130,11 +129,9 @@ fn composition_graph_node(
     node: &CompositionGraphNode,
 ) -> SequenceGraphNode {
     SequenceGraphNode {
-        id: graph_node_id(&node.id),
+        id: node.id.0,
         x: node.position.x,
         y: node.position.y,
-        inputs: graph_node_inputs(session, &node.kind),
-        outputs: graph_node_outputs(session, &node.kind),
         kind: match &node.kind {
             CompositionGraphNodeKind::Layer { layer_id } => {
                 let layer = layers.iter().find(|layer| layer.id == *layer_id);
@@ -157,10 +154,6 @@ fn composition_graph_node(
             CompositionGraphNodeKind::Root => SequenceGraphNodeKind::Root,
         },
     }
-}
-
-pub(in crate::gui) fn graph_node_id(node_id: &CompositionGraphNodeId) -> String {
-    format!("node:{}", node_id.0)
 }
 
 fn graph_operator_params(
@@ -219,8 +212,10 @@ fn graph_operator_definition_to_gui(
         source_name: definition.name().to_string(),
         display_name: definition.name().to_string(),
         description: definition.description().map(str::to_string),
-        inputs: definition.inputs().iter().map(graph_port_to_gui).collect(),
-        outputs: vec![graph_port_to_gui(definition.output())],
+        inputs: definition
+            .inputs()
+            .map(|input| input.as_str().to_string())
+            .collect(),
         params: definition_params_to_gui(definition.params()),
     }
 }
@@ -240,53 +235,6 @@ pub(in crate::gui) fn definition_params_to_gui(
             })
         })
         .collect()
-}
-
-fn graph_port_to_gui(port: &OperatorPortDefinition) -> SequenceGraphPortDefinition {
-    SequenceGraphPortDefinition {
-        source_name: port.source_name.to_string(),
-        display_name: port.display_name.to_string(),
-    }
-}
-
-fn graph_node_inputs(
-    session: &ProjectSession,
-    kind: &CompositionGraphNodeKind,
-) -> Vec<SequenceGraphPortDefinition> {
-    match kind {
-        CompositionGraphNodeKind::Layer { .. } => vec![],
-        CompositionGraphNodeKind::Operator(operator) => session
-            .project
-            .get::<donder_model::OperatorDefinition>(operator.operator)
-            .into_iter()
-            .flat_map(|definition| definition.inputs().iter())
-            .map(graph_port_to_gui)
-            .collect(),
-        CompositionGraphNodeKind::Root => vec![SequenceGraphPortDefinition {
-            source_name: "input".to_string(),
-            display_name: "Input".to_string(),
-        }],
-    }
-}
-
-fn graph_node_outputs(
-    session: &ProjectSession,
-    kind: &CompositionGraphNodeKind,
-) -> Vec<SequenceGraphPortDefinition> {
-    match kind {
-        CompositionGraphNodeKind::Layer { .. } => {
-            vec![SequenceGraphPortDefinition {
-                source_name: "output".to_string(),
-                display_name: "Output".to_string(),
-            }]
-        }
-        CompositionGraphNodeKind::Operator(operator) => session
-            .project
-            .get::<donder_model::OperatorDefinition>(operator.operator)
-            .map(|definition| vec![graph_port_to_gui(definition.output())])
-            .unwrap_or_default(),
-        CompositionGraphNodeKind::Root => vec![],
-    }
 }
 
 fn graph_operator_to_gui(
@@ -631,9 +579,7 @@ use donder_language::compiler::{ParamDecl, ParamRange};
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
 };
-use donder_model::{
-    GraphOperatorNode, OperatorDefinition, OperatorDefinitionId, OperatorPortDefinition,
-};
+use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
 use donder_model::{OwnedCurve, OwnedGradient, ParamValue};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::{Identifier, Type, Value as EffectValue};
@@ -641,7 +587,7 @@ use donder_runtime_types::{Identifier, Type, Value as EffectValue};
 use crate::dto::{
     SequenceClipParam, SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceCurveValue,
     SequenceGradientLibraryItem, SequenceGradientValue, SequenceGraphEdge, SequenceGraphNode,
-    SequenceGraphNodeKind, SequenceGraphOperator, SequenceGraphOperatorDefinition,
-    SequenceGraphPortDefinition, SequenceLayer, SequenceLibraryLink, SequenceParamAutomation,
-    SequenceParamKind, SequenceParamRange, SequenceParamValue,
+    SequenceGraphNodeKind, SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceLayer,
+    SequenceLibraryLink, SequenceParamAutomation, SequenceParamKind, SequenceParamRange,
+    SequenceParamValue,
 };

@@ -29,7 +29,7 @@ export function defaultLayerColor(index: number) {
   return color;
 }
 
-export function deletableGraphNodes(document: CompositionDocument, nodeIds: string[]) {
+export function deletableGraphNodes(document: CompositionDocument, nodeIds: number[]) {
   return document.compositionGraph.nodes.filter((node) => {
     if (!nodeIds.includes(node.id)) return false;
     if (node.kind.type === "operator") return true;
@@ -60,7 +60,7 @@ export function LayerProperties({ layer, composition, onDelete }: { layer: Seque
 }
 
 type Deletion = {
-  nodeIds: string[];
+  nodeIds: number[];
   edges: SequenceGraphEdge[];
   layerIds: number[];
   clipCount: number;
@@ -96,7 +96,7 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
       reportSequenceEditError(error);
     }
   }, [composition, reportSequenceEditError, onDeleted]);
-  const requestDelete = useCallback((nodeIds: string[], edgeIds: string[] = [], explicitLayerIds: number[] = []) => {
+  const requestDelete = useCallback((nodeIds: number[], edgeIds: string[] = [], explicitLayerIds: number[] = []) => {
     if (!editable) return;
     const origin = useAppStore.getState().guiRequest;
     if (origin === null) return;

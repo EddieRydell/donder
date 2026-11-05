@@ -3,16 +3,15 @@ use std::collections::BTreeSet;
 
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    Console, EffectGraphEdge, GraphNodePosition, GraphOperatorNode, GraphPortId, ParamValue,
-    Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
+    Console, EffectGraphEdge, GraphNodePosition, GraphOperatorNode, ParamValue, Sequence,
+    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 use indexmap::IndexMap;
 
 use super::GuiMutationError;
 use super::model::{
-    fresh_name, graph_operator_from_gui, identifier, param_value_from_gui, parse_color,
-    parse_graph_node_id, typed_name,
+    fresh_name, graph_operator_from_gui, identifier, param_value_from_gui, parse_color, typed_name,
 };
 use crate::dto::{CompositionGuiEdit, SequenceGraphEdge, SequenceGraphNodePosition};
 
@@ -157,27 +156,12 @@ pub(super) fn edit_composition(
         } => {
             delete_items(composition, node_ids, layer_ids, edges, migrate_to_layer_id)?;
         }
-        CompositionGuiEdit::ConnectGraphNodes {
-            from_node,
-            from_port,
-            to_node,
-            to_port,
-        } => {
+        CompositionGuiEdit::ConnectGraphNodes { connection } => {
             let definitions = session
                 .project
                 .reusable::<donder_model::OperatorDefinition>()
                 .clone();
-            connect_nodes(
-                composition,
-                &definitions,
-                SequenceGraphEdge {
-                    from_node,
-                    from_port,
-                    to_node,
-                    to_port,
-                },
-                None,
-            )?;
+            connect_nodes(composition, &definitions, connection, None)?;
         }
         CompositionGuiEdit::ReconnectGraphEdge {
             previous,
@@ -199,7 +183,7 @@ pub(super) fn edit_composition(
                 .project
                 .reusable::<donder_model::OperatorDefinition>()
                 .clone();
-            let node_id = parse_graph_node_id(&node_id)?;
+            let node_id = CompositionGraphNodeId(node_id);
             let mut graph = composition.graph().clone();
             let node = graph
                 .nodes
@@ -277,7 +261,7 @@ fn next_node_id(composition: &impl Composition) -> u32 {
 /// Whether a name is used by a layer, graph node or the root node: they
 /// share the graph's namespace.
 fn name_taken(composition: &impl Composition, name: &str) -> bool {
-    name == "root"
+    name == donder_language::data::ROOT_NODE
         || composition
             .layers()
             .iter()
@@ -333,9 +317,8 @@ fn create_layer(
     if connect_to_root {
         graph.edges.push(EffectGraphEdge {
             from: layer_node_id,
-            from_port: GraphPortId("output".to_string()),
             to: root_node_id,
-            to_port: GraphPortId("input".to_string()),
+            input: None,
         });
     }
     Ok(created)
@@ -350,8 +333,8 @@ fn connect_nodes(
     connection: SequenceGraphEdge,
     previous: Option<SequenceGraphEdge>,
 ) -> Result<(), GuiMutationError> {
-    let from = parse_graph_node_id(&connection.from_node)?;
-    let to = parse_graph_node_id(&connection.to_node)?;
+    let edge = graph_edge(connection)?;
+    let (from, to) = (edge.from.clone(), edge.to.clone());
     if from == to {
         return Err(GuiMutationError::Invalid(
             "Graph node cannot connect to itself.".into(),
@@ -361,26 +344,14 @@ fn connect_nodes(
     ensure_node_exists(composition, &to)?;
     let graph = composition.graph_mut();
     if let Some(previous) = previous {
-        let old_from = parse_graph_node_id(&previous.from_node)?;
-        let old_to = parse_graph_node_id(&previous.to_node)?;
+        let previous = graph_edge(previous)?;
         let index = graph
             .edges
             .iter()
-            .position(|edge| {
-                edge.from == old_from
-                    && edge.to == old_to
-                    && edge.from_port.0 == previous.from_port
-                    && edge.to_port.0 == previous.to_port
-            })
+            .position(|edge| *edge == previous)
             .ok_or_else(|| GuiMutationError::Invalid("The connection no longer exists.".into()))?;
         graph.edges.remove(index);
     }
-    let edge = EffectGraphEdge {
-        from,
-        to,
-        from_port: GraphPortId(connection.from_port),
-        to_port: GraphPortId(connection.to_port),
-    };
     if !graph.edges.contains(&edge) {
         graph.edges.push(edge);
     }
@@ -399,7 +370,7 @@ fn move_nodes(
                 "Node positions must be finite.".into(),
             ));
         }
-        let id = parse_graph_node_id(&position.node_id)?;
+        let id = CompositionGraphNodeId(position.node_id);
         node_mut(composition, &id)?.position = GraphNodePosition {
             x: position.x,
             y: position.y,
@@ -411,15 +382,15 @@ fn move_nodes(
 // The caller owns the candidate session and commits the whole selection as one history entry.
 fn delete_items(
     composition: &mut impl Composition,
-    node_ids: Vec<String>,
+    node_ids: Vec<u32>,
     layer_ids: Vec<u32>,
     edges: Vec<SequenceGraphEdge>,
     migrate_to_layer_id: Option<u32>,
 ) -> Result<(), GuiMutationError> {
     let mut ids = node_ids
         .iter()
-        .map(|id| parse_graph_node_id(id))
-        .collect::<Result<BTreeSet<_>, _>>()?;
+        .map(|id| CompositionGraphNodeId(*id))
+        .collect::<BTreeSet<_>>();
     let mut layer_ids = layer_ids.into_iter().collect::<BTreeSet<_>>();
     for id in &ids {
         let node = node_mut(composition, id)?;
@@ -476,28 +447,22 @@ fn delete_items(
             .retain(|layer| !layer_ids.contains(&layer.id.0));
     }
     let removed_edges = edges
-        .iter()
-        .map(|edge| {
-            Ok((
-                parse_graph_node_id(&edge.from_node)?,
-                edge.from_port.as_str(),
-                parse_graph_node_id(&edge.to_node)?,
-                edge.to_port.as_str(),
-            ))
-        })
-        .collect::<Result<BTreeSet<_>, GuiMutationError>>()?;
+        .into_iter()
+        .map(graph_edge)
+        .collect::<Result<Vec<_>, _>>()?;
     let graph = composition.graph_mut();
     graph.nodes.retain(|node| !ids.contains(&node.id));
     graph.edges.retain(|edge| {
-        !ids.contains(&edge.from)
-            && !ids.contains(&edge.to)
-            && !removed_edges.contains(&(
-                edge.from.clone(),
-                edge.from_port.0.as_str(),
-                edge.to.clone(),
-                edge.to_port.0.as_str(),
-            ))
+        !ids.contains(&edge.from) && !ids.contains(&edge.to) && !removed_edges.contains(edge)
     });
     composition.forget_nodes(&ids);
     Ok(())
+}
+
+fn graph_edge(edge: SequenceGraphEdge) -> Result<EffectGraphEdge, GuiMutationError> {
+    Ok(EffectGraphEdge {
+        from: CompositionGraphNodeId(edge.from_node),
+        to: CompositionGraphNodeId(edge.to_node),
+        input: edge.input.as_deref().map(identifier).transpose()?,
+    })
 }

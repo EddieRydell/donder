@@ -1,14 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages, parseGraphEdgeId } from "./graphEdge.ts";
-
-test("edge ids roundtrip and reject malformed input", () => {
-  const edge = { fromNode: "layer:1", fromPort: "output", toNode: "root", toPort: "input" };
-  assert.deepEqual(parseGraphEdgeId(graphEdgeId(edge)), edge);
-  assert.equal(parseGraphEdgeId('["only", "three", "parts"]'), null);
-  assert.equal(parseGraphEdgeId("not json"), null);
-});
+import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge.ts";
 
 test("edge lineage reports single, mixed, and absent upstream layers", () => {
   const graph = {

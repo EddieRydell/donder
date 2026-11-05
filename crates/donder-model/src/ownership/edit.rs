@@ -804,9 +804,9 @@ fn default_composition(
         ],
         edges: vec![EffectGraphEdge {
             from: CompositionGraphNodeId(1),
-            from_port: GraphPortId("output".to_string()),
+
             to: CompositionGraphNodeId(2),
-            to_port: GraphPortId("input".to_string()),
+            input: None,
         }],
     };
     (layers, graph)

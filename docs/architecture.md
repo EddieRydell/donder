@@ -1,7 +1,6 @@
 # Architecture
 
-Donder turns a folder of source documents into frames of LED color (the five
-top-level calls are listed in the [code map](code_map.md)). Each stage
+Donder turns a folder of source documents into frames of LED color. Each stage
 has one owner:
 
 ```text

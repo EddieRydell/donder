@@ -7,6 +7,7 @@ import type { AutomationClipChooser, GuiFocus, SequenceSelection } from "../shar
 
 import { SequenceCanvas } from "./SequenceCanvas";
 import { GraphEditorModal } from "./GraphEditorModal";
+import type { SelectedGraphItem } from "./GraphCanvas";
 import { sequenceComposition } from "./composition";
 
 export function SequenceEditor({
@@ -42,7 +43,7 @@ export function SequenceEditor({
   const { commands, runSnapshotCommand } = host;
 
   const setSelectedGraphItem = useCallback(
-    (item: { type: "node"; id: string } | { type: "edge"; id: string } | null) => {
+    (item: SelectedGraphItem) => {
       if (item === null) {
         setSelected(null);
         return;

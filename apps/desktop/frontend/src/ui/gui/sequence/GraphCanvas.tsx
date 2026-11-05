@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, useContext } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { definitionEntries, definitionTree } from "./definitionMenu";
-import type { GuiDocumentRequest, SequenceGraphNode, SequenceGraphOperator } from "../../../editor/types";
+import type { GuiDocumentRequest, SequenceGraphEdge, SequenceGraphNode, SequenceGraphOperator, SequenceGraphOperatorDefinition } from "../../../editor/types";
 import type { CompositionEditing } from "./composition";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
 import { graphOperatorDefinition } from "./graphOperator";
@@ -23,7 +23,9 @@ import { GraphFlowEdge } from "./GraphFlowEdge";
 import { GraphNodeControls } from "./GraphNodeControls";
 import { defaultLayerColor, deletableGraphNodes, useSequenceEditErrorReporter, useSequenceEditable } from "./sequenceLayers";
 
-export type SelectedGraphItem = { type: "node"; id: string } | { type: "edge"; id: string } | null;
+export type SelectedGraphItem = { type: "node"; id: number } | { type: "edge"; id: string } | null;
+/** A port's handle; `input` is the operator input it feeds, or null for the root's one input. */
+type GraphPort = { input: string | null; label: string };
 type GraphNodeData = {
   label: string;
   kind: SequenceGraphNode["kind"]["type"];
@@ -32,8 +34,8 @@ type GraphNodeData = {
   controls: ReactNode;
   minHeight: number;
   minWidth: number;
-  inputs: SequenceGraphNode["inputs"];
-  outputs: SequenceGraphNode["outputs"];
+  inputs: GraphPort[];
+  output: boolean;
   saveSize: (id: string, width: number, height: number) => void;
 };
 type GraphFlowNode = Node<GraphNodeData, "donder">;
@@ -47,7 +49,7 @@ const GRAPH_COMMAND_KEYS: EditorCommandId[] = ["edit.selectAll", "edit.delete", 
 export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
   composition: CompositionEditing;
   setSelectedItem: (item: SelectedGraphItem) => void;
-  requestDelete: (nodeIds: string[], edgeIds?: string[]) => void;
+  requestDelete: (nodeIds: number[], edgeIds?: string[]) => void;
 }) {
   const host = useSequenceEditorHost();
   const overlayContainer = useContext(OverlayPortal);
@@ -70,9 +72,12 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
   const [selection, setSelection] = useState<Selection>({ nodes: [], edges: [] });
   const [context, setContext] = useState<ContextTarget>(null);
   const nodes = useMemo<GraphFlowNode[]>(() => graph.nodes.map((node) => {
-    const size = view.nodeSizes[node.id];
+    const id = String(node.id);
+    const size = view.nodeSizes[id];
+    const inputs = graphNodeInputs(node, graph.operatorCatalog);
+    const output = node.kind.type !== "root";
     const portHeight = THEME_METRICS.graphNodeHeaderHeight + THEME_METRICS.graphNodeBodyPadding * 2
-      + Math.max(node.inputs.length, node.outputs.length) * THEME_METRICS.graphPortRowHeight;
+      + Math.max(inputs.length, output ? 1 : 0) * THEME_METRICS.graphPortRowHeight;
     const hasControls = node.kind.type === "layer" || (node.kind.type === "operator" && node.kind.params.length > 0);
     const controlsMinHeight = !hasControls ? 0 : node.kind.type === "layer"
       ? THEME_METRICS.graphLayerControlsHeight : THEME_METRICS.graphNodeControlsMinHeight;
@@ -82,7 +87,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
     const minHeight = Math.max(THEME_METRICS.graphNodeMinHeight, portHeight + controlsMinHeight);
     const minWidth = hasControls ? THEME_METRICS.graphNodeEditorMinWidth : THEME_METRICS.graphNodeMinWidth;
     return {
-      id: node.id, type: "donder", position: { x: node.x, y: node.y },
+      id, type: "donder", position: { x: node.x, y: node.y },
       width: Math.max(size?.width ?? (hasControls ? THEME_METRICS.graphNodeEditorWidth : THEME_METRICS.graphNodeInitialWidth), minWidth),
       height: Math.max(size?.height ?? Math.max(THEME_METRICS.graphNodeInitialHeight, portHeight + controlsHeight), minHeight),
       draggable: editable, connectable: editable,
@@ -93,7 +98,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
         enabled: node.kind.type !== "layer" || node.kind.enabled,
         minHeight, minWidth,
         controls: hasControls ? <GraphNodeControls node={node} composition={composition} /> : null,
-        inputs: node.inputs, outputs: node.outputs, saveSize
+        inputs, output, saveSize
       }
     };
   }), [editable, graph, saveSize, view.nodeSizes, composition]);
@@ -103,7 +108,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
       const id = graphEdgeId(edge);
       const color = lineages.get(id)?.color ?? GRAPH_NEUTRAL_EDGE_COLOR;
       return {
-        id, source: edge.fromNode, target: edge.toNode, sourceHandle: edge.fromPort, targetHandle: edge.toPort,
+        id, source: String(edge.fromNode), target: String(edge.toNode), targetHandle: edge.input,
         markerEnd: { type: MarkerType.ArrowClosed, color },
         style: { stroke: color }
       };
@@ -147,7 +152,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
     const positions = moving.filter((node) => {
       const original = originalNodes.get(node.id);
       return original !== undefined && (node.position.x !== original.position.x || node.position.y !== original.position.y);
-    }).map((node) => ({ nodeId: node.id, ...node.position }));
+    }).map((node) => ({ nodeId: Number(node.id), ...node.position }));
     try {
       if (positions.length > 0) await composition.apply({ type: "moveGraphNodes", positions }, active.origin);
     } catch (error: unknown) {
@@ -156,7 +161,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
       gesture.current = null;
       // A failed/stale gesture must restore the document, even when no new projection arrived.
       const latest = useAppStore.getState().guiDocument;
-      const latestNodes = new Map((latest?.type === "sequence" || latest?.type === "console" ? latest.document.compositionGraph.nodes : []).map((node) => [node.id, node]));
+      const latestNodes = new Map((latest?.type === "sequence" || latest?.type === "console" ? latest.document.compositionGraph.nodes : []).map((node) => [String(node.id), node]));
       setFlowNodes((current) => {
         const localNodes = new Map(current.map((node) => [node.id, node]));
         return authoritativeNodes.current.map((node) => {
@@ -173,11 +178,11 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
       type: "createLayerAt", name: "Layer", color: defaultLayerColor(document.layers.length), ...position
     } : { type: "addGraphOperatorNode", operator, initialColor: THEME_COLORS.white, ...position }).catch(reportSequenceEditError);
   };
-  const removable = (items: Selection) => items.edges.length > 0 || deletableGraphNodes(document, items.nodes).length > 0;
-  const deleteSelection = (items: Selection) => { requestDelete(items.nodes, items.edges); };
+  const removable = (items: Selection) => items.edges.length > 0 || deletableGraphNodes(document, items.nodes.map(Number)).length > 0;
+  const deleteSelection = (items: Selection) => { requestDelete(items.nodes.map(Number), items.edges); };
   const selectionChanged = useCallback(({ nodes, edges }: { nodes: GraphFlowNode[]; edges: Edge[] }) => {
     setSelection({ nodes: nodes.map((node) => node.id), edges: edges.map((edge) => edge.id) });
-    setSelectedItem(nodes.length + edges.length !== 1 ? null : nodes[0] !== undefined ? { type: "node", id: nodes[0].id } : edges[0] !== undefined ? { type: "edge", id: edges[0].id } : null);
+    setSelectedItem(nodes.length + edges.length !== 1 ? null : nodes[0] !== undefined ? { type: "node", id: Number(nodes[0].id) } : edges[0] !== undefined ? { type: "edge", id: edges[0].id } : null);
   }, [setSelectedItem]);
   const moveSelection = (x: number, y: number, shift: boolean) => {
     if (flow.current === null) return;
@@ -234,25 +239,14 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
             onReconnect={(edge, connection) => {
               if (!editable) return;
               const previous = graph.edges.find((item) => graphEdgeId(item) === edge.id);
-              const fromPort = connection.sourceHandle;
-              const toPort = connection.targetHandle;
-              if (previous === undefined || fromPort === null || toPort === null) return;
-              void composition.apply({
-                type: "reconnectGraphEdge", previous, connection: {
-                  fromNode: connection.source, fromPort,
-                  toNode: connection.target, toPort
-                }
-              }, connectionOrigin.current).catch(reportSequenceEditError);
+              if (previous === undefined) return;
+              void composition.apply({ type: "reconnectGraphEdge", previous, connection: graphEdge(connection) }, connectionOrigin.current)
+                .catch(reportSequenceEditError);
             }}
             onConnect={(connection) => {
               if (!editable) return;
-              const fromPort = connection.sourceHandle;
-              const toPort = connection.targetHandle;
-              if (fromPort === null || toPort === null) return;
-              void composition.apply({
-                type: "connectGraphNodes", fromNode: connection.source, toNode: connection.target,
-                fromPort, toPort
-              }, connectionOrigin.current).catch(reportSequenceEditError);
+              void composition.apply({ type: "connectGraphNodes", connection: graphEdge(connection) }, connectionOrigin.current)
+                .catch(reportSequenceEditError);
             }}>
             <Background color={THEME_COLORS.graphGrid} gap={THEME_METRICS.graphGridGap} />
             <MiniMap className="graph-flow-minimap" nodeStrokeWidth={THEME_METRICS.graphNodeStrokeWidth} pannable zoomable />
@@ -276,7 +270,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
 
 function GraphNodeView({ id, data, isConnectable }: NodeProps<GraphFlowNode>) {
   const updateNodeInternals = useUpdateNodeInternals();
-  useEffect(() => { updateNodeInternals(id); }, [id, data.inputs, data.outputs, updateNodeInternals]);
+  useEffect(() => { updateNodeInternals(id); }, [id, data.inputs, data.output, updateNodeInternals]);
   return <div className={`graph-flow-node-card ${data.kind}${data.enabled ? "" : " disabled"}${data.controls === null ? "" : " has-controls"}`} style={data.color === null ? undefined : { borderLeftColor: data.color }}>
     <NodeResizeControl position="bottom-right" minWidth={data.minWidth} minHeight={data.minHeight} className="graph-flow-resize-corner"
       onResizeEnd={(_, size) => { data.saveSize(id, size.width, size.height); }} />
@@ -286,14 +280,14 @@ function GraphNodeView({ id, data, isConnectable }: NodeProps<GraphFlowNode>) {
       <Tip label={data.label}><span>{data.label}{data.enabled ? "" : " (disabled)"}</span></Tip>
     </div>
     <div className="graph-flow-node-body">
-      <div className="graph-flow-port-column inputs">{data.inputs.map((port) => <div className="graph-flow-port-row" key={port.sourceName}>
-        <Handle id={port.sourceName} isConnectable={isConnectable} type="target" position={Position.Left} className="graph-flow-handle input" aria-label={`Input ${port.displayName}`} />
-        <Tip label={port.displayName}><span>{port.displayName}</span></Tip>
+      <div className="graph-flow-port-column inputs">{data.inputs.map((port) => <div className="graph-flow-port-row" key={port.input ?? ""}>
+        <Handle {...(port.input === null ? {} : { id: port.input })} isConnectable={isConnectable} type="target" position={Position.Left} className="graph-flow-handle input" aria-label={`Input ${port.label}`} />
+        <Tip label={port.label}><span>{port.label}</span></Tip>
       </div>)}</div>
-      <div className="graph-flow-port-column outputs">{data.outputs.map((port) => <div className="graph-flow-port-row" key={port.sourceName}>
-        <Tip label={port.displayName}><span>{port.displayName}</span></Tip>
-        <Handle id={port.sourceName} isConnectable={isConnectable} type="source" position={Position.Right} className="graph-flow-handle output" aria-label={`Output ${port.displayName}`} />
-      </div>)}</div>
+      <div className="graph-flow-port-column outputs">{data.output && <div className="graph-flow-port-row">
+        <Tip label="Output"><span>Output</span></Tip>
+        <Handle isConnectable={isConnectable} type="source" position={Position.Right} className="graph-flow-handle output" aria-label="Output" />
+      </div>}</div>
     </div>
     {data.controls !== null && <div className="graph-flow-node-controls nodrag nopan nowheel nokey"
       onKeyDown={(event) => { if (GRAPH_COMMAND_KEYS.some((id) => matchesCommand(event.nativeEvent, id))) event.stopPropagation(); }}
@@ -301,4 +295,17 @@ function GraphNodeView({ id, data, isConnectable }: NodeProps<GraphFlowNode>) {
         if (event.target instanceof Element && event.target.closest("input, textarea, select, button, [contenteditable=true]") !== null) event.stopPropagation();
       }}>{data.controls}</div>}
   </div>;
+}
+
+/** The inputs a node shows: an operator's declared inputs, or the root's one input. */
+function graphNodeInputs(node: SequenceGraphNode, catalog: SequenceGraphOperatorDefinition[]): GraphPort[] {
+  switch (node.kind.type) {
+    case "layer": return [];
+    case "root": return [{ input: null, label: "Input" }];
+    case "operator": return graphOperatorDefinition(catalog, node.kind.operator).inputs.map((input) => ({ input, label: input }));
+  }
+}
+
+function graphEdge(connection: { source: string; target: string; targetHandle: string | null }): SequenceGraphEdge {
+  return { fromNode: Number(connection.source), toNode: Number(connection.target), input: connection.targetHandle };
 }

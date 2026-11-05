@@ -548,7 +548,7 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
         || operators().map(|(id, operator)| (Member::Node(id.clone()), &operator.name));
     snake_case(layer_names.clone().chain(node_names()))?;
     distinct(layer_names.clone())?;
-    let root = donder_language::object_name("root");
+    let root = donder_language::object_name(donder_language::data::ROOT_NODE);
     let root_node = graph
         .nodes
         .iter()

@@ -1567,10 +1567,11 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             disconnected.project
         );
         let premature = edit(CompositionGuiEdit::ConnectGraphNodes {
-            from_node: node.id.clone(),
-            from_port: "output".into(),
-            to_node: connection.to_node.clone(),
-            to_port: connection.to_port.clone(),
+            connection: SequenceGraphEdge {
+                from_node: node.id,
+                to_node: connection.to_node,
+                input: connection.input.clone(),
+            },
         });
         assert!(matches!(premature.document, GuiDocument::Blocked { .. }));
         assert_eq!(
@@ -1579,7 +1580,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         );
         let GuiDocument::Sequence { document } =
             edit(CompositionGuiEdit::UpdateGraphOperatorParam {
-                node_id: node.id.clone(),
+                node_id: node.id,
                 name: "shift".into(),
                 value: SequenceParamValue::Float { value: 0.25 },
             })
@@ -1607,10 +1608,11 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         assert!(authored.contains("operators.HueShift"));
         assert!(matches!(
             edit(CompositionGuiEdit::ConnectGraphNodes {
-                from_node: connection.from_node.clone(),
-                from_port: connection.from_port.clone(),
-                to_node: node.id.clone(),
-                to_port: "source".into(),
+                connection: SequenceGraphEdge {
+                    from_node: connection.from_node,
+                    to_node: node.id,
+                    input: Some("source".into()),
+                },
             })
             .document,
             GuiDocument::Sequence { .. }
@@ -1619,10 +1621,9 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             edit(CompositionGuiEdit::ReconnectGraphEdge {
                 previous: connection.clone(),
                 connection: SequenceGraphEdge {
-                    from_node: node.id.clone(),
-                    from_port: "output".into(),
+                    from_node: node.id,
                     to_node: connection.to_node,
-                    to_port: connection.to_port,
+                    input: connection.input,
                 },
             })
             .document,

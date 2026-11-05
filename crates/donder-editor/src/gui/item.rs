@@ -5,7 +5,7 @@ use donder_project_io::ProjectSession;
 
 use super::console::{clip_mut, console_mark_references_mut, delete_clip, live_marks_mut};
 use super::graph::{Composition, layer_mut, node_mut};
-use super::model::{mark_collection_mut, parse_color, parse_graph_node_id, typed_name};
+use super::model::{mark_collection_mut, parse_color, typed_name};
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::GuiItem;
 
@@ -201,7 +201,7 @@ fn composition_item(
             layer_mut(composition, id)?.color = parse_color(&color)?;
         }
         (GuiItem::GraphNode { node_id }, Verb::Rename(name)) => {
-            let node_id = parse_graph_node_id(&node_id)?;
+            let node_id = donder_model::CompositionGraphNodeId(node_id);
             let donder_model::CompositionGraphNodeKind::Operator(operator) =
                 &mut node_mut(composition, &node_id)?.kind
             else {

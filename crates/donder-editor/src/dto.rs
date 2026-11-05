@@ -56,9 +56,9 @@ pub use sequence::{
     SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceCompositionGraph,
     SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffectDefinition,
     SequenceEffectDefinitionParam, SequenceGradientLibraryItem, SequenceGraphNode,
-    SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGraphPortDefinition,
-    SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection,
-    SequenceParamAutomation, SequenceParamRange,
+    SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGuiDocument, SequenceLane,
+    SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
+    SequenceParamRange,
 };
 pub use setup::{
     BufferExternalState, ControllerGuiDocument, CurveGuiDocument, GradientGuiDocument, GuiDocument,
@@ -129,7 +129,7 @@ impl From<GuiWindow> for donder_model::Window {
 )]
 pub enum SequenceAutomationTarget {
     ClipParam { clip_id: u32, param: String },
-    CompositionNodeParam { node_id: String, param: String },
+    CompositionNodeParam { node_id: u32, param: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -303,23 +303,20 @@ pub enum CompositionGuiEdit {
         positions: Vec<SequenceGraphNodePosition>,
     },
     DeleteGraphItems {
-        node_ids: Vec<String>,
+        node_ids: Vec<u32>,
         layer_ids: Vec<u32>,
         edges: Vec<SequenceGraphEdge>,
         migrate_to_layer_id: Option<u32>,
     },
     ConnectGraphNodes {
-        from_node: String,
-        from_port: String,
-        to_node: String,
-        to_port: String,
+        connection: SequenceGraphEdge,
     },
     ReconnectGraphEdge {
         previous: SequenceGraphEdge,
         connection: SequenceGraphEdge,
     },
     UpdateGraphOperatorParam {
-        node_id: String,
+        node_id: u32,
         name: String,
         value: SequenceParamValue,
     },
@@ -552,7 +549,7 @@ pub struct SequenceGraphOperator {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphNodePosition {
-    pub(crate) node_id: String,
+    pub(crate) node_id: u32,
     pub(crate) x: f32,
     pub(crate) y: f32,
 }
@@ -560,10 +557,10 @@ pub struct SequenceGraphNodePosition {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphEdge {
-    pub from_node: String,
-    pub from_port: String,
-    pub to_node: String,
-    pub to_port: String,
+    pub from_node: u32,
+    pub to_node: u32,
+    /// The operator input the edge feeds; `None` for the root's one input.
+    pub input: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
