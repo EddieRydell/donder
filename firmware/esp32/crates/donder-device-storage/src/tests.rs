@@ -173,7 +173,6 @@ fn device_config_roundtrip() {
             ssid: "caf\u{e9}".into(),
             password: "long-\"password\\with\nescapes".into(),
         }),
-        token: Some([b'a'; 32]),
     };
     config.save(&mut flash).unwrap();
     let loaded = DeviceConfig::load(&mut flash).unwrap().unwrap();
@@ -181,15 +180,13 @@ fn device_config_roundtrip() {
     let network = loaded.network.unwrap();
     assert_eq!(network.ssid, "caf\u{e9}");
     assert_eq!(network.password, "long-\"password\\with\nescapes");
-    assert_eq!(loaded.token, config.token);
-    let unclaimed = DeviceConfig {
+    let fresh = DeviceConfig {
         name: "Donder-3f2a".into(),
         network: None,
-        token: None,
     };
-    unclaimed.save(&mut flash).unwrap();
+    fresh.save(&mut flash).unwrap();
     let loaded = DeviceConfig::load(&mut flash).unwrap().unwrap();
-    assert!(loaded.network.is_none() && loaded.token.is_none());
+    assert!(loaded.network.is_none());
     assert_eq!(
         Network::from_json(br#"{"ssid":"home","password":"12345678"}"#)
             .unwrap()

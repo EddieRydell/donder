@@ -56,8 +56,8 @@ chosen raw channel value for ten seconds and blackouts on stop or expiry. This
 test bypasses the patch and does not edit the project.
 
 For a supported ESP32 flashed with the Donder firmware, join the
-controller's `Donder-XXXX` Wi-Fi network, and add a **Donder controller** to the
-setup. Claim it, turn on live output, then press Play: the editor uploads the
+controller's `Donder-XXXX` Wi-Fi network (password `12345678`), and add a
+**Donder controller** to the setup. Turn on live output, then press Play: the editor uploads the
 sequence and starts the controller in sync with the audio. A controller that is
 off the network or fails is listed as failed in the live-output status and the
 rest still play. See [controller setup](esp32_loading.md#set-up-a-controller).

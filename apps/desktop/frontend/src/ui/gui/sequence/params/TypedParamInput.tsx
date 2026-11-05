@@ -1,21 +1,21 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../../editor/host";
 import { isSecondaryClick } from "../../../../platform";
-import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { OverlayPortal } from "../../../OverlayPortal";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import { ArrowDown, ArrowUp, ChevronRight, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, SquareArrowOutUpRight, Trash2, X } from "lucide-react";
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
 import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../editor/types";
 
-
 import { ColorPicker } from "../../../ColorPicker";
+import { AddRow, Field, IconButton, NumberField, Section, Select, Toggle } from "../../../kit";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
 import { WindowFields } from "../../WindowFields";
 
 /** The select value for a marks parameter with no collection; collection keys are never empty. */
 const NO_MARK_COLLECTION = "";
+/** The source select value for a value stored in the parameter itself. */
+const CUSTOM_SOURCE = "custom";
 
 const CURVE_EDITOR = {
   width: THEME_METRICS.curveEditorWidth,
@@ -68,13 +68,10 @@ function TypedParamValue({
     return commitParam(param.name, value);
   };
   const automated = param.automation !== null;
+  const tip = paramTip(param);
 
   if (!param.editable && !automated) {
-    return (
-      <ParamShell name={param.name} description={param.description}>
-        <div className="effect-param-unavailable">Unavailable</div>
-      </ParamShell>
-    );
+    return <Field label={param.name} tip={tip}><span className="effect-param-unavailable">Unavailable</span></Field>;
   }
 
   const automationActions = automationControl !== null ? automationControl :
@@ -88,84 +85,75 @@ function TypedParamValue({
           automation.automationClipChooser,
           automation.setAutomationClipChooser
         );
+  // An automated parameter shows no value of its own: automation sets it, so only its controls remain.
+  const valueField = (control: ReactNode) => (
+    <Field label={param.name} tip={tip}>
+      {automated ? null : control}
+      {automationActions}
+    </Field>
+  );
   switch (param.value.type) {
     case "int":
-      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
+      return valueField(<NumberParam name={param.name} value={param.value.value} step={1} integer range={param.range} commit={(value) => commit({ type: "int", value })} />);
     case "float":
-      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions} automated={automated}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
+      return valueField(<NumberParam name={param.name} value={param.value.value} step={0.05} integer={false} range={param.range} commit={(value) => commit({ type: "float", value })} />);
     case "bool":
-      return (
-        <BoolParam
-          name={param.name}
-          value={param.value.value}
-          disabled={automated}
-          actions={automationActions}
-          commit={(value) => commit({ type: "bool", value })}
-        />
-      );
+      return valueField(<Toggle name={param.name} checked={param.value.value} onChange={(value) => void commit({ type: "bool", value })} />);
     case "color":
       return (
-        <ParamShell name={param.name} description={param.description}>
+        <Field label={param.name} tip={tip}>
           <ColorPicker
             value={param.value.value}
             label={param.name}
             commit={(value) => commit({ type: "color", value })}
           />
-        </ParamShell>
+        </Field>
       );
     case "enum":
-      return (
-        <ParamShell name={param.name} description={param.description} automated={automated}>
-          <ParamValueRow actions={automationActions} automated={automated}>
-            <select value={param.value.value} disabled={automated} onChange={(event) => void commit({ type: "enum", value: event.currentTarget.value })}>
-              {param.options.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          </ParamValueRow>
-        </ParamShell>
+      return valueField(
+        <Select
+          name={param.name}
+          value={param.value.value}
+          options={param.options.map((option) => ({ value: option, label: option }))}
+          onChange={(value) => void commit({ type: "enum", value })}
+        />
       );
     case "curve":
       return (
-        <ParamShell name={param.name} description={param.description} range={param.range} automated={automated}>
-        <CurveValueEditor name={param.name} value={param.value.value} declarations={curveLibrary} range={param.range}
+        <CurveValueEditor name={param.name} tip={tip} value={param.value.value} declarations={curveLibrary} range={param.range}
           commit={(value) => commit({ type: "curve", value })}
           disabled={automated} actions={automationActions} />
-        </ParamShell>
       );
     case "gradient":
       return (
-        <ParamShell name={param.name} description={param.description}>
-        <GradientValueEditor name={param.name} value={param.value.value} declarations={gradientLibrary}
+        <GradientValueEditor name={param.name} tip={tip} value={param.value.value} declarations={gradientLibrary}
           commit={(value) => commit({ type: "gradient", value })} />
-        </ParamShell>
       );
     case "intArray":
-      return <NumberArrayParam name={param.name} values={param.value.values} step={1} commit={(values) => commit({ type: "intArray", values: values.map((value) => Math.round(value)) })} />;
+      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} step={1} integer commit={(values) => commit({ type: "intArray", values })} />;
     case "floatArray":
-      return <NumberArrayParam name={param.name} values={param.value.values} step={0.05} commit={(values) => commit({ type: "floatArray", values })} />;
+      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} step={0.05} integer={false} commit={(values) => commit({ type: "floatArray", values })} />;
     case "boolArray":
-      return <BoolArrayParam name={param.name} values={param.value.values} commit={(values) => commit({ type: "boolArray", values })} />;
+      return <BoolArrayParam name={param.name} tip={tip} values={param.value.values} commit={(values) => commit({ type: "boolArray", values })} />;
     case "colorArray":
-      return <ColorArrayParam name={param.name} values={param.value.values} commit={(values) => commit({ type: "colorArray", values })} />;
+      return <ColorArrayParam name={param.name} tip={tip} values={param.value.values} commit={(values) => commit({ type: "colorArray", values })} />;
     case "curveArray":
-      return <CurveArrayParam declarations={curveLibrary} name={param.name} values={param.value.values} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
+      return <CurveArrayParam declarations={curveLibrary} name={param.name} tip={tip} values={param.value.values} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
     case "gradientArray":
-      return <GradientArrayParam declarations={gradientLibrary} name={param.name} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
+      return <GradientArrayParam declarations={gradientLibrary} name={param.name} tip={tip} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
     case "marks":
       return (
-        <ParamShell name={param.name} description={param.description}>
-          <select
+        <Field label={param.name} tip={tip}>
+          <Select
+            name={param.name}
             value={param.value.key ?? NO_MARK_COLLECTION}
-            onChange={(event) => {
-              const key = event.currentTarget.value;
-              void commit({ type: "marks", key: key === NO_MARK_COLLECTION ? null : key });
-            }}
-          >
-            <option value={NO_MARK_COLLECTION}>None</option>
-            {markCollections.map((collection) => (
-              <option key={collection.key} value={collection.key}>{collection.key}</option>
-            ))}
-          </select>
-        </ParamShell>
+            options={[
+              { value: NO_MARK_COLLECTION, label: "None" },
+              ...markCollections.map((collection) => ({ value: collection.key, label: collection.key }))
+            ]}
+            onChange={(key) => void commit({ type: "marks", key: key === NO_MARK_COLLECTION ? null : key })}
+          />
+        </Field>
       );
   }
 }
@@ -174,92 +162,40 @@ function formatRange(range: SequenceParamRange) {
   return `${roundCurveValue(range.min)}..${roundCurveValue(range.max)}`;
 }
 
-/** A param's name, followed by its declared range when it has one and no value box can show it. */
-function ParamName({ name, range = null }: { name: string; range?: SequenceParamRange | null }) {
-  return (
-    <div className="effect-param-name">
-      {name}
-      {range !== null && <span className="effect-param-range">{formatRange(range)}</span>}
-    </div>
-  );
+/** The hover text of a param's name: its description and declared range. */
+function paramTip(param: SequenceClipParam): string | undefined {
+  const parts = [param.description, param.range === null ? null : formatRange(param.range)].filter((part) => part !== null);
+  return parts.length === 0 ? undefined : parts.join(" · ");
 }
 
-function ParamShell({ name, description, range = null, automated = false, children }: { name: string; description: string | null; range?: SequenceParamRange | null; automated?: boolean; children: ReactNode }) {
-  return (
-    <div className={`effect-param-group ${automated ? "effect-param-automated" : ""}`}>
-      <ParamName name={name} range={range} />
-      {description !== null && <div className="effect-param-description">{description}</div>}
-      {children}
-    </div>
-  );
-}
-
-/** An automated parameter shows no value of its own: automation sets it, so only its controls remain. */
-function ParamValueRow({ actions, automated = false, children }: { actions: ReactNode; automated?: boolean; children: ReactNode }) {
-  return (
-    <div className="effect-param-value-row">
-      <div className="effect-param-value-control">{automated ? null : children}</div>
-      {actions !== null && <div className="effect-param-actions">{actions}</div>}
-    </div>
-  );
-}
-
-function BoolParam({
-  name,
-  value,
-  disabled,
-  actions,
-  commit
-}: {
+function NumberParam({ name, value, step, integer, range, commit }: {
   name: string;
-  value: boolean;
-  disabled: boolean;
-  actions: ReactNode;
-  commit: (value: boolean) => Promise<void>;
+  value: number;
+  step: number;
+  integer: boolean;
+  range: SequenceParamRange | null;
+  commit: (value: number) => Promise<void>;
 }) {
-  return (
-    <div className={`effect-param-group bool-param-group ${disabled ? "effect-param-automated" : ""}`}>
-      <div className="bool-param-row">
-        <div className="effect-param-name">{name}</div>
-        <button
-          type="button"
-          className="bool-param-switch"
-          role="switch"
-          aria-label={name}
-          aria-checked={value}
-          disabled={disabled}
-          onClick={() => void commit(!value)}
-        >
-          <span className="bool-param-switch-track">
-            <span className="bool-param-switch-thumb" />
-          </span>
-        </button>
-        {actions !== null && <div className="effect-param-actions">{actions}</div>}
-      </div>
-    </div>
-  );
+  return <NumberField
+    name={name}
+    value={value}
+    step={step}
+    integer={integer}
+    {...(range === null ? {} : { min: range.min, max: range.max })}
+    onCommit={(next) => void commit(next)}
+  />;
 }
 
-function NumberArrayParam({ name, values, step, commit }: { name: string; values: number[]; step: number; commit: (values: number[]) => Promise<void> }) {
+function NumberArrayParam({ name, tip, values, step, integer, commit }: { name: string; tip: string | undefined; values: number[]; step: number; integer: boolean; commit: (values: number[]) => Promise<void> }) {
   return (
     <ArrayShell
       name={name}
+      tip={tip}
       values={values}
       newValue={() => values[values.length - 1] ?? 0}
       commit={commit}
       render={(value, index) => (
-        <input
-          type="number"
-          step={step}
-          defaultValue={value}
-          onBlur={(event) => {
-            const next = Number(event.currentTarget.value);
-            if (Number.isFinite(next)) void commit(replaceAt(values, index, next));
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur();
-          }}
-        />
+        <NumberField name={`${name} ${index + 1}`} value={value} step={step} integer={integer} onCommit={(next) => void commit(replaceAt(values, index, next))} />
       )}
     />
   );
@@ -294,10 +230,9 @@ function automationBindingControl(host: SequenceEditorHost,
             )
           }
         />
-        <button
-          type="button"
-          className="neutral-button icon-button"
-          title="Unlink automation"
+        <IconButton
+          icon={Link2Off}
+          label="Unlink automation"
           onClick={() =>
             void runGuiEditCommand((request) =>
               commands.applyGuiEdit(request, { type: "sequence", edit: {
@@ -307,29 +242,23 @@ function automationBindingControl(host: SequenceEditorHost,
               } })
             )
           }
-        >
-          <Link2Off size={THEME_METRICS.iconSizeSmall} />
-        </button>
+        />
       </>
     );
   }
   return (
     <>
-      <button
-        type="button"
-        className="neutral-button icon-button"
-        title="Link existing automation"
+      <IconButton
+        icon={Link2}
+        label="Link existing automation"
         disabled={clips.length === 0}
         onClick={() => {
           setAutomationClipChooser({ target });
         }}
-      >
-        <Link2 size={THEME_METRICS.iconSizeSmall} />
-      </button>
-      <button
-        type="button"
-        className="neutral-button icon-button"
-        title="Create automation"
+      />
+      <IconButton
+        icon={Plus}
+        label="Create automation"
         disabled={!canCreateAutomationClip}
         onClick={() =>
           void runGuiEditCommand((request) =>
@@ -339,39 +268,32 @@ function automationBindingControl(host: SequenceEditorHost,
             } })
           )
         }
-      >
-        <Plus size={THEME_METRICS.iconSizeSmall} />
-      </button>
-      {choosing && (
-        <button type="button" className="neutral-button icon-button" title="Cancel choosing" onClick={() => { setAutomationClipChooser(null); }}>
-          <X size={THEME_METRICS.iconSizeSmall} />
-        </button>
-      )}
+      />
+      {choosing && <IconButton icon={X} label="Cancel choosing" onClick={() => { setAutomationClipChooser(null); }} />}
     </>
   );
 }
 
-function BoolArrayParam({ name, values, commit }: { name: string; values: boolean[]; commit: (values: boolean[]) => Promise<void> }) {
+function BoolArrayParam({ name, tip, values, commit }: { name: string; tip: string | undefined; values: boolean[]; commit: (values: boolean[]) => Promise<void> }) {
   return (
     <ArrayShell
       name={name}
+      tip={tip}
       values={values}
       newValue={() => false}
       commit={commit}
       render={(value, index) => (
-        <label className="effect-param-check array-check-row">
-          <input type="checkbox" checked={value} onChange={(event) => void commit(replaceAt(values, index, event.currentTarget.checked))} />
-          <span>{value ? "true" : "false"}</span>
-        </label>
+        <Toggle name={`${name} ${index + 1}`} checked={value} onChange={(checked) => void commit(replaceAt(values, index, checked))} />
       )}
     />
   );
 }
 
-function ColorArrayParam({ name, values, commit }: { name: string; values: string[]; commit: (values: string[]) => Promise<void> }) {
+function ColorArrayParam({ name, tip, values, commit }: { name: string; tip: string | undefined; values: string[]; commit: (values: string[]) => Promise<void> }) {
   return (
     <ArrayShell
       name={name}
+      tip={tip}
       values={values}
       newValue={() => values[values.length - 1] ?? CURVE_EDITOR.defaultColor}
       commit={commit}
@@ -382,113 +304,56 @@ function ColorArrayParam({ name, values, commit }: { name: string; values: strin
   );
 }
 
-function CurveArrayParam({ name, values, declarations, range, commit }: { name: string; values: SequenceCurveValue[]; declarations: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
+function CurveArrayParam({ name, tip, values, declarations, range, commit }: { name: string; tip: string | undefined; values: SequenceCurveValue[]; declarations: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
   const newValue = (): SequenceCurveValue => {
     const axis = curveAxis([], range);
     return values[values.length - 1] ?? { points: [{ time: 0, value: axis.min }, { time: 1, value: axis.max }], link: { type: "inline" } };
   };
-  return <ArrayShell name={name} range={range} values={values}
+  return <ArrayShell name={name} tip={tip} values={values}
     newValue={newValue}
     commit={commit}
-    render={(value, index) => <CurveValueEditor name={`#${index + 1}`} value={value} declarations={declarations} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
+    render={(value, index) => <CurveValueEditor name={`#${index + 1}`} tip={undefined} value={value} declarations={declarations} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
 
-function GradientArrayParam({ name, values, declarations, commit }: { name: string; values: SequenceGradientValue[]; declarations: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
-  return <ArrayShell name={name} values={values}
+function GradientArrayParam({ name, tip, values, declarations, commit }: { name: string; tip: string | undefined; values: SequenceGradientValue[]; declarations: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
+  return <ArrayShell name={name} tip={tip} values={values}
     newValue={(): SequenceGradientValue => values[values.length - 1] ?? { gradient: { space: "linearRgb", stops: [{ time: 0, value: CURVE_EDITOR.defaultColor }] }, link: { type: "inline" } }}
     commit={commit}
-    render={(value, index) => <GradientValueEditor name={`#${index + 1}`} value={value} declarations={declarations} commit={(next) => commit(replaceAt(values, index, next))} />} />;
+    render={(value, index) => <GradientValueEditor name={`#${index + 1}`} tip={undefined} value={value} declarations={declarations} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
 
 function ArrayShell<T>({
   name,
-  range = null,
+  tip,
   values,
   newValue,
   commit,
   render
 }: {
   name: string;
-  range?: SequenceParamRange | null;
+  tip: string | undefined;
   values: T[];
   newValue: () => T;
   commit: (values: T[]) => Promise<void>;
   render: (value: T, index: number) => ReactNode;
 }) {
+  const add = () => void commit([...values, newValue()]);
   return (
     <div className="effect-param-group array-param-editor">
-      <div className="array-param-header">
-        <ParamName name={name} range={range} />
-        <button type="button" className="neutral-button" title="Add item" onClick={() => void commit([...values, newValue()])}>
-          <Plus size={THEME_METRICS.iconSizeSmall} />
-        </button>
-      </div>
+      <Field label={name} tip={tip}>
+        {values.length === 0 ? <AddRow label="Add item" onAdd={add} /> : <IconButton icon={Plus} label="Add item" onClick={add} />}
+      </Field>
       {values.map((value, index) => (
         <div key={index} className="array-param-row">
           <div className="array-param-row-main">{render(value, index)}</div>
           <div className="array-param-actions">
-            <button type="button" className="neutral-button" title="Move up" disabled={index === 0} onClick={() => void commit(moveArrayItem(values, index, index - 1))}>
-              <ArrowUp size={THEME_METRICS.iconSizeSmall} />
-            </button>
-            <button type="button" className="neutral-button" title="Move down" disabled={index >= values.length - 1} onClick={() => void commit(moveArrayItem(values, index, index + 1))}>
-              <ArrowDown size={THEME_METRICS.iconSizeSmall} />
-            </button>
-            <button type="button" className="neutral-button" title="Remove item" onClick={() => void commit(values.filter((_, itemIndex) => itemIndex !== index))}>
-              <Trash2 size={THEME_METRICS.iconSizeSmall} />
-            </button>
+            <IconButton icon={ArrowUp} label="Move up" disabled={index === 0} onClick={() => void commit(moveArrayItem(values, index, index - 1))} />
+            <IconButton icon={ArrowDown} label="Move down" disabled={index >= values.length - 1} onClick={() => void commit(moveArrayItem(values, index, index + 1))} />
+            <IconButton icon={Trash2} label="Remove item" danger onClick={() => void commit(values.filter((_, itemIndex) => itemIndex !== index))} />
           </div>
         </div>
       ))}
     </div>
-  );
-}
-
-function NumberParam({
-  value,
-  step,
-  range,
-  disabled = false,
-  commit
-}: {
-  value: number;
-  step: number;
-  range: SequenceParamRange | null;
-  disabled?: boolean;
-  commit: (value: number) => Promise<void>;
-}) {
-  const [text, setText] = useState(String(value));
-  const lastCommitted = useRef(value);
-  const commitText = () => {
-    const next = Number(text);
-    if (!Number.isFinite(next) || (range !== null && (next < range.min || next > range.max))) {
-      setText(String(value));
-      return;
-    }
-    if (next !== lastCommitted.current) {
-      lastCommitted.current = next;
-      void commit(next);
-    }
-  };
-  return (
-    <label className="effect-param-control-label">
-      <input
-        type="number"
-        step={step}
-        min={range?.min}
-        max={range?.max}
-        value={text}
-        disabled={disabled}
-        onChange={(event) => { setText(event.currentTarget.value); }}
-        onBlur={commitText}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            commitText();
-            event.currentTarget.blur();
-          }
-        }}
-      />
-      {range !== null && <span className="effect-param-control-range">{formatRange(range)}</span>}
-    </label>
   );
 }
 
@@ -500,10 +365,9 @@ type CurveEditorProps<T extends { time: number }> = {
   showName?: boolean;
 };
 
-type UnlinkAction = "edit" | "flipHorizontal" | "flipVertical";
-
-function CurveValueEditor({ name, value, declarations, range, commit, disabled = false, actions = null }: {
+function CurveValueEditor({ name, tip, value, declarations, range, commit, disabled = false, actions = null }: {
   name: string;
+  tip: string | undefined;
   value: SequenceCurveValue;
   declarations: SequenceCurveLibraryItem[];
   range: SequenceParamRange | null;
@@ -512,7 +376,7 @@ function CurveValueEditor({ name, value, declarations, range, commit, disabled =
   actions?: ReactNode;
 }) {
   const points = normalizeSequenceCurvePoints(value.points);
-  return <LibraryValueShell name={name} label="curve" libraryLink={value.link} declarations={declarations}
+  return <LibraryValueShell name={name} tip={tip} label="curve" libraryLink={value.link} declarations={declarations}
     points={points} commit={(points) => commit({ points, link: { type: "inline" } })}
     disabled={disabled} actions={actions}
     link={(curve) => commit({ points: curve.points, link: { type: "library", path: curve.path, objectKey: curve.objectKey, displayName: curve.displayName } })}
@@ -524,15 +388,16 @@ function CurveValueEditor({ name, value, declarations, range, commit, disabled =
     render={(props) => <CurveParam name={name} range={range} {...props} />} />;
 }
 
-function GradientValueEditor({ name, value, declarations, commit }: {
+function GradientValueEditor({ name, tip, value, declarations, commit }: {
   name: string;
+  tip: string | undefined;
   value: SequenceGradientValue;
   declarations: SequenceGradientLibraryItem[];
   commit: (value: SequenceGradientValue) => Promise<void>;
 }) {
   const { space } = value.gradient;
   const points = normalizeSequenceGradientStops(value.gradient.stops);
-  return <LibraryValueShell name={name} label="gradient" libraryLink={value.link} declarations={declarations}
+  return <LibraryValueShell name={name} tip={tip} label="gradient" libraryLink={value.link} declarations={declarations}
     points={points} commit={(stops) => commit({ gradient: { space, stops }, link: { type: "inline" } })}
     link={(item) => commit({ gradient: item.gradient, link: { type: "library", path: item.path, objectKey: item.objectKey, displayName: item.displayName } })}
     unlink={() => commit({ gradient: { space, stops: points }, link: { type: "inline" } })}
@@ -541,8 +406,13 @@ function GradientValueEditor({ name, value, declarations, commit }: {
 
 type LibraryItem = { path: string; objectKey: string; displayName: string };
 
+/**
+ * A curve or gradient that is either stored in the parameter or linked to a library declaration.
+ * A linked value is read-only; editing or flipping it makes it independent, which undo reverts.
+ */
 function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   name,
+  tip,
   label,
   libraryLink,
   declarations,
@@ -556,6 +426,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   render
 }: {
   name: string;
+  tip: string | undefined;
   label: "curve" | "gradient";
   libraryLink: SequenceLibraryLink;
   declarations: S[];
@@ -568,140 +439,69 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   flipVerticalPoints?: (points: T[]) => T[];
   render: (props: CurveEditorProps<T>) => ReactNode;
 }) {
-  const host = useSequenceEditorHost();
-  const { navigateToGuiObject } = host;
+  const { navigateToGuiObject } = useSequenceEditorHost();
 
-  const [pendingUnlinkAction, setPendingUnlinkAction] = useState<UnlinkAction | null>(null);
   const linkedDeclaration = libraryLink.type === "library" ? libraryLink : null;
-  const linked = linkedDeclaration !== null;
-  const linkedLabel = linkedDeclaration?.displayName ?? "";
-  const availableDeclarations = declarations;
-  const selectedDeclarationIndex = linked
-    ? availableDeclarations.findIndex((item) =>
-      item.path === linkedDeclaration.path
-      && item.objectKey === linkedDeclaration.objectKey
-    )
-    : -1;
-  const requestUnlink = (action: UnlinkAction) => {
-    if (!linked) return;
-    setPendingUnlinkAction(action);
-  };
-  const flipHorizontal = () => {
-    const next = sortCurvePoints(points.map((point) => ({ ...point, time: roundCurveValue(1 - point.time) }))) as T[];
-    if (linked) {
-      requestUnlink("flipHorizontal");
-    } else {
-      void commit(next);
-    }
-  };
-  const flipVertical = () => {
-    if (flipVerticalPoints === undefined) return;
-    const next = flipVerticalPoints(points);
-    if (linked) {
-      requestUnlink("flipVertical");
-    } else {
-      void commit(next);
-    }
-  };
-  const confirmPendingUnlinkAction = () => {
-    const action = pendingUnlinkAction;
-    if (action === null) return;
-    if (action === "flipHorizontal") {
-      const next = sortCurvePoints(points.map((point) => ({ ...point, time: roundCurveValue(1 - point.time) }))) as T[];
-      void commit(next);
-    } else if (action === "flipVertical") {
-      if (flipVerticalPoints === undefined) return;
-      const next = flipVerticalPoints(points);
-      void commit(next);
-    } else {
-      void unlink();
-    }
-    setPendingUnlinkAction(null);
-  };
-  const portalContainer = useContext(OverlayPortal);
-  const unlinkDialogTitle = pendingUnlinkAction === "flipHorizontal" || pendingUnlinkAction === "flipVertical"
-    ? `Make independent and flip ${name}?`
-    : `Make ${name} independent of ${linkedLabel}?`;
-  const unlinkDialogDescription = pendingUnlinkAction === "flipHorizontal" || pendingUnlinkAction === "flipVertical"
-    ? `Keep the current ${label} from ${linkedLabel} in this parameter, then apply the flip. The library declaration stays unchanged, and this parameter will no longer follow changes to it.`
-    : `Keep the current ${label} from ${linkedLabel} in this parameter. Changes here will leave the library declaration unchanged, and this parameter will no longer follow changes to it.`;
+  const selectedDeclarationIndex = linkedDeclaration === null
+    ? -1
+    : declarations.findIndex((item) => item.path === linkedDeclaration.path && item.objectKey === linkedDeclaration.objectKey);
+  const sourceOptions = [
+    { value: CUSTOM_SOURCE, label: "Custom" },
+    ...(linkedDeclaration !== null && selectedDeclarationIndex === -1 ? [{ value: "library:-1", label: linkedDeclaration.displayName }] : []),
+    ...declarations.map((item, index) => ({ value: `library:${index}`, label: item.displayName }))
+  ];
   return (
-    <div className={`param-source-shell ${linked ? "linked" : ""}`}>
-      <div className="param-source-row">
-        <select
-          title={`${name} ${label} declaration`}
+    <div className={`effect-param-group param-source-shell ${linkedDeclaration !== null ? "linked" : ""}`}>
+      <Field label={name} tip={tip}>
+        <Select
+          name={`${name} ${label}`}
           disabled={disabled}
-          value={linked ? `library:${selectedDeclarationIndex}` : "custom"}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            if (value === "custom") {
-              if (linked) requestUnlink("edit");
+          value={linkedDeclaration === null ? CUSTOM_SOURCE : `library:${selectedDeclarationIndex}`}
+          options={sourceOptions}
+          onChange={(value) => {
+            if (value === CUSTOM_SOURCE) {
+              if (linkedDeclaration !== null) void unlink();
               return;
             }
-            const index = Number(value.replace("library:", ""));
-            const declaration = availableDeclarations[index];
-            if (declaration === undefined) return;
-            void link(declaration);
+            const declaration = declarations[Number(value.replace("library:", ""))];
+            if (declaration !== undefined) void link(declaration);
           }}
-        >
-          <option value="custom">{linked ? "Make independent..." : `Custom ${label} - This parameter`}</option>
-          {linked && selectedDeclarationIndex === -1 && (
-            <option value="library:-1">{linkedLabel}</option>
-          )}
-          {availableDeclarations.map((item, index) => (
-            <option key={index} value={`library:${index}`}>
-              {item.displayName}
-            </option>
-          ))}
-        </select>
-        {actions !== null && <div className="effect-param-actions">{actions}</div>}
-      </div>
-      <p className="param-source-description">{linked ? `Linked to ${label}: ${linkedLabel}. Make independent to customize this parameter, or open the shared declaration.` : `Custom ${label} - Stored in this parameter.`}</p>
-      {linkedDeclaration !== null && <p className="param-source-description">Declared in: {linkedDeclaration.path}</p>}
-      {!disabled && (
+        />
+        {linkedDeclaration !== null && <>
+          <IconButton
+            icon={Link2}
+            pressed
+            disabled={disabled}
+            label={`Linked to ${linkedDeclaration.displayName} in ${linkedDeclaration.path}. Make independent`}
+            onClick={() => void unlink()}
+          />
+          <IconButton
+            icon={SquareArrowOutUpRight}
+            label={`Open ${linkedDeclaration.displayName}`}
+            onClick={() => void navigateToGuiObject({ ownedPath: [], path: linkedDeclaration.path, objectKey: linkedDeclaration.objectKey })}
+          />
+        </>}
+      </Field>
+      {(!disabled || actions !== null) && (
         <div className="param-source-actions">
-          {linked && (
-            <a href="#" className="neutral-button" onClick={(event) => {
-              event.preventDefault();
-              void navigateToGuiObject({ ownedPath: [], path: linkedDeclaration.path, objectKey: linkedDeclaration.objectKey });
-            }}>Open declaration</a>
-          )}
-          {linked && (
-            <button type="button" className="neutral-button" onClick={() => { requestUnlink("edit"); }}>
-              <Link2Off size={THEME_METRICS.iconSizeSmall} />
-              Make independent
-            </button>
-          )}
-          <button type="button" className="neutral-button icon-button" title={linked ? "Make independent and flip horizontal" : "Flip horizontal"} onClick={flipHorizontal}>
-            <FlipHorizontal2 size={THEME_METRICS.iconSizeSmall} />
-          </button>
-          {flipVerticalPoints !== undefined && (
-            <button type="button" className="neutral-button icon-button" title={linked ? "Make independent and flip vertical" : "Flip vertical"} onClick={flipVertical}>
-              <FlipVertical2 size={THEME_METRICS.iconSizeSmall} />
-            </button>
-          )}
+          {!disabled && <>
+            <IconButton
+              icon={FlipHorizontal2}
+              label="Flip horizontal"
+              onClick={() => void commit(sortCurvePoints(points.map((point) => ({ ...point, time: roundCurveValue(1 - point.time) }))))}
+            />
+            {flipVerticalPoints !== undefined && <IconButton icon={FlipVertical2} label="Flip vertical" onClick={() => void commit(flipVerticalPoints(points))} />}
+          </>}
+          {actions}
         </div>
       )}
       {render({
         points,
         commit,
-        readOnly: disabled || linked,
-        ...(disabled ? {} : { requestInlineEdit: () => { requestUnlink("edit"); } }),
+        readOnly: disabled || linkedDeclaration !== null,
+        ...(disabled ? {} : { requestInlineEdit: () => void unlink() }),
         showName: false
       })}
-      <AlertDialog.Root open={pendingUnlinkAction !== null} onOpenChange={(open) => { if (!open) setPendingUnlinkAction(null); }}>
-        <AlertDialog.Portal container={portalContainer}>
-          <AlertDialog.Overlay className="dialog-overlay" />
-          <AlertDialog.Content className="dialog-content">
-            <AlertDialog.Title>{unlinkDialogTitle}</AlertDialog.Title>
-            <AlertDialog.Description>{unlinkDialogDescription}</AlertDialog.Description>
-            <div className="dialog-actions">
-              <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-              <AlertDialog.Action onClick={confirmPendingUnlinkAction}>{pendingUnlinkAction === "edit" ? "Make independent" : "Make independent and flip"}</AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
     </div>
   );
 }
@@ -727,7 +527,6 @@ export function CurveParam({
   const [drafts, setDrafts] = useState(points);
   const draftsRef = useRef(points);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [pointsCollapsed, setPointsCollapsed] = useState(true);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const draggingPoint = useRef<number | null>(null);
   const pointsSignature = curvePointsSignature(points);
@@ -784,12 +583,6 @@ export function CurveParam({
     const next = draftsRef.current.filter((_, pointIndex) => pointIndex !== index);
     update(next);
     setSelectedIndex(Math.min(index, next.length - 1));
-  };
-  const commitDraftPoint = (index: number) => {
-    const point = draftsRef.current[index];
-    if (!point) return;
-    const value = range === null ? point.value : clamp(point.value, range.min, range.max);
-    update(replaceAt(draftsRef.current, index, { time: clamp(point.time, 0, 1), value }));
   };
   const valueRange = curveAxis(drafts, range);
   const path = curveSvgPath(drafts, valueRange);
@@ -874,80 +667,24 @@ export function CurveParam({
         })}
       </svg>
       {!readOnly && (
-        <div className="float-curve-points-panel">
-            <button
-              type="button"
-              className="float-curve-points-toggle"
-              onClick={() => { setPointsCollapsed((collapsed) => !collapsed); }}
-            >
-              {pointsCollapsed ? <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} /> : <ChevronRight className="expanded" size={THEME_METRICS.iconSizeExtraSmall} />}
-              <span>Points</span>
-              <strong>{drafts.length}</strong>
-            </button>
-            {!pointsCollapsed && (
-              <div className="float-curve-point-list">
-                {drafts.map((point, index) => (
-                  <div
-                    key={`${index}:${point.time}:${point.value}`}
-                    className={`float-curve-point-row ${index === selectedIndex ? "selected" : ""}`}
-                    onPointerDown={() => { setSelectedIndex(index); }}
-                  >
-                    <label>
-                      <span>t</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={point.time}
-                        onFocus={() => { setSelectedIndex(index); }}
-                        onChange={(event) => {
-                          setPoint(index, { ...point, time: Number(event.currentTarget.value) }, false);
-                        }}
-                        onBlur={() => { commitDraftPoint(index); }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            commitDraftPoint(index);
-                            event.currentTarget.blur();
-                          }
-                        }}
-                      />
-                    </label>
-                    <label>
-                      <span>v</span>
-                      <input
-                        type="number"
-                        step={curveValueStep(valueRange)}
-                        min={range?.min}
-                        max={range?.max}
-                        value={point.value}
-                        onFocus={() => { setSelectedIndex(index); }}
-                        onChange={(event) => {
-                          setPoint(index, { ...point, value: Number(event.currentTarget.value) }, false);
-                        }}
-                        onBlur={() => { commitDraftPoint(index); }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            commitDraftPoint(index);
-                            event.currentTarget.blur();
-                          }
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="float-curve-point-delete"
-                      title="Delete point"
-                      disabled={drafts.length <= 1}
-                      onClick={() => { deletePoint(index); }}
-                    >
-                      <Minus size={THEME_METRICS.iconSizeSmall} />
-                    </button>
-                  </div>
-                ))}
+        <Section title={`Points · ${drafts.length}`} defaultOpen={false}>
+          <div className="float-curve-point-list">
+            {drafts.map((point, index) => (
+              <div
+                key={index}
+                className={`float-curve-point-row ${index === selectedIndex ? "selected" : ""}`}
+                onPointerDown={() => { setSelectedIndex(index); }}
+              >
+                <NumberField name={`Point ${index + 1} time`} label="t" value={point.time} min={0} max={1} step={0.01}
+                  onCommit={(time) => { setPoint(index, { ...point, time }, true); }} />
+                <NumberField name={`Point ${index + 1} value`} label="v" value={point.value} step={curveValueStep(valueRange)}
+                  {...(range === null ? {} : { min: range.min, max: range.max })}
+                  onCommit={(value) => { setPoint(index, { ...point, value }, true); }} />
+                <IconButton icon={Minus} label="Delete point" disabled={drafts.length <= 1} onClick={() => { deletePoint(index); }} />
               </div>
-            )}
-        </div>
+            ))}
+          </div>
+        </Section>
       )}
     </div>
   );
@@ -1027,14 +764,6 @@ export function GradientParam({
     const next = draftsRef.current.filter((_, pointIndex) => pointIndex !== index);
     update(next);
   };
-  const pointFromPointer = (event: PointerEvent<HTMLElement>, color: string): EditedSequenceGradientStop => {
-    const rect = gradientRef.current?.getBoundingClientRect();
-    if (rect === undefined) return { time: 0, value: color };
-    return {
-      time: roundCurveValue(clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1)),
-      value: color
-    };
-  };
   const pointFromClientX = (clientX: number, color: string): EditedSequenceGradientStop => {
     const rect = gradientRef.current?.getBoundingClientRect();
     if (rect === undefined) return { time: 0, value: color };
@@ -1093,21 +822,18 @@ export function GradientParam({
   return (
     <div className="effect-param-group color-curve-editor">
       {showName && <div className="effect-param-name">{name}</div>}
-      <div className="param-source-row">
-        <select
-          title={`${name} gradient interpolation`}
-          value={space}
-          onChange={(event) => {
-            if (readOnly) {
-              requestInlineEdit?.();
-              return;
-            }
-            void commitSpace(event.currentTarget.value as SequenceGradientSpace);
-          }}
-        >
-          {GRADIENT_SPACES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </div>
+      <Select
+        name={`${name} interpolation`}
+        value={space}
+        options={GRADIENT_SPACES}
+        onChange={(next) => {
+          if (readOnly) {
+            requestInlineEdit?.();
+            return;
+          }
+          void commitSpace(next);
+        }}
+      />
       <div
         ref={gradientRef}
         className="color-curve-gradient"
@@ -1120,8 +846,7 @@ export function GradientParam({
           }
           if (event.target !== event.currentTarget) return;
           const previous = draftsRef.current[draftsRef.current.length - 1]?.value ?? CURVE_EDITOR.defaultColor;
-          const point = pointFromPointer(event, previous);
-          update([...draftsRef.current, point]);
+          update([...draftsRef.current, pointFromClientX(event.clientX, previous)]);
         }}
       >
         {!readOnly && drafts.map((point, index) => {

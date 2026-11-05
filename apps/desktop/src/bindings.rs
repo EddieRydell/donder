@@ -4,7 +4,11 @@ use tauri_specta::Builder;
 pub(crate) fn builder() -> Builder<tauri::Wry> {
     crate::commands::register(
         Builder::<tauri::Wry>::new()
-            .semantic_types(semantic::Configuration::default().enable_lossless_floats()),
+            .semantic_types(semantic::Configuration::default().enable_lossless_floats())
+            .constant(
+                "ACCESS_POINT_PASSWORD",
+                donder_device_protocol::ACCESS_POINT_PASSWORD,
+            ),
     )
 }
 

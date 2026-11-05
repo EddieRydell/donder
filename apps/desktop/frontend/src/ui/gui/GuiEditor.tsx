@@ -16,7 +16,7 @@ import { BlockedGui } from "./BlockedGui";
 import { SequenceEditor } from "./sequence/SequenceEditor";
 import { runGuiEditCommand, useAppStore } from "../../store";
 import { commands } from "../../api";
-import { DescriptionField } from "./DescriptionField";
+import { DescriptionText } from "./DescriptionField";
 import { THEME_METRICS } from "../../theme";
 
 
@@ -42,13 +42,10 @@ export function GuiEditor(props: Parameters<typeof ResourceEditor>[0]) {
   </div>;
 }
 
-/** The open object's description, collapsed to its first line. */
+/** The open object's description, edited in place above its editor. */
 function ObjectDescription({ description }: { description: string | null }) {
-  return <details className="gui-object-description">
-    <summary>{description === null ? "Add a description" : description.split("\n")[0]}</summary>
-    <DescriptionField description={description} onCommit={(next) =>
-      runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setDescription", item: { type: "object" }, description: next }))} />
-  </details>;
+  return <DescriptionText className="gui-object-description" description={description} onCommit={(next) =>
+    runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setDescription", item: { type: "object" }, description: next }))} />;
 }
 
 function ResourceEditor({

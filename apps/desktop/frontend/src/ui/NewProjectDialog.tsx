@@ -1,39 +1,41 @@
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { FolderOpen } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type { SyntheticEvent } from "react";
+import { useEffect, useState } from "react";
 import { commands } from "../api";
 import { useAppStore } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
-import { THEME_COLORS, THEME_METRICS } from "../theme";
+import { THEME_COLORS } from "../theme";
+import { Button, Dialog, Field, TextField } from "./kit";
 
 const NEW_PROJECT_EVENT = "donder:new-project";
+const DEFAULT_DIRECTORY_NAME = "New Project";
+
+type Mode = "createProject" | "copyProject" | "importProfile";
+
+const TITLES: Record<Mode, string> = { createProject: "New Project", copyProject: "Copy Project", importProfile: "Import Profile" };
+const ACTIONS: Record<Mode, string> = { createProject: "Create", copyProject: "Copy", importProfile: "Import" };
 
 export function NewProjectDialog() {
-  const [mode, setMode] = useState<"createProject" | "copyProject" | "importProfile">("createProject");
+  const [mode, setMode] = useState<Mode>("createProject");
   const [open, setOpen] = useState(false);
-  const [directoryName, setDirectoryName] = useState("");
+  const [directoryName, setDirectoryName] = useState(DEFAULT_DIRECTORY_NAME);
   const [parentPath, setParentPath] = useState("");
   const [profilePath, setProfilePath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    const onNewProject = () => {
-      setMode("createProject");
-      setOpen(true);
+    const opener = (next: Mode) => () => {
+      setMode(next);
+      setDirectoryName(DEFAULT_DIRECTORY_NAME);
+      // Beside the open project unless a location was already chosen.
+      const root = useAppStore.getState().snapshot?.projectRoot ?? null;
+      if (root !== null) setParentPath((current) => current === "" ? parentDirectory(root) : current);
       setError(null);
-    };
-    const onCopyProject = () => {
-      setMode("copyProject");
       setOpen(true);
-      setError(null);
     };
-    const onImportProfile = () => {
-      setMode("importProfile");
-      setOpen(true);
-      setError(null);
-    };
+    const onNewProject = opener("createProject");
+    const onCopyProject = opener("copyProject");
+    const onImportProfile = opener("importProfile");
     window.addEventListener("donder:copy-project", onCopyProject);
     window.addEventListener("donder:import-profile", onImportProfile);
     window.addEventListener(NEW_PROJECT_EVENT, onNewProject);
@@ -45,11 +47,8 @@ export function NewProjectDialog() {
   }, []);
 
   const nameError = validateDirectoryName(directoryName);
-  const projectPath = useMemo(() => {
-    if (parentPath === "" || directoryName === "") return "";
-    return `${parentPath.replace(/[\\/]+$/, "")}/${directoryName}`;
-  }, [directoryName, parentPath]);
-  const createDisabled = creating || parentPath === "" || directoryName === "" || nameError !== null
+  const projectPath = parentPath === "" || directoryName === "" ? "" : `${parentPath.replace(/[\\/]+$/, "")}/${directoryName}`;
+  const createDisabled = creating || parentPath === "" || nameError !== null
     || (mode === "importProfile" && profilePath === "");
 
   async function browseParent() {
@@ -76,8 +75,7 @@ export function NewProjectDialog() {
     }
   }
 
-  async function createProject(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function createProject() {
     if (createDisabled) return;
     setCreating(true);
     setError(null);
@@ -94,8 +92,6 @@ export function NewProjectDialog() {
       }
       useAppStore.getState().setError(null);
       setOpen(false);
-      setDirectoryName("");
-      setParentPath("");
       setProfilePath("");
     } catch (caught) {
       setError(errorMessage(caught));
@@ -104,74 +100,58 @@ export function NewProjectDialog() {
     }
   }
 
-  return (
-    <AlertDialog.Root open={open} onOpenChange={(value) => { if (!creating) setOpen(value); }}>
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="dialog-overlay" />
-        <AlertDialog.Content className="dialog-content new-project-dialog">
-          <AlertDialog.Title>{mode === "copyProject" ? "Create Standalone Project Copy" : mode === "importProfile" ? "Import Profile" : "New Project"}</AlertDialog.Title>
-          {mode === "copyProject" && <AlertDialog.Description>Create and open a separate project containing the current show, imported definitions, and referenced audio. The copied files can be edited independently. Choose a new folder.</AlertDialog.Description>}
-          {mode === "importProfile" && <AlertDialog.Description>Create and open a new project with the layout, controllers and patch of an xLights or Vixen profile. Choose the xLights show folder, which holds xlights_rgbeffects.xml, or the Vixen profile folder, which holds SystemData.</AlertDialog.Description>}
-          <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
-            {mode === "importProfile" && (
-              <label>
-                <span>Profile folder</span>
-                <div className="new-project-location-row">
-                  <input readOnly value={profilePath} />
-                  <button type="button" disabled={creating} onClick={() => void browseProfile()}>
-                    <FolderOpen size={THEME_METRICS.iconSizeSmall} />
-                    Browse...
-                  </button>
-                </div>
-              </label>
-            )}
-            <label>
-              <span>Project folder name</span>
-              <input
-                autoFocus
-                disabled={creating}
-                value={directoryName}
-                onChange={(event) => {
-                  setDirectoryName(event.target.value);
-                  setError(null);
-                }}
-              />
-            </label>
-            <label>
-              <span>Parent location</span>
-              <div className="new-project-location-row">
-                <input readOnly value={parentPath} />
-                <button type="button" disabled={creating} onClick={() => void browseParent()}>
-                  <FolderOpen size={THEME_METRICS.iconSizeSmall} />
-                  Browse...
-                </button>
-              </div>
-            </label>
-            <div className="new-project-path">
-              <span>New project will be created in:</span>
-              <strong>{projectPath === "" ? "-" : projectPath}</strong>
-            </div>
-            {(nameError !== null || error !== null) && (
-              <div className="new-project-error">{error ?? nameError}</div>
-            )}
-            <div className="dialog-actions">
-              <AlertDialog.Cancel disabled={creating}>Cancel</AlertDialog.Cancel>
-              <button type="submit" disabled={createDisabled}>
-                {creating ? "Creating..." : mode === "copyProject" ? "Create and open copy" : mode === "importProfile" ? "Import" : "Create"}
-              </button>
-            </div>
-          </form>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
-  );
+  const shownError = error ?? nameError;
+  return <Dialog
+    open={open}
+    onOpenChange={(value) => { if (!creating) setOpen(value); }}
+    title={TITLES[mode]}
+    actions={<>
+      <Button disabled={creating} onClick={() => { setOpen(false); }}>Cancel</Button>
+      <Button variant="primary" disabled={createDisabled} onClick={() => void createProject()}>
+        {creating ? "Creating…" : ACTIONS[mode]}
+      </Button>
+    </>}
+  >
+    {mode === "importProfile" && <Field label="Profile" tip="The xLights show folder (holds xlights_rgbeffects.xml) or the Vixen profile folder (holds SystemData)">
+      <FolderButton path={profilePath} disabled={creating} onClick={() => void browseProfile()} />
+    </Field>}
+    <Field label="Name" tip={mode === "copyProject" ? "The copy's folder; it holds the show, imported definitions and audio, and edits independently" : "The project's folder name"}>
+      <TextField
+        autoFocus
+        name="Project folder name"
+        disabled={creating}
+        invalid={nameError !== null}
+        value={directoryName}
+        onCommit={(value) => {
+          setDirectoryName(value);
+          setError(null);
+        }}
+      />
+    </Field>
+    <Field label="Location">
+      <FolderButton path={parentPath} tip={projectPath} disabled={creating} onClick={() => void browseParent()} />
+    </Field>
+    {shownError !== null && <div className="kit-status-error" role="alert">{shownError}</div>}
+  </Dialog>;
+}
+
+/** A folder choice that shows the chosen folder's name; the full path is its tooltip. */
+function FolderButton({ path, tip, disabled, onClick }: { path: string; tip?: string; disabled: boolean; onClick: () => void }) {
+  const label = tip !== undefined && tip !== "" ? tip : path === "" ? "Choose folder" : path;
+  return <Button icon={FolderOpen} tip={label} disabled={disabled} onClick={onClick}>
+    {path === "" ? "Choose…" : path.replace(/[\\/]+$/, "").split(/[\\/]/).pop()}
+  </Button>;
+}
+
+function parentDirectory(path: string): string {
+  return path.replace(/[\\/]+$/, "").replace(/[\\/][^\\/]*$/, "");
 }
 
 function validateDirectoryName(name: string): string | null {
-  if (name === "") return null;
-  if (name.trim() !== name) return "Project folder name cannot start or end with whitespace.";
-  if (name === "." || name === "..") return "Project folder name cannot be . or ..";
-  if (name.includes("/") || name.includes("\\")) return "Project folder name must be a folder name, not a path.";
+  if (name.trim() === "") return "Name required";
+  if (name.trim() !== name) return "No leading or trailing spaces";
+  if (name === "." || name === "..") return "Not a folder name";
+  if (name.includes("/") || name.includes("\\")) return "Name, not a path";
   return null;
 }
 

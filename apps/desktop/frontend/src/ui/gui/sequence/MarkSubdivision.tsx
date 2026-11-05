@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSequenceEditorHost } from "../../../editor/host";
 import type { SequenceGuiDocument } from "../../../editor/types";
+import { Button, Field, NumberField, Section, Select, TextField } from "../../kit";
 import { defaultMarkColor, subdivisionTimes } from "./marks";
 
 const MIN_DIVISIONS = 2;
@@ -55,37 +56,27 @@ export function MarkSubdivision({
   };
 
   return (
-    <div className="mark-subdivision">
-      <h4>Subdivide</h4>
-      <label>
-        Divisions per gap
-        <input
-          type="number"
-          min={MIN_DIVISIONS}
-          max={MAX_DIVISIONS}
-          step={1}
-          value={divisions}
-          onChange={(event) => { setDivisions(event.currentTarget.valueAsNumber); }}
+    <Section title="Subdivide" defaultOpen={false}>
+      <Field label="Divisions" tip="Equal parts per gap between selected marks">
+        <NumberField name="Divisions" value={divisions} min={MIN_DIVISIONS} max={MAX_DIVISIONS} step={1} integer defaultValue={MIN_DIVISIONS} onCommit={setDivisions} />
+      </Field>
+      <Field label="Add to">
+        <Select
+          name="Add to"
+          value={target}
+          options={[
+            { value: NEW_COLLECTION, label: "New collection" },
+            ...document.markCollections.map((collection) => ({ value: collection.key, label: collection.key }))
+          ]}
+          onChange={setTarget}
         />
-      </label>
-      <label>
-        Add to
-        <select value={target} onChange={(event) => { setTarget(event.currentTarget.value); }}>
-          <option value={NEW_COLLECTION}>New collection</option>
-          {document.markCollections.map((collection) => (
-            <option key={collection.key} value={collection.key}>{collection.key}</option>
-          ))}
-        </select>
-      </label>
+      </Field>
       {targetCollection === undefined && (
-        <label>
-          Name
-          <input type="text" value={name} onChange={(event) => { setName(event.currentTarget.value); }} />
-        </label>
+        <Field label="Name">
+          <TextField name="New collection name" value={name} onCommit={setName} />
+        </Field>
       )}
-      <button type="button" className="neutral-button" disabled={!valid} onClick={subdivide}>
-        Subdivide {selectedSeconds.length} marks
-      </button>
-    </div>
+      <Button disabled={!valid} onClick={subdivide}>Subdivide</Button>
+    </Section>
   );
 }

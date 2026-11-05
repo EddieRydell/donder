@@ -16,7 +16,6 @@ const SERVICE: &str = "_donder._tcp.local.";
 pub(crate) struct Advertised {
     pub name: String,
     pub address: SocketAddr,
-    pub claimed: bool,
     pub format: u32,
     pub network: DonderDeviceNetwork,
 }
@@ -92,11 +91,6 @@ fn parse(service: &ResolvedService) -> Option<(DonderDeviceId, Advertised)> {
         Advertised {
             name: service.get_property_val_str("name")?.to_string(),
             address: SocketAddr::new(IpAddr::V4(ip), service.get_port()),
-            claimed: match service.get_property_val_str("claimed")? {
-                "1" => true,
-                "0" => false,
-                _ => return None,
-            },
             format: service.get_property_val_str("format")?.parse().ok()?,
             network: match service.get_property_val_str("network")? {
                 "accessPoint" => DonderDeviceNetwork::AccessPoint,

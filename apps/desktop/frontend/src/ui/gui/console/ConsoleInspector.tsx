@@ -1,10 +1,13 @@
+import { Link2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ConsoleAction, ConsoleGuiDocument, ConsoleOn } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
+import { Badge, Button, Field, Select, Toggle } from "../../kit";
 import { InspectorScrollArea } from "../InspectorScrollArea";
 import { LayerList } from "../sequence/sequenceLayers";
 import type { GuiFocus } from "../shared";
 import { PlayFields } from "./ConsoleActionFields";
+import { MarksReadersBadge } from "./ConsoleEditor";
 import { EffectFields } from "./ConsoleEffectFields";
 import { consoleComposition } from "./consoleComposition";
 import { applyConsoleEdit, applyConsoleItemEdit, marksReaders, targetLabel } from "./consoleEditing";
@@ -25,7 +28,7 @@ export function ConsoleInspector({ document, selected, setSelected }: {
   const [tab, setTab] = useState<Tab>("selection");
   const composition = useMemo(() => consoleComposition(document), [document]);
   const footer = <div className="sequence-inspector-tabs" role="tablist" aria-label="Console inspector sections">
-    {TABS.map((entry) => <button key={entry.id} type="button" role="tab" aria-selected={tab === entry.id} className={tab === entry.id ? "active" : ""} onClick={() => { setTab(entry.id); }}>{entry.label}</button>)}
+    {TABS.map((entry) => <Button key={entry.id} variant="ghost" role="tab" aria-selected={tab === entry.id} className={tab === entry.id ? "active" : ""} onClick={() => { setTab(entry.id); }}>{entry.label}</Button>)}
   </div>;
   return <InspectorScrollArea footer={footer}>
     {tab === "selection" ? <Selection document={document} selected={selected} setSelected={setSelected} />
@@ -45,17 +48,16 @@ function Selection({ document, selected, setSelected }: { document: ConsoleGuiDo
       const always = document.always.includes(clip.id);
       return <>
         <h2>Effect</h2>
-        <label><input type="checkbox" checked={always} disabled={!always && document.events.some((on) => on.actions.some((action) => action.type === "play" && action.clipId === clip.id))}
-          onChange={() => void applyConsoleEdit({ type: "setAlways", clipIds: always ? document.always.filter((id) => id !== clip.id) : [...document.always, clip.id] })} /> Plays for the whole session</label>
+        <Field label="Always" tip="Plays for the whole session">
+          <Toggle name="Plays for the whole session" checked={always} disabled={!always && document.events.some((on) => on.actions.some((action) => action.type === "play" && action.clipId === clip.id))}
+            onChange={() => void applyConsoleEdit({ type: "setAlways", clipIds: always ? document.always.filter((id) => id !== clip.id) : [...document.always, clip.id] })} />
+        </Field>
         <EffectFields document={document} clip={clip} />
-        <button type="button" className="danger" onClick={() => { void applyConsoleItemEdit({ type: "delete", item: { type: "clip", id: clip.id } }).then(() => { setSelected(null); }); }}>Delete effect</button>
+        <Button variant="danger" icon={Trash2} onClick={() => { void applyConsoleItemEdit({ type: "delete", item: { type: "clip", id: clip.id } }).then(() => { setSelected(null); }); }}>Delete effect</Button>
       </>;
     }
   }
-  return <>
-    <h2>Console</h2>
-    <p>Select an action to edit it and the effect it plays.</p>
-  </>;
+  return <h2>Console</h2>;
 }
 
 const EVENT_LABELS = { press: "pressed", release: "released", move: "moved" } as const;
@@ -77,25 +79,23 @@ function ActionPanel({ document, on, index, action, setSelected }: {
   const uses = clip === undefined || !plays ? 0 : document.events.reduce((total, other) => total + other.actions.filter((candidate) => candidate.type !== "mark" && candidate.type !== "set" && candidate.clipId === clip.id).length, 0);
   return <>
     <h2>{on.input.controlName} {EVENT_LABELS[on.event]}</h2>
-    {action.type === "mark" && <>
-      <label>Live marks<select value={action.into} onChange={(event) => { set({ type: "mark", into: event.currentTarget.value }); }}>
-        {!document.liveMarks.some((marks) => marks.key === action.into) && <option value={action.into} disabled>{action.into}</option>}
-        {document.liveMarks.map((marks) => <option key={marks.key} value={marks.key}>{marks.key}</option>)}
-      </select></label>
-      <p className="clip-param-description">{marksReaders(document, action.into).length === 0 ? "No effect reads these marks." : `Read by ${marksReaders(document, action.into).join(", ")}.`}</p>
-    </>}
-    {action.type === "set" && <p className="clip-param-description">
-      Sets {targetLabel(document, action.target)}, across its range. It keeps its own value until {on.input.controlName} first {on.event === "move" ? "moves" : "is pressed"}.
-      {clip === undefined && " Its starting value is its value in the layers and operators editor."}
-    </p>}
+    {action.type === "mark" && <Field label="Live marks">
+      <Select name="Live marks" value={action.into} onChange={(into) => { set({ type: "mark", into }); }} options={[
+        ...(document.liveMarks.some((marks) => marks.key === action.into) ? [] : [{ value: action.into, label: action.into, disabled: true }]),
+        ...document.liveMarks.map((marks) => ({ value: marks.key, label: marks.key }))
+      ]} />
+      <MarksReadersBadge readers={marksReaders(document, action.into)} />
+    </Field>}
+    {action.type === "set" && <Field label="Sets" tip={`Across its range. It keeps its own value until ${on.input.controlName} first ${on.event === "move" ? "moves" : "is pressed"}${clip === undefined ? "; until then it has its value in the layers and operators editor" : ""}.`}>
+      <span>{targetLabel(document, action.target)}</span>
+    </Field>}
     <PlayFields document={document} action={action} press={on.event === "press"} notes={notes} onChange={set} />
     {clip !== undefined && <>
       <div className="inspector-section-divider" />
-      <h2>Effect</h2>
-      {uses > 1 && <p className="clip-param-description">Also played by {uses - 1} other action{uses > 2 ? "s" : ""}; changes here apply to all of them.</p>}
+      <h2>Effect {uses > 1 && <Badge icon={Link2} tip={`Played by ${uses} actions; changes here apply to all of them`}>{uses}</Badge>}</h2>
       <EffectFields document={document} clip={clip} />
     </>}
     <div className="inspector-section-divider" />
-    <button type="button" className="danger" onClick={() => { void applyConsoleEdit({ type: "removeAction", on: on.id, index }).then(() => { setSelected(null); }); }}>Remove from {on.input.controlName}</button>
+    <Button variant="danger" icon={Trash2} tip={`Remove from ${on.input.controlName}`} onClick={() => { void applyConsoleEdit({ type: "removeAction", on: on.id, index }).then(() => { setSelected(null); }); }}>Remove action</Button>
   </>;
 }

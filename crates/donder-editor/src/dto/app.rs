@@ -27,6 +27,15 @@ pub struct AppSnapshot {
     pub audio_transport: AudioTransportSnapshot,
     pub live_output: LiveOutputSnapshot,
     pub devices: Vec<DonderDeviceStatus>,
+    pub history: EditHistoryState,
+}
+
+/// Whether the GUI edit history has a step to undo or redo.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct EditHistoryState {
+    pub can_undo: bool,
+    pub can_redo: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]

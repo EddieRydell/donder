@@ -1,10 +1,21 @@
+import { X } from "lucide-react";
 import { useState } from "react";
 import { useAppStore } from "../../../store";
 import type { SetupGuiDocument, SetupGuiEdit } from "../../../types";
+import { AddRow, Button, Field, IconButton, NumberField, Select, TextField, Toggle } from "../../kit";
 import { useDeviceWatch } from "./DonderDevicePanel";
 
 type ControllerConfig = Extract<SetupGuiEdit, { type: "addController" }>["config"];
 type ControllerPorts = SetupGuiDocument["controllers"][number]["ports"];
+
+const PROTOCOLS = [
+  { value: "e131", label: "E1.31 / sACN" },
+  { value: "artNet", label: "Art-Net" },
+  { value: "donder", label: "Donder" }
+] as const;
+
+const PORT_NAME = /^[a-z_][a-z0-9_]*$/;
+const MAX_UNIVERSE_SLOTS = 512;
 
 function defaultConfig(type: ControllerConfig["type"], device: string): ControllerConfig {
   switch (type) {
@@ -23,58 +34,76 @@ function freshPortName(ports: ControllerPorts): string {
   }
 }
 
+/** Whether the settings can be applied: every text a protocol needs is set, and port names are unique snake_case. */
+function configValid(config: ControllerConfig, ports: ControllerPorts): boolean {
+  const fields = config.type === "e131" ? [config.bindAddress, config.senderName]
+    : config.type === "artNet" ? [config.bindAddress, config.destination]
+      : [config.device];
+  return fields.every((field) => field.trim() !== "")
+    && ports.every((port) => PORT_NAME.test(port.name))
+    && new Set(ports.map((port) => port.name)).size === ports.length;
+}
+
 export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDocument["controllers"][number]; onSave: (config: ControllerConfig, ports: ControllerPorts) => Promise<void> }) {
   const devices = useAppStore((state) => state.snapshot?.devices ?? []);
   const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? defaultConfig("e131", ""));
-  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [{ id: 1, name: "port_1", address: 1, slotCount: 512 }]);
+  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [{ id: 1, name: "port_1", address: 1, slotCount: MAX_UNIVERSE_SLOTS }]);
   useDeviceWatch(config.type === "donder");
   const firstAddress = config.type === "artNet" ? 0 : 1;
-  return <>
-    <form className="setup-authoring-form" onSubmit={(event) => {
-      event.preventDefault();
-      void onSave(config, ports);
-    }}>
-      <h4>{controller === undefined ? "Add a controller" : "Controller settings"}</h4>
-      <fieldset>
-        <label>Protocol<select value={config.type} onChange={(event) => {
-          const type = event.target.value as ControllerConfig["type"];
+  const changePort = (index: number, change: Partial<ControllerPorts[number]>) => {
+    setPorts(ports.map((candidate, i) => i === index ? { ...candidate, ...change } : candidate));
+  };
+  const deviceOptions = config.type !== "donder" ? [] : [
+    ...(config.device === "" ? [{ value: "", label: devices.length === 0 ? "None found" : "Choose", disabled: true }] : []),
+    ...(config.device !== "" && !devices.some((device) => device.id === config.device) ? [{ value: config.device, label: `${config.device} (offline)` }] : []),
+    ...devices.map((device) => ({ value: device.id, label: `${device.name} (${device.id})` }))
+  ];
+  return <form className="setup-authoring-form" onSubmit={(event) => {
+    event.preventDefault();
+    void onSave(config, ports);
+  }}>
+    <fieldset>
+      <Field label="Protocol">
+        <Select name="Protocol" value={config.type} options={PROTOCOLS} onChange={(type) => {
           setConfig(defaultConfig(type, devices[0]?.id ?? ""));
           // Donder outputs are numbered 1..n to match the controller's physical outputs.
           if (type === "donder") setPorts(ports.map((port, index) => ({ ...port, address: index + 1 })));
-        }}><option value="e131">E1.31 / sACN</option><option value="artNet">Art-Net</option><option value="donder">Donder controller</option></select></label>
-        {config.type === "e131" && <>
-          <label>Local interface<input required value={config.bindAddress} onChange={(event) => { setConfig({ ...config, bindAddress: event.target.value }); }} /></label>
-          <label>Sender name<input required value={config.senderName} onChange={(event) => { setConfig({ ...config, senderName: event.target.value }); }} /></label>
-          <label>Priority<input type="number" min={1} max={200} value={config.priority} onChange={(event) => { setConfig({ ...config, priority: Number(event.target.value) }); }} /></label>
-          <label>Destination (empty for multicast)<input value={config.destination ?? ""} onChange={(event) => { setConfig({ ...config, destination: event.target.value || null }); }} /></label>
-        </>}
-        {config.type === "artNet" && <>
-          <label>Local interface<input required value={config.bindAddress} onChange={(event) => { setConfig({ ...config, bindAddress: event.target.value }); }} /></label>
-          <label>Destination socket<input required value={config.destination} onChange={(event) => { setConfig({ ...config, destination: event.target.value }); }} /></label>
-          <label><input type="checkbox" checked={config.broadcast} onChange={(event) => { setConfig({ ...config, broadcast: event.target.checked }); }} />Broadcast</label>
-        </>}
-        {config.type === "donder" && <label>Device<select required value={config.device} onChange={(event) => { setConfig({ ...config, device: event.target.value }); }}>
-          <option value="" disabled>{devices.length === 0 ? "No Donder controllers found" : "Choose a controller"}</option>
-          {config.device !== "" && !devices.some((device) => device.id === config.device) && <option value={config.device}>{config.device} (not on the network)</option>}
-          {devices.map((device) => <option key={device.id} value={device.id}>{device.name} ({device.id})</option>)}
-        </select></label>}
-        {ports.map((port, index) => <div className="controller-port-row" key={port.id}>
-          <label>Name<input required pattern="[a-z_][a-z0-9_]*" value={port.name} onChange={(event) => { setPorts(ports.map((candidate, i) => i === index ? { ...candidate, name: event.target.value } : candidate)); }} /></label>
-          {config.type === "donder" ? <span>Controller output {port.address}</span>
-            : <label>{config.type === "e131" ? "Universe" : "Port address"}<input type="number" min={firstAddress} value={port.address} onChange={(event) => { setPorts(ports.map((candidate, i) => i === index ? { ...candidate, address: Number(event.target.value) } : candidate)); }} /></label>}
-          <label>Channels<input type="number" min={1} max={config.type === "donder" ? undefined : 512} value={port.slotCount} onChange={(event) => { setPorts(ports.map((candidate, i) => i === index ? { ...candidate, slotCount: Number(event.target.value) } : candidate)); }} /></label>
-          <button type="button" onClick={() => {
-            const remaining = ports.filter((_, i) => i !== index);
-            setPorts(config.type === "donder" ? remaining.map((candidate, i) => ({ ...candidate, address: i + 1 })) : remaining);
-          }}>Remove output</button>
-        </div>)}
-        <button type="button" onClick={() => {
-          const address = config.type === "donder" ? ports.length + 1 : Math.max(firstAddress - 1, ...ports.map((port) => port.address)) + 1;
-          const id = Math.max(0, ...ports.map((port) => port.id)) + 1;
-          setPorts([...ports, { id, name: freshPortName(ports), address, slotCount: config.type === "donder" ? 600 : 512 }]);
-        }}>Add output</button>
-        <button type="submit">{controller === undefined ? "Add controller" : "Apply controller settings"}</button>
-      </fieldset>
-    </form>
-  </>;
+        }} />
+      </Field>
+      {config.type === "e131" && <>
+        <Field label="Interface"><TextField name="Local interface" value={config.bindAddress} invalid={config.bindAddress.trim() === ""} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} /></Field>
+        <Field label="Sender"><TextField name="Sender name" value={config.senderName} invalid={config.senderName.trim() === ""} onCommit={(senderName) => { setConfig({ ...config, senderName }); }} /></Field>
+        <Field label="Priority"><NumberField name="Priority" value={config.priority} step={1} min={1} max={200} defaultValue={100} integer onCommit={(priority) => { setConfig({ ...config, priority }); }} /></Field>
+        <Field label="Destination" tip="Empty for multicast"><TextField name="Destination" placeholder="Multicast" value={config.destination ?? ""} onCommit={(destination) => { setConfig({ ...config, destination: destination.trim() === "" ? null : destination }); }} /></Field>
+      </>}
+      {config.type === "artNet" && <>
+        <Field label="Interface"><TextField name="Local interface" value={config.bindAddress} invalid={config.bindAddress.trim() === ""} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} /></Field>
+        <Field label="Destination"><TextField name="Destination socket" value={config.destination} invalid={config.destination.trim() === ""} onCommit={(destination) => { setConfig({ ...config, destination }); }} /></Field>
+        <Field label="Broadcast"><Toggle name="Broadcast" checked={config.broadcast} onChange={(broadcast) => { setConfig({ ...config, broadcast }); }} /></Field>
+      </>}
+      {config.type === "donder" && <Field label="Device">
+        <Select name="Device" value={config.device} options={deviceOptions} onChange={(device) => { setConfig({ ...config, device }); }} />
+      </Field>}
+      {ports.map((port, index) => <div className="controller-port-row" key={port.id}>
+        <Field label="Name"><TextField name="Output name" value={port.name} invalid={!PORT_NAME.test(port.name) || ports.some((other) => other.id !== port.id && other.name === port.name)} onCommit={(name) => { changePort(index, { name }); }} /></Field>
+        {config.type === "donder" ? <span>Output {port.address}</span>
+          : <Field label={config.type === "e131" ? "Universe" : "Port address"}>
+            <NumberField name={config.type === "e131" ? "Universe" : "Port address"} value={port.address} step={1} min={firstAddress} integer onCommit={(address) => { changePort(index, { address }); }} />
+          </Field>}
+        <Field label="Channels">
+          <NumberField name="Channels" value={port.slotCount} step={1} min={1} {...(config.type === "donder" ? {} : { max: MAX_UNIVERSE_SLOTS })} integer onCommit={(slotCount) => { changePort(index, { slotCount }); }} />
+        </Field>
+        <IconButton icon={X} label="Remove output" danger onClick={() => {
+          const remaining = ports.filter((_, i) => i !== index);
+          setPorts(config.type === "donder" ? remaining.map((candidate, i) => ({ ...candidate, address: i + 1 })) : remaining);
+        }} />
+      </div>)}
+      <AddRow label="Add output" onAdd={() => {
+        const address = config.type === "donder" ? ports.length + 1 : Math.max(firstAddress - 1, ...ports.map((port) => port.address)) + 1;
+        const id = Math.max(0, ...ports.map((port) => port.id)) + 1;
+        setPorts([...ports, { id, name: freshPortName(ports), address, slotCount: config.type === "donder" ? 600 : MAX_UNIVERSE_SLOTS }]);
+      }} />
+      <Button type="submit" variant="primary" disabled={!configValid(config, ports)}>{controller === undefined ? "Add controller" : "Apply"}</Button>
+    </fieldset>
+  </form>;
 }

@@ -64,8 +64,8 @@ pub struct Point3Meters {
     pub z_meters: f32,
 }
 
-/// A Donder controller seen on the network, merged with this editor's claim
-/// and live-output connection.
+/// A Donder controller seen on the network, merged with this editor's
+/// live-output connection.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DonderDeviceStatus {
@@ -73,7 +73,6 @@ pub struct DonderDeviceStatus {
     pub name: String,
     pub address: String,
     pub network: DonderDeviceNetwork,
-    pub claim: DonderDeviceClaim,
     /// False when the controller's sequence format differs from this editor's.
     pub firmware_current: bool,
     pub connection: DonderDeviceConnection,
@@ -84,14 +83,6 @@ pub struct DonderDeviceStatus {
 pub enum DonderDeviceNetwork {
     AccessPoint,
     Station,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum DonderDeviceClaim {
-    Unclaimed,
-    Claimed,
-    ClaimedElsewhere,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]

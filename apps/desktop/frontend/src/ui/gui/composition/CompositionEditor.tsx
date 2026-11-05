@@ -4,8 +4,6 @@ import { LayoutTree } from "./LayoutTree";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { OwnershipActions } from "../OwnershipActions";
 import { useState } from "react";
-import * as ContextMenu from "@radix-ui/react-context-menu";
-import * as Dialog from "@radix-ui/react-dialog";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
@@ -13,17 +11,27 @@ import type { FixtureStorage, GuiDocument, GuiDocumentRequest, GuiLayoutFixture,
 import { FixtureEditor } from "./FixtureEditor";
 import { Placement } from "./FixtureFields";
 import { SpatialCanvas } from "./SpatialCanvas";
-import { LayoutAddMenu } from "./LayoutAddMenu";
-import { ChevronRight } from "lucide-react";
-import { THEME_METRICS } from "../../../theme";
+import { layoutAddEntries } from "./LayoutAddMenu";
+import { Copy, FolderInput, FolderMinus, Pencil, Trash2 } from "lucide-react";
+import { Button, ContextMenuArea, Dialog, Field, Section, Select, TextField, type MenuEntry, type SelectOption } from "../../kit";
 import { descendants, layoutIndex, membersOf, membershipCount, nextLayoutId, withMember } from "./layoutGraph";
 
 type Document = Extract<GuiDocument, { type: "fixture" | "layout" }>;
 const identityTransform = (position: Point3Meters = { xMeters: 0, yMeters: 0, zMeters: 0 }): Transform => ({ position, rotation: { xDegrees: 0, yDegrees: 0, zDegrees: 0 }, scale: { x: 1, y: 1, z: 1 } });
 
-type TreeAction =
-  | { type: "group" | "fixture"; parent: number | null; origin: GuiDocumentRequest; position?: Point3Meters }
-  | { type: "rename"; id: number; origin: GuiDocumentRequest };
+/** A fixture being created: where it goes, waiting for its name. */
+type NewFixture = { parent: number | null; origin: GuiDocumentRequest; position?: Point3Meters };
+
+const storageOptions: SelectOption<FixtureStorage>[] = [
+  { value: "inline", label: "Inside this fixture" },
+  { value: "sameFile", label: "Reusable, this file" },
+  { value: "newFile", label: "Reusable, new file" }
+];
+const storageTips: Record<FixtureStorage, string> = {
+  inline: "Stored inside this fixture. Duplicating the fixture makes an independent copy; removing it removes its geometry.",
+  sameFile: "Creates a reusable declaration in this file. Removing this placement keeps the declaration available.",
+  newFile: "Creates a file in the fixtures folder, named after this fixture. The file stays available when you remove its placement."
+};
 
 export function CompositionEditor({ gui }: { gui: Document }) {
   return gui.type === "fixture" ? <FixtureEditor key={guiObjectKey(gui.document.sourceRef)} document={gui.document} /> : <LayoutEditor key={guiObjectKey(gui.document.sourceRef)} gui={gui} />;
@@ -37,9 +45,8 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const chosen = selectedItems(items, selection);
   /** The right-clicked row: an item and the group listing it (`null` for the root). */
   const [menuTarget, setMenuTarget] = useState<{ id: number; parent: number | null } | null>(null);
-  const [action, setAction] = useState<TreeAction | null>(null);
+  const [creating, setCreating] = useState<NewFixture | null>(null);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [storage, setStorage] = useState<FixtureStorage>("inline");
   const [error, setError] = useState<string | null>(null);
   const request = useAppStore((state) => state.guiRequest);
@@ -65,42 +72,38 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     return { ...gui.document.sourceRef, kind: "fixture", ownedPath: [...gui.document.sourceRef.ownedPath, { type: "fixture", id: fixture.id }] };
   };
   const reportError = (error: unknown) => { setError(String(error)); };
+  const changeItem = (id: number, update: (item: GuiLayoutFixture) => GuiLayoutFixture) => {
+    void setLayout(updateItem(id, update), request).then(() => { setError(null); }).catch(reportError);
+  };
   const changeTransform = (transform: Transform) => {
     if (instance === null) return;
-    const fixtures = updateItem(instance.id, (item) => item.kind.type === "fixture" ? { ...item, kind: { ...item.kind, transform } } : item);
-    void setLayout(fixtures, request).then(() => { setError(null); }).catch(reportError);
+    changeItem(instance.id, (item) => item.kind.type === "fixture" ? { ...item, kind: { ...item.kind, transform } } : item);
   };
-  const beginAdd = (type: "group" | "fixture", parent = target?.id ?? null, position?: Point3Meters) => {
+  const addGroup = (parent: number | null) => {
+    const id = nextLayoutId(layoutFixtures);
+    const added = withMember(layoutFixtures, root, parent, { id, name: "Group", description: null, kind: { type: "group", members: [] } });
+    void setLayout(added.fixtures, request, added.root).then(() => { setSelected(id); setError(null); }).catch(reportError);
+  };
+  const beginCreate = (parent: number | null, position?: Point3Meters) => {
     if (request === null) return;
-    setAction(position === undefined
-      ? { type, parent, origin: request }
-      : { type, parent, origin: request, position });
-    setName(type === "group" ? "Group" : "");
+    setCreating(position === undefined ? { parent, origin: request } : { parent, origin: request, position });
+    setName("");
     setStorage("inline");
     setError(null);
   };
-  const submitAction = async () => {
-    if (action === null || name.trim() === "") return;
-    let definitionToOpen: GuiObjectRef | null = null;
+  const submitCreate = async () => {
+    if (creating === null || name.trim() === "") return;
     const id = nextLayoutId(layoutFixtures);
-    if (action.type === "fixture") {
-      const result = await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "layout", edit: {
-        type: "addDefinition", name: name.trim(), storage, parent: action.parent, transform: identityTransform(action.position)
-      } }), action.origin);
-      const layout = result.change.type === "document" && result.change.document.type === "layout" ? result.change.document.document : null;
-      const added = layout?.fixtures.find((item) => item.id === id) ?? null;
-      if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
-      definitionToOpen = fixtureDeclaration(added);
-    } else if (action.type === "rename") {
-      await setLayout(updateItem(action.id, (item) => ({ ...item, name: name.trim(), description: description.trim() === "" ? null : description.trim() })), action.origin);
-    } else {
-      const added = withMember(layoutFixtures, root, action.parent, { id, name: name.trim(), description: null, kind: { type: "group", members: [] } });
-      await setLayout(added.fixtures, action.origin, added.root);
-    }
-    setSelected(action.type === "rename" ? action.id : id);
-    setAction(null);
+    const result = await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "layout", edit: {
+      type: "addDefinition", name: name.trim(), storage, parent: creating.parent, transform: identityTransform(creating.position)
+    } }), creating.origin);
+    const layout = result.change.type === "document" && result.change.document.type === "layout" ? result.change.document.document : null;
+    const added = layout?.fixtures.find((item) => item.id === id) ?? null;
+    if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
+    setSelected(id);
+    setCreating(null);
     setError(null);
-    if (definitionToOpen !== null) await navigateToGuiObject(definitionToOpen);
+    await navigateToGuiObject(fixtureDeclaration(added));
   };
   const addExistingFixtureAt = async (definition: GuiObjectRef, parent: number | null, position?: Point3Meters) => {
     if (request === null) return;
@@ -143,88 +146,71 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     availableFixtures: gui.document.availableFixtures,
     enabled: editable,
     onAddFixture: (definition: GuiObjectRef, position: Point3Meters) => { void addExistingFixtureAt(definition, null, position).catch(reportError); },
-    onCreateFixture: (position: Point3Meters) => { beginAdd("fixture", null, position); },
-    onAddGroup: () => { beginAdd("group", null); }
+    onCreateFixture: (position: Point3Meters) => { beginCreate(null, position); },
+    onAddGroup: () => { addGroup(null); }
   };
+  const menuEntries: MenuEntry[] = [
+    ...(target === null || target.kind.type === "group" ? layoutAddEntries({
+      availableFixtures: gui.document.availableFixtures,
+      enabled: editable,
+      onAddFixture: (definition) => { void addExistingFixtureAt(definition, target?.id ?? null).catch(reportError); },
+      onCreateFixture: () => { beginCreate(target?.id ?? null); },
+      onAddGroup: () => { addGroup(target?.id ?? null); }
+    }) : []),
+    ...(target?.kind.type === "fixture" ? [{ type: "action", label: "Edit fixture", icon: Pencil, onSelect: () => { void navigateToGuiObject(fixtureDeclaration(target)).catch(reportError); } }] satisfies MenuEntry[] : []),
+    ...(target === null ? [] : [
+      { type: "submenu", label: "Add to group", icon: FolderInput, disabled: !editable || destinations.length === 0, entries: destinations.map((group): MenuEntry => ({ type: "action", label: group.name, disabled: !editable, onSelect: () => { membershipEdit({ type: "addMember", id: target.id, to: group.id, before: null }); } })) },
+      ...(targetParent !== null || membershipCount(layoutFixtures, root, target.id) > 1 ? [{ type: "action", label: targetParent === null ? "Remove from top level" : `Remove from ${layout.get(targetParent)?.name ?? "group"}`, icon: FolderMinus, disabled: !editable, onSelect: () => { membershipEdit({ type: "removeMember", id: target.id, from: targetParent }); } }] satisfies MenuEntry[] : []),
+      { type: "separator" },
+      { type: "action", label: "Duplicate", icon: Copy, shortcut: "edit.duplicate", disabled: !editable, onSelect: duplicate },
+      { type: "action", label: "Delete", icon: Trash2, shortcut: "edit.delete", danger: true, disabled: !editable, onSelect: remove }
+    ] satisfies MenuEntry[])
+  ];
   return <div className="layout-authoring">
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild disabled={!ready}>
-        <aside className="layout-hierarchy layout-tree-sidebar" onContextMenuCapture={(event) => {
-          const row = event.target instanceof Element ? event.target.closest("[data-layout-item]") : null;
-          const id = row === null ? null : Number(row.getAttribute("data-layout-item"));
-          const parent = row?.getAttribute("data-layout-parent") ?? null;
-          setMenuTarget(id === null ? null : { id, parent: parent === null ? null : Number(parent) });
-          if (id !== null && !selection.includes(id)) setSelected(id);
-        }}>
-          {!inline && <h2 className="composition-title">{gui.document.sourceRef.ownedPath.length > 0 ? "Layout" : documentLabel(gui.document.path, gui.document.objectKey)}</h2>}
-          {error !== null && action === null && <p role="alert">{error}</p>}
-          <fieldset className="composition-controls" disabled={!editable}>
-            <LayoutTree fixtures={layoutFixtures} root={root} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} enabled={editable} request={request} onError={reportError} />
-            <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(reportError); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
-            {instance?.kind.type === "fixture" && <><Placement value={instance.kind.transform} onChange={changeTransform} /><OwnershipActions declarations={gui.document.availableFixtures} key={instance.id} source={fixtureDeclaration(instance)} fixture={instance.id} label={instance.name} /></>}
-          </fieldset>
-        </aside>
-      </ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content className="menu-content" onCloseAutoFocus={(event) => { if (action !== null) event.preventDefault(); }}>
-          {(target === null || target.kind.type === "group") && <LayoutAddMenu
-            availableFixtures={gui.document.availableFixtures}
-            enabled={editable}
-            onAddFixture={(definition) => { void addExistingFixtureAt(definition, target?.id ?? null).catch(reportError); }}
-            onCreateFixture={() => { beginAdd("fixture"); }}
-            onAddGroup={() => { beginAdd("group"); }}
-          />}
-          {target?.kind.type === "fixture" && <ContextMenu.Item className="menu-item" onSelect={() => {
-            if (target.kind.type === "fixture") void navigateToGuiObject(fixtureDeclaration(target)).catch(reportError);
-          }}>Edit fixture</ContextMenu.Item>}
-          {target !== null && <>
-            <ContextMenu.Sub>
-              <ContextMenu.SubTrigger className="menu-item" disabled={!editable || destinations.length === 0}><span>Add to group</span><ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden /></ContextMenu.SubTrigger>
-              <ContextMenu.Portal><ContextMenu.SubContent className="menu-content">
-                {destinations.map((group) => <ContextMenu.Item key={group.id} className="menu-item" disabled={!editable} onSelect={() => { membershipEdit({ type: "addMember", id: target.id, to: group.id, before: null }); }}>{group.name}</ContextMenu.Item>)}
-              </ContextMenu.SubContent></ContextMenu.Portal>
-            </ContextMenu.Sub>
-            {(targetParent !== null || membershipCount(layoutFixtures, root, target.id) > 1) && <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => { membershipEdit({ type: "removeMember", id: target.id, from: targetParent }); }}>
-              {targetParent === null ? "Remove from top level" : `Remove from ${layout.get(targetParent)?.name ?? "group"}`}
-            </ContextMenu.Item>}
-            <ContextMenu.Separator className="menu-separator" />
-            <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={duplicate}>Duplicate selection</ContextMenu.Item>
-            <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => {
-              if (request === null) return;
-              setAction({ type: "rename", id: target.id, origin: request }); setName(target.name); setDescription(target.description ?? ""); setError(null);
-            }}>Name and description</ContextMenu.Item>
-            <ContextMenu.Item className="menu-item danger" disabled={!editable} onSelect={remove}>Delete selection</ContextMenu.Item>
-          </>}
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
-    <Dialog.Root open={action !== null} onOpenChange={(open) => { if (!open && !pending) setAction(null); }}>
-      <Dialog.Portal><Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content composition-add-dialog" aria-describedby={undefined}>
-          <Dialog.Title>{action?.type === "rename" ? "Name and description" : action?.type === "group" ? "Add group" : "Add fixture"}</Dialog.Title>
-          <form className="setup-authoring-form" onSubmit={(event) => { event.preventDefault(); void submitAction().catch(reportError); }}>
-            <fieldset disabled={!editable}>
-              <label>Name<input required value={name} onFocus={(event) => { event.currentTarget.select(); }} onChange={(event) => { setName(event.target.value); }} /></label>
-              {action?.type === "rename" && <label className="description-field">Description<textarea rows={3} value={description} onChange={(event) => { setDescription(event.target.value); }} /></label>}
-              {action?.type === "fixture" && <details className="composition-add-advanced">
-                <summary>Advanced settings</summary>
-                <label>Save fixture in<select value={storage} onChange={(event) => { if (event.target.value === "inline" || event.target.value === "sameFile" || event.target.value === "newFile") setStorage(event.target.value); }}>
-                  <option value="inline">Inside this fixture (default)</option>
-                  <option value="sameFile">Reusable fixture in this file</option>
-                  <option value="newFile">Reusable fixture in a new file</option>
-                </select></label>
-                <p>{storage === "inline" ? "Stored inside this fixture. Duplicating the fixture makes an independent copy; removing it removes its geometry." : storage === "sameFile" ? "Creates a reusable declaration in this file. Removing this placement keeps the declaration available." : "Creates a file in the fixtures folder, named after this fixture. The file stays available when you remove its placement."}</p>
-              </details>}
-              {error !== null && <p role="alert">{error}</p>}
-              <div className="dialog-actions">
-                <button type="submit" disabled={name.trim() === ""}>{action?.type === "rename" ? "Apply" : "Add"}</button>
-                <Dialog.Close asChild><button type="button">Cancel</button></Dialog.Close>
-              </div>
-            </fieldset>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <ContextMenuArea entries={menuEntries} disabled={!ready}>
+      <aside className="layout-hierarchy layout-tree-sidebar" onContextMenuCapture={(event) => {
+        const row = event.target instanceof Element ? event.target.closest("[data-layout-item]") : null;
+        const id = row === null ? null : Number(row.getAttribute("data-layout-item"));
+        const parent = row?.getAttribute("data-layout-parent") ?? null;
+        setMenuTarget(id === null ? null : { id, parent: parent === null ? null : Number(parent) });
+        if (id !== null && !selection.includes(id)) setSelected(id);
+      }}>
+        {!inline && <h2 className="composition-title">{gui.document.sourceRef.ownedPath.length > 0 ? "Layout" : documentLabel(gui.document.path, gui.document.objectKey)}</h2>}
+        {error !== null && creating === null && <p role="alert">{error}</p>}
+        <fieldset className="composition-controls" disabled={!editable}>
+          <LayoutTree fixtures={layoutFixtures} root={root} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} enabled={editable} request={request} onError={reportError} onAddGroup={() => { addGroup(null); }} />
+          <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(reportError); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
+          {instance !== null && <div className="fixture-shape-fields" key={instance.id}>
+            <Field label="Name">
+              <TextField name="Name" value={instance.name} onCommit={(value) => { const name = value.trim(); if (name !== "" && name !== instance.name) changeItem(instance.id, (item) => ({ ...item, name })); }} />
+            </Field>
+            <Section title="Description" defaultOpen={instance.description !== null}>
+              <TextField name="Description" multiline value={instance.description ?? ""} onCommit={(value) => { const description = value.trim() === "" ? null : value.trim(); if (description !== instance.description) changeItem(instance.id, (item) => ({ ...item, description })); }} />
+            </Section>
+            {instance.kind.type === "fixture" && <><Placement value={instance.kind.transform} disabled={!editable} onChange={changeTransform} /><OwnershipActions declarations={gui.document.availableFixtures} key={instance.id} source={fixtureDeclaration(instance)} fixture={instance.id} label={instance.name} /></>}
+          </div>}
+        </fieldset>
+      </aside>
+    </ContextMenuArea>
+    <Dialog
+      open={creating !== null}
+      onOpenChange={(open) => { if (!open && !pending) setCreating(null); }}
+      title="New fixture"
+      actions={<>
+        <Button onClick={() => { setCreating(null); }}>Cancel</Button>
+        <Button variant="primary" disabled={!editable || name.trim() === ""} onClick={() => { void submitCreate().catch(reportError); }}>Add</Button>
+      </>}
+    >
+      <Field label="Name">
+        <TextField name="Fixture name" live autoFocus disabled={!editable} value={name} onCommit={setName} />
+      </Field>
+      <Section title="Advanced" defaultOpen={false}>
+        <Field label="Save in" tip={storageTips[storage]}>
+          <Select name="Save fixture in" options={storageOptions} disabled={!editable} value={storage} onChange={setStorage} />
+        </Field>
+      </Section>
+      {error !== null && <p role="alert">{error}</p>}
+    </Dialog>
     <SpatialCanvas reference={gui.document.sourceRef} plan={gui.document.renderPlan} documentKey={guiObjectKey(gui.document.sourceRef)} selection={selection} items={items} onSelect={setSelection} layoutMenu={layoutMenu} onDelete={remove} onDuplicate={duplicate} onMoveStart={(ids, anchor) => {
       if (!editable) return null;
       const chosen = selectedItems(items, ids);

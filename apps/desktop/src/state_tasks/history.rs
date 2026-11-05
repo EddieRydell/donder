@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use donder_editor::dto::EditHistoryState;
 use donder_project_io::ProjectSession;
 
 #[derive(Clone)]
@@ -61,6 +62,13 @@ impl GuiHistory {
 
     pub(crate) fn pop_redo(&mut self) -> Option<GuiHistoryEntry> {
         self.redo.pop()
+    }
+
+    pub(crate) fn state(&self) -> EditHistoryState {
+        EditHistoryState {
+            can_undo: !self.undo.is_empty(),
+            can_redo: !self.redo.is_empty(),
+        }
     }
 
     pub(crate) fn clear(&mut self) {

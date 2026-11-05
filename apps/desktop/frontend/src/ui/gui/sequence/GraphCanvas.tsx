@@ -1,20 +1,23 @@
 import { useSequenceEditorHost } from "../../../editor/host";
+import { matchesCommand } from "../../../commandRegistry";
 import { isMac } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
+import type { EditorCommandId } from "../../../types";
 import { OverlayPortal } from "../../OverlayPortal";
+import { ContextMenuEntries, Tip } from "../../kit";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { ChevronRight, Layers, SlidersHorizontal, Monitor } from "lucide-react";
+import { Layers, SlidersHorizontal, Monitor, Trash2 } from "lucide-react";
 import {
   Background, Controls, Handle, MarkerType, MiniMap, NodeResizeControl, Position, ReactFlow,
   useEdgesState, useNodesState, useUpdateNodeInternals, type Edge, type Node, type NodeProps, type ReactFlowInstance
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, useContext } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
-import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
+import { definitionEntries, definitionTree } from "./definitionMenu";
 import type { GuiDocumentRequest, SequenceGraphNode, SequenceGraphOperator } from "../../../editor/types";
 import type { CompositionEditing } from "./composition";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
-import { graphOperatorDefinition, graphOperatorKey } from "./graphOperator";
+import { graphOperatorDefinition } from "./graphOperator";
 import { useGraphViewState } from "./graphViewState";
 import { GraphFlowEdge } from "./GraphFlowEdge";
 import { GraphNodeControls } from "./GraphNodeControls";
@@ -38,6 +41,8 @@ type Selection = { nodes: string[]; edges: string[] };
 type ContextTarget = { type: "pane"; position: { x: number; y: number } } | { type: "selection"; selection: Selection } | null;
 const NODE_TYPES = { donder: GraphNodeView };
 const EDGE_TYPES = { donder: GraphFlowEdge };
+/** The graph's command keys; a node's controls keep them, so operating a control never moves or deletes nodes. */
+const GRAPH_COMMAND_KEYS: EditorCommandId[] = ["edit.selectAll", "edit.delete", "edit.moveLeft", "edit.moveRight", "edit.moveUp", "edit.moveDown"];
 
 export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
   composition: CompositionEditing;
@@ -256,29 +261,14 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
         </div>
       </ContextMenu.Trigger>
       <ContextMenu.Portal container={overlayContainer}><ContextMenu.Content className="menu-content graph-menu">
-        {context?.type === "selection" ? <ContextMenu.Item className="menu-item danger" disabled={!editable || !removable(context.selection)} onSelect={() => { deleteSelection(context.selection); }}>Delete selected</ContextMenu.Item> :
-          context?.type === "pane" && <>
-            <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => { add(null, context.position); }}>Add layer</ContextMenu.Item>
-            <ContextMenu.Separator className="menu-separator" />
-            <ContextMenu.Sub>
-              <ContextMenu.SubTrigger className="menu-item" disabled={!editable}>
-                Add operator <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
-              </ContextMenu.SubTrigger>
-              <ContextMenu.Portal container={overlayContainer}>
-                <ContextMenu.SubContent className="menu-content">
-                  <DefinitionMenuItems
-                    menu={ContextMenu}
-                    tree={operatorTree}
-                    label={(definition) => definition.displayName}
-                    itemKey={(definition) => graphOperatorKey(definition.operator)}
-                    onSelect={(definition) => { add(definition.operator, context.position); }}
-                    empty="No operators"
-                    disabled={!editable}
-                  />
-                </ContextMenu.SubContent>
-              </ContextMenu.Portal>
-            </ContextMenu.Sub>
-          </>}
+        {context?.type === "selection" ? <ContextMenuEntries entries={[
+          { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", disabled: !editable || !removable(context.selection), onSelect: () => { deleteSelection(context.selection); } }
+        ]} /> :
+          context?.type === "pane" && <ContextMenuEntries entries={[
+            { type: "action", label: "Add Layer", disabled: !editable, onSelect: () => { add(null, context.position); } },
+            { type: "separator" },
+            { type: "submenu", label: "Add Operator", disabled: !editable, entries: definitionEntries(operatorTree, (definition) => definition.displayName, (definition) => { add(definition.operator, context.position); }, "No operators") }
+          ]} />}
       </ContextMenu.Content></ContextMenu.Portal>
     </ContextMenu.Root>
   </div>;
@@ -293,20 +283,20 @@ function GraphNodeView({ id, data, isConnectable }: NodeProps<GraphFlowNode>) {
     <div className="graph-flow-node-title">
       {data.kind === "layer" ? <Layers /> : data.kind === "root" ? <Monitor /> : <SlidersHorizontal />}
       {data.color !== null && <span className="graph-flow-node-swatch" style={{ background: data.color }} />}
-      <span title={data.label}>{data.label}{data.enabled ? "" : " (disabled)"}</span>
+      <Tip label={data.label}><span>{data.label}{data.enabled ? "" : " (disabled)"}</span></Tip>
     </div>
     <div className="graph-flow-node-body">
       <div className="graph-flow-port-column inputs">{data.inputs.map((port) => <div className="graph-flow-port-row" key={port.sourceName}>
-        <Handle id={port.sourceName} isConnectable={isConnectable} type="target" position={Position.Left} className="graph-flow-handle input" aria-label={`Input ${port.displayName}`} title={port.displayName} />
-        <span title={port.displayName}>{port.displayName}</span>
+        <Handle id={port.sourceName} isConnectable={isConnectable} type="target" position={Position.Left} className="graph-flow-handle input" aria-label={`Input ${port.displayName}`} />
+        <Tip label={port.displayName}><span>{port.displayName}</span></Tip>
       </div>)}</div>
       <div className="graph-flow-port-column outputs">{data.outputs.map((port) => <div className="graph-flow-port-row" key={port.sourceName}>
-        <span title={port.displayName}>{port.displayName}</span>
-        <Handle id={port.sourceName} isConnectable={isConnectable} type="source" position={Position.Right} className="graph-flow-handle output" aria-label={`Output ${port.displayName}`} title={port.displayName} />
+        <Tip label={port.displayName}><span>{port.displayName}</span></Tip>
+        <Handle id={port.sourceName} isConnectable={isConnectable} type="source" position={Position.Right} className="graph-flow-handle output" aria-label={`Output ${port.displayName}`} />
       </div>)}</div>
     </div>
-    {data.controls !== null && <div className="graph-flow-node-controls nodrag nopan nowheel"
-      onKeyDown={(event) => { event.stopPropagation(); }}
+    {data.controls !== null && <div className="graph-flow-node-controls nodrag nopan nowheel nokey"
+      onKeyDown={(event) => { if (GRAPH_COMMAND_KEYS.some((id) => matchesCommand(event.nativeEvent, id))) event.stopPropagation(); }}
       onContextMenu={(event) => {
         if (event.target instanceof Element && event.target.closest("input, textarea, select, button, [contenteditable=true]") !== null) event.stopPropagation();
       }}>{data.controls}</div>}

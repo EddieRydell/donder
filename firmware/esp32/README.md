@@ -5,7 +5,7 @@ Wi-Fi upload and control, flash storage, and four-output WS281x playback. It
 consumes `donder-runtime` and `donder-runtime-types` with default features off;
 parsing, imports, target resolution and output selection stay on the host. The
 local `crates/donder-device-storage` crate owns the LittleFS configuration record
-(name, station network and claim token) and the two show slots. How the controller behaves is described in
+(name and station network) and the two show slots. How the controller behaves is described in
 [ESP32 controllers](../../docs/esp32_loading.md).
 
 ## Toolchain
@@ -29,7 +29,7 @@ repeated.
 
 ## Features and builds
 
-Every build has access point or station networking, mDNS discovery, claiming,
+Every build has access point or station networking, mDNS discovery,
 Wi-Fi upload and continuous four-output WS281x playback on the second core, on
 the reference-board pins. The only feature is:
 
@@ -52,7 +52,7 @@ espflash flash --port COM4 --baud 460800 --chip esp32 --non-interactive --flash-
 ```
 
 To factory reset a controller, flash it with its saved data erased: add
-`--erase-parts shows,donder` to the command above. That clears its name, claim,
+`--erase-parts shows,donder` to the command above. That clears its name,
 Wi-Fi network and saved show.
 
 ## Uploading and measuring
@@ -69,7 +69,7 @@ cargo run -p donder-elaboration --example export_show -- examples/starter firmwa
 `PUT /show` loads the exported show, and `POST /frame` with a frame's tick
 as a 4-byte little-endian body replies `FRAME tick crc32 micros`, the CRC of
 the frame's output bytes and its evaluation time; each tick and CRC must match
-a row of the `.checksums` file. Never write tokens to logs.
+a row of the `.checksums` file.
 
 To measure a runtime change, upload a representative show such as
 `examples/stanford_room` and compare its `POST /frame` times. Keep captures

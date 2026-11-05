@@ -26,9 +26,7 @@ use core::{
     fmt::Write as _,
     sync::atomic::{AtomicBool, Ordering::Relaxed},
 };
-use donder_device_protocol::{
-    Action, LOADED, PlaybackStatus, TOKEN_HEADER, TransportStatus, clock, path,
-};
+use donder_device_protocol::{Action, LOADED, PlaybackStatus, TransportStatus, clock, path};
 use donder_runtime::{FrameTiming, LoadError as ShowError, SequenceFrame, ShowBytes, ShowPlayback};
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 use embassy_net::StackResources;
@@ -211,47 +209,6 @@ struct LoaderState {
     boot_id: u32,
 }
 
-/// An unclaimed controller authorizes nothing but `POST /claim`.
-fn token_matches(supplied: &[u8]) -> bool {
-    network::token().is_some_and(|token| {
-        supplied.len() == token.len()
-            && supplied
-                .iter()
-                .zip(token)
-                .fold(0, |difference, (&left, right)| difference | (left ^ right))
-                == 0
-    })
-}
-
-/// Serves `S` to requests that carry the claim token.
-struct Authorized<S>(S);
-
-impl<S: RequestHandlerService<LoaderState>> RequestHandlerService<LoaderState> for Authorized<S> {
-    async fn call_request_handler_service<
-        R: picoserve::io::Read,
-        W: picoserve::response::ResponseWriter<Error = R::Error>,
-    >(
-        &self,
-        state: &LoaderState,
-        (): (),
-        request: picoserve::request::Request<'_, R>,
-        response_writer: W,
-    ) -> Result<picoserve::ResponseSent, W::Error> {
-        let supplied = request.parts.headers().get(TOKEN_HEADER);
-        if !supplied.is_some_and(|supplied| token_matches(supplied.as_raw())) {
-            return (
-                StatusCode::UNAUTHORIZED,
-                "Missing or invalid X-Donder-Token\n",
-            )
-                .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
-        }
-        self.0
-            .call_request_handler_service(state, (), request, response_writer)
-            .await
-    }
-}
-
 /// Apply one change to the saved controller configuration. Output pauses
 /// while flash is used.
 async fn update_config(
@@ -289,48 +246,6 @@ async fn read_body<R: picoserve::io::Read, const N: usize>(
         offset += read;
     }
     Ok(Some(bytes))
-}
-
-/// First claim wins. The token authorizes every later request.
-struct Claim;
-
-impl RequestHandlerService<LoaderState> for Claim {
-    async fn call_request_handler_service<
-        R: picoserve::io::Read,
-        W: picoserve::response::ResponseWriter<Error = R::Error>,
-    >(
-        &self,
-        state: &LoaderState,
-        (): (),
-        request: picoserve::request::Request<'_, R>,
-        response_writer: W,
-    ) -> Result<picoserve::ResponseSent, W::Error> {
-        let connection = request.body_connection.finalize().await?;
-        if network::token().is_some() {
-            return (StatusCode::CONFLICT, "Controller is already claimed\n")
-                .write_to(connection, response_writer)
-                .await;
-        }
-        let rng = Rng::new();
-        let mut raw = [0; 16];
-        for word in raw.chunks_exact_mut(4) {
-            word.copy_from_slice(&rng.random().to_le_bytes());
-        }
-        let token = token_ascii(raw);
-        if let Err(error) = update_config(state, |config| config.token = Some(token)).await {
-            return (StatusCode::SERVICE_UNAVAILABLE, error)
-                .write_to(connection, response_writer)
-                .await;
-        }
-        network::IDENTITY.lock(|identity| identity.borrow_mut().token = Some(token));
-        network::ANNOUNCE.signal(());
-        (
-            StatusCode::OK,
-            core::str::from_utf8(&token).unwrap_or_default(),
-        )
-            .write_to(connection, response_writer)
-            .await
-    }
 }
 
 /// `PUT /name` with the new UTF-8 name as the body.
@@ -682,29 +597,24 @@ impl AppBuilder for WebApp {
     type PathRouter = impl PathRouter;
 
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
-        let transport_route = |action| Authorized(DeviceTransport(action));
         picoserve::Router::new()
-            .route(path::CLAIM, post_service(Claim))
-            .route(path::SHOW, put_service(Authorized(UploadShow)))
-            .route("/frame", post_service(Authorized(EvaluateFrame)))
-            .route(path::NAME, put_service(Authorized(Rename)))
-            .route(path::NETWORK, put_service(Authorized(SetNetwork)))
-            .route(
-                path::CONTROL,
-                post_service(Authorized(loader_control::Control)),
-            )
-            .route(path::TRANSPORT, get_service(transport_route(None)))
+            .route(path::SHOW, put_service(UploadShow))
+            .route("/frame", post_service(EvaluateFrame))
+            .route(path::NAME, put_service(Rename))
+            .route(path::NETWORK, put_service(SetNetwork))
+            .route(path::CONTROL, post_service(loader_control::Control))
+            .route(path::TRANSPORT, get_service(DeviceTransport(None)))
             .route(
                 path::PLAY,
-                post_service(transport_route(Some(Action::Play))),
+                post_service(DeviceTransport(Some(Action::Play))),
             )
             .route(
                 path::PAUSE,
-                post_service(transport_route(Some(Action::Pause))),
+                post_service(DeviceTransport(Some(Action::Pause))),
             )
             .route(
                 path::STOP,
-                post_service(transport_route(Some(Action::Stop))),
+                post_service(DeviceTransport(Some(Action::Stop))),
             )
             .with_state(self.state)
     }
@@ -752,16 +662,6 @@ async fn web_server(
     }
 }
 
-fn token_ascii(token: [u8; 16]) -> [u8; 32] {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut result = [0; 32];
-    for (index, byte) in token.into_iter().enumerate() {
-        result[index * 2] = HEX[(byte >> 4) as usize];
-        result[index * 2 + 1] = HEX[(byte & 0xf) as usize];
-    }
-    result
-}
-
 #[embassy_executor::task]
 async fn clock_server(stack: embassy_net::Stack<'static>, boot_id: u32) -> ! {
     use embassy_net::udp::{PacketMetadata, UdpSocket};
@@ -777,9 +677,7 @@ async fn clock_server(stack: embassy_net::Stack<'static>, boot_id: u32) -> ! {
             continue;
         };
         let received = local_micros();
-        let Some(request) = clock::Request::decode(&request[..length])
-            .filter(|request| token_matches(&request.token))
-        else {
+        let Some(request) = clock::Request::decode(&request[..length]) else {
             continue;
         };
         let reply = clock::Reply {
@@ -936,7 +834,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     let mut storage =
         storage::DeviceStorage::new(p.FLASH).unwrap_or_else(|error| panic!("{error}"));
     donder_device_storage::initialize(&mut storage).expect("Donder storage cannot be formatted");
-    // A damaged record is replaced by the next claim or settings change.
+    // A damaged record is replaced by the next settings change.
     let config = DeviceConfig::load(&mut storage)
         .ok()
         .flatten()
@@ -944,7 +842,6 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     network::IDENTITY.lock(|identity| {
         let mut identity = identity.borrow_mut();
         identity.name = network::Name::try_from(config.name.as_str()).unwrap();
-        identity.token = config.token;
     });
     let rng = Rng::new();
     let storage: &'static SharedStorage =

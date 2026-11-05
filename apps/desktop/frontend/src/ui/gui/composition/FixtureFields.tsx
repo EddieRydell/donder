@@ -1,22 +1,20 @@
 import type { Transform } from "../../../types";
+import { Field, FieldGroup, NumberField } from "../../kit";
 
-export function CoordinateField({ label, value, min, max, step = "any", onChange }: { label: string; value: number; min?: number; max?: number; step?: number | "any"; onChange: (value: number) => void }) {
-  return <label>{label}<input key={value} type="number" required step={step} min={min} max={max} defaultValue={value} onKeyDown={(event) => {
-    if (event.key === "Enter") event.currentTarget.blur();
-    if (event.key === "Escape") { event.currentTarget.value = String(value); event.currentTarget.blur(); }
-  }} onBlur={(event) => {
-    if (!event.currentTarget.reportValidity()) { event.currentTarget.value = String(value); return; }
-    const next = event.currentTarget.valueAsNumber;
-    event.currentTarget.value = String(value);
-    if (next !== value) onChange(next);
-  }} /></label>;
+const positionAxes = [["xMeters", "X"], ["yMeters", "Y"], ["zMeters", "Z"]] as const;
+const rotationAxes = [["xDegrees", "X"], ["yDegrees", "Y"], ["zDegrees", "Z"]] as const;
+const scaleAxes = [["x", "X"], ["y", "Y"], ["z", "Z"]] as const;
+
+export function Placement({ value, onChange, disabled = false }: { value: Transform; onChange: (value: Transform) => void; disabled?: boolean }) {
+  return <>
+    <Field label="Position">
+      <FieldGroup>{positionAxes.map(([axis, label]) => <NumberField key={axis} label={label} name={`Position ${label}`} unit="m" step={0.01} defaultValue={0} min={-2000} max={2000} disabled={disabled} value={value.position[axis]} onCommit={(next) => { onChange({ ...value, position: { ...value.position, [axis]: next } }); }} />)}</FieldGroup>
+    </Field>
+    <Field label="Rotation">
+      <FieldGroup>{rotationAxes.map(([axis, label]) => <NumberField key={axis} label={label} name={`Rotation ${label}`} unit="°" step={1} defaultValue={0} disabled={disabled} value={value.rotation[axis]} onCommit={(next) => { onChange({ ...value, rotation: { ...value.rotation, [axis]: next } }); }} />)}</FieldGroup>
+    </Field>
+    <Field label="Scale">
+      <FieldGroup>{scaleAxes.map(([axis, label]) => <NumberField key={axis} label={label} name={`Scale ${label}`} step={0.01} defaultValue={1} disabled={disabled} value={value.scale[axis]} onCommit={(next) => { onChange({ ...value, scale: { ...value.scale, [axis]: next } }); }} />)}</FieldGroup>
+    </Field>
+  </>;
 }
-
-export function Placement({ value, onChange }: { value: Transform; onChange: (value: Transform) => void }) {
-  return <div className="placement-fields">
-    {(["xMeters", "yMeters", "zMeters"] as const).map((axis) => <CoordinateField key={axis} label={axis.charAt(0).toUpperCase() + " (m)"} value={value.position[axis]} min={-2000} max={2000} onChange={(next) => { onChange({ ...value, position: { ...value.position, [axis]: next } }); }} />)}
-    {(["xDegrees", "yDegrees", "zDegrees"] as const).map((axis) => <CoordinateField key={axis} label={"Rotate " + axis.charAt(0).toUpperCase() + " (°)"} value={value.rotation[axis]} onChange={(next) => { onChange({ ...value, rotation: { ...value.rotation, [axis]: next } }); }} />)}
-    {(["x", "y", "z"] as const).map((axis) => <CoordinateField key={axis} label={"Scale " + axis.toUpperCase()} value={value.scale[axis]} onChange={(next) => { onChange({ ...value, scale: { ...value.scale, [axis]: next } }); }} />)}
-  </div>;
-}
-

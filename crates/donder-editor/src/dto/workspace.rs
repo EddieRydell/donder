@@ -288,6 +288,10 @@ pub enum EditorCommandId {
     EditMoveDown,
     #[serde(rename = "view.reset")]
     ViewReset,
+    #[serde(rename = "view.zoomIn")]
+    ViewZoomIn,
+    #[serde(rename = "view.zoomOut")]
+    ViewZoomOut,
     #[serde(rename = "transport.togglePlayback")]
     TransportTogglePlayback,
     #[serde(rename = "transport.stop")]
@@ -300,6 +304,14 @@ pub enum EditorCommandId {
     TransportTapMark,
     #[serde(rename = "transport.rewind")]
     TransportRewind,
+    #[serde(rename = "transport.previousMark")]
+    TransportPreviousMark,
+    #[serde(rename = "transport.nextMark")]
+    TransportNextMark,
+    #[serde(rename = "transport.setRangeIn")]
+    TransportSetRangeIn,
+    #[serde(rename = "transport.setRangeOut")]
+    TransportSetRangeOut,
     #[serde(rename = "sequence.toggleSliceTool")]
     SequenceToggleSliceTool,
     #[serde(rename = "sequence.selectMatching")]

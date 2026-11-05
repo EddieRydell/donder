@@ -27,6 +27,7 @@ Donder is pre-release with no users or compatibility obligations; the product ve
 - Never reinvent a solved problem. Use dependencies (after asking the user) rather than the wheel. Before adding one, use its latest compatible release and record any reason for an older one beside it. Dependency inspection procedure: `docs/development.md`.
 - Avoid strings in internal logic; prefer enums or structured data.
 - Single way of doing things; SSOT; minimize clutter.
+- Desktop GUI look, wording and behavior follow `BRAND_GUIDE.md`; compose controls from `ui/kit` instead of raw HTML controls.
 - All static frontend styling values (colors, typography, spacing, dimensions, shape, motion, breakpoints, and so on) are defined in `apps/desktop/frontend/src/styles.css` and reach runtime code through `theme.ts`. TypeScript and JSX use only CSS-backed or genuinely runtime/data-dependent values. Reuse existing classes and tokens; add a semantic one when none fits.
 - `apps/desktop/frontend/src/generated/bindings.ts` and `apps/desktop/gen/schemas/` are generated; regenerate with `pnpm generate:bindings` and the Tauri tooling, never hand-edit.
 - Runtime is 32-bit: `donder-runtime` and `donder-runtime-types` never use `u64`, `i64`, `u128`, `i128` or `f64` (clippy bans them). Every function in the runtime's `dsl/vm/strip.rs` and `evaluation.rs` carries the `iram`-feature `link_section` attribute, except the once-per-frame code in `evaluation::frames`; `pnpm firmware:build` enforces both. Details: `docs/development.md`.

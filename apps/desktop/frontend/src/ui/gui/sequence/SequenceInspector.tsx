@@ -1,8 +1,8 @@
 import { useSequenceEditorHost } from "../../../editor/host";
 import { useMemo, useState } from "react";
 
-import { Plus, Trash2 } from "lucide-react";
-import { THEME_COLORS, THEME_METRICS } from "../../../theme";
+import { CheckCheck, Circle, CircleDot, Eye, EyeOff, Link2, Plus, Trash2 } from "lucide-react";
+import { THEME_COLORS } from "../../../theme";
 
 import type {
   SequenceGuiDocument,
@@ -16,13 +16,12 @@ import type {
   SequenceClipCommonEdit
 } from "../../../editor/types";
 import { ColorPicker } from "../../ColorPicker";
+import { AddRow, Button, Field, IconButton, NumberField, Section, Select, TextField, type SelectOption } from "../../kit";
 import { EffectDefinitionPicker, effectReferencesEqual } from "./definitionMenu";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
 import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 import { TypedParamInput } from "./params/TypedParamInput";
 import { sequenceComposition } from "./composition";
-import { NameField } from "./NameField";
-import { DescriptionField } from "../DescriptionField";
 import { activeMarkCollection, defaultMarkColor } from "./marks";
 import { BeatDetectionDialog } from "./BeatDetectionDialog";
 import { MarkSubdivision } from "./MarkSubdivision";
@@ -30,7 +29,6 @@ import { MIN_CLIP_DURATION_SECONDS, clipIdsOfKind, clipRefs, selectedClipId, sel
 import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
-import { useConfirmDialog } from "../../ConfirmDialog";
 import { LayerList } from "./sequenceLayers";
 
 type SequenceInspectorTab = "clip" | "layers" | "marks";
@@ -48,6 +46,15 @@ const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
   { id: "marks", label: "Marks" },
 ];
 
+/** The select value shown while the selected clips differ; never a real layer id or scope. */
+const MIXED = "";
+const SCOPE_OPTIONS: SelectOption<SequenceClipScope>[] = [
+  { value: "perFixture", label: "Per fixture" },
+  { value: "wholeTarget", label: "Whole target" }
+];
+/** The step a clip or mark time scrubs by, in seconds. */
+const TIME_STEP_SECONDS = 0.01;
+
 function supportsAutomation(document: SequenceGuiDocument, details: Map<number, SequenceClipDetails> | null, target: SequenceAutomationTarget) {
   if (target.type === "clipParam") {
     return details?.get(target.clipId)?.params
@@ -56,6 +63,24 @@ function supportsAutomation(document: SequenceGuiDocument, details: Map<number, 
   const node = document.compositionGraph.nodes.find((node) => node.id === target.nodeId);
   return node?.kind.type === "operator" && node.kind.params
     .find((param) => param.name === target.param)?.supportsAutomation === true;
+}
+
+function layerOptions(document: SequenceGuiDocument): SelectOption<string>[] {
+  return document.layers.map((layer) => ({ value: String(layer.id), label: layer.name }));
+}
+
+function TimeField({ name, value, min, mixed = false, onCommit }: { name: string; value: number; min: number; mixed?: boolean; onCommit: (seconds: number) => void }) {
+  return <Field label={name}>
+    <NumberField
+      name={name}
+      value={value}
+      min={min}
+      step={TIME_STEP_SECONDS}
+      unit="s"
+      {...(mixed ? { format: () => "Multiple" } : {})}
+      onCommit={(seconds) => { onCommit(Math.max(min, roundToNanosecond(seconds))); }}
+    />
+  </Field>;
 }
 
 export function SequenceInspector({
@@ -135,6 +160,10 @@ export function SequenceInspector({
   );
 }
 
+function DeleteButton({ onDelete }: { onDelete: () => void }) {
+  return <Button variant="danger" icon={Trash2} tip="Delete" command="edit.delete" onClick={onDelete}>Delete</Button>;
+}
+
 function SelectedClipsInspector({
   document,
   clipIds,
@@ -151,9 +180,8 @@ function SelectedClipsInspector({
     .map((id) => document.clips.find((clip) => clip.id === id))
     .filter((clip): clip is SequenceClip => clip !== undefined);
   const details = useSequenceClipDetails(document, clips.map((clip) => clip.id));
-  if (clips.length === 0) {
-    return <><h2>Clips</h2><p>Select a clip on the timeline.</p></>;
-  }
+  const first = clips[0];
+  if (first === undefined) return <h2>Clips</h2>;
 
   const selectedClipIds = clips.map((clip) => clip.id);
   const layerId = commonClipValue(clips, (clip) => clip.layerId);
@@ -169,6 +197,7 @@ function SelectedClipsInspector({
         edit
       } })
     );
+  const mixedOption = { value: MIXED, label: "Multiple", disabled: true } as const;
 
   return (
     <>
@@ -176,78 +205,40 @@ function SelectedClipsInspector({
       <div className="inspector-readout-grid">
         <Readout label="Selected" value={String(clips.length)} />
       </div>
-      <div className="clip-inspector-fields">
-        <label>
-          Layer
-          <select
-            value={layerId === null ? "" : String(layerId)}
-            onChange={(event) => {
-              const nextLayerId = Number(event.currentTarget.value);
-              if (!Number.isInteger(nextLayerId)) return;
-              void applyEdit({ type: "layer", layerId: nextLayerId });
-            }}
-          >
-            {layerId === null && <option value="" disabled>Multiple</option>}
-            {document.layers.map((layer) => (
-              <option key={layer.id} value={String(layer.id)}>
-                {layer.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Scope
-          <select
-            value={scope ?? ""}
-            onChange={(event) => {
-              const nextScope = event.currentTarget.value;
-              if (nextScope !== "perFixture" && nextScope !== "wholeTarget") return;
-              void applyEdit({ type: "scope", scope: nextScope });
-            }}
-          >
-            {scope === null && <option value="" disabled>Multiple</option>}
-            <option value="perFixture">Per fixture</option>
-            <option value="wholeTarget">Whole target</option>
-          </select>
-        </label>
-        <div className="inspector-inline-row">
-          <MultiClipNumberField
-            clipIds={selectedClipIds}
-            field="start"
-            label="Start"
-            min={0}
-            value={startSeconds}
-            onCommit={(value) => void applyEdit({ type: "start", startSeconds: value })}
-          />
-          <MultiClipNumberField
-            clipIds={selectedClipIds}
-            field="duration"
-            label="Duration"
-            min={MIN_CLIP_DURATION_SECONDS}
-            value={durationSeconds}
-            onCommit={(value) => void applyEdit({ type: "duration", durationSeconds: value })}
-          />
-        </div>
-      </div>
+      <Field label="Layer">
+        <Select
+          name="Layer"
+          value={layerId === null ? MIXED : String(layerId)}
+          options={layerId === null ? [mixedOption, ...layerOptions(document)] : layerOptions(document)}
+          onChange={(value) => void applyEdit({ type: "layer", layerId: Number(value) })}
+        />
+      </Field>
+      <Field label="Scope">
+        <Select<SequenceClipScope | typeof MIXED>
+          name="Scope"
+          value={scope ?? MIXED}
+          options={scope === null ? [mixedOption, ...SCOPE_OPTIONS] : SCOPE_OPTIONS}
+          onChange={(value) => { if (value !== MIXED) void applyEdit({ type: "scope", scope: value }); }}
+        />
+      </Field>
+      <TimeField name="Start" min={0} value={startSeconds ?? first.startSeconds} mixed={startSeconds === null}
+        onCommit={(value) => void applyEdit({ type: "start", startSeconds: value })} />
+      <TimeField name="Duration" min={MIN_CLIP_DURATION_SECONDS} value={durationSeconds ?? first.durationSeconds} mixed={durationSeconds === null}
+        onCommit={(value) => void applyEdit({ type: "duration", durationSeconds: value })} />
       {commonParams.length > 0 && (
-        <div className="clip-param-section">
-          <h3>Shared parameters</h3>
-          {commonParams.map(({ param, mixed }, index) => (
-            <div
+        <Section title="Shared parameters">
+          {commonParams.map(({ param, mixed }) => (
+            <SharedClipParamInput
               key={`${selectedClipIds.join(",")}:${param.name}`}
-              className={`clip-param-row ${index % 2 === 0 ? "clip-param-row-even" : "clip-param-row-odd"}`}
-            >
-              <SharedClipParamInput
-                param={param}
-                mixed={mixed}
-                commitParam={(name, value) => applyEdit({ type: "param", name, value }).then(() => undefined)}
-                document={document}
-              />
-            </div>
+              param={param}
+              mixed={mixed}
+              commitParam={(name, value) => applyEdit({ type: "param", name, value }).then(() => undefined)}
+              document={document}
+            />
           ))}
-        </div>
+        </Section>
       )}
-      <button type="button" onClick={onDelete}>Delete</button>
+      <DeleteButton onDelete={onDelete} />
     </>
   );
 }
@@ -287,12 +278,9 @@ function SharedClipParamInput({
   const [editingMixed, setEditingMixed] = useState(false);
   if (mixed && !editingMixed) {
     return (
-      <div className="clip-param-group">
-        <div className="clip-param-name">{param.name}</div>
-        <button type="button" className="neutral-button" onClick={() => { setEditingMixed(true); }}>
-          Multiple values · Edit all
-        </button>
-      </div>
+      <Field label={param.name} tip={param.description ?? undefined}>
+        <Button tip="Edit every selected clip's value" onClick={() => { setEditingMixed(true); }}>Multiple</Button>
+      </Field>
     );
   }
   return (
@@ -304,51 +292,8 @@ function SharedClipParamInput({
         gradientLibrary={document.gradientLibrary}
         markCollections={document.markCollections}
       />
-      {mixed && (
-        <button type="button" className="neutral-button" onClick={() => { void commitParam(param.name, param.value); }}>
-          Apply shown value to all
-        </button>
-      )}
+      {mixed && <IconButton icon={CheckCheck} label="Apply shown value to all" onClick={() => { void commitParam(param.name, param.value); }} />}
     </>
-  );
-}
-
-function MultiClipNumberField({
-  clipIds,
-  field,
-  label,
-  min,
-  value,
-  onCommit
-}: {
-  clipIds: number[];
-  field: "start" | "duration";
-  label: string;
-  min: number;
-  value: number | null;
-  onCommit: (value: number) => void;
-}) {
-  return (
-    <label>
-      {label}
-      <input
-        key={`${clipIds.join(",")}:${field}:${value ?? "multiple"}`}
-        type="number"
-        min={min}
-        step="any"
-        placeholder={value === null ? "Multiple" : undefined}
-        defaultValue={value ?? ""}
-        onBlur={(event) => {
-          const rawValue = event.currentTarget.value;
-          if (rawValue === "") return;
-          const nextValue = Number(rawValue);
-          if (!Number.isFinite(nextValue)) return;
-          const normalizedValue = roundToNanosecond(Math.max(min, nextValue));
-          if (value === normalizedValue) return;
-          onCommit(normalizedValue);
-        }}
-      />
-    </label>
   );
 }
 
@@ -385,28 +330,16 @@ function ClipInspectorPanel({
   const details = useSequenceClipDetails(document, inspectedClipIds);
 
   if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
-    if (sequenceSelection.type !== "clips") {
-      return (
-        <>
-          <h2>Clip</h2>
-          <p>Select a clip on the timeline.</p>
-        </>
-      );
-    }
+    if (sequenceSelection.type !== "clips") return <h2>Clip</h2>;
+    const deleteSelection = () => {
+      void runGuiEditCommand((request) =>
+        commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: sequenceSelection } })
+      ).then(() => {
+        setSelected(null);
+      });
+    };
     if (sequenceSelection.clips.every((clip) => clip.type === "clip")) {
-      return (
-        <SelectedClipsInspector
-          document={document}
-          clipIds={clipIdsOfKind(sequenceSelection.clips, "clip")}
-          onDelete={() => {
-            void runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: sequenceSelection } })
-            ).then(() => {
-              setSelected(null);
-            });
-          }}
-        />
-      );
+      return <SelectedClipsInspector document={document} clipIds={clipIdsOfKind(sequenceSelection.clips, "clip")} onDelete={deleteSelection} />;
     }
     return (
       <>
@@ -414,16 +347,7 @@ function ClipInspectorPanel({
         <div className="inspector-readout-grid">
           <Readout label="Selected" value={String(selectionCount(sequenceSelection))} />
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: sequenceSelection } })).then(() => {
-              setSelected(null);
-            })
-          }
-        >
-          Delete
-        </button>
+        <DeleteButton onDelete={deleteSelection} />
       </>
     );
   }
@@ -442,66 +366,47 @@ function ClipInspectorPanel({
           <Readout label="Detached" value={String(automationClip.detachedBindings.length)} />
         </div>
         {automationClip.detachedBindings.map((binding, index) => (
-          <div key={`${binding.target.type}-${index}`}>
-            <span className="status-warning">Detached</span>
-            <p>{detachedAutomationTargetLabel(binding.target)}</p>
-            <div className="clip-param-actions">
-              <button
-                type="button"
-                disabled={!supportsAutomation(document, details, binding.target)}
-                onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
-                  type: "rebindDetachedAutomation",
-                  automationClipId: automationClip.id,
-                  detachedIndex: index,
-                  target: binding.target
-                } }))}
-              >
-                Rebind
-              </button>
-              <button
-                type="button"
-                className="danger"
-                onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
-                  type: "discardDetachedAutomation",
-                  automationClipId: automationClip.id,
-                  detachedIndex: index
-                } }))}
-              >
-                Discard provenance
-              </button>
-            </div>
-          </div>
+          <Field key={`${binding.target.type}-${index}`} label={detachedAutomationTargetLabel(binding.target)} tip="Detached">
+            <IconButton
+              icon={Link2}
+              label="Rebind"
+              disabled={!supportsAutomation(document, details, binding.target)}
+              onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
+                type: "rebindDetachedAutomation",
+                automationClipId: automationClip.id,
+                detachedIndex: index,
+                target: binding.target
+              } }))}
+            />
+            <IconButton
+              icon={Trash2}
+              label="Discard provenance"
+              danger
+              onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
+                type: "discardDetachedAutomation",
+                automationClipId: automationClip.id,
+                detachedIndex: index
+              } }))}
+            />
+          </Field>
         ))}
-        <button
-          type="button"
-          onClick={() =>
-            void runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "sequence", edit: {
-                type: "deleteSelection",
-                selection: { type: "clips", clips: [{ type: "automation", id: automationClip.id }] }
-              } })
-            ).then(() => {
-              setSelected(null);
-            })
-          }
-        >
-          <Trash2 size={THEME_METRICS.iconSizeExtraSmall} /> Delete automation clip
-        </button>
+        <DeleteButton onDelete={() =>
+          void runGuiEditCommand((request) =>
+            commands.applyGuiEdit(request, { type: "sequence", edit: {
+              type: "deleteSelection",
+              selection: { type: "clips", clips: [{ type: "automation", id: automationClip.id }] }
+            } })
+          ).then(() => {
+            setSelected(null);
+          })
+        } />
       </>
     );
   }
   const id = selectedClipId(selected);
   const clip = document.clips.find((candidate) => candidate.id === id);
 
-
-  if (clip === undefined) {
-    return (
-      <>
-        <h2>Clip</h2>
-        <p>Select a clip on the timeline.</p>
-      </>
-    );
-  }
+  if (clip === undefined) return <h2>Clip</h2>;
 
   const clipDetails = details?.get(clip.id);
   const currentDefinition = clipDetails === undefined ? undefined : document.effectDefinitions.find((definition) =>
@@ -516,134 +421,80 @@ function ClipInspectorPanel({
   return (
     <>
       <h2>Clip</h2>
-      <div className="clip-inspector-fields">
-        <NameField
-          name={clip.name}
-          label="Name"
-          commit={(name) =>
-            runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "rename", item, name })
+      <Field label="Name">
+        <TextField
+          name="Name"
+          value={clip.name}
+          onCommit={(value) => {
+            const name = value.trim();
+            if (name !== "" && name !== clip.name) void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "rename", item, name }));
+          }}
+        />
+      </Field>
+      <Field label="Description">
+        <TextField
+          name="Description"
+          multiline
+          value={clip.description ?? ""}
+          onCommit={(value) => {
+            const description = value.trim() === "" ? null : value.trim();
+            if (description !== clip.description) void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setDescription", item, description }));
+          }}
+        />
+      </Field>
+      <Field label="Effect" tip={currentDefinition?.description ?? undefined}>
+        <EffectDefinitionPicker
+          definitions={document.effectDefinitions}
+          label={currentDefinition?.name ?? clip.effect}
+          onSelect={(definition) =>
+            void runGuiEditCommand((request) =>
+              commands.applyGuiEdit(request, { type: "sequence", edit: {
+                type: "changeEffectDefinition",
+                initialColor: THEME_COLORS.white,
+                id: clip.id,
+                effect: definition.effect
+              } })
             )
           }
         />
-        <DescriptionField
-          description={clip.description}
-          onCommit={(description) =>
-            runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "setDescription", item, description })
-            )
-          }
+      </Field>
+      <Field label="Layer">
+        <Select
+          name="Layer"
+          value={String(clip.layerId)}
+          options={layerOptions(document)}
+          onChange={(value) => void editClip({ type: "layer", layerId: Number(value) })}
         />
-        <label>
-          Layer
-          <select
-            value={String(clip.layerId)}
-            onChange={(event) =>
-              void editClip({ type: "layer", layerId: Number(event.currentTarget.value) })
-            }
-          >
-            {document.layers.map((layer) => (
-              <option key={layer.id} value={String(layer.id)}>
-                {layer.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="inspector-inline-row">
-          <label>
-            Start
-            <input
-              key={`${clip.id}:start:${clip.startSeconds}`}
-              type="number"
-              min={0}
-              step="any"
-              defaultValue={clip.startSeconds}
-              onBlur={(event) => {
-                const nextStartSeconds = Number(event.currentTarget.value);
-                if (!Number.isFinite(nextStartSeconds) || roundToNanosecond(nextStartSeconds) === clip.startSeconds) return;
-                void editClip({ type: "start", startSeconds: Math.max(0, roundToNanosecond(nextStartSeconds)) });
-              }}
-            />
-          </label>
-          <label>
-            Duration
-            <input
-              key={`${clip.id}:duration:${clip.durationSeconds}`}
-              type="number"
-              min={MIN_CLIP_DURATION_SECONDS}
-              step="any"
-              defaultValue={clip.durationSeconds}
-              onBlur={(event) => {
-                const nextDurationSeconds = Number(event.currentTarget.value);
-                if (!Number.isFinite(nextDurationSeconds) || roundToNanosecond(nextDurationSeconds) === clip.durationSeconds) return;
-                void editClip({ type: "duration", durationSeconds: Math.max(MIN_CLIP_DURATION_SECONDS, roundToNanosecond(nextDurationSeconds)) });
-              }}
-            />
-          </label>
-        </div>
-        <label>
-          Effect type
-          <EffectDefinitionPicker
-            definitions={document.effectDefinitions}
-            label={currentDefinition?.name ?? clip.effect}
-            onSelect={(definition) =>
-              void runGuiEditCommand((request) =>
-                commands.applyGuiEdit(request, { type: "sequence", edit: {
-                  type: "changeEffectDefinition",
-                  initialColor: THEME_COLORS.white,
-                  id: clip.id,
-                  effect: definition.effect
-                } })
-              )
-            }
-          />
-        </label>
-        {currentDefinition !== undefined && currentDefinition.description !== null && (
-          <p className="clip-param-description">{currentDefinition.description}</p>
-        )}
-      </div>
-      <label>
-        Scope
-        <select
-          value={clip.scope}
-          onChange={(event) =>
-            void editClip({ type: "scope", scope: event.currentTarget.value as SequenceClipScope })
-          }
-        >
-          <option value="perFixture">Per fixture</option>
-          <option value="wholeTarget">Whole target</option>
-        </select>
-      </label>
+      </Field>
+      <TimeField name="Start" min={0} value={clip.startSeconds}
+        onCommit={(startSeconds) => void editClip({ type: "start", startSeconds })} />
+      <TimeField name="Duration" min={MIN_CLIP_DURATION_SECONDS} value={clip.durationSeconds}
+        onCommit={(durationSeconds) => void editClip({ type: "duration", durationSeconds })} />
+      <Field label="Scope">
+        <Select name="Scope" value={clip.scope} options={SCOPE_OPTIONS} onChange={(scope) => void editClip({ type: "scope", scope })} />
+      </Field>
       {clipDetails !== undefined && clipDetails.params.length > 0 && (
-        <>
-          <div className="inspector-section-divider" />
-          <div className="clip-param-section">
-            <h3>Parameters</h3>
-            {clipDetails.params.map((param, index) => (
-              <div
-                key={`${clip.id}:${param.name}`}
-                className={`clip-param-row ${index % 2 === 0 ? "clip-param-row-even" : "clip-param-row-odd"}`}
-              >
-                <TypedParamInput
-                  param={param}
-                  commitParam={(name, value) =>
-                    editClip({ type: "param", name, value }).then(() => undefined)
-                  }
-                  curveLibrary={document.curveLibrary}
-                  gradientLibrary={document.gradientLibrary}
-                  markCollections={document.markCollections}
-                  automation={{
-                    target: { type: "clipParam", clipId: clip.id, param: param.name },
-                    automationClips: document.automationClips,
-                    canCreateAutomationClip: document.lanes.some((lane) => targetsEqual(lane.target, clip.target)),
-                    automationClipChooser,
-                    setAutomationClipChooser
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </>
+        <Section title="Parameters">
+          {clipDetails.params.map((param) => (
+            <TypedParamInput
+              key={`${clip.id}:${param.name}`}
+              param={param}
+              commitParam={(name, value) =>
+                editClip({ type: "param", name, value }).then(() => undefined)
+              }
+              curveLibrary={document.curveLibrary}
+              gradientLibrary={document.gradientLibrary}
+              markCollections={document.markCollections}
+              automation={{
+                target: { type: "clipParam", clipId: clip.id, param: param.name },
+                automationClips: document.automationClips,
+                canCreateAutomationClip: document.lanes.some((lane) => targetsEqual(lane.target, clip.target)),
+                automationClipChooser,
+                setAutomationClipChooser
+              }}
+            />
+          ))}
+        </Section>
       )}
     </>
   );
@@ -678,11 +529,11 @@ function MarkInspectorPanel({
 }) {
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
-  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
   const activeCollection = activeMarkCollection(document.markCollections, activeMarkCollectionKey);
   const selectedMarks = selectedMarkEntries(document, selected, sequenceSelection);
+  const collectionOptions = document.markCollections.map((collection) => ({ value: collection.key, label: collection.key }));
 
   const createCollection = () => {
     void runGuiEditCommand((request) =>
@@ -696,36 +547,22 @@ function MarkInspectorPanel({
     });
   };
 
-  /** Renames on commit, carrying the active and visible state to the new key; a rejected name reverts. */
-  const renameCollection = (key: string, input: HTMLInputElement) => {
-    const name = input.value.trim();
-    if (name === "" || name === key) {
-      input.value = key;
-      return;
-    }
+  /** Renames, carrying the active and visible state to the new key; a rejected name reverts. */
+  const renameCollection = (key: string, value: string) => {
+    const name = value.trim();
+    if (name === "" || name === key) return;
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "rename", item: { type: "markCollection", key }, name })
-    ).then(
-      (result) => {
-        const renamed = result.created[0] ?? key;
-        if (activeMarkCollectionKey === key) setActiveMarkCollectionKey(renamed);
-        if (visibleMarkCollectionKeys.has(key)) {
-          setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys].map((visible) => (visible === key ? renamed : visible))));
-        }
-      },
-      () => {
-        input.value = key;
+    ).then((result) => {
+      const renamed = result.created[0] ?? key;
+      if (activeMarkCollectionKey === key) setActiveMarkCollectionKey(renamed);
+      if (visibleMarkCollectionKeys.has(key)) {
+        setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys].map((visible) => (visible === key ? renamed : visible))));
       }
-    );
+    });
   };
 
-  const deleteCollection = async (collection: SequenceMarkCollection) => {
-    if (collection.marksSeconds.length > 0 && !await confirm({
-      title: `Delete ${collection.key}?`,
-      description: `Its ${collection.marksSeconds.length} marks are deleted too. Clips using it will have no marks.`,
-      confirmLabel: "Delete",
-      danger: true
-    })) return;
+  const deleteCollection = (collection: SequenceMarkCollection) => {
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "delete", item: { type: "markCollection", key: collection.key } })
     ).then(() => {
@@ -810,70 +647,36 @@ function MarkInspectorPanel({
   return (
     <>
       <h2>Marks</h2>
-      <label>
-        Active collection
-        <select
-          value={activeCollection?.key ?? ""}
-          onChange={(event) => {
-            setActiveMarkCollectionKey(event.currentTarget.value || null);
-          }}
-        >
-          {document.markCollections.map((collection) => (
-            <option key={collection.key} value={collection.key}>{collection.key}</option>
-          ))}
-        </select>
-      </label>
-      {activeCollection !== null && (
-        <DescriptionField
-          label={`${activeCollection.key} description`}
-          description={activeCollection.description}
-          onCommit={(description) =>
-            runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, {
-                type: "setDescription",
-                item: { type: "markCollection", key: activeCollection.key },
-                description
-              })
-            )
-          }
-        />
-      )}
-      <div className="mark-section">
-        <h3>Collections</h3>
-        <button type="button" className="neutral-button icon-text-button" onClick={createCollection}>
-          <Plus size={THEME_METRICS.iconSizeSmall} />
-          Add collection
-        </button>
+      <Section title="Collections" actions={<>
+        <IconButton icon={Plus} label="Add collection" onClick={createCollection} />
         <BeatDetectionDialog
           document={document}
           setActiveMarkCollectionKey={setActiveMarkCollectionKey}
           visibleMarkCollectionKeys={visibleMarkCollectionKeys}
           setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
         />
+      </>}>
+        {document.markCollections.length === 0 && <AddRow label="Add collection" onAdd={createCollection} />}
         {document.markCollections.length > 0 && (
           <div className="mark-collection-edit-list">
-            {document.markCollections.map((collection) => (
-              <div key={collection.key} className="mark-collection-edit-row">
-                <input
-                  type="radio"
-                  name="active-mark-collection"
-                  checked={activeCollection?.key === collection.key}
-                  aria-label={`Use ${collection.key} for new marks`}
-                  onChange={() => {
-                    setActiveMarkCollectionKey(collection.key);
-                  }}
+            {document.markCollections.map((collection) => {
+              const active = activeCollection?.key === collection.key;
+              const visible = visibleMarkCollectionKeys.has(collection.key);
+              return <div key={collection.key} className="mark-collection-edit-row">
+                <IconButton
+                  icon={active ? CircleDot : Circle}
+                  pressed={active}
+                  label={`Use ${collection.key} for new marks`}
+                  onClick={() => { setActiveMarkCollectionKey(collection.key); }}
                 />
-                <input
-                  type="checkbox"
-                  checked={visibleMarkCollectionKeys.has(collection.key)}
-                  aria-label={`Show ${collection.key}`}
-                  onChange={(event) => {
+                <IconButton
+                  icon={visible ? Eye : EyeOff}
+                  pressed={visible}
+                  label={visible ? `Hide ${collection.key}` : `Show ${collection.key}`}
+                  onClick={() => {
                     const next = new Set(visibleMarkCollectionKeys);
-                    if (event.currentTarget.checked) {
-                      next.add(collection.key);
-                    } else {
-                      next.delete(collection.key);
-                    }
+                    if (visible) next.delete(collection.key);
+                    else next.add(collection.key);
                     setVisibleMarkCollectionKeys(next);
                   }}
                 />
@@ -886,92 +689,56 @@ function MarkInspectorPanel({
                     ).then(() => undefined)
                   }
                 />
-                <input
-                  key={collection.key}
-                  type="text"
-                  defaultValue={collection.key}
-                  aria-label={`${collection.key} name`}
-                  onFocus={() => {
-                    setActiveMarkCollectionKey(collection.key);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") event.currentTarget.blur();
-                    if (event.key === "Escape") {
-                      event.stopPropagation();
-                      event.currentTarget.value = collection.key;
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  onBlur={(event) => {
-                    renameCollection(collection.key, event.currentTarget);
-                  }}
-                />
-                <button
-                  type="button"
-                  className="icon-button danger-icon-button"
-                  title="Delete collection"
-                  aria-label={`Delete ${collection.key}`}
-                  onClick={() => {
-                    void deleteCollection(collection);
-                  }}
-                >
-                  <Trash2 size={THEME_METRICS.iconSizeSmall} />
-                </button>
-              </div>
-            ))}
+                <TextField name={`${collection.key} name`} value={collection.key} onCommit={(name) => { renameCollection(collection.key, name); }} />
+                <IconButton icon={Trash2} label={`Delete ${collection.key}`} danger onClick={() => { deleteCollection(collection); }} />
+              </div>;
+            })}
           </div>
         )}
-      </div>
-      {selectedMarks.length > 0 ? (
-        <div className="mark-section">
-          <h3>{selectedMarks.length === 1 ? "Selected Mark" : "Selected Marks"}</h3>
+        {activeCollection !== null && (
+          <Field label="Description">
+            <TextField
+              name={`${activeCollection.key} description`}
+              multiline
+              value={activeCollection.description ?? ""}
+              onCommit={(value) => {
+                const description = value.trim() === "" ? null : value.trim();
+                if (description === activeCollection.description) return;
+                void runGuiEditCommand((request) =>
+                  commands.applyGuiEdit(request, { type: "setDescription", item: { type: "markCollection", key: activeCollection.key }, description })
+                );
+              }}
+            />
+          </Field>
+        )}
+      </Section>
+      {selectedMarks.length > 0 && (
+        <Section title={`Selected · ${selectedMarks.length}`}>
           <div className="mark-selected-list">
             {selectedMarks.map((entry, index) => (
               <div key={`${entry.ref.collectionKey}:${entry.ref.index}:${index}`} className="mark-selected-row">
-                <select
+                <Select
+                  name="Mark collection"
                   value={entry.ref.collectionKey}
-                  aria-label="Selected mark collection"
-                  onChange={(event) => {
-                    reassignSelectedMark(entry, event.currentTarget.value);
-                  }}
-                >
-                  {document.markCollections.map((collection) => (
-                    <option key={collection.key} value={collection.key}>{collection.key}</option>
-                  ))}
-                </select>
-                <input
-                  key={`${entry.ref.collectionKey}:${entry.ref.index}:${entry.timeSeconds}`}
-                  type="number"
+                  options={collectionOptions}
+                  onChange={(key) => { reassignSelectedMark(entry, key); }}
+                />
+                <NumberField
+                  name="Mark time"
+                  value={entry.timeSeconds}
                   min={0}
-                  step="any"
-                  defaultValue={formatMarkTimeInput(entry.timeSeconds)}
-                  aria-label="Selected mark time"
-                  onBlur={(event) => {
-                    moveSelectedMark(entry, Number(event.currentTarget.value));
-                  }}
+                  step={TIME_STEP_SECONDS}
+                  unit="s"
+                  onCommit={(timeSeconds) => { moveSelectedMark(entry, timeSeconds); }}
                 />
-                <input
-                  key={`${entry.ref.collectionKey}:${entry.ref.index}:label:${entry.label ?? ""}`}
-                  type="text"
+                <IconButton icon={Trash2} label="Delete mark" danger onClick={() => { deleteSelectedMark(entry); }} />
+                <TextField
                   className="mark-label-input"
+                  name="Mark label"
                   placeholder="Label"
-                  defaultValue={entry.label ?? ""}
-                  aria-label="Selected mark label"
-                  onBlur={(event) => {
-                    labelSelectedMark(entry, event.currentTarget.value);
-                  }}
+                  value={entry.label ?? ""}
+                  onCommit={(label) => { labelSelectedMark(entry, label); }}
                 />
-                <button
-                  type="button"
-                  className="icon-button danger-icon-button"
-                  title="Delete mark"
-                  aria-label="Delete mark"
-                  onClick={() => {
-                    deleteSelectedMark(entry);
-                  }}
-                >
-                  <Trash2 size={THEME_METRICS.iconSizeSmall} />
-                </button>
               </div>
             ))}
           </div>
@@ -987,11 +754,8 @@ function MarkInspectorPanel({
               }}
             />
           )}
-        </div>
-      ) : (
-        <p>Select a mark on the timeline.</p>
+        </Section>
       )}
-      {confirmDialog}
     </>
   );
 }
@@ -1087,6 +851,3 @@ function markRefKey(ref: SequenceMarkRef) {
   return `${ref.collectionKey}:${ref.index}`;
 }
 
-function formatMarkTimeInput(timeSeconds: number) {
-  return timeSeconds.toFixed(9).replace(/\.?0+$/, "");
-}

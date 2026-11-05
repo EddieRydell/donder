@@ -1,30 +1,38 @@
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import { useEffect, useMemo, useState } from "react";
-import type { SyntheticEvent } from "react";
+import { useEffect, useState } from "react";
 import { commands } from "../api";
 import { useAppStore } from "../store";
 import { THEME_COLORS } from "../theme";
 import { navigateToGuiObject } from "../workspace/navigation";
 import type { NewSequenceStorage } from "../types";
+import { Button, Dialog, Field, NumberField, Select, TextField, type SelectOption } from "./kit";
 
 const NEW_SEQUENCE_EVENT = "donder:new-sequence";
+const DEFAULT_NAME = "Sequence";
+const DEFAULT_DURATION_SECONDS = 60;
+const DEFAULT_FRAME_RATE = 60;
+
+const STORAGE_OPTIONS: SelectOption<NewSequenceStorage["type"]>[] = [
+  { value: "inline", label: "Inline" },
+  { value: "sameFile", label: "This file" },
+  { value: "newFile", label: "New file" }
+];
 
 export function NewSequenceDialog() {
-  const snapshot = useAppStore((store) => store.snapshot);
+  const projectRoot = useAppStore((store) => store.snapshot?.projectRoot ?? null);
   const [open, setOpen] = useState(false);
-  const [declarationName, setDeclarationName] = useState("Sequence");
+  const [declarationName, setDeclarationName] = useState(DEFAULT_NAME);
   const [storage, setStorage] = useState<NewSequenceStorage["type"]>("inline");
-  const [durationSeconds, setDurationSeconds] = useState("60");
-  const [frameRate, setFrameRate] = useState("60");
+  const [durationSeconds, setDurationSeconds] = useState(DEFAULT_DURATION_SECONDS);
+  const [frameRate, setFrameRate] = useState(DEFAULT_FRAME_RATE);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const onNewSequence = () => {
-      setDeclarationName("Sequence");
+      setDeclarationName(DEFAULT_NAME);
       setStorage("inline");
-      setDurationSeconds("60");
-      setFrameRate("60");
+      setDurationSeconds(DEFAULT_DURATION_SECONDS);
+      setFrameRate(DEFAULT_FRAME_RATE);
       setError(null);
       setOpen(true);
     };
@@ -34,14 +42,12 @@ export function NewSequenceDialog() {
     };
   }, []);
 
-  const validationError = useMemo(
-    () => validateRequest(snapshot?.projectRoot ?? null, storage, declarationName, durationSeconds, frameRate),
-    [snapshot?.projectRoot, storage, declarationName, durationSeconds, frameRate]
-  );
+  const validationError = projectRoot === null
+    ? "No project open"
+    : storage !== "inline" && declarationName.trim() === "" ? "Name required" : null;
   const createDisabled = creating || validationError !== null;
 
-  async function createSequence(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function createSequence() {
     if (createDisabled) return;
     setCreating(true);
     setError(null);
@@ -49,8 +55,8 @@ export function NewSequenceDialog() {
       const next = await commands.createSequence({
         storage: storage === "inline" ? { type: "inline" } : { type: storage, name: declarationName.trim() },
         initialColor: THEME_COLORS.defaultSequenceColor,
-        durationSeconds: Number(durationSeconds),
-        frameRate: Number(frameRate)
+        durationSeconds,
+        frameRate
       });
       useAppStore.getState().setSnapshot(next.snapshot);
       useAppStore.getState().setError(null);
@@ -63,84 +69,32 @@ export function NewSequenceDialog() {
     }
   }
 
-  return (
-    <AlertDialog.Root open={open} onOpenChange={setOpen}>
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="dialog-overlay" />
-        <AlertDialog.Content className="dialog-content new-sequence-dialog">
-          <AlertDialog.Title>New Sequence</AlertDialog.Title>
-          <form className="new-sequence-form" onSubmit={(event) => void createSequence(event)}>
-            <details className="composition-add-advanced">
-              <summary>Advanced settings</summary>
-              <label>
-                <span>Storage</span>
-                <select value={storage} onChange={(event) => { setStorage(event.target.value as NewSequenceStorage["type"]); }}>
-                  <option value="inline">Inline in this project</option>
-                  <option value="sameFile">Reusable declaration in this file</option>
-                  <option value="newFile">Reusable declaration in a new file</option>
-                </select>
-              </label>
-              {storage !== "inline" && (
-                <label>
-                  <span>Declaration name</span>
-                  <input value={declarationName} onChange={(event) => { setDeclarationName(event.target.value); }} />
-                </label>
-              )}
-            </details>
-            <div className="new-sequence-grid">
-              <label>
-                <span>Duration seconds</span>
-                <input
-                  inputMode="decimal"
-                  value={durationSeconds}
-                  onChange={(event) => {
-                    setDurationSeconds(event.target.value);
-                    setError(null);
-                  }}
-                />
-              </label>
-              <label>
-                <span>Frame rate</span>
-                <input
-                  inputMode="numeric"
-                  value={frameRate}
-                  onChange={(event) => {
-                    setFrameRate(event.target.value);
-                    setError(null);
-                  }}
-                />
-              </label>
-            </div>
-            {(validationError !== null || error !== null) && (
-              <div className="new-project-error">{error ?? validationError}</div>
-            )}
-            <div className="dialog-actions">
-              <AlertDialog.Cancel disabled={creating}>Cancel</AlertDialog.Cancel>
-              <button type="submit" disabled={createDisabled}>
-                {creating ? "Creating..." : "Create"}
-              </button>
-            </div>
-          </form>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
-  );
-}
-
-function validateRequest(
-  projectRoot: string | null,
-  storage: NewSequenceStorage["type"],
-  declarationName: string,
-  durationSeconds: string,
-  frameRate: string
-): string | null {
-  if (projectRoot === null) return "Open or create a project before adding a sequence.";
-  if (storage !== "inline" && declarationName.trim() === "") return "Enter a name for the reusable declaration.";
-  const duration = Number(durationSeconds);
-  if (!Number.isFinite(duration) || duration <= 0) return "Duration must be greater than zero.";
-  const rate = Number(frameRate);
-  if (!Number.isInteger(rate) || rate <= 0) return "Frame rate must be a positive whole number.";
-  return null;
+  const shownError = error ?? validationError;
+  return <Dialog
+    open={open}
+    onOpenChange={setOpen}
+    title="New Sequence"
+    actions={<>
+      <Button disabled={creating} onClick={() => { setOpen(false); }}>Cancel</Button>
+      <Button variant="primary" disabled={createDisabled} onClick={() => void createSequence()}>
+        {creating ? "Creating…" : "Create"}
+      </Button>
+    </>}
+  >
+    <Field label="Duration">
+      <NumberField name="Duration" value={durationSeconds} step={1} min={1} defaultValue={DEFAULT_DURATION_SECONDS} unit="s" onCommit={(value) => { setDurationSeconds(value); setError(null); }} />
+    </Field>
+    <Field label="Frame rate">
+      <NumberField name="Frame rate" value={frameRate} step={1} min={1} integer defaultValue={DEFAULT_FRAME_RATE} unit="fps" onCommit={(value) => { setFrameRate(value); setError(null); }} />
+    </Field>
+    <Field label="Storage" tip="Inline in this project, or a reusable declaration in this file or a new file">
+      <Select name="Storage" value={storage} options={STORAGE_OPTIONS} onChange={setStorage} />
+    </Field>
+    {storage !== "inline" && <Field label="Name" tip="The reusable declaration's name">
+      <TextField name="Declaration name" value={declarationName} invalid={declarationName.trim() === ""} onCommit={setDeclarationName} />
+    </Field>}
+    {shownError !== null && <div className="kit-status-error" role="alert">{shownError}</div>}
+  </Dialog>;
 }
 
 function errorMessage(error: unknown): string {

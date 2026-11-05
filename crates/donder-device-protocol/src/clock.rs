@@ -1,15 +1,11 @@
-//! The UDP clock exchange. The editor sends its token and send time; the
+//! The UDP clock exchange. The editor sends its send time; the
 //! controller echoes the send time with its boot and the times it received
 //! the request and replied, so four timestamps measure offset and delay.
 
 const MAGIC: [u8; 4] = *b"DCLK";
 
-/// The claim token, as its hex text.
-pub type Token = [u8; 32];
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Request {
-    pub token: Token,
     /// The editor's clock when it sent the request.
     pub sent_micros: u64,
 }
@@ -25,21 +21,19 @@ pub struct Reply {
 }
 
 impl Request {
-    pub const BYTES: usize = 44;
+    pub const BYTES: usize = 12;
 
     pub fn encode(&self) -> [u8; Self::BYTES] {
         let mut bytes = [0; Self::BYTES];
         bytes[..4].copy_from_slice(&MAGIC);
-        bytes[4..36].copy_from_slice(&self.token);
-        bytes[36..].copy_from_slice(&self.sent_micros.to_le_bytes());
+        bytes[4..].copy_from_slice(&self.sent_micros.to_le_bytes());
         bytes
     }
 
     pub fn decode(bytes: &[u8]) -> Option<Self> {
         let bytes: &[u8; Self::BYTES] = bytes.try_into().ok()?;
         (bytes[..4] == MAGIC).then(|| Self {
-            token: field(bytes, 4),
-            sent_micros: u64::from_le_bytes(field(bytes, 36)),
+            sent_micros: u64::from_le_bytes(field(bytes, 4)),
         })
     }
 }

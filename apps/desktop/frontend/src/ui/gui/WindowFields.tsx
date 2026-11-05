@@ -1,4 +1,5 @@
 import type { GuiWindow, SequenceParamRange } from "../../types";
+import { NumberField, Tip } from "../kit";
 
 const PERCENT = 100;
 
@@ -14,31 +15,25 @@ function atFraction(range: SequenceParamRange, fraction: number): number {
 
 /** The part of its `0..1` a binding uses, as two percentages of the parameter's
  * range: 0 lands on the first and 1 on the second, so a second below the first
- * inverts the control. Each commits when it loses focus. A numeric parameter's
- * `range` also shows the values the window reaches. */
+ * inverts the control. A numeric parameter's `range` also shows the values the
+ * window reaches. */
 export function WindowFields({ value, range, onChange }: { value: GuiWindow; range: SequenceParamRange | null; onChange: (window: GuiWindow) => void }) {
-  const field = (end: keyof GuiWindow, label: string) => <input
-    key={value[end]}
+  const field = (end: keyof GuiWindow, name: string) => <NumberField
     className="window-field"
-    type="number"
+    name={name}
+    value={percent(value[end])}
+    step={1}
     min={0}
     max={PERCENT}
-    step="any"
-    aria-label={label}
-    title={label}
-    defaultValue={percent(value[end])}
-    onBlur={(event) => {
-      const next = Number(event.currentTarget.value);
-      if (Number.isNaN(next) || next === percent(value[end])) return;
-      onChange({ ...value, [end]: Math.min(PERCENT, Math.max(0, next)) / PERCENT });
-    }} />;
-  return <span className="window-fields" title="The part of the parameter's range this control covers">
-    {field("low", "Percent of the range at the bottom of the control")}
+    defaultValue={end === "low" ? 0 : PERCENT}
+    unit="%"
+    onCommit={(next) => { onChange({ ...value, [end]: next / PERCENT }); }} />;
+  return <span className="window-fields">
+    {field("low", "Range at the control's bottom")}
     <span aria-hidden="true">–</span>
-    {field("high", "Percent of the range at the top of the control")}
-    <span aria-hidden="true">%</span>
-    {range !== null && <span className="window-result" title={`The declared range is ${String(range.min)} to ${String(range.max)}`}>
-      = {atFraction(range, value.low)} to {atFraction(range, value.high)}
-    </span>}
+    {field("high", "Range at the control's top")}
+    {range !== null && <Tip label={`Declared range ${String(range.min)} to ${String(range.max)}`}>
+      <span className="window-result">= {atFraction(range, value.low)} to {atFraction(range, value.high)}</span>
+    </Tip>}
   </span>;
 }

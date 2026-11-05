@@ -1,6 +1,7 @@
 import type { Point3Meters, SpatialGuide, SpatialSnapSettings, SpatialUnit } from "../../../editor/types";
 
-export type Modifiers = { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean };
+/** Shift constrains to 45° (or a square); Alt bypasses snapping. */
+export type Modifiers = { shiftKey: boolean; altKey: boolean };
 export const spatialUnits: Record<SpatialUnit, { label: string; meters: number }> = {
   meters: { label: "m", meters: 1 }, centimeters: { label: "cm", meters: 0.01 },
   millimeters: { label: "mm", meters: 0.001 }, inches: { label: "in", meters: 0.0254 }, feet: { label: "ft", meters: 0.3048 }
@@ -10,7 +11,7 @@ const clean = (value: number) => Number(value.toPrecision(12));
 
 /** A Shift constraint takes precedence over the absolute grid for off-grid anchors. */
 export function constrainPoint(point: Point3Meters, settings: SpatialSnapSettings, modifiers: Modifiers, anchor?: Point3Meters, square = false): Point3Meters {
-  const snap = settings.enabled && !modifiers.ctrlKey && !modifiers.metaKey;
+  const snap = settings.enabled && !modifiers.altKey;
   const step = settings.spacingMeters;
   if (!Number.isFinite(step) || step <= 0) throw new Error("Snap distance must be positive and finite.");
   const round = (value: number) => snap ? clean(Math.round(value / step) * step) : value;
@@ -39,7 +40,7 @@ export function visibleGridStep(spacing: number, scale: number, minimumPixels: n
 export type SnapTarget = { owner: number; position: Point3Meters };
 export function snapPoint(point: Point3Meters, settings: SpatialSnapSettings, modifiers: Modifiers, targets: SnapTarget[], guides: SpatialGuide[], radius: number, anchor?: Point3Meters, square = false): Point3Meters {
   const constrained = constrainPoint(point, settings, modifiers, anchor, square);
-  if (!settings.enabled || modifiers.ctrlKey || modifiers.metaKey) return constrained;
+  if (!settings.enabled || modifiers.altKey) return constrained;
   const distance = (a: Point3Meters, b: Point3Meters) => Math.hypot(a.xMeters - b.xMeters, a.yMeters - b.yMeters);
   const onConstraint = (candidate: Point3Meters) => {
     if (!modifiers.shiftKey || anchor === undefined) return true;

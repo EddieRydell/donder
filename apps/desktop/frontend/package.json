@@ -21,7 +21,6 @@
     }
   },
   "dependencies": {
-    "@radix-ui/react-alert-dialog": "catalog:",
     "@radix-ui/react-context-menu": "catalog:",
     "@radix-ui/react-dialog": "catalog:",
     "@radix-ui/react-dropdown-menu": "catalog:",

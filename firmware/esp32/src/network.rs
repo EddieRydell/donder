@@ -5,6 +5,7 @@ use core::cell::RefCell;
 use core::fmt::Write as _;
 use core::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
 
+use donder_device_protocol::ACCESS_POINT_PASSWORD;
 use donder_device_storage::device_config::{DeviceConfig, MAX_NAME_BYTES, Network};
 use edge_mdns::domain::base::Ttl;
 use edge_mdns::host::{Host, Service, ServiceAnswers};
@@ -32,22 +33,16 @@ pub(crate) type Name = heapless::String<MAX_NAME_BYTES>;
 /// Flash holds the saved copy; this is updated only after a save succeeds.
 pub(crate) struct Identity {
     pub name: Name,
-    pub token: Option<[u8; 32]>,
 }
 
 pub(crate) static IDENTITY: Mutex<CriticalSectionRawMutex, RefCell<Identity>> =
     Mutex::new(RefCell::new(Identity {
         name: heapless::String::new(),
-        token: None,
     }));
-/// Re-announce mDNS records after the name or claim changes.
+/// Re-announce mDNS records after the name changes.
 pub(crate) static ANNOUNCE: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 /// Restart after a network change has been acknowledged to the editor.
 pub(crate) static RESTART: Signal<CriticalSectionRawMutex, ()> = Signal::new();
-
-pub(crate) fn token() -> Option<[u8; 32]> {
-    IDENTITY.lock(|identity| identity.borrow().token)
-}
 
 /// Stable controller identity: the factory MAC address in lowercase hex.
 pub(crate) fn device_id() -> heapless::String<12> {
@@ -71,7 +66,6 @@ pub(crate) fn default_config() -> DeviceConfig {
     DeviceConfig {
         name: access_point_ssid().as_str().into(),
         network: None,
-        token: None,
     }
 }
 
@@ -98,7 +92,9 @@ pub(crate) async fn start(
     let access_point = Config::AccessPoint(
         AccessPointConfig::default()
             .with_ssid(access_point_ssid().as_str().try_into().unwrap())
-            .with_authentication(AuthenticationMethodConfig::Open),
+            .with_authentication(AuthenticationMethodConfig::Wpa2Personal(
+                ACCESS_POINT_PASSWORD.try_into().unwrap(),
+            )),
     );
     let initial = config
         .network
@@ -241,10 +237,7 @@ impl HostAnswers for Answers {
         let Some(config) = self.stack.config_v4() else {
             return Ok(());
         };
-        let (name, claimed) = IDENTITY.lock(|identity| {
-            let identity = identity.borrow();
-            (identity.name.clone(), identity.token.is_some())
-        });
+        let name = IDENTITY.lock(|identity| identity.borrow().name.clone());
         let mut format = heapless::String::<10>::new();
         write!(format, "{}", donder_runtime::FORMAT_VERSION).unwrap();
         let host = Host {
@@ -256,7 +249,6 @@ impl HostAnswers for Answers {
         let txt = [
             ("id", self.id),
             ("name", name.as_str()),
-            ("claimed", if claimed { "1" } else { "0" }),
             ("format", format.as_str()),
             ("network", self.mode.label()),
         ];

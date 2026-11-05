@@ -13,8 +13,8 @@ use crate::persistence::PersistenceService;
 use crate::state_tasks::{GuiHistory, LatestScheduler, RenderRefreshPayload, WorkingCopyPayload};
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_editor::dto::{
-    AppSettings, AppSnapshot, AudioTransportSnapshot, AudioTransportState, ProjectHealth,
-    WorkspaceExplorerState, WorkspaceLayoutState,
+    AppSettings, AppSnapshot, AudioTransportSnapshot, AudioTransportState, EditHistoryState,
+    ProjectHealth, WorkspaceExplorerState, WorkspaceLayoutState,
 };
 use donder_project_io::ProjectSession;
 use workspace_state::WorkspaceState;
@@ -260,6 +260,7 @@ impl DesktopState {
             let mut workspace = lock_unpoisoned(&self.workspace);
             let mut snapshot = workspace.snapshot();
             update(&mut snapshot);
+            snapshot.history = lock_unpoisoned(&self.gui_history).state();
             snapshot.state_revision = snapshot.state_revision.saturating_add(1);
             snapshot.audio_transport = self.merged_audio_snapshot(&snapshot.audio_transport);
             if let Err(error) = self.persistence.record_snapshot(&snapshot) {
@@ -496,6 +497,10 @@ fn empty_snapshot() -> AppSnapshot {
         audio_transport: crate::audio::AudioEngine::empty_snapshot(),
         live_output: crate::output::disabled_snapshot(0),
         devices: Vec::new(),
+        history: EditHistoryState {
+            can_undo: false,
+            can_redo: false,
+        },
     }
 }
 

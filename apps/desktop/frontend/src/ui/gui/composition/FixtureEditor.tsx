@@ -3,14 +3,13 @@ import { isSecondaryClick } from "../../../platform";
 import { fixtureItems, selectedItems, selectionClick, plus, type SpatialMove } from "./spatialSelection";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { useState } from "react";
-import * as ContextMenu from "@radix-ui/react-context-menu";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Grip, X } from "lucide-react";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
-import { THEME_METRICS } from "../../../theme";
 import type { FixtureGuiDocument, FixtureGuiEdit, GuiFixtureElement, GuiFixtureShape, Point3Meters } from "../../../types";
-import { FixtureContextMenu, fixtureTools, type FixtureTool } from "./FixtureContextMenu";
-import { CoordinateField, Placement } from "./FixtureFields";
+import { fixtureMenuEntries, fixtureTools, type FixtureTool } from "./FixtureContextMenu";
+import { Placement } from "./FixtureFields";
+import { AddRow, Button, ContextMenuArea, Field, FieldGroup, IconButton, NumberField, TextField, Toggle } from "../../kit";
 import { FixtureShapeFields } from "./FixtureShapeFields";
 import { SpatialCanvas } from "./SpatialCanvas";
 
@@ -93,43 +92,50 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
     else { range.count++; range.end = pixel.index + 1; }
   }
   return <div className="layout-authoring">
-    <ContextMenu.Root><ContextMenu.Trigger asChild><aside className="layout-hierarchy layout-tree-sidebar fixture-editor-sidebar" onContextMenuCapture={(event) => {
+    <ContextMenuArea entries={fixtureMenuEntries({ enabled: editable, onTool: beginTool, selected: selection.length > 0, onDuplicate: duplicate, onDelete: remove })}><aside className="layout-hierarchy layout-tree-sidebar fixture-editor-sidebar" onContextMenuCapture={(event) => {
       const row = event.target instanceof Element ? event.target.closest("[data-shape-id]") : null;
       const id = row === null ? null : Number(row.getAttribute("data-shape-id"));
       if (id !== null && !selection.includes(id)) setSelected(id);
     }}>
       <h2 className="composition-title">{document.name}</h2>
       <fieldset className="composition-controls" disabled={!editable}>
-        <div className="fixture-drawing-tools" aria-label="Draw a shape">{fixtureTools.map((item) => <button type="button" key={item.type} aria-pressed={tool === item.type} onClick={() => { beginTool(item.type); }}>{item.label}</button>)}</div>
+        <div className="fixture-shape-actions" aria-label="Draw a shape">{fixtureTools.map((item) => <IconButton key={item.type} icon={item.icon} label={`${item.label}: ${item.instruction}`} pressed={tool === item.type} onClick={() => { beginTool(item.type); }} />)}</div>
         {tool !== null && <div className="fixture-tool-options">
-          <p>{fixtureTools.find((item) => item.type === tool)?.instruction}</p>
-          {tool === "grid" ? <><CoordinateField label="Columns" value={columns} min={1} max={1000000} step={1} onChange={setColumns} /><CoordinateField label="Rows" value={rows} min={1} max={1000000} step={1} onChange={setRows} /></> : tool !== "pixel" && <CoordinateField label="Pixels" value={count} min={1} max={1000000} step={1} onChange={setCount} />}
-          <button type="button" onClick={() => { setTool(null); }}>Cancel drawing</button>
+          {tool === "grid"
+            ? <Field label="Size"><FieldGroup>
+              <NumberField label="C" name="Columns" integer step={1} min={1} max={1000000} disabled={!editable} value={columns} onCommit={setColumns} />
+              <NumberField label="R" name="Rows" integer step={1} min={1} max={1000000} disabled={!editable} value={rows} onCommit={setRows} />
+            </FieldGroup></Field>
+            : tool !== "pixel" && <Field label="Pixels"><NumberField name="Pixels" integer step={1} min={1} max={1000000} disabled={!editable} value={count} onCommit={setCount} /></Field>}
+          <Button icon={X} command="edit.cancel" tip="Cancel drawing" onClick={() => { setTool(null); }}>Cancel</Button>
         </div>}
         <div className="composition-tree" aria-label="Shapes in output order">
-          {elements.length === 0 && <p className="composition-tree-empty">Choose a shape, then draw it on the canvas.</p>}
+          {elements.length === 0 && <AddRow label="Draw a line" disabled={!editable} onAdd={() => { beginTool("line"); }} />}
           {elements.map((item, index) => <button type="button" className="fixture-shape-row" data-shape-id={item.id} key={item.id} aria-pressed={selection.includes(item.id)} draggable={editable} onDragStart={() => { setDragged(index); }} onDragEnd={() => { setDragged(null); }} onDragOver={(event) => { if (dragged !== null) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (dragged !== null) move(dragged, index); setDragged(null); }} onClick={(event) => { if (isSecondaryClick(event)) return; setSelection(selectionClick(selection, item.id, event.shiftKey || event.ctrlKey || event.metaKey)); }}>
-            <span>{item.name}</span><span className="composition-tree-meta">{ranges.get(item.id)?.count} pixels · {ranges.get(item.id)?.start}–{ranges.get(item.id)?.end}</span>
+            <span>{item.name}</span><span className="composition-tree-meta">{ranges.get(item.id)?.count} px · {ranges.get(item.id)?.start}–{ranges.get(item.id)?.end}</span>
           </button>)}
         </div>
         <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(report); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
-        {element !== undefined && <>
-          <div className="fixture-shape-actions"><button type="button" aria-label="Move shape earlier" disabled={index <= 0} onClick={() => { move(index, index - 1); }}><ArrowUp size={THEME_METRICS.iconSizeSmall} /></button><button type="button" aria-label="Move shape later" disabled={index === elements.length - 1} onClick={() => { move(index, index + 1); }}><ArrowDown size={THEME_METRICS.iconSizeSmall} /></button></div>
-          <div className="fixture-shape-fields" key={element.id}>
-            <label>Name<input key={element.name} required defaultValue={element.name} onBlur={(event) => { const name = event.currentTarget.value.trim(); if (name !== "" && name !== element.name) update({ ...element, name }); else event.currentTarget.value = element.name; }} /></label>
-            <FixtureShapeFields shape={element.shape} onChange={(shape) => { update({ ...element, shape }); }} />
-            <CoordinateField label="Pixel diameter (m)" value={element.diameterMeters} min={0.000001} max={100} onChange={(diameterMeters) => { update({ ...element, diameterMeters }); }} />
-            {element.shape.type !== "pixel" && <label className="fixture-checkbox"><input type="checkbox" checked={element.reverse} onChange={(event) => { update({ ...element, reverse: event.target.checked }); }} />Reverse pixel order</label>}
-            <Placement value={element.transform} onChange={(transform) => { update({ ...element, transform }); }} />
-            {element.shape.type !== "pixel" && <button type="button" onClick={() => { void edit({ type: "convertToPixels", id: element.id }).then(() => { setSelected(null); }).catch(report); }}>Convert to individual pixels</button>}
-          </div>
-        </>}
+        {element !== undefined && <div className="fixture-shape-fields" key={element.id}>
+          <Field label="Name">
+            <TextField name="Shape name" value={element.name} onCommit={(value) => { const name = value.trim(); if (name !== "" && name !== element.name) update({ ...element, name }); }} />
+            <IconButton icon={ArrowUp} label="Move shape earlier" disabled={index <= 0} onClick={() => { move(index, index - 1); }} />
+            <IconButton icon={ArrowDown} label="Move shape later" disabled={index === elements.length - 1} onClick={() => { move(index, index + 1); }} />
+          </Field>
+          <FixtureShapeFields shape={element.shape} disabled={!editable} onChange={(shape) => { update({ ...element, shape }); }} />
+          <Field label="Diameter" tip="Pixel diameter">
+            <NumberField name="Pixel diameter" unit="m" step={0.001} min={0.000001} max={100} disabled={!editable} value={element.diameterMeters} onCommit={(diameterMeters) => { update({ ...element, diameterMeters }); }} />
+          </Field>
+          {element.shape.type !== "pixel" && <Field label="Reverse" tip="Reverse pixel order">
+            <Toggle name="Reverse pixel order" checked={element.reverse} onChange={(reverse) => { update({ ...element, reverse }); }} />
+          </Field>}
+          <Placement value={element.transform} disabled={!editable} onChange={(transform) => { update({ ...element, transform }); }} />
+          {element.shape.type !== "pixel" && <Button icon={Grip} tip="Replace the shape with its individual pixels" onClick={() => { void edit({ type: "convertToPixels", id: element.id }).then(() => { setSelected(null); }).catch(report); }}>To pixels</Button>}
+        </div>}
       </fieldset>
-      <label className="fixture-checkbox"><input type="checkbox" checked={showOrder} onChange={(event) => { setShowOrder(event.target.checked); }} />Show pixel order</label>
+      <Toggle name="Show pixel order" label="Pixel order" checked={showOrder} onChange={setShowOrder} />
       {error !== null && <p role="alert">{error}</p>}
-    </aside></ContextMenu.Trigger><ContextMenu.Portal><ContextMenu.Content className="menu-content">
-      <FixtureContextMenu enabled={editable} onTool={beginTool} selected={selection.length > 0} onDuplicate={duplicate} onDelete={remove} />
-    </ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>
+    </aside></ContextMenuArea>
     <SpatialCanvas reference={document.sourceRef} plan={document.renderPlan} documentKey={guiObjectKey(document.sourceRef)} selection={selection} items={items} onSelect={setSelection} onDelete={remove} onDuplicate={duplicate}
       onMoveStart={(ids, anchor) => {
         const chosen = selectedItems(items, ids);

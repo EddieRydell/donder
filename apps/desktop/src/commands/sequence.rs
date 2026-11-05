@@ -258,18 +258,6 @@ pub(crate) fn watch_devices(watching: bool, state: State<'_, DesktopState>) {
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn claim_device(
-    id: String,
-    state: State<'_, DesktopState>,
-) -> Result<AppSnapshot, String> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || state.claim_device(&id))
-        .await
-        .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-#[specta::specta]
 pub(crate) async fn rename_device(
     id: String,
     name: String,

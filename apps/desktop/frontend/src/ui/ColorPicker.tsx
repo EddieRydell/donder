@@ -4,6 +4,7 @@ import { useContext, useEffect, useMemo, useRef, useState, type CSSProperties } 
 import { OverlayPortal } from "./OverlayPortal";
 import { createPortal } from "react-dom";
 import { HexColorPicker } from "react-colorful";
+import { NumberField, TextField, Tip } from "./kit";
 
 type RgbColor = { r: number; g: number; b: number };
 type HsvColor = { h: number; s: number; v: number };
@@ -110,12 +111,11 @@ export function ColorPicker({
         triggerRef.current?.focus();
       }
     }}>
-      <button
+      <Tip label={label}><button
         ref={triggerRef}
         type="button"
         className={`color-picker-trigger ${triggerClassName}`}
         aria-label={label}
-        title={label}
         style={{ "--color-picker-value": draft } as CSSProperties}
         onPointerDown={(event) => {
           if (stopTriggerPointerDownPropagation) event.stopPropagation();
@@ -126,7 +126,7 @@ export function ColorPicker({
           if (open) setDismissedOpenRequestKey(openRequestKey);
           onOpenChange?.(!open);
         }}
-      />
+      /></Tip>
       {open && createPortal(
         <div
           ref={popoverRef}
@@ -145,29 +145,14 @@ export function ColorPicker({
             }}
             onChangeEnd={commitColor}
           />
+          <TextField name="Hex" value={draft} onCommit={commitColor} />
           <div className="color-picker-grid">
-            <label>
-              Hex
-              <input
-                key={`hex:${draft}`}
-                defaultValue={draft}
-                onBlur={(event) => {
-                  commitColor(event.currentTarget.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    commitColor(event.currentTarget.value);
-                    event.currentTarget.blur();
-                  }
-                }}
-              />
-            </label>
-            <NumberColorInput label="R" value={rgb.r} min={0} max={255} commit={(r) => { updateRgb({ ...rgb, r }); }} />
-            <NumberColorInput label="G" value={rgb.g} min={0} max={255} commit={(g) => { updateRgb({ ...rgb, g }); }} />
-            <NumberColorInput label="B" value={rgb.b} min={0} max={255} commit={(b) => { updateRgb({ ...rgb, b }); }} />
-            <NumberColorInput label="H" value={Math.round(hsv.h)} min={0} max={360} commit={(h) => { updateHsv({ ...hsv, h }); }} />
-            <NumberColorInput label="S" value={Math.round(hsv.s)} min={0} max={100} commit={(s) => { updateHsv({ ...hsv, s }); }} />
-            <NumberColorInput label="V" value={Math.round(hsv.v)} min={0} max={100} commit={(v) => { updateHsv({ ...hsv, v }); }} />
+            <ColorChannel label="R" name="Red" value={rgb.r} max={255} commit={(r) => { updateRgb({ ...rgb, r }); }} />
+            <ColorChannel label="G" name="Green" value={rgb.g} max={255} commit={(g) => { updateRgb({ ...rgb, g }); }} />
+            <ColorChannel label="B" name="Blue" value={rgb.b} max={255} commit={(b) => { updateRgb({ ...rgb, b }); }} />
+            <ColorChannel label="H" name="Hue" value={Math.round(hsv.h)} max={360} commit={(h) => { updateHsv({ ...hsv, h }); }} />
+            <ColorChannel label="S" name="Saturation" value={Math.round(hsv.s)} max={100} commit={(s) => { updateHsv({ ...hsv, s }); }} />
+            <ColorChannel label="V" name="Value" value={Math.round(hsv.v)} max={100} commit={(v) => { updateHsv({ ...hsv, v }); }} />
           </div>
         </div>,
         portalContainer ?? document.body
@@ -176,38 +161,8 @@ export function ColorPicker({
   );
 }
 
-function NumberColorInput({
-  label,
-  value,
-  min,
-  max,
-  commit
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  commit: (value: number) => void;
-}) {
-  return (
-    <label>
-      {label}
-      <input
-        key={`${label}:${value}`}
-        type="number"
-        min={min}
-        max={max}
-        defaultValue={value}
-        onBlur={(event) => {
-          const next = Number(event.currentTarget.value);
-          if (Number.isFinite(next)) commit(Math.round(clamp(next, min, max)));
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-        }}
-      />
-    </label>
-  );
+function ColorChannel({ label, name, value, max, commit }: { label: string; name: string; value: number; max: number; commit: (value: number) => void }) {
+  return <NumberField label={label} name={name} value={value} min={0} max={max} step={1} integer onCommit={commit} />;
 }
 
 function hexToRgb(hex: string): RgbColor {

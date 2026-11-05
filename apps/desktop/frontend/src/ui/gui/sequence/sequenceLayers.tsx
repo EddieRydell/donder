@@ -1,11 +1,11 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { OverlayPortal } from "../../OverlayPortal";
-import * as Dialog from "@radix-ui/react-dialog";
-import { useCallback, useRef, useState, useContext } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
 import { THEME_COLORS } from "../../../theme";
 import type { GuiDocumentRequest, SequenceGraphEdge, SequenceLayer } from "../../../editor/types";
 import type { CompositionDocument, CompositionEditing } from "./composition";
 import { ColorPicker } from "../../ColorPicker";
+import { Button, Dialog, Field, IconButton, Select, TextField, Toggle } from "../../kit";
 import { graphEdgeId } from "./graphEdge";
 
 export function useSequenceEditErrorReporter() {
@@ -44,29 +44,18 @@ export function LayerProperties({ layer, composition, onDelete }: { layer: Seque
 
   const editable = useSequenceEditable();
   return <fieldset className="sequence-layer-row" disabled={!editable}>
-    <input type="checkbox" checked={layer.enabled} aria-label={`${layer.name} enabled`} onChange={(event) => {
-      void composition.apply({ type: "setLayerEnabled", id: layer.id, enabled: event.currentTarget.checked }).catch(reportSequenceEditError);
+    <Toggle name={`${layer.name} enabled`} checked={layer.enabled} disabled={!editable} onChange={(enabled) => {
+      void composition.apply({ type: "setLayerEnabled", id: layer.id, enabled }).catch(reportSequenceEditError);
     }} />
     <ColorPicker value={layer.color} label={`${layer.name} color`} commit={(color) =>
       composition.applyItem({ type: "setColor", item: { type: "layer", id: layer.id }, color }).then(() => undefined).catch(reportSequenceEditError)
     } />
-    <input key={`${layer.id}:${layer.name}`} defaultValue={layer.name} aria-label="Layer name" required
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-        if (event.key === "Escape") {
-          event.stopPropagation();
-          event.currentTarget.value = layer.name;
-          event.currentTarget.blur();
-        }
-      }} onBlur={(event) => {
-        const input = event.currentTarget;
-        const name = input.value.trim();
-        if (name === "") { input.value = layer.name; return; }
-        if (name === layer.name) return;
-        void composition.applyItem({ type: "rename", item: { type: "layer", id: layer.id }, name })
-          .catch((error: unknown) => { input.value = layer.name; reportSequenceEditError(error); });
-      }} />
-    {!layer.isDefault && onDelete !== undefined && <button type="button" onClick={onDelete}>Delete</button>}
+    <TextField name="Layer name" value={layer.name} disabled={!editable} onCommit={(value) => {
+      const name = value.trim();
+      if (name === "" || name === layer.name) return;
+      void composition.applyItem({ type: "rename", item: { type: "layer", id: layer.id }, name }).catch(reportSequenceEditError);
+    }} />
+    {!layer.isDefault && onDelete !== undefined && <IconButton icon={Trash2} label={`Delete ${layer.name}`} danger disabled={!editable} onClick={onDelete} />}
   </fieldset>;
 }
 
@@ -78,9 +67,12 @@ type Deletion = {
   origin: GuiDocumentRequest;
 };
 
+/**
+ * Deletes graph items at once, except layers that clips use: those open a dialog that picks the
+ * layer their clips move to.
+ */
 export function useGraphDeletion(composition: CompositionEditing, onDeleted?: () => void) {
   const host = useSequenceEditorHost();
-  const overlayContainer = useContext(OverlayPortal);
   const { store: useAppStore } = host;
   const { document } = composition;
   const reportSequenceEditError = useSequenceEditErrorReporter();
@@ -130,32 +122,34 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
       setPending(deletion);
     }
   }, [commit, composition, document, editable, useAppStore]);
-  const dialog = <Dialog.Root open={pending !== null} onOpenChange={(open) => { if (!open && !busy) setPending(null); }}>
-    <Dialog.Portal container={overlayContainer}>
-      <Dialog.Overlay className="dialog-overlay graph-delete-overlay" />
-      <Dialog.Content className="dialog-content graph-delete-dialog" onCloseAutoFocus={(event) => {
+  const destinations = document.layers
+    .filter((layer) => pending?.layerIds.includes(layer.id) !== true)
+    .map((layer) => ({ value: String(layer.id), label: layer.name }));
+  const dialog = <Dialog
+    open={pending !== null}
+    onOpenChange={(open) => { if (!open && !busy) setPending(null); }}
+    title="Delete layers"
+    focus={{
+      onCloseAutoFocus: (event) => {
         if (returnFocus.current?.isConnected === true) {
           event.preventDefault();
           returnFocus.current.focus();
         }
-      }}>
-        <Dialog.Title>Delete selected layers?</Dialog.Title>
-        <Dialog.Description>{pending?.clipCount} clips use these layers. Choose where to move them. Selected operators and connections will also be deleted.</Dialog.Description>
-        <fieldset className="graph-dialog-fields" disabled={!editable}>
-          <label>Move clips to<select value={destination ?? ""} onChange={(event) => { setDestination(Number(event.currentTarget.value)); }}>
-            {document.layers.filter((layer) => pending?.layerIds.includes(layer.id) !== true).map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
-          </select></label>
-          {error !== null && <p role="alert">{error}</p>}
-          <div className="dialog-actions">
-            <Dialog.Close asChild><button type="button">Cancel</button></Dialog.Close>
-            <button type="button" className="danger-button" disabled={destination === null} onClick={() => {
-              if (pending !== null) void commit(pending, destination);
-            }}>Delete</button>
-          </div>
-        </fieldset>
-      </Dialog.Content>
-    </Dialog.Portal>
-  </Dialog.Root>;
+      }
+    }}
+    actions={<>
+      <Button disabled={busy} onClick={() => { setPending(null); }}>Cancel</Button>
+      <Button variant="danger" disabled={!editable || destination === null} onClick={() => {
+        if (pending !== null) void commit(pending, destination);
+      }}>Delete</Button>
+    </>}
+  >
+    <Field label="Move clips" tip={`${pending?.clipCount ?? 0} clips use these layers; selected operators and connections are deleted too`}>
+      <Select name="Move clips to" disabled={!editable} value={destination === null ? "" : String(destination)} options={destinations}
+        onChange={(value) => { setDestination(Number(value)); }} />
+    </Field>
+    {error !== null && <p role="alert">{error}</p>}
+  </Dialog>;
   return { requestDelete, dialog };
 }
 
@@ -166,11 +160,11 @@ export function LayerList({ composition }: { composition: CompositionEditing }) 
   const editable = useSequenceEditable();
   const { requestDelete, dialog } = useGraphDeletion(composition);
   return <>
-    <button type="button" className="neutral-button" disabled={!editable} onClick={() => {
+    <Button icon={Plus} disabled={!editable} onClick={() => {
       void composition.apply({
         type: "createLayer", name: "Layer", color: defaultLayerColor(document.layers.length)
       }).catch(reportSequenceEditError);
-    }}>Add layer</button>
+    }}>Add layer</Button>
     <div className="sequence-layer-list">
       {document.layers.map((layer) => <LayerProperties key={layer.id} layer={layer} composition={composition} onDelete={() => {
         requestDelete([], [], [layer.id]);

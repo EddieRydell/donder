@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
-import { installKeyboardShortcuts, shortcutLabel } from "../commandRegistry";
+import { FolderOpen, Plus } from "lucide-react";
+import { installKeyboardShortcuts, runCommand } from "../commandRegistry";
 import { installNativeMenu } from "../nativeMenu";
 import { isMac } from "../platform";
 import { runSnapshotCommand, subscribeToSnapshots, useAppStore, useStaticAppSnapshot, type AppStaticSnapshot } from "../store";
@@ -18,6 +19,7 @@ import { CommandOverlays } from "../workspace/CommandOverlays";
 import { WorkspaceSidebar } from "../workspace/WorkspaceSidebar";
 import { runWorkspaceTransition, useTransitionStore } from "../workspaceTransitions";
 import { UnsavedChangesDialog } from "./UnsavedChangesDialog";
+import { Button, TipProvider } from "./kit";
 import { listen } from "@tauri-apps/api/event";
 import { scheduleViewStateSave } from "../viewStatePersistence";
 
@@ -70,14 +72,12 @@ export function App() {
     };
   }, []);
 
-  const openProjectKeys = shortcutLabel("file.openProject");
-
   if (!snapshot) {
     return <div className="app-loading">Donder</div>;
   }
 
   return (
-    <div className="app-shell">
+    <TipProvider><div className="app-shell">
       <TitleBar />
       <div className="alert-stack">
         {error !== null && error !== "" && <div className="error-strip">{error}</div>}
@@ -98,10 +98,11 @@ export function App() {
       <CommandOverlays />
       {snapshot.projectRoot === null && (
         <div className="empty-project">
-          <p>No project is open. Open one with File → Open Project…{openProjectKeys === undefined ? "" : ` (${openProjectKeys})`}, or start one with File → New Project….</p>
+          <Button icon={FolderOpen} tip="Open Project" command="file.openProject" onClick={() => { runCommand("file.openProject"); }}>Open</Button>
+          <Button icon={Plus} tip="New Project" command="file.newProject" onClick={() => { runCommand("file.newProject"); }}>New</Button>
         </div>
       )}
-    </div>
+    </div></TipProvider>
   );
 }
 

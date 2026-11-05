@@ -1,11 +1,12 @@
 import { useState, type DragEvent } from "react";
 import { isSecondaryClick } from "../../../platform";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Link2 } from "lucide-react";
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
 import type { GuiDocumentRequest, GuiLayoutFixture } from "../../../types";
 import { descendants, layoutIndex, memberFixtures, membersOf, membershipCount, type LayoutItems } from "./layoutGraph";
+import { AddRow, Badge } from "../../kit";
 
 type Location = { parent: number | null; before: number | null; row: number | null; position: "before" | "after" | "inside" | "root" };
 /** A dragged row: the item and the group it was dragged out of. */
@@ -26,8 +27,8 @@ type TreeContext = { items: LayoutItems; pixelCounts: ReadonlyMap<number, number
  * each; every row is the same item. Dragging moves a row out of its group;
  * Alt-dragging adds the item to another group as well.
  */
-export function LayoutTree({ fixtures, root, pixels, selected, onSelect, enabled, request, onError }: TreeProps & {
-  fixtures: GuiLayoutFixture[]; root: number[]; pixels: { owner: number }[]; enabled: boolean; request: GuiDocumentRequest | null; onError: (error: unknown) => void;
+export function LayoutTree({ fixtures, root, pixels, selected, onSelect, enabled, request, onError, onAddGroup }: TreeProps & {
+  fixtures: GuiLayoutFixture[]; root: number[]; pixels: { owner: number }[]; enabled: boolean; request: GuiDocumentRequest | null; onError: (error: unknown) => void; onAddGroup: () => void;
 }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<Location | null>(null);
@@ -78,9 +79,9 @@ export function LayoutTree({ fixtures, root, pixels, selected, onSelect, enabled
   return <div className="composition-tree" data-dragging={drag !== null}
     onDragOver={(event) => { controls.over(top, event); }} onDrop={(event) => { controls.drop(top, event); }}
     onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setHover(null); }}>
-    {root.length === 0 && <p className="composition-tree-empty">Right-click to add a group or fixture.</p>}
+    {root.length === 0 && <AddRow label="Add group" disabled={!enabled} onAdd={onAddGroup} />}
     <LayoutTreeRows members={root} parent={null} context={context} selected={selected} onSelect={onSelect} />
-    {drag !== null && <div className="layout-tree-root-drop" data-drop={hover?.position === "root"}>Drop here to move to the top level (Alt to add)</div>}
+    {drag !== null && <div className="layout-tree-root-drop" data-drop={hover?.position === "root"}>Top level</div>}
   </div>;
 }
 
@@ -100,9 +101,8 @@ function LayoutTreeItem({ item, parent, next, context, selected, onSelect }: Tre
   const fixtures = memberFixtures(context.items, item.id);
   const pixelCount = fixtures.reduce((total, fixture) => total + (context.pixelCounts.get(fixture) ?? 0), 0);
   const shared = context.shared(item.id);
-  const metadata = item.kind.type === "group"
-    ? `group · ${fixtures.length} fixtures · ${pixelCount} pixels`
-    : `${item.kind.definition.type === "inline" ? "Owned" : "Linked"} · ${pixelCount} pixels · position ${item.kind.transform.position.xMeters}, ${item.kind.transform.position.yMeters}, ${item.kind.transform.position.zMeters}`;
+  const metadata = item.kind.type === "group" ? `${fixtures.length} fixtures · ${pixelCount} px` : `${pixelCount} px`;
+  const linked = item.kind.type === "fixture" && item.kind.definition.type === "reference";
   const location = (event: DragEvent<HTMLElement>): Location => {
     const rect = event.currentTarget.getBoundingClientRect();
     const y = (event.clientY - rect.top) / rect.height;
@@ -124,7 +124,8 @@ function LayoutTreeItem({ item, parent, next, context, selected, onSelect }: Tre
         ? open ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} /> : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />
         : null}</span>
       <span className="composition-tree-name">{item.name}</span><span className="composition-tree-meta">{metadata}</span>
-      {shared > 1 && <span className="composition-tree-shared" title={`In ${shared} groups`}>{`×${shared}`}</span>}
+      {linked && <Badge icon={Link2} tip="Linked to a reusable fixture" />}
+      {shared > 1 && <Badge tip={`In ${shared} groups`}>{`×${shared}`}</Badge>}
     </summary>
     {item.kind.type === "group" && <div className="composition-tree-children"><LayoutTreeRows members={item.kind.members} parent={item.id} context={context} selected={selected} onSelect={onSelect} /></div>}
   </details>;

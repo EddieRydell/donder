@@ -1,10 +1,9 @@
-import * as Dialog from "@radix-ui/react-dialog";
 import { AudioWaveform } from "lucide-react";
 import { useState } from "react";
 import { useSequenceEditorHost } from "../../../editor/host";
 import type { NewMarkCollection, SequenceGuiDocument } from "../../../editor/types";
 import { sameGuiDocument } from "../../../snapshotState";
-import { THEME_METRICS } from "../../../theme";
+import { Button, Dialog, Field, TextField, Toggle } from "../../kit";
 import { defaultMarkColor } from "./marks";
 
 /**
@@ -35,11 +34,13 @@ export function BeatDetectionDialog({
   if (detectSequenceBeats === undefined) return null;
   const hasAudio = document.audio?.exists === true;
   const options = [
-    { label: "Beats", enabled: beats, setEnabled: setBeats, name: beatsName, setName: setBeatsName },
-    { label: "Bars (the first beat of each bar)", enabled: bars, setEnabled: setBars, name: barsName, setName: setBarsName }
+    { label: "Beats", tip: "A mark collection of every beat", enabled: beats, setEnabled: setBeats, name: beatsName, setName: setBeatsName },
+    { label: "Bars", tip: "A mark collection of the first beat of each bar", enabled: bars, setEnabled: setBars, name: barsName, setName: setBarsName }
   ];
   const chosen = options.filter((option) => option.enabled);
   const namesValid = chosen.every((option) => option.name.trim().length > 0);
+  const invalid = !hasAudio ? "No audio" : chosen.length === 0 ? "Nothing to add" : !namesValid ? "Name required" : null;
+  const problem = error ?? invalid;
 
   const detect = async () => {
     if (request === null) return;
@@ -68,49 +69,30 @@ export function BeatDetectionDialog({
     }
   };
 
-  return (
-    <Dialog.Root open={open} onOpenChange={(next) => { if (!pending) { setOpen(next); setError(null); } }}>
-      <Dialog.Trigger asChild>
-        <button type="button" className="neutral-button icon-text-button">
-          <AudioWaveform size={THEME_METRICS.iconSizeSmall} />
-          Detect beats
-        </button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content beat-detection-dialog">
-          <Dialog.Title>Detect beats</Dialog.Title>
-          <Dialog.Description>
-            Analyze the sequence&apos;s audio and add the beats and bars it finds as new mark collections. This takes several seconds.
-          </Dialog.Description>
-          {!hasAudio && <p role="alert">Choose the sequence&apos;s audio first.</p>}
-          {error !== null && <p role="alert">{error}</p>}
-          <fieldset className="beat-detection-options" disabled={pending || !hasAudio}>
-            <legend>Collections to add</legend>
-            {options.map((option) => (
-              <div key={option.label} className="beat-detection-option">
-                <label>
-                  <input type="checkbox" checked={option.enabled} onChange={(event) => { option.setEnabled(event.currentTarget.checked); }} />
-                  {option.label}
-                </label>
-                <input
-                  type="text"
-                  aria-label={`${option.label} collection name`}
-                  value={option.name}
-                  disabled={!option.enabled}
-                  onChange={(event) => { option.setName(event.currentTarget.value); }}
-                />
-              </div>
-            ))}
-          </fieldset>
-          <div className="dialog-actions">
-            <button type="button" disabled={pending} onClick={() => { setOpen(false); }}>Cancel</button>
-            <button type="button" disabled={pending || !hasAudio || request === null || chosen.length === 0 || !namesValid} onClick={() => { void detect(); }}>
-              {pending ? "Analyzing audio…" : "Detect"}
-            </button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
+  return <>
+    <Button icon={AudioWaveform} tip="Add the song's beats and bars as mark collections" onClick={() => { setError(null); setOpen(true); }}>Detect beats</Button>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => { if (!pending) { setOpen(next); setError(null); } }}
+      title="Detect Beats"
+      actions={<>
+        <Button disabled={pending} onClick={() => { setOpen(false); }}>Cancel</Button>
+        <Button variant="primary" tip="Analyzing takes a few seconds" disabled={pending || request === null || invalid !== null} onClick={() => { void detect(); }}>
+          {pending ? "Analyzing…" : "Detect"}
+        </Button>
+      </>}
+    >
+      {options.map((option) => <Field key={option.label} label={option.label} tip={option.tip}>
+        <Toggle name={`Add ${option.label.toLowerCase()}`} checked={option.enabled} disabled={pending || !hasAudio} onChange={option.setEnabled} />
+        <TextField
+          name={`${option.label} collection name`}
+          value={option.name}
+          disabled={pending || !hasAudio || !option.enabled}
+          invalid={option.enabled && option.name.trim() === ""}
+          onCommit={option.setName}
+        />
+      </Field>)}
+      {problem !== null && <div className="kit-status-error" role="alert">{problem}</div>}
+    </Dialog>
+  </>;
 }

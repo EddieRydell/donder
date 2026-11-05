@@ -150,6 +150,8 @@ const editorCommands: Record<EditorCommandId, CommandDefinition> = {
   "edit.moveUp": { ...editorCommand("edit.moveUp", "Move Up", "Edit", ["nudge", "arrow"], [shortcut("ArrowUp")]), shiftArgument: true },
   "edit.moveDown": { ...editorCommand("edit.moveDown", "Move Down", "Edit", ["nudge", "arrow"], [shortcut("ArrowDown")]), shiftArgument: true },
   "view.reset": editorCommand("view.reset", "Reset View", "View", ["zoom", "fit"], [shortcut("Home")]),
+  "view.zoomIn": editorCommand("view.zoomIn", "Zoom In", "View", ["magnify", "timeline"], [shortcut("=")]),
+  "view.zoomOut": editorCommand("view.zoomOut", "Zoom Out", "View", ["timeline"], [shortcut("-")]),
   "transport.togglePlayback": editorCommand("transport.togglePlayback", "Play / Pause", "Transport", ["audio", "start"], [shortcut(" ")]),
   "transport.stop": editorCommand("transport.stop", "Stop", "Transport", ["audio", "playback"], [shortcut("s")]),
   "transport.toggleLooping": editorCommand("transport.toggleLooping", "Toggle Looping", "Transport", ["loop", "repeat", "range"], [shortcut("l")]),
@@ -157,6 +159,10 @@ const editorCommands: Record<EditorCommandId, CommandDefinition> = {
   "transport.tapMark": editorCommand("transport.tapMark", "Tap Mark", "Transport", ["beat", "marks"], [shortcut("m")]),
   // Mac keyboards have no Home key; Command-Left Arrow is the platform's line-start gesture.
   "transport.rewind": editorCommand("transport.rewind", "Rewind to Start", "Transport", ["beginning", "home"], isMac ? [shortcut("Home"), shortcut("ArrowLeft", { primary: true })] : [shortcut("Home")]),
+  "transport.previousMark": editorCommand("transport.previousMark", "Previous Mark", "Transport", ["jump", "beat", "seek"], [shortcut("ArrowLeft", { alt: true })]),
+  "transport.nextMark": editorCommand("transport.nextMark", "Next Mark", "Transport", ["jump", "beat", "seek"], [shortcut("ArrowRight", { alt: true })]),
+  "transport.setRangeIn": editorCommand("transport.setRangeIn", "Set Range Start", "Transport", ["loop", "in point"], [shortcut("i")]),
+  "transport.setRangeOut": editorCommand("transport.setRangeOut", "Set Range End", "Transport", ["loop", "out point"], [shortcut("o")]),
   "sequence.toggleSliceTool": editorCommand("sequence.toggleSliceTool", "Toggle Slice Tool", "Sequence", ["cut", "split", "razor"], [shortcut("c")]),
   "sequence.selectMatching": editorCommand("sequence.selectMatching", "Select Matching", "Sequence", ["similar", "selection"], [shortcut("s", { shift: true })])
 };
@@ -182,6 +188,11 @@ export function boundShortcuts(bindings: KeyBinding[], id: CommandId): Shortcut[
     bindingLookups.set(bindings, lookup);
   }
   return lookup.get(id) ?? commandRegistry[id].defaultShortcuts;
+}
+
+/** Whether a key press is one of the command's keys. */
+export function matchesCommand(event: KeyboardEvent, id: CommandId): boolean {
+  return commandShortcuts(id).some((pressed) => matchesShortcut(event, pressed, commandRegistry[id].shiftArgument));
 }
 
 /** Runs a command unless a workspace transition is in progress or the command is disabled. */
@@ -234,7 +245,7 @@ function dispatchEditorShortcut(event: KeyboardEvent): boolean {
 export function installKeyboardShortcuts() {
   const onKeyDown = (event: KeyboardEvent) => {
     if (dispatchEditorShortcut(event) || isMac) return;
-    const id = APP_COMMAND_IDS.find((candidate) => commandShortcuts(candidate).some((pressed) => matchesShortcut(event, pressed)));
+    const id = APP_COMMAND_IDS.find((candidate) => matchesCommand(event, candidate));
     if (id === undefined || !commandRegistry[id].enabled()) return;
     // Text fields and the code editor keep their own undo history.
     if ((id === "edit.undo" || id === "edit.redo") && editTarget(event.target) !== "app") return;

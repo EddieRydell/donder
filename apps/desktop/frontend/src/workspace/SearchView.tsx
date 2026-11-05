@@ -1,4 +1,4 @@
-import { CaseSensitive, Search } from "lucide-react";
+import { CaseSensitive } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { commands } from "../api";
 import { THEME_METRICS } from "../theme";
@@ -6,6 +6,7 @@ import type { ProjectSearchResponse } from "../types";
 import type { AppStaticSnapshot } from "../store";
 import { locationRange } from "./helpers";
 import { navigateToText } from "./navigation";
+import { IconButton, TextField, Tip } from "../ui/kit";
 
 export function SearchView({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const [query, setQuery] = useState("");
@@ -49,35 +50,18 @@ export function SearchView({ snapshot }: { snapshot: AppStaticSnapshot }) {
     <section className="sidebar-view search-view" aria-label="Search">
       <header className="sidebar-view-header"><h2>Search</h2></header>
       <div className="search-controls">
-        <label>
-          <Search size={THEME_METRICS.iconSizeSmall} />
-          <input
-            autoFocus
-            value={query}
-            onChange={(event) => { setQuery(event.currentTarget.value); }}
-            placeholder="Search project files"
-          />
-        </label>
-        <button
-          type="button"
-          className={matchCase ? "active" : ""}
-          aria-pressed={matchCase}
-          aria-label="Match case"
-          title="Match case"
-          onClick={() => { setMatchCase((value) => !value); }}
-        >
-          <CaseSensitive size={THEME_METRICS.iconSizeMedium} />
-        </button>
+        <TextField name="Search project files" placeholder="Search" value={query} onCommit={setQuery} live autoFocus />
+        <IconButton icon={CaseSensitive} label="Match case" pressed={matchCase} onClick={() => { setMatchCase((value) => !value); }} />
       </div>
       <div className="sidebar-scroll">
         {query.trim() !== "" && error !== null && <p className="sidebar-error">{error}</p>}
         {query.trim() !== "" && response !== null && (
-          <p className="search-summary">
-            {response.matches.length} matches
-            {response.truncated ? " (first 500 shown)" : ""}
-            {(response.skippedBinary > 0 || response.skippedOversized > 0) &&
-              ` · skipped ${response.skippedBinary} binary and ${response.skippedOversized} oversized`}
-          </p>
+          <Tip label={[
+            response.truncated ? "First 500 shown" : null,
+            `Skipped ${response.skippedBinary} binary and ${response.skippedOversized} oversized files`
+          ].filter((part) => part !== null).join(" · ")}>
+            <p className="search-summary">{response.matches.length}{response.truncated ? "+" : ""} matches</p>
+          </Tip>
         )}
         {grouped.map(([path, matches]) => (
           <section key={path} className="search-file-group">
@@ -101,9 +85,6 @@ export function SearchView({ snapshot }: { snapshot: AppStaticSnapshot }) {
             ))}
           </section>
         ))}
-        {query.trim() !== "" && response?.matches.length === 0 && (
-          <p className="empty-sidebar-state">No matches found.</p>
-        )}
       </div>
     </section>
   );

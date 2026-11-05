@@ -1,6 +1,7 @@
 import type { IoDiagnostic } from "../../types";
 import { FOCUS_SIDEBAR_EVENT } from "../../commandRegistry";
 import { navigateToText } from "../../workspace/navigation";
+import { Button } from "../kit";
 
 export function BlockedGui({
   reason,
@@ -24,21 +25,13 @@ export function BlockedGui({
         </div>
       )}
       <div className="gui-blocked-actions">
-        <button
-          type="button"
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent(FOCUS_SIDEBAR_EVENT, { detail: "problems" }));
-          }}
-        >
-          Open Problems
-        </button>
+        <Button onClick={() => { window.dispatchEvent(new CustomEvent(FOCUS_SIDEBAR_EVENT, { detail: "problems" })); }}>
+          Problems
+        </Button>
         {primaryDiagnostic !== undefined && (
-          <button
-            type="button"
-            onClick={() => void navigateToText(primaryDiagnostic.path, primaryDiagnostic.range)}
-          >
-            Show in Text
-          </button>
+          <Button onClick={() => void navigateToText(primaryDiagnostic.path, primaryDiagnostic.range)}>
+            Show in text
+          </Button>
         )}
       </div>
     </div>

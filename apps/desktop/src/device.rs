@@ -1,39 +1,14 @@
 pub(crate) mod discovery;
 pub(crate) mod playback;
 
-use donder_device_protocol::{Action, LOADED, TOKEN_HEADER, TransportStatus, path};
+use donder_device_protocol::{Action, LOADED, TransportStatus, path};
 use donder_editor::dto::DonderDeviceNetworkRequest;
-use reqwest::{
-    blocking::Client,
-    header::{HeaderMap, HeaderValue},
-};
+use reqwest::blocking::Client;
 use std::{io::Read, net::SocketAddr, time::Duration};
 
 pub(crate) struct DeviceClient {
     client: Client,
     address: SocketAddr,
-    token: [u8; 32],
-}
-
-/// First claim wins: an unclaimed controller returns the token that
-/// authorizes every later request.
-pub(crate) fn claim(address: SocketAddr) -> Result<String, String> {
-    let response = Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .no_proxy()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(10))
-        .build()
-        .map_err(|error| format!("Could not initialize device connection: {error}"))?
-        .post(format!("http://{address}{}", path::CLAIM))
-        .body(Vec::new())
-        .send()
-        .map_err(|error| format!("Could not contact device: {error}"))?;
-    let token = read_response(response)?;
-    if token.len() != 32 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err("Device returned an invalid claim token.".into());
-    }
-    Ok(token)
 }
 
 fn read_response(response: reqwest::blocking::Response) -> Result<String, String> {
@@ -58,31 +33,15 @@ fn read_body(response: reqwest::blocking::Response) -> Result<String, String> {
 }
 
 impl DeviceClient {
-    pub(crate) fn new(address: SocketAddr, token: &str) -> Result<Self, String> {
-        if token.len() != 32 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err("Saved device token is invalid; claim the controller again.".into());
-        }
-        let mut value = HeaderValue::from_str(token).map_err(|_| "Invalid device token.")?;
-        value.set_sensitive(true);
-        let mut headers = HeaderMap::new();
-        headers.insert(TOKEN_HEADER, value);
+    pub(crate) fn new(address: SocketAddr) -> Result<Self, String> {
         let client = Client::builder()
-            .default_headers(headers)
             .redirect(reqwest::redirect::Policy::none())
             .no_proxy()
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(20))
             .build()
             .map_err(|error| format!("Could not initialize device connection: {error}"))?;
-        let token = token
-            .as_bytes()
-            .try_into()
-            .map_err(|_| "Invalid device token size")?;
-        Ok(Self {
-            client,
-            address,
-            token,
-        })
+        Ok(Self { client, address })
     }
 
     fn url(&self, path: &str) -> String {
@@ -173,7 +132,7 @@ mod tests {
     };
 
     #[test]
-    fn transport_uses_authenticated_get_and_bodyless_posts_and_reads_device_state() {
+    fn transport_uses_get_and_bodyless_posts_and_reads_device_state() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let server = thread::spawn(move || {
@@ -203,7 +162,6 @@ mod tests {
                 let mut line = String::new();
                 reader.read_line(&mut line).unwrap();
                 assert_eq!(line.trim(), format!("{method} {path} HTTP/1.1"));
-                let mut authorized = false;
                 loop {
                     line.clear();
                     reader.read_line(&mut line).unwrap();
@@ -211,14 +169,10 @@ mod tests {
                         break;
                     }
                     let (name, value) = line.trim().split_once(':').unwrap();
-                    if name.eq_ignore_ascii_case("x-donder-token") {
-                        authorized = value.trim() == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-                    }
                     if name.eq_ignore_ascii_case("content-length") {
                         assert_eq!(value.trim(), "0");
                     }
                 }
-                assert!(authorized);
                 write!(
                     stream,
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -227,7 +181,7 @@ mod tests {
                 .unwrap();
             }
         });
-        let client = DeviceClient::new(address, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let client = DeviceClient::new(address).unwrap();
         assert!(client.transport(None).unwrap().playback.is_none());
         let playing = client
             .transport(Some(Action::Play))

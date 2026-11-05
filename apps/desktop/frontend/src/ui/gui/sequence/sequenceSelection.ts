@@ -230,6 +230,17 @@ export function sequenceHoverEqual(left: SequenceHover, right: SequenceHover) {
   return left.collectionKey === right.collectionKey && left.index === right.index;
 }
 
+/** Whether two selections hold the same items in the same order. */
+export function sequenceSelectionsEqual(left: SequenceSelection | null, right: SequenceSelection | null) {
+  if (left === right) return true;
+  if (left === null || right === null) return false;
+  if (left.type === "clips" && right.type === "clips") {
+    return left.clips.length === right.clips.length && left.clips.every((clip, index) => clip.type === right.clips[index]?.type && clip.id === right.clips[index].id);
+  }
+  if (left.type !== "marks" || right.type !== "marks") return false;
+  return left.marks.length === right.marks.length && left.marks.every((mark, index) => mark.collectionKey === right.marks[index]?.collectionKey && mark.index === right.marks[index].index);
+}
+
 export function selectedClipId(selected: GuiFocus): number | null {
   return selected?.type === "clip" ? selected.id : null;
 }

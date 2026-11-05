@@ -1,7 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
-import { FileText, TerminalSquare } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   OPEN_COMMAND_PALETTE_EVENT,
   OPEN_QUICK_OPEN_EVENT,
@@ -12,7 +11,7 @@ import {
 import type { CommandId } from "../types";
 import { runSnapshotCommand, useAppStore } from "../store";
 import { commands } from "../api";
-import { THEME_METRICS } from "../theme";
+import { OverlayPortal } from "../ui/OverlayPortal";
 import { matchesCommand, rankQuickOpenFiles } from "./helpers";
 
 export function CommandOverlays() {
@@ -54,27 +53,25 @@ export function CommandOverlays() {
         label="Command Palette"
         query={paletteQuery}
         onQueryChange={setPaletteQuery}
-        placeholder="Type a command"
+        placeholder="Command"
       >
-        <Command.Group heading="Commands">
-          {availableCommands.map(([id, command]) => (
-            <Command.Item
-              key={id}
-              value={`${command.category} ${command.label} ${command.keywords.join(" ")}`}
-              onSelect={() => {
-                setPaletteOpen(false);
-                runCommand(id);
-              }}
-            >
-              <TerminalSquare size={THEME_METRICS.iconSizeSmall} />
-              <span className="command-item-main">
-                <small>{command.category}</small>
-                {command.label}
-              </span>
-              {shortcutLabel(id) !== undefined && <kbd>{shortcutLabel(id)}</kbd>}
-            </Command.Item>
-          ))}
-        </Command.Group>
+        {availableCommands.map(([id, command]) => {
+          const keys = shortcutLabel(id);
+          return <Command.Item
+            key={id}
+            value={`${command.category} ${command.label} ${command.keywords.join(" ")}`}
+            onSelect={() => {
+              setPaletteOpen(false);
+              runCommand(id);
+            }}
+          >
+            <span className="command-item-main">
+              <small>{command.category}</small>
+              {command.label}
+            </span>
+            {keys !== undefined && <kbd>{keys}</kbd>}
+          </Command.Item>;
+        })}
       </CommandDialog>
       <CommandDialog
         open={quickOpen}
@@ -82,23 +79,20 @@ export function CommandOverlays() {
         label="Quick Open"
         query={fileQuery}
         onQueryChange={setFileQuery}
-        placeholder="Search files by name"
+        placeholder="File"
       >
-        <Command.Group heading="Files">
-          {files.map((path) => (
-            <Command.Item
-              key={path}
-              value={path}
-              onSelect={() => {
-                setQuickOpen(false);
-                void runSnapshotCommand(() => commands.openFile(path));
-              }}
-            >
-              <FileText size={THEME_METRICS.iconSizeSmall} />
-              <span>{path}</span>
-            </Command.Item>
-          ))}
-        </Command.Group>
+        {files.map((path) => (
+          <Command.Item
+            key={path}
+            value={path}
+            onSelect={() => {
+              setQuickOpen(false);
+              void runSnapshotCommand(() => commands.openFile(path));
+            }}
+          >
+            <span>{path}</span>
+          </Command.Item>
+        ))}
       </CommandDialog>
     </>
   );
@@ -119,15 +113,16 @@ function CommandDialog({
   query: string;
   onQueryChange: (query: string) => void;
   placeholder: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
+  const container = useContext(OverlayPortal);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="command-overlay" />
-        <Dialog.Content className="command-dialog" aria-label={label}>
+      <Dialog.Portal container={container}>
+        <Dialog.Overlay className="kit-dialog-overlay" />
+        <Dialog.Content className="command-dialog" aria-label={label} aria-describedby={undefined}>
           <Dialog.Title className="visually-hidden">{label}</Dialog.Title>
-          <Command shouldFilter={false}>
+          <Command shouldFilter={false} label={label}>
             <Command.Input
               autoFocus
               value={query}

@@ -1,10 +1,10 @@
-import { CircleDot, GripVertical, Plus, X } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { CircleDot, GripVertical, X } from "lucide-react";
+import { type FocusEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { commands } from "../../../api";
 import { useAppStore } from "../../../store";
 import type { GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits, LearnedInput, SetupInputDevice } from "../../../types";
-import { useConfirmDialog } from "../../ConfirmDialog";
-import { DescriptionField } from "../DescriptionField";
+import { AddRow, Button, Field, IconButton, NumberField, Select, TextField, Tip } from "../../kit";
+import { DescriptionText } from "../DescriptionField";
 
 const MIDDLE_C = 60;
 /** The UDP port a new OSC device listens on, and the highest there is. */
@@ -15,12 +15,6 @@ type DriverType = GuiInputDriver["type"];
 
 /** What is being learned from the controller: a whole input, one note of a range, or a control change number. */
 type LearnPart = "input" | "low" | "high" | "number";
-
-const LEARN_HINTS: Record<DriverType, string> = {
-  keyboard: "Press a key…",
-  midi: "Press a key or pad, or move a knob…",
-  osc: "Send an OSC message…"
-};
 
 /** Names each learning request, so a late cancel cannot end a newer one. */
 let learnRequests = 0;
@@ -67,7 +61,7 @@ const GRID_COLUMNS: Record<DriverType, { label: string; hint: string }[]> = {
   midi: [
     NAME_COLUMN,
     { label: "Kind", hint: "A button is pressed and released; an axis is a position from 0 to 1." },
-    { label: "Input", hint: "What the control listens to: notes (a pad, or a range of keys; 60 is middle C), a control change (a knob, slider or pedal, numbered 0 to 119), or the pitch bend wheel." },
+    { label: "Input", hint: "What the control listens to: notes (a pad, or a range of keys; 60 is middle C), a control change (a knob, slider or pedal, numbered 0 to 119), or the pitch bend wheel. While a number is focused, playing the key or moving the knob sets it." },
     { label: "Channel", hint: "The MIDI channel to read, or any." },
     DESCRIPTION_COLUMN
   ],
@@ -101,11 +95,6 @@ function droppedKinds(controls: GuiInputControl[], driver: DriverType): string[]
   return ([["axis", "axes"]] as const)
     .filter(([kind]) => !driverHas(driver, kind) && controls.some((control) => control.kind === kind))
     .map(([, plural]) => plural);
-}
-
-/** A number field's value within `0..=max`, or `null` while the field is empty. */
-function fieldNumber(value: string, max: number): number | null {
-  return value === "" ? null : Math.min(max, Math.max(0, Math.trunc(Number(value))));
 }
 
 /** Whether `path` is an address OSC matches exactly: a `/`, then printable
@@ -230,7 +219,6 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
 }) {
   const [driver, setDriver] = useState<GuiInputDriver>(device?.driver ?? { type: "keyboard" });
   const [controls, setControls] = useState<GuiInputControl[]>(device?.controls ?? []);
-  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   // Follow the saved device when it changes elsewhere, as an undo does.
   const saved = device === undefined ? null : JSON.stringify([device.driver, device.controls]);
   const [seen, setSeen] = useState(saved);
@@ -241,19 +229,24 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
       setControls(device.controls);
     }
   }
-  const save = () => {
-    if (device === undefined || !deviceValid(driver, controls, limits) || JSON.stringify([driver, controls]) === saved) return;
-    void onSave(driver, controls);
-  };
-  // A change made through a select or button saves once its state has rendered.
+  // Each committed change saves once its state has rendered.
   const saveAfterRender = useRef(false);
   useEffect(() => {
     if (!saveAfterRender.current) return;
     saveAfterRender.current = false;
-    save();
+    if (device === undefined || !deviceValid(driver, controls, limits) || JSON.stringify([driver, controls]) === saved) return;
+    void onSave(driver, controls);
   });
+  const commitControls = (next: GuiInputControl[]) => {
+    setControls(next);
+    saveAfterRender.current = true;
+  };
+  const commitDriver = (next: GuiInputDriver) => {
+    setDriver(next);
+    saveAfterRender.current = true;
+  };
   const update = (index: number, change: Partial<GuiInputControl>) => {
-    setControls(controls.map((control, i) => i === index ? { ...control, ...change } : control));
+    commitControls(controls.map((control, i) => i === index ? { ...control, ...change } : control));
   };
   const [learning, setLearning] = useState<{ id: number; part: LearnPart } | null>(null);
   const learningId = learning?.id;
@@ -318,8 +311,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     const [control] = next.splice(from, 1);
     if (control === undefined) return;
     next.splice(to, 0, control);
-    setControls(next);
-    saveAfterRender.current = true;
+    commitControls(next);
   };
   const used = new Set(controls.flatMap((control) => inputKeys(control.input, limits)));
   const readByOthers = (index: number) => new Set(controls.flatMap((control, i) => i === index ? [] : inputKeys(control.input, limits)));
@@ -331,63 +323,42 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
   const addControl = () => {
     if (nextInput === null) return;
     const id = Math.max(0, ...controls.map((control) => control.id)) + 1;
-    setControls([...controls, { id, name: nextName, description: null, kind: "button", input: nextInput }]);
-    saveAfterRender.current = true;
+    commitControls([...controls, { id, name: nextName, description: null, kind: "button", input: nextInput }]);
     // The new control starts out on a free input, and takes the next one the device sends.
     setLearning({ id, part: "input" });
   };
-  const removeControl = async (index: number) => {
-    const name = controls[index]?.name ?? "this control";
-    if (device !== undefined && !await confirm({ title: "Remove control", description: `Remove ${name} from ${device.name}? You can undo this.`, confirmLabel: "Remove", danger: true })) return;
-    setControls(controls.filter((_, i) => i !== index));
-    saveAfterRender.current = true;
-  };
   const nameCounts = new Map<string, number>();
   for (const control of controls) nameCounts.set(control.name, (nameCounts.get(control.name) ?? 0) + 1);
+  const driverOptions = DRIVERS.map(({ type, label }) => {
+    // Switching would drop the controls the driver has no kind for.
+    const dropped = droppedKinds(controls, type);
+    return { value: type, label: dropped.length === 0 ? label : `${label} (no ${dropped.join(", ")})`, disabled: dropped.length > 0 };
+  });
   return <form className="setup-authoring-form input-device-form"
-    onChange={(event) => { if (event.target instanceof HTMLSelectElement) saveAfterRender.current = true; }}
-    onBlur={(event) => { if (!(event.target instanceof HTMLSelectElement)) save(); }}
     onSubmit={(event) => {
       event.preventDefault();
       if (device === undefined) void onSave(driver, controls);
     }}>
-    <h4>{device === undefined ? "Add an input device" : "Input device settings"}</h4>
     <fieldset>
-      <label>Driver<select value={driver.type} onChange={(event) => {
-        const type = event.target.value;
-        const next: GuiInputDriver = type === "midi" ? { type: "midi", port: null }
-          : type === "osc" ? { type: "osc", port: DEFAULT_OSC_PORT }
-            : { type: "keyboard" };
-        setDriver(next);
-        setControls(convertControls(controls, next, keyCodes, limits));
-      }}>
-        {DRIVERS.map(({ type, label }) => {
-          // Switching would drop the controls the driver has no kind for.
-          const dropped = droppedKinds(controls, type);
-          return <option key={type} value={type} disabled={dropped.length > 0}>
-            {dropped.length === 0 ? label : `${label} (remove the ${dropped.join(" and ")} first)`}
-          </option>;
-        })}
-      </select></label>
-      {driver.type === "midi" && <label>Port<input value={driver.port ?? ""} placeholder="Every MIDI port" onChange={(event) => {
-        setDriver({ type: "midi", port: event.target.value === "" ? null : event.target.value });
-      }} /></label>}
-      {driver.type === "osc" && <label>UDP port<input type="number" min={1} max={MAX_UDP_PORT} required value={driver.port}
-        aria-invalid={driver.port < 1}
-        onChange={(event) => {
-          const port = fieldNumber(event.target.value, MAX_UDP_PORT);
-          if (port !== null) setDriver({ type: "osc", port });
-        }} /></label>}
-      <button type="button" className="control-add" aria-label="Add control" title="Add a control, then press its key, pad or knob" disabled={nextInput === null} onClick={addControl}><Plus size={16} /></button>
-      {controls.length === 0 && <p className="object-overview-empty">
-        {driver.type === "midi" ? "No controls. Add one for each pad, key, pedal or knob a console plays from, and set its kind."
-          : driver.type === "osc" ? "No controls. Add one for each OSC address that presses something or sends a value, and set its kind."
-            : "No controls. Add one for each key a console plays from."}
-      </p>}
-      <div className={`control-grid ${driver.type}`}>
+      <Field label="Driver">
+        <Select name="Driver" value={driver.type} options={driverOptions} onChange={(type) => {
+          const next: GuiInputDriver = type === "midi" ? { type: "midi", port: null }
+            : type === "osc" ? { type: "osc", port: DEFAULT_OSC_PORT }
+              : { type: "keyboard" };
+          commitDriver(next);
+          setControls(convertControls(controls, next, keyCodes, limits));
+        }} />
+      </Field>
+      {driver.type === "midi" && <Field label="Port" tip="The MIDI port to read; empty reads every port">
+        <TextField name="MIDI port" placeholder="Any" value={driver.port ?? ""} onCommit={(port) => { commitDriver({ type: "midi", port: port === "" ? null : port }); }} />
+      </Field>}
+      {driver.type === "osc" && <Field label="UDP port">
+        <NumberField name="UDP port" value={driver.port} step={1} min={1} max={MAX_UDP_PORT} defaultValue={DEFAULT_OSC_PORT} integer onCommit={(port) => { commitDriver({ type: "osc", port }); }} />
+      </Field>}
+      {controls.length > 0 && <div className={`control-grid ${driver.type}`}>
         <div className="control-grid-row">
           <Cell className="gutter" />
-          {GRID_COLUMNS[driver.type].map(({ label, hint }) => <Cell key={label} className="head"><span title={hint}>{label}</span></Cell>)}
+          {GRID_COLUMNS[driver.type].map(({ label, hint }) => <Cell key={label} className="head"><Tip label={hint}><span>{label}</span></Tip></Cell>)}
           <Cell className="gutter" />
         </div>
         {controls.map((control, index) => <div
@@ -412,22 +383,34 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
               setDrag({ from: index, over: null });
             }}
             onDragEnd={() => { setDrag(null); }}><GripVertical size={14} /></span></Cell>
-          <Cell className="name"><input aria-label="Name" required pattern="[a-z_][a-z0-9_]*" aria-invalid={!NAME_PATTERN.test(control.name) || (nameCounts.get(control.name) ?? 0) > 1} value={control.name} onChange={(event) => { update(index, { name: event.target.value }); }} /></Cell>
+          <Cell className="name"><TextField name="Name" value={control.name} invalid={!NAME_PATTERN.test(control.name) || (nameCounts.get(control.name) ?? 0) > 1} onCommit={(name) => { update(index, { name }); }} /></Cell>
           {driver.type === "midi" && <MidiInputFields control={control} used={used} limits={limits} {...learnProps(control)} onChange={(change) => { update(index, change); }} />}
           {driver.type === "osc" && <OscInputFields control={control} taken={!isFree(control.input, readByOthers(index), limits)} {...learnProps(control)} onChange={(change) => { update(index, change); }} />}
           {driver.type === "keyboard" && control.input.type === "key" && <KeyInputCell code={control.input.code} codes={keyCodes} taken={!isFree(control.input, readByOthers(index), limits)} used={used} limits={limits} {...learnProps(control)}
             onChange={(code) => { update(index, { input: { type: "key", code } }); }} />}
-          <Cell><DescriptionField label="" description={control.description} onCommit={(description) => { update(index, { description }); saveAfterRender.current = true; return Promise.resolve(); }} /></Cell>
-          <Cell className="gutter"><button type="button" className="control-icon remove" aria-label="Remove control" title="Remove control" onClick={() => { void removeControl(index); }}><X size={14} /></button></Cell>
+          <Cell><DescriptionText description={control.description} onCommit={(description) => { update(index, { description }); return Promise.resolve(); }} /></Cell>
+          <Cell className="gutter"><IconButton icon={X} label="Remove control" danger className="control-icon remove" onClick={() => { commitControls(controls.filter((_, i) => i !== index)); }} /></Cell>
         </div>)}
-      </div>
+      </div>}
+      <AddRow label="Add control" disabled={nextInput === null} onAdd={addControl} />
       {device === undefined && <div className="control-grid-actions">
-        <button type="submit" className="control-grid-submit">Add input device</button>
+        <Button type="submit" variant="primary" className="control-grid-submit" disabled={!deviceValid(driver, controls, limits)}>Add input device</Button>
       </div>}
     </fieldset>
-    {confirmDialog}
   </form>;
 }
+
+/** Learns part of a control's input while its field has focus: the note or number the device sends next. */
+function LearnOnFocus({ part, onLearn, children }: { part: LearnPart; onLearn: (part: LearnPart | null) => void; children: ReactNode }) {
+  return <span className="learn-on-focus" onFocus={() => { onLearn(part); }} onBlur={(event: FocusEvent<HTMLSpanElement>) => {
+    if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) onLearn(null);
+  }}>{children}</span>;
+}
+
+const KINDS = [{ value: "button", label: "Button" }, { value: "axis", label: "Axis" }] as const;
+
+/** The select's value for a MIDI input on every channel. */
+const ANY_CHANNEL = "any";
 
 /** A MIDI control's kind, what it reads (notes, a control change or pitch bend, with its numbers),
  * and the channel it reads them on. */
@@ -445,59 +428,43 @@ function MidiInputFields({ control, used, limits, learning, onLearn, onChange }:
   const own = new Set(inputKeys(input, limits));
   const taken = (candidate: GuiControlInput) => inputKeys(candidate, limits).some((key) => !own.has(key) && used.has(key));
   return <>
-    <Cell><select aria-label="Kind" value={control.kind} onChange={(event) => {
-      const kind = event.target.value === "axis" ? "axis" : "button";
+    <Cell><Select name="Kind" value={control.kind} options={KINDS} onChange={(kind) => {
       // An axis reads no notes, and a button no pitch bend.
       const fits = kind === "axis" ? input.type === "controlChange" || input.type === "pitchBend" : input.type === "notes" || input.type === "controlChange";
       onChange({ kind, input: fits ? input : { type: "controlChange", number: 1, channel } });
-    }}>
-      <option value="button">Button</option>
-      <option value="axis">Axis</option>
-    </select></Cell>
+    }} /></Cell>
     <Cell className={learning === "input" ? "compound learning" : "compound"}>
-      {learning === "input" ? <span className="learn-hint">{LEARN_HINTS.midi}</span> : <>
-        <select aria-label="Reads" value={input.type} onChange={(event) => {
-          const type = event.target.value;
-          onChange({ input: type === "notes" ? { type: "notes", low: MIDDLE_C, high: MIDDLE_C, channel } : type === "pitchBend" ? { type: "pitchBend", channel } : { type: "controlChange", number: 1, channel } });
-        }}>
-          {control.kind === "button" && <option value="notes">Notes</option>}
-          <option value="controlChange">Control change</option>
-          {control.kind === "axis" && <option value="pitchBend" disabled={taken({ type: "pitchBend", channel })}>Pitch bend</option>}
-        </select>
-        {input.type === "notes" && <>
-          <input aria-label="Lowest note" title="Type a note number, or select this box and press the key" type="number" min={0} max={limits.maxNote} required value={input.low} aria-invalid={taken(input)}
-            onFocus={() => { onLearn("low"); }} onBlur={() => { onLearn(null); }}
-            onChange={(event) => {
-              const low = fieldNumber(event.target.value, limits.maxNote);
-              if (low !== null) onChange({ input: { ...input, low } });
-            }} />
-          <span>to</span>
-          <input aria-label="Highest note" title="Type a note number, or select this box and press the key" type="number" min={0} max={limits.maxNote} required value={input.high} aria-invalid={taken(input) || input.high < input.low}
-            onFocus={() => { onLearn("high"); }} onBlur={() => { onLearn(null); }}
-            onChange={(event) => {
-              const high = fieldNumber(event.target.value, limits.maxNote);
-              if (high !== null) onChange({ input: { ...input, high } });
-            }} />
-        </>}
-        {input.type === "controlChange" && <input aria-label="Control change number" title="Type a number, or select this box and move the knob" type="number" min={0} max={limits.maxControlChange} required value={input.number}
-          aria-invalid={taken(input)}
-          onFocus={() => { onLearn("number"); }} onBlur={() => { onLearn(null); }}
-          onChange={(event) => {
-            const number = fieldNumber(event.target.value, limits.maxControlChange);
-            if (number !== null) onChange({ input: { type: "controlChange", number, channel } });
-          }} />}
+      <Select name="Reads" value={input.type} onChange={(type) => {
+        onChange({ input: type === "notes" ? { type: "notes", low: MIDDLE_C, high: MIDDLE_C, channel } : type === "pitchBend" ? { type: "pitchBend", channel } : { type: "controlChange", number: 1, channel } });
+      }} options={[
+        ...(control.kind === "button" ? [{ value: "notes", label: "Notes" } as const] : []),
+        { value: "controlChange", label: "Control change" } as const,
+        ...(control.kind === "axis" ? [{ value: "pitchBend", label: "Pitch bend", disabled: taken({ type: "pitchBend", channel }) } as const] : [])
+      ]} />
+      {input.type === "notes" && <>
+        <LearnOnFocus part="low" onLearn={onLearn}>
+          <NumberField name="Lowest note" value={input.low} step={1} min={0} max={limits.maxNote} integer invalid={taken(input)} onCommit={(low) => { onChange({ input: { ...input, low } }); }} />
+        </LearnOnFocus>
+        <span>to</span>
+        <LearnOnFocus part="high" onLearn={onLearn}>
+          <NumberField name="Highest note" value={input.high} step={1} min={0} max={limits.maxNote} integer invalid={taken(input) || input.high < input.low} onCommit={(high) => { onChange({ input: { ...input, high } }); }} />
+        </LearnOnFocus>
       </>}
+      {input.type === "controlChange" && <LearnOnFocus part="number" onLearn={onLearn}>
+        <NumberField name="Control change number" value={input.number} step={1} min={0} max={limits.maxControlChange} integer invalid={taken(input)} onCommit={(number) => { onChange({ input: { type: "controlChange", number, channel } }); }} />
+      </LearnOnFocus>}
       <LearnButton learning={learning === "input"} onLearn={onLearn} />
     </Cell>
-    <Cell><select aria-label="Channel" value={channel ?? ""} aria-invalid={taken(input)} onChange={(event) => {
-      const value = event.target.value;
-      onChange({ input: { ...input, channel: value === "" ? null : Number(value) } });
-    }}>
-      <option value="">Any</option>
-      {channelsRead(null, limits).map((number) => <option key={number} value={number}>{number}</option>)}
-    </select></Cell>
+    <Cell><Select name="Channel" value={channel === null ? ANY_CHANNEL : String(channel)} invalid={taken(input)} onChange={(value) => {
+      onChange({ input: { ...input, channel: value === ANY_CHANNEL ? null : Number(value) } });
+    }} options={[
+      { value: ANY_CHANNEL, label: "Any" },
+      ...channelsRead(null, limits).map((number) => ({ value: String(number), label: String(number) }))
+    ]} /></Cell>
   </>;
 }
+
+const AXIS_VALUE_STEP = 0.1;
 
 /** An OSC control's kind, the address it reads, and the range an axis's value runs over. */
 function OscInputFields({ control, taken, learning, onLearn, onChange }: {
@@ -512,30 +479,16 @@ function OscInputFields({ control, taken, learning, onLearn, onChange }: {
   if (input.type !== "address" && input.type !== "addressRange") return null;
   const { path } = input;
   return <>
-    <Cell><select aria-label="Kind" value={control.kind} onChange={(event) => {
-      const kind = event.target.value === "axis" ? "axis" : "button";
+    <Cell><Select name="Kind" value={control.kind} options={KINDS} onChange={(kind) => {
       onChange({ kind, input: kind === "axis" ? { type: "addressRange", path, low: 0, high: 1 } : { type: "address", path } });
-    }}>
-      <option value="button">Button</option>
-      <option value="axis">Axis</option>
-    </select></Cell>
+    }} /></Cell>
     <Cell className={learning === "input" ? "compound learning" : "compound"}>
-      {learning === "input" ? <span className="learn-hint">{LEARN_HINTS.osc}</span> : <>
-        <input aria-label="Address" required value={path} placeholder="/chord/change" aria-invalid={!validAddress(path.trim()) || taken}
-          onChange={(event) => { onChange({ input: { ...input, path: event.target.value } }); }} />
-        {input.type === "addressRange" && <>
-          <input aria-label="Value at 0" key={`low ${input.low}`} type="number" step="any" required defaultValue={input.low} aria-invalid={!(input.low < input.high)}
-            onBlur={(event) => {
-              const low = Number(event.currentTarget.value);
-              if (event.currentTarget.value !== "" && Number.isFinite(low) && low !== input.low) onChange({ input: { ...input, low } });
-            }} />
-          <span>to</span>
-          <input aria-label="Value at 1" key={`high ${input.high}`} type="number" step="any" required defaultValue={input.high} aria-invalid={!(input.low < input.high)}
-            onBlur={(event) => {
-              const high = Number(event.currentTarget.value);
-              if (event.currentTarget.value !== "" && Number.isFinite(high) && high !== input.high) onChange({ input: { ...input, high } });
-            }} />
-        </>}
+      <TextField name="Address" value={path} placeholder="/chord/change" invalid={!validAddress(path.trim()) || taken}
+        onCommit={(next) => { onChange({ input: { ...input, path: next } }); }} />
+      {input.type === "addressRange" && <>
+        <NumberField name="Value at 0" value={input.low} step={AXIS_VALUE_STEP} defaultValue={0} invalid={!(input.low < input.high)} onCommit={(low) => { onChange({ input: { ...input, low } }); }} />
+        <span>to</span>
+        <NumberField name="Value at 1" value={input.high} step={AXIS_VALUE_STEP} defaultValue={1} invalid={!(input.low < input.high)} onCommit={(high) => { onChange({ input: { ...input, high } }); }} />
       </>}
       <LearnButton learning={learning === "input"} onLearn={onLearn} />
     </Cell>
@@ -555,18 +508,16 @@ function KeyInputCell({ code, codes, taken, used, limits, learning, onLearn, onC
   onChange: (code: string) => void;
 }) {
   return <Cell className={learning === "input" ? "compound learning" : "compound"}>
-    {learning === "input" ? <span className="learn-hint">{LEARN_HINTS.keyboard}</span>
-      : <select aria-label="Key" value={code} aria-invalid={taken} onChange={(event) => { onChange(event.target.value); }}>
-        {codes.map((candidate) => <option key={candidate} value={candidate} disabled={candidate !== code && !isFree({ type: "key", code: candidate }, used, limits)}>{candidate}</option>)}
-      </select>}
+    <Select name="Key" value={code} invalid={taken} onChange={onChange}
+      options={codes.map((candidate) => ({ value: candidate, label: candidate, disabled: candidate !== code && !isFree({ type: "key", code: candidate }, used, limits) }))} />
     <LearnButton learning={learning === "input"} onLearn={onLearn} />
   </Cell>;
 }
 
-/** Starts learning a control's input from the device, or stops it. */
+/** Starts learning a control's input from the device, or stops it; pressed while it listens. */
 function LearnButton({ learning, onLearn }: { learning: boolean; onLearn: (part: LearnPart | null) => void }) {
-  return <button type="button" className="control-icon learn" aria-pressed={learning} aria-label="Learn input" title={learning ? "Stop listening (Esc)" : "Set this input by using the control"}
-    onClick={() => { onLearn(learning ? null : "input"); }}><CircleDot size={14} /></button>;
+  return <IconButton icon={CircleDot} className="control-icon learn" pressed={learning} label={learning ? "Listening: use the control, or press again to stop" : "Learn input from the control"}
+    onClick={() => { onLearn(learning ? null : "input"); }} />;
 }
 
 /** One bordered cell of the control grid. Borders belong to cells alone, never to the controls inside them. */

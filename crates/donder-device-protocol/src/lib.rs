@@ -1,5 +1,5 @@
-//! The wire protocol between the editor and a Donder controller: HTTP paths
-//! and the token header, the JSON bodies of commands and replies, and the UDP
+//! The wire protocol between the editor and a Donder controller: HTTP paths,
+//! the JSON bodies of commands and replies, and the UDP
 //! clock exchange on the controller's HTTP port. The desktop and the firmware both read and write these
 //! types, so each message has one layout.
 #![no_std]
@@ -10,14 +10,13 @@ use core::num::NonZeroU32;
 use donder_runtime::{FrameTiming, PlaybackRate};
 use serde::{Deserialize, Serialize};
 
-/// The header that carries the claim token on every request but a claim.
-pub const TOKEN_HEADER: &str = "X-Donder-Token";
+/// The WPA2 password of a controller's own access point.
+pub const ACCESS_POINT_PASSWORD: &str = "12345678";
 
-/// HTTP paths. A claim replies with the token; a name or network change
+/// HTTP paths. A name or network change
 /// takes its value as the body; a show upload replies
 /// starting with [`LOADED`](super::LOADED).
 pub mod path {
-    pub const CLAIM: &str = "/claim";
     pub const NAME: &str = "/name";
     pub const NETWORK: &str = "/network";
     pub const SHOW: &str = "/show";

@@ -1,53 +1,55 @@
+import { Plus, X } from "lucide-react";
 import type { ConsoleAction, ConsoleGuiDocument, ConsolePlayLength, ConsolePlayedQuantity, ConsolePlayedValue } from "../../../types";
+import { AddRow, Field, IconButton, NumberField, Section, Select } from "../../kit";
 import { WindowFields } from "../WindowFields";
 import { controllerOf, controlKey, controlRef, FULL_WINDOW } from "./consoleEditing";
 
 /** Every quantity but velocity needs a button that reads notes. */
-const PLAYED_QUANTITIES: { quantity: ConsolePlayedQuantity; label: string; needsNote: boolean }[] = [
-  { quantity: "velocity", label: "Velocity", needsNote: false },
-  { quantity: "pitch", label: "Pitch (place in the note range)", needsNote: true },
-  { quantity: "pitchClass", label: "Note name (C to B)", needsNote: true },
-  { quantity: "fifths", label: "Circle of fifths", needsNote: true }
+const PLAYED_QUANTITIES: { value: ConsolePlayedQuantity; label: string; needsNote: boolean }[] = [
+  { value: "velocity", label: "Velocity", needsNote: false },
+  { value: "pitch", label: "Pitch", needsNote: true },
+  { value: "pitchClass", label: "Note name", needsNote: true },
+  { value: "fifths", label: "Fifths", needsNote: true }
 ];
 
-/** A seconds field that commits a changed value when it loses focus. */
+const FROM_TIP = "Velocity: how hard it was played. Pitch: its place in the note range. Note name: C to B. Fifths: its place on the circle of fifths.";
+
+const LENGTHS = [{ value: "fixed", label: "Fixed" }, { value: "scaled", label: "Scaled" }] as const;
+
+/** The select's value for scaling by velocity rather than an axis. */
+const BY_VELOCITY = "velocity";
+
+const SECONDS_STEP = 0.1;
+
 function SecondsField({ label, seconds, onChange }: { label: string; seconds: number; onChange: (seconds: number) => void }) {
-  return <label>{label}<input key={seconds} type="number" min={0} step="any" defaultValue={seconds} onBlur={(event) => {
-    const next = Number(event.currentTarget.value);
-    if (next !== seconds) onChange(next);
-  }} /></label>;
+  return <Field label={label}><NumberField name={label} value={seconds} step={SECONDS_STEP} min={0} unit="s" onCommit={onChange} /></Field>;
 }
 
 /** How long a played copy lasts: a fixed length, or one scaled by the
  * press's velocity or an axis between the shortest and longest. */
 function PlayLengthFields({ document, length, onChange }: { document: ConsoleGuiDocument; length: ConsolePlayLength; onChange: (length: ConsolePlayLength) => void }) {
-  const by = length.type === "scaled" ? (length.by.type === "velocity" ? "velocity" : controlKey(length.by.control)) : "";
+  const by = length.type === "scaled" ? (length.by.type === "velocity" ? BY_VELOCITY : controlKey(length.by.control)) : BY_VELOCITY;
   const axes = document.inputDevices.flatMap((device) => device.axes.map((axis) => ({ name: `${device.name}.${axis.name}`, ref: controlRef(device, axis) })));
   return <>
-    <div className="inspector-inline-row">
-      <label>Length<select value={length.type} onChange={(event) => {
+    <Field label="Length">
+      <Select name="Length" value={length.type} options={LENGTHS} onChange={(type) => {
         const seconds = length.type === "fixed" ? length.durationSeconds : length.longestSeconds;
-        onChange(event.currentTarget.value === "scaled"
+        onChange(type === "scaled"
           ? { type: "scaled", by: { type: "velocity" }, shortestSeconds: seconds, longestSeconds: seconds }
           : { type: "fixed", durationSeconds: seconds });
-      }}>
-        <option value="fixed">Fixed</option>
-        <option value="scaled">Scaled</option>
-      </select></label>
-      {length.type === "fixed" && <SecondsField label="Seconds" seconds={length.durationSeconds} onChange={(durationSeconds) => { onChange({ type: "fixed", durationSeconds }); }} />}
-    </div>
-    {length.type === "scaled" && <div className="inspector-inline-row">
-      <label>By<select value={by} onChange={(event) => {
-        const value = event.currentTarget.value;
-        const axis = axes.find((candidate) => controlKey(candidate.ref) === value);
-        onChange({ ...length, by: axis === undefined ? { type: "velocity" } : { type: "axis", control: axis.ref } });
-      }}>
-        <option value="velocity">Velocity</option>
-        {axes.map((axis) => <option key={controlKey(axis.ref)} value={controlKey(axis.ref)}>{axis.name}</option>)}
-      </select></label>
+      }} />
+    </Field>
+    {length.type === "fixed" && <SecondsField label="Seconds" seconds={length.durationSeconds} onChange={(durationSeconds) => { onChange({ type: "fixed", durationSeconds }); }} />}
+    {length.type === "scaled" && <>
+      <Field label="By">
+        <Select name="Scaled by" value={by} onChange={(value) => {
+          const axis = axes.find((candidate) => controlKey(candidate.ref) === value);
+          onChange({ ...length, by: axis === undefined ? { type: "velocity" } : { type: "axis", control: axis.ref } });
+        }} options={[{ value: BY_VELOCITY, label: "Velocity" }, ...axes.map((axis) => ({ value: controlKey(axis.ref), label: axis.name }))]} />
+      </Field>
       <SecondsField label="Shortest" seconds={length.shortestSeconds} onChange={(shortestSeconds) => { onChange({ ...length, shortestSeconds }); }} />
       <SecondsField label="Longest" seconds={length.longestSeconds} onChange={(longestSeconds) => { onChange({ ...length, longestSeconds }); }} />
-    </div>}
+    </>}
   </>;
 }
 
@@ -60,33 +62,35 @@ function PlayedValues({ document, clipId, values, notes, onChange }: {
   notes: boolean;
   onChange: (values: ConsolePlayedValue[]) => void;
 }) {
-  const params = (document.clips.find((clip) => clip.id === clipId)?.params ?? [])
+  const clip = document.clips.find((candidate) => candidate.id === clipId);
+  const params = (clip?.params ?? [])
     .filter((param) => param.supportsAutomation && controllerOf(document, { type: "clipParam", clipId, param: param.name }) === undefined)
     .map((param) => param.name);
   const free = params.find((param) => !values.some((value) => value.param === param));
-  return <div className="clip-param-section">
-    <h3>Played values</h3>
-    {values.length === 0 && <p className="object-overview-empty">Each press starts the effect as set. Add a played value to set a parameter from how hard or which note was played.</p>}
-    {values.map((value, index) => <div key={value.param} className="inspector-inline-row">
-      <label>Parameter<select value={value.param} onChange={(event) => {
-        onChange(values.map((other, i) => i === index ? { ...other, param: event.currentTarget.value } : other));
-      }}>
-        {!params.includes(value.param) && <option value={value.param} disabled>{value.param}</option>}
-        {params.map((param) => <option key={param} value={param} disabled={param !== value.param && values.some((other) => other.param === param)}>{param}</option>)}
-      </select></label>
-      <label>From<select value={value.from} onChange={(event) => {
-        const from = PLAYED_QUANTITIES.find((choice) => choice.quantity === event.currentTarget.value)?.quantity;
-        if (from !== undefined) onChange(values.map((other, i) => i === index ? { ...other, from } : other));
-      }}>
-        {PLAYED_QUANTITIES.map((choice) => <option key={choice.quantity} value={choice.quantity} disabled={choice.needsNote && !notes}>{choice.label}</option>)}
-      </select></label>
-      <WindowFields value={value.window} range={document.clips.find((clip) => clip.id === clipId)?.params.find((param) => param.name === value.param)?.range ?? null} onChange={(bounds) => { onChange(values.map((other, i) => i === index ? { ...other, window: bounds } : other)); }} />
-      <button type="button" onClick={() => { onChange(values.filter((_, i) => i !== index)); }}>Remove</button>
-    </div>)}
-    <button type="button" disabled={free === undefined} onClick={() => {
-      if (free !== undefined) onChange([...values, { param: free, from: "velocity", window: FULL_WINDOW }]);
-    }}>Add played value</button>
-  </div>;
+  const add = () => { if (free !== undefined) onChange([...values, { param: free, from: "velocity", window: FULL_WINDOW }]); };
+  const label = "Add played value";
+  return <Section title="Played values" actions={values.length > 0 ? <IconButton icon={Plus} label={label} disabled={free === undefined} onClick={add} /> : undefined}>
+    {values.length === 0 && <AddRow label={label} disabled={free === undefined} onAdd={add} />}
+    {values.map((value, index) => {
+      const change = (next: Partial<ConsolePlayedValue>) => { onChange(values.map((other, i) => i === index ? { ...other, ...next } : other)); };
+      return <div key={value.param} className="console-played-value">
+        <Field label="Parameter">
+          <Select name="Parameter" value={value.param} onChange={(param) => { change({ param }); }} options={[
+            ...(params.includes(value.param) ? [] : [{ value: value.param, label: value.param, disabled: true }]),
+            ...params.map((param) => ({ value: param, label: param, disabled: param !== value.param && values.some((other) => other.param === param) }))
+          ]} />
+          <IconButton icon={X} label="Remove played value" danger onClick={() => { onChange(values.filter((_, i) => i !== index)); }} />
+        </Field>
+        <Field label="From" tip={FROM_TIP}>
+          <Select name="From" value={value.from} onChange={(from) => { change({ from }); }}
+            options={PLAYED_QUANTITIES.map((choice) => ({ value: choice.value, label: choice.label, disabled: choice.needsNote && !notes }))} />
+        </Field>
+        <Field label="Range">
+          <WindowFields value={value.window} range={clip?.params.find((param) => param.name === value.param)?.range ?? null} onChange={(window) => { change({ window }); }} />
+        </Field>
+      </div>;
+    })}
+  </Section>;
 }
 
 /** What one action does to the effect it plays: its copies and length, and
@@ -103,10 +107,7 @@ export function PlayFields({ document, action, press, notes, onChange }: {
   if (action.type !== "play" && action.type !== "start" && action.type !== "toggle") return null;
   return <>
     {action.type === "play" && <>
-      <label>Copies<input key={action.copies} type="number" min={1} max={document.maxCopies} step={1} defaultValue={action.copies} onBlur={(event) => {
-        const copies = Number(event.currentTarget.value);
-        if (copies !== action.copies) onChange({ ...action, copies });
-      }} /></label>
+      <Field label="Copies"><NumberField name="Copies" value={action.copies} step={1} min={1} max={document.maxCopies} defaultValue={1} integer onCommit={(copies) => { onChange({ ...action, copies }); }} /></Field>
       <PlayLengthFields document={document} length={action.length} onChange={(length) => { onChange({ ...action, length }); }} />
     </>}
     {press && <PlayedValues document={document} clipId={action.clipId} values={action.values} notes={notes} onChange={(values) => { onChange({ ...action, values }); }} />}

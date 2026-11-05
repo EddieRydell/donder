@@ -7,8 +7,10 @@ import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, useContext } from "react";
+import { createStore, useStore, type StoreApi } from "zustand";
 
-import { ArrowRight, ChevronRight, Scissors, Trash2 } from "lucide-react";
+import { ChevronRight, Scissors, Trash2 } from "lucide-react";
+import { ContextMenuEntries, type MenuEntry } from "../../kit";
 
 import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
@@ -65,14 +67,14 @@ import {
   detachedAutomationTargetLabel
 } from "./sequenceAutomationLayout";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
-import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
+import { definitionEntries, definitionTree } from "./definitionMenu";
 import { clipEdgeSnapTimes, markSnapTimes, snapDeltaToTimes, snapToTime } from "./sequenceSnap";
 import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 import { CascadeDialog, ClipArrangeMenus } from "./ClipArrange";
 import { ClipMatchDialog, ClipMatchMenuItems, type ClipMatchSeed, type MatchClips } from "./ClipMatch";
 import { sameGuiDocument } from "../../../snapshotState";
 
-import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextClipSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedClipId, selectionCount, selectionFromMarqueeClips, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, setMarkDraft, singleSelectionFocus, clipIdsOfKind, clipRefs, hasClip, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
+import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextClipSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedClipId, selectionCount, selectionFromMarqueeClips, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, sequenceSelectionsEqual, setMarkDraft, singleSelectionFocus, clipIdsOfKind, clipRefs, hasClip, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
 const SEQUENCE_FOLLOW = {
   edge: THEME_METRICS.sequenceFollowEdge,
@@ -93,6 +95,7 @@ const SEQUENCE_CANVAS = {
   minPxPerSecond: THEME_METRICS.sequenceMinPixelsPerSecond,
   maxPxPerSecond: THEME_METRICS.sequenceMaxPixelsPerSecond,
   maxZoomPxPerSecond: THEME_METRICS.sequenceMaxZoomPixelsPerSecond,
+  keyZoomFactor: THEME_METRICS.sequenceKeyZoomFactor,
   minLaneHeightPx: THEME_METRICS.sequenceMinLaneHeight,
   maxLaneHeightPx: THEME_METRICS.sequenceMaxLaneHeight,
   audioResizeHitHeightPx: THEME_METRICS.sequenceAudioResizeHitHeight,
@@ -159,6 +162,8 @@ type LaneContextMenu = Extract<SequenceContextMenu, { laneIndex: number }>;
 /** What a pointer in the ruler and waveform strip would grab. */
 type SeekHover = { target: "playhead" | "rangeEdge" | "home" | "time"; seconds: number };
 const SEEK_HOVER_CURSORS = { playhead: "grab", rangeEdge: "ew-resize", home: "text", time: "text" } as const;
+/** What the transport overlay shows of a pointer gesture; only the overlay re-renders as it changes. */
+type SequenceOverlayState = { seekHover: SeekHover | null; rangeDraft: PlaybackRange | null };
 
 function rowResizeHit(
   y: number,
@@ -244,10 +249,34 @@ export function SequenceCanvas({
   const [groupDraft, setGroupDraft] = useState<SequenceDraft[]>([]);
   const [markDrafts, setMarkDrafts] = useState<MarkDraftLookup>(() => new Map());
   const [sequenceContextMenu, setSequenceContextMenu] = useState<SequenceContextMenu | null>(null);
-  const [hover, setHover] = useState<SequenceHover>(null);
-  const [rowResizeHover, setRowResizeHover] = useState<{ laneIndex: number; rowKind: SequenceRowKind } | null>(null);
-  const [stripResizeHover, setStripResizeHover] = useState<TimelineStrip | null>(null);
-  const [gutterResizeHover, setGutterResizeHover] = useState(false);
+  // Pointer-move state lives in refs and repaints the canvas on the next frame, so moving the
+  // pointer does not re-render the editor. React state keeps what changes the rendered elements.
+  const paintRef = useRef<() => void>(() => undefined);
+  const paintFrame = useRef<number | null>(null);
+  const requestPaint = useCallback(() => {
+    if (paintFrame.current !== null) return;
+    paintFrame.current = window.requestAnimationFrame(() => {
+      paintFrame.current = null;
+      paintRef.current();
+    });
+  }, []);
+  useEffect(() => () => { if (paintFrame.current !== null) window.cancelAnimationFrame(paintFrame.current); }, []);
+  const setTransient = <T,>(ref: RefObject<T>, next: T) => {
+    if (ref.current === next) return;
+    ref.current = next;
+    requestPaint();
+  };
+  const hoverRef = useRef<SequenceHover>(null);
+  const setHover = (next: SequenceHover) => { if (!sequenceHoverEqual(hoverRef.current, next)) setTransient(hoverRef, next); };
+  const rowResizeHoverRef = useRef<{ laneIndex: number; rowKind: SequenceRowKind } | null>(null);
+  const setRowResizeHover = (next: { laneIndex: number; rowKind: SequenceRowKind } | null) => {
+    const previous = rowResizeHoverRef.current;
+    if (previous?.laneIndex !== next?.laneIndex || previous?.rowKind !== next?.rowKind) setTransient(rowResizeHoverRef, next);
+  };
+  const stripResizeHoverRef = useRef<TimelineStrip | null>(null);
+  const setStripResizeHover = (next: TimelineStrip | null) => { setTransient(stripResizeHoverRef, next); };
+  const gutterResizeHoverRef = useRef(false);
+  const setGutterResizeHover = (next: boolean) => { setTransient(gutterResizeHoverRef, next); };
   // The "×N" badge of the lane under the pointer, and the tooltip shown after the hover delay.
   const [badgeHover, setBadgeHover] = useState<SharedBadgeHover | null>(null);
   const [badgeDelayed, setBadgeDelayed] = useState<SharedBadgeHover | null>(null);
@@ -256,13 +285,20 @@ export function SequenceCanvas({
     const timer = window.setTimeout(() => { setBadgeDelayed(badgeHover); }, THEME_METRICS.tooltipDelayMs);
     return () => { window.clearTimeout(timer); };
   }, [badgeHover]);
-  const [dragCursor, setDragCursor] = useState<"grabbing" | null>(null);
-  const [seekHover, setSeekHover] = useState<SeekHover | null>(null);
-  const [rangeDraft, setRangeDraft] = useState<PlaybackRange | null>(null);
+  const dragCursorRef = useRef<"grabbing" | null>(null);
+  const setDragCursor = (next: "grabbing" | null) => { setTransient(dragCursorRef, next); };
+  const [overlay] = useState(() => createStore<SequenceOverlayState>(() => ({ seekHover: null, rangeDraft: null })));
+  const setSeekHover = (next: SeekHover | null) => {
+    const previous = overlay.getState().seekHover;
+    if (previous?.target === next?.target && previous?.seconds === next?.seconds) return;
+    overlay.setState({ seekHover: next });
+    requestPaint();
+  };
+  const setRangeDraft = (rangeDraft: PlaybackRange | null) => { overlay.setState({ rangeDraft }); };
   const tool = useSequenceTool((state) => state.tool);
   const setTool = useSequenceTool((state) => state.setTool);
-  const [sliceGuide, setSlice] = useState<SliceGuide | null>(null);
-  const slice = tool === "slice" ? sliceGuide : null;
+  const sliceGuideRef = useRef<SliceGuide | null>(null);
+  const setSlice = (next: SliceGuide | null) => { setTransient(sliceGuideRef, next); };
   // A target may have several lanes; the selection keeps the chosen lane, or its target's nearest
   // lane after the layout changes.
   const [selectedRow, setSelectedRow] = useState<{ target: FixtureTarget; lane: number } | null>(null);
@@ -271,7 +307,13 @@ export function SequenceCanvas({
     : nearestLane(document, selectedRow.target, selectedRow.lane);
   const setSelectedLaneIndex = (index: number) => { setSelectedRow({ target: targetAtLane(document, index), lane: index }); };
   const [selectedTimeSeconds, setSelectedTimeSeconds] = useState<number | null>(null);
-  const [marquee, setMarquee] = useState<SequenceMarquee | null>(null);
+  const marqueeRef = useRef<SequenceMarquee | null>(null);
+  // A clip box lays out the whole sequence, so only its opening and closing re-render.
+  const [clipMarqueeOpen, setClipMarqueeOpen] = useState(false);
+  const setMarquee = (next: SequenceMarquee | null) => {
+    setClipMarqueeOpen(next?.mode === "clips");
+    setTransient(marqueeRef, next);
+  };
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const sequenceScrollbar = useRef<{ pointerId: number; startX: number; startScroll: number } | null>(null);
   const restoreState = useAppStore((store) => store.restoreState);
@@ -326,7 +368,8 @@ export function SequenceCanvas({
     [document.markCollections, visibleMarkCollectionKeys]
   );
   const markTimes = useMemo(() => markSnapTimes(visibleMarkCollections), [visibleMarkCollections]);
-  const [automationHover, setAutomationHover] = useState<AutomationHover | null>(null);
+  const automationHoverRef = useRef<AutomationHover | null>(null);
+  const setAutomationHover = (next: AutomationHover | null) => { if (!automationHoverEqual(automationHoverRef.current, next)) setTransient(automationHoverRef, next); };
   const sharedBadgeAt = (x: number, y: number): SharedBadgeHover | null => {
     if (x < sharedBadgeX(left) || x >= left || y < top) return null;
     const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
@@ -336,17 +379,21 @@ export function SequenceCanvas({
   // The tooltip shows once the hover delay passes, until scrolling or resizing moves the badge.
   const badgeTooltip = badgeHover !== null && badgeDelayed === badgeHover && badgeHover.scrollY === viewport.scrollY && badgeHover.left === left ? badgeHover : null;
   const badgeLane = badgeTooltip === null ? undefined : document.lanes[badgeTooltip.laneIndex];
-  const canvasCursor =
-    dragCursor ??
-    (slice !== null ? "crosshair" :
-    seekHover !== null ? SEEK_HOVER_CURSORS[seekHover.target] :
-    stripResizeHover !== null || rowResizeHover !== null ? "ns-resize" :
-    gutterResizeHover ? "ew-resize" :
-    (automationClipChooser !== null && automationHover !== null
-      ? "pointer"
-      : automationHover !== null
-      ? automationHover.resize === "none" ? "grab" : "ew-resize"
-      : hover === null ? undefined : hover.kind === "mark" ? "pointer" : hover.resize === "none" ? "grab" : "ew-resize"));
+  const canvasCursor = (slice: SliceGuide | null) => {
+    const seekHover = overlay.getState().seekHover;
+    const automationHover = automationHoverRef.current;
+    const hover = hoverRef.current;
+    return dragCursorRef.current ??
+      (slice !== null ? "crosshair" :
+      seekHover !== null ? SEEK_HOVER_CURSORS[seekHover.target] :
+      stripResizeHoverRef.current !== null || rowResizeHoverRef.current !== null ? "ns-resize" :
+      gutterResizeHoverRef.current ? "ew-resize" :
+      (automationClipChooser !== null && automationHover !== null
+        ? "pointer"
+        : automationHover !== null
+        ? automationHover.resize === "none" ? "grab" : "ew-resize"
+        : hover === null ? "" : hover.kind === "mark" ? "pointer" : hover.resize === "none" ? "grab" : "ew-resize"));
+  };
 
   const updateSequenceSelection = useCallback((selection: SequenceSelection) => {
     sequenceSelectionRef.current = selection;
@@ -468,13 +515,15 @@ export function SequenceCanvas({
       setAutomationCurveDraft(null);
       setMarkDrafts(new Map());
       setRevealAutomation(false);
-      setDragCursor(null);
-      setMarquee(null);
+      dragCursorRef.current = null;
+      marqueeRef.current = null;
+      setClipMarqueeOpen(false);
       setSequenceContextMenu(null);
+      requestPaint();
     };
     window.addEventListener(GUI_HISTORY_CHANGED_EVENT, clearHistorySelection);
     return () => { window.removeEventListener(GUI_HISTORY_CHANGED_EVENT, clearHistorySelection); };
-  }, [setSelected, updateSequenceSelection]);
+  }, [requestPaint, setSelected, updateSequenceSelection]);
 
 
   useEffect(() => {
@@ -564,7 +613,6 @@ export function SequenceCanvas({
     [canvasSize, document, groupDraft, left, top, viewport, rows]
   );
   // A clip box covers the whole sequence, so clips it holds stay selected after they scroll out of view.
-  const clipMarqueeOpen = marquee?.mode === "clips";
   const marqueeContent = useMemo(() => {
     if (!clipMarqueeOpen) return null;
     const content = { ...viewport, scrollXSeconds: 0, scrollY: 0 };
@@ -596,6 +644,8 @@ export function SequenceCanvas({
       selectedByBox = selectionFromMarqueeClips(marqueeContent.clips, marqueeContent.automation, box);
     }
     const merged = mergeSequenceSelection(sequenceSelectionRef.current, selectedByBox, next.shift, next.ctrl);
+    // Most moves keep the box's contents; those leave the editor's state alone.
+    if (sequenceSelectionsEqual(sequenceSelectionRef.current, merged)) return;
     updateSequenceSelection(merged);
     setSelected(null);
     const startSeconds = selectionStartSeconds(document, merged);
@@ -616,17 +666,19 @@ export function SequenceCanvas({
     [automationClipsForLayout, rows, canvasSize, left, top, viewport]
   );
   const clipRasters = useSequenceClipRasters(document, visibleRasterClips);
+  /** The slice tool's cut line, while the tool is on. */
+  const activeSlice = () => tool === "slice" ? sliceGuideRef.current : null;
   // The clips the cut line crosses, each strictly inside its span.
-  const sliceTargets = useMemo(() => {
+  const sliceTargetsOf = (slice: SliceGuide | null) => {
     if (slice === null) return [];
     const fromY = Math.min(slice.fromY, slice.toY);
     const toY = Math.max(slice.fromY, slice.toY);
     return visibleClips.filter((clip) =>
       clip.rect.y <= toY && clip.rect.y + clip.rect.height >= fromY
       && clip.clip.startSeconds < slice.seconds && slice.seconds < clip.clip.startSeconds + clip.clip.durationSeconds);
-  }, [slice, visibleClips]);
+  };
   const selectedClipIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? clipIdsOfKind(sequenceSelection.clips, "clip") : []), [sequenceSelection]);
-  const activeAutomationTargetClipIds = useMemo(() => {
+  const automationTargetClipIds = (automationHover: AutomationHover | null) => {
     const automationClipIds = new Set<number>();
     if (selected?.type === "automationClip") automationClipIds.add(selected.id);
     if (automationHover !== null) automationClipIds.add(automationHover.automationClipId);
@@ -639,15 +691,25 @@ export function SequenceCanvas({
       }
     }
     return clipIds;
-  }, [automationHover, document.automationClips, selected]);
+  };
   const selectedMarks = useMemo(
     () => markRefLookup(sequenceSelection?.type === "marks" ? sequenceSelection.marks : []),
     [sequenceSelection]
   );
 
-  useEffect(() => {
+  const paint = () => {
     const target = canvas.current;
     if (!target) return;
+    const hover = hoverRef.current;
+    const automationHover = automationHoverRef.current;
+    const rowResizeHover = rowResizeHoverRef.current;
+    const stripResizeHover = stripResizeHoverRef.current;
+    const gutterResizeHover = gutterResizeHoverRef.current;
+    const marquee = marqueeRef.current;
+    const slice = activeSlice();
+    const sliceTargets = sliceTargetsOf(slice);
+    const activeAutomationTargetClipIds = automationTargetClipIds(automationHover);
+    target.style.cursor = canvasCursor(slice);
     const rect = target.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     target.width = Math.max(1, Math.floor(rect.width * dpr));
@@ -884,8 +946,12 @@ export function SequenceCanvas({
       ctx.fillStyle = SEQUENCE_COLORS.accent;
       ctx.fillRect(left - indicatorWidth / 2, 0, indicatorWidth, rect.height);
     }
-
-  }, [slice, sliceTargets, activeAutomationTargetClipIds, stripResizeHover, gutterResizeHover, automationCurveDraft, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedClipIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
+  };
+  // Every render paints with its state; pointer moves between renders paint through `paintRef`.
+  useEffect(() => {
+    paintRef.current = paint;
+    paint();
+  });
 
   const seekTimeFromCanvasX = (x: number) =>
     clamp(Math.round((viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond) / SEQUENCE_CANVAS.scrubStepSeconds) * SEQUENCE_CANVAS.scrubStepSeconds, 0, document.durationSeconds);
@@ -1074,6 +1140,43 @@ export function SequenceCanvas({
       ...document.markCollections.filter((collection) => collection.key !== activeMarkCollectionKey)
     ];
   };
+  /** The context menu's items for the place right-clicked, before the clip-arranging submenus. */
+  const placeMenuEntries = (menu: SequenceContextMenu): MenuEntry[] => {
+    const markEntries: MenuEntry[] = document.markCollections.length === 0
+      ? [{ type: "action", label: "Marks", onSelect: () => { void addMark(null, menu.startSeconds); } }]
+      : markCollectionsForMenu().map((collection) => ({ type: "action", label: collection.key, color: collection.color, onSelect: () => { void addMark(collection.key, menu.startSeconds); } }));
+    return [
+      { type: "action", label: "Set Playhead", onSelect: () => { void runSnapshotCommand(() => commands.audioSeek(menu.startSeconds)); } },
+      { type: "submenu", label: "Add Mark", entries: markEntries },
+      ...(laneContextMenu === null ? [] : [{ type: "action", label: "Add Automation", onSelect: () => { void addAutomationClipFromContextMenu(laneContextMenu); } } satisfies MenuEntry])
+    ];
+  };
+  /** The context menu's items for the object right-clicked. */
+  const objectMenuEntries = (menu: SequenceContextMenu): MenuEntry[] => {
+    if (menu.kind === "clip") {
+      const targets = document.lanes.filter((lane, index) => document.lanes.findIndex((other) => targetsEqual(other.target, lane.target)) === index);
+      return [
+        { type: "separator" },
+        { type: "submenu", label: "Retarget", entries: targets.map((lane) => ({ type: "action", label: lane.label, onSelect: () => { void retargetContextClip(menu.clipId, lane.target); } })) },
+        { type: "action", label: "Split", icon: Scissors, onSelect: () => { void splitClips([menu.clipId], menu.startSeconds); } },
+        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "clips", clips: [{ type: "clip", id: menu.clipId }] }); } }
+      ];
+    }
+    if (menu.kind === "automation") {
+      return [
+        { type: "separator" },
+        { type: "action", label: "Split", icon: Scissors, onSelect: () => { void splitAutomationClip(menu.automationClipId, menu.startSeconds); } },
+        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "clips", clips: [{ type: "automation", id: menu.automationClipId }] }); } }
+      ];
+    }
+    if (menu.kind === "mark") {
+      return [
+        { type: "separator" },
+        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "marks", marks: [{ collectionKey: menu.collectionKey, index: menu.index }] }); } }
+      ];
+    }
+    return [];
+  };
 
   const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
   const activeSelection = sequenceSelection ?? selectionFromSingle(selected);
@@ -1174,8 +1277,28 @@ export function SequenceCanvas({
   const arrowCommand = (direction: -1 | 1) => selectedMark === null
     ? transportCommands[direction < 0 ? "edit.moveLeft" : "edit.moveRight"]
     : { enabled: editable, run: ({ shift }: { shift: boolean }) => { nudgeMark(selectedMark, direction, shift); } };
+  // = and - zoom about the playhead, or about the view's center while the playhead is off screen.
+  const zoomTimeline = (direction: -1 | 1) => () => {
+    const target = canvas.current;
+    if (target === null) return;
+    const timelineWidth = Math.max(1, target.getBoundingClientRect().width - left);
+    const playheadSeconds = useAppStore.getState().snapshot?.audioTransport.positionSeconds;
+    setViewport((current) => {
+      const playheadX = playheadSeconds === undefined ? -1 : (playheadSeconds - current.scrollXSeconds) * current.pxPerSecond;
+      const anchorX = playheadX >= 0 && playheadX <= timelineWidth ? playheadX : timelineWidth / 2;
+      const anchorTime = current.scrollXSeconds + anchorX / current.pxPerSecond;
+      const pxPerSecond = clamp(
+        current.pxPerSecond * SEQUENCE_CANVAS.keyZoomFactor ** direction,
+        minSequencePxPerSecond(timelineWidth, document.durationSeconds),
+        SEQUENCE_CANVAS.maxZoomPxPerSecond
+      );
+      return { ...current, pxPerSecond, scrollXSeconds: clamp(anchorTime - anchorX / pxPerSecond, 0, Math.max(0, document.durationSeconds - timelineWidth / pxPerSecond)) };
+    });
+  };
   useEditorCommands(canvas, {
     ...transportCommands,
+    "view.zoomIn": { run: zoomTimeline(1) },
+    "view.zoomOut": { run: zoomTimeline(-1) },
     "edit.cancel": {
       enabled: () => automationClipChooser !== null || tool === "slice" || (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null,
       run: () => {
@@ -1215,7 +1338,6 @@ export function SequenceCanvas({
             ref={canvas}
             className="gui-canvas"
             style={{
-              ...(canvasCursor === undefined ? {} : { cursor: canvasCursor }),
               clipPath: `polygon(0 0, 100% 0, 100% calc(100% - var(--donder-scrollbar-width)), ${left}px calc(100% - var(--donder-scrollbar-width)), ${left}px 100%, 0 100%)`
             }}
             tabIndex={0}
@@ -1654,9 +1776,7 @@ export function SequenceCanvas({
           const gutterResize = stripResize === null && gutterResizeHit(x, left);
           setGutterResizeHover(gutterResize);
           const nextSeekHover = stripResize === null && !gutterResize && x >= left && y < audioStripBottom ? seekHoverAt(x, y) : null;
-          setSeekHover((previous) =>
-            previous?.target === nextSeekHover?.target && previous?.seconds === nextSeekHover?.seconds ? previous : nextSeekHover
-          );
+          setSeekHover(nextSeekHover);
           if (stripResize !== null || gutterResize || nextSeekHover !== null) {
             setSlice(null);
             setRowResizeHover(null);
@@ -1694,12 +1814,8 @@ export function SequenceCanvas({
                 ? { kind: "mark", collectionKey: markHit.collectionKey, index: markHit.index }
                 : null;
           const nextAutomationHover: AutomationHover | null = automationHit === null ? null : { kind: "automation", automationClipId: automationHit.clip.id, resize: choosingAutomation ? "none" : automationHit.resize };
-          setHover((previous) =>
-            sequenceHoverEqual(previous, nextHover) ? previous : nextHover
-          );
-          setAutomationHover((previous) =>
-            automationHoverEqual(previous, nextAutomationHover) ? previous : nextAutomationHover
-          );
+          setHover(nextHover);
+          setAutomationHover(nextAutomationHover);
           return;
         }
         if (!current.active) {
@@ -1766,7 +1882,7 @@ export function SequenceCanvas({
         }
         if (current?.kind === "marquee") return;
         if (current?.kind === "slice") {
-          const clipIds = sliceTargets.map((clip) => clip.clip.id);
+          const clipIds = sliceTargetsOf(activeSlice()).map((clip) => clip.clip.id);
           setSlice({ seconds: current.seconds, fromY: event.nativeEvent.offsetY, toY: event.nativeEvent.offsetY });
           if (clipIds.length > 0) void splitClips(clipIds, current.seconds);
           return;
@@ -1861,62 +1977,14 @@ export function SequenceCanvas({
         {sequenceContextMenu !== null && (
           <ContextMenu.Portal container={overlayContainer}>
             <ContextMenu.Content className="menu-content">
-              {laneContextMenu !== null && (
-                <ContextMenu.Sub>
-                  <ContextMenu.SubTrigger className="menu-item">
-                    Add Effect <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
-                  </ContextMenu.SubTrigger>
-                  <ContextMenu.Portal container={overlayContainer}>
-                    <ContextMenu.SubContent className="menu-content">
-                      <DefinitionMenuItems
-                        menu={ContextMenu}
-                        tree={effectTree}
-                        label={(definition) => definition.name}
-                        itemKey={(definition) => `${definition.effect.path}:${definition.effect.effectName}`}
-                        onSelect={(definition) => void addClipFromContextMenu(definition, laneContextMenu)}
-                        empty="No effects"
-                      />
-                    </ContextMenu.SubContent>
-                  </ContextMenu.Portal>
-                </ContextMenu.Sub>
-              )}
-              <ContextMenu.Item
-                className="menu-item"
-                onSelect={() => {
-                  void runSnapshotCommand(() => commands.audioSeek(sequenceContextMenu.startSeconds));
-                }}
-              >
-                Set Playhead Here
-              </ContextMenu.Item>
-              <ContextMenu.Sub>
-                <ContextMenu.SubTrigger className="menu-item">
-                  Add Mark <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
-                </ContextMenu.SubTrigger>
-                <ContextMenu.Portal container={overlayContainer}>
-                  <ContextMenu.SubContent className="menu-content">
-                    {document.markCollections.length === 0 ? (
-                      <ContextMenu.Item className="menu-item" onSelect={() => void addMark(null, sequenceContextMenu.startSeconds)}>
-                        Marks
-                      </ContextMenu.Item>
-                    ) : (
-                      markCollectionsForMenu().map((collection) => (
-                        <ContextMenu.Item
-                          key={collection.key}
-                          className="menu-item"
-                          onSelect={() => void addMark(collection.key, sequenceContextMenu.startSeconds)}
-                        >
-                          <span style={{ color: collection.color }}>{collection.key}</span>
-                        </ContextMenu.Item>
-                      ))
-                    )}
-                  </ContextMenu.SubContent>
-                </ContextMenu.Portal>
-              </ContextMenu.Sub>
-              {laneContextMenu !== null && (
-                <ContextMenu.Item className="menu-item" onSelect={() => void addAutomationClipFromContextMenu(laneContextMenu)}>
-                  Add Automation Clip
-                </ContextMenu.Item>
-              )}
+              <ContextMenuEntries entries={[
+                ...(laneContextMenu === null ? [] : [{
+                  type: "submenu",
+                  label: "Add Effect",
+                  entries: definitionEntries(effectTree, (definition) => definition.name, (definition) => void addClipFromContextMenu(definition, laneContextMenu), "No effects")
+                }] satisfies MenuEntry[]),
+                ...placeMenuEntries(sequenceContextMenu)
+              ]} />
               {(sequenceContextMenu.kind === "clip" || sequenceContextMenu.kind === "automation") && clipMatch !== null && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
@@ -1947,54 +2015,7 @@ export function SequenceCanvas({
                   />
                 </>
               )}
-              {sequenceContextMenu.kind === "clip" && (
-                <>
-                  <ContextMenu.Separator className="menu-separator" />
-                  <ContextMenu.Sub>
-                    <ContextMenu.SubTrigger className="menu-item">
-                      Retarget Clip <span className="shortcut"><ArrowRight size={THEME_METRICS.iconSizeExtraSmall} aria-hidden="true" /></span>
-                    </ContextMenu.SubTrigger>
-                    <ContextMenu.Portal container={overlayContainer}>
-                      <ContextMenu.SubContent className="menu-content">
-                        {document.lanes.map((lane) => (
-                          <ContextMenu.Item
-                            key={lane.target.fixture}
-                            className="menu-item"
-                            onSelect={() => void retargetContextClip(sequenceContextMenu.clipId, lane.target)}
-                          >
-                            {lane.label}
-                          </ContextMenu.Item>
-                        ))}
-                      </ContextMenu.SubContent>
-                    </ContextMenu.Portal>
-                  </ContextMenu.Sub>
-                  <ContextMenu.Item className="menu-item" onSelect={() => void splitClips([sequenceContextMenu.clipId], sequenceContextMenu.startSeconds)}>
-                    <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Clip Here
-                  </ContextMenu.Item>
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "clip", id: sequenceContextMenu.clipId }] })}>
-                    <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Clip
-                  </ContextMenu.Item>
-                </>
-              )}
-              {sequenceContextMenu.kind === "automation" && (
-                <>
-                  <ContextMenu.Separator className="menu-separator" />
-                  <ContextMenu.Item className="menu-item" onSelect={() => void splitAutomationClip(sequenceContextMenu.automationClipId, sequenceContextMenu.startSeconds)}>
-                    <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Automation Clip Here
-                  </ContextMenu.Item>
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "clips", clips: [{ type: "automation", id: sequenceContextMenu.automationClipId }] })}>
-                    <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Automation Clip
-                  </ContextMenu.Item>
-                </>
-              )}
-              {sequenceContextMenu.kind === "mark" && (
-                <>
-                  <ContextMenu.Separator className="menu-separator" />
-                  <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteItems({ type: "marks", marks: [{ collectionKey: sequenceContextMenu.collectionKey, index: sequenceContextMenu.index }] })}>
-                    <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Mark
-                  </ContextMenu.Item>
-                </>
-              )}
+              <ContextMenuEntries entries={objectMenuEntries(sequenceContextMenu)} />
             </ContextMenu.Content>
           </ContextMenu.Portal>
         )}
@@ -2060,8 +2081,7 @@ export function SequenceCanvas({
         audioStripTop={audioStripTop}
         seekZoneHeight={audioStripBottom}
         followMode={settings?.sequenceFollowMode ?? null}
-        seekHover={seekHover}
-        rangeDraft={rangeDraft}
+        overlay={overlay}
         canvasSize={canvasSize}
         playheadClockRef={playheadClockRef}
       />
@@ -2077,8 +2097,7 @@ function SequenceTransportOverlay({
   audioStripTop,
   seekZoneHeight,
   followMode,
-  seekHover,
-  rangeDraft,
+  overlay,
   canvasSize,
   playheadClockRef
 }: {
@@ -2089,8 +2108,7 @@ function SequenceTransportOverlay({
   audioStripTop: number;
   seekZoneHeight: number;
   followMode: SequenceFollowMode | null;
-  seekHover: SeekHover | null;
-  rangeDraft: PlaybackRange | null;
+  overlay: StoreApi<SequenceOverlayState>;
   canvasSize: { width: number; height: number };
   playheadClockRef: RefObject<(() => number) | null>;
 }) {
@@ -2109,8 +2127,7 @@ function SequenceTransportOverlay({
       audioStripTop={audioStripTop}
       seekZoneHeight={seekZoneHeight}
       followMode={followMode}
-      seekHover={seekHover}
-      rangeDraft={rangeDraft}
+      overlay={overlay}
       canvasSize={canvasSize}
       playheadClockRef={playheadClockRef}
     />
@@ -2126,8 +2143,7 @@ function SequenceTransportMarkers({
   audioStripTop,
   seekZoneHeight,
   followMode,
-  seekHover,
-  rangeDraft,
+  overlay,
   canvasSize,
   playheadClockRef
 }: {
@@ -2139,11 +2155,12 @@ function SequenceTransportMarkers({
   audioStripTop: number;
   seekZoneHeight: number;
   followMode: SequenceFollowMode | null;
-  seekHover: SeekHover | null;
-  rangeDraft: PlaybackRange | null;
+  overlay: StoreApi<SequenceOverlayState>;
   canvasSize: { width: number; height: number };
   playheadClockRef: RefObject<(() => number) | null>;
 }) {
+  const seekHover = useStore(overlay, (state) => state.seekHover);
+  const rangeDraft = useStore(overlay, (state) => state.rangeDraft);
   const liveTransport = useSequenceTransport(transport, playheadClockRef);
   const markerHeight = Math.max(0, canvasSize.height - audioStripTop - THEME_METRICS.scrollbarWidth);
   const markerLeft = (seconds: number) =>
@@ -2203,7 +2220,7 @@ function SequenceTransportMarkers({
       {showSeekHover && (
         <div className="sequence-seek-hover" style={{ left: hoverLeft, top: 0, height: seekZoneHeight }}>
           <span className="sequence-seek-hover-label">
-            {seekHover.target === "home" ? "Home: Stop returns here" : formatSeconds(seekHover.seconds)}
+            {seekHover.target === "home" ? "Home" : formatSeconds(seekHover.seconds)}
           </span>
         </div>
       )}

@@ -5,16 +5,14 @@ use serde::{Deserialize, Serialize};
 pub const MAX_NAME_BYTES: usize = 32;
 
 /// Everything a controller keeps about itself. A missing record is a fresh
-/// controller: default name, its own access point, and unclaimed.
-// Deliberately no Debug: the network password and token must not enter logs.
+/// controller: default name and its own access point.
+// Deliberately no Debug: the network password must not enter logs.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeviceConfig {
     pub name: String,
     /// The station network to join; `None` keeps the controller's access point.
     pub network: Option<Network>,
-    /// Set by the first editor that claims the controller.
-    pub token: Option<[u8; 32]>,
 }
 
 #[derive(Serialize, Deserialize)]

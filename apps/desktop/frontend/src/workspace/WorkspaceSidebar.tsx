@@ -1,12 +1,10 @@
-import * as Dialog from "@radix-ui/react-dialog";
-import * as Tooltip from "@radix-ui/react-tooltip";
-import { AlertTriangle, Files, Search, X } from "lucide-react";
+import { AlertTriangle, Files, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
 import { FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
 import { runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
-import { THEME_METRICS } from "../theme";
 import type {
+  CommandId,
   SidebarView,
   WorkspaceLayoutState,
   WorkspacePathChangePlan
@@ -14,15 +12,17 @@ import type {
 import { ExplorerView } from "./ExplorerView";
 import { ProblemsView } from "./ProblemsView";
 import { SearchView } from "./SearchView";
+import { Button, Dialog, IconButton } from "../ui/kit";
 
 const activityItems: Array<{
   view: SidebarView;
   label: string;
   icon: typeof Files;
+  command: CommandId;
 }> = [
-  { view: "explorer", label: "Explorer", icon: Files },
-  { view: "search", label: "Search", icon: Search },
-  { view: "problems", label: "Problems", icon: AlertTriangle }
+  { view: "explorer", label: "Explorer", icon: Files, command: "view.focusExplorer" },
+  { view: "search", label: "Search", icon: Search, command: "view.focusSearch" },
+  { view: "problems", label: "Problems", icon: AlertTriangle, command: "view.focusProblems" }
 ];
 
 export function WorkspaceSidebar({
@@ -60,34 +60,26 @@ export function WorkspaceSidebar({
   };
 
   return (
-    <Tooltip.Provider delayDuration={THEME_METRICS.tooltipDelayMs}>
+    <>
       <nav className="activity-bar" aria-label="Workbench views">
-        {activityItems.map(({ view, label, icon: Icon }) => (
-          <Tooltip.Root key={view}>
-            <Tooltip.Trigger asChild>
-              <button
-                type="button"
-                className={layout.activeSidebarView === view && !layout.sidebarCollapsed ? "active" : ""}
-                aria-label={label}
-                aria-pressed={layout.activeSidebarView === view && !layout.sidebarCollapsed}
-                onClick={() => {
-                  if (layout.activeSidebarView === view && !layout.sidebarCollapsed) {
-                    onLayoutChange({ ...layout, sidebarCollapsed: true }, true);
-                  } else {
-                    focus(view);
-                  }
-                }}
-              >
-                <Icon size={THEME_METRICS.activityIconSize} />
-                {view === "problems" && snapshot.diagnostics.length > 0 && (
-                  <span className="activity-badge">{snapshot.diagnostics.length}</span>
-                )}
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content className="tooltip-content" side="right">{label}</Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
+        {activityItems.map(({ view, label, icon, command }) => (
+          <IconButton
+            key={view}
+            icon={icon}
+            label={label}
+            command={command}
+            pressed={layout.activeSidebarView === view && !layout.sidebarCollapsed}
+            badge={view === "problems" && snapshot.diagnostics.length > 0
+              ? <span className="activity-badge">{snapshot.diagnostics.length}</span>
+              : undefined}
+            onClick={() => {
+              if (layout.activeSidebarView === view && !layout.sidebarCollapsed) {
+                onLayoutChange({ ...layout, sidebarCollapsed: true }, true);
+              } else {
+                focus(view);
+              }
+            }}
+          />
         ))}
       </nav>
       {!layout.sidebarCollapsed && (
@@ -109,7 +101,7 @@ export function WorkspaceSidebar({
           void runSnapshotCommand(() => commands.applyWorkspacePathChange(request));
         }}
       />
-    </Tooltip.Provider>
+    </>
   );
 }
 
@@ -133,31 +125,26 @@ function PathRefactorDialog({
         ["Persisted editor state", plan.impact.persistedState]
       ] as const;
   return (
-    <Dialog.Root open={plan !== null} onOpenChange={(open) => { if (!open) onCancel(); }}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content path-refactor-dialog">
-          <Dialog.Title>Confirm structural path change</Dialog.Title>
-          <Dialog.Description>
-            Donder will move <strong>{plan?.request.source}</strong> to <strong>{plan?.request.destination}</strong> and rewrite typed references atomically.
-          </Dialog.Description>
-          <p className="dialog-warning">
-            GUI undo/redo and pending rewrite state will be cleared after this operation.
-          </p>
-          <div className="path-impact-groups">
-            {groups.filter(([, values]) => values.length > 0).map(([label, values]) => (
-              <section key={label}>
-                <h3>{label} <span>{values.length}</span></h3>
-                <ul>{values.map((value) => <li key={value}>{value}</li>)}</ul>
-              </section>
-            ))}
-          </div>
-          <div className="dialog-actions">
-            <Dialog.Close asChild><button type="button"><X size={THEME_METRICS.iconSizeSmall} /> Cancel</button></Dialog.Close>
-            <button type="button" onClick={onConfirm}>Apply path change</button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <Dialog
+      open={plan !== null}
+      onOpenChange={(open) => { if (!open) onCancel(); }}
+      title="Move and update references"
+      size="lg"
+      actions={<>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="primary" autoFocus onClick={onConfirm}>Move</Button>
+      </>}
+    >
+      <p><strong>{plan?.request.source}</strong> → <strong>{plan?.request.destination}</strong></p>
+      <p className="dialog-warning">Clears undo history.</p>
+      <div className="path-impact-groups">
+        {groups.filter(([, values]) => values.length > 0).map(([label, values]) => (
+          <section key={label}>
+            <h3>{label} <span>{values.length}</span></h3>
+            <ul>{values.map((value) => <li key={value}>{value}</li>)}</ul>
+          </section>
+        ))}
+      </div>
+    </Dialog>
   );
 }

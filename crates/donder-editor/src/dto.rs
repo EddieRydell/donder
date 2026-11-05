@@ -16,7 +16,7 @@ mod setup;
 mod synchronization;
 mod view_state;
 mod workspace;
-pub use app::{AppSnapshot, ProjectHealth};
+pub use app::{AppSnapshot, EditHistoryState, ProjectHealth};
 pub use audio::{
     AudioTransportSnapshot, AudioTransportState, PlaybackFrameTiming, PlaybackRange, PlaybackSpeed,
 };
@@ -31,10 +31,10 @@ pub use live::{
     ProjectGuiEdit, SetupInputDevice,
 };
 pub use output::{
-    ControllerOutputTest, DonderDeviceClaim, DonderDeviceConnection, DonderDeviceNetwork,
-    DonderDeviceNetworkRequest, DonderDeviceStatus, LiveOutputControllerSnapshot,
-    LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState, Point3Meters,
-    SequenceExportOptions, SequenceExportPort, VideoExportProgress,
+    ControllerOutputTest, DonderDeviceConnection, DonderDeviceNetwork, DonderDeviceNetworkRequest,
+    DonderDeviceStatus, LiveOutputControllerSnapshot, LiveOutputControllerState,
+    LiveOutputSnapshot, LiveOutputState, Point3Meters, SequenceExportOptions, SequenceExportPort,
+    VideoExportProgress,
 };
 pub use patch::{
     GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,

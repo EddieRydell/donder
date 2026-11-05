@@ -1,10 +1,6 @@
-import * as ContextMenu from "@radix-ui/react-context-menu";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceGuiDocument, SequenceClipParam, SequenceParamKind, SequenceSelection } from "../../../editor/types";
-import { shortcutLabel } from "../../../commandRegistry";
-import { THEME_METRICS } from "../../../theme";
+import { Button, ContextMenuEntries, Dialog, Field, NumberField, Section, Toggle, type MenuEntry } from "../../kit";
 import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { clipIdsOfKind } from "./sequenceSelection";
 
@@ -18,48 +14,54 @@ const TIME_CRITERIA: { key: TimeKey; label: string }[] = [
   { key: "duration", label: "Duration" }
 ];
 type FlagKey = "effectType" | "sameLane" | "automationClips";
-const FLAG_CRITERIA: Record<FlagKey, string> = {
-  effectType: "Effect type",
-  sameLane: "Same lane",
-  automationClips: "Automation clips"
-};
+const FLAG_CRITERIA: { key: FlagKey; label: string }[] = [
+  { key: "effectType", label: "Effect type" },
+  { key: "sameLane", label: "Same lane" },
+  { key: "automationClips", label: "Automation clips" }
+];
 const NUMERIC_KINDS = new Set<SequenceParamKind>(["int", "float", "intArray", "floatArray"]);
 const MS_PER_SECOND = 1000;
+const TIME_TOLERANCE_STEP_MS = 1;
+const PARAM_TOLERANCE_STEP = 0.01;
 
 function toleranceLabel(time: SequenceClipTimeMatch) {
   return `±${Number((time.toleranceSeconds * MS_PER_SECOND).toPrecision(6))} ms`;
 }
 
-/** The "Select Matching" submenu: run with the saved criteria, toggle them, or open Options. */
-export function ClipMatchMenuItems({ criteria, onCriteria, onSelectMatching, onOptions }: {
+type ClipMatchMenuProps = {
   criteria: SequenceClipMatch;
   onCriteria: (criteria: SequenceClipMatch) => void;
   onSelectMatching: () => void;
   onOptions: () => void;
-}) {
-  // Toggling a criterion keeps the menu open so several can change at once.
-  const checkbox = (key: string, label: string, detail: string | null, checked: boolean, next: SequenceClipMatch) => (
-    <ContextMenu.CheckboxItem key={key} className="menu-item" checked={checked} onSelect={(event) => { event.preventDefault(); }} onCheckedChange={() => { onCriteria(next); }}>
-      <span>{label}</span>
-      {detail !== null && <span className="shortcut">{detail}</span>}
-      <ContextMenu.ItemIndicator>
-        <Check size={THEME_METRICS.iconSizeExtraSmall} />
-      </ContextMenu.ItemIndicator>
-    </ContextMenu.CheckboxItem>
-  );
-  return <>
-    <ContextMenu.Item className="menu-item" onSelect={onSelectMatching}>
-      <span>Select Matching</span>
-      <span className="shortcut">{shortcutLabel("sequence.selectMatching")}</span>
-    </ContextMenu.Item>
-    <ContextMenu.Separator className="menu-separator" />
-    {checkbox("effectType", FLAG_CRITERIA.effectType, null, criteria.effectType, { ...criteria, effectType: !criteria.effectType })}
-    {TIME_CRITERIA.map(({ key, label }) => checkbox(key, label, toleranceLabel(criteria[key]), criteria[key].enabled, { ...criteria, [key]: { ...criteria[key], enabled: !criteria[key].enabled } }))}
-    {checkbox("sameLane", FLAG_CRITERIA.sameLane, null, criteria.sameLane, { ...criteria, sameLane: !criteria.sameLane })}
-    {checkbox("automationClips", FLAG_CRITERIA.automationClips, null, criteria.automationClips, { ...criteria, automationClips: !criteria.automationClips })}
-    <ContextMenu.Separator className="menu-separator" />
-    <ContextMenu.Item className="menu-item" onSelect={onOptions}>Options…</ContextMenu.Item>
-  </>;
+};
+
+/** The "Select Matching" submenu: run with the saved criteria, toggle them, or open Options. */
+export function clipMatchEntries({ criteria, onCriteria, onSelectMatching, onOptions }: ClipMatchMenuProps): MenuEntry[] {
+  const flag = (key: FlagKey): MenuEntry => {
+    const label = FLAG_CRITERIA.find((item) => item.key === key)?.label ?? key;
+    return { type: "check", label, checked: criteria[key], onCheckedChange: (checked) => { onCriteria({ ...criteria, [key]: checked }); } };
+  };
+  return [
+    { type: "action", label: "Select Matching", shortcut: "sequence.selectMatching", onSelect: onSelectMatching },
+    { type: "separator" },
+    flag("effectType"),
+    ...TIME_CRITERIA.map(({ key, label }): MenuEntry => ({
+      type: "check",
+      label,
+      detail: toleranceLabel(criteria[key]),
+      checked: criteria[key].enabled,
+      onCheckedChange: (enabled) => { onCriteria({ ...criteria, [key]: { ...criteria[key], enabled } }); }
+    })),
+    flag("sameLane"),
+    flag("automationClips"),
+    { type: "separator" },
+    { type: "action", label: "Options…", onSelect: onOptions }
+  ];
+}
+
+/** `clipMatchEntries` inside an open context menu. */
+export function ClipMatchMenuItems(props: ClipMatchMenuProps) {
+  return <ContextMenuEntries entries={clipMatchEntries(props)} />;
 }
 
 function paramMatches(params: Map<string, number>): SequenceClipParamMatch[] {
@@ -108,8 +110,6 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
     return () => { cancelled = true; };
   }, [match, seed, criteria, params]);
 
-  const setTime = (key: TimeKey, time: SequenceClipTimeMatch) => { setCriteria({ ...criteria, [key]: time }); };
-  const setFlag = (key: FlagKey, value: boolean) => { setCriteria({ ...criteria, [key]: value }); };
   const setParam = (name: string, tolerance: number | null) => {
     const next = new Map(params);
     if (tolerance === null) next.delete(name);
@@ -118,91 +118,77 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
   };
 
   return (
-    <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content clip-options-dialog">
-          <Dialog.Title>Select matching clips</Dialog.Title>
-          <Dialog.Description>
-            Select every clip that matches a selected clip on each checked property.
-          </Dialog.Description>
-          {error !== null && <p role="alert">{error}</p>}
-          <fieldset className="clip-options">
-            <legend>Clip</legend>
-            <label><input type="checkbox" checked={criteria.effectType} onChange={(event) => { setFlag("effectType", event.currentTarget.checked); }} />{FLAG_CRITERIA.effectType}</label>
-            <span />
-            {TIME_CRITERIA.map(({ key, label }) => (
-              <ToleranceRow
-                key={key}
-                label={label}
-                enabled={criteria[key].enabled}
-                tolerance={criteria[key].toleranceSeconds * MS_PER_SECOND}
-                unit="ms"
-                onEnabled={(enabled) => { setTime(key, { ...criteria[key], enabled }); }}
-                onTolerance={(tolerance) => { setTime(key, { ...criteria[key], toleranceSeconds: tolerance / MS_PER_SECOND }); }}
-              />
-            ))}
-            <label><input type="checkbox" checked={criteria.sameLane} onChange={(event) => { setFlag("sameLane", event.currentTarget.checked); }} />{FLAG_CRITERIA.sameLane}</label>
-            <span />
-            <label><input type="checkbox" checked={criteria.automationClips} onChange={(event) => { setFlag("automationClips", event.currentTarget.checked); }} />{FLAG_CRITERIA.automationClips}</label>
-            <span />
-          </fieldset>
-          <fieldset className="clip-options">
-            <legend>Parameters</legend>
-            {details === null && <p>Loading parameters…</p>}
-            {details !== null && available.length === 0 && <p>The selected clips have no parameters.</p>}
-            {available.map((param) => {
-              const tolerance = params.get(param.name);
-              const toggle = (enabled: boolean) => { setParam(param.name, enabled ? 0 : null); };
-              return NUMERIC_KINDS.has(param.kind)
-                ? <ToleranceRow key={param.name} label={param.name} title={param.description ?? undefined} enabled={tolerance !== undefined} tolerance={tolerance ?? 0} unit={null} onEnabled={toggle} onTolerance={(value) => { setParam(param.name, value); }} />
-                : <ParamRow key={param.name} param={param} enabled={tolerance !== undefined} onEnabled={toggle} />;
-            })}
-          </fieldset>
-          <div className="dialog-actions">
-            <span className="clip-match-count">{count === null ? "Matching…" : `${count} matching clip${count === 1 ? "" : "s"}`}</span>
-            <button type="button" onClick={onClose}>Cancel</button>
-            <button type="button" disabled={count === null} onClick={() => { onSelect(criteria, paramMatches(params)); }}>Select</button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <Dialog
+      open
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      title="Select matching clips"
+      size="md"
+      actions={<>
+        <span className="clip-match-count">{count === null ? "…" : `${count} matching`}</span>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="primary" disabled={count === null} onClick={() => { onSelect(criteria, paramMatches(params)); }}>Select</Button>
+      </>}
+    >
+      {error !== null && <p role="alert">{error}</p>}
+      <Section title="Clip">
+        {FLAG_CRITERIA.map(({ key, label }) => (
+          <Field key={key} label={label}>
+            <Toggle name={label} checked={criteria[key]} onChange={(checked) => { setCriteria({ ...criteria, [key]: checked }); }} />
+          </Field>
+        ))}
+        {TIME_CRITERIA.map(({ key, label }) => (
+          <ToleranceRow
+            key={key}
+            label={label}
+            tip={undefined}
+            enabled={criteria[key].enabled}
+            tolerance={criteria[key].toleranceSeconds * MS_PER_SECOND}
+            step={TIME_TOLERANCE_STEP_MS}
+            unit="ms"
+            onEnabled={(enabled) => { setCriteria({ ...criteria, [key]: { ...criteria[key], enabled } }); }}
+            onTolerance={(tolerance) => { setCriteria({ ...criteria, [key]: { ...criteria[key], toleranceSeconds: tolerance / MS_PER_SECOND } }); }}
+          />
+        ))}
+      </Section>
+      {available.length > 0 && (
+        <Section title="Parameters">
+          {available.map((param) => {
+            const tolerance = params.get(param.name);
+            const toggle = (enabled: boolean) => { setParam(param.name, enabled ? 0 : null); };
+            return NUMERIC_KINDS.has(param.kind)
+              ? <ToleranceRow key={param.name} label={param.name} tip={param.description ?? undefined} enabled={tolerance !== undefined} tolerance={tolerance ?? 0}
+                step={PARAM_TOLERANCE_STEP} unit={undefined} onEnabled={toggle} onTolerance={(value) => { setParam(param.name, value); }} />
+              : <Field key={param.name} label={param.name} tip={param.description ?? undefined}>
+                <Toggle name={param.name} checked={tolerance !== undefined} onChange={toggle} />
+              </Field>;
+          })}
+        </Section>
+      )}
+    </Dialog>
   );
 }
 
-function ParamRow({ param, enabled, onEnabled }: { param: SequenceClipParam; enabled: boolean; onEnabled: (enabled: boolean) => void }) {
-  return <>
-    <label title={param.description ?? undefined}><input type="checkbox" checked={enabled} onChange={(event) => { onEnabled(event.currentTarget.checked); }} />{param.name}</label>
-    <span />
-  </>;
-}
-
-function ToleranceRow({ label, title, enabled, tolerance, unit, onEnabled, onTolerance }: {
+function ToleranceRow({ label, tip, enabled, tolerance, step, unit, onEnabled, onTolerance }: {
   label: string;
-  title?: string | undefined;
+  tip: string | undefined;
   enabled: boolean;
   tolerance: number;
-  unit: string | null;
+  step: number;
+  unit: string | undefined;
   onEnabled: (enabled: boolean) => void;
   onTolerance: (tolerance: number) => void;
 }) {
-  return <>
-    <label title={title}><input type="checkbox" checked={enabled} onChange={(event) => { onEnabled(event.currentTarget.checked); }} />{label}</label>
-    <label className="clip-options-value">
-      ±
-      <input
-        type="number"
-        aria-label={`${label} tolerance`}
-        min={0}
-        step="any"
-        value={Number(tolerance.toPrecision(6))}
-        disabled={!enabled}
-        onChange={(event) => {
-          const value = event.currentTarget.valueAsNumber;
-          if (Number.isFinite(value) && value >= 0) onTolerance(value);
-        }}
-      />
-      {unit}
-    </label>
-  </>;
+  return <Field label={label} tip={tip}>
+    <Toggle name={label} checked={enabled} onChange={onEnabled} />
+    <NumberField
+      name={`${label} tolerance`}
+      label="±"
+      value={Number(tolerance.toPrecision(6))}
+      min={0}
+      step={step}
+      {...(unit === undefined ? {} : { unit })}
+      disabled={!enabled}
+      onCommit={onTolerance}
+    />
+  </Field>;
 }

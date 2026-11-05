@@ -1,12 +1,10 @@
 // Effect and operator pickers as nested folders: each script file is a
 // submenu of its definitions, inside submenus for its folders.
-import type * as ContextMenu from "@radix-ui/react-context-menu";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { useContext, useMemo } from "react";
+import { ChevronDown } from "lucide-react";
+import { useMemo } from "react";
 import type { SequenceEffectDefinition, SequenceEffectReference } from "../../../editor/types";
 import { THEME_METRICS } from "../../../theme";
-import { OverlayPortal } from "../../OverlayPortal";
+import { MenuButton, type MenuEntry } from "../../kit";
 
 /** A folder or script file, by its title-cased name. */
 export type DefinitionFolder<T> = {
@@ -64,53 +62,23 @@ export function definitionTree<T>(items: readonly T[], path: (item: T) => string
   return sorted(root);
 }
 
-type MenuParts = typeof ContextMenu | typeof DropdownMenu;
-
-export type DefinitionMenuItemsProps<T> = {
-  /** The Radix menu the items belong to. */
-  menu: MenuParts;
-  tree: DefinitionFolder<T>[];
-  label: (item: T) => string;
-  itemKey: (item: T) => string;
-  onSelect: (item: T) => void;
-  empty: string;
-  disabled?: boolean;
-};
-
-/** The folders as nested submenus of the menu they are placed in. */
-export function DefinitionMenuItems<T>({ menu, tree, label, itemKey, onSelect, empty, disabled = false }: DefinitionMenuItemsProps<T>) {
-  const container = useContext(OverlayPortal);
-  const { Sub, SubTrigger, SubContent, Portal, Item } = menu;
-  const folder = (entry: DefinitionFolder<T>) => (
-    <Sub key={entry.key}>
-      <SubTrigger className="menu-item" disabled={disabled}>
-        {entry.name} <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
-      </SubTrigger>
-      <Portal container={container}>
-        <SubContent className="menu-content">
-          {entry.folders.map(folder)}
-          {entry.items.map((item) => (
-            <Item key={itemKey(item)} className="menu-item" disabled={disabled} onSelect={() => { onSelect(item); }}>
-              {label(item)}
-            </Item>
-          ))}
-        </SubContent>
-      </Portal>
-    </Sub>
-  );
-  if (tree.length === 0) {
-    return <Item className="menu-item" disabled>{empty}</Item>;
-  }
-  return <>{tree.map(folder)}</>;
-}
-
 export function effectReferencesEqual(left: SequenceEffectReference, right: SequenceEffectReference) {
   return left.path === right.path
     && left.effectName === right.effectName;
 }
 
-export function effectReferenceKey(reference: SequenceEffectReference) {
-  return `${reference.path}:${reference.effectName}`;
+/** The folders as nested submenu entries; an empty tree is one disabled `empty` line. */
+export function definitionEntries<T>(tree: DefinitionFolder<T>[], label: (item: T) => string, onSelect: (item: T) => void, empty: string): MenuEntry[] {
+  if (tree.length === 0) return [{ type: "action", label: empty, disabled: true, onSelect: () => undefined }];
+  const folder = (entry: DefinitionFolder<T>): MenuEntry => ({
+    type: "submenu",
+    label: entry.name,
+    entries: [
+      ...entry.folders.map(folder),
+      ...entry.items.map((item): MenuEntry => ({ type: "action", label: label(item), onSelect: () => { onSelect(item); } }))
+    ]
+  });
+  return tree.map(folder);
 }
 
 /** A dropdown of the project's effects in their script folders. */
@@ -120,24 +88,11 @@ export function EffectDefinitionPicker({ definitions, label, onSelect, disabled 
   onSelect: (definition: SequenceEffectDefinition) => void;
   disabled?: boolean;
 }) {
-  const container = useContext(OverlayPortal);
   const tree = useMemo(() => definitionTree(definitions, (definition) => definition.effect.path), [definitions]);
-  return <DropdownMenu.Root>
-    <DropdownMenu.Trigger className="definition-picker" disabled={disabled || definitions.length === 0}>
-      <span>{label}</span>
-      <ChevronDown size={THEME_METRICS.iconSizeSmall} aria-hidden />
-    </DropdownMenu.Trigger>
-    <DropdownMenu.Portal container={container}>
-      <DropdownMenu.Content className="menu-content" align="start" sideOffset={THEME_METRICS.menuOffset}>
-        <DefinitionMenuItems
-          menu={DropdownMenu}
-          tree={tree}
-          label={(definition) => definition.name}
-          itemKey={(definition) => effectReferenceKey(definition.effect)}
-          onSelect={onSelect}
-          empty="No effects"
-        />
-      </DropdownMenu.Content>
-    </DropdownMenu.Portal>
-  </DropdownMenu.Root>;
+  return <MenuButton entries={definitionEntries(tree, (definition) => definition.name, onSelect, "No effects")}>
+    <button type="button" className="kit-select" aria-label="Effect" disabled={disabled || definitions.length === 0}>
+      <span className="kit-select-value">{label}</span>
+      <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} aria-hidden />
+    </button>
+  </MenuButton>;
 }

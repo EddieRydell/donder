@@ -2,8 +2,8 @@ use super::LoadedProject;
 use camino::Utf8PathBuf;
 use donder_editor::dto::{
     AppSettings, AppSnapshot, AudioTransportSnapshot, DocumentDescriptor, DocumentSaveState,
-    DocumentSaveStatus, DonderDeviceStatus, EditorBuffer, EditorTab, IoDiagnostic,
-    LiveOutputSnapshot, ProjectHealth, WorkspaceEntry, WorkspaceExplorerState,
+    DocumentSaveStatus, DonderDeviceStatus, EditHistoryState, EditorBuffer, EditorTab,
+    IoDiagnostic, LiveOutputSnapshot, ProjectHealth, WorkspaceEntry, WorkspaceExplorerState,
     WorkspaceLayoutState,
 };
 use std::collections::BTreeMap;
@@ -28,6 +28,7 @@ pub(super) struct WorkspaceView {
     pub audio_transport: AudioTransportSnapshot,
     pub live_output: LiveOutputSnapshot,
     pub devices: Vec<DonderDeviceStatus>,
+    pub history: EditHistoryState,
 }
 
 pub(super) struct WorkingDocument {
@@ -117,6 +118,7 @@ impl WorkspaceState {
             audio_transport: self.view.audio_transport.clone(),
             live_output: self.view.live_output.clone(),
             devices: self.view.devices.clone(),
+            history: self.view.history,
 
             pending_saves: self
                 .documents
@@ -174,6 +176,7 @@ impl WorkspaceView {
             audio_transport: snapshot.audio_transport,
             live_output: snapshot.live_output,
             devices: snapshot.devices,
+            history: snapshot.history,
         }
     }
 }

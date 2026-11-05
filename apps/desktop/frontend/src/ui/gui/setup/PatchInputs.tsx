@@ -1,17 +1,25 @@
+import { ExternalLink } from "lucide-react";
 import { guiObjectKey, sameGuiObject } from "../../../workspace/guiIdentity";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import type { GuiObjectRef } from "../../../types";
+import { Field, IconButton, Select } from "../../kit";
 
-export function NumberField({ label, value, onChange, min = 0, max, step = 1 }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number | "any" }) {
-  return <label>{label}<input type="number" min={min} max={max} step={step} required value={value} onChange={(event) => { onChange(Number(event.target.value)); }} /></label>;
-}
+const MISSING = "missing";
 
-export function ReferenceInput({ label, value, choices, onChange }: { label: string; value: GuiObjectRef; choices: { reference: GuiObjectRef; label: string }[]; onChange: (value: GuiObjectRef) => void }) {
-  const index = choices.findIndex((choice) => sameGuiObject(choice.reference, value));
-  return <div><label>{label}<select value={index} onChange={(event) => { const next = choices[Number(event.target.value)]; if (next !== undefined) onChange(next.reference); }}>
-    {index < 0 && <option value={-1} disabled>{referenceLabel(value)} (unavailable)</option>}
-    {choices.map((choice, index) => <option key={guiObjectKey(choice.reference)} value={index}>{choice.label}</option>)}
-  </select></label><a href="#" onClick={(event) => { event.preventDefault(); void navigateToGuiObject(value); }}>Open declaration</a></div>;
+/** A choice of declaration, and a button that opens the chosen one. */
+export function ReferenceInput({ label, value, choices, disabled = false, onChange }: { label: string; value: GuiObjectRef; choices: { reference: GuiObjectRef; label: string }[]; disabled?: boolean; onChange: (value: GuiObjectRef) => void }) {
+  const current = choices.find((choice) => sameGuiObject(choice.reference, value));
+  const options = [
+    ...(current === undefined ? [{ value: MISSING, label: `${referenceLabel(value)} (missing)`, disabled: true }] : []),
+    ...choices.map((choice) => ({ value: guiObjectKey(choice.reference), label: choice.label }))
+  ];
+  return <Field label={label}>
+    <Select name={label} value={current === undefined ? MISSING : guiObjectKey(current.reference)} options={options} disabled={disabled} onChange={(key) => {
+      const next = choices.find((choice) => guiObjectKey(choice.reference) === key);
+      if (next !== undefined) onChange(next.reference);
+    }} />
+    <IconButton icon={ExternalLink} label="Open declaration" onClick={() => void navigateToGuiObject(value)} />
+  </Field>;
 }
 
 function referenceLabel(reference: GuiObjectRef): string {

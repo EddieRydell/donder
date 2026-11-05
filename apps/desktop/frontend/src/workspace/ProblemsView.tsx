@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleX } from "lucide-react";
+import { AlertTriangle, CircleX, FileInput } from "lucide-react";
 import { useMemo } from "react";
 import { commands } from "../api";
 import { runSnapshotCommand } from "../store";
@@ -7,6 +7,7 @@ import type { AppSnapshot } from "../types";
 import type { AppStaticSnapshot } from "../store";
 import { sameWorkspacePath } from "./helpers";
 import { navigateToText } from "./navigation";
+import { Badge, Button } from "../ui/kit";
 
 export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const groups = useMemo(() => {
@@ -42,7 +43,10 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
     <section className="sidebar-view problems-view" aria-label="Problems">
       <header className="sidebar-view-header">
         <h2>Problems</h2>
-        <span>{errors} errors · {warnings} warnings</span>
+        <div className="sidebar-toolbar">
+          <Badge icon={CircleX} tip={`${errors} errors`}>{errors}</Badge>
+          <Badge icon={AlertTriangle} tip={`${warnings} warnings`}>{warnings}</Badge>
+        </div>
       </header>
       <div className="sidebar-scroll">
         {groups.map(([path, diagnostics]) => (
@@ -70,9 +74,11 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
                     </span>
                   </button>
                   {diagnostic.fix !== null && "include" in diagnostic.fix && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      icon={FileInput}
                       className="problem-fix"
+                      tip="Import this document from the project root"
                       onClick={() => {
                         const fix = diagnostic.fix;
                         if (fix === null || !("include" in fix)) return;
@@ -80,8 +86,8 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
                         void runSnapshotCommand(() => commands.includeDocument(snapshot.projectEpoch, inclusion));
                       }}
                     >
-                      Import from the project root
-                    </button>
+                      Import
+                    </Button>
                   )}
                   {diagnostic.related.map((related, relatedIndex) => (
                     <button
@@ -101,7 +107,6 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
             })}
           </section>
         ))}
-        {groups.length === 0 && <p className="empty-sidebar-state">No problems detected.</p>}
       </div>
     </section>
   );

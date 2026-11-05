@@ -14,16 +14,13 @@ dual core and rated for 240 MHz, without flash encryption or secure boot.
 1. Build and flash the firmware as described in the
    [firmware README](../firmware/esp32/README.md). The editor does not install
    firmware; it assumes a discovered controller already runs it.
-2. Power the controller. With no saved network it hosts an open 2.4 GHz access
-   point named `Donder-XXXX` (the last four hex digits of its MAC address) at
-   `192.168.4.1`. Join it from the computer; its DHCP server offers no gateway,
-   so a wired connection keeps the computer's internet route.
-3. In Display Setup, add a **Donder controller**, choose the discovered device,
-   and claim it. The first claim wins: the controller returns a token that the
-   editor saves in its desktop settings, keyed by device ID. Every later request
-   uses it. To claim it from another computer, factory reset it by reinstalling
-   the firmware with its saved data erased (see the
-   [firmware README](../firmware/esp32/README.md)).
+2. Power the controller. With no saved network it hosts a 2.4 GHz WPA2 access
+   point named `Donder-XXXX` (the last four hex digits of its MAC address),
+   password `12345678` (`ACCESS_POINT_PASSWORD`), at `192.168.4.1`. Join it
+   from the computer; its DHCP server offers no gateway, so a wired connection
+   keeps the computer's internet route.
+3. In Display Setup, add a **Donder controller** and choose the discovered
+   device.
 4. Turn on live output in the sequence toolbar and press Play.
 
 The controller's ID is its factory MAC address. A rename changes only the name
@@ -38,16 +35,16 @@ update the firmware otherwise.
 ## Discovery
 
 Each controller advertises `_donder._tcp` over mDNS as `donder-<id>.local`.
-TXT records carry `id`, `name`, `claimed` (`0` or `1`), `format` and
+TXT records carry `id`, `name`, `format` and
 `network` (`accessPoint` or `station`). The editor lists every advertised
 controller. It browses only while live output is on or while a Donder
 controller's settings or the controller form are open; otherwise it binds no
 mDNS socket. While live output is on it connects to each Donder controller in
-the open setup that it has claimed and that runs a matching format.
+the open setup that runs a matching format.
 
 ## Storage and upload
 
-The configuration record (name, optional station network and claim token) lives
+The configuration record (name and optional station network) lives
 in LittleFS. Shows use two 128 KiB slots in a separate
 256 KiB partition; a slot's first 4 KiB sector is its header, so a show may be
 up to 124 KiB (`show_slots::CAPACITY`). A longer upload is refused with HTTP
@@ -95,8 +92,8 @@ status; the next Play reconnects and sends the show again.
 The protocol's messages, paths and clock packets are defined once in
 `crates/donder-device-protocol`, which the editor and the firmware both use.
 
-HTTP endpoints, each but `POST /claim` requiring the claim token:
-- unauthenticated `POST /claim`, which answers only an unclaimed controller;
+HTTP endpoints, none authenticated: anyone on the controller's network can
+control it, so the access point's password is the only access control.
 - `PUT /show` and `POST /frame`;
 - `PUT /name` with a 1-32 byte UTF-8 name, and `PUT /network` with
   `{"ssid": ..., "password": ...}` or an empty body for the access point;
@@ -113,7 +110,7 @@ A setup's Donder controller names its device ID and numbers its ports as outputs
 controllers follow live output, like E1.31 and Art-Net controllers: with live
 output off, Play only plays the Preview and the editor connects to no
 controller. Turning live output on starts discovery; the editor then connects
-to each claimed controller as it appears on the network and whenever the open
+to each controller as it appears on the network and whenever the open
 project changes, never during playback. Connecting stops the controller's
 standalone show and synchronizes its clock. Turning live output off, opening
 another sequence or project, or starting a performance stops and releases every
@@ -126,7 +123,7 @@ While live output is on, the editor's Play button:
    project revisions reuse their compiled fragment);
 3. schedules a shared future start.
 
-A controller that is missing, unclaimed, on other firmware, or fails to connect,
+A controller that is missing, on other firmware, or fails to connect,
 take its show or acknowledge a schedule never blocks Play: the editor releases
 it, names it with the reason in the live-output status and the controller's
 settings, and plays the Preview and every other controller. The next Play
@@ -148,10 +145,10 @@ editor, or the standalone HTTP Play endpoint, loops the last uploaded show
 without the editor instead.
 
 Clock synchronization:
-- **Exchanges.** Eight authenticated UDP four-timestamp exchanges, sent to the
+- **Exchanges.** Eight UDP four-timestamp exchanges, sent to the
   controller's own address on its HTTP port, keep the
   smallest round trip, after subtracting the controller's reply processing
-  time. Requests carry `DCLK`, the 32-byte token and an 8-byte nonce. Replies
+  time. Requests carry `DCLK` and an 8-byte nonce. Replies
   carry `DCLK`, the nonce, a boot identity and receive/send timestamps (32
   bytes, little endian).
 - **Control commands.** JSON commands are externally tagged (`syncClock`,

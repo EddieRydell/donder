@@ -5,9 +5,9 @@ use crate::device::discovery::{Advertised, Advertisements, DeviceDiscovery};
 use crate::device::playback::{DeviceFailures, DevicePorts, WantedDevice};
 use donder_device_protocol::Action;
 use donder_editor::dto::{
-    AppSnapshot, AudioTransportState, DonderDeviceClaim, DonderDeviceConnection,
-    DonderDeviceNetworkRequest, DonderDeviceStatus, LiveOutputControllerSnapshot,
-    LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
+    AppSnapshot, AudioTransportState, DonderDeviceConnection, DonderDeviceNetworkRequest,
+    DonderDeviceStatus, LiveOutputControllerSnapshot, LiveOutputControllerState,
+    LiveOutputSnapshot, LiveOutputState,
 };
 use donder_model::{ControllerId, ControllerPortAddress, ControllerProtocol, DonderDeviceId};
 use donder_runtime::PlaybackRate;
@@ -26,7 +26,6 @@ struct SetupDevice {
 struct DeviceLinks {
     live: bool,
     advertised: Advertisements,
-    tokens: BTreeMap<String, String>,
     connections: BTreeMap<DonderDeviceId, Result<Option<u32>, String>>,
     failures: DeviceFailures,
 }
@@ -58,9 +57,6 @@ impl DeviceLinks {
         match self.advertised.get(id) {
             None if self.live => failed("Not on the network."),
             None => DonderDeviceConnection::Unused,
-            Some(_) if !self.tokens.contains_key(id.as_str()) => {
-                failed("Claim this controller to use it for playback.")
-            }
             Some(Advertised { format, .. }) if *format != donder_runtime::FORMAT_VERSION => failed(
                 "Controller firmware does not match this editor. Flash the current firmware (see firmware/esp32/README.md).",
             ),
@@ -132,7 +128,7 @@ impl DesktopState {
     }
 
     /// Connect live output to every Donder controller in the open setup that
-    /// is on the network and claimed by this computer, or release them all
+    /// is on the network, or release them all
     /// while live output is off, then publish the device list. Performs
     /// network I/O on the reconcile task.
     pub(super) fn reconcile_devices(&self) {
@@ -152,17 +148,14 @@ impl DesktopState {
     /// The caller holds the transport operation lock.
     fn connect_setup_devices(&self) {
         let advertised = self.advertised();
-        let tokens = self.persistence.device_tokens();
         let wanted = self
             .setup_devices()
             .into_iter()
             .filter_map(|setup| {
                 let device = advertised.get(&setup.device)?;
-                let token = tokens.get(setup.device.as_str())?.clone();
                 (device.format == donder_runtime::FORMAT_VERSION).then_some(WantedDevice {
                     id: setup.device,
                     address: device.address,
-                    token,
                     ports: setup.ports,
                 })
             })
@@ -184,7 +177,6 @@ impl DesktopState {
         DeviceLinks {
             live: self.devices_live(),
             advertised: self.advertised(),
-            tokens: self.persistence.device_tokens(),
             connections: self.device_playback.connections(),
             failures: lock_unpoisoned(&self.device_failures).clone(),
         }
@@ -247,11 +239,6 @@ impl DesktopState {
             .advertised
             .iter()
             .map(|(id, device)| DonderDeviceStatus {
-                claim: match (device.claimed, links.tokens.contains_key(id.as_str())) {
-                    (false, _) => DonderDeviceClaim::Unclaimed,
-                    (true, true) => DonderDeviceClaim::Claimed,
-                    (true, false) => DonderDeviceClaim::ClaimedElsewhere,
-                },
                 id: id.as_str().to_string(),
                 name: device.name.clone(),
                 address: device.address.to_string(),
@@ -320,25 +307,7 @@ impl DesktopState {
             .advertised()
             .remove(&id)
             .ok_or("Controller is not on the network.")?;
-        let token = self
-            .persistence
-            .device_tokens()
-            .remove(id.as_str())
-            .ok_or("Claim this controller first.")?;
-        DeviceClient::new(device.address, &token)
-    }
-
-    pub(crate) fn claim_device(&self, id: &str) -> Result<AppSnapshot, String> {
-        let device_id = DonderDeviceId::parse(id).ok_or("Invalid controller ID.")?;
-        let device = self
-            .advertised()
-            .remove(&device_id)
-            .ok_or("Controller is not on the network.")?;
-        let token = crate::device::claim(device.address)?;
-        self.persistence.record_device_token(id, token)?;
-        self.schedule_device_reconcile();
-        self.publish_devices();
-        Ok(self.snapshot())
+        DeviceClient::new(device.address)
     }
 
     pub(crate) fn rename_device(&self, id: &str, name: &str) -> Result<AppSnapshot, String> {

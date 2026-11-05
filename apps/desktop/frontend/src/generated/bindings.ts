@@ -51,7 +51,6 @@ export const commands = {
 	 *  discovery runs while one is open.
 	 */
 	watchDevices: (watching: boolean) => __TAURI_INVOKE<void>("watch_devices", { watching }),
-	claimDevice: (id: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("claim_device", { id })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	renameDevice: (id: string, name: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("rename_device", { id, name })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setDeviceNetwork: (id: string, network: {
 	ssid: string,
@@ -103,6 +102,9 @@ export const commands = {
 	cancelInputLearn: (token: number) => __TAURI_INVOKE<void>("cancel_input_learn", { token }),
 };
 
+/* Constants */
+export const ACCESS_POINT_PASSWORD = "12345678" as const;
+
 /* Types */
 /**  Commands the workbench runs, whatever editor is open. */
 export type AppCommandId = "file.newProject" | "file.copyProject" | "file.importProfile" | "file.newSequence" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.quickOpen" | "workbench.commandPalette" | "project.reload" | "perform.stop";
@@ -153,6 +155,7 @@ export type AppSnapshot = {
 	audioTransport: AudioTransportSnapshot,
 	liveOutput: LiveOutputSnapshot,
 	devices: DonderDeviceStatus[],
+	history: EditHistoryState,
 };
 
 export type AudioTransportSnapshot = {
@@ -455,8 +458,6 @@ export type DocumentUpdate = {
 	changes: DocumentTextEdit[][],
 };
 
-export type DonderDeviceClaim = "unclaimed" | "claimed" | "claimedElsewhere";
-
 export type DonderDeviceConnection = 
 /**
  *  Not connected: no controller in the open setup uses this device, or
@@ -476,22 +477,27 @@ export type DonderDeviceNetworkRequest = {
 };
 
 /**
- *  A Donder controller seen on the network, merged with this editor's claim
- *  and live-output connection.
+ *  A Donder controller seen on the network, merged with this editor's
+ *  live-output connection.
  */
 export type DonderDeviceStatus = {
 	id: string,
 	name: string,
 	address: string,
 	network: DonderDeviceNetwork,
-	claim: DonderDeviceClaim,
 	/**  False when the controller's sequence format differs from this editor's. */
 	firmwareCurrent: boolean,
 	connection: DonderDeviceConnection,
 };
 
+/**  Whether the GUI edit history has a step to undo or redo. */
+export type EditHistoryState = {
+	canUndo: boolean,
+	canRedo: boolean,
+};
+
 /**  Commands the focused editor surface implements. */
-export type EditorCommandId = "edit.cut" | "edit.copy" | "edit.paste" | "edit.selectAll" | "edit.duplicate" | "edit.delete" | "edit.confirm" | "edit.cancel" | "edit.moveLeft" | "edit.moveRight" | "edit.moveUp" | "edit.moveDown" | "view.reset" | "transport.togglePlayback" | "transport.stop" | "transport.toggleLooping" | "transport.cycleFollowMode" | "transport.tapMark" | "transport.rewind" | "sequence.toggleSliceTool" | "sequence.selectMatching";
+export type EditorCommandId = "edit.cut" | "edit.copy" | "edit.paste" | "edit.selectAll" | "edit.duplicate" | "edit.delete" | "edit.confirm" | "edit.cancel" | "edit.moveLeft" | "edit.moveRight" | "edit.moveUp" | "edit.moveDown" | "view.reset" | "view.zoomIn" | "view.zoomOut" | "transport.togglePlayback" | "transport.stop" | "transport.toggleLooping" | "transport.cycleFollowMode" | "transport.tapMark" | "transport.rewind" | "transport.previousMark" | "transport.nextMark" | "transport.setRangeIn" | "transport.setRangeOut" | "sequence.toggleSliceTool" | "sequence.selectMatching";
 
 /**  An open document as the tab bar and editor see it, without its text. */
 export type EditorTab = {

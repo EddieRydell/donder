@@ -1,23 +1,26 @@
 import { useSpatialGuides } from "./spatialViewState";
-import { isMac, isSecondaryClick } from "../../../platform";
+import { editTarget, isMac, isSecondaryClick } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
 import { boxSelection, selectedItems, selectionClick, unionBounds, type Box, type SpatialItem } from "./spatialSelection";
 import { useAppStore } from "../../../store";
 import { SpatialSnapControls } from "./SpatialSnapControls";
 import { snapPoint, formatDistance, type Modifiers } from "./spatialSnapping";
-import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createStore, useStore, type StoreApi } from "zustand";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import type { GuiObjectRef, Point3Meters, SpatialRenderPixel, SpatialRenderPlan } from "../../../types";
+import { ContextMenuEntries, type MenuEntry } from "../../kit";
+import type { GuiObjectRef, Point3Meters, SpatialRenderPixel, SpatialRenderPlan, SpatialUnit } from "../../../types";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { drawSpatialCanvas, nearestPoint, normalizeBounds, normalizePoint, unproject } from "../shared";
 import { SpatialControls, useSpatialViewport } from "../SpatialViewport";
-import { LayoutAddMenu } from "./LayoutAddMenu";
-import { FixtureContextMenu } from "./FixtureContextMenu";
+import { layoutAddEntries } from "./LayoutAddMenu";
+import { fixtureMenuEntries } from "./FixtureContextMenu";
 import { useFixtureCanvasTools, type FixtureCanvasTools } from "./fixtureCanvasTools";
 
 type Move = { owners: number[]; origin: Point3Meters; commit: (delta: Point3Meters) => Promise<boolean> };
 type Gesture = { type: "box"; start: Point3Meters; end: Point3Meters; selection: number[] } | { type: "pan"; x: number; y: number } | { type: "move"; clickSelection: number[]; x: number; y: number; scale: number; commit: Move; pixels: SpatialRenderPixel[] };
 type Offset = { owners: number[]; x: number; y: number; pixels: SpatialRenderPixel[] };
+type OffsetState = { offset: Offset | null };
 type LayoutMenu = {
   availableFixtures: GuiObjectRef[];
   enabled: boolean;
@@ -33,15 +36,34 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
   const chosen = selectedItems(items, selection);
   const selectedOwners = chosen.flatMap((item) => item.owners);
   const selected = selection.length === 1 ? selection[0] ?? null : null;
-  const [marquee, setMarquee] = useState<Box | null>(null);
   const lastPointer = useRef({ clientX: 0, clientY: 0 });
   const pointerActive = useRef(false);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const gesture = useRef<Gesture | null>(null);
   const settledOffsets = useRef(new WeakSet<Offset>());
+  // The box and the move offset change with every pointer move, so they repaint the canvas on the
+  // next frame instead of re-rendering; only the offset's readout re-renders as it changes.
+  const paintRef = useRef<() => void>(() => undefined);
+  const paintFrame = useRef<number | null>(null);
+  const requestPaint = useCallback(() => {
+    if (paintFrame.current !== null) return;
+    paintFrame.current = window.requestAnimationFrame(() => {
+      paintFrame.current = null;
+      paintRef.current();
+    });
+  }, []);
+  useEffect(() => () => { if (paintFrame.current !== null) window.cancelAnimationFrame(paintFrame.current); }, []);
+  const marquee = useRef<Box | null>(null);
+  const setMarquee = (next: Box | null) => { marquee.current = next; requestPaint(); };
+  const [offsetStore] = useState(() => createStore<OffsetState>(() => ({ offset: null })));
+  const setOffset = (offset: Offset | null) => { offsetStore.setState({ offset }); requestPaint(); };
+  // Space held over the app turns a drag into a pan.
+  const spaceHeld = useRef(false);
+  const showPanCursor = () => {
+    if (canvas.current !== null) canvas.current.style.cursor = gesture.current?.type === "pan" ? "grabbing" : spaceHeld.current ? "grab" : "";
+  };
   const [dragging, setDragging] = useState(false);
   const pending = useAppStore((state) => state.guiEditPending);
-  const [offset, setOffset] = useState<Offset | null>(null);
   const [menuPosition, setMenuPosition] = useState<Point3Meters | null>(null);
   const bounds = useMemo(() => normalizeBounds(plan.bounds), [plan.bounds]);
   const spatial = useSpatialViewport(bounds, documentKey, documentKey);
@@ -49,62 +71,70 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
   const fixture = useFixtureCanvasTools(fixtureTools, selected, spatial.view.scale, plan, snapping, targets, guides.guides);
   useEffect(() => { if (fixtureTools?.tool !== null && fixtureTools?.tool !== undefined) canvas.current?.focus(); }, [fixtureTools?.tool]);
   const points = useMemo(() => plan.pixels.map((pixel) => normalizePoint(pixel.position)), [plan.pixels]);
-  useLayoutEffect(() => {
+  const paint = () => {
     const element = canvas.current;
     if (element === null) return;
+    const offset = offsetStore.getState().offset;
     let displayOffset = offset;
     if (offset !== null && (settledOffsets.current.has(offset) || offsetIsCommitted(offset, plan.pixels))) {
       settledOffsets.current.add(offset);
       displayOffset = null;
     }
-    const draw = () => {
-      const rect = element.getBoundingClientRect();
-      spatial.resize(rect.width, rect.height);
-      drawSpatialCanvas(element, bounds, (context, project) => {
-        context.strokeStyle = THEME_COLORS.canvasGuide;
-        context.lineWidth = THEME_METRICS.fixtureGuideWidth;
+    const marqueeBox = marquee.current;
+    const rect = element.getBoundingClientRect();
+    spatial.resize(rect.width, rect.height);
+    drawSpatialCanvas(element, bounds, (context, project) => {
+      context.strokeStyle = THEME_COLORS.canvasGuide;
+      context.lineWidth = THEME_METRICS.fixtureGuideWidth;
+      context.setLineDash([THEME_METRICS.spatialSelectionDash]);
+      for (const guide of guides.guides) {
+        const point = project({ x: guide.axis === "x" ? guide.positionMeters : 0, y: guide.axis === "y" ? guide.positionMeters : 0, z: 0 });
+        context.beginPath();
+        if (guide.axis === "x") { context.moveTo(point.x, 0); context.lineTo(point.x, rect.height); }
+        else { context.moveTo(0, point.y); context.lineTo(rect.width, point.y); }
+        context.stroke();
+      }
+      context.setLineDash([]);
+      plan.pixels.forEach((pixel) => {
+        const position = normalizePoint(pixel.position);
+        if (displayOffset?.owners.includes(pixel.owner) === true) { position.x += displayOffset.x; position.y += displayOffset.y; }
+        const point = project(position);
+        const radius = Math.max(THEME_METRICS.spatialPointRadius, pixel.diameterMeters * spatial.view.scale / 2);
+        context.fillStyle = selectedOwners.includes(pixel.owner) ? THEME_COLORS.layoutSelected : THEME_COLORS.playhead;
+        context.beginPath(); context.arc(point.x, point.y, radius, 0, Math.PI * 2); context.fill();
+      });
+      context.strokeStyle = THEME_COLORS.layoutSelected;
+      context.lineWidth = THEME_METRICS.fixtureGuideWidth;
+      if (chosen.length > 0) {
+        const box = unionBounds(chosen.map((item) => item.bounds));
+        const shift = displayOffset ?? { x: 0, y: 0 };
+        const start = project({ x: box.left + shift.x, y: box.top + shift.y, z: 0 });
+        const end = project({ x: box.right + shift.x, y: box.bottom + shift.y, z: 0 });
         context.setLineDash([THEME_METRICS.spatialSelectionDash]);
-        for (const guide of guides.guides) {
-          const point = project({ x: guide.axis === "x" ? guide.positionMeters : 0, y: guide.axis === "y" ? guide.positionMeters : 0, z: 0 });
-          context.beginPath();
-          if (guide.axis === "x") { context.moveTo(point.x, 0); context.lineTo(point.x, rect.height); }
-          else { context.moveTo(0, point.y); context.lineTo(rect.width, point.y); }
-          context.stroke();
-        }
+        context.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
         context.setLineDash([]);
-        plan.pixels.forEach((pixel) => {
-          const position = normalizePoint(pixel.position);
-          if (displayOffset?.owners.includes(pixel.owner) === true) { position.x += displayOffset.x; position.y += displayOffset.y; }
-          const point = project(position);
-          const radius = Math.max(THEME_METRICS.spatialPointRadius, pixel.diameterMeters * spatial.view.scale / 2);
-          context.fillStyle = selectedOwners.includes(pixel.owner) ? THEME_COLORS.layoutSelected : THEME_COLORS.playhead;
-          context.beginPath(); context.arc(point.x, point.y, radius, 0, Math.PI * 2); context.fill();
-        });
-        context.strokeStyle = THEME_COLORS.layoutSelected;
-        context.lineWidth = THEME_METRICS.fixtureGuideWidth;
-        if (chosen.length > 0) {
-          const box = unionBounds(chosen.map((item) => item.bounds));
-          const shift = displayOffset ?? { x: 0, y: 0 };
-          const start = project({ x: box.left + shift.x, y: box.top + shift.y, z: 0 });
-          const end = project({ x: box.right + shift.x, y: box.bottom + shift.y, z: 0 });
-          context.setLineDash([THEME_METRICS.spatialSelectionDash]);
-          context.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
-          context.setLineDash([]);
-        }
-        if (marquee !== null) {
-          const start = project({ x: marquee.left, y: marquee.top, z: 0 });
-          const end = project({ x: marquee.right, y: marquee.bottom, z: 0 });
-          context.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
-        }
-        const selectedOffset = selected !== null && displayOffset?.owners.includes(selected) === true ? displayOffset : null;
-        fixture.draw(context, selectedOffset === null ? project : (point) => project({ ...point, x: point.x + selectedOffset.x, y: point.y + selectedOffset.y }));
-      }, spatial.view, snapping.spacingMeters, snapping.unit);
-    };
-    draw();
-    const observer = new ResizeObserver(draw);
+      }
+      if (marqueeBox !== null) {
+        const start = project({ x: marqueeBox.left, y: marqueeBox.top, z: 0 });
+        const end = project({ x: marqueeBox.right, y: marqueeBox.bottom, z: 0 });
+        context.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
+      }
+      const selectedOffset = selected !== null && displayOffset?.owners.includes(selected) === true ? displayOffset : null;
+      fixture.draw(context, selectedOffset === null ? project : (point) => project({ ...point, x: point.x + selectedOffset.x, y: point.y + selectedOffset.y }));
+    }, spatial.view, snapping.spacingMeters, snapping.unit);
+  };
+  // Every render paints with its state; pointer moves and resizes between renders paint through `paintRef`.
+  useLayoutEffect(() => {
+    paintRef.current = paint;
+    paint();
+  });
+  useEffect(() => {
+    const element = canvas.current;
+    if (element === null) return;
+    const observer = new ResizeObserver(() => { paintRef.current(); });
     observer.observe(element);
     return () => { observer.disconnect(); };
-  }, [bounds, plan, selected, selectedOwners, chosen, marquee, spatial, offset, fixture, snapping, guides.guides]);
+  }, []);
   const moveDelta = (active: Extract<Gesture, { type: "move" }>, pointer: { clientX: number; clientY: number }, modifiers: Modifiers) => {
     const x = pointer.clientX - active.x; const y = pointer.clientY - active.y;
     const raw = Math.hypot(x, y) < THEME_METRICS.spatialPanThreshold ? { xMeters: 0, yMeters: 0, zMeters: 0 } : { xMeters: x / active.scale, yMeters: -y / active.scale, zMeters: 0 };
@@ -123,15 +153,24 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       fixture.move(unproject(lastPointer.current.clientX - rect.left, lastPointer.current.clientY - rect.top, canvas.current, bounds, spatial.view), modifiers);
     }
   };
-  const cancel = () => { setMarquee(null); setDragging(false); pointerActive.current = false; gesture.current = null; setOffset(null); fixture.cancel(); };
-  // Snapping previews follow the modifier keys wherever focus is.
-  const onModifierKey = useEffectEvent((event: KeyboardEvent) => { if (["Shift", "Control", "Meta"].includes(event.key)) refreshModifiers(event); });
+  const cancel = () => { setMarquee(null); setDragging(false); pointerActive.current = false; gesture.current = null; showPanCursor(); setOffset(null); fixture.cancel(); };
+  // Snapping previews follow the modifier keys wherever focus is; Space outside text entry holds the pan.
+  const onModifierKey = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key === "Shift" || event.key === "Alt") refreshModifiers(event);
+    if (event.code === "Space") {
+      spaceHeld.current = event.type === "keydown" && editTarget(event.target) === "app";
+      showPanCursor();
+    }
+  });
+  const releaseSpace = useEffectEvent(() => { spaceHeld.current = false; showPanCursor(); });
   useEffect(() => {
     window.addEventListener("keydown", onModifierKey);
     window.addEventListener("keyup", onModifierKey);
+    window.addEventListener("blur", releaseSpace);
     return () => {
       window.removeEventListener("keydown", onModifierKey);
       window.removeEventListener("keyup", onModifierKey);
+      window.removeEventListener("blur", releaseSpace);
     };
   }, []);
   const editable = fixtureTools?.enabled ?? layoutMenu?.enabled ?? false;
@@ -165,8 +204,8 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
         event.currentTarget.focus();
         const rect = event.currentTarget.getBoundingClientRect();
         const world = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
-        if (event.button === 0 && !event.altKey && (fixtureTools?.tool !== null || !(event.ctrlKey || event.metaKey)) && fixture.down(world, event)) return;
-        if (event.button === 1 || event.altKey) { gesture.current = { type: "pan", x: event.clientX, y: event.clientY }; return; }
+        if (event.button === 1 || spaceHeld.current) { gesture.current = { type: "pan", x: event.clientX, y: event.clientY }; showPanCursor(); return; }
+        if ((fixtureTools?.tool !== null || !(event.ctrlKey || event.metaKey)) && fixture.down(world, event)) return;
         const index = nearestPoint(points, world, THEME_METRICS.spatialHitRadius / spatial.view.scale);
         const owner = index === null ? null : plan.pixels[index]?.owner ?? null;
         const additive = event.shiftKey || event.ctrlKey || event.metaKey;
@@ -209,6 +248,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
         if (gesture.current === null && !isSecondaryClick(event) && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), event)) return;
         const active = gesture.current;
         gesture.current = null;
+        if (active?.type === "pan") showPanCursor();
         if (active?.type === "box") {
           const world = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
           const box = boxFromPoints(active.start, { xMeters: world.x, yMeters: world.y, zMeters: world.z });
@@ -229,9 +269,10 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onWheel={(event) => {
         event.preventDefault();
         if (gesture.current !== null || fixture.active) return;
-        // On macOS, two-finger scrolling pans; pinches (ctrlKey) and Command-scroll zoom.
-        if (isMac && !event.ctrlKey && !event.metaKey) {
-          spatial.panBy(-event.deltaX, -event.deltaY);
+        // The wheel scrolls, sideways with Shift; Ctrl or Command and trackpad pinches (ctrlKey) zoom.
+        if (!event.ctrlKey && !event.metaKey) {
+          if (event.shiftKey) spatial.panBy(-(event.deltaX !== 0 ? event.deltaX : event.deltaY), 0);
+          else spatial.panBy(-event.deltaX, -event.deltaY);
           return;
         }
         const rect = event.currentTarget.getBoundingClientRect();
@@ -253,25 +294,37 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
   return <div className="spatial-canvas-shell">
     {layoutMenu === undefined ? fixtureTools === undefined ? canvasElement : <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{canvasElement}</ContextMenu.Trigger>
-      <ContextMenu.Portal><ContextMenu.Content className="menu-content"><FixtureContextMenu enabled={fixtureTools.enabled} onTool={fixtureTools.onTool} selected={selection.length > 0} onDuplicate={fixtureTools.onDuplicate} onDelete={fixtureTools.onDelete} /></ContextMenu.Content></ContextMenu.Portal>
+      <ContextMenu.Portal><ContextMenu.Content className="menu-content"><ContextMenuEntries entries={fixtureMenuEntries({ enabled: fixtureTools.enabled, onTool: fixtureTools.onTool, selected: selection.length > 0, onDuplicate: fixtureTools.onDuplicate, onDelete: fixtureTools.onDelete })} /></ContextMenu.Content></ContextMenu.Portal>
     </ContextMenu.Root> : <ContextMenu.Root onOpenChange={(open) => { if (!open) setMenuPosition(null); }}>
       <ContextMenu.Trigger asChild disabled={!layoutMenu.enabled}>{canvasElement}</ContextMenu.Trigger>
       {menuPosition !== null && <ContextMenu.Portal><ContextMenu.Content className="menu-content">
-        <LayoutAddMenu
-          availableFixtures={layoutMenu.availableFixtures}
-          enabled={layoutMenu.enabled}
-          onAddFixture={(fixture) => { layoutMenu.onAddFixture(fixture, menuPosition); }}
-          onCreateFixture={() => { layoutMenu.onCreateFixture(menuPosition); }}
-          onAddGroup={layoutMenu.onAddGroup}
-        />
-        {selection.length > 0 && <><ContextMenu.Item className="menu-item" disabled={!layoutMenu.enabled} onSelect={onDuplicate}>Duplicate selection</ContextMenu.Item><ContextMenu.Item className="menu-item danger" disabled={!layoutMenu.enabled} onSelect={onDelete}>Delete selection</ContextMenu.Item></>}
+        <ContextMenuEntries entries={[
+          ...layoutAddEntries({
+            availableFixtures: layoutMenu.availableFixtures,
+            enabled: layoutMenu.enabled,
+            onAddFixture: (fixture) => { layoutMenu.onAddFixture(fixture, menuPosition); },
+            onCreateFixture: () => { layoutMenu.onCreateFixture(menuPosition); },
+            onAddGroup: layoutMenu.onAddGroup
+          }),
+          ...(selection.length > 0 ? [
+            { type: "separator" },
+            { type: "action", label: "Duplicate", shortcut: "edit.duplicate", disabled: !layoutMenu.enabled, onSelect: onDuplicate },
+            { type: "action", label: "Delete", danger: true, shortcut: "edit.delete", disabled: !layoutMenu.enabled, onSelect: onDelete }
+          ] satisfies MenuEntry[] : [])
+        ]} />
       </ContextMenu.Content></ContextMenu.Portal>}
     </ContextMenu.Root>}
     <SpatialSnapControls settings={snapping} guides={guides.guides} onGuides={guides.save} disabled={dragging || fixture.active || pending} />
-    {(fixture.measurement !== null || dragging && offset !== null) && <output className="spatial-measurement">{fixture.measurement ?? (offset === null ? "" : `X ${formatDistance(offset.x, snapping.unit)} | Y ${formatDistance(offset.y, snapping.unit)}`)}</output>}
+    {fixture.measurement !== null ? <output className="spatial-measurement">{fixture.measurement}</output> : dragging && <MoveReadout store={offsetStore} unit={snapping.unit} />}
     {guides.error !== null && <p className="spatial-measurement" role="alert">{guides.error}</p>}
     <SpatialControls view={spatial.view} reset={spatial.reset} zoomAt={spatial.zoomAt} />
   </div>;
+}
+
+/** The dragged selection's offset, re-rendered alone as the pointer moves. */
+function MoveReadout({ store, unit }: { store: StoreApi<OffsetState>; unit: SpatialUnit }) {
+  const offset = useStore(store, (state) => state.offset);
+  return offset === null ? null : <output className="spatial-measurement">{`X ${formatDistance(offset.x, unit)} | Y ${formatDistance(offset.y, unit)}`}</output>;
 }
 
 function offsetIsCommitted(offset: Offset, pixels: SpatialRenderPixel[]) {

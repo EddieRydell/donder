@@ -1,5 +1,3 @@
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import * as ContextMenu from "@radix-ui/react-context-menu";
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import {
   ChevronDown,
@@ -18,6 +16,7 @@ import {
   Keyboard,
   LayoutGrid,
   Lightbulb,
+  Lock,
   Pencil,
   Play,
   RefreshCw,
@@ -31,8 +30,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type SyntheticEvent
+  type CSSProperties
 } from "react";
 import type { NodeApi, TreeApi } from "react-arborist";
 import { Tree } from "react-arborist";
@@ -48,6 +46,8 @@ import type {
 import type { AppStaticSnapshot } from "../store";
 import { buildSemanticTree, type WorkspaceTreeNode } from "./helpers";
 import { startPerforming, usePerformStore } from "../perform";
+import { useConfirmDialog, type Confirm } from "../ui/ConfirmDialog";
+import { Badge, ContextMenuArea, IconButton, TextField, type MenuEntry } from "../ui/kit";
 
 type InlineEdit =
   | { mode: "createFile" | "createDirectory"; parent: string; value: string; error: string | null }
@@ -67,7 +67,7 @@ export function ExplorerView({
   const treeRef = useRef<TreeApi<WorkspaceTreeNode> | null>(null);
   const { ref: treeHostRef, width = 1, height = 1 } = useResizeObserver<HTMLDivElement>();
   const [inlineEdit, setInlineEdit] = useState<InlineEdit | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<WorkspaceTreeNode | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const explorer = snapshot.workspaceExplorer;
 
   const saveExplorer = (next: WorkspaceExplorerState) => {
@@ -81,12 +81,12 @@ export function ExplorerView({
       error: null
     });
   };
-  const commitInlineEdit = async () => {
+  const commitInlineEdit = async (typed: string) => {
     if (inlineEdit === null) return;
-    const value = inlineEdit.value.trim();
+    const value = typed.trim();
     const validation = validateName(value);
     if (validation !== null) {
-      setInlineEdit({ ...inlineEdit, error: validation });
+      setInlineEdit({ ...inlineEdit, value: typed, error: validation });
       return;
     }
     try {
@@ -104,34 +104,34 @@ export function ExplorerView({
       }
       setInlineEdit(null);
     } catch (error) {
-      setInlineEdit({ ...inlineEdit, error: String(error) });
+      setInlineEdit({ ...inlineEdit, value: typed, error: String(error) });
     }
   };
+  const reload = () => void runWorkspaceTransition({ type: "reloadProject" });
+  const rootEntries: MenuEntry[] = [
+    { type: "action", label: "New file", icon: FilePlus2, onSelect: () => { beginCreate("", false); } },
+    { type: "action", label: "New folder", icon: FolderPlus, onSelect: () => { beginCreate("", true); } },
+    { type: "separator" },
+    { type: "action", label: "Collapse all", icon: SquareStack, onSelect: () => treeRef.current?.closeAll() },
+    { type: "action", label: "Refresh", icon: RefreshCw, shortcut: "project.reload", onSelect: reload }
+  ];
 
   return (
     <section className="sidebar-view explorer-view" aria-label="Explorer">
       <header className="sidebar-view-header">
         <h2>Explorer</h2>
         <div className="sidebar-toolbar">
-          <button type="button" title="New file" aria-label="New file" onClick={() => { beginCreate("", false); }}>
-            <FilePlus2 size={THEME_METRICS.iconSizeCompact} />
-          </button>
-          <button type="button" title="New folder" aria-label="New folder" onClick={() => { beginCreate("", true); }}>
-            <FolderPlus size={THEME_METRICS.iconSizeCompact} />
-          </button>
-          <button type="button" title="Collapse all" aria-label="Collapse all" onClick={() => treeRef.current?.closeAll()}>
-            <SquareStack size={THEME_METRICS.iconSizeCompact} />
-          </button>
-          <button type="button" title="Refresh" aria-label="Refresh project" onClick={() => void runWorkspaceTransition({ type: "reloadProject" })}>
-            <RefreshCw size={THEME_METRICS.iconSizeCompact} />
-          </button>
+          <IconButton icon={FilePlus2} label="New file" onClick={() => { beginCreate("", false); }} />
+          <IconButton icon={FolderPlus} label="New folder" onClick={() => { beginCreate("", true); }} />
+          <IconButton icon={SquareStack} label="Collapse all" onClick={() => treeRef.current?.closeAll()} />
+          <IconButton icon={RefreshCw} label="Refresh" command="project.reload" onClick={reload} />
         </div>
       </header>
       <div className="explorer-tree-content">
         {inlineEdit !== null && inlineEdit.mode !== "rename" && (
-          <InlineInput edit={inlineEdit} onChange={setInlineEdit} onSubmit={commitInlineEdit} onCancel={() => { setInlineEdit(null); }} />
+          <InlineInput edit={inlineEdit} onSubmit={commitInlineEdit} onCancel={() => { setInlineEdit(null); }} />
         )}
-        <div className="explorer-tree-host" ref={treeHostRef}>
+        <ContextMenuArea entries={rootEntries}><div className="explorer-tree-host" ref={treeHostRef}>
           <Tree
             ref={treeRef}
             data={data}
@@ -171,18 +171,17 @@ export function ExplorerView({
               <TreeRow
                 {...props}
                 editing={inlineEdit}
-                onEditChange={setInlineEdit}
                 onCommit={commitInlineEdit}
                 onCancel={() => { setInlineEdit(null); }}
                 onBeginCreate={beginCreate}
                 onBeginRename={(node) => { setInlineEdit({ mode: "rename", path: node.path, value: node.name, error: null }); }}
-                onDelete={setPendingDelete}
+                onDelete={(node) => { void deletePath(node, confirm); }}
               />
             )}
           </Tree>
-        </div>
+        </div></ContextMenuArea>
       </div>
-      <DeleteDialog node={pendingDelete} onClose={() => { setPendingDelete(null); }} />
+      {confirmDialog}
     </section>
   );
 }
@@ -192,7 +191,6 @@ function TreeRow({
   style,
   dragHandle,
   editing,
-  onEditChange,
   onCommit,
   onCancel,
   onBeginCreate,
@@ -203,8 +201,7 @@ function TreeRow({
   style: CSSProperties;
   dragHandle?: (element: HTMLDivElement | null) => void;
   editing: InlineEdit | null;
-  onEditChange: (edit: InlineEdit) => void;
-  onCommit: () => Promise<void>;
+  onCommit: (value: string) => Promise<void>;
   onCancel: () => void;
   onBeginCreate: (parent: string, directory: boolean) => void;
   onBeginRename: (node: WorkspaceTreeNode) => void;
@@ -213,137 +210,82 @@ function TreeRow({
   const isRenaming = editing?.mode === "rename" && editing.path === node.data.path;
   const consoles = usePerformStore((store) => store.perform?.consoles);
   const performable = node.data.kind === "file" ? (consoles ?? []).filter((performed) => performed.path === node.data.path) : [];
+  const entries: MenuEntry[] = [
+    ...performable.map((performed): MenuEntry => ({ type: "action", label: `Perform ${performed.name}`, icon: Play, onSelect: () => { startPerforming(performed.index); } })),
+    ...(performable.length > 0 ? [{ type: "separator" } as const] : []),
+    ...(node.data.kind === "directory" && hasOperation(node.data, "create") ? [
+      { type: "action", label: "New file", icon: FilePlus2, onSelect: () => { onBeginCreate(node.data.path, false); } },
+      { type: "action", label: "New folder", icon: FolderPlus, onSelect: () => { onBeginCreate(node.data.path, true); } }
+    ] satisfies MenuEntry[] : []),
+    { type: "action", label: "Rename", icon: Pencil, disabled: !hasOperation(node.data, "rename"), onSelect: () => { onBeginRename(node.data); } },
+    { type: "action", label: "Delete", icon: Trash2, danger: true, disabled: !hasOperation(node.data, "delete"), onSelect: () => { onDelete(node.data); } }
+  ];
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>
-        <div
-          ref={dragHandle}
-          style={style}
-          className={`tree-row role-${node.data.role} ${node.isSelected ? "selected" : ""}`}
-          onClick={() => {
-            if (node.data.kind === "directory") node.toggle();
-          }}
-        >
-          <span className="tree-row-chevron">
-            {node.data.kind === "directory" && (node.data.children?.length ?? 0) > 0
-              ? node.isOpen
-                ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} />
-                : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />
-              : null}
-          </span>
-          {roleIcon(node.data.role, node.data.kind === "directory" && node.isOpen)}
-          {isRenaming ? (
-            <InlineInput edit={editing} onChange={onEditChange} onSubmit={onCommit} onCancel={onCancel} compact />
-          ) : (
-            <span className="tree-row-name">{node.data.name}</span>
-          )}
-          {node.data.errorCount > 0 && <span className="diagnostic-badge error">{node.data.errorCount}</span>}
-          {node.data.warningCount > 0 && <span className="diagnostic-badge warning">{node.data.warningCount}</span>}
-        </div>
-      </ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content className="menu-content">
-          {performable.map((performed) => (
-            <ContextMenu.Item key={performed.index} className="menu-item" onSelect={() => { startPerforming(performed.index); }}>
-              <Play size={THEME_METRICS.iconSizeSmall} /> Perform {performed.name}
-            </ContextMenu.Item>
-          ))}
-          {performable.length > 0 && <ContextMenu.Separator className="menu-separator" />}
-          {node.data.kind === "directory" && hasOperation(node.data, "create") && (
-            <>
-              <ContextMenu.Item className="menu-item" onSelect={() => { onBeginCreate(node.data.path, false); }}>
-                <FilePlus2 size={THEME_METRICS.iconSizeSmall} /> New File
-              </ContextMenu.Item>
-              <ContextMenu.Item className="menu-item" onSelect={() => { onBeginCreate(node.data.path, true); }}>
-                <FolderPlus size={THEME_METRICS.iconSizeSmall} /> New Folder
-              </ContextMenu.Item>
-            </>
-          )}
-          <ContextMenu.Item
-            className="menu-item"
-            disabled={!hasOperation(node.data, "rename")}
-            title={node.data.operationExplanation ?? undefined}
-            onSelect={() => { onBeginRename(node.data); }}
-          >
-            <Pencil size={THEME_METRICS.iconSizeSmall} /> Rename
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="menu-item danger"
-            disabled={!hasOperation(node.data, "delete")}
-            title={node.data.operationExplanation ?? undefined}
-            onSelect={() => { onDelete(node.data); }}
-          >
-            <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete
-          </ContextMenu.Item>
-          {!hasOperation(node.data, "rename") && node.data.operationExplanation !== null && (
-            <ContextMenu.Label className="menu-explanation">{node.data.operationExplanation}</ContextMenu.Label>
-          )}
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
+    <ContextMenuArea entries={entries}>
+      <div
+        ref={dragHandle}
+        style={style}
+        className={`tree-row role-${node.data.role} ${node.isSelected ? "selected" : ""}`}
+        onClick={() => {
+          if (node.data.kind === "directory") node.toggle();
+        }}
+      >
+        <span className="tree-row-chevron">
+          {node.data.kind === "directory" && (node.data.children?.length ?? 0) > 0
+            ? node.isOpen
+              ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} />
+              : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />
+            : null}
+        </span>
+        {roleIcon(node.data.role, node.data.kind === "directory" && node.isOpen)}
+        {isRenaming ? (
+          <InlineInput edit={editing} onSubmit={onCommit} onCancel={onCancel} compact />
+        ) : (
+          <span className="tree-row-name">{node.data.name}</span>
+        )}
+        {!hasOperation(node.data, "rename") && node.data.operationExplanation !== null && <Badge icon={Lock} tip={node.data.operationExplanation} />}
+        {node.data.errorCount > 0 && <span className="diagnostic-badge error">{node.data.errorCount}</span>}
+        {node.data.warningCount > 0 && <span className="diagnostic-badge warning">{node.data.warningCount}</span>}
+      </div>
+    </ContextMenuArea>
   );
 }
 
 function InlineInput({
   edit,
-  onChange,
   onSubmit,
   onCancel,
   compact = false
 }: {
   edit: InlineEdit;
-  onChange: (edit: InlineEdit) => void;
-  onSubmit: () => Promise<void>;
+  onSubmit: (value: string) => Promise<void>;
   onCancel: () => void;
   compact?: boolean;
 }) {
-  const submit = (event: SyntheticEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void onSubmit();
-  };
   return (
-    <form className={`inline-tree-edit ${compact ? "compact" : ""}`} onSubmit={submit}>
-      <input
+    <div className={`inline-tree-edit ${compact ? "compact" : ""}`}>
+      <TextField
         autoFocus
         value={edit.value}
-        aria-label={edit.mode === "rename" ? "New name" : "Name"}
-        onChange={(event) => { onChange({ ...edit, value: event.currentTarget.value, error: null }); }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onCancel();
-          }
-        }}
+        name={edit.mode === "rename" ? "New name" : "Name"}
+        invalid={edit.error !== null}
+        onCommit={(value) => void onSubmit(value)}
+        onCancel={onCancel}
       />
       {edit.error !== null && <span className="inline-edit-error">{edit.error}</span>}
-    </form>
+    </div>
   );
 }
 
-function DeleteDialog({ node, onClose }: { node: WorkspaceTreeNode | null; onClose: () => void }) {
-  return (
-    <AlertDialog.Root open={node !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="dialog-overlay" />
-        <AlertDialog.Content className="dialog-content">
-          <AlertDialog.Title>Delete {node?.name}</AlertDialog.Title>
-          <AlertDialog.Description>
-            This permanently removes {node?.kind === "directory" ? "the directory and its contents" : "the file"} from the project.
-          </AlertDialog.Description>
-          <div className="dialog-actions">
-            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-            <AlertDialog.Action
-              onClick={() => {
-                if (node !== null) void runSnapshotCommand(() => commands.deletePath(node.path));
-              }}
-            >
-              Delete
-            </AlertDialog.Action>
-          </div>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
-  );
+/** Deleting from disk cannot be undone, so it asks first. */
+async function deletePath(node: WorkspaceTreeNode, confirm: Confirm) {
+  const confirmed = await confirm({
+    title: `Delete ${node.name}`,
+    description: node.kind === "directory" ? "Deletes the folder and its contents from disk." : "Deletes the file from disk.",
+    confirmLabel: "Delete",
+    danger: true
+  });
+  if (confirmed) await runSnapshotCommand(() => commands.deletePath(node.path));
 }
 
 function hasOperation(node: WorkspaceTreeNode, operation: WorkspaceOperation): boolean {

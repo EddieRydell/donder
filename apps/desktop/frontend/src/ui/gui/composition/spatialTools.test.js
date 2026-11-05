@@ -15,7 +15,7 @@ after(() => server.close());
 const { arrange, boxSelection, fixtureItems, layoutItems, moveLayout, repeatOffsets, selectedItems, selectionClick } = await server.ssrLoadModule("/src/ui/gui/composition/spatialSelection.ts");
 const p = (x, y, z = 0) => ({ xMeters: x, yMeters: y, zMeters: z });
 const settings = { enabled: true, spacingMeters: 0.1, unit: "meters" };
-const none = { shiftKey: false, ctrlKey: false, metaKey: false };
+const none = { shiftKey: false, altKey: false };
 const shift = { ...none, shiftKey: true };
 const close = (a, b) => { assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`); };
 
@@ -24,7 +24,7 @@ test("grid snapping handles negative coordinates, imperial increments, and bypas
   const inch = spatialUnits.inches.meters;
   const snapped = constrainPoint(p(inch * 2.2, inch * 4.7), { ...settings, spacingMeters: inch }, none);
   close(snapped.xMeters, inch * 2); close(snapped.yMeters, inch * 5);
-  for (const bypass of [{ ...none, ctrlKey: true }, { ...none, metaKey: true }]) assert.deepEqual(constrainPoint(p(0.123, -0.257), settings, bypass), p(0.123, -0.257));
+  assert.deepEqual(constrainPoint(p(0.123, -0.257), settings, { ...none, altKey: true }), p(0.123, -0.257));
   assert.throws(() => constrainPoint(p(1, 1), { ...settings, spacingMeters: 0 }, none));
 });
 test("Shift preserves off-grid anchors and constrains every octant; square grids remain square", () => {
@@ -50,7 +50,7 @@ test("endpoint and guide priority preserve constraints and bypass", () => {
   const guides = [{ axis: "x", positionMeters: 0.253 }];
   const guided = snapPoint(p(0.26, 0.25), settings, shift, [], guides, 0.05, p(0, 0));
   close(guided.xMeters, 0.253); close(guided.yMeters, 0.253);
-  assert.deepEqual(snapPoint(p(0.26, 0.25), settings, { ...none, ctrlKey: true }, targets, guides, 0.1), p(0.26, 0.25));
+  assert.deepEqual(snapPoint(p(0.26, 0.25), settings, { ...none, altKey: true }, targets, guides, 0.1), p(0.26, 0.25));
   assert.ok(visibleGridStep(0.001, 10, 36) * 10 >= 36);
 });
 const transform = (x, y = 0) => ({ position: p(x, y), rotation: { xDegrees: 0, yDegrees: 0, zDegrees: 0 }, scale: { x: 1, y: 1, z: 1 } });

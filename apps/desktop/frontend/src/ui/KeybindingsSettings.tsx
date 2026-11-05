@@ -1,10 +1,11 @@
-import { Plus, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Plus, RotateCcw, X } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { boundShortcuts, commandRegistry, type CommandDefinition } from "../commandRegistry";
 import { RESERVED_MENU_SHORTCUTS, suspendMenuShortcuts } from "../nativeMenu";
 import { formatShortcut, sameShortcut, shortcut, shortcutFromEvent } from "../platform";
 import { THEME_METRICS } from "../theme";
 import type { CommandId, KeyBinding, Shortcut } from "../types";
+import { IconButton, Section, TextField, Tip } from "./kit";
 
 const COMMAND_IDS = Object.keys(commandRegistry) as CommandId[];
 
@@ -75,51 +76,41 @@ export function KeybindingsSettings({ keybindings, onChange }: { keybindings: Ke
     return { commands: commands.map((other) => commandRegistry[other].label), reserved: reserved.map((item) => item.label) };
   };
 
-  return (
-    <section className="settings-keybindings">
-      <div className="settings-keybindings-header">
-        <h3>Keyboard Shortcuts</h3>
-        <input type="search" placeholder="Search commands or keys" value={query} onChange={(event) => { setQuery(event.target.value); }} />
-        <button type="button" disabled={keybindings.length === 0} onClick={() => { onChange([]); }}>Reset All</button>
-      </div>
-      <div className="keybinding-list">
-        {rows.map(({ id, definition, shortcuts }) => {
-          const shared = sharing(id, shortcuts);
-          const overridden = keybindings.some((binding) => binding.command === id);
-          return (
-            <div key={id} className="keybinding-row">
-              <span className="keybinding-label">
-                <small>{definition.category}</small>
-                {definition.label}
+  return <Section
+    title="Shortcuts"
+    actions={<IconButton icon={RotateCcw} label="Reset all shortcuts" disabled={keybindings.length === 0} onClick={() => { onChange([]); }} />}
+  >
+    <TextField live name="Search commands or keys" placeholder="Search" value={query} onCommit={setQuery} />
+    <div className="keybinding-list">
+      {rows.map(({ id, definition, shortcuts }) => {
+        const shared = sharing(id, shortcuts);
+        const conflicts = [
+          ...(shared.commands.length > 0 ? [`Also used by ${shared.commands.join(", ")}`] : []),
+          ...(shared.reserved.length > 0 ? [`Used by macOS: ${shared.reserved.join(", ")}`] : [])
+        ];
+        const overridden = keybindings.some((binding) => binding.command === id);
+        return <div key={id} className="keybinding-row">
+          <span className="keybinding-label">
+            <small>{definition.category}</small>
+            {definition.label}
+          </span>
+          <span className="keybinding-keys">
+            {conflicts.length > 0 && <Tip label={conflicts.join("; ")}>
+              <span className="keybinding-shared" role="img" aria-label={conflicts.join("; ")}><AlertTriangle size={THEME_METRICS.iconSizeExtraSmall} aria-hidden /></span>
+            </Tip>}
+            {shortcuts.map((bound) => (
+              <span key={formatShortcut(bound)} className="keybinding-key">
+                <kbd>{formatShortcut(bound)}</kbd>
+                <IconButton icon={X} label={`Remove ${formatShortcut(bound)}`} onClick={() => { setShortcuts(id, shortcuts.filter((other) => !sameShortcut(other, bound))); }} />
               </span>
-              <span className="keybinding-keys">
-                {shortcuts.map((bound) => (
-                  <span key={formatShortcut(bound)} className="keybinding-key">
-                    <kbd>{formatShortcut(bound)}</kbd>
-                    <button type="button" aria-label={`Remove ${formatShortcut(bound)}`} onClick={() => { setShortcuts(id, shortcuts.filter((other) => !sameShortcut(other, bound))); }}>
-                      <X size={THEME_METRICS.iconSizeExtraSmall} />
-                    </button>
-                  </span>
-                ))}
-                {recording === id
-                  ? <span className="keybinding-recording">Press a key, or Escape to cancel</span>
-                  : (
-                    <button type="button" aria-label={`Add a shortcut for ${definition.label}`} title="Add shortcut" onClick={() => { setRecording(id); }}>
-                      <Plus size={THEME_METRICS.iconSizeExtraSmall} />
-                    </button>
-                  )}
-                {overridden && (
-                  <button type="button" aria-label={`Reset ${definition.label}`} title="Reset to default" onClick={() => { onChange(keybindings.filter((binding) => binding.command !== id)); }}>
-                    <RotateCcw size={THEME_METRICS.iconSizeExtraSmall} />
-                  </button>
-                )}
-              </span>
-              {shared.commands.length > 0 && <span className="keybinding-shared">Also used by {shared.commands.join(", ")}</span>}
-              {shared.reserved.length > 0 && <span className="keybinding-shared">Used by macOS: {shared.reserved.join(", ")}</span>}
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
+            ))}
+            {recording === id
+              ? <span className="keybinding-recording">Press keys…</span>
+              : <IconButton icon={Plus} label="Add shortcut (Escape cancels)" onClick={() => { setRecording(id); }} />}
+            {overridden && <IconButton icon={RotateCcw} label="Reset to default" onClick={() => { onChange(keybindings.filter((binding) => binding.command !== id)); }} />}
+          </span>
+        </div>;
+      })}
+    </div>
+  </Section>;
 }

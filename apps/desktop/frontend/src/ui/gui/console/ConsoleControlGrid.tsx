@@ -1,11 +1,10 @@
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Flag, Play, Plus, Repeat, SlidersHorizontal, Square, X } from "lucide-react";
-import { useContext, useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import type { ConsoleAction, ConsoleEventKind, ConsoleGuiDocument, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, ConsolePlayMode, GuiEditUpdate, SequenceEffectDefinition } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { OverlayPortal } from "../../OverlayPortal";
-import { DefinitionMenuItems, definitionTree, effectReferenceKey } from "../sequence/definitionMenu";
+import { Badge, Button, IconButton, MenuButton, type MenuEntry } from "../../kit";
+import { definitionTree, type DefinitionFolder } from "../sequence/definitionMenu";
 import type { GuiFocus } from "../shared";
 import { answers, applyConsoleEdit, controlRef, focusOnEffect, inputLabel, targetLabel } from "./consoleEditing";
 
@@ -53,16 +52,16 @@ function ActionChip({ document, entry, selected, setSelected }: {
   const isSelected = selected?.type === "consoleAction" && selected.on === on.id && selected.index === index;
   const detail = actionDetail(action);
   return <span className={`action-chip${isSelected ? " selected" : ""}`}>
-    <button type="button" className="action-chip-body" aria-pressed={isSelected} onClick={() => { setSelected({ type: "consoleAction", on: on.id, index }); }}>
+    <Button variant="ghost" className="action-chip-body" aria-pressed={isSelected} onClick={() => { setSelected({ type: "consoleAction", on: on.id, index }); }}>
       <ActionIcon action={action} />
       <span>{actionTarget(document, action)}</span>
       {detail !== null && <span className="action-chip-detail">{detail}</span>}
-    </button>
-    <button type="button" className="action-chip-remove" aria-label="Remove action" title="Remove action" onClick={() => {
+    </Button>
+    <IconButton icon={X} label="Remove action" danger className="action-chip-remove" onClick={() => {
       void applyConsoleEdit({ type: "removeAction", on: on.id, index }).then(() => {
         if (isSelected) setSelected(null);
       });
-    }}><X size={THEME_METRICS.iconSizeSmall} aria-hidden /></button>
+    }} />
   </span>;
 }
 
@@ -84,10 +83,22 @@ function ActionCell({ document, device, control, event, selected, setSelected }:
 }
 
 const PLAY_MODES: { mode: ConsolePlayMode; label: string; releaseToo: boolean }[] = [
-  { mode: "forTime", label: "Play an effect for a moment", releaseToo: true },
-  { mode: "held", label: "Play an effect while held", releaseToo: false },
-  { mode: "toggle", label: "Toggle an effect", releaseToo: true }
+  { mode: "forTime", label: "Play for a moment", releaseToo: true },
+  { mode: "held", label: "Play while held", releaseToo: false },
+  { mode: "toggle", label: "Toggle", releaseToo: true }
 ];
+
+/** The folders of definitions as nested submenus whose items pick a definition. */
+function folderEntries(tree: DefinitionFolder<SequenceEffectDefinition>[], onSelect: (definition: SequenceEffectDefinition) => void): MenuEntry[] {
+  return tree.map((folder) => ({
+    type: "submenu",
+    label: folder.name,
+    entries: [
+      ...folderEntries(folder.folders, onSelect),
+      ...folder.items.map((definition): MenuEntry => ({ type: "action", label: definition.name, onSelect: () => { onSelect(definition); } }))
+    ]
+  }));
+}
 
 /** The + of an action cell: what the control can do on that event. */
 function AddActionMenu({ document, device, control, event, setSelected }: {
@@ -97,7 +108,6 @@ function AddActionMenu({ document, device, control, event, setSelected }: {
   event: ConsoleEventKind;
   setSelected: (focus: GuiFocus) => void;
 }) {
-  const container = useContext(OverlayPortal);
   const tree = useMemo(() => definitionTree(document.effectDefinitions, (definition) => definition.effect.path), [document.effectDefinitions]);
   const target = document.targets[0];
   const ref = controlRef(device, control);
@@ -106,33 +116,31 @@ function AddActionMenu({ document, device, control, event, setSelected }: {
     void applyConsoleEdit({ type: "addEffectAction", control: ref, event, mode, initialColor: THEME_COLORS.white, effect: definition.effect, target: target.target })
       .then((update: GuiEditUpdate) => { setSelected(focusOnEffect(update, update.created[0])); });
   };
-  const { Root, Trigger, Portal, Content, Item, Sub, SubTrigger, SubContent } = DropdownMenu;
-  const submenu = (label: string, children: ReactNode, disabled = false) => <Sub>
-    <SubTrigger className="menu-item" disabled={disabled}>{label}</SubTrigger>
-    <Portal container={container}><SubContent className="menu-content">{children}</SubContent></Portal>
-  </Sub>;
-  const effects = (mode: ConsolePlayMode) => <DefinitionMenuItems menu={DropdownMenu} tree={tree} label={(definition) => definition.name}
-    itemKey={(definition) => effectReferenceKey(definition.effect)} onSelect={(definition) => { addEffect(mode, definition); }} empty="No effects" disabled={target === undefined} />;
-  return <Root>
-    <Trigger className="action-add" aria-label="Add an action" title="Add an action"><Plus size={THEME_METRICS.iconSizeSmall} aria-hidden /></Trigger>
-    <Portal container={container}>
-      <Content className="menu-content" align="start" sideOffset={THEME_METRICS.menuOffset}>
-        {PLAY_MODES.filter((choice) => event === "press" || choice.releaseToo).map((choice) => (
-          <span key={choice.mode}>{submenu(choice.label, effects(choice.mode), target === undefined)}</span>
-        ))}
-        {submenu("Stop an effect", document.clips.length === 0
-          ? <Item className="menu-item" disabled>No effects</Item>
-          : document.clips.map((clip) => <Item key={clip.id} className="menu-item" onSelect={() => {
-            void applyConsoleEdit({ type: "addAction", control: ref, event, action: { type: "stop", clipId: clip.id } });
-          }}>{clip.name}</Item>))}
-        {submenu("Add a live mark", document.liveMarks.length === 0
-          ? <Item className="menu-item" disabled>No live mark collections</Item>
-          : document.liveMarks.map((marks) => <Item key={marks.key} className="menu-item" onSelect={() => {
-            void applyConsoleEdit({ type: "addAction", control: ref, event, action: { type: "mark", into: marks.key } });
-          }}>{marks.key}</Item>))}
-      </Content>
-    </Portal>
-  </Root>;
+  const entries: MenuEntry[] = [
+    ...PLAY_MODES.filter((choice) => event === "press" || choice.releaseToo).map((choice): MenuEntry => ({
+      type: "submenu",
+      label: choice.label,
+      disabled: target === undefined || tree.length === 0,
+      entries: folderEntries(tree, (definition) => { addEffect(choice.mode, definition); })
+    })),
+    {
+      type: "submenu",
+      label: "Stop",
+      disabled: document.clips.length === 0,
+      entries: document.clips.map((clip): MenuEntry => ({ type: "action", label: clip.name, onSelect: () => {
+        void applyConsoleEdit({ type: "addAction", control: ref, event, action: { type: "stop", clipId: clip.id } });
+      } }))
+    },
+    {
+      type: "submenu",
+      label: "Live mark",
+      disabled: document.liveMarks.length === 0,
+      entries: document.liveMarks.map((marks): MenuEntry => ({ type: "action", label: marks.key, onSelect: () => {
+        void applyConsoleEdit({ type: "addAction", control: ref, event, action: { type: "mark", into: marks.key } });
+      } }))
+    }
+  ];
+  return <MenuButton entries={entries}><IconButton icon={Plus} label="Add action" className="action-add" /></MenuButton>;
 }
 
 /** Every button of the setup's input devices with what it does when pressed and released. Knobs are linked from the parameters they set. */
@@ -142,14 +150,14 @@ export function ConsoleControlGrid({ document, selected, setSelected }: {
   setSelected: (focus: GuiFocus) => void;
 }) {
   if (document.inputDevices.every((device) => device.buttons.length === 0)) {
-    return <p className="object-overview-empty">Add an input device with buttons to the project's setup to play this console.</p>;
+    return <Badge tip="Add an input device with buttons to the project's setup to play this console">No buttons</Badge>;
   }
   return <div className="control-grid console">
     <div className="control-grid-row">
       <div className="control-cell head"><span>Control</span></div>
       <div className="control-cell head"><span>Input</span></div>
-      <div className="control-cell head"><span>When pressed</span></div>
-      <div className="control-cell head"><span>When released</span></div>
+      <div className="control-cell head"><span>Press</span></div>
+      <div className="control-cell head"><span>Release</span></div>
     </div>
     {document.inputDevices.filter((device) => device.buttons.length > 0).flatMap((device) => [
       <div className="control-grid-row" key={`${guiObjectKey(device.device)}:name`}>

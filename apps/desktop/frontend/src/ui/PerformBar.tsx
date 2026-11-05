@@ -3,7 +3,7 @@ import { Monitor, RadioTower, Square } from "lucide-react";
 import { commands } from "../api";
 import { installPerformKeys, refreshPerform, stopPerforming, usePerformStore } from "../perform";
 import { runSnapshotCommand, useAppStore } from "../store";
-import { THEME_METRICS } from "../theme";
+import { Button, IconButton, Tip } from "./kit";
 
 /** The performance in progress: its console, clock and held buttons. */
 export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: number; projectRevision: number }) {
@@ -28,29 +28,23 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
         summary={session.osc.ports.length === 0 ? "OSC not listening" : `OSC on port ${session.osc.ports.join(", ")}`}
         details={session.osc.ports.map((port) => `UDP port ${port}`)}
         error={session.osc.error} />}
-      <span className="perform-bar-held" title="Held buttons">
-        {session.held.length === 0 ? "No buttons held" : session.held.map((button) => `${button.device}.${button.control}`).join(" ")}
-      </span>
-      <button
-        type="button"
-        className={liveActive ? "active" : ""}
-        title={liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
+      <Tip label="Held buttons"><span className="perform-bar-held">
+        {session.held.length === 0 ? "—" : session.held.map((button) => `${button.device}.${button.control}`).join(" ")}
+      </span></Tip>
+      <IconButton
+        icon={RadioTower}
+        label={liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
+        pressed={liveActive}
         disabled={liveOutput.state === "stopping"}
         onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
-      >
-        <RadioTower size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        className={previewOpen ? "active" : ""}
-        title={previewOpen ? "Close preview" : "Open preview"}
+      />
+      <IconButton
+        icon={Monitor}
+        label="Preview"
+        pressed={previewOpen}
         onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))}
-      >
-        <Monitor size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button type="button" title="Stop performing" onClick={stopPerforming}>
-        <Square size={THEME_METRICS.iconSizeCompact} /> Stop
-      </button>
+      />
+      <Button variant="ghost" icon={Square} tip="Stop performing" command="perform.stop" onClick={stopPerforming}>Stop</Button>
     </section>
   );
 }
@@ -58,8 +52,9 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
 /** How an input driver is connected, and why it failed when it did. */
 function InputStatus({ summary, details, error }: { summary: string; details: string[]; error: string | null }) {
   const shown = error === null ? [summary] : [summary, error];
-  const title = error === null ? details : [...details, error];
-  return <span className={`perform-bar-input ${error === null ? "" : "error"}`} title={title.join("\n")}>{shown.join(" · ")}</span>;
+  const tip = error === null ? details : [...details, error];
+  const status = <span className={`perform-bar-input ${error === null ? "" : "error"}`}>{shown.join(" · ")}</span>;
+  return tip.length === 0 ? status : <Tip label={tip.join(" · ")}>{status}</Tip>;
 }
 
 function formatElapsed(seconds: number): string {

@@ -11,8 +11,7 @@ import type { AppSnapshot, AudioTransportState, SequenceGuiDocument, SequenceFol
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph, requestTapMark } from "../../uiEvents";
-import { THEME_METRICS } from "../../../theme";
-import { useConfirmDialog, type Confirm } from "../../ConfirmDialog";
+import { IconButton, Tip } from "../../kit";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
 
 export function SequenceTransportControls({
@@ -24,7 +23,6 @@ export function SequenceTransportControls({
 }) {
   const host = useSequenceEditorHost();
   const { commands, store: useAppStore, runSnapshotCommand } = host;
-  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
@@ -32,7 +30,6 @@ export function SequenceTransportControls({
   const snapping = useAppStore((store) => store.snapshot?.settings.sequenceSnap ?? null);
   const sliceTool = useSequenceTool((state) => state.tool === "slice");
   if (transport === null || liveOutput === null || followMode === null || snapping === null) return null;
-  const FollowIcon = FOLLOW_MODES[followMode].Icon;
   const unsupported = isSequenceTransportUnsupported(document, transport);
   const activePlayback = isActiveAudioPlayback(transport.state);
   const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
@@ -43,118 +40,40 @@ export function SequenceTransportControls({
   };
   return (
     <div className="sequence-toolbar" aria-label="Sequence transport">
-      <button
-        type="button"
-        title="Play"
-        disabled={unsupported || activePlayback}
-        onClick={() => void runSnapshotCommand(commands.audioPlay)}
-      >
-        <Play size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        title="Pause"
-        disabled={unsupported || !activePlayback}
-        onClick={() => void runSnapshotCommand(commands.audioPause)}
-      >
-        <Pause size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button type="button" title="Stop" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioStop)}>
-        <Square size={THEME_METRICS.iconSizeSmall} />
-      </button>
-      <button
-        type="button"
-        className={transport.looping ? "active" : ""}
-        title={transport.looping ? "Stop looping (L)" : "Loop (L)"}
-        disabled={unsupported}
-        onClick={() => void runSnapshotCommand(() => commands.audioSetLooping(!transport.looping))}
-      >
-        <Repeat size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        className={followMode === "off" ? "" : "active"}
-        title={`${FOLLOW_MODES[followMode].title} (F)`}
-        onClick={() => { cycleSequenceFollowMode(host); }}
-      >
-        <FollowIcon size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button type="button" title="Rewind to zero" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioRewindToZero)}>
-        <SkipBack size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        title="Step backward"
-        disabled={unsupported}
-        onClick={() => {
-          stepFrame(-1);
-        }}
-      >
-        <ChevronLeft size={THEME_METRICS.iconSizeMedium} />
-      </button>
-      <button
-        type="button"
-        title="Step forward"
-        disabled={unsupported}
-        onClick={() => {
-          stepFrame(1);
-        }}
-      >
-        <ChevronRight size={THEME_METRICS.iconSizeMedium} />
-      </button>
-      <button
-        type="button"
-        className={liveActive ? "active" : ""}
-        title={liveFailures.length > 0 ? liveFailures.join("; ") : liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
-        hidden={!host.capabilities.liveOutput}
-        disabled={liveOutput.state === "stopping"}
-        onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
-      >
-        <RadioTower size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        className={previewOpen ? "active" : ""}
-        title={previewOpen ? "Close preview" : "Open preview"}
-        hidden={!host.capabilities.previewWindow}
-        onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))}
-      >
-        <Monitor size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button type="button" title="Open layer graph" onClick={requestOpenLayerGraph}>
-        <Workflow size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        className={sliceTool ? "active" : ""}
-        title={sliceTool ? "Stop slicing (C)" : "Slice clips (C)"}
-        onClick={toggleSliceTool}
-      >
-        <Scissors size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        className={snapping ? "active" : ""}
-        title={snapping ? "Snap: on (hold Alt to bypass)" : "Snap: off (hold Alt to snap)"}
-        onClick={() => { toggleSequenceSnap(host); }}
-      >
-        <Magnet size={THEME_METRICS.iconSizeCompact} />
-      </button>
-      <button
-        type="button"
-        title="Choose audio"
-        hidden={!host.capabilities.audioFile}
-        onClick={() => void chooseAudioWithResizePrompt(host, document, confirm)}
-      >
-        <Music size={THEME_METRICS.iconSizeCompact} />
-      </button>
+      <IconButton icon={Play} label="Play" command="transport.togglePlayback" disabled={unsupported || activePlayback} onClick={() => void runSnapshotCommand(commands.audioPlay)} />
+      <IconButton icon={Pause} label="Pause" command="transport.togglePlayback" disabled={unsupported || !activePlayback} onClick={() => void runSnapshotCommand(commands.audioPause)} />
+      <IconButton icon={Square} label="Stop" command="transport.stop" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioStop)} />
+      <IconButton icon={Repeat} label="Loop" command="transport.toggleLooping" pressed={transport.looping} disabled={unsupported}
+        onClick={() => void runSnapshotCommand(() => commands.audioSetLooping(!transport.looping))} />
+      <IconButton icon={FOLLOW_MODES[followMode].Icon} label={FOLLOW_MODES[followMode].title} command="transport.cycleFollowMode" pressed={followMode !== "off"}
+        onClick={() => { cycleSequenceFollowMode(host); }} />
+      <IconButton icon={SkipBack} label="Rewind to start" command="transport.rewind" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioRewindToZero)} />
+      <IconButton icon={ChevronLeft} label="Step backward" command="edit.moveLeft" disabled={unsupported} onClick={() => { stepFrame(-1); }} />
+      <IconButton icon={ChevronRight} label="Step forward" command="edit.moveRight" disabled={unsupported} onClick={() => { stepFrame(1); }} />
+      {host.capabilities.liveOutput && (
+        <IconButton
+          icon={RadioTower}
+          label={liveFailures.length > 0 ? liveFailures.join("; ") : liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
+          pressed={liveActive}
+          disabled={liveOutput.state === "stopping"}
+          onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
+        />
+      )}
+      {host.capabilities.previewWindow && (
+        <IconButton icon={Monitor} label="Preview" pressed={previewOpen} onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))} />
+      )}
+      <IconButton icon={Workflow} label="Layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph} />
+      <IconButton icon={Scissors} label="Slice clips" command="sequence.toggleSliceTool" pressed={sliceTool} onClick={toggleSliceTool} />
+      <IconButton icon={Magnet} label={snapping ? "Snap: on, Alt bypasses" : "Snap: off, Alt snaps"} pressed={snapping} onClick={() => { toggleSequenceSnap(host); }} />
+      {host.capabilities.audioFile && <IconButton icon={Music} label="Choose audio" onClick={() => void chooseAudio(host, document)} />}
       {host.capabilities.playbackSpeed ? <SequencePlaybackSpeedControls speed={transport.playbackSpeed} /> : null}
-      <span className="sequence-time-readout" title="Stop returns the playhead to Home. Click the ruler to move Home; drag in it to set a playback range.">
-        <SequenceTimeReadout transport={transport} durationSeconds={document.durationSeconds} />
-        {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeControllerCount} controllers)` : ""}
-      </span>
+      <Tip label="Stop returns to Home. Click the ruler to move Home; drag in it to set a playback range.">
+        <span className="sequence-time-readout">
+          <SequenceTimeReadout transport={transport} durationSeconds={document.durationSeconds} />
+          {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeControllerCount} controllers)` : ""}
+        </span>
+      </Tip>
       {host.exportControls}
-      {confirmDialog}
     </div>
   );
 }
@@ -177,7 +96,8 @@ function toggleSequenceSnap(host: SequenceEditorHost) {
   void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceSnap: !settings.sequenceSnap }));
 }
 
-async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceGuiDocument, confirm: Confirm) {
+/** Chooses the sequence's audio, then fits the sequence to its length; undo reverts the resize. */
+async function chooseAudio(host: SequenceEditorHost, document: SequenceGuiDocument) {
   const { commands, runGuiEditCommand } = host;
 
   const result = await runGuiEditCommand(commands.chooseSequenceAudio);
@@ -188,13 +108,6 @@ async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: S
   if (audio === null) return;
   const durationSeconds = await loadAudioDurationSeconds(host, audio.resolvedPath);
   if (durationSeconds === null || Math.abs(durationSeconds - document.durationSeconds) < 0.01) return;
-  const resize = await confirm({
-    title: "Resize sequence?",
-    description: `Resize the sequence to ${formatSeconds(durationSeconds)} to match ${audio.fileName}.`,
-    confirmLabel: "Resize",
-    danger: false
-  });
-  if (!resize) return;
   await runGuiEditCommand((request) =>
     commands.applyGuiEdit(request, { type: "sequence", edit: {
       type: "setDuration",
@@ -202,6 +115,7 @@ async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: S
     } })
   );
 }
+
 
 function loadAudioDurationSeconds(host: SequenceEditorHost, path: string): Promise<number | null> {
   const { resolveAssetUrl: convertFileSrc } = host;
@@ -295,7 +209,33 @@ export function sequenceTransportCommands(host: SequenceEditorHost, document: Se
     const current = transport();
     if (current !== undefined) stepSequenceFrame(host, document, current.positionSeconds, current.durationSeconds, direction);
   };
+  // Alt+arrows seek to the nearest mark of any collection before or after the playhead.
+  const jumpToMark = (direction: -1 | 1) => () => {
+    const current = transport();
+    if (current === undefined) return;
+    const position = current.positionSeconds;
+    const marks = document.markCollections.flatMap((collection) => collection.marksSeconds);
+    // Within half a frame of the playhead counts as the current mark, so repeated presses move on.
+    const halfFrame = 0.5 / Math.max(1, document.frameRate);
+    const target = direction < 0
+      ? Math.max(...marks.filter((mark) => mark < position - halfFrame))
+      : Math.min(...marks.filter((mark) => mark > position + halfFrame));
+    if (Number.isFinite(target)) void runSnapshotCommand(() => commands.audioSeek(target));
+  };
+  // I and O set the playback range's start or end at the playhead, keeping the other end.
+  const setRangeEdge = (edge: "start" | "end") => () => {
+    const current = transport();
+    if (current === undefined) return;
+    const position = current.positionSeconds;
+    const startSeconds = edge === "start" ? position : current.range?.startSeconds ?? 0;
+    const endSeconds = edge === "end" ? position : current.range?.endSeconds ?? current.durationSeconds;
+    if (endSeconds > startSeconds) void runSnapshotCommand(() => commands.audioSetRange({ startSeconds, endSeconds }));
+  };
   return {
+    "transport.previousMark": { enabled, run: jumpToMark(-1) },
+    "transport.nextMark": { enabled, run: jumpToMark(1) },
+    "transport.setRangeIn": { enabled, run: setRangeEdge("start") },
+    "transport.setRangeOut": { enabled, run: setRangeEdge("end") },
     "transport.togglePlayback": { enabled, run: ({ repeat }) => {
       if (repeat) return;
       void runSnapshotCommand(isActiveAudioPlayback(transport()?.state ?? "unloaded") ? commands.audioStop : commands.audioPlay);

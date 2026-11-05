@@ -1,13 +1,13 @@
 import { SequenceEditorHostProvider } from "../editor/host";
 import { desktopSequenceEditorHost } from "../editor/desktopHost";
 export function EditorPane(props: Parameters<typeof EditorPaneContent>[0]) { return <SequenceEditorHostProvider host={desktopSequenceEditorHost}><EditorPaneContent {...props} /></SequenceEditorHostProvider>; }
-import { RefreshCw, Save, X } from "lucide-react";
+import { AlertTriangle, FileText, FolderOpen, ListX, RefreshCw, Save, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { commands } from "../api";
 import { SequenceAudioSync, sequenceAudioKey } from "../sequenceAudioSync";
 import type { PersistedEditorViewState, SequenceSelection, WorkspaceLayoutState } from "../types";
-import { FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
+import { runCommand } from "../commandRegistry";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
@@ -22,6 +22,7 @@ import { guiRequestKind } from "../workspace/guiIdentity";
 import { resolveDocumentSyncFailure } from "../store";
 import { NAVIGATE_TO_TEXT_EVENT, navigateToText, type TextNavigation } from "../workspace/navigation";
 import { displayedProjectHealth } from "../workspace/helpers";
+import { Button, IconButton, Tip } from "./kit";
 
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
@@ -151,7 +152,9 @@ function EditorPaneContent({
   if (snapshot.tabs.length === 0) {
     return (
       <section className="editor-shell empty-editor">
-        <span>{snapshot.projectRoot !== null ? "Open a Donder file from the project tree." : "Open a project to start."}</span>
+        {snapshot.projectRoot !== null
+          ? <Button variant="ghost" icon={FileText} tip="Quick Open" command="workbench.quickOpen" onClick={() => { runCommand("workbench.quickOpen"); }}>Open file</Button>
+          : <Button variant="ghost" icon={FolderOpen} tip="Open Project" command="file.openProject" onClick={() => { runCommand("file.openProject"); }}>Open project</Button>}
       </section>
     );
   }
@@ -172,36 +175,28 @@ function EditorPaneContent({
             >
               <span>{tab.name}</span>
               <span className={tab.dirty ? "dirty-dot unsaved" : "dirty-dot"} aria-hidden="true" />
-              {tab.externalState !== "current" && <span className="conflict-dot" />}
+              {tab.externalState !== "current" && <Tip label={tab.externalState === "deletedOnDisk" ? "Deleted on disk" : "Changed on disk"}><span className="conflict-dot" /></Tip>}
             </button>
-            <button
-              type="button"
+            <IconButton
+              icon={X}
               className="tab-close"
-              aria-label={`Close ${tab.name}`}
+              label={`Close ${tab.name}`}
+              {...(tab.path === activeTabPath ? { command: "file.closeEditor" as const } : {})}
               onClick={(event) => {
                 event.stopPropagation();
                 void runWorkspaceTransition({ type: "closeFile", path: tab.path });
               }}
-            >
-              <X size={THEME_METRICS.iconSizeSmall} />
-            </button>
+            />
           </div>
         ))}
       </div>
       {displayedProjectHealth(snapshot) === "invalid" && (
         <div className="project-invalid-banner">
-          <span>The project has errors. Fix them in Text to use GUI editing.</span>
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent(FOCUS_SIDEBAR_EVENT, { detail: "problems" }));
-            }}
-          >
-            Open Problems
-          </button>
+          <Tip label="GUI editing needs a project without errors."><span><AlertTriangle size={THEME_METRICS.iconSizeSmall} aria-hidden /> Project has errors</span></Tip>
+          <Button icon={ListX} onClick={() => { runCommand("view.focusProblems"); }}>Problems</Button>
           {activePath !== null && (
-            <button
-              type="button"
+            <Button
+              icon={FileText}
               onClick={() => {
                 const diagnostic = snapshot.diagnostics.find((item) =>
                   item.path === activePath
@@ -211,8 +206,8 @@ function EditorPaneContent({
                 void navigateToText(activePath, diagnostic?.range ?? null);
               }}
             >
-              Edit Text
-            </button>
+              Edit text
+            </Button>
           )}
         </div>
       )}
@@ -226,26 +221,16 @@ function EditorPaneContent({
       )}
       {failedDocumentSync !== null && (
         <div className="conflict-banner">
-          <span>Your latest text has not been accepted because the document changed.</span>
-          <button type="button" onClick={() => void resolveDocumentSyncFailure(false)}>Discard Pending Text</button>
-          <button type="button" onClick={() => void resolveDocumentSyncFailure(true)}>Keep My Text</button>
+          <Tip label="Your latest text was not accepted because the document changed."><span>Text not applied</span></Tip>
+          <Button icon={Undo2} onClick={() => void resolveDocumentSyncFailure(false)}>Discard</Button>
+          <Button icon={Save} onClick={() => void resolveDocumentSyncFailure(true)}>Keep mine</Button>
         </div>
       )}
       {activeConflicted && failedDocumentSync === null && (
         <div className="conflict-banner">
-          <span>
-            {activeExternalState === "deletedOnDisk"
-              ? "This file was deleted on disk."
-              : "This file changed on disk."}
-          </span>
-          <button type="button" onClick={() => activeBuffer !== null && void runSnapshotCommand(() => commands.resolveExternalConflict(snapshot.projectEpoch, activeBuffer.path, activeBuffer.documentRevision, "reload"))}>
-            <RefreshCw size={THEME_METRICS.iconSizeSmall} />
-            Reload from Disk
-          </button>
-          <button type="button" onClick={() => activeBuffer !== null && void runSnapshotCommand(() => commands.resolveExternalConflict(snapshot.projectEpoch, activeBuffer.path, activeBuffer.documentRevision, "keepWorkingCopy"))}>
-            <Save size={THEME_METRICS.iconSizeSmall} />
-            Keep Mine
-          </button>
+          <span>{activeExternalState === "deletedOnDisk" ? "Deleted on disk" : "Changed on disk"}</span>
+          <Button icon={RefreshCw} onClick={() => activeBuffer !== null && void runSnapshotCommand(() => commands.resolveExternalConflict(snapshot.projectEpoch, activeBuffer.path, activeBuffer.documentRevision, "reload"))}>Reload</Button>
+          <Button icon={Save} onClick={() => activeBuffer !== null && void runSnapshotCommand(() => commands.resolveExternalConflict(snapshot.projectEpoch, activeBuffer.path, activeBuffer.documentRevision, "keepWorkingCopy"))}>Keep mine</Button>
         </div>
       )}
       {viewMode === "gui" ? (
@@ -262,7 +247,7 @@ function EditorPaneContent({
         </div>
         <Dialog.Root open={inlineEditorOpen} onOpenChange={(open) => { if (!open && !savingInline) closeInlineEditor(); }}>
           <Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content resource-editor-dialog" aria-describedby={undefined}>
-            <header className="resource-editor-dialog-header"><Dialog.Title>{activeGuiRequest?.objectKey}</Dialog.Title><>{guiDocument?.type === "fixture" ? <button type="button" disabled={interactionPending || savingInline} onClick={() => { void saveAndCloseFixture(); }}>{savingInline ? "Saving..." : "Save and close"}</button> : <Dialog.Close asChild><button type="button" disabled={guiEditPending}>Close</button></Dialog.Close>}</></header>
+            <header className="resource-editor-dialog-header"><Dialog.Title>{activeGuiRequest?.objectKey}</Dialog.Title>{guiDocument?.type === "fixture" ? <Button variant="primary" icon={Save} disabled={interactionPending || savingInline} onClick={() => { void saveAndCloseFixture(); }}>{savingInline ? "Saving" : "Save and close"}</Button> : <Dialog.Close asChild><Button disabled={guiEditPending}>Close</Button></Dialog.Close>}</header>
             <div className="gui-projection" inert={interactionPending || savingInline} aria-busy={interactionPending || savingInline}>
               <GuiEditor
                 guiDocument={guiDocument}

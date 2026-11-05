@@ -1000,7 +1000,7 @@ Sequence hero {
       row: layouts.main.mega_tree,
       start: 67.556560902s,
       duration: 27.111698471s,
-      curve: Curve { points: [(0.0, 0.0), (0.26716578, 0.674), (0.52128905, 0.082), (1.0, 1.0)] },
+      curve: Curve { points: [(0.0, 0.0), (0.26716578, 0.674), (0.5220398, 0.099), (1.0, 1.0)] },
       bindings: [
         Bound { binding: ClipParam { clip: mark_field_wipe, param: linear }, window: (0.0, 1.0) },
       ],

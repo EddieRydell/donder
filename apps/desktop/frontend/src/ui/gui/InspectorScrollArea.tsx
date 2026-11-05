@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { clamp } from "./shared";
 import { THEME_METRICS } from "../../theme";
@@ -48,9 +48,7 @@ export function InspectorScrollArea({ children, footer }: { children: ReactNode;
 
   return (
     <aside className="gui-inspector-shell">
-      <div ref={contentRef} className="gui-inspector">
-        <div onKeyDownCapture={commitInspectorFieldOnEnter}>{children}</div>
-      </div>
+      <div ref={contentRef} className="gui-inspector">{children}</div>
       <div className="editor-scrollbar" aria-hidden={!metrics.scrollable}>
         <div
           ref={railRef}
@@ -111,13 +109,4 @@ export function Readout({ label, value, swatch }: { label: string; value: string
       </strong>
     </div>
   );
-}
-
-function commitInspectorFieldOnEnter(event: KeyboardEvent<HTMLDivElement>) {
-  if (event.key !== "Enter") return;
-  const target = event.target;
-  if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement)) return;
-  event.preventDefault();
-  event.stopPropagation();
-  target.blur();
 }

@@ -1,13 +1,14 @@
 import * as Menubar from "@radix-ui/react-menubar";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
-import { Check, Maximize2, Minimize2, Minus, X } from "lucide-react";
+import { Check, Maximize2, Minimize2, Minus, Redo2, Undo2, X } from "lucide-react";
 import { EDIT_MENU, FILE_MENU, VIEW_MENU, type AppMenuEntry } from "../appMenus";
 import { commandRegistry, runCommand, shortcutLabel } from "../commandRegistry";
 import { useAppStore } from "../store";
 import { THEME_METRICS } from "../theme";
 import { isMac } from "../platform";
 import { BrandLogo } from "./BrandLogo";
+import { IconButton } from "./kit";
 
 const appWindow = getCurrentWindow();
 
@@ -42,6 +43,7 @@ export function TitleBar() {
     return (
       <header className="titlebar titlebar-mac" onMouseDown={startTitlebarDrag}>
         <div className="brand"><BrandLogo /></div>
+        <HistoryButtons />
       </header>
     );
   }
@@ -54,6 +56,7 @@ export function TitleBar() {
         <Menu label="Edit" entries={EDIT_MENU} />
         <Menu label="View" entries={VIEW_MENU} />
       </Menubar.Root>
+      <HistoryButtons />
       <div className="window-controls">
         <button onClick={() => void appWindow.minimize()} aria-label="Minimize">
         <Minus size={THEME_METRICS.iconSizeCompact} />
@@ -69,6 +72,15 @@ export function TitleBar() {
       </div>
     </header>
   );
+}
+
+/** Undo and Redo, enabled while the GUI history has a step. */
+function HistoryButtons() {
+  const history = useAppStore((store) => store.snapshot?.history);
+  return <div className="titlebar-history">
+    <IconButton icon={Undo2} label="Undo" command="edit.undo" disabled={history?.canUndo !== true} onClick={() => { runCommand("edit.undo"); }} />
+    <IconButton icon={Redo2} label="Redo" command="edit.redo" disabled={history?.canRedo !== true} onClick={() => { runCommand("edit.redo"); }} />
+  </div>;
 }
 
 function startTitlebarDrag(event: React.MouseEvent<HTMLElement>) {

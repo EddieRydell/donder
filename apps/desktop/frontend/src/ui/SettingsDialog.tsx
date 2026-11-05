@@ -1,11 +1,23 @@
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { useEffect, useState } from "react";
 import { commands } from "../api";
 import { runSnapshotCommand, useAppStore } from "../store";
-import type { AppSettings } from "../types";
+import type { AppSettings, SequenceFollowMode, SequenceInitialZoomMode } from "../types";
 import { KeybindingsSettings } from "./KeybindingsSettings";
+import { Dialog, Field, NumberField, Section, Select, Toggle, type SelectOption } from "./kit";
 
 const SETTINGS_EVENT = "donder:settings";
+
+const ZOOM_OPTIONS: SelectOption<SequenceInitialZoomMode>[] = [
+  { value: "fitToWidth", label: "Fit width" },
+  { value: "fixedPxPerSecond", label: "Fixed scale" }
+];
+const FOLLOW_OPTIONS: SelectOption<SequenceFollowMode>[] = [
+  { value: "off", label: "Off" },
+  { value: "page", label: "Page" },
+  { value: "continuous", label: "Continuous" }
+];
+const FFT_OPTIONS: SelectOption<string>[] = [512, 1024, 2048, 4096, 8192, 16384]
+  .map((size) => ({ value: String(size), label: String(size) }));
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
@@ -35,222 +47,47 @@ export function SettingsDialog() {
   }
 
   if (draft === null) return null;
+  const raster = draft.clipRaster;
 
-  return (
-    <AlertDialog.Root open={open} onOpenChange={setOpen}>
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="dialog-overlay" />
-        <AlertDialog.Content className="dialog-content settings-dialog">
-          <AlertDialog.Title>Settings</AlertDialog.Title>
-          <div className="settings-form">
-            <section>
-              <h3>General</h3>
-              <Checkbox
-                label="Reopen last project"
-                checked={draft.reopenLastProject}
-                onChange={(reopenLastProject) => void update({ ...draft, reopenLastProject })}
-              />
-              <Checkbox
-                label="Reopen preview window"
-                checked={draft.reopenPreviewWindow}
-                onChange={(reopenPreviewWindow) => void update({ ...draft, reopenPreviewWindow })}
-              />
-            </section>
-
-            <section>
-              <h3>Editor</h3>
-              <Checkbox
-                label="Autosave project edits"
-                checked={draft.autosaveProjectEdits}
-                onChange={(autosaveProjectEdits) => void update({ ...draft, autosaveProjectEdits })}
-              />
-            </section>
-
-            <section>
-              <h3>Sequence</h3>
-              <Select
-                label="Initial zoom"
-                value={draft.sequenceInitialZoomMode}
-                options={[
-                  ["fitToWidth", "Fit to width"],
-                  ["fixedPxPerSecond", "Fixed px/sec"]
-                ]}
-                onChange={(sequenceInitialZoomMode) => void update({ ...draft, sequenceInitialZoomMode })}
-              />
-              <Select
-                label="Follow playhead"
-                value={draft.sequenceFollowMode}
-                options={[
-                  ["off", "Off"],
-                  ["page", "Page"],
-                  ["continuous", "Continuous"]
-                ]}
-                onChange={(sequenceFollowMode) => void update({ ...draft, sequenceFollowMode })}
-              />
-              <NumberInput
-                label="Initial px/sec"
-                min={20}
-                max={12000}
-                step={1}
-                value={draft.sequenceInitialPxPerSecond}
-                onChange={(sequenceInitialPxPerSecond) => void update({ ...draft, sequenceInitialPxPerSecond })}
-              />
-              <NumberInput
-                label="Initial lane height"
-                min={24}
-                max={120}
-                step={1}
-                value={draft.sequenceInitialLaneHeightPx}
-                onChange={(sequenceInitialLaneHeightPx) => void update({ ...draft, sequenceInitialLaneHeightPx })}
-              />
-              <Checkbox
-                label="Show spectrogram"
-                checked={draft.sequenceSpectrogramEnabled ?? false}
-                onChange={(sequenceSpectrogramEnabled) => void update({ ...draft, sequenceSpectrogramEnabled })}
-              />
-              <NumberInput
-                label="Spectrogram time resolution (ms)"
-                min={0.5}
-                max={100}
-                step={0.5}
-                value={draft.sequenceSpectrogramTimeResolutionMs ?? 10}
-                onChange={(sequenceSpectrogramTimeResolutionMs) => void update({ ...draft, sequenceSpectrogramTimeResolutionMs })}
-              />
-              <Select
-                label="Spectrogram frequency resolution"
-                value={String(draft.sequenceSpectrogramFftSize ?? 2048)}
-                options={[
-                  ["512", "512-point FFT"],
-                  ["1024", "1024-point FFT"],
-                  ["2048", "2048-point FFT"],
-                  ["4096", "4096-point FFT"],
-                  ["8192", "8192-point FFT"],
-                  ["16384", "16384-point FFT"]
-                ]}
-                onChange={(sequenceSpectrogramFftSize) => void update({ ...draft, sequenceSpectrogramFftSize: Number(sequenceSpectrogramFftSize) })}
-              />
-            </section>
-
-            <section>
-              <h3>Raster</h3>
-              <NumberInput
-                label="Max columns"
-                min={16}
-                max={1024}
-                step={1}
-                value={draft.clipRaster.maxColumns}
-                onChange={(maxColumns) =>
-                  void update({ ...draft, clipRaster: { ...draft.clipRaster, maxColumns } })
-                }
-              />
-              <NumberInput
-                label="Max rows"
-                min={1}
-                max={200}
-                step={1}
-                value={draft.clipRaster.maxRows}
-                onChange={(maxRows) =>
-                  void update({ ...draft, clipRaster: { ...draft.clipRaster, maxRows } })
-                }
-              />
-              <NumberInput
-                label="Min frame stride"
-                min={1}
-                max={16}
-                step={1}
-                value={draft.clipRaster.minFrameStride}
-                onChange={(minFrameStride) =>
-                  void update({ ...draft, clipRaster: { ...draft.clipRaster, minFrameStride } })
-                }
-              />
-            </section>
-
-            <KeybindingsSettings keybindings={draft.keybindings ?? []} onChange={(keybindings) => void update({ ...draft, keybindings })} />
-            {error !== null && <div className="new-project-error">{error}</div>}
-          </div>
-          <div className="dialog-actions">
-            <AlertDialog.Cancel>Close</AlertDialog.Cancel>
-          </div>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
-  );
-}
-
-function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <label className="settings-checkbox">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => {
-          onChange(event.target.checked);
-        }}
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function Select<T extends string>({
-  label,
-  value,
-  options,
-  onChange
-}: {
-  label: string;
-  value: T;
-  options: Array<[T, string]>;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <label>
-      <span>{label}</span>
-      <select
-        value={value}
-        onChange={(event) => {
-          onChange(event.target.value as T);
-        }}
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function NumberInput({
-  label,
-  min,
-  max,
-  step,
-  value,
-  onChange
-}: {
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label>
-      <span>{label}</span>
-      <input
-        min={min}
-        max={max}
-        step={step}
-        type="number"
-        value={value}
-        onChange={(event) => {
-          const next = Number(event.target.value);
-          if (Number.isFinite(next)) onChange(Math.min(Math.max(next, min), max));
-        }}
-      />
-    </label>
-  );
+  return <Dialog open={open} onOpenChange={setOpen} title="Settings" size="lg">
+    <Section title="General">
+      <Toggle label="Reopen project" name="Reopen last project" checked={draft.reopenLastProject} onChange={(reopenLastProject) => void update({ ...draft, reopenLastProject })} />
+      <Toggle label="Reopen preview" name="Reopen preview window" checked={draft.reopenPreviewWindow} onChange={(reopenPreviewWindow) => void update({ ...draft, reopenPreviewWindow })} />
+      <Toggle label="Autosave" name="Autosave project edits" checked={draft.autosaveProjectEdits} onChange={(autosaveProjectEdits) => void update({ ...draft, autosaveProjectEdits })} />
+    </Section>
+    <Section title="Sequence">
+      <Field label="Zoom" tip="Initial zoom">
+        <Select name="Initial zoom" value={draft.sequenceInitialZoomMode} options={ZOOM_OPTIONS} onChange={(sequenceInitialZoomMode) => void update({ ...draft, sequenceInitialZoomMode })} />
+      </Field>
+      <Field label="Scale" tip="Initial pixels per second">
+        <NumberField name="Initial pixels per second" min={20} max={12000} step={5} unit="px/s" value={draft.sequenceInitialPxPerSecond} onCommit={(sequenceInitialPxPerSecond) => void update({ ...draft, sequenceInitialPxPerSecond })} />
+      </Field>
+      <Field label="Lane height" tip="Initial lane height">
+        <NumberField name="Initial lane height" min={24} max={120} step={1} unit="px" value={draft.sequenceInitialLaneHeightPx} onCommit={(sequenceInitialLaneHeightPx) => void update({ ...draft, sequenceInitialLaneHeightPx })} />
+      </Field>
+      <Field label="Follow" tip="Follow the playhead">
+        <Select name="Follow playhead" value={draft.sequenceFollowMode} options={FOLLOW_OPTIONS} onChange={(sequenceFollowMode) => void update({ ...draft, sequenceFollowMode })} />
+      </Field>
+      <Toggle label="Spectrogram" name="Show spectrogram" checked={draft.sequenceSpectrogramEnabled ?? false} onChange={(sequenceSpectrogramEnabled) => void update({ ...draft, sequenceSpectrogramEnabled })} />
+      <Field label="Time step" tip="Spectrogram time resolution">
+        <NumberField name="Spectrogram time resolution" min={0.5} max={100} step={0.5} unit="ms" value={draft.sequenceSpectrogramTimeResolutionMs ?? 10} onCommit={(sequenceSpectrogramTimeResolutionMs) => void update({ ...draft, sequenceSpectrogramTimeResolutionMs })} />
+      </Field>
+      <Field label="FFT size" tip="Spectrogram frequency resolution, in FFT points">
+        <Select name="Spectrogram FFT size" value={String(draft.sequenceSpectrogramFftSize ?? 2048)} options={FFT_OPTIONS} onChange={(size) => void update({ ...draft, sequenceSpectrogramFftSize: Number(size) })} />
+      </Field>
+    </Section>
+    <Section title="Raster" defaultOpen={false}>
+      <Field label="Columns" tip="Maximum clip raster columns">
+        <NumberField name="Max columns" integer min={16} max={1024} step={1} value={raster.maxColumns} onCommit={(maxColumns) => void update({ ...draft, clipRaster: { ...raster, maxColumns } })} />
+      </Field>
+      <Field label="Rows" tip="Maximum clip raster rows">
+        <NumberField name="Max rows" integer min={1} max={200} step={1} value={raster.maxRows} onCommit={(maxRows) => void update({ ...draft, clipRaster: { ...raster, maxRows } })} />
+      </Field>
+      <Field label="Frame stride" tip="Minimum frames between raster samples">
+        <NumberField name="Min frame stride" integer min={1} max={16} step={1} value={raster.minFrameStride} onCommit={(minFrameStride) => void update({ ...draft, clipRaster: { ...raster, minFrameStride } })} />
+      </Field>
+    </Section>
+    <KeybindingsSettings keybindings={draft.keybindings ?? []} onChange={(keybindings) => void update({ ...draft, keybindings })} />
+    {error !== null && <div className="kit-status-error" role="alert">{error}</div>}
+  </Dialog>;
 }

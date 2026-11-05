@@ -1,14 +1,17 @@
 import { useState } from "react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Copy, Repeat, Trash2, type LucideIcon } from "lucide-react";
 import { useAppStore } from "../../../store";
-import { CoordinateField } from "./FixtureFields";
 import { arrange, repeatOffsets, unionBounds, type Arrangement, type SpatialItem, type SpatialMove } from "./spatialSelection";
 import { spatialUnits, formatDistance } from "./spatialSnapping";
 import type { Point3Meters } from "../../../types";
-const actions: { action: Arrangement; label: string }[] = [
-  { action: "left", label: "Left" }, { action: "centerX", label: "Center horizontally" }, { action: "right", label: "Right" },
-  { action: "top", label: "Top" }, { action: "centerY", label: "Center vertically" }, { action: "bottom", label: "Bottom" },
-  { action: "spaceX", label: "Equal horizontal gaps" }, { action: "spaceY", label: "Equal vertical gaps" }
+import { Button, Field, FieldGroup, IconButton, NumberField, Section } from "../../kit";
+
+const actions: { action: Arrangement; label: string; icon: LucideIcon }[] = [
+  { action: "left", label: "Align left", icon: AlignStartVertical }, { action: "centerX", label: "Center horizontally", icon: AlignCenterVertical }, { action: "right", label: "Align right", icon: AlignEndVertical },
+  { action: "top", label: "Align top", icon: AlignStartHorizontal }, { action: "centerY", label: "Center vertically", icon: AlignCenterHorizontal }, { action: "bottom", label: "Align bottom", icon: AlignEndHorizontal },
+  { action: "spaceX", label: "Equal horizontal gaps", icon: AlignHorizontalSpaceAround }, { action: "spaceY", label: "Equal vertical gaps", icon: AlignVerticalSpaceAround }
 ];
+
 export function SpatialSelectionControls({ items, disabled, onMove, onRepeat, onDuplicate, onDelete }: { items: SpatialItem[]; disabled: boolean; onMove: (moves: SpatialMove[]) => void; onRepeat: (offsets: Point3Meters[]) => void; onDuplicate: () => void; onDelete: () => void }) {
   const settings = useAppStore((state) => state.snapshot?.settings.spatialSnap);
   const [rows, setRows] = useState(1); const [columns, setColumns] = useState(2);
@@ -19,17 +22,27 @@ export function SpatialSelectionControls({ items, disabled, onMove, onRepeat, on
   const x = stepX ?? bounds.right - bounds.left + settings.spacingMeters;
   const y = stepY ?? bounds.top - bounds.bottom + settings.spacingMeters;
   const copies = (rows * columns - 1) * items.length;
-  return <fieldset className="spatial-selection-controls" disabled={disabled}>
-    <p>{items.length} selected · {formatDistance(bounds.right - bounds.left, settings.unit)} × {formatDistance(bounds.top - bounds.bottom, settings.unit)}</p>
-    <div className="fixture-shape-actions"><button type="button" onClick={onDuplicate}>Duplicate</button><button type="button" onClick={onDelete}>Delete</button></div>
-    <details><summary>Align and distribute</summary><div className="spatial-arrange-actions">{actions.map(({ action, label }) => <button type="button" key={action} disabled={items.length < (action === "spaceX" || action === "spaceY" ? 3 : 2)} onClick={() => { onMove(arrange(items, action)); }}>{label}</button>)}</div></details>
-    <details><summary>Repeat selection</summary><div className="spatial-repeat-fields">
-      <CoordinateField label="Columns" value={columns} min={1} max={1001} step={1} onChange={setColumns} />
-      <CoordinateField label="Rows" value={rows} min={1} max={1001} step={1} onChange={setRows} />
-      <CoordinateField label={`Horizontal step (${unit.label})`} value={x / unit.meters} onChange={(value) => { setStepX(value * unit.meters); }} />
-      <CoordinateField label={`Vertical step (${unit.label})`} value={y / unit.meters} onChange={(value) => { setStepY(value * unit.meters); }} />
-      <p>Steps are from each original to its copy. Positive vertical steps go up.</p>
-      <button type="button" disabled={copies < 1 || copies > 1000} onClick={() => { onRepeat(repeatOffsets(rows, columns, x, y)); }}>Create {copies} copies</button>
-    </div></details>
-  </fieldset>;
+  return <div className="spatial-selection-controls">
+    <Field label={`${items.length} selected`} tip="Selection size">
+      <span>{formatDistance(bounds.right - bounds.left, settings.unit)} × {formatDistance(bounds.top - bounds.bottom, settings.unit)}</span>
+      <IconButton icon={Copy} label="Duplicate" command="edit.duplicate" disabled={disabled} onClick={onDuplicate} />
+      <IconButton icon={Trash2} label="Delete" command="edit.delete" danger disabled={disabled} onClick={onDelete} />
+    </Field>
+    <div className="fixture-shape-actions">{actions.map(({ action, label, icon }) => <IconButton key={action} icon={icon} label={label} disabled={disabled || items.length < (action === "spaceX" || action === "spaceY" ? 3 : 2)} onClick={() => { onMove(arrange(items, action)); }} />)}</div>
+    <Section title="Repeat" defaultOpen={false}>
+      <Field label="Grid">
+        <FieldGroup>
+          <NumberField label="C" name="Columns" integer step={1} min={1} max={1001} disabled={disabled} value={columns} onCommit={setColumns} />
+          <NumberField label="R" name="Rows" integer step={1} min={1} max={1001} disabled={disabled} value={rows} onCommit={setRows} />
+        </FieldGroup>
+      </Field>
+      <Field label="Step" tip="From each original to its copy. Positive vertical steps go up.">
+        <FieldGroup>
+          <NumberField label="X" name="Horizontal step" unit={unit.label} step={0.1} disabled={disabled} value={x / unit.meters} onCommit={(value) => { setStepX(value * unit.meters); }} />
+          <NumberField label="Y" name="Vertical step" unit={unit.label} step={0.1} disabled={disabled} value={y / unit.meters} onCommit={(value) => { setStepY(value * unit.meters); }} />
+        </FieldGroup>
+      </Field>
+      <Button icon={Repeat} disabled={disabled || copies < 1 || copies > 1000} onClick={() => { onRepeat(repeatOffsets(rows, columns, x, y)); }}>{`Create ${copies}`}</Button>
+    </Section>
+  </div>;
 }

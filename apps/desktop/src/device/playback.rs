@@ -23,7 +23,6 @@ type ScheduleReady = (ClockSample, donder_device_protocol::PlaybackStatus);
 pub(crate) struct WantedDevice {
     pub id: DonderDeviceId,
     pub address: SocketAddr,
-    pub token: String,
     pub ports: DevicePorts,
 }
 
@@ -51,16 +50,9 @@ fn clock_sample(t1: u64, t2: u64, t3: u64, t4: u64, boot_id: u32) -> Result<Cloc
     })
 }
 
-fn udp_clock_sample(
-    socket: &UdpSocket,
-    token: &[u8; 32],
-    origin: Instant,
-) -> Result<ClockSample, String> {
+fn udp_clock_sample(socket: &UdpSocket, origin: Instant) -> Result<ClockSample, String> {
     let t1 = origin.elapsed().as_micros() as u64;
-    let request = clock::Request {
-        token: *token,
-        sent_micros: t1,
-    };
+    let request = clock::Request { sent_micros: t1 };
     socket
         .send(&request.encode())
         .map_err(|error| format!("UDP clock send failed: {error}"))?;
@@ -226,7 +218,7 @@ impl Binding {
     }
 
     fn sample_clock(&self, origin: Instant) -> Result<ClockSample, String> {
-        udp_clock_sample(&self.clock_socket, &self.client.token, origin)
+        udp_clock_sample(&self.clock_socket, origin)
     }
 
     fn synchronize(&mut self, origin: Instant, clock_id: u32) -> Result<(), String> {
@@ -596,7 +588,7 @@ fn cancel(core: &Core, commands: &[(SocketAddr, u32)]) -> String {
     }
 }
 fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
-    let client = DeviceClient::new(device.address, &device.token)?;
+    let client = DeviceClient::new(device.address)?;
     let bind_address = if client.address.is_ipv4() {
         "0.0.0.0:0"
     } else {
@@ -646,14 +638,13 @@ impl Drop for DevicePlaybackService {
 mod tests {
     use super::*;
     #[test]
-    fn udp_clock_exchange_authenticates_and_echoes_nonce() {
+    fn udp_clock_exchange_echoes_send_time() {
         let server = UdpSocket::bind("127.0.0.1:0").unwrap();
         let address = server.local_addr().unwrap();
         let worker = thread::spawn(move || {
             let mut request = [0; clock::Request::BYTES + 1];
             let (length, peer) = server.recv_from(&mut request).unwrap();
             let request = clock::Request::decode(&request[..length]).unwrap();
-            assert_eq!(request.token, [b'a'; 32]);
             let reply = clock::Reply {
                 sent_micros: request.sent_micros,
                 boot_id: 7,
@@ -671,7 +662,7 @@ mod tests {
         socket
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();
-        let sample = udp_clock_sample(&socket, &[b'a'; 32], Instant::now()).unwrap();
+        let sample = udp_clock_sample(&socket, Instant::now()).unwrap();
         assert_eq!(sample.boot_id, 7);
         assert_eq!(sample.local, 600000);
         worker.join().unwrap();

@@ -1,5 +1,6 @@
 import { useCallback, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { THEME_METRICS } from "../theme";
+import { Tip } from "./kit";
 
 const COLLAPSE_THRESHOLD_PX = THEME_METRICS.workspaceCollapseThreshold;
 const KEYBOARD_STEP_PX = THEME_METRICS.workspaceKeyboardStep;
@@ -107,7 +108,7 @@ export function WorkspaceResizeHandle({
   );
 
   return (
-    <div
+    <Tip label={ariaLabel}><div
       className={`workspace-resize-handle ${collapsed ? "collapsed" : ""}`}
       role="separator"
       aria-label={ariaLabel}
@@ -121,7 +122,7 @@ export function WorkspaceResizeHandle({
       onPointerMove={handlePointerMove}
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
-    />
+    /></Tip>
   );
 }
 
