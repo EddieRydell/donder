@@ -2,7 +2,7 @@ import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { useMemo, useState } from "react";
 
-import { CheckCheck, Circle, CircleDot, Eye, EyeOff, Link2, Plus, Trash2 } from "lucide-react";
+import { CheckCheck, Circle, CircleDot, Eye, EyeOff, Link2, Plus, Trash2, Workflow } from "lucide-react";
 import { THEME_COLORS } from "../../../theme";
 
 import type {
@@ -31,6 +31,7 @@ import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
 import { LayerList } from "./sequenceLayers";
+import { requestOpenLayerGraph } from "../../uiEvents";
 
 type SequenceInspectorTab = "clip" | "layers" | "marks";
 
@@ -480,7 +481,11 @@ function ClipInspectorPanel({
 
 function LayerInspectorPanel({ document }: { document: SequenceGuiDocument }) {
   const composition = useMemo(() => sequenceComposition(document, null), [document]);
-  return <><h2>Layers</h2><LayerList composition={composition} /></>;
+  return <>
+    <h2>Layers</h2>
+    <Button icon={Workflow} tip="Open layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph}>Layer graph</Button>
+    <LayerList composition={composition} />
+  </>;
 }
 
 function MarkInspectorPanel({
@@ -687,6 +692,18 @@ function MarkInspectorPanel({
           </Field>
         )}
       </Section>
+        {selectedMarks.length >= 2 && (
+          <MarkSubdivision
+            document={document}
+            selectedSeconds={selectedMarks.map((entry) => entry.timeSeconds)}
+            visibleMarkCollectionKeys={visibleMarkCollectionKeys}
+            setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
+            clearMarkSelection={() => {
+              setSelected(null);
+              setSequenceSelection(null);
+            }}
+          />
+        )}
       {selectedMarks.length > 0 && (
         <Section title={`Selected · ${selectedMarks.length}`}>
           <div className="mark-selected-list">
@@ -717,18 +734,6 @@ function MarkInspectorPanel({
               </div>
             ))}
           </div>
-          {selectedMarks.length >= 2 && (
-            <MarkSubdivision
-              document={document}
-              selectedSeconds={selectedMarks.map((entry) => entry.timeSeconds)}
-              visibleMarkCollectionKeys={visibleMarkCollectionKeys}
-              setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
-              clearMarkSelection={() => {
-                setSelected(null);
-                setSequenceSelection(null);
-              }}
-            />
-          )}
         </Section>
       )}
     </>

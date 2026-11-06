@@ -12,7 +12,7 @@ import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../types";
 
 import { ColorPicker } from "../../../ColorPicker";
-import { AddRow, ContextMenuArea, Field, IconButton, NumberField, Section, Select, Toggle, type MenuEntry } from "../../../kit";
+import { AddRow, Field, IconButton, NumberField, Section, Select, Toggle } from "../../../kit";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
 import { WindowFields } from "../../WindowFields";
 
@@ -161,9 +161,10 @@ function formatRange(range: SequenceParamRange) {
   return `${roundCurveValue(range.min)}..${roundCurveValue(range.max)}`;
 }
 
-/** The hover text of a param's name: its description and declared range. */
+/** The hover text of a param's name: its description and, unless its field shows it, its declared range. */
 function paramTip(param: SequenceClipParam): string | undefined {
-  const parts = [param.description, param.range === null ? null : formatRange(param.range)].filter((part) => part !== null);
+  const fieldShowsRange = param.value.type === "int" || param.value.type === "float";
+  const parts = [param.description, param.range === null || fieldShowsRange ? null : formatRange(param.range)].filter((part) => part !== null);
   return parts.length === 0 ? undefined : parts.join(" · ");
 }
 
@@ -180,7 +181,7 @@ function NumberParam({ name, value, step, integer, range, commit }: {
     value={value}
     step={step}
     integer={integer}
-    {...(range === null ? {} : { min: range.min, max: range.max })}
+    {...(range === null ? {} : { min: range.min, max: range.max, showRange: true })}
     onCommit={(next) => void commit(next)}
   />;
 }
@@ -583,25 +584,28 @@ export function CurveParam({
           const x = point.time * CURVE_EDITOR.width;
           const y = CURVE_EDITOR.height - ((point.value - valueRange.min) / (valueRange.max - valueRange.min)) * CURVE_EDITOR.height;
           return (
-            <ContextMenuArea key={index} entries={pointMenu(drafts.length, () => { deletePoint(index); })}>
-              <circle
-                className={`float-curve-point ${index === selectedIndex ? "selected" : ""}`}
-                cx={x}
-                cy={y}
-                r={index === selectedIndex ? THEME_METRICS.curvePointRadiusSelected : THEME_METRICS.curvePointRadius}
-                tabIndex={0}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  if (isSecondaryClick(event)) return;
-                  event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
-                  draggingPoint.current = index;
-                  setSelectedIndex(index);
-                }}
-                onContextMenu={() => { setSelectedIndex(index); }}
-                onKeyDown={(event) => { deletePointOnKey(event, () => { deletePoint(index); }); }}
-                onFocus={() => { setSelectedIndex(index); }}
-              />
-            </ContextMenuArea>
+            <circle
+              key={index}
+              className={`float-curve-point ${index === selectedIndex ? "selected" : ""}`}
+              cx={x}
+              cy={y}
+              r={index === selectedIndex ? THEME_METRICS.curvePointRadiusSelected : THEME_METRICS.curvePointRadius}
+              tabIndex={0}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                if (isSecondaryClick(event)) return;
+                event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
+                draggingPoint.current = index;
+                setSelectedIndex(index);
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                deletePoint(index);
+              }}
+              onKeyDown={(event) => { deletePointOnKey(event, () => { deletePoint(index); }); }}
+              onFocus={() => { setSelectedIndex(index); }}
+            />
           );
         })}
       </svg>
@@ -742,43 +746,48 @@ export function GradientParam({
       >
         {!readOnly && drafts.map((point, index) => {
           return (
-            <ContextMenuArea key={index} entries={pointMenu(drafts.length, () => { deletePoint(index); })}>
-              <span
-                className="color-curve-stop"
-                draggable={false}
-                style={{ left: `${point.time * 100}%` }}
-                onPointerDown={(event) => {
-                  if (!event.currentTarget.contains(event.target as Node)) return;
-                  if (event.button !== 0 || isSecondaryClick(event)) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  startStopDrag(index, event.pointerId, event.clientX);
+            <span
+              key={index}
+              className="color-curve-stop"
+              draggable={false}
+              style={{ left: `${point.time * 100}%` }}
+              onContextMenu={(event) => {
+                if (!event.currentTarget.contains(event.target as Node)) return;
+                event.preventDefault();
+                event.stopPropagation();
+                deletePoint(index);
+              }}
+              onPointerDown={(event) => {
+                if (!event.currentTarget.contains(event.target as Node)) return;
+                if (event.button !== 0 || isSecondaryClick(event)) return;
+                event.preventDefault();
+                event.stopPropagation();
+                startStopDrag(index, event.pointerId, event.clientX);
+              }}
+              onDragStart={(event) => {
+                event.preventDefault();
+              }}
+              onKeyDown={(event) => {
+                // Keys typed in the stop's color popover bubble here through the portal.
+                if (event.currentTarget.contains(event.target as Node)) deletePointOnKey(event, () => { deletePoint(index); });
+              }}
+            >
+              <span className="color-curve-stop-line" />
+              <ColorPicker
+                className="color-curve-stop-color-picker"
+                triggerClassName="color-curve-stop-color-trigger"
+                openRequestKey={stopPickerRequest?.index === index ? stopPickerRequest.key : 0}
+                onOpenChange={(open) => {
+                  if (!open && stopPickerRequest?.index === index) setStopPickerRequest(null);
                 }}
-                onDragStart={(event) => {
-                  event.preventDefault();
+                value={normalizeHexColor(point.value) ?? points[index]?.value ?? CURVE_EDITOR.defaultColor}
+                label={`${name} stop ${index + 1} color`}
+                commit={(value) => {
+                  setPoint(index, { ...point, value }, true);
+                  return Promise.resolve();
                 }}
-                onKeyDown={(event) => {
-                  // Keys typed in the stop's color popover bubble here through the portal.
-                  if (event.currentTarget.contains(event.target as Node)) deletePointOnKey(event, () => { deletePoint(index); });
-                }}
-              >
-                <span className="color-curve-stop-line" />
-                <ColorPicker
-                  className="color-curve-stop-color-picker"
-                  triggerClassName="color-curve-stop-color-trigger"
-                  openRequestKey={stopPickerRequest?.index === index ? stopPickerRequest.key : 0}
-                  onOpenChange={(open) => {
-                    if (!open && stopPickerRequest?.index === index) setStopPickerRequest(null);
-                  }}
-                  value={normalizeHexColor(point.value) ?? points[index]?.value ?? CURVE_EDITOR.defaultColor}
-                  label={`${name} stop ${index + 1} color`}
-                  commit={(value) => {
-                    setPoint(index, { ...point, value }, true);
-                    return Promise.resolve();
-                  }}
-                />
-              </span>
-            </ContextMenuArea>
+              />
+            </span>
           );
         })}
       </div>
@@ -859,11 +868,6 @@ function usePointDrafts<T extends { time: number; value: number | string }>({ po
     setSelectedIndex(Math.min(index, next.length - 1));
   };
   return { drafts, draftsRef, selectedIndex, setSelectedIndex, update, setPoint, deletePoint };
-}
-
-/** A curve point's or gradient stop's right-click menu; the last one cannot be deleted. */
-function pointMenu(count: number, onDelete: () => void): MenuEntry[] {
-  return [{ type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", disabled: count <= 1, onSelect: onDelete }];
 }
 
 function deletePointOnKey(event: KeyboardEvent, onDelete: () => void) {

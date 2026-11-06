@@ -181,6 +181,7 @@ Sequence main {
     Layer { name: hue_shift, description: none, color: #f45b69, enabled: true },
     Layer { name: gradient_base, description: none, color: #37a987, enabled: true },
     Layer { name: freeze_frame_test, description: none, color: #f6b84b, enabled: true },
+    Layer { name: buildup, description: none, color: #9b6dff, enabled: true },
   ],
   clips: [
     Clip {
@@ -882,7 +883,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 55.170227051s,
       duration: 3.231966257s,
       target: layouts.main.desk_top,
@@ -901,7 +902,7 @@ Sequence main {
     Clip {
       name: mark_wipe_8,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 55.073162079s,
       duration: 0.898833156s,
       target: layouts.main.desk,
@@ -925,7 +926,7 @@ Sequence main {
     Clip {
       name: mark_wipe_8_2_2,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 58.319702148s,
       duration: 0.898833156s,
       target: layouts.main.desk,
@@ -949,7 +950,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2_2,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 55.170227051s,
       duration: 3.198450327s,
       target: layouts.main.desk_legs,
@@ -968,7 +969,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2_2_2,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 55.170227051s,
       duration: 6.575187683s,
       target: layouts.main.desk_legs,
@@ -987,7 +988,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2_3,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 58.345867157s,
       duration: 3.374409199s,
       target: layouts.main.desk_top,
@@ -1005,7 +1006,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2_2_3,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 58.337490082s,
       duration: 3.41630435s,
       target: layouts.main.desk_legs,
@@ -1024,7 +1025,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2_2_2_2,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 61.492107391s,
       duration: 5.766691208s,
       target: layouts.main.desk_legs,
@@ -1043,7 +1044,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2_3_2,
       description: none,
-      layer: hue_shift,
+      layer: buildup,
       start: 61.608932495s,
       duration: 3.18275547s,
       target: layouts.main.desk_top,
@@ -1061,7 +1062,7 @@ Sequence main {
     Clip {
       name: mark_wipe_9,
       description: none,
-      layer: hue_shift,
+      layer: buildup,
       start: 64.650520325s,
       duration: 2.757999659s,
       target: layouts.main.desk_top,
@@ -1088,7 +1089,7 @@ Sequence main {
     Clip {
       name: mark_wipe_8_2_2_2,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 61.546455383s,
       duration: 0.898833156s,
       target: layouts.main.desk,
@@ -1112,7 +1113,7 @@ Sequence main {
     Clip {
       name: mark_pulse_12_2_2_2_2_3,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 64.504119873s,
       duration: 2.782971621s,
       target: layouts.main.desk_top,
@@ -1131,7 +1132,7 @@ Sequence main {
     Clip {
       name: mark_wipe_8_2_2_2_2,
       description: none,
-      layer: default,
+      layer: buildup,
       start: 63.10534668s,
       duration: 0.898833156s,
       target: layouts.main.desk,
@@ -1156,7 +1157,7 @@ Sequence main {
   graph: Graph {
     nodes: [
       LayerNode { layer: default, position: (-175.95499, -41.818153) },
-      RootNode { position: (904.14355, 15.452262) },
+      RootNode { position: (1736.4005, 638.0409) },
       LayerNode { layer: hue_shift, position: (-421.5598, 250.22318) },
       OperatorNode {
         name: hue_shift_2,
@@ -1191,6 +1192,19 @@ Sequence main {
         },
         position: (1050.4136, 275.48868),
       },
+      LayerNode { layer: buildup, position: (205.48776, 1293.3168) },
+      OperatorNode {
+        name: dim,
+        operator: operators.Dim,
+        params: {},
+        position: (575.04877, 1156.7432),
+      },
+      OperatorNode {
+        name: saturate,
+        operator: operators.Saturate,
+        params: {},
+        position: (972.4458, 964.66797),
+      },
     ],
     edges: [
       Edge { from: gradient_base, to: hue_map.gradient },
@@ -1201,6 +1215,9 @@ Sequence main {
       Edge { from: freeze_frame, to: bloom.input },
       Edge { from: default, to: bloom.input },
       Edge { from: hue_shift_2, to: bloom.input },
+      Edge { from: buildup, to: dim.input },
+      Edge { from: dim, to: saturate.source },
+      Edge { from: saturate, to: root },
     ],
   },
   automation: [
@@ -1243,6 +1260,24 @@ Sequence main {
         Bound { binding: ClipParam { clip: gradient, param: angle }, window: (0.0, 1.0) },
         Bound { binding: ClipParam { clip: gradient_2, param: angle }, window: (0.0, 1.0) },
         Bound { binding: ClipParam { clip: gradient_3, param: angle }, window: (0.0, 1.0) },
+      ],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.desk,
+      start: 54.79399537s,
+      duration: 12.928729889s,
+      curve: Curve { points: [(0.0, 0.046), (0.7888914, 0.488), (0.9418507, 1.0), (1.0, 1.0)] },
+      bindings: [Bound { binding: NodeParam { node: dim, param: amount }, window: (0.0, 1.0) }],
+      detached: [],
+    },
+    AutomationClip {
+      row: layouts.main.desk,
+      start: 54.755928302s,
+      duration: 12.916355382s,
+      curve: Curve { points: [(0.0, 1.0), (1.0, 0.744)] },
+      bindings: [
+        Bound { binding: NodeParam { node: saturate, param: amount }, window: (0.0, 1.0) },
       ],
       detached: [],
     },

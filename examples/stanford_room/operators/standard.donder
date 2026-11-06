@@ -62,6 +62,18 @@ operator HueShift {
   sample { hsv(hue(source) + shift, saturation(source), intensity(source)) }
 }
 
+operator Saturate {
+  input source;
+  param amount: float in -1.0..1.0 = 0.0 "Positive pulls colors toward full saturation, negative toward white.";
+
+  -- Moves saturation the fraction `amount` of the way to fully saturated
+  -- (positive) or to white (negative), so 1 and -1 reach the ends.
+  sample {
+    let end = if amount > 0.0 { 1.0 } else { 0.0 };
+    hsv(hue(source), mix(saturation(source), end, abs(amount)), intensity(source))
+  }
+}
+
 operator FreezeFrame {
   input input;
   param interval_seconds: float in 0.001..10.0 = 0.01;

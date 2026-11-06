@@ -4,11 +4,17 @@ import setups from <setups/main.data.donder>;
 import sequences from <sequences/main.data.donder>;
 import sequences_2 from <sequences/sequence_2.data.donder>;
 import sequences_3 from <sequences/hidden_daggers.data.donder>;
+import sequences_4 from <sequences/take_you_down.data.donder>;
 
 Project stanford_room {
   format: 1,
   description: none,
   setup: setups.main,
-  sequences: [sequences.main, sequences_2.sequence_2, sequences_3.hidden_daggers],
+  sequences: [
+    sequences.main,
+    sequences_2.sequence_2,
+    sequences_3.hidden_daggers,
+    sequences_4.take_you_down,
+  ],
   consoles: [],
 }

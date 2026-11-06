@@ -14,6 +14,8 @@ type NumberFieldProps = {
   /** A short name drawn inside the field, such as "X". */
   label?: string;
   unit?: string;
+  /** Draw `min`–`max` inside the field, so the allowed values are visible before typing. */
+  showRange?: boolean;
   format?: (value: number) => string;
   disabled?: boolean;
   invalid?: boolean;
@@ -28,7 +30,7 @@ type Scrub = { pointer: number; startValue: number; travel: number; scrubbing: b
  * The app's number control. Drag sideways to scrub (Shift for fine, Ctrl for coarse), double-click
  * to reset, click to type; Enter commits and Escape reverts. A scrub commits once, on release.
  */
-export function NumberField({ value, onCommit, step, defaultValue, min, max, integer = false, label, unit, format, disabled = false, invalid = false, name, className }: NumberFieldProps) {
+export function NumberField({ value, onCommit, step, defaultValue, min, max, integer = false, label, unit, showRange = false, format, disabled = false, invalid = false, name, className }: NumberFieldProps) {
   const [draft, setDraft] = useState<number | null>(null);
   const [text, setText] = useState<string | null>(null);
   const scrub = useRef<Scrub | null>(null);
@@ -95,8 +97,10 @@ export function NumberField({ value, onCommit, step, defaultValue, min, max, int
     }
   };
   const onTextKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // The field's own Enter would reopen the input with the value from before the commit.
     if (event.key === "Enter") {
       event.preventDefault();
+      event.stopPropagation();
       event.currentTarget.blur();
     } else if (event.key === "Escape") {
       event.preventDefault();
@@ -129,6 +133,8 @@ export function NumberField({ value, onCommit, step, defaultValue, min, max, int
     onKeyDown={onKeyDown}
   >
     {label !== undefined && <span className="kit-number-label">{label}</span>}
+    {showRange && min !== undefined && max !== undefined &&
+      <span className="kit-number-label">{formatNumber(min, step, integer)}–{formatNumber(max, step, integer)}</span>}
     {text === null
       ? <span className="kit-number-value">{display}{unit !== undefined && <span className="kit-number-unit">{unit}</span>}</span>
       : <input

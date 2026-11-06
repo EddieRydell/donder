@@ -2,7 +2,7 @@ import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { useState } from "react";
 import type { SequenceGuiDocument } from "../../../types";
-import { Button, Field, NumberField, Section, Select, TextField } from "../../kit";
+import { Button, Field, NumberField, Section, Select, TextField, Toggle } from "../../kit";
 import { defaultMarkColor, subdivisionTimes } from "./marks";
 
 const MIN_DIVISIONS = 2;
@@ -29,13 +29,16 @@ export function MarkSubdivision({
   const [divisions, setDivisions] = useState(MIN_DIVISIONS);
   const [target, setTarget] = useState(NEW_COLLECTION);
   const [name, setName] = useState("subdivisions");
+  const [includeSelected, setIncludeSelected] = useState(false);
   const divisionsValid = Number.isInteger(divisions) && divisions >= MIN_DIVISIONS && divisions <= MAX_DIVISIONS;
   const targetCollection = document.markCollections.find((collection) => collection.key === target);
   const valid = divisionsValid && (targetCollection !== undefined || name.trim().length > 0);
 
   const subdivide = () => {
     const existing = targetCollection?.marksSeconds ?? [];
-    const timesSeconds = subdivisionTimes(selectedSeconds, divisions).filter(
+    const subdivided = subdivisionTimes(selectedSeconds, divisions);
+    const added = includeSelected ? [...new Set([...selectedSeconds, ...subdivided])].sort((left, right) => left - right) : subdivided;
+    const timesSeconds = added.filter(
       (time) => !existing.some((mark) => Math.abs(mark - time) < DUPLICATE_MARK_SECONDS)
     );
     if (targetCollection === undefined) {
@@ -56,7 +59,7 @@ export function MarkSubdivision({
   };
 
   return (
-    <Section title="Subdivide" defaultOpen={false}>
+    <Section title="Subdivide">
       <Field label="Divisions" tip="Equal parts per gap between selected marks">
         <NumberField name="Divisions" value={divisions} min={MIN_DIVISIONS} max={MAX_DIVISIONS} step={1} integer defaultValue={MIN_DIVISIONS} onCommit={setDivisions} />
       </Field>
@@ -76,6 +79,9 @@ export function MarkSubdivision({
           <TextField name="New collection name" value={name} onCommit={setName} />
         </Field>
       )}
+      <Field label="Include selected" tip="Also add a mark at each selected mark">
+        <Toggle name="Include selected marks" checked={includeSelected} onChange={setIncludeSelected} />
+      </Field>
       <Button disabled={!valid} onClick={subdivide}>Subdivide</Button>
     </Section>
   );
