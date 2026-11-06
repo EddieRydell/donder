@@ -21,7 +21,7 @@ pub(crate) fn document_text(
 }
 
 /// Send one JSON-RPC message to the language server; replies arrive as
-/// `language_server_message` events.
+/// [`LanguageServerMessage`](crate::events::LanguageServerMessage) events.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn language_server_send(
@@ -130,12 +130,6 @@ pub(crate) fn resolve_gui_source(
     state: State<'_, DesktopState>,
 ) -> Result<GuiDocumentRequest, String> {
     state.resolve_gui_source(&path, &object_key)
-}
-
-#[tauri::command(async)]
-#[specta::specta]
-pub(crate) fn set_active_file(path: String, state: State<'_, DesktopState>) -> AppSnapshot {
-    state.set_active_file_path(&path)
 }
 
 #[tauri::command]

@@ -1,13 +1,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import { useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  OPEN_COMMAND_PALETTE_EVENT,
-  OPEN_QUICK_OPEN_EVENT,
-  commandRegistry,
-  runCommand,
-  shortcutLabel
-} from "../commandRegistry";
+import { commandRegistry, runCommand, shortcutLabel } from "../commandRegistry";
+import { listenUiEvent } from "../ui/uiEvents";
 import type { CommandId } from "../types";
 import { runSnapshotCommand, useAppStore } from "../store";
 import { commands } from "../api";
@@ -22,14 +17,9 @@ export function CommandOverlays() {
   const [fileQuery, setFileQuery] = useState("");
 
   useEffect(() => {
-    const openPalette = () => { setPaletteOpen(true); };
-    const openFiles = () => { setQuickOpen(true); };
-    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, openPalette);
-    window.addEventListener(OPEN_QUICK_OPEN_EVENT, openFiles);
-    return () => {
-      window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, openPalette);
-      window.removeEventListener(OPEN_QUICK_OPEN_EVENT, openFiles);
-    };
+    const stopPalette = listenUiEvent("openCommandPalette", () => { setPaletteOpen(true); });
+    const stopFiles = listenUiEvent("openQuickOpen", () => { setQuickOpen(true); });
+    return () => { stopPalette(); stopFiles(); };
   }, []);
 
   const availableCommands = (

@@ -40,7 +40,7 @@ Sequence hidden_daggers {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: ThroughEffect,
-        pulse_overlap: 10.0,
+        pulse_overlap: 70.0,
         chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         revolutions: 8,
         pulse_shape: Curve { points: [(0.0, 0.0), (0.176, 1.0), (1.0, 0.0)] },

@@ -25151,10 +25151,7 @@ Sequence all_we_are {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0, #ffffff), (0.177, #ff8500), (0.39, #fff900)],
-        },
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.102, #ff8500), (0.39, #fff900)] },
         radius_curve: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         width_curve: Curve { points: [(0.0, 91.865), (1.0, 95.923)] },
         center_x: 50.0,
@@ -25872,10 +25869,7 @@ Sequence all_we_are {
       scope: WholeTarget,
       effect: vixen.VixenShockwave,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0, #ffffff), (0.177, #ff8500), (0.39, #fff900)],
-        },
+        color_gradient: Gradient { space: LinearRgb, stops: [(0.059, #ff8500), (0.39, #fff900)] },
         radius_curve: Curve { points: [(0.0, 0.0), (1.0, 100.0)] },
         width_curve: Curve { points: [(0.0, 91.865), (1.0, 95.923)] },
         center_x: 50.0,

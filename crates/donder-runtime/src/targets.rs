@@ -19,8 +19,8 @@ pub(crate) struct PreparedPixel {
 }
 
 impl PreparedPixel {
-    /// 0 at the scope's first pixel, 1 at its last; computed as
-    /// `TargetPixel::fraction` computes it, bit for bit.
+    /// 0 at the scope's first pixel, 1 at its last, evenly spaced between;
+    /// 0 for a scope of one pixel.
     #[inline(always)]
     pub(crate) fn fraction(&self) -> f32 {
         if self.pixel_count <= 1 {

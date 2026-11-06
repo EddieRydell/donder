@@ -1,4 +1,4 @@
-import type { Point3Meters, SpatialGuide, SpatialSnapSettings, SpatialUnit } from "../../../editor/types";
+import type { Point3Meters, SpatialGuide, SpatialSnapSettings, SpatialUnit } from "../../../types";
 
 /** Shift constrains to 45° (or a square); Alt bypasses snapping. */
 export type Modifiers = { shiftKey: boolean; altKey: boolean };

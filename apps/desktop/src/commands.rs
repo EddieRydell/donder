@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_specta::{Builder, collect_commands};
 
 use crate::desktop_state::DesktopState;
@@ -51,7 +51,6 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         create_sequence,
         open_file,
         resolve_gui_source,
-        set_active_file,
         update_document,
         document_text,
         language_server_send,
@@ -113,31 +112,59 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
 }
 
 fn publish_audio_snapshot(app: &AppHandle, snapshot: AppSnapshot) -> AppSnapshot {
-    let _ = app.emit("audio_transport_changed", snapshot.audio_transport.clone());
+    crate::events::send(
+        app,
+        crate::events::AudioTransportChanged {
+            transport: snapshot.audio_transport.clone(),
+        },
+    );
     snapshot
 }
 
-fn start_audio_transport_poll(app: AppHandle) {
-    if !app.state::<DesktopState>().claim_audio_poll() {
+/// Every `period`, run `tick`, which publishes and says whether to keep
+/// polling; once it stops, poll again if `active` became true meanwhile.
+pub(crate) fn start_poll(
+    app: AppHandle,
+    poll: crate::desktop_state::Poll,
+    period: Duration,
+    tick: fn(&AppHandle, &DesktopState) -> bool,
+    active: fn(&DesktopState) -> bool,
+) {
+    if !app.state::<DesktopState>().claim_poll(poll) {
         return;
     }
     std::thread::spawn(move || {
         loop {
-            std::thread::sleep(Duration::from_millis(50));
+            std::thread::sleep(period);
             let state = app.state::<DesktopState>();
-            let snapshot = state.poll_audio_transport();
-            let _ = app.emit("audio_transport_changed", snapshot.clone());
-            if !matches!(snapshot.state, AudioTransportState::Playing) {
-                state.release_audio_poll();
-                let restarted =
-                    matches!(state.audio_snapshot().state, AudioTransportState::Playing)
-                        && state.claim_audio_poll();
-                if !restarted {
+            if !tick(&app, &state) {
+                state.release_poll(poll);
+                if !(active(&state) && state.claim_poll(poll)) {
                     break;
                 }
             }
         }
     });
+}
+
+fn start_audio_transport_poll(app: AppHandle) {
+    start_poll(
+        app,
+        crate::desktop_state::Poll::Audio,
+        Duration::from_millis(50),
+        |app, state| {
+            let snapshot = state.poll_audio_transport();
+            let playing = matches!(snapshot.state, AudioTransportState::Playing);
+            crate::events::send(
+                app,
+                crate::events::AudioTransportChanged {
+                    transport: snapshot,
+                },
+            );
+            playing
+        },
+        |state| matches!(state.audio_snapshot().state, AudioTransportState::Playing),
+    );
 }
 
 fn import_external_audio(snapshot: &AppSnapshot, selected_path: &Path) -> Result<String, String> {

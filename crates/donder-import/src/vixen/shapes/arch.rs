@@ -1,31 +1,9 @@
 //! A half ellipse of lights standing on a box's bottom edge. Vixen:
 //! `PreviewArch`.
 
-use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, pixel_nodes, strings, unrotated};
-use crate::vixen::contract;
+use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings, unrotated};
 use crate::xml::Element;
 use glam::DVec2;
-
-/// The node of each of the shape's own pixels, refusing a pixel that keeps
-/// a high-precision location: Vixen then places it at that saved location
-/// rather than where the shape's layout puts it. Vixen:
-/// `PreviewLightBaseShape.SetPixelZoomRotate`, `PreviewPixel.Point`.
-pub(super) fn lights(shape: &Element) -> Result<Vec<Option<String>>, ShapeSkip> {
-    if let Some(pixels) = contract::field(shape, "Pixels") {
-        for pixel in pixels.children("PreviewPixel") {
-            if contract::boolean(pixel, "IsHighPrecision", false)? {
-                return Err(ShapeSkip::Setting("high-precision lights"));
-            }
-        }
-    }
-    pixel_nodes(shape)
-}
-
-/// The point a field holds. Vixen: `PreviewPoint`.
-pub(super) fn point(shape: &Element, name: &str) -> Result<DVec2, ShapeSkip> {
-    let (x, y) = contract::point(shape, name)?;
-    Ok(DVec2::new(f64::from(x), f64::from(y)))
-}
 
 /// The ellipse of an arch `width` wide and `height` high whose box's top
 /// left is `top_left`, and `count` lights evenly spaced over its upper
@@ -69,7 +47,7 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     }
     let top_left = point(shape, "_topLeft")?;
     let bottom_right = point(shape, "_bottomRight")?;
-    let nodes = lights(shape)?;
+    let nodes = pixel_nodes(shape)?;
     let size = bottom_right - top_left;
     let (ellipse, points) = arc(top_left, size.x, size.y, nodes.len());
     Ok(Laid {

@@ -1,4 +1,4 @@
-import { useSequenceEditorHost } from "../../../editor/host";
+import { useAppStore } from "../../../store";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { OverlayPortal } from "../../OverlayPortal";
 import { Dialog } from "../../kit";
@@ -15,8 +15,6 @@ export function GraphEditorModal({
   setSelectedItem: (item: SelectedGraphItem) => void;
   onClose: () => void;
 }) {
-  const host = useSequenceEditorHost();
-  const { store: useAppStore } = host;
 
   const content = useRef<HTMLDivElement>(null);
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);

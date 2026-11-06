@@ -237,8 +237,5 @@ pub(super) fn domain_input_device(
         },
         controls,
     };
-    device
-        .validate()
-        .map_err(|error| GuiMutationError::Invalid(format!("Invalid input device: {error}")))?;
     Ok(device)
 }

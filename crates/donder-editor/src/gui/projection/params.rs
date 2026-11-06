@@ -80,7 +80,6 @@ pub(in crate::gui) fn composition_graph(
     ) -> Option<SequenceParamAutomation>,
 ) -> SequenceCompositionGraph {
     SequenceCompositionGraph {
-        id: 0,
         operator_catalog: session
             .project
             .reusable::<donder_model::OperatorDefinition>()
@@ -113,7 +112,6 @@ pub(in crate::gui) fn layers_to_gui(layers: &[donder_model::SequenceLayer]) -> V
             description: layer.description.clone(),
             color: layer.color.to_hex(),
             enabled: layer.enabled,
-            is_default: layer.id.0 == 0,
         })
         .collect()
 }

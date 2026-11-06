@@ -1,8 +1,8 @@
 //! A candy cane: a vertical string of lights up its left edge, then an arch
 //! over its top. Vixen: `PreviewCane`.
 
-use super::arch::{arc, lights, point};
-use super::{Laid, ShapePixel, ShapeSkip, strings, unrotated};
+use super::arch::arc;
+use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings, unrotated};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -28,7 +28,7 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     let arch_left = point(shape, "_archLeftPoint")?;
     let line_count = count(shape, "_linePixelCount")?;
     let arch_count = count(shape, "_archPixelCount")?;
-    let nodes = lights(shape)?;
+    let nodes = pixel_nodes(shape)?;
     if nodes.len() < line_count + arch_count {
         return Err(ShapeSkip::Unplaceable(
             "a cane with fewer lights than its counts",

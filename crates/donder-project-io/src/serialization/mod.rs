@@ -27,7 +27,7 @@ pub struct SourceTextWrite {
     pub expected: Option<Vec<u8>>,
 }
 
-fn read_previous(path: &Utf8Path) -> Result<Option<Vec<u8>>, ExportProjectError> {
+pub(crate) fn read_previous(path: &Utf8Path) -> Result<Option<Vec<u8>>, ExportProjectError> {
     match fs::read(path) {
         Ok(bytes) => Ok(Some(bytes)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -44,21 +44,16 @@ pub fn write_source_texts(
     root: &Utf8Path,
     writes: &std::collections::BTreeMap<Utf8PathBuf, SourceTextWrite>,
 ) -> Result<Vec<Utf8PathBuf>, ExportProjectError> {
-    let mut prepared = Vec::new();
+    let mut files = Vec::with_capacity(writes.len());
     for (relative, write) in writes {
-        if relative.as_str().is_empty()
-            || !relative
-                .components()
-                .all(|part| matches!(part, camino::Utf8Component::Normal(_)))
-        {
-            return Err(ExportProjectError::Io {
+        crate::validate_relative_path(relative.as_str()).map_err(|message| {
+            ExportProjectError::Io {
                 path: relative.clone(),
-                source: io::Error::other("Invalid project source path"),
-            });
-        }
+                source: io::Error::other(message),
+            }
+        })?;
         let path = root.join(relative);
-        let previous = read_previous(&path)?;
-        if previous != write.expected {
+        if read_previous(&path)? != write.expected {
             return Err(ExportProjectError::Io {
                 path,
                 source: io::Error::other(
@@ -66,39 +61,55 @@ pub fn write_source_texts(
                 ),
             });
         }
-        prepared.push((relative, path, write));
+        files.push(FileReplacement {
+            path,
+            bytes: write.text.as_bytes(),
+            previous: write.expected.as_deref(),
+        });
     }
-    for (index, (_, path, write)) in prepared.iter().enumerate() {
+    replace_files(&files)?;
+    Ok(writes.keys().cloned().collect())
+}
+
+/// A file to write, and the bytes it holds now: `None` when it does not exist.
+pub(crate) struct FileReplacement<'a> {
+    pub(crate) path: Utf8PathBuf,
+    pub(crate) bytes: &'a [u8],
+    pub(crate) previous: Option<&'a [u8]>,
+}
+
+/// Write each file in order, rechecking just before each write that it still
+/// holds its previous bytes. When one fails, the files already written are
+/// restored, and the error names any that could not be.
+pub(crate) fn replace_files(files: &[FileReplacement<'_>]) -> Result<(), ExportProjectError> {
+    for (index, file) in files.iter().enumerate() {
         let result = (|| {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            // Recheck immediately before each overwrite as well as before the transaction.
-            let actual = match fs::read(path) {
+            let actual = match fs::read(&file.path) {
                 Ok(bytes) => Some(bytes),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => None,
                 Err(error) => return Err(error),
             };
-            if actual != write.expected {
+            if actual.as_deref() != file.previous {
                 return Err(io::Error::other("Source changed during save"));
             }
-            crate::atomic_write(path, write.text.as_bytes()).map_err(io::Error::other)
+            crate::atomic_write(&file.path, file.bytes)
         })();
         if let Err(error) = result {
             let mut failures = Vec::new();
-            for (_, written_path, previous) in prepared[..index].iter().rev() {
-                let rollback = match &previous.expected {
-                    Some(bytes) => {
-                        crate::atomic_write(written_path, bytes).map_err(io::Error::other)
-                    }
-                    None => fs::remove_file(written_path),
+            for written in files[..index].iter().rev() {
+                let rollback = match written.previous {
+                    Some(bytes) => crate::atomic_write(&written.path, bytes),
+                    None => match fs::remove_file(&written.path) {
+                        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+                        _ => Ok(()),
+                    },
                 };
                 if let Err(error) = rollback {
-                    failures.push(format!("{written_path}: {error}"));
+                    failures.push(format!("{}: {error}", written.path));
                 }
             }
             return Err(ExportProjectError::Io {
-                path: path.clone(),
+                path: file.path.clone(),
                 source: io::Error::other(if failures.is_empty() {
                     error.to_string()
                 } else {
@@ -107,7 +118,7 @@ pub fn write_source_texts(
             });
         }
     }
-    Ok(writes.keys().cloned().collect())
+    Ok(())
 }
 
 pub(super) fn document_text(

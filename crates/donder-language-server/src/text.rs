@@ -3,6 +3,7 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::compiler::TextSpan;
 use lsp_types::{Position, Range};
+use url::Url;
 
 /// The byte offset of each line's start.
 pub(crate) struct LineIndex {
@@ -69,42 +70,13 @@ impl LineIndex {
     }
 }
 
-/// `file:///C:/show/project.data.donder` for a path.
-pub fn file_uri(path: &Utf8Path) -> String {
-    let text = path.as_str().replace('\\', "/");
-    let mut uri = String::from("file://");
-    if !text.starts_with('/') {
-        uri.push('/');
-    }
-    for byte in text.bytes() {
-        if byte.is_ascii_alphanumeric() || b"-._~/:".contains(&byte) {
-            uri.push(byte as char);
-        } else {
-            uri.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    uri
+/// The `file:` URI of an absolute path.
+pub fn file_uri(path: &Utf8Path) -> Option<String> {
+    Url::from_file_path(path).ok().map(String::from)
 }
 
 /// The path of a `file:` URI.
 pub fn uri_path(uri: &str) -> Option<Utf8PathBuf> {
-    let rest = uri.strip_prefix("file://")?;
-    let mut bytes = Vec::with_capacity(rest.len());
-    let mut iter = rest.bytes();
-    while let Some(byte) = iter.next() {
-        if byte == b'%' {
-            let high = (iter.next()? as char).to_digit(16)?;
-            let low = (iter.next()? as char).to_digit(16)?;
-            bytes.push((high * 16 + low) as u8);
-        } else {
-            bytes.push(byte);
-        }
-    }
-    let path = String::from_utf8(bytes).ok()?;
-    // `/C:/show` is a Windows drive path.
-    let path = match path.as_bytes() {
-        [b'/', drive, b':', ..] if drive.is_ascii_alphabetic() => path[1..].to_string(),
-        _ => path,
-    };
-    Some(Utf8PathBuf::from(path))
+    let path = Url::parse(uri).ok()?.to_file_path().ok()?;
+    Utf8PathBuf::from_path_buf(path).ok()
 }

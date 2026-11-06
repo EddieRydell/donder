@@ -5,11 +5,11 @@
 use super::config::ConfigController;
 use super::contract;
 use crate::report::ControllerSkip;
-use crate::setup::{ProfileController, ProfileOutput, Slot};
+use crate::setup::{ProfileController, ProfileOutput, ProfileProtocol, Slot};
 use crate::xml::Element;
-use donder_model::{ControllerProtocol, E131Config, E131Mode};
+use donder_model::E131Mode;
 use std::collections::{HashMap, HashSet};
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::IpAddr;
 
 const E131: &str = "771d7eba-662a-48d5-aedb-445c8708e878";
 
@@ -29,7 +29,7 @@ const OTHER_MODULES: [(&str, &str); 9] = [
 /// One universe a controller sends: its first output and how many slots.
 struct Universe {
     start: u32,
-    slots: u32,
+    slots: u16,
 }
 
 /// The show's controllers, and where each controller output's channel is.
@@ -44,7 +44,7 @@ fn protocol(
     controller: &ConfigController,
     data: Option<&Element>,
     disabled: bool,
-) -> Result<(ControllerProtocol, Vec<(u16, Universe)>), ControllerSkip> {
+) -> Result<(ProfileProtocol, Vec<(u16, Universe)>), ControllerSkip> {
     if controller.hardware_id != E131 {
         return Err(OTHER_MODULES
             .iter()
@@ -64,10 +64,7 @@ fn protocol(
         return Err(ControllerSkip::Blind);
     }
     let priority = field(contract::int(data, "Priority", 100))?;
-    let priority = u8::try_from(priority)
-        .ok()
-        .filter(|priority| (1..=200).contains(priority))
-        .ok_or(ControllerSkip::Priority(priority))?;
+    let priority = u8::try_from(priority).map_err(|_| ControllerSkip::Priority(priority))?;
     let entries: Vec<&Element> = contract::field(data, "Universes")
         .map(|universes| universes.children("UniverseEntry").collect())
         .unwrap_or_default();
@@ -94,7 +91,6 @@ fn protocol(
     };
     let outputs = controller.outputs.len() as u32;
     let mut universes = Vec::new();
-    let mut numbers = HashSet::new();
     for entry in entries {
         // Vixen: E131OutputPlugin.UpdateState sends only active universes
         // that start inside the controller's outputs.
@@ -108,37 +104,19 @@ fn protocol(
         let size = field(contract::int(entry, "Size", 512))?;
         let start = u32::try_from(start)
             .map_err(|_| ControllerSkip::Setting("Start".into(), start.to_string()))?;
-        if !(1..=63_999).contains(&number) {
-            return Err(ControllerSkip::Universe(number));
-        }
-        if !numbers.insert(number) {
-            return Err(ControllerSkip::RepeatedUniverse(number));
-        }
-        let slots = u32::try_from(size)
-            .ok()
-            .filter(|size| *size > 0)
-            .ok_or(ControllerSkip::EmptyOutput)?;
-        if slots > 512 {
-            return Err(ControllerSkip::LargeOutput(slots));
-        }
-        universes.push((number as u16, Universe { start, slots }));
+        let number = u16::try_from(number).map_err(|_| ControllerSkip::Universe(number))?;
+        let slots = u32::try_from(size).map_err(|_| ControllerSkip::EmptyOutput)?;
+        let slots = u16::try_from(slots).map_err(|_| ControllerSkip::LargeOutput(slots))?;
+        universes.push((number, Universe { start, slots }));
     }
     for (index, (_, a)) in universes.iter().enumerate() {
         for (_, b) in &universes[index + 1..] {
-            if a.start < b.start + b.slots && b.start < a.start + a.slots {
+            if a.start < b.start + u32::from(b.slots) && b.start < a.start + u32::from(a.slots) {
                 return Err(ControllerSkip::OverlappingUniverses);
             }
         }
     }
-    Ok((
-        ControllerProtocol::E131(E131Config {
-            sender_name: "Donder".to_string(),
-            bind_address: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-            priority,
-            mode,
-        }),
-        universes,
-    ))
+    Ok((ProfileProtocol::E131 { priority, mode }, universes))
 }
 
 pub(crate) fn read(
@@ -160,7 +138,8 @@ pub(crate) fn read(
             Ok((protocol, universes)) => {
                 for (universe, (_, entry)) in universes.iter().enumerate() {
                     // Outputs past the controller's last are sent as zero.
-                    let end = (entry.start + entry.slots).min(controller.outputs.len() as u32);
+                    let end =
+                        (entry.start + u32::from(entry.slots)).min(controller.outputs.len() as u32);
                     for output in entry.start..end {
                         result.slots.insert(
                             controller.outputs[output as usize].clone(),
@@ -176,7 +155,7 @@ pub(crate) fn read(
                     .iter()
                     .map(|(number, entry)| ProfileOutput {
                         universe: *number,
-                        channels: entry.slots as u16,
+                        channels: entry.slots,
                     })
                     .collect();
                 (Ok(protocol), outputs)

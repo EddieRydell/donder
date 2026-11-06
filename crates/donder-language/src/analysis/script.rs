@@ -9,7 +9,9 @@ use crate::compiler::builtins::{
     ARRAY_WORD, AT, BUILTINS, Builtin, CONTEXT, ContextValue, ENUM_WORD, Method, NAMED_TYPES,
     REDUCERS, Reducer, builtin, type_text,
 };
-use crate::compiler::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_with_comments};
+use crate::compiler::syntax::lexer::{
+    ContextualKeyword, Keyword, LexMode, Token, TokenKind, lex_with_comments,
+};
 use crate::compiler::{Diagnostic, TextSpan};
 
 /// What a name refers to.
@@ -90,7 +92,7 @@ impl ScriptAnalysis {
                 reducer.name, reducer.summary
             ),
             ScriptTarget::Method(method) => {
-                format!("```donder\n{}\n```\n\n{}", method.signature, method.summary)
+                format!("```donder\n{}\n```\n\n{}", method.label(), method.summary)
             }
         }
     }
@@ -193,7 +195,9 @@ fn semantic_tokens(
                         ScriptTarget::Context(_) => TokenClass::Context,
                         ScriptTarget::Method(_) => TokenClass::Function,
                     }
-                } else if member_word(&tokens, index, text) || CONTEXTUAL_KEYWORDS.contains(&text) {
+                } else if ContextualKeyword::of(text)
+                    .is_some_and(|word| !word.is_member() || member_start(&tokens, index))
+                {
                     TokenClass::Keyword
                 } else if type_words().any(|word| word == text) {
                     TokenClass::Type
@@ -232,16 +236,10 @@ fn semantic_tokens(
     result
 }
 
-/// The words of `around` and `scan`, which are keywords only where those
-/// constructs expect them; a name the source declares is never one.
-const CONTEXTUAL_KEYWORDS: [&str; 8] = [
-    "around", "extended", "mirrored", "as", "scan", "forward", "backward", "decay",
-];
-
-/// `param`, `input` and `sample` where a declaration's member starts.
-fn member_word(tokens: &[Token], index: usize, text: &str) -> bool {
-    matches!(text, "param" | "input" | "sample")
-        && index > 0
+/// Whether a declaration's member starts at token `index`. A name the source
+/// declares is never a contextual keyword.
+fn member_start(tokens: &[Token], index: usize) -> bool {
+    index > 0
         && matches!(
             tokens[index - 1].kind,
             TokenKind::LeftBrace | TokenKind::Semicolon | TokenKind::RightBrace
@@ -276,6 +274,12 @@ impl<'a> Context<'a> {
 
     fn text(&self, token: Token) -> &'a str {
         &self.source[token.span.start..token.span.end]
+    }
+
+    fn word(&self, token: Token) -> Option<ContextualKeyword> {
+        (token.kind == TokenKind::Identifier)
+            .then(|| ContextualKeyword::of(self.text(token)))
+            .flatten()
     }
 
     fn previous(&self, back: usize) -> Option<Token> {
@@ -331,7 +335,7 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
         }
         return vec![
             Completion::new(AT.name, CompletionKind::Function)
-                .detail(AT.signature)
+                .detail(AT.label())
                 .documentation(AT.summary),
         ];
     }
@@ -351,10 +355,10 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
     let in_function = keyword.kind == TokenKind::Keyword(Keyword::Fn);
     let in_sample = tokens
         .iter()
-        .any(|token| context.text(*token) == "sample" && token.kind == TokenKind::Identifier);
+        .any(|token| context.word(*token) == Some(ContextualKeyword::Sample));
     if !in_function && !in_sample {
-        for word in ["param", "input", "sample"] {
-            completions.push(Completion::new(word, CompletionKind::Keyword));
+        for word in ContextualKeyword::MEMBERS {
+            completions.push(Completion::new(word.text(), CompletionKind::Keyword));
         }
         return completions;
     }
@@ -390,7 +394,7 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
             }
             // `around input as neighbor { .. }` and `scan .. as light { .. }`.
             TokenKind::Identifier
-                if context.text(*token) == "as"
+                if context.word(*token) == Some(ContextualKeyword::As)
                     && next.is_some_and(|next| next.kind == TokenKind::Identifier) =>
             {
                 pending.extend(
@@ -398,8 +402,10 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
                 );
             }
             TokenKind::Identifier
-                if matches!(context.text(*token), "param" | "input")
-                    && next.is_some_and(|next| next.kind == TokenKind::Identifier) =>
+                if matches!(
+                    context.word(*token),
+                    Some(ContextualKeyword::Param | ContextualKeyword::Input)
+                ) && next.is_some_and(|next| next.kind == TokenKind::Identifier) =>
             {
                 if let (Some(scope), Some(next)) = (open.first_mut(), next) {
                     scope.push((
@@ -439,7 +445,7 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
         let mut in_enum = false;
         for token in tokens {
             match token.kind {
-                TokenKind::Identifier if context.text(*token) == "enum" => in_enum = true,
+                TokenKind::Identifier if context.text(*token) == ENUM_WORD => in_enum = true,
                 TokenKind::RightBrace => in_enum = false,
                 TokenKind::Identifier if in_enum && seen.insert(context.text(*token)) => {
                     completions.push(Completion::new(
@@ -495,13 +501,21 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
                 )),
         );
     }
+    let (scan, forward, backward, decay) = (
+        ContextualKeyword::Scan.text(),
+        ContextualKeyword::Forward.text(),
+        ContextualKeyword::Backward.text(),
+        ContextualKeyword::Decay.text(),
+    );
     completions.push(
-        Completion::new("scan", CompletionKind::Snippet)
-            .detail("scan forward input decay d")
+        Completion::new(scan, CompletionKind::Snippet)
+            .detail(format!("{scan} {forward} input {decay} d"))
             .documentation(
                 "A trail along each fixture: at each pixel, the trail so far times the decay plus the input's light, optionally weighted with `as light { light * weight }`.",
             )
-            .insert("scan ${1|forward,backward|} ${2:input} decay ${3:decay}"),
+            .insert(format!(
+                "{scan} ${{1|{forward},{backward}|}} ${{2:input}} {decay} ${{3:{decay}}}"
+            )),
     );
     for keyword in [
         Keyword::Let,
@@ -516,8 +530,13 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
     completions
 }
 
-/// Signature help inside a call's parentheses at `offset`.
-pub fn script_signature(source: &str, offset: usize) -> Option<SignatureHelp> {
+/// Signature help inside a call's parentheses at `offset`, with `analysis`
+/// of `source` for its functions.
+pub fn script_signature(
+    source: &str,
+    analysis: &ScriptAnalysis,
+    offset: usize,
+) -> Option<SignatureHelp> {
     let context = Context::new(source, offset);
     let mut depth = 0_usize;
     let mut commas = 0_usize;
@@ -549,7 +568,6 @@ pub fn script_signature(source: &str, offset: usize) -> Option<SignatureHelp> {
                         })
                         .collect()
                 } else {
-                    let analysis = analyze_script(source);
                     let (index, function) =
                         analysis.symbols.iter().enumerate().find(|(_, symbol)| {
                             symbol.kind == SymbolKind::Function && symbol.name == name

@@ -128,7 +128,7 @@ fn admit_console(
         operator_automations.insert(node.id.clone(), automations.into());
     }
     Ok(ConsoleInputs {
-        timing: timing(console)?,
+        timing: timing(console),
         clips,
         operators,
         operator_automations,
@@ -286,18 +286,18 @@ fn session() -> ClipTiming {
     }
 }
 
-fn timing(console: &Console) -> Result<SequenceTiming, ValidationProblem> {
-    let admit = || {
-        let frame_rate = NonZeroU32::new(console.frame_rate)?;
-        let frame_count = NonZeroU32::new(
-            u32::try_from(
-                (u64::from(CONSOLE_SESSION.as_ticks()) * u64::from(console.frame_rate))
-                    .div_ceil(1_000_000),
-            )
-            .ok()?,
-        )?;
-        let duration = NonZeroU32::new(CONSOLE_SESSION.as_ticks())?;
-        Some(SequenceTiming::new(frame_rate, frame_count, duration))
-    };
-    admit().ok_or_else(|| invalid(AdmissionProblem::TimingUnrepresentable))
+/// Validation bounds the console's frame rate, so its session fits the playback clock.
+fn timing(console: &Console) -> SequenceTiming {
+    fn proven<T>() -> T {
+        unreachable!("validation bounds the console's frame rate")
+    }
+    let frame_count = u32::try_from(
+        (u64::from(CONSOLE_SESSION.as_ticks()) * u64::from(console.frame_rate)).div_ceil(1_000_000),
+    )
+    .unwrap_or_else(|_| proven());
+    SequenceTiming::new(
+        NonZeroU32::new(console.frame_rate).unwrap_or_else(proven),
+        NonZeroU32::new(frame_count).unwrap_or_else(proven),
+        NonZeroU32::new(CONSOLE_SESSION.as_ticks()).unwrap_or_else(proven),
+    )
 }

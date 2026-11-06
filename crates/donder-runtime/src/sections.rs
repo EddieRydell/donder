@@ -5,10 +5,6 @@ use crate::format::{self, SectionPixel};
 
 use crate::view::Show;
 
-fn normalize_width(width: f32) -> u32 {
-    libm::floorf(width.max(1.0)) as u32
-}
-
 /// A target's section runs, and each of its pixels' place among them.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SectionsView<'a> {
@@ -72,7 +68,7 @@ impl<'a> SectionsView<'a> {
                 missing: true,
             };
         };
-        let width = normalize_width(width as f32);
+        let width = width.max(1) as u32;
         let mut count = 0_u32;
         let mut base = 0_i32;
         let mut previous = None;
@@ -130,7 +126,7 @@ pub(crate) fn single_section_query(pixel: i32, count: i32, width: i32, index: bo
     if count <= 0 {
         return if index { -1 } else { 0 };
     }
-    let width = normalize_width(width as f32);
+    let width = width.max(1) as u32;
     if index {
         (pixel as u32 / width) as i32
     } else {

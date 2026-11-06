@@ -13,16 +13,17 @@ mod submodels;
 
 use crate::fit::{Ellipse, Pixel};
 use crate::report::{
-    ControllerSkip, ImportOptions, ImportReport, Scale, SkipReason, Skipped, TYPICAL_PIXEL_SPACING,
-    Unrouted, UnroutedReason,
+    ControllerSkip, ImportOptions, ImportReport, Scale, SkipReason, Skipped, Unrouted,
+    UnroutedReason,
 };
 use crate::setup::{
     ImportError, Profile, ProfileController, ProfileFixture, ProfileGroup, ProfileOutput,
+    ProfileProtocol,
 };
 use crate::xml::{self, Element};
 use camino::Utf8Path;
 use channels::ModelChannels;
-use donder_model::{ArtNetConfig, ArtNetMode, ControllerProtocol, E131Config, E131Mode};
+use donder_model::E131Mode;
 use donder_runtime_types::PixelEncoding;
 use glam::{DVec3, Vec3};
 use kind::ModelType;
@@ -30,7 +31,7 @@ use models::{Dimming, Local};
 use networks::{ControllerType, Networks, OutputType};
 use read::Reader;
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::IpAddr;
 
 pub(crate) const LAYOUT_FILE: &str = "xlights_rgbeffects.xml";
 pub(crate) const NETWORKS_FILE: &str = "xlights_networks.xml";
@@ -114,7 +115,7 @@ pub(crate) fn read_models(root: &Element, networks: &Networks) -> (Vec<ShowModel
         if kind == ModelType::ModelGroup {
             unloaded.push(Skipped {
                 model: name,
-                reason: SkipReason::Type("ModelGroup"),
+                reason: SkipReason::Type(kind.name()),
             });
             continue;
         }
@@ -248,24 +249,17 @@ fn scale(
     {
         return Ok((meters, Scale::Ruler));
     }
-    let spacing = options.pixel_spacing.unwrap_or(TYPICAL_PIXEL_SPACING);
-    let gaps = models.iter().flat_map(|model| {
-        model
-            .positions()
-            .windows(2)
-            .map(|pair| pair[0].distance(pair[1]))
-            .collect::<Vec<_>>()
-    });
-    Ok((
-        crate::setup::typical_scale(gaps, spacing),
-        Scale::PixelSpacing(spacing),
+    Ok(crate::setup::typical_scale(
+        models.iter().map(ShowModel::positions),
+        options.pixel_spacing,
     ))
 }
 
-/// The Donder protocol of an xLights controller, or why it has none.
+/// How Donder sends to an xLights controller and its outputs, or why it
+/// does not.
 fn protocol(
     controller: &crate::xlights::networks::NetworkController,
-) -> Result<ControllerProtocol, ControllerSkip> {
+) -> Result<(ProfileProtocol, Vec<ProfileOutput>), ControllerSkip> {
     match controller.kind {
         ControllerType::Serial => return Err(ControllerSkip::Serial),
         ControllerType::Null => return Err(ControllerSkip::Null),
@@ -289,58 +283,36 @@ fn protocol(
             .parse::<IpAddr>()
             .map_err(|_| ControllerSkip::Address(controller.ip.clone()))
     };
-    let mut universes = HashSet::new();
-    for output in &controller.outputs {
-        if output.kind != kind {
-            return Err(ControllerSkip::MixedOutputs);
-        }
-        if output.channels == 0 {
-            return Err(ControllerSkip::EmptyOutput);
-        }
-        if output.channels > 512 {
-            return Err(ControllerSkip::LargeOutput(output.channels));
-        }
-        let range = if kind == OutputType::E131 {
-            1..=63_999
-        } else {
-            0..=32_767
-        };
-        if !range.contains(&output.universe) {
-            return Err(ControllerSkip::Universe(output.universe));
-        }
-        if !universes.insert(output.universe) {
-            return Err(ControllerSkip::RepeatedUniverse(output.universe));
-        }
-    }
-    Ok(match kind {
-        OutputType::E131 => {
-            let mode = if controller.ip.eq_ignore_ascii_case("MULTICAST") {
+    let outputs = controller
+        .outputs
+        .iter()
+        .map(|output| {
+            if output.kind != kind {
+                return Err(ControllerSkip::MixedOutputs);
+            }
+            Ok(ProfileOutput {
+                universe: u16::try_from(output.universe)
+                    .map_err(|_| ControllerSkip::Universe(output.universe))?,
+                channels: u16::try_from(output.channels)
+                    .map_err(|_| ControllerSkip::LargeOutput(output.channels))?,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let protocol = match kind {
+        OutputType::E131 => ProfileProtocol::E131 {
+            priority: u8::try_from(controller.priority)
+                .map_err(|_| ControllerSkip::Priority(controller.priority))?,
+            mode: if controller.ip.eq_ignore_ascii_case("MULTICAST") {
                 E131Mode::Multicast
             } else {
                 E131Mode::Unicast {
                     destination: address()?,
                 }
-            };
-            let priority = u8::try_from(controller.priority)
-                .ok()
-                .filter(|priority| (1..=200).contains(priority))
-                .ok_or(ControllerSkip::Priority(controller.priority))?;
-            ControllerProtocol::E131(E131Config {
-                sender_name: "Donder".to_string(),
-                bind_address: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                priority,
-                mode,
-            })
-        }
-        _ => {
-            let destination = address()?;
-            ControllerProtocol::ArtNet(ArtNetConfig {
-                bind_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 6454),
-                destination: SocketAddr::new(destination, 6454),
-                mode: ArtNetMode::Unicast,
-            })
-        }
-    })
+            },
+        },
+        _ => ProfileProtocol::ArtNet(address()?),
+    };
+    Ok((protocol, outputs))
 }
 
 /// The show's controllers, by the index slots refer to.
@@ -349,18 +321,9 @@ fn controllers(networks: &Networks) -> Vec<ProfileController> {
         .controllers
         .iter()
         .map(|controller| {
-            let protocol = protocol(controller);
-            // protocol() has checked each output's universe and channels.
-            let outputs = match &protocol {
-                Ok(_) => controller
-                    .outputs
-                    .iter()
-                    .map(|output| ProfileOutput {
-                        universe: output.universe as u16,
-                        channels: output.channels as u16,
-                    })
-                    .collect(),
-                Err(_) => Vec::new(),
+            let (protocol, outputs) = match protocol(controller) {
+                Ok((protocol, outputs)) => (Ok(protocol), outputs),
+                Err(reason) => (Err(reason), Vec::new()),
             };
             ProfileController {
                 name: controller.name.clone(),

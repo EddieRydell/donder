@@ -3,7 +3,7 @@ use std::fs;
 use camino::{Utf8Path, Utf8PathBuf};
 
 use super::{
-    DesktopState, FsEntryKind, absolute_project_path, lock_unpoisoned, path_matches_or_is_child,
+    DesktopState, absolute_project_path, lock_unpoisoned, path_matches_or_is_child,
     valid_child_name, workspace_entries,
 };
 use donder_editor::dto::AppSnapshot;
@@ -13,18 +13,14 @@ impl DesktopState {
         &self,
         parent: &str,
         name: &str,
-        kind: FsEntryKind,
+        kind: donder_editor::dto::WorkspaceEntryKind,
     ) -> AppSnapshot {
         let _authoring = self.settled_authoring();
         let Some(project) = self.project_session() else {
             return self.snapshot();
         };
         if !valid_child_name(name) {
-            return self.snapshot_with_error(
-                "file.create",
-                parent,
-                "Name must be a single path segment",
-            );
+            return self.snapshot_with_error("Name must be a single path segment");
         }
         let parent_path = Utf8PathBuf::from(parent);
         let relative_path = if parent.is_empty() {
@@ -33,16 +29,12 @@ impl DesktopState {
             parent_path.join(name)
         };
         let Some(path) = absolute_project_path(&project, &relative_path) else {
-            return self.snapshot_with_error(
-                "file.create",
-                relative_path.as_str(),
-                "Path is outside the loaded project",
-            );
+            return self.snapshot_with_error("Path is outside the loaded project");
         };
         let result = {
             let _filesystem = lock_unpoisoned(&self.filesystem);
             match kind {
-                FsEntryKind::File => {
+                donder_editor::dto::WorkspaceEntryKind::File => {
                     if let Some(parent) = path.parent() {
                         fs::create_dir_all(parent).and_then(|()| {
                             fs::OpenOptions::new()
@@ -59,14 +51,12 @@ impl DesktopState {
                             .map(|_| ())
                     }
                 }
-                FsEntryKind::Directory => fs::create_dir_all(&path),
+                donder_editor::dto::WorkspaceEntryKind::Directory => fs::create_dir_all(&path),
             }
         };
         match result {
             Ok(()) => self.after_workspace_changed(None, Some(relative_path.as_str())),
-            Err(error) => {
-                self.snapshot_with_error("file.create", relative_path.as_str(), &error.to_string())
-            }
+            Err(error) => self.snapshot_with_error(&error.to_string()),
         }
     }
 
@@ -78,7 +68,7 @@ impl DesktopState {
         let project = self.project_session();
         let entries = project.as_ref().map(|project| workspace_entries(project));
         if let Err(error) = self.reconcile_external_files_locked() {
-            return self.snapshot_with_error("project.refresh", "", &error);
+            return self.snapshot_with_error(&error);
         }
         self.update_snapshot(|snapshot| {
             if let Some(entries) = entries {
@@ -111,12 +101,7 @@ impl DesktopState {
         self.snapshot()
     }
 
-    pub(super) fn snapshot_with_error(
-        &self,
-        _code: &str,
-        _path: &str,
-        message: &str,
-    ) -> AppSnapshot {
+    pub(super) fn snapshot_with_error(&self, message: &str) -> AppSnapshot {
         self.update_snapshot(|snapshot| {
             snapshot.status = message.to_string();
         })

@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Debug)]
 pub enum GuiMutationError {
-    Blocked(String),
+    /// The edit cannot be made, for the reason the message gives.
     Invalid(String),
     /// The model refused the edit.
     Rejected(donder_model::EditRejection),
@@ -13,7 +13,7 @@ pub enum GuiMutationError {
 impl GuiMutationError {
     pub fn message(&self) -> String {
         match self {
-            Self::Blocked(message) | Self::Invalid(message) => message.clone(),
+            Self::Invalid(message) => message.clone(),
             Self::Rejected(rejection) => rejection.to_string(),
             Self::Project(error) => error.to_string(),
         }
@@ -85,8 +85,6 @@ pub fn project_gui_document(
     };
     match &mut gui {
         GuiDocument::Project { document } => document.path.clone_from(&request.path),
-        GuiDocument::Setup { document } => document.path.clone_from(&request.path),
-        GuiDocument::Sequence { document } => document.path.clone_from(&request.path),
         GuiDocument::Layout { document } => document.path.clone_from(&request.path),
         GuiDocument::Fixture { document } => document.path.clone_from(&request.path),
         GuiDocument::Curve { document } => document.path.clone_from(&request.path),
@@ -94,8 +92,10 @@ pub fn project_gui_document(
         GuiDocument::Controller { document } => document.path.clone_from(&request.path),
         GuiDocument::Patch { document } => document.path.clone_from(&request.path),
         GuiDocument::InputDevice { document } => document.path.clone_from(&request.path),
-        GuiDocument::Console { document } => document.path.clone_from(&request.path),
-        GuiDocument::Blocked { .. } => {}
+        GuiDocument::Setup { .. }
+        | GuiDocument::Sequence { .. }
+        | GuiDocument::Console { .. }
+        | GuiDocument::Blocked { .. } => {}
     }
     gui
 }
@@ -126,10 +126,9 @@ pub fn project_gui_document_change(
                 .get(&clip.id.0)
                 .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, clip))
         };
-        if let GuiDocument::Sequence { mut document } =
+        if let GuiDocument::Sequence { document } =
             super::projection::project_sequence_clips(after, &resolved, &changed)
         {
-            document.path.clone_from(&request.path);
             return GuiDocumentChange::SequenceClips {
                 document,
                 clip_ids: sequence.clips.iter().map(|clip| clip.id.0).collect(),
@@ -222,7 +221,6 @@ impl ResolvedGuiObject {
             path: self.identity.document().to_string(),
             object_key: self.identity.object().to_string(),
             kind: self.kind.into(),
-            id: self.identity.object().to_string(),
         }
     }
 }

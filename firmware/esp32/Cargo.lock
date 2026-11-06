@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "donder-device-protocol"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "donder-runtime",
  "serde",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "donder-runtime"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "bytemuck",
  "donder-runtime-types",
@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "donder-runtime-types"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "bytemuck",
  "libm",

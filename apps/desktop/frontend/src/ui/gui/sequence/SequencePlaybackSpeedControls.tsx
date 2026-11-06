@@ -1,5 +1,6 @@
-import { useSequenceEditorHost } from "../../../editor/host";
-import type { PlaybackFrameTiming, PlaybackSpeed } from "../../../editor/types";
+import { commands } from "../../../api";
+import { runSnapshotCommand } from "../../../store";
+import type { PlaybackFrameTiming, PlaybackSpeed } from "../../../types";
 import { NumberField, Select, Tip, type SelectOption } from "../../kit";
 
 const SHOW_MICROS_PER_PERCENT = 10_000;
@@ -12,7 +13,6 @@ const FRAME_TIMINGS: SelectOption<PlaybackFrameTiming>[] = [
 
 /** The slider snaps to common speeds; the field accepts any positive speed. */
 export function SequencePlaybackSpeedControls({ speed }: { speed: PlaybackSpeed }) {
-  const { commands, runSnapshotCommand } = useSequenceEditorHost();
   const percent = speed.showMicrosPerSecond / SHOW_MICROS_PER_PERCENT;
   const apply = (next: PlaybackSpeed) => {
     if (next.showMicrosPerSecond === speed.showMicrosPerSecond && next.frameTiming === speed.frameTiming) return;

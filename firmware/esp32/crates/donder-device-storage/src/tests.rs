@@ -163,7 +163,8 @@ fn damaged_partition_is_formatted() {
 
 #[test]
 fn device_config_roundtrip() {
-    use device_config::{DeviceConfig, Network};
+    use device_config::{DeviceConfig, network_from_json};
+    use donder_device_protocol::NetworkCredentials as Network;
     let mut flash = Flash::blank();
     initialize(&mut flash).unwrap();
     assert!(DeviceConfig::load(&mut flash).unwrap().is_none());
@@ -188,10 +189,10 @@ fn device_config_roundtrip() {
     let loaded = DeviceConfig::load(&mut flash).unwrap().unwrap();
     assert!(loaded.network.is_none());
     assert_eq!(
-        Network::from_json(br#"{"ssid":"home","password":"12345678"}"#)
+        network_from_json(br#"{"ssid":"home","password":"12345678"}"#)
             .unwrap()
             .ssid,
         "home"
     );
-    assert!(Network::from_json(br#"{"ssid":"home","password":"short"}"#).is_err());
+    assert!(network_from_json(br#"{"ssid":"home","password":"short"}"#).is_err());
 }

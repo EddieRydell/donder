@@ -1,8 +1,7 @@
 //! Strings of lights end to end through a list of points, one string
 //! between each pair. Vixen: `PreviewMultiString`.
 
-use super::arch::lights;
-use super::{Laid, ShapePixel, ShapeSkip, line, strings, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, line, pixel_nodes, position, strings, unrotated};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -21,7 +20,7 @@ pub(super) fn child_line(child: &Element) -> Result<Vec<Option<String>>, ShapeSk
         return Err(ShapeSkip::Setting("strings within strings"));
     }
     line::ends(child)?;
-    lights(child)
+    pixel_nodes(child)
 }
 
 /// The lights of `nodes` laid out as a line from `start` to `end`, added to
@@ -89,7 +88,7 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     if strings.is_empty() {
         // Vixen then lays out nothing, and its `Pixels` are its own, left
         // where they were saved.
-        if lights(shape)?.is_empty() {
+        if pixel_nodes(shape)?.is_empty() {
             return Ok(Laid::default());
         }
         return Err(ShapeSkip::Setting("lights outside strings"));
@@ -101,15 +100,14 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     if usize::try_from(string_count).ok() != Some(count) || strings.len() != count {
         return Err(ShapeSkip::Setting("strings unlike its points"));
     }
-    let point = |(x, y): (i32, i32)| DVec2::new(f64::from(x), f64::from(y));
     let mut laid = Laid::default();
     for (index, (child, ends)) in strings.into_iter().zip(points.windows(2)).enumerate() {
         let nodes = child_line(child)?;
         add_line(
             &mut laid,
             nodes,
-            point(ends[0]),
-            point(ends[1]),
+            position(ends[0]),
+            position(ends[1]),
             index > 0,
             false,
         )?;

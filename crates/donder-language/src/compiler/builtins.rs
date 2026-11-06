@@ -117,16 +117,19 @@ pub struct Signature {
 impl Signature {
     /// `name(a: float, b: int) -> float`.
     pub(crate) fn label(&self, name: &str) -> String {
-        format!(
-            "{name}({}) -> {}",
-            self.args
-                .iter()
-                .map(|(arg, ty)| format!("{arg}: {}", ty.text()))
-                .collect::<Vec<_>>()
-                .join(", "),
-            type_text(&self.result)
-        )
+        label(name, self.args, &self.result)
     }
+}
+
+fn label(name: &str, args: &[(&str, ArgType)], result: &Type) -> String {
+    format!(
+        "{name}({}) -> {}",
+        args.iter()
+            .map(|(arg, ty)| format!("{arg}: {}", ty.text()))
+            .collect::<Vec<_>>()
+            .join(", "),
+        type_text(result)
+    )
 }
 
 #[derive(Debug)]
@@ -939,14 +942,23 @@ pub const CONTEXT: &[ContextValue] = &[
 #[derive(Debug)]
 pub struct Method {
     pub(crate) name: &'static str,
-    pub(crate) signature: &'static str,
+    args: &'static [(&'static str, ArgType)],
+    result: Type,
     pub(crate) summary: &'static str,
+}
+
+impl Method {
+    /// `name(a: int) -> color`.
+    pub(crate) fn label(&self) -> String {
+        label(self.name, self.args, &self.result)
+    }
 }
 
 /// `at`, the only method.
 pub const AT: Method = Method {
     name: "at",
-    signature: "at(pixel: int) -> color",
+    args: &[("pixel", INT)],
+    result: Type::Color,
     summary: "The signal at another pixel of this fixture, at this frame; `pixel` is a zero-based index within the fixture.",
 };
 
@@ -1087,7 +1099,8 @@ pub fn builtin_reference() -> String {
     let _ = writeln!(
         text,
         "\n## Signal methods\n\nOperator inputs and `previous` are signals.\n\n```text\n{}\n```\n\n{}",
-        AT.signature, AT.summary
+        AT.label(),
+        AT.summary
     );
     for group in BuiltinGroup::ALL {
         let _ = writeln!(text, "\n## {}", group.title());

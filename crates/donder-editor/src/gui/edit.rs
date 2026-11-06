@@ -10,10 +10,8 @@ pub(super) fn edit_sequence(
         .get::<donder_model::Sequence>(sequence_id)
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-    let layout = session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
-        .map(|setup| *setup.layout.id())
+    let layout = active_layout(session)
+        .map(|layout| layout.id)
         .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".to_string()))?;
     if matches!(
         &edit,
@@ -27,7 +25,7 @@ pub(super) fn edit_sequence(
             resolved.document_id(),
             layout.into(),
         )
-        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     }
     match edit {
         SequenceGuiEdit::CutSelection { .. }
@@ -45,21 +43,21 @@ pub(super) fn edit_sequence(
                 super::graph::edit_composition(session, resolved.document_id(), &mut draft, edit)?;
         }
         SequenceGuiEdit::SetDuration { duration_seconds } => {
-            if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
-                return Err(GuiMutationError::Invalid(
-                    "Sequence duration must be greater than zero.".to_string(),
-                ));
-            }
             draft.duration = super::checked_gui_duration(duration_seconds)?;
         }
         SequenceGuiEdit::SetAudio { import_path } => {
             let audio = match import_path {
                 Some(import_path) => {
-                    let id = register_sequence_audio_asset(
-                        session,
+                    let root = session.source.project_root().to_path_buf();
+                    let id = donder_project_io::reference_asset(
+                        &mut session.source.referenced_assets,
+                        &root,
                         resolved.document_id(),
                         &import_path,
-                    )?;
+                    )
+                    .map_err(|error| {
+                        GuiMutationError::Invalid(format!("Audio file {import_path}: {error}"))
+                    })?;
                     DomainSequenceAudio::Asset(id)
                 }
                 None => DomainSequenceAudio::None,
@@ -74,12 +72,7 @@ pub(super) fn edit_sequence(
         SequenceGuiEdit::SplitClips { ids, time_seconds } => {
             let at = super::checked_gui_time(time_seconds)?;
             let sequence = &mut draft;
-            let mut next_id = sequence
-                .clips
-                .iter()
-                .map(|clip| clip.id.0)
-                .max()
-                .unwrap_or(0);
+            let mut ids_after = IdAllocator::after(sequence.clips.iter().map(|clip| clip.id.0));
             for id in ids {
                 let index = sequence
                     .clips
@@ -93,11 +86,8 @@ pub(super) fn edit_sequence(
                         "Split time must fall inside the clip.".to_string(),
                     ));
                 }
-                next_id = next_id
-                    .checked_add(1)
-                    .ok_or_else(|| GuiMutationError::Invalid("Clip IDs exhausted.".into()))?;
                 let mut right = Clip::clone(left);
-                right.id = ClipId(next_id);
+                right.id = ClipId(ids_after.next()?);
                 right.name = donder_language::unique_name(left.name.as_str(), |name| {
                     sequence
                         .clips
@@ -168,7 +158,7 @@ pub(super) fn edit_sequence(
             for seconds in times_seconds {
                 collection
                     .marks
-                    .push(Mark::at(super::checked_gui_time(seconds.max(0.0))?));
+                    .push(Mark::at(super::checked_gui_time(seconds)?));
             }
             collection.marks.sort_by_key(|mark| mark.time.0);
         }
@@ -199,7 +189,7 @@ pub(super) fn edit_sequence(
                 let mut marks = collection
                     .marks_seconds
                     .iter()
-                    .map(|&seconds| super::checked_gui_time(seconds.max(0.0)).map(Mark::at))
+                    .map(|&seconds| super::checked_gui_time(seconds).map(Mark::at))
                     .collect::<Result<Vec<_>, _>>()?;
                 marks.sort_by_key(|mark| mark.time.0);
                 created.push(name.as_str().to_string());
@@ -218,56 +208,24 @@ pub(super) fn edit_sequence(
             scope,
             start_seconds,
         } => {
-            let definition = effect_ref_from_gui(session, effect_reference)?;
-            let param_overrides =
-                required_param_values(session, &definition, parse_color(&initial_color)?)?;
-            ensure_document_can_reference_object(
+            let clip = super::graph::new_clip(
                 session,
                 resolved.document_id(),
-                definition.into(),
-            )
-            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            let sequence = &mut draft;
-            let layer_id = sequence
-                .layers
-                .first()
-                .map(|layer| layer.id.clone())
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid(
-                        "A clip cannot be added to a sequence without a layer.".to_string(),
-                    )
-                })?;
-            let next_id = sequence
-                .clips
-                .iter()
-                .map(|clip| clip.id.0)
-                .max()
-                .unwrap_or(0)
-                + 1;
-            let effect_name = session
-                .project
-                .get::<donder_model::EffectDefinition>(definition)
-                .map(|effect| effect.name().to_string())
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Effect definition was not found.".to_string())
-                })?;
-            let name = super::model::fresh_name(&effect_name, |candidate| {
-                sequence
-                    .clips
-                    .iter()
-                    .any(|clip| clip.name.as_str() == candidate)
-            });
-            sequence.clips.push(std::sync::Arc::new(Clip {
-                id: ClipId(next_id),
-                name,
+                &draft,
+                effect_reference,
+                &initial_color,
+            )?;
+            draft.clips.push(std::sync::Arc::new(Clip {
+                id: ClipId(clip.id),
+                name: clip.name,
                 description: None,
-                layer_id,
-                start: super::checked_gui_time(start_seconds.max(0.0))?,
+                layer_id: clip.layer_id,
+                start: super::checked_gui_time(start_seconds)?,
                 duration: super::checked_gui_duration(1.0)?,
                 target: layout_target_to_clip_target(&layout, target),
                 scope: clip_scope(scope),
-                definition,
-                param_overrides,
+                definition: clip.definition,
+                param_overrides: clip.param_overrides,
             }));
         }
         SequenceGuiEdit::ChangeEffectDefinition {
@@ -275,15 +233,12 @@ pub(super) fn edit_sequence(
             effect: effect_reference,
             initial_color,
         } => {
-            let definition = effect_ref_from_gui(session, effect_reference)?;
-            let param_overrides =
-                required_param_values(session, &definition, parse_color(&initial_color)?)?;
-            ensure_document_can_reference_object(
+            let (definition, _, param_overrides) = imported_effect(
                 session,
                 resolved.document_id(),
-                definition.into(),
-            )
-            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+                effect_reference,
+                &initial_color,
+            )?;
             let sequence = &mut draft;
             let clip = clip_mut(sequence, id)?;
             clip.definition = definition;
@@ -300,17 +255,11 @@ pub(super) fn edit_sequence(
             row_target,
         } => {
             let sequence = &mut draft;
-            let next_id = sequence
-                .automation_clips
-                .iter()
-                .map(|clip| clip.id.0)
-                .max()
-                .unwrap_or(0)
-                + 1;
+            let new_id = next_id(sequence.automation_clips.iter().map(|clip| clip.id.0))?;
             sequence.automation_clips.push(AutomationClip {
-                id: AutomationClipId(next_id),
-                start: super::checked_gui_time(start_seconds.max(0.0))?,
-                duration: super::checked_gui_duration(duration_seconds.max(0.000000001))?,
+                id: AutomationClipId(new_id),
+                start: super::checked_gui_time(start_seconds)?,
+                duration: super::checked_gui_duration(duration_seconds)?,
                 row_target: layout_target_to_clip_target(&layout, row_target),
                 curve: default_automation_curve(),
                 bindings: Vec::new(),
@@ -329,15 +278,9 @@ pub(super) fn edit_sequence(
                     })?;
                 automation_target_timing(session, sequence, &target)?
             };
-            let next_id = draft
-                .automation_clips
-                .iter()
-                .map(|clip| clip.id.0)
-                .max()
-                .unwrap_or(0)
-                + 1;
+            let new_id = next_id(draft.automation_clips.iter().map(|clip| clip.id.0))?;
             let mut clip = AutomationClip {
-                id: AutomationClipId(next_id),
+                id: AutomationClipId(new_id),
                 start,
                 duration,
                 row_target,
@@ -345,18 +288,11 @@ pub(super) fn edit_sequence(
                 bindings: Vec::new(),
                 detached_bindings: Vec::new(),
             };
-            require_available_automation_target(&draft, &target, &clip)?;
             clip.bind(target, Window::FULL);
             draft.automation_clips.push(clip);
         }
         SequenceGuiEdit::SplitAutomationClip { id, time_seconds } => {
-            let next_id = draft
-                .automation_clips
-                .iter()
-                .map(|clip| clip.id.0)
-                .max()
-                .unwrap_or(0)
-                + 1;
+            let new_id = next_id(draft.automation_clips.iter().map(|clip| clip.id.0))?;
             let at = super::checked_gui_time(time_seconds)?;
             let index = draft
                 .automation_clips
@@ -366,7 +302,7 @@ pub(super) fn edit_sequence(
                     GuiMutationError::Invalid("Automation clip was not found.".to_string())
                 })?;
             let right = draft.automation_clips[index]
-                .split_off(at, AutomationClipId(next_id))
+                .split_off(at, AutomationClipId(new_id))
                 .ok_or_else(|| {
                     GuiMutationError::Invalid(
                         "Split time must fall inside the automation clip.".to_string(),
@@ -376,12 +312,7 @@ pub(super) fn edit_sequence(
         }
         SequenceGuiEdit::UpdateAutomationCurve { id, curve } => {
             let mut curve = curve_from_points(curve);
-            curve.collapse_coincident_points();
-            if !automation_curve_is_normalized(&curve) {
-                return Err(GuiMutationError::Invalid(
-                    "Automation values must lie between 0 and 1.".to_string(),
-                ));
-            }
+            super::model::collapse_coincident_points(&mut curve);
             automation_clip_mut(&mut draft, id)?.curve = curve;
         }
         SequenceGuiEdit::BindAutomationParam {
@@ -390,8 +321,6 @@ pub(super) fn edit_sequence(
         } => {
             let target = automation_target_from_gui(target)?;
             automation_target_mapping(session, &sequence_id, &target)?;
-            let clip = automation_clip_mut(&mut draft, automation_clip_id)?.clone();
-            require_available_automation_target(&draft, &target, &clip)?;
             automation_clip_mut(&mut draft, automation_clip_id)?.bind(target, Window::FULL);
         }
         SequenceGuiEdit::SetAutomationWindow {
@@ -472,8 +401,6 @@ pub(super) fn edit_sequence(
         } => {
             let target = automation_target_from_gui(target)?;
             automation_target_mapping(session, &sequence_id, &target)?;
-            let clip = automation_clip_mut(&mut draft, automation_clip_id)?.clone();
-            require_available_automation_target(&draft, &target, &clip)?;
             let clip = automation_clip_mut(&mut draft, automation_clip_id)?;
             if detached_index as usize >= clip.detached_bindings.len() {
                 return Err(GuiMutationError::Invalid(
@@ -581,68 +508,21 @@ fn automation_target_mapping(
         .ok_or_else(|| GuiMutationError::Invalid("Param does not support automation.".to_string()))
 }
 
-/// Clips may share a target when they do not overlap.
-fn require_available_automation_target(
-    sequence: &donder_model::Sequence,
-    target: &AutomationTarget,
-    clip: &AutomationClip,
-) -> Result<(), GuiMutationError> {
-    if sequence.automation_clips.iter().any(|other| {
-        if other.id == clip.id {
-            other
-                .bindings
-                .iter()
-                .any(|binding| &binding.target == target)
-        } else {
-            other.overlaps(clip) && other.targets().any(|claimed| claimed == target)
-        }
-    }) {
-        return Err(GuiMutationError::Invalid(
-            "Param is already automated here.".to_string(),
-        ));
-    }
-    Ok(())
-}
-
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
     CompositionGraphNodeKind, DetachedAutomationBinding, Mark, MarkCollection, MarkCollectionKey,
-    SequenceAudio as DomainSequenceAudio, SequenceId, Window, automation_curve_is_normalized,
+    SequenceAudio as DomainSequenceAudio, SequenceId, Window,
 };
 use donder_model::{Clip, ClipId};
-use donder_project_io::{ProjectSession, ensure_document_can_reference_object};
+use donder_project_io::ProjectSession;
 use donder_runtime_types::AutomationMapping;
 
 use super::model::{
     automation_binding_value_at, automation_clip_mut, clip_mut, clip_scope, curve_from_points,
-    default_automation_curve, effect_ref_from_gui, identifier, layout_target_to_clip_target,
-    mark_collection_mut, parse_color, register_sequence_audio_asset, required_param_values,
+    default_automation_curve, identifier, imported_effect, layout_target_to_clip_target,
+    mark_collection_mut, parse_color,
 };
-use super::projection::GuiClipId;
-use super::{GuiMutationError, ResolvedGuiObject};
+use super::projection::{GuiClipId, active_layout};
+use super::{GuiMutationError, IdAllocator, ResolvedGuiObject, next_id};
 use crate::dto::{SequenceAutomationTarget, SequenceGuiEdit};
-
-/// Visit every marks parameter value in a sequence's clips and operator
-/// nodes, including the elements of marks arrays.
-pub(super) fn mark_references_mut(
-    sequence: &mut donder_model::Sequence,
-    mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
-) {
-    let clips = sequence
-        .clips
-        .iter_mut()
-        .flat_map(|clip| std::sync::Arc::make_mut(clip).param_overrides.values_mut());
-    let operators = sequence
-        .composition_graph
-        .nodes
-        .iter_mut()
-        .filter_map(|node| match &mut node.kind {
-            CompositionGraphNodeKind::Operator(operator) => Some(operator.params.values_mut()),
-            _ => None,
-        })
-        .flatten();
-    for value in clips.chain(operators) {
-        super::model::visit_marks(value, &mut visit);
-    }
-}

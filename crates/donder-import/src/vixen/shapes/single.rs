@@ -1,9 +1,8 @@
 //! One light at a point. Vixen: `PreviewSingle`.
 
-use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, strings, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings, unrotated};
 use crate::vixen::contract;
 use crate::xml::Element;
-use glam::DVec2;
 
 /// Refuses the custom string type, whose lights Vixen draws at their
 /// `Location` instead. Vixen: `PreviewLightBaseShape.StringType`.
@@ -24,13 +23,6 @@ pub(super) fn own_pixels(shape: &Element) -> Result<Vec<Option<String>>, ShapeSk
         return Err(ShapeSkip::Setting("child strings"));
     }
     not_custom(shape)?;
-    if let Some(pixels) = contract::field(shape, "Pixels") {
-        for pixel in pixels.children("PreviewPixel") {
-            if contract::boolean(pixel, "IsHighPrecision", false)? {
-                return Err(ShapeSkip::Setting("high-precision lights"));
-            }
-        }
-    }
     pixel_nodes(shape)
 }
 
@@ -38,7 +30,7 @@ pub(super) fn own_pixels(shape: &Element) -> Result<Vec<Option<String>>, ShapeSk
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     unrotated(shape)?;
     let nodes = own_pixels(shape)?;
-    let (x, y) = contract::point(shape, "p1")?;
+    let position = point(shape, "p1")?;
     if nodes.len() > 1 {
         // Vixen places only the first.
         return Err(ShapeSkip::Unplaceable("a single light of several lights"));
@@ -48,7 +40,7 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
             .into_iter()
             .map(|node| ShapePixel {
                 node,
-                position: DVec2::new(f64::from(x), f64::from(y)),
+                position,
                 arc: None,
             })
             .collect(),

@@ -7,23 +7,11 @@ use super::{DesktopState, lock_unpoisoned};
 use crate::state_tasks::RenderRefreshPayload;
 
 impl DesktopState {
-    pub(super) fn refresh_render_session(
-        &self,
-        project: &donder_model::DonderProject,
-    ) -> Option<crate::rendering::RenderSessionPrepareError> {
-        let mut rendering = lock_unpoisoned(&self.sequence_render);
-        let result = rendering.refresh_project(project);
-        if result.is_err() {
-            rendering.unload();
-        }
-        result.err()
-    }
-
     pub(super) fn schedule_render_refresh(&self, project: Arc<ProjectSession>) {
         let Some(target) = lock_unpoisoned(&self.workspace).render_target.clone() else {
             return;
         };
-        let Some((setup_id, sequence_id)) = target.resolve(&project).filter(|(_, sequence)| {
+        let Some(sequence_id) = target.resolve(&project).filter(|sequence| {
             project
                 .project
                 .get::<donder_model::Sequence>(*sequence)
@@ -37,7 +25,6 @@ impl DesktopState {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
             project,
-            setup_id,
             sequence_id,
         };
         self.enqueue_render_refresh(request);
@@ -48,8 +35,7 @@ impl DesktopState {
         project: Arc<ProjectSession>,
         sequence_id: donder_model::SequenceId,
     ) {
-        let setup_id = *project.project.root().setup.id();
-        let target = RenderTarget::new(&project, setup_id, sequence_id);
+        let target = RenderTarget::new(&project, sequence_id);
         let missing = target.is_none()
             || project
                 .project
@@ -64,7 +50,6 @@ impl DesktopState {
         let request = RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
-            setup_id,
             project,
             sequence_id,
         };
@@ -95,9 +80,7 @@ impl DesktopState {
             return;
         }
         let target = lock_unpoisoned(&self.workspace).render_target.clone();
-        if target.and_then(|target| target.resolve(&request.project))
-            != Some((request.setup_id, request.sequence_id))
-        {
+        if target.and_then(|target| target.resolve(&request.project)) != Some(request.sequence_id) {
             return;
         }
         let result =

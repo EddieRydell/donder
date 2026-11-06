@@ -24,7 +24,8 @@ import {
   Sparkles,
   SquareStack,
   Trash2,
-  Workflow
+  Workflow,
+  type LucideIcon
 } from "lucide-react";
 import {
   useMemo,
@@ -224,8 +225,8 @@ function TreeRow({
     <ContextMenuArea entries={entries}>
       <div
         ref={dragHandle}
-        style={style}
-        className={`tree-row role-${node.data.role} ${node.isSelected ? "selected" : ""}`}
+        style={{ ...style, "--tree-row-tint": ROLE_STYLES[node.data.role].tint } as CSSProperties}
+        className={`tree-row ${node.isSelected ? "selected" : ""}`}
         onClick={() => {
           if (node.data.kind === "directory") node.toggle();
         }}
@@ -300,25 +301,28 @@ function validateName(value: string): string | null {
   return null;
 }
 
+/** Each entry role's icon and the row tint of an object document; plain entries are untinted. */
+const ROLE_STYLES: Record<WorkspaceEntryRole, { icon: LucideIcon; tint: string | undefined }> = {
+  directory: { icon: Folder, tint: undefined },
+  asset: { icon: AudioLines, tint: undefined },
+  file: { icon: File, tint: undefined },
+  entrypoint: { icon: Workflow, tint: "var(--donder-project-file-project)" },
+  project: { icon: Workflow, tint: "var(--donder-project-file-project)" },
+  setup: { icon: Boxes, tint: "var(--donder-project-file-setup)" },
+  controller: { icon: CircuitBoard, tint: "var(--donder-project-file-controller)" },
+  inputDevice: { icon: Keyboard, tint: "var(--donder-project-file-input-device)" },
+  layout: { icon: LayoutGrid, tint: "var(--donder-project-file-layout)" },
+  fixture: { icon: Lightbulb, tint: "var(--donder-project-file-fixture)" },
+  patch: { icon: Cable, tint: "var(--donder-project-file-patch)" },
+  curve: { icon: ChartSpline, tint: "var(--donder-project-file-curve)" },
+  gradient: { icon: Blend, tint: "var(--donder-project-file-gradient)" },
+  effect: { icon: Sparkles, tint: "var(--donder-project-file-effect)" },
+  operator: { icon: Workflow, tint: "var(--donder-project-file-operator)" },
+  sequence: { icon: SquareStack, tint: "var(--donder-project-file-sequence)" },
+  console: { icon: SlidersHorizontal, tint: "var(--donder-project-file-console)" }
+};
+
 function roleIcon(role: WorkspaceEntryRole, open: boolean) {
-  const size = THEME_METRICS.iconSizeCompact;
-  switch (role) {
-    case "directory": return open ? <FolderOpen size={size} /> : <Folder size={size} />;
-    case "asset": return <AudioLines size={size} />;
-    case "project":
-    case "entrypoint": return <Workflow size={size} />;
-    case "setup": return <Boxes size={size} />;
-    case "controller": return <CircuitBoard size={size} />;
-    case "inputDevice": return <Keyboard size={size} />;
-    case "layout": return <LayoutGrid size={size} />;
-    case "fixture": return <Lightbulb size={size} />;
-    case "patch": return <Cable size={size} />;
-    case "curve": return <ChartSpline size={size} />;
-    case "gradient": return <Blend size={size} />;
-    case "effect": return <Sparkles size={size} />;
-    case "operator": return <Workflow size={size} />;
-    case "sequence": return <SquareStack size={size} />;
-    case "console": return <SlidersHorizontal size={size} />;
-    case "file": return <File size={size} />;
-  }
+  const Icon = role === "directory" && open ? FolderOpen : ROLE_STYLES[role].icon;
+  return <Icon size={THEME_METRICS.iconSizeCompact} />;
 }

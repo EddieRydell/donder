@@ -2,6 +2,7 @@
 //! grammar says what each name is without resolving it.
 use super::{SemanticToken, TokenClass};
 use crate::compiler::syntax::lexer::{Keyword, LexMode, TokenKind, lex_mode};
+use crate::data::NAME_FIELD;
 use crate::data::tree::is_pascal_case;
 
 pub fn data_tokens(source: &str) -> Vec<SemanticToken> {
@@ -58,7 +59,7 @@ pub fn data_tokens(source: &str) -> Vec<SemanticToken> {
                     TokenClass::Variable
                 } else if kind(-1) == Some(TokenKind::Colon)
                     && index >= 2
-                    && text(index - 2) == "name"
+                    && text(index - 2) == NAME_FIELD
                 {
                     declaration = true;
                     TokenClass::Variable

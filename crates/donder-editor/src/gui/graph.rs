@@ -1,26 +1,50 @@
-//! Layers and the composition graph, which sequences and consoles share.
+//! Layers and the composition graph, and the clips and mark collections on
+//! them, which sequences and consoles share.
 use std::collections::BTreeSet;
 
 use donder_model::{
-    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    Console, EffectGraphEdge, GraphNodePosition, GraphOperatorNode, ParamValue, Sequence,
-    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, validate_composition_graph,
+    Action, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
+    CompositionGraphNodeKind, Console, EffectDefinitionId, EffectGraphEdge, GraphNodePosition,
+    GraphOperatorNode, MarkCollectionKey, ParamValue, Sequence, SequenceCompositionGraph,
+    SequenceLayer, SequenceLayerId,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
+use donder_runtime_types::Identifier;
 use indexmap::IndexMap;
 
-use super::GuiMutationError;
 use super::model::{
-    fresh_name, graph_operator_from_gui, identifier, param_value_from_gui, parse_color, typed_name,
+    fresh_name, graph_operator_from_gui, identifier, imported_effect, names_marks,
+    param_value_from_gui, parse_color, replace_marks, required_param_values, typed_name,
 };
-use crate::dto::{CompositionGuiEdit, SequenceGraphEdge, SequenceGraphNodePosition};
+use super::{GuiMutationError, next_id};
+use crate::dto::{
+    CompositionGuiEdit, SequenceEffectReference, SequenceGraphEdge, SequenceGraphNodePosition,
+};
 
-/// An object that composes its layers through a graph.
+type Params = IndexMap<Identifier, ParamValue>;
+
+/// An object that composes its layers through a graph: a sequence or a
+/// console, whose clips play on the layers and may read its mark collections.
 pub(super) trait Composition {
     fn layers(&self) -> &[SequenceLayer];
     fn layers_mut(&mut self) -> &mut Vec<SequenceLayer>;
     fn graph(&self) -> &SequenceCompositionGraph;
     fn graph_mut(&mut self) -> &mut SequenceCompositionGraph;
+    /// The id and name of every clip.
+    fn clips(&self) -> impl Iterator<Item = (u32, &Identifier)>;
+    /// Edit the parameters of the clips `touches` selects; no other clip changes.
+    fn edit_clip_params(
+        &mut self,
+        touches: &dyn Fn(&Params) -> bool,
+        edit: &mut dyn FnMut(&mut Params),
+    );
+    /// Rename the mark collection named `key` to `to`, or remove it when `to`
+    /// is `None`, with what besides parameters names it: the old key.
+    fn replace_mark_collection(
+        &mut self,
+        key: &str,
+        to: Option<&MarkCollectionKey>,
+    ) -> Result<MarkCollectionKey, GuiMutationError>;
     /// Move what plays on the `removed` layers to `destination`.
     fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId);
     /// Forget what refers to the removed graph nodes.
@@ -39,6 +63,36 @@ impl Composition for Sequence {
     }
     fn graph_mut(&mut self) -> &mut SequenceCompositionGraph {
         &mut self.composition_graph
+    }
+    fn clips(&self) -> impl Iterator<Item = (u32, &Identifier)> {
+        self.clips.iter().map(|clip| (clip.id.0, &clip.name))
+    }
+    fn edit_clip_params(
+        &mut self,
+        touches: &dyn Fn(&Params) -> bool,
+        edit: &mut dyn FnMut(&mut Params),
+    ) {
+        // Clips are shared with earlier snapshots; only an edited clip is copied.
+        for clip in &mut self.clips {
+            if touches(&clip.param_overrides) {
+                edit(&mut std::sync::Arc::make_mut(clip).param_overrides);
+            }
+        }
+    }
+    fn replace_mark_collection(
+        &mut self,
+        key: &str,
+        to: Option<&MarkCollectionKey>,
+    ) -> Result<MarkCollectionKey, GuiMutationError> {
+        let index = self
+            .mark_collections
+            .iter()
+            .position(|collection| collection.key.name.as_str() == key)
+            .ok_or_else(|| GuiMutationError::Invalid("Mark collection was not found.".into()))?;
+        Ok(match to {
+            Some(to) => std::mem::replace(&mut self.mark_collections[index].key, to.clone()),
+            None => self.mark_collections.remove(index).key,
+        })
     }
     fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
         for clip in &mut self.clips {
@@ -69,6 +123,49 @@ impl Composition for Console {
     fn graph_mut(&mut self) -> &mut SequenceCompositionGraph {
         &mut self.composition_graph
     }
+    fn clips(&self) -> impl Iterator<Item = (u32, &Identifier)> {
+        self.clips.iter().map(|clip| (clip.id.0, &clip.name))
+    }
+    fn edit_clip_params(
+        &mut self,
+        touches: &dyn Fn(&Params) -> bool,
+        edit: &mut dyn FnMut(&mut Params),
+    ) {
+        for clip in &mut self.clips {
+            if touches(&clip.param_overrides) {
+                edit(&mut clip.param_overrides);
+            }
+        }
+    }
+    fn replace_mark_collection(
+        &mut self,
+        key: &str,
+        to: Option<&MarkCollectionKey>,
+    ) -> Result<MarkCollectionKey, GuiMutationError> {
+        let index = self
+            .live_marks
+            .iter()
+            .position(|marks| marks.key.name.as_str() == key)
+            .ok_or_else(|| {
+                GuiMutationError::Invalid("Live mark collection was not found.".into())
+            })?;
+        let from = match to {
+            Some(to) => std::mem::replace(&mut self.live_marks[index].key, to.clone()),
+            None => self.live_marks.remove(index).key,
+        };
+        // Actions adding marks follow a rename and go with a removal.
+        for on in &mut self.events {
+            on.actions.retain_mut(|action| match (action, to) {
+                (Action::Mark(key), Some(to)) if *key == from => {
+                    *key = to.clone();
+                    true
+                }
+                (Action::Mark(key), None) => *key != from,
+                _ => true,
+            });
+        }
+        Ok(from)
+    }
     fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
         for clip in &mut self.clips {
             if removed.contains(&clip.layer_id.0) {
@@ -81,6 +178,73 @@ impl Composition for Console {
             self.forget_node(node);
         }
     }
+}
+
+/// Rename the mark collection named `key` to `to`, or remove it when `to` is
+/// `None`, moving every clip and operator parameter that names it.
+pub(super) fn replace_mark_collection(
+    composition: &mut impl Composition,
+    key: &str,
+    to: Option<MarkCollectionKey>,
+) -> Result<(), GuiMutationError> {
+    let to = to.as_ref();
+    let from = composition.replace_mark_collection(key, to)?;
+    composition.edit_clip_params(
+        &|params| params.values().any(|value| names_marks(value, &from)),
+        &mut |params| {
+            for value in params.values_mut() {
+                replace_marks(value, &from, to);
+            }
+        },
+    );
+    for node in &mut composition.graph_mut().nodes {
+        if let CompositionGraphNodeKind::Operator(operator) = &mut node.kind {
+            for value in operator.params.values_mut() {
+                replace_marks(value, &from, to);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// What a new clip of an effect starts with: the next clip id, a name after
+/// the effect, the composition's first layer and the values of the
+/// parameters without defaults.
+pub(super) struct NewClip {
+    pub(super) id: u32,
+    pub(super) name: Identifier,
+    pub(super) layer_id: SequenceLayerId,
+    pub(super) definition: EffectDefinitionId,
+    pub(super) param_overrides: Params,
+}
+
+/// A new clip on `composition` of the effect `reference` names, which
+/// `owner` then imports.
+pub(super) fn new_clip(
+    session: &mut ProjectSession,
+    owner: &DocumentId,
+    composition: &impl Composition,
+    reference: SequenceEffectReference,
+    initial_color: &str,
+) -> Result<NewClip, GuiMutationError> {
+    let layer_id = composition
+        .layers()
+        .first()
+        .map(|layer| layer.id.clone())
+        .ok_or_else(|| GuiMutationError::Invalid("A clip needs a layer to go on.".into()))?;
+    let (definition, effect_name, param_overrides) =
+        imported_effect(session, owner, reference, initial_color)?;
+    Ok(NewClip {
+        id: next_id(composition.clips().map(|(id, _)| id))?,
+        name: fresh_name(&effect_name, |candidate| {
+            composition
+                .clips()
+                .any(|(_, name)| name.as_str() == candidate)
+        }),
+        layer_id,
+        definition,
+        param_overrides,
+    })
 }
 
 /// Apply a layer or graph edit to `composition`, which `owner` declares.
@@ -117,26 +281,14 @@ pub(super) fn edit_composition(
                     GuiMutationError::Invalid("Operator definition was not found.".to_string())
                 })?;
             ensure_document_can_reference_object(session, owner, operator.into())
-                .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            let mut params = IndexMap::new();
-            for declaration in definition.params() {
-                if declaration.default.is_none() {
-                    let value = ParamValue::initial_for_param(declaration, initial_color)
-                        .ok_or_else(|| {
-                            GuiMutationError::Invalid(
-                                "A valid required operator parameter could not be created."
-                                    .to_string(),
-                            )
-                        })?;
-                    params.insert(declaration.name.clone(), value);
-                }
-            }
-            let next_id = next_node_id(composition);
+                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+            let params = required_param_values(definition.params(), initial_color)?;
+            let id = next_node_id(composition)?;
             let name = fresh_name(definition.name(), |candidate| {
                 name_taken(composition, candidate)
             });
             composition.graph_mut().nodes.push(CompositionGraphNode {
-                id: CompositionGraphNodeId(next_id),
+                id,
                 position: GraphNodePosition { x, y },
                 kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
                     name,
@@ -157,21 +309,13 @@ pub(super) fn edit_composition(
             delete_items(composition, node_ids, layer_ids, edges, migrate_to_layer_id)?;
         }
         CompositionGuiEdit::ConnectGraphNodes { connection } => {
-            let definitions = session
-                .project
-                .reusable::<donder_model::OperatorDefinition>()
-                .clone();
-            connect_nodes(composition, &definitions, connection, None)?;
+            connect_nodes(composition, connection, None)?;
         }
         CompositionGuiEdit::ReconnectGraphEdge {
             previous,
             connection,
         } => {
-            let definitions = session
-                .project
-                .reusable::<donder_model::OperatorDefinition>()
-                .clone();
-            connect_nodes(composition, &definitions, connection, Some(previous))?;
+            connect_nodes(composition, connection, Some(previous))?;
         }
         CompositionGuiEdit::UpdateGraphOperatorParam {
             node_id,
@@ -179,28 +323,13 @@ pub(super) fn edit_composition(
             value,
         } => {
             let value = param_value_from_gui(session, owner, value)?;
-            let definitions = session
-                .project
-                .reusable::<donder_model::OperatorDefinition>()
-                .clone();
-            let node_id = CompositionGraphNodeId(node_id);
-            let mut graph = composition.graph().clone();
-            let node = graph
-                .nodes
-                .iter_mut()
-                .find(|node| node.id == node_id)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Graph node was not found.".to_string())
-                })?;
+            let node = node_mut(composition, &CompositionGraphNodeId(node_id))?;
             let CompositionGraphNodeKind::Operator(operator) = &mut node.kind else {
                 return Err(GuiMutationError::Invalid(
                     "Graph node is not an operator.".to_string(),
                 ));
             };
             operator.params.insert(identifier(&name)?, value);
-            validate_composition_graph(&graph, &definitions)
-                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            *composition.graph_mut() = graph;
         }
     }
     Ok(Vec::new())
@@ -247,15 +376,10 @@ fn ensure_node_exists(
     }
 }
 
-fn next_node_id(composition: &impl Composition) -> u32 {
-    composition
-        .graph()
-        .nodes
-        .iter()
-        .map(|node| node.id.0)
-        .max()
-        .unwrap_or(0)
-        + 1
+fn next_node_id(
+    composition: &impl Composition,
+) -> Result<CompositionGraphNodeId, GuiMutationError> {
+    next_id(composition.graph().nodes.iter().map(|node| node.id.0)).map(CompositionGraphNodeId)
 }
 
 /// Whether a name is used by a layer, graph node or the root node: they
@@ -278,13 +402,7 @@ fn create_layer(
     position: Option<(f32, f32)>,
     connect_to_root: bool,
 ) -> Result<String, GuiMutationError> {
-    let next_layer_id = composition
-        .layers()
-        .iter()
-        .map(|layer| layer.id.0)
-        .max()
-        .unwrap_or(0)
-        + 1;
+    let next_layer_id = next_id(composition.layers().iter().map(|layer| layer.id.0))?;
     let root_node_id = composition
         .graph()
         .nodes
@@ -294,7 +412,7 @@ fn create_layer(
         .ok_or_else(|| {
             GuiMutationError::Invalid("Composition graph root was not found.".to_string())
         })?;
-    let layer_node_id = CompositionGraphNodeId(next_node_id(composition));
+    let layer_node_id = next_node_id(composition)?;
     typed_name(&name)?;
     let name = fresh_name(&name, |candidate| name_taken(composition, candidate));
     let created = name.as_str().to_string();
@@ -326,10 +444,6 @@ fn create_layer(
 
 fn connect_nodes(
     composition: &mut impl Composition,
-    definitions: &indexmap::IndexMap<
-        donder_model::OperatorDefinitionId,
-        donder_model::OperatorDefinition,
-    >,
     connection: SequenceGraphEdge,
     previous: Option<SequenceGraphEdge>,
 ) -> Result<(), GuiMutationError> {
@@ -355,9 +469,7 @@ fn connect_nodes(
     if !graph.edges.contains(&edge) {
         graph.edges.push(edge);
     }
-    // DesktopState discards this candidate on failure; no partial disconnect reaches history.
-    validate_composition_graph(graph, definitions)
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))
+    Ok(())
 }
 
 fn move_nodes(
@@ -401,11 +513,6 @@ fn delete_items(
                 ));
             }
             CompositionGraphNodeKind::Layer { layer_id } => {
-                if layer_id.0 == 0 {
-                    return Err(GuiMutationError::Invalid(
-                        "Default layer cannot be deleted.".into(),
-                    ));
-                }
                 layer_ids.insert(layer_id.0);
             }
             CompositionGraphNodeKind::Operator(_) => {}
@@ -413,10 +520,8 @@ fn delete_items(
     }
     if !layer_ids.is_empty() {
         for id in &layer_ids {
-            if *id == 0 || !composition.layers().iter().any(|layer| layer.id.0 == *id) {
-                return Err(GuiMutationError::Invalid(
-                    "Layer is missing or protected.".into(),
-                ));
+            if !composition.layers().iter().any(|layer| layer.id.0 == *id) {
+                return Err(GuiMutationError::Invalid("Layer was not found.".into()));
             }
         }
         ids.extend(

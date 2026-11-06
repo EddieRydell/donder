@@ -7,9 +7,9 @@ use crate::sequence::AutomationTarget;
 use crate::sequence::CompositionGraphNodeId;
 use crate::validation::{AdmissionProblem, Member, ProjectValidationError, ValidationProblem, at};
 use donder_language::compiler::{Invocation, ParamDecl};
+use donder_runtime_types::SampleTime;
 use donder_runtime_types::SequenceTiming;
 use donder_runtime_types::Value;
-use donder_runtime_types::{SampleDuration, SampleTime};
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
 
@@ -55,10 +55,8 @@ impl ProjectInputs {
                     definition.params(),
                     &clip.param_overrides,
                     ClipTiming {
-                        start: SampleTime::from_ticks(clip.start.as_micros_rounded() as u32),
-                        duration: SampleDuration::from_ticks(
-                            clip.duration.as_micros_rounded() as u32
-                        ),
+                        start: crate::clock::sample_time(&clip.start),
+                        duration: crate::clock::sample_duration(&clip.duration),
                     },
                 )
                 .map_err(at(sequence.id))?;
@@ -93,9 +91,7 @@ impl ProjectInputs {
                     &operator.params,
                     ClipTiming {
                         start: SampleTime::from_ticks(0),
-                        duration: SampleDuration::from_ticks(
-                            sequence.duration.as_micros_rounded() as u32
-                        ),
+                        duration: crate::clock::sample_duration(&sequence.duration),
                     },
                 )
                 .map_err(at(sequence.id))?;
@@ -119,7 +115,7 @@ impl ProjectInputs {
             sequences.insert(
                 sequence.id,
                 SequenceInputs {
-                    timing: admit_timing(sequence).map_err(at(sequence.id))?,
+                    timing: admit_timing(sequence),
                     clips: clips.into(),
                     operators,
                 },
@@ -134,22 +130,18 @@ impl ProjectInputs {
     }
 }
 
-fn admit_timing(sequence: &Sequence) -> Result<SequenceTiming, ValidationProblem> {
-    let admit = || {
-        let frame_rate = NonZeroU32::new(sequence.frame_rate)?;
-        let frame_count = NonZeroU32::new(u32::try_from(sequence.frame_count()).ok()?)?;
-        let duration = NonZeroU32::new(u32::try_from(sequence.duration.as_micros_rounded()).ok()?)?;
-        // Every clip plays for a while within the sequence.
-        for clip in &sequence.clips {
-            let start = u32::try_from(clip.start.as_micros_rounded()).ok()?;
-            let length = u32::try_from(clip.duration.as_micros_rounded()).ok()?;
-            if length == 0 || start.checked_add(length)? > duration.get() {
-                return None;
-            }
-        }
-        Some(SequenceTiming::new(frame_rate, frame_count, duration))
-    };
-    admit().ok_or_else(|| invalid(AdmissionProblem::TimingUnrepresentable))
+/// Validation proved the sequence's timing fits the playback clock.
+fn admit_timing(sequence: &Sequence) -> SequenceTiming {
+    fn proven<T>() -> T {
+        unreachable!("validation proves the sequence's timing")
+    }
+    let frame_count = u32::try_from(sequence.frame_count()).unwrap_or_else(|_| proven());
+    SequenceTiming::new(
+        NonZeroU32::new(sequence.frame_rate).unwrap_or_else(proven),
+        NonZeroU32::new(frame_count).unwrap_or_else(proven),
+        NonZeroU32::new(crate::clock::sample_duration(&sequence.duration).as_ticks())
+            .unwrap_or_else(proven),
+    )
 }
 
 fn resolve(
@@ -183,7 +175,7 @@ pub(super) fn resolve_values(
             values
                 .get(&param.name)
                 .cloned()
-                .ok_or_else(|| invalid(AdmissionProblem::MissingParam(param.name.clone())))
+                .ok_or_else(|| unreachable!("validation proves every parameter has a value"))
         })
         .collect()
 }

@@ -4,8 +4,7 @@ import { runSnapshotCommand, useAppStore } from "../store";
 import type { AppSettings, SequenceFollowMode, SequenceInitialZoomMode } from "../types";
 import { KeybindingsSettings } from "./KeybindingsSettings";
 import { Dialog, Field, NumberField, Section, Select, Toggle, type SelectOption } from "./kit";
-
-const SETTINGS_EVENT = "donder:settings";
+import { listenUiEvent } from "./uiEvents";
 
 const ZOOM_OPTIONS: SelectOption<SequenceInitialZoomMode>[] = [
   { value: "fitToWidth", label: "Fit width" },
@@ -24,17 +23,11 @@ export function SettingsDialog() {
   const [draft, setDraft] = useState<AppSettings | null>(() => useAppStore.getState().snapshot?.settings ?? null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onSettings = () => {
+  useEffect(() => listenUiEvent("settings", () => {
       setDraft(useAppStore.getState().snapshot?.settings ?? null);
       setError(null);
       setOpen(true);
-    };
-    window.addEventListener(SETTINGS_EVENT, onSettings);
-    return () => {
-      window.removeEventListener(SETTINGS_EVENT, onSettings);
-    };
-  }, []);
+  }), []);
 
   async function update(next: AppSettings) {
     setDraft(next);
@@ -68,12 +61,12 @@ export function SettingsDialog() {
       <Field label="Follow" tip="Follow the playhead">
         <Select name="Follow playhead" value={draft.sequenceFollowMode} options={FOLLOW_OPTIONS} onChange={(sequenceFollowMode) => void update({ ...draft, sequenceFollowMode })} />
       </Field>
-      <Toggle label="Spectrogram" name="Show spectrogram" checked={draft.sequenceSpectrogramEnabled ?? false} onChange={(sequenceSpectrogramEnabled) => void update({ ...draft, sequenceSpectrogramEnabled })} />
+      <Toggle label="Spectrogram" name="Show spectrogram" checked={draft.sequenceSpectrogramEnabled} onChange={(sequenceSpectrogramEnabled) => void update({ ...draft, sequenceSpectrogramEnabled })} />
       <Field label="Time step" tip="Spectrogram time resolution">
-        <NumberField name="Spectrogram time resolution" min={0.5} max={100} step={0.5} unit="ms" value={draft.sequenceSpectrogramTimeResolutionMs ?? 10} onCommit={(sequenceSpectrogramTimeResolutionMs) => void update({ ...draft, sequenceSpectrogramTimeResolutionMs })} />
+        <NumberField name="Spectrogram time resolution" min={0.5} max={100} step={0.5} unit="ms" value={draft.sequenceSpectrogramTimeResolutionMs} onCommit={(sequenceSpectrogramTimeResolutionMs) => void update({ ...draft, sequenceSpectrogramTimeResolutionMs })} />
       </Field>
       <Field label="FFT size" tip="Spectrogram frequency resolution, in FFT points">
-        <Select name="Spectrogram FFT size" value={String(draft.sequenceSpectrogramFftSize ?? 2048)} options={FFT_OPTIONS} onChange={(size) => void update({ ...draft, sequenceSpectrogramFftSize: Number(size) })} />
+        <Select name="Spectrogram FFT size" value={String(draft.sequenceSpectrogramFftSize)} options={FFT_OPTIONS} onChange={(size) => void update({ ...draft, sequenceSpectrogramFftSize: Number(size) })} />
       </Field>
     </Section>
     <Section title="Raster" defaultOpen={false}>
@@ -87,7 +80,7 @@ export function SettingsDialog() {
         <NumberField name="Min frame stride" integer min={1} max={16} step={1} value={raster.minFrameStride} onCommit={(minFrameStride) => void update({ ...draft, clipRaster: { ...raster, minFrameStride } })} />
       </Field>
     </Section>
-    <KeybindingsSettings keybindings={draft.keybindings ?? []} onChange={(keybindings) => void update({ ...draft, keybindings })} />
+    <KeybindingsSettings keybindings={draft.keybindings} onChange={(keybindings) => void update({ ...draft, keybindings })} />
     {error !== null && <div className="kit-status-error" role="alert">{error}</div>}
   </Dialog>;
 }

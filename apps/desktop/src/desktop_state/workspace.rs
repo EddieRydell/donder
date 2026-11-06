@@ -3,8 +3,8 @@ use std::fs;
 use camino::{Utf8Path, Utf8PathBuf};
 
 use super::{
-    DesktopState, FsEntryKind, LoadedProject, absolute_project_path, absolute_root_path,
-    descriptor_for_path, lock_unpoisoned, path_matches_or_is_child, valid_child_name,
+    DesktopState, LoadedProject, absolute_project_path, absolute_root_path, descriptor_for_path,
+    lock_unpoisoned, path_matches_or_is_child, remap_workspace_path, valid_child_name,
 };
 use crate::persistence::ProjectRestoreState;
 use crate::project::{new_project_files, write_new_project_files};
@@ -22,8 +22,6 @@ impl DesktopState {
             candidate.parent().unwrap_or(candidate)
         } else {
             return self.snapshot_with_error(
-                "project.open",
-                path,
                 "Open a project folder or its root project.data.donder document.",
             );
         };
@@ -98,12 +96,12 @@ impl DesktopState {
                 _ => absolute_root_path(&root, &relative),
             };
             let Some(absolute) = absolute else {
-                return self.snapshot_with_error("file.open", path, "Invalid source file path");
+                return self.snapshot_with_error("Invalid source file path");
             };
             let text = match fs::read_to_string(&absolute) {
                 Ok(text) => text,
                 Err(error) => {
-                    return self.snapshot_with_error("file.open", path, &error.to_string());
+                    return self.snapshot_with_error(&error.to_string());
                 }
             };
             let document = super::workspace_state::WorkingDocument::new(&relative, text);
@@ -135,12 +133,19 @@ impl DesktopState {
         })
     }
 
-    pub(crate) fn plan_workspace_path_change(
+    /// The open project and how `request` changes it, if the project is still
+    /// the one the request was made against.
+    fn path_change(
         &self,
-        request: WorkspacePathChangeRequest,
-    ) -> Result<WorkspacePathChangePlan, String> {
-        let snapshot = self.snapshot();
-        if request.project_revision != snapshot.project_revision {
+        request: &WorkspacePathChangeRequest,
+    ) -> Result<
+        (
+            std::sync::Arc<donder_project_io::ProjectSession>,
+            donder_project_io::PathChangePlan,
+        ),
+        String,
+    > {
+        if request.project_revision != self.snapshot().project_revision {
             return Err("The project changed; plan the path operation again.".to_string());
         }
         let project = self
@@ -151,6 +156,15 @@ impl DesktopState {
             Utf8Path::new(&request.source),
             Utf8Path::new(&request.destination),
         )?;
+        Ok((project, plan))
+    }
+
+    pub(crate) fn plan_workspace_path_change(
+        &self,
+        request: WorkspacePathChangeRequest,
+    ) -> Result<WorkspacePathChangePlan, String> {
+        let snapshot = self.snapshot();
+        let (_, plan) = self.path_change(&request)?;
         let open_files = snapshot
             .tabs
             .iter()
@@ -168,6 +182,7 @@ impl DesktopState {
             .project_root
             .as_deref()
             .map(|root| self.persistence.restore_view_state(root));
+        // Object views are keyed `path::object`; the impact lists their files.
         let persisted_state = restore
             .into_iter()
             .flat_map(|state| {
@@ -175,9 +190,16 @@ impl DesktopState {
                     .editor_states
                     .into_keys()
                     .chain(state.sequence_viewports.into_keys())
+                    .chain(state.spatial_views.into_keys())
                     .chain(state.graph_views.into_keys())
             })
+            .map(|key| {
+                key.split_once("::")
+                    .map_or(key.clone(), |(path, _)| path.to_string())
+            })
             .filter(|path| path_matches_or_is_child(path, &request.source))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
             .collect();
         Ok(WorkspacePathChangePlan {
             request,
@@ -198,8 +220,8 @@ impl DesktopState {
         request: WorkspacePathChangeRequest,
     ) -> Result<AppSnapshot, String> {
         let _authoring = self.settled_authoring();
-        let description = self.plan_workspace_path_change(request.clone())?;
-        if description.structural
+        let (project, plan) = self.path_change(&request)?;
+        if plan.structural
             && lock_unpoisoned(&self.workspace)
                 .documents
                 .values()
@@ -209,14 +231,6 @@ impl DesktopState {
                 "Structural path changes require every open text buffer to be saved.".to_string(),
             );
         }
-        let project = self
-            .project_session()
-            .ok_or_else(|| "No project is open.".to_string())?;
-        let plan = donder_project_io::plan_path_change(
-            &project,
-            Utf8Path::new(&request.source),
-            Utf8Path::new(&request.destination),
-        )?;
         self.working_copy.invalidate_pending();
         self.render_refresh.invalidate_pending();
         let candidate = {
@@ -269,8 +283,8 @@ impl DesktopState {
             workspace.view.active_file = workspace.view.active_file.as_deref().map(remap);
             // A move keeps every id; the target follows its objects to their new addresses.
             workspace.render_target = workspace.render_target.as_ref().and_then(|target| {
-                let (setup, sequence) = target.resolve(&project)?;
-                super::workspace_state::RenderTarget::new(&candidate, setup, sequence)
+                let sequence = target.resolve(&project)?;
+                super::workspace_state::RenderTarget::new(&candidate, sequence)
             });
             workspace.view.project_revision += 1;
             workspace.view.state_revision += 1;
@@ -307,7 +321,7 @@ impl DesktopState {
                 .map(|path| remap(path))
                 .collect();
             snapshot.project_entries = entries;
-            snapshot.status = if description.structural {
+            snapshot.status = if plan.structural {
                 "Structural path change applied; GUI undo and redo history were cleared."
                     .to_string()
             } else {
@@ -365,16 +379,13 @@ impl DesktopState {
     pub(crate) fn set_editor_view_mode(&self, mode: EditorViewMode) -> AppSnapshot {
         if matches!(mode, EditorViewMode::Gui) {
             if let Err(error) = self.reconcile_external_files() {
-                return self.snapshot_with_error("project.reconcile", "", &error);
+                return self.snapshot_with_error(&error);
             }
             let _authoring = self.settled_authoring();
             if self.project_session().is_none() {
                 self.focus_first_diagnostic();
                 return self.update_snapshot(|snapshot| {
-                    snapshot.settings.editor_view_mode = EditorViewMode::Text;
-                    snapshot.workspace_layout.active_sidebar_view =
-                        donder_editor::dto::SidebarView::Problems;
-                    snapshot.workspace_layout.sidebar_collapsed = false;
+                    super::show_problems(&mut snapshot.settings, &mut snapshot.workspace_layout);
                     snapshot.status = "Fix the project errors before entering GUI".into();
                 });
             }
@@ -388,11 +399,15 @@ impl DesktopState {
     }
 
     pub(crate) fn create_file(&self, parent: &str, name: &str) -> AppSnapshot {
-        self.create_fs_entry(parent, name, FsEntryKind::File)
+        self.create_fs_entry(parent, name, donder_editor::dto::WorkspaceEntryKind::File)
     }
 
     pub(crate) fn create_directory(&self, parent: &str, name: &str) -> AppSnapshot {
-        self.create_fs_entry(parent, name, FsEntryKind::Directory)
+        self.create_fs_entry(
+            parent,
+            name,
+            donder_editor::dto::WorkspaceEntryKind::Directory,
+        )
     }
 
     pub(super) fn create_new_project_locked(
@@ -403,12 +418,12 @@ impl DesktopState {
     ) -> AppSnapshot {
         let root = match project_destination(parent_path, directory_name) {
             Ok(root) => root,
-            Err(error) => return self.snapshot_with_error("project.create", parent_path, &error),
+            Err(error) => return self.snapshot_with_error(&error),
         };
         let files = match new_project_files(directory_name, initial_color) {
             Ok(files) => files,
             Err(error) => {
-                return self.snapshot_with_error("project.create", root.as_str(), &error);
+                return self.snapshot_with_error(&error);
             }
         };
         let result = {
@@ -416,7 +431,7 @@ impl DesktopState {
             write_new_project_files(&root, &files)
         };
         if let Err(error) = result {
-            return self.snapshot_with_error("project.create", root.as_str(), &error);
+            return self.snapshot_with_error(&error);
         }
         self.open_created_project_locked(&root)
     }
@@ -434,13 +449,13 @@ impl DesktopState {
         let root = match project_destination(parent_path, directory_name) {
             Ok(root) => root,
             Err(error) => {
-                return self.snapshot_with_error("project.importProfile", parent_path, &error);
+                return self.snapshot_with_error(&error);
             }
         };
         let files = match new_project_files(directory_name, initial_color) {
             Ok(files) => files,
             Err(error) => {
-                return self.snapshot_with_error("project.importProfile", root.as_str(), &error);
+                return self.snapshot_with_error(&error);
             }
         };
         let imported = {
@@ -456,7 +471,7 @@ impl DesktopState {
         let report = match imported {
             Ok(report) => report,
             Err(error) => {
-                return self.snapshot_with_error("project.importProfile", profile_path, &error);
+                return self.snapshot_with_error(&error);
             }
         };
         let opened = self.open_created_project_locked(&root);
@@ -487,11 +502,11 @@ impl DesktopState {
     ) -> AppSnapshot {
         let root = match project_destination(parent_path, directory_name) {
             Ok(root) => root,
-            Err(error) => return self.snapshot_with_error("project.copy", parent_path, &error),
+            Err(error) => return self.snapshot_with_error(&error),
         };
         let project = if discard {
             let Some(original_root) = self.project_root_path() else {
-                return self.snapshot_with_error("project.copy", parent_path, "No project is open");
+                return self.snapshot_with_error("No project is open");
             };
             match donder_project_io::check_project(
                 &original_root,
@@ -502,18 +517,14 @@ impl DesktopState {
             {
                 Ok(loaded) => std::sync::Arc::new(loaded),
                 Err(error) => {
-                    return self.snapshot_with_error(
-                        "project.copy",
-                        original_root.as_str(),
-                        &format!("The saved project cannot be copied: {error:?}"),
-                    );
+                    return self.snapshot_with_error(&format!(
+                        "The saved project cannot be copied: {error:?}"
+                    ));
                 }
             }
         } else {
             let Some(project) = self.project_session() else {
                 return self.snapshot_with_error(
-                    "project.copy",
-                    parent_path,
                     "Fix project errors before creating a standalone project copy",
                 );
             };
@@ -524,7 +535,7 @@ impl DesktopState {
             donder_project_io::export_editable_project(&project, &root)
         };
         if let Err(error) = result {
-            return self.snapshot_with_error("project.copy", root.as_str(), &error);
+            return self.snapshot_with_error(&error);
         }
         self.open_created_project_locked(&root)
     }
@@ -582,29 +593,18 @@ impl DesktopState {
                 document.buffer.dirty && path_matches_or_is_child(&document.buffer.path, path)
             })
         {
-            return self.snapshot_with_error(
-                "file.delete",
-                path,
-                "Save or discard edits before deleting this path",
-            );
+            return self.snapshot_with_error("Save or discard edits before deleting this path");
         }
         let Some(project) = self.project_session() else {
             return self.snapshot();
         };
         let relative_path = Utf8PathBuf::from(path);
         if project.source.is_structural_workspace_path(&relative_path) {
-            return self.snapshot_with_error(
-                "file.delete",
-                path,
-                "Imported documents and the project entrypoint cannot be deleted from the workspace.",
+            return self.snapshot_with_error("Imported documents and the project entrypoint cannot be deleted from the workspace.",
             );
         }
         let Some(absolute_path) = absolute_project_path(&project, &relative_path) else {
-            return self.snapshot_with_error(
-                "file.delete",
-                path,
-                "Path is outside the loaded project",
-            );
+            return self.snapshot_with_error("Path is outside the loaded project");
         };
         let result = {
             let _filesystem = lock_unpoisoned(&self.filesystem);
@@ -616,19 +616,9 @@ impl DesktopState {
         };
         match result {
             Ok(()) => self.after_workspace_changed(Some(path), None),
-            Err(error) => self.snapshot_with_error("file.delete", path, &error.to_string()),
+            Err(error) => self.snapshot_with_error(&error.to_string()),
         }
     }
-}
-
-fn remap_workspace_path(path: &str, source: &str, destination: &str) -> String {
-    if path == source {
-        return destination.to_string();
-    }
-    path.strip_prefix(source)
-        .and_then(|suffix| suffix.strip_prefix('/'))
-        .map(|suffix| format!("{destination}/{suffix}"))
-        .unwrap_or_else(|| path.to_string())
 }
 
 fn project_destination(parent_path: &str, directory_name: &str) -> Result<Utf8PathBuf, String> {

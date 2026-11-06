@@ -97,12 +97,6 @@ function droppedKinds(controls: GuiInputControl[], driver: DriverType): string[]
     .map(([, plural]) => plural);
 }
 
-/** Whether `path` is an address OSC matches exactly: a `/`, then printable
- * characters other than spaces and the pattern characters `*?[]{}#,`. */
-function validAddress(path: string): boolean {
-  return /^\/[!-~]*$/.test(path) && !/[*?[\]{}#,]/.test(path);
-}
-
 /** The first `control_<n>` no other control of the device uses. */
 function freshControlName(controls: GuiInputControl[]): string {
   const used = new Set(controls.map((control) => control.name));
@@ -186,29 +180,6 @@ function convertControls(controls: GuiInputControl[], driver: GuiInputDriver, ke
   return converted;
 }
 
-const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/;
-
-/** Whether an input is well formed: a note range runs up, an address is one OSC matches, an axis range runs up. */
-function inputValid(input: GuiControlInput): boolean {
-  switch (input.type) {
-    case "notes": return input.low <= input.high;
-    case "address": return validAddress(input.path.trim());
-    case "addressRange": return validAddress(input.path.trim()) && input.low < input.high;
-    case "key":
-    case "controlChange":
-    case "pitchBend": return true;
-  }
-}
-
-/** Whether a device can be saved: names are unique snake_case, no input is read twice, inputs are well formed, an OSC port is usable. */
-function deviceValid(driver: GuiInputDriver, controls: GuiInputControl[], limits: GuiInputLimits): boolean {
-  const keys = controls.flatMap((control) => inputKeys(control.input, limits));
-  return new Set(controls.map((control) => control.name)).size === controls.length
-    && controls.every((control) => NAME_PATTERN.test(control.name) && inputValid(control.input))
-    && new Set(keys).size === keys.length
-    && (driver.type !== "osc" || (driver.port >= 1 && driver.port <= MAX_UDP_PORT));
-}
-
 /** A device's driver and controls. A new device is applied together; an existing one saves each change as it is made, so each is its own undo step. */
 export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
   device?: SetupInputDevice;
@@ -234,7 +205,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
   useEffect(() => {
     if (!saveAfterRender.current) return;
     saveAfterRender.current = false;
-    if (device === undefined || !deviceValid(driver, controls, limits) || JSON.stringify([driver, controls]) === saved) return;
+    if (device === undefined || JSON.stringify([driver, controls]) === saved) return;
     void onSave(driver, controls);
   });
   const commitControls = (next: GuiInputControl[]) => {
@@ -327,8 +298,6 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     // The new control starts out on a free input, and takes the next one the device sends.
     setLearning({ id, part: "input" });
   };
-  const nameCounts = new Map<string, number>();
-  for (const control of controls) nameCounts.set(control.name, (nameCounts.get(control.name) ?? 0) + 1);
   const driverOptions = DRIVERS.map(({ type, label }) => {
     // Switching would drop the controls the driver has no kind for.
     const dropped = droppedKinds(controls, type);
@@ -383,7 +352,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
               setDrag({ from: index, over: null });
             }}
             onDragEnd={() => { setDrag(null); }}><GripVertical size={14} /></span></Cell>
-          <Cell className="name"><TextField name="Name" value={control.name} invalid={!NAME_PATTERN.test(control.name) || (nameCounts.get(control.name) ?? 0) > 1} onCommit={(name) => { update(index, { name }); }} /></Cell>
+          <Cell className="name"><TextField name="Name" value={control.name} onCommit={(name) => { update(index, { name }); }} /></Cell>
           {driver.type === "midi" && <MidiInputFields control={control} used={used} limits={limits} {...learnProps(control)} onChange={(change) => { update(index, change); }} />}
           {driver.type === "osc" && <OscInputFields control={control} taken={!isFree(control.input, readByOthers(index), limits)} {...learnProps(control)} onChange={(change) => { update(index, change); }} />}
           {driver.type === "keyboard" && control.input.type === "key" && <KeyInputCell code={control.input.code} codes={keyCodes} taken={!isFree(control.input, readByOthers(index), limits)} used={used} limits={limits} {...learnProps(control)}
@@ -394,7 +363,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
       </div>}
       <AddRow label="Add control" disabled={nextInput === null} onAdd={addControl} />
       {device === undefined && <div className="control-grid-actions">
-        <Button type="submit" variant="primary" className="control-grid-submit" disabled={!deviceValid(driver, controls, limits)}>Add input device</Button>
+        <Button type="submit" variant="primary" className="control-grid-submit">Add input device</Button>
       </div>}
     </fieldset>
   </form>;
@@ -447,7 +416,7 @@ function MidiInputFields({ control, used, limits, learning, onLearn, onChange }:
         </LearnOnFocus>
         <span>to</span>
         <LearnOnFocus part="high" onLearn={onLearn}>
-          <NumberField name="Highest note" value={input.high} step={1} min={0} max={limits.maxNote} integer invalid={taken(input) || input.high < input.low} onCommit={(high) => { onChange({ input: { ...input, high } }); }} />
+          <NumberField name="Highest note" value={input.high} step={1} min={0} max={limits.maxNote} integer invalid={taken(input)} onCommit={(high) => { onChange({ input: { ...input, high } }); }} />
         </LearnOnFocus>
       </>}
       {input.type === "controlChange" && <LearnOnFocus part="number" onLearn={onLearn}>
@@ -483,12 +452,12 @@ function OscInputFields({ control, taken, learning, onLearn, onChange }: {
       onChange({ kind, input: kind === "axis" ? { type: "addressRange", path, low: 0, high: 1 } : { type: "address", path } });
     }} /></Cell>
     <Cell className={learning === "input" ? "compound learning" : "compound"}>
-      <TextField name="Address" value={path} placeholder="/chord/change" invalid={!validAddress(path.trim()) || taken}
+      <TextField name="Address" value={path} placeholder="/chord/change" invalid={taken}
         onCommit={(next) => { onChange({ input: { ...input, path: next } }); }} />
       {input.type === "addressRange" && <>
-        <NumberField name="Value at 0" value={input.low} step={AXIS_VALUE_STEP} defaultValue={0} invalid={!(input.low < input.high)} onCommit={(low) => { onChange({ input: { ...input, low } }); }} />
+        <NumberField name="Value at 0" value={input.low} step={AXIS_VALUE_STEP} defaultValue={0} onCommit={(low) => { onChange({ input: { ...input, low } }); }} />
         <span>to</span>
-        <NumberField name="Value at 1" value={input.high} step={AXIS_VALUE_STEP} defaultValue={1} invalid={!(input.low < input.high)} onCommit={(high) => { onChange({ input: { ...input, high } }); }} />
+        <NumberField name="Value at 1" value={input.high} step={AXIS_VALUE_STEP} defaultValue={1} onCommit={(high) => { onChange({ input: { ...input, high } }); }} />
       </>}
       <LearnButton learning={learning === "input"} onLearn={onLearn} />
     </Cell>

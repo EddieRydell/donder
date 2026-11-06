@@ -66,7 +66,6 @@ pub struct GuiObjectRef {
     pub path: String,
     pub object_key: String,
     pub kind: ObjectKind,
-    pub id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -246,9 +245,7 @@ pub struct SetupGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub(crate) description: Option<String>,
     pub available_declarations: Vec<GuiObjectRef>,
-    pub(crate) path: String,
     pub(crate) source_ref: GuiObjectRef,
-    pub(crate) object_key: String,
     pub layout_ref: GuiObjectRef,
     pub patch_ref: GuiObjectRef,
     pub controllers: Vec<SetupController>,

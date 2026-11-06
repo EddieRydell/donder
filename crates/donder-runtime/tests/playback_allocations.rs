@@ -15,7 +15,7 @@ use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
 };
 use donder_runtime_types::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetGeometry, TargetScope,
+    FixtureGeometry, OutputEncoding, PreparedAutomation, TargetGeometry, TargetScope,
 };
 
 struct CountingAllocator;
@@ -126,7 +126,8 @@ fn grid(
         builder.route(
             port,
             target,
-            OutputEncoding::Rgb(RgbOrder::Grb),
+            OutputEncoding::admit(donder_runtime_types::PixelEncoding::Rgb { order: [1, 0, 2] })
+                .unwrap(),
             None,
             false,
         );

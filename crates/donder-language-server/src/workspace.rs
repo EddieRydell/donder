@@ -33,16 +33,12 @@ pub(crate) fn kind(uri: &str) -> Kind {
     }
 }
 
-/// A path as compared across clients: `/` separators, no verbatim prefix,
-/// and a lowercase drive letter.
-fn normalized(path: &Utf8Path) -> String {
-    let text = path.as_str().replace('\\', "/");
-    let text = text.strip_prefix("//?/").unwrap_or(&text).to_string();
-    let mut characters = text.chars();
-    match (characters.next(), characters.next()) {
-        (Some(drive), Some(':')) => format!("{}{}", drive.to_ascii_lowercase(), &text[1..]),
-        _ => text,
-    }
+/// Whether a project-relative path is a Donder document, data or script,
+/// which the project check reads.
+fn is_source(relative: &Utf8Path) -> bool {
+    relative
+        .as_str()
+        .ends_with(donder_language::data::SCRIPT_SUFFIX)
 }
 
 /// A host that keeps its own copies of project documents and checks the
@@ -118,10 +114,16 @@ impl Workspace {
 
     /// The project-relative path of a URI inside the project.
     pub(crate) fn relative(&self, uri: &str) -> Option<Utf8PathBuf> {
-        let root = normalized(self.root.as_ref()?);
-        let path = normalized(&uri_path(uri)?);
-        let relative = path.strip_prefix(&root)?.strip_prefix('/')?;
-        Some(Utf8PathBuf::from(relative))
+        let path = uri_path(uri)?;
+        let relative = path.strip_prefix(self.root.as_ref()?).ok()?;
+        // Project-relative paths separate with `/` on every platform.
+        Some(Utf8PathBuf::from(
+            relative
+                .components()
+                .map(|component| component.as_str())
+                .collect::<Vec<_>>()
+                .join("/"),
+        ))
     }
 
     /// The URI of a project-relative path, as the client spelled it when the
@@ -134,7 +136,7 @@ impl Workspace {
         {
             return Some(uri.clone());
         }
-        Some(file_uri(&self.root.as_ref()?.join(relative)))
+        file_uri(&self.root.as_ref()?.join(relative))
     }
 
     pub(crate) fn document_uri(&self, document: &DocumentId) -> Option<String> {
@@ -188,11 +190,9 @@ impl Workspace {
             Checker::Host(source) => {
                 // A check of another project, such as the one being closed,
                 // is not this session's.
-                let latest = source.check().filter(|check| {
-                    self.root
-                        .as_deref()
-                        .is_some_and(|root| normalized(root) == normalized(&check.root))
-                });
+                let latest = source
+                    .check()
+                    .filter(|check| self.root.as_deref().is_some_and(|root| root == check.root));
                 let changed = match (&latest, &self.check) {
                     (Some(latest), Some(current)) => !Arc::ptr_eq(latest, current),
                     (latest, current) => latest.is_some() != current.is_some(),
@@ -233,8 +233,7 @@ impl Workspace {
             .iter()
             .filter_map(|(uri, document)| {
                 let relative = self.relative(uri)?;
-                (relative.extension() == Some("donder"))
-                    .then(|| (relative, document.text().to_string()))
+                is_source(&relative).then(|| (relative, document.text().to_string()))
             })
             .collect()
     }
@@ -246,7 +245,7 @@ impl Workspace {
         self.open
             .iter()
             .all(|(uri, document)| match self.relative(uri) {
-                Some(relative) if relative.extension() == Some("donder") => check
+                Some(relative) if is_source(&relative) => check
                     .texts
                     .get(&relative)
                     .is_some_and(|text| text == document.text()),

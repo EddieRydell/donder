@@ -58,29 +58,20 @@ fn ensure_document_imports_target(
     {
         return Ok(());
     }
-    let alias_base =
-        canonical_reference_alias(kind).ok_or_else(|| ExportProjectError::InvalidReference {
-            path: from_path.to_path_buf(),
-            reference: reference.to_string(),
-            message: format!("no canonical import alias exists for {kind:?} references"),
-        })?;
-    let alias = donder_language::unique_name(alias_base, |candidate| {
+    let alias = donder_language::unique_name(canonical_reference_alias(*kind), |candidate| {
         document
             .imports
             .iter()
-            .any(|import| import.declaration.alias.as_str() == candidate)
+            .any(|import| import.alias.as_str() == candidate)
     });
     document.imports.push(ImportEdge {
-        declaration: ImportDeclaration {
-            alias: ImportAlias::new(alias.as_str()).map_err(|message| {
-                ExportProjectError::InvalidReference {
-                    path: from_path.to_path_buf(),
-                    reference: reference.to_string(),
-                    message,
-                }
-            })?,
-            documents: vec![target_document.path().to_path_buf()],
-        },
+        alias: ImportAlias::new(alias.as_str()).map_err(|message| {
+            ExportProjectError::InvalidReference {
+                path: from_path.to_path_buf(),
+                reference: reference.to_string(),
+                message,
+            }
+        })?,
         targets: vec![target_document],
     });
     Ok(())
@@ -105,21 +96,23 @@ fn ensure_document_can_reference_source(
     )
 }
 
-pub(crate) fn canonical_reference_alias(kind: &ObjectKind) -> Option<&'static str> {
+/// The alias an import of a document declaring objects of `kind` is given:
+/// the kind's plural, `curves` or `fixtures`.
+pub fn canonical_reference_alias(kind: ObjectKind) -> &'static str {
     match kind {
-        ObjectKind::EffectDefinition => Some("effects"),
-        ObjectKind::OperatorDefinition => Some("operators"),
-        ObjectKind::Curve => Some("curves"),
-        ObjectKind::Gradient => Some("gradients"),
-        ObjectKind::Sequence => Some("sequences"),
-        ObjectKind::Console => Some("consoles"),
-        ObjectKind::Project => Some("projects"),
-        ObjectKind::Setup => Some("setups"),
-        ObjectKind::Controller => Some("controllers"),
-        ObjectKind::InputDevice => Some("devices"),
-        ObjectKind::Layout => Some("layouts"),
-        ObjectKind::Patch => Some("patches"),
-        ObjectKind::FixtureDefinition => Some("fixtures"),
+        ObjectKind::EffectDefinition => "effects",
+        ObjectKind::OperatorDefinition => "operators",
+        ObjectKind::Curve => "curves",
+        ObjectKind::Gradient => "gradients",
+        ObjectKind::Sequence => "sequences",
+        ObjectKind::Console => "consoles",
+        ObjectKind::Project => "projects",
+        ObjectKind::Setup => "setups",
+        ObjectKind::Controller => "controllers",
+        ObjectKind::InputDevice => "devices",
+        ObjectKind::Layout => "layouts",
+        ObjectKind::Patch => "patches",
+        ObjectKind::FixtureDefinition => "fixtures",
     }
 }
 
@@ -144,7 +137,7 @@ pub(crate) fn write_source_reference(
                 .iter()
                 .any(|target| target == identity.document_id())
         })
-        .map(|edge| edge.declaration.alias.clone())
+        .map(|edge| edge.alias.clone())
         .ok_or_else(|| ExportProjectError::InvalidReference {
             path: from_document.path().to_path_buf(),
             reference: identity.object().to_string(),
@@ -261,7 +254,7 @@ impl Loader {
                 self.load_document(target)?;
             }
             edges.push(ImportEdge {
-                declaration: import.declaration.clone(),
+                alias: import.declaration.alias.clone(),
                 targets,
             });
         }
@@ -276,11 +269,11 @@ impl Loader {
             let mut imported = Vec::new();
             for (index, edge) in document.imports.iter().enumerate() {
                 let location = &declarations[index];
-                if let Some(previous) = aliases.insert(edge.declaration.alias.clone(), index) {
+                if let Some(previous) = aliases.insert(edge.alias.clone(), index) {
                     return Err(import_collision(
                         document_id,
                         location.range.clone(),
-                        format!("duplicate import alias `{}`", edge.declaration.alias),
+                        format!("duplicate import alias `{}`", edge.alias),
                         declarations[previous].range.clone(),
                         "first import with this alias",
                     ));
@@ -311,7 +304,7 @@ impl Loader {
                                 format!(
                                     "duplicate exported object `{}` in import alias `{}`",
                                     name.as_str(),
-                                    edge.declaration.alias
+                                    edge.alias
                                 ),
                                 previous,
                                 "first document exposing this name",
@@ -319,7 +312,7 @@ impl Loader {
                         }
                         imported.push((
                             SourceReference::Qualified {
-                                alias: edge.declaration.alias.clone(),
+                                alias: edge.alias.clone(),
                                 name: name.clone(),
                             },
                             *object,

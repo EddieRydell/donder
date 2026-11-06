@@ -72,7 +72,8 @@ pub(crate) fn prepare<'id>(
     let mut pending: Vec<Option<Pending<'id>>> = (0..graph.nodes.len()).map(|_| None).collect();
     let mut order = Vec::new();
     let duration = donder_runtime_types::sample_duration_seconds_f32(parts.timing.duration());
-    // Admission guarantees one output, connected operator ports and an acyclic graph.
+    // Admission guarantees one output and an acyclic graph; an input with no
+    // edge is black.
     // Mixes follow the graph's nodes in `pending`.
     while let Some(index) = ready.pop() {
         let node = &graph.nodes[index];

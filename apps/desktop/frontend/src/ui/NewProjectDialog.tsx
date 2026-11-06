@@ -5,8 +5,8 @@ import { useAppStore } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { THEME_COLORS } from "../theme";
 import { Button, Dialog, Field, TextField } from "./kit";
+import { listenUiEvent } from "./uiEvents";
 
-const NEW_PROJECT_EVENT = "donder:new-project";
 const DEFAULT_DIRECTORY_NAME = "New Project";
 
 type Mode = "createProject" | "copyProject" | "importProfile";
@@ -33,17 +33,12 @@ export function NewProjectDialog() {
       setError(null);
       setOpen(true);
     };
-    const onNewProject = opener("createProject");
-    const onCopyProject = opener("copyProject");
-    const onImportProfile = opener("importProfile");
-    window.addEventListener("donder:copy-project", onCopyProject);
-    window.addEventListener("donder:import-profile", onImportProfile);
-    window.addEventListener(NEW_PROJECT_EVENT, onNewProject);
-    return () => {
-      window.removeEventListener(NEW_PROJECT_EVENT, onNewProject);
-      window.removeEventListener("donder:import-profile", onImportProfile);
-      window.removeEventListener("donder:copy-project", onCopyProject);
-    };
+    const stops = [
+      listenUiEvent("newProject", opener("createProject")),
+      listenUiEvent("copyProject", opener("copyProject")),
+      listenUiEvent("importProfile", opener("importProfile"))
+    ];
+    return () => { for (const stop of stops) stop(); };
   }, []);
 
   const nameError = validateDirectoryName(directoryName);

@@ -87,55 +87,32 @@ pub fn automation_value_at_position<'a>(
     mapping: &'a AutomationMapping,
     position: f32,
 ) -> Option<AutomationValue<'a>> {
-    let normalized = sample_curve(curve, position);
+    let amount = sample_curve(curve, position);
     Some(match mapping {
         AutomationMapping::Float { min, max } => {
-            AutomationValue::Float(lerp(*min, *max, normalized))
+            AutomationValue::Float(automated_float(*min, *max, amount))
         }
         AutomationMapping::Int { min, max } => {
-            AutomationValue::Int(libm::roundf(lerp(*min as f32, *max as f32, normalized)) as i32)
+            AutomationValue::Int(automated_int(*min, *max, amount))
         }
-        AutomationMapping::Bool => AutomationValue::Bool(normalized >= 0.5),
+        AutomationMapping::Bool => AutomationValue::Bool(automated_bool(amount)),
         AutomationMapping::Enum { values } => {
-            let index = (libm::floorf(normalized * values.len() as f32) as usize)
-                .min(values.len().checked_sub(1)?);
-            AutomationValue::Enum(&values[index])
+            values.len().checked_sub(1)?;
+            AutomationValue::Enum(&values[automated_index(values.len(), amount)])
         }
         AutomationMapping::Curve { min, max } => {
-            let mut output = Curve { points: Vec::new() };
-            curve_window_into(&mut output, curve, *min, *max, position);
-            AutomationValue::Curve(output)
+            let mut points =
+                alloc::vec![CurvePoint { position: 0.0, value: 0.0 }; curve.points.len().max(1)];
+            let len = curve_window_points(&mut points, &curve.points, *min, *max, position);
+            points.truncate(len);
+            AutomationValue::Curve(Curve { points })
         }
         AutomationMapping::LiveMarks => return None,
     })
 }
 
-pub fn curve_window_into(
-    output: &mut Curve,
-    curve: &Curve,
-    min: f32,
-    max: f32,
-    sample_position: f32,
-) {
-    output.points.clear();
-    output
-        .points
-        .extend(curve.points.iter().filter_map(|point| {
-            let position = point.position - sample_position;
-            (0.0..=1.0).contains(&position).then(|| CurvePoint {
-                position,
-                value: lerp(min, max, point.value),
-            })
-        }));
-    if output.points.is_empty() {
-        output.points.push(CurvePoint {
-            position: 0.0,
-            value: lerp(min, max, sample_curve(curve, sample_position)),
-        });
-    }
-}
-
-/// [`curve_window_into`] into a buffer of at least `curve.len().max(1)`
+/// The part of `curve` from `sample_position` on, mapped to `min..max` and
+/// shifted to start at 0, into a buffer of at least `curve.len().max(1)`
 /// points; returns how many it wrote.
 pub fn curve_window_points(
     output: &mut [CurvePoint],
@@ -150,7 +127,7 @@ pub fn curve_window_points(
         if (0.0..=1.0).contains(&position) {
             output[len] = CurvePoint {
                 position,
-                value: lerp(min, max, point.value),
+                value: automated_float(min, max, point.value),
             };
             len += 1;
         }
@@ -158,7 +135,7 @@ pub fn curve_window_points(
     if len == 0 {
         output[0] = CurvePoint {
             position: 0.0,
-            value: lerp(
+            value: automated_float(
                 min,
                 max,
                 crate::sampling::sample_curve_points(curve, sample_position),
@@ -169,6 +146,25 @@ pub fn curve_window_points(
     len
 }
 
-fn lerp(min: f32, max: f32, amount: f32) -> f32 {
+/// An automation amount in 0..1 as a value of `min..max`. Playback and the
+/// editor both map automation through these.
+#[inline]
+pub fn automated_float(min: f32, max: f32, amount: f32) -> f32 {
     min + (max - min) * amount
+}
+
+#[inline]
+pub fn automated_int(min: i32, max: i32, amount: f32) -> i32 {
+    libm::roundf(automated_float(min as f32, max as f32, amount)) as i32
+}
+
+#[inline]
+pub fn automated_bool(amount: f32) -> bool {
+    amount >= 0.5
+}
+
+/// Which of `count` options, one or more, an amount picks.
+#[inline]
+pub fn automated_index(count: usize, amount: f32) -> usize {
+    (libm::floorf(amount * count as f32) as usize).min(count - 1)
 }

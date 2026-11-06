@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceGuiDocument, SequenceClipParam, SequenceParamKind, SequenceSelection } from "../../../editor/types";
+import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceGuiDocument, SequenceClipParam, SequenceParamKind, SequenceSelection } from "../../../types";
 import { Button, ContextMenuEntries, Dialog, Field, NumberField, Section, Toggle, type MenuEntry } from "../../kit";
 import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { clipIdsOfKind } from "./sequenceSelection";

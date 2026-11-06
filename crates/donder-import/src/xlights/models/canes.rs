@@ -1,6 +1,6 @@
 //! Candy canes: an upright and a hook of lights, side by side.
 
-use super::{Common, Local, Node, Span, Strings, account};
+use super::{Common, Local, Node, Span, Strings, account, rotate_point, to_radians};
 use crate::report::SkipReason;
 use crate::xlights::placement::{self, RenderSize};
 use crate::xlights::read::{Name, Reader, Table, Use};
@@ -74,14 +74,6 @@ pub(super) fn candy_canes(
     (span, layout(reader, common, &settings, &strings))
 }
 
-/// xLights: `rotate_point` in `CandyCaneModel.cpp`, about `(cx, 0)`.
-fn rotate_point(cx: f32, angle: f32, x: &mut f32, y: &mut f32) {
-    let (s, c) = (angle.sin(), angle.cos());
-    let (px, py) = (*x - cx, *y);
-    *x = px * c - py * s + cx;
-    *y = px * s + py * c;
-}
-
 /// xLights: `CandyCaneModel::InitModel` and `SetCaneCoord`: each cane's
 /// lights up its upright, two thirds of them, then round its hook; or, as
 /// sticks, all straight up. Numbered right to left, the canes' channels run
@@ -138,7 +130,7 @@ fn layout(
         })
         .collect();
     let light_count = per_cane * lights;
-    let angle = (2.0 * PI * f64::from(settings.skew as f32) / 360.0) as f32;
+    let angle = to_radians(settings.skew as f32) as f32;
     let height = f64::from(settings.height);
     let upright = ((f64::from(per_cane) * 6.0 / 9.0) as i32) * lights;
     let width_per_cane = f64::from(light_count) * 3.0 / 9.0;

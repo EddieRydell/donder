@@ -1,4 +1,4 @@
-import { useSequenceEditorHost } from "../../../editor/host";
+import { useAppStore } from "../../../store";
 import { matchesCommand } from "../../../commandRegistry";
 import { isMac } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, useContext } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { definitionEntries, definitionTree } from "./definitionMenu";
-import type { GuiDocumentRequest, SequenceGraphEdge, SequenceGraphNode, SequenceGraphOperator, SequenceGraphOperatorDefinition } from "../../../editor/types";
+import type { GuiDocumentRequest, SequenceGraphEdge, SequenceGraphNode, SequenceGraphOperator, SequenceGraphOperatorDefinition } from "../../../types";
 import type { CompositionEditing } from "./composition";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
 import { graphOperatorDefinition } from "./graphOperator";
@@ -51,9 +51,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
   setSelectedItem: (item: SelectedGraphItem) => void;
   requestDelete: (nodeIds: number[], edgeIds?: string[]) => void;
 }) {
-  const host = useSequenceEditorHost();
   const overlayContainer = useContext(OverlayPortal);
-  const { store: useAppStore } = host;
   const { document } = composition;
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
@@ -241,6 +239,13 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
               const previous = graph.edges.find((item) => graphEdgeId(item) === edge.id);
               if (previous === undefined) return;
               void composition.apply({ type: "reconnectGraphEdge", previous, connection: graphEdge(connection) }, connectionOrigin.current)
+                .catch(reportSequenceEditError);
+            }}
+            onReconnectEnd={(_, edge, __, state) => {
+              if (!editable || state.toHandle !== null) return;
+              const previous = graph.edges.find((item) => graphEdgeId(item) === edge.id);
+              if (previous === undefined) return;
+              void composition.apply({ type: "deleteGraphItems", nodeIds: [], layerIds: [], edges: [previous], migrateToLayerId: null }, connectionOrigin.current)
                 .catch(reportSequenceEditError);
             }}
             onConnect={(connection) => {

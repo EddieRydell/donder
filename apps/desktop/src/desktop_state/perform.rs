@@ -616,13 +616,10 @@ impl DesktopState {
             else {
                 return;
             };
-            let Ok(described) = perform_console(session, index as u32, id) else {
-                return;
-            };
-            if check_armable(session, &id, &described.name).is_err() {
-                return;
-            }
-            self.arm_performance(&mut perform, session, id, described, true)
+            perform_console(session, index as u32, id).and_then(|described| {
+                check_armable(session, &id, &described.name)?;
+                self.arm_performance(&mut perform, session, id, described, true)
+            })
         };
         match rearmed {
             Ok(()) => {

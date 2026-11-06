@@ -23,7 +23,7 @@ use donder_model::{OperatorDefinition, OperatorDefinitionId};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::ProjectCheckCache;
-use crate::address::{DeclaredObject, DocumentId, ObjectAddress, SourceIdentity};
+use crate::address::{DeclaredObject, DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
 use crate::check_cache::ReadDocument;
 use crate::diagnostics::LoadError;
 use crate::diagnostics::{byte_range, data_diagnostic, dsl_diagnostic};
@@ -107,7 +107,6 @@ pub(super) struct Loader {
     loading_documents: IndexSet<DocumentId>,
     definitions: LoadedDefinitions,
     referenced_assets: Vec<ReferencedAsset>,
-    next_asset_id: u32,
     pub(crate) checked_scripts: IndexSet<Utf8PathBuf>,
     pub(crate) texts: crate::project_loading::SourceTexts,
     cache: ProjectCheckCache,
@@ -133,7 +132,6 @@ impl Loader {
             loading_documents: IndexSet::new(),
             definitions: LoadedDefinitions::default(),
             referenced_assets: Vec::new(),
-            next_asset_id: 1,
             checked_scripts: IndexSet::new(),
             texts,
             cache,
@@ -259,14 +257,16 @@ impl Loader {
                         ));
                     }
                 }
-                ObjectId::Setup(id) => resolver.resolve_setup(&id)?,
-                ObjectId::Controller(id) => resolver.resolve_controller(&id)?,
-                ObjectId::InputDevice(id) => resolver.resolve_input_device(&id)?,
-                ObjectId::Layout(id) => resolver.resolve_layout(&id)?,
-                ObjectId::Patch(id) => resolver.resolve_patch(&id)?,
-                ObjectId::FixtureDefinition(id) => resolver.resolve_fixture(&id)?,
-                ObjectId::Sequence(id) => resolver.resolve_sequence(&id)?,
-                ObjectId::Console(id) => resolver.resolve_console(&id)?,
+                ObjectId::Setup(id) => resolver.resolve::<donder_model::Setup>(id)?,
+                ObjectId::Controller(id) => resolver.resolve::<donder_model::Controller>(id)?,
+                ObjectId::InputDevice(id) => resolver.resolve::<donder_model::InputDevice>(id)?,
+                ObjectId::Layout(id) => resolver.resolve::<donder_model::Layout>(id)?,
+                ObjectId::Patch(id) => resolver.resolve::<donder_model::Patch>(id)?,
+                ObjectId::FixtureDefinition(id) => {
+                    resolver.resolve::<donder_model::FixtureDefinition>(id)?
+                }
+                ObjectId::Sequence(id) => resolver.resolve::<donder_model::Sequence>(id)?,
+                ObjectId::Console(id) => resolver.resolve::<donder_model::Console>(id)?,
                 ObjectId::Curve(_)
                 | ObjectId::Gradient(_)
                 | ObjectId::EffectDefinition(_)
@@ -472,7 +472,7 @@ impl Loader {
                         GradientId(self.intern(identity.clone().into())),
                         GradientDefinition {
                             description: gradient.description.clone(),
-                            gradient: resolve::gradient(gradient.space, &gradient.stops),
+                            gradient: resolve::gradient(&gradient.space, &gradient.stops),
                         },
                     );
                 }
@@ -584,7 +584,7 @@ impl Loader {
                     Declaration::Project(project) => Some((name, span, project)),
                     _ => None,
                 });
-        let (name, _, root) = projects.next().ok_or_else(|| {
+        let (name, span, root) = projects.next().ok_or_else(|| {
             crate::diagnostics::invalid_document(
                 entrypoint.path().to_path_buf(),
                 None,
@@ -593,6 +593,17 @@ impl Loader {
         })?;
         if let Some((_, span, _)) = projects.next() {
             return Err(self.invalid(entrypoint, span, "the root document declares one `Project`"));
+        }
+        if root.format != crate::PROJECT_FORMAT_VERSION {
+            return Err(self.invalid(
+                entrypoint,
+                span,
+                format!(
+                    "unsupported project format {}; expected {}",
+                    root.format,
+                    crate::PROJECT_FORMAT_VERSION
+                ),
+            ));
         }
         let root_identity = SourceIdentity::from_document(entrypoint.clone(), name.to_string());
         let root_id = ProjectId(self.intern(root_identity.clone().into()));
@@ -623,16 +634,20 @@ impl Loader {
             loader: self,
             project: &mut project,
         };
-        let setup = resolver.owned_setup(entrypoint, &owner, &root.setup)?;
+        let setup = resolver.owned(entrypoint, &owner, OwnedObjectSlot::Setup, &root.setup)?;
         let sequences = root
             .sequences
             .iter()
-            .map(|record| resolver.owned_sequence(entrypoint, &owner, record))
+            .map(|record| {
+                resolver.owned_member(entrypoint, &owner, OwnedObjectSlot::Sequence, record)
+            })
             .collect::<Result<_, _>>()?;
         let consoles = root
             .consoles
             .iter()
-            .map(|record| resolver.owned_console(entrypoint, &owner, record))
+            .map(|record| {
+                resolver.owned_member(entrypoint, &owner, OwnedObjectSlot::Console, record)
+            })
             .collect::<Result<_, _>>()?;
         project.root.setup = setup;
         project.root.sequences = sequences;

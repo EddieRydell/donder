@@ -35,9 +35,7 @@ pub struct SequenceGradientLibraryItem {
 pub struct SequenceGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::Description`.
     pub(crate) description: Option<String>,
-    pub(crate) path: String,
     pub(crate) source_ref: GuiObjectRef,
-    pub(crate) object_key: String,
     pub duration_seconds: f64,
     pub frame_rate: f32,
     pub audio: Option<SequenceAudio>,
@@ -60,7 +58,6 @@ pub struct SequenceLayer {
     pub(crate) description: Option<String>,
     pub(crate) color: String,
     pub(crate) enabled: bool,
-    pub(crate) is_default: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -195,7 +192,6 @@ pub struct SequenceClipParamMatch {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceCompositionGraph {
-    pub(crate) id: u32,
     pub operator_catalog: Vec<SequenceGraphOperatorDefinition>,
     pub nodes: Vec<SequenceGraphNode>,
     pub edges: Vec<SequenceGraphEdge>,
@@ -283,8 +279,6 @@ pub struct SequenceEffectDefinition {
     /// The script's description of the effect.
     pub(crate) description: Option<String>,
     pub effect: SequenceEffectReference,
-    #[serde(rename = "import")]
-    pub(crate) import_path: Option<String>,
     pub(crate) params: Vec<SequenceEffectDefinitionParam>,
 }
 

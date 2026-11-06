@@ -6,10 +6,11 @@ use donder_language::data::{Name, OwnedNamedRecord, OwnedRecord, Params};
 use donder_model::{Member, MemberPart, ProblemSite};
 use donder_runtime_types::Identifier;
 
-use crate::address::OwnedObjectSlot;
+use crate::address::{OwnedObjectSlot, OwningField};
 use crate::document::{Declaration, types};
 
 /// A declaration, or an object written in place inside one.
+#[derive(Clone, Copy)]
 pub(super) enum Located<'a> {
     Project(&'a types::Project),
     Setup(&'a types::Setup),
@@ -21,6 +22,55 @@ pub(super) enum Located<'a> {
     Console(&'a types::Console),
     Fixture(&'a types::FixtureDefinition),
     Other,
+}
+
+/// The object written in place at `slot` of `owner`, and the span of its
+/// name when it is a collection member.
+fn child<'a>(
+    owner: Located<'a>,
+    slot: &OwnedObjectSlot,
+) -> Option<(Located<'a>, Option<TextSpan>)> {
+    fn single<'a, T>(
+        record: &'a OwnedRecord<T>,
+        located: fn(&'a T) -> Located<'a>,
+    ) -> Option<(Located<'a>, Option<TextSpan>)> {
+        match record {
+            OwnedRecord::Inline(value) => Some((located(value), None)),
+            OwnedRecord::Reference(_) => None,
+        }
+    }
+    fn member<'a, T>(
+        records: &'a [OwnedNamedRecord<T>],
+        name: Option<&Identifier>,
+        located: fn(&'a T) -> Located<'a>,
+    ) -> Option<(Located<'a>, Option<TextSpan>)> {
+        let name = name?;
+        records.iter().find_map(|record| match record {
+            OwnedNamedRecord::Inline(member, value) if &member.0.value == name => {
+                Some((located(value), Some(member.0.span)))
+            }
+            _ => None,
+        })
+    }
+    let (field, name) = slot.field()?;
+    match (owner, field) {
+        (Located::Project(project), OwningField::Setup) => single(&project.setup, Located::Setup),
+        (Located::Project(project), OwningField::Sequences) => {
+            member(&project.sequences, name, Located::Sequence)
+        }
+        (Located::Project(project), OwningField::Consoles) => {
+            member(&project.consoles, name, Located::Console)
+        }
+        (Located::Setup(setup), OwningField::Layout) => single(&setup.layout, Located::Layout),
+        (Located::Setup(setup), OwningField::Patch) => single(&setup.patch, Located::Patch),
+        (Located::Setup(setup), OwningField::Controllers) => {
+            member(&setup.controllers, name, Located::Controller)
+        }
+        (Located::Setup(setup), OwningField::InputDevices) => {
+            member(&setup.input_devices, name, Located::InputDevice)
+        }
+        _ => None,
+    }
 }
 
 /// The object at `path` inside `declaration`.
@@ -40,40 +90,8 @@ pub(super) fn owned<'a>(
         Declaration::FixtureDefinition(definition) => Located::Fixture(definition),
         Declaration::Curve(_) | Declaration::Gradient(_) => Located::Other,
     };
-    fn member<'a, T>(sources: &'a [OwnedNamedRecord<T>], name: &Identifier) -> Option<&'a T> {
-        sources.iter().find_map(|source| match source {
-            OwnedNamedRecord::Inline(member, value) if &member.0.value == name => Some(value),
-            _ => None,
-        })
-    }
     for slot in path {
-        current = match (current, slot) {
-            (Located::Project(project), OwnedObjectSlot::Setup) => match &project.setup {
-                OwnedRecord::Inline(setup) => Located::Setup(setup),
-                OwnedRecord::Reference(_) => return None,
-            },
-            (Located::Project(project), OwnedObjectSlot::Sequence(name)) => {
-                Located::Sequence(member(&project.sequences, name)?)
-            }
-            (Located::Project(project), OwnedObjectSlot::Console(name)) => {
-                Located::Console(member(&project.consoles, name)?)
-            }
-            (Located::Setup(setup), OwnedObjectSlot::Layout) => match &setup.layout {
-                OwnedRecord::Inline(layout) => Located::Layout(layout),
-                OwnedRecord::Reference(_) => return None,
-            },
-            (Located::Setup(setup), OwnedObjectSlot::Patch) => match &setup.patch {
-                OwnedRecord::Inline(patch) => Located::Patch(patch),
-                OwnedRecord::Reference(_) => return None,
-            },
-            (Located::Setup(setup), OwnedObjectSlot::Controller(name)) => {
-                Located::Controller(member(&setup.controllers, name)?)
-            }
-            (Located::Setup(setup), OwnedObjectSlot::InputDevice(name)) => {
-                Located::InputDevice(member(&setup.input_devices, name)?)
-            }
-            _ => return None,
-        };
+        current = child(current, slot)?.0;
     }
     Some(current)
 }
@@ -81,27 +99,7 @@ pub(super) fn owned<'a>(
 /// The name span of the owned collection member at the end of `path`.
 pub(super) fn member_name(declaration: &Declaration, path: &[OwnedObjectSlot]) -> Option<TextSpan> {
     let (last, parent) = path.split_last()?;
-    fn named<T>(sources: &[OwnedNamedRecord<T>], name: &Identifier) -> Option<TextSpan> {
-        sources.iter().find_map(|source| match source {
-            OwnedNamedRecord::Inline(member, _) if &member.0.value == name => Some(member.0.span),
-            _ => None,
-        })
-    }
-    match (owned(declaration, parent)?, last) {
-        (Located::Project(project), OwnedObjectSlot::Sequence(name)) => {
-            named(&project.sequences, name)
-        }
-        (Located::Project(project), OwnedObjectSlot::Console(name)) => {
-            named(&project.consoles, name)
-        }
-        (Located::Setup(setup), OwnedObjectSlot::Controller(name)) => {
-            named(&setup.controllers, name)
-        }
-        (Located::Setup(setup), OwnedObjectSlot::InputDevice(name)) => {
-            named(&setup.input_devices, name)
-        }
-        _ => None,
-    }
+    child(owned(declaration, parent)?, last)?.1
 }
 
 /// The span of the member `site` names in the object at `path`.

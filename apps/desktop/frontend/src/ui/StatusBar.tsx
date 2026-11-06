@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { Tip } from "./kit";
 import { AlertTriangle, CheckCircle2, CircleX, FolderOpen, Save } from "lucide-react";
-import { FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
+import { focusSidebar } from "./uiEvents";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { THEME_METRICS } from "../theme";
 import { useAppStore, type AppStaticSnapshot } from "../store";
-import type { SidebarView } from "../types";
 import { displayedProjectHealth } from "../workspace/helpers";
 
 export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
@@ -108,7 +107,4 @@ function useSteadyLabel(label: string, transient: boolean): string {
   return transient ? shown : label;
 }
 
-function focusSidebar(view: SidebarView) {
-  window.dispatchEvent(new CustomEvent<SidebarView>(FOCUS_SIDEBAR_EVENT, { detail: view }));
-}
 

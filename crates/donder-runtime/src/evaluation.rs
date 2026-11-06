@@ -16,7 +16,7 @@ use crate::format::{self, NONE};
 use crate::resources::{LiveView, ParamsView};
 use crate::sections::SectionsView;
 use crate::targets::{PreparedPixel, TargetCursor, TargetView};
-use crate::view::Show;
+use crate::view::{ProgramView, Show};
 use crate::workspace::{CachedClipColor, ConsoleState, Timing, Workspace};
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
@@ -25,8 +25,6 @@ use donder_runtime_types::{Color, SampleDuration, SampleTime};
 pub(crate) struct ClipEvaluator<'a> {
     bound: Bound<'a>,
     context: RunContext,
-    spatial: bool,
-    uses_sections: bool,
     target: TargetView<'a>,
 }
 
@@ -159,6 +157,48 @@ struct StripLayout<'a> {
     contiguous: bool,
 }
 
+impl<'a> StripLayout<'a> {
+    /// What `program` reads of `target`'s pixels.
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn new(
+        show: Show<'a>,
+        program: ProgramView<'a>,
+        target: TargetView<'a>,
+        contiguous: bool,
+    ) -> Self {
+        Self {
+            show,
+            target,
+            spatial: program.flag(format::PROGRAM_USES_SPATIAL),
+            sections: program
+                .flag(format::PROGRAM_USES_SECTIONS)
+                .then_some(target.sections),
+            split: program.flag(format::PROGRAM_READS_TARGET),
+            contiguous,
+        }
+    }
+}
+
+/// A program's run context `time` into a span of `duration`.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn run_context(
+    show: Show<'_>,
+    time: SampleDuration,
+    duration: SampleDuration,
+    frames_elapsed: u32,
+) -> RunContext {
+    RunContext {
+        progress: time.as_ticks() as f32 / duration.as_ticks() as f32,
+        time,
+        duration,
+        frame_rate: show.frame_rate() as f32,
+        frames_elapsed,
+        pixel_count: 0,
+    }
+}
+
 /// Fill a strip from `pixel(pixels)`. A strip ends after [`STRIP`] pixels or,
 /// for a program that reads them, where the pixel count or target bounds
 /// change, or the addresses stop being consecutive. One copy serves every
@@ -254,14 +294,12 @@ impl<'a> ClipEvaluator<'a> {
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn layout(&self) -> StripLayout<'a> {
-        StripLayout {
-            show: self.bound.show,
-            target: self.target,
-            spatial: self.spatial,
-            sections: self.uses_sections.then_some(self.target.sections),
-            split: self.bound.program.flag(format::PROGRAM_READS_TARGET),
-            contiguous: self.reads_state(),
-        }
+        StripLayout::new(
+            self.bound.show,
+            self.bound.program,
+            self.target,
+            self.reads_state(),
+        )
     }
 
     /// Evaluate `count` pixels of this clip's target, `pixel(0..count)`, and
@@ -548,16 +586,14 @@ fn evaluate_layer(
         // Duplicate fixture layouts share samples by pixel index and count,
         // unless the clip reads its layer's frame by address.
         let sample_count = target.sample_count();
-        let cacheable = sample_count != 0
-            && !sampler.spatial
-            && !sampler.uses_sections
-            && !sampler.reads_state();
+        let layout = sampler.layout();
+        let cacheable =
+            sample_count != 0 && !layout.spatial && layout.sections.is_none() && !layout.contiguous;
         if cacheable {
             for sample in &mut clip_colors[..sample_count] {
                 sample.pixel_count = 0;
             }
         }
-        let layout = sampler.layout();
         let mut strip = sampler.strip(workspace);
         // Strips gather pixels across fixtures: each pending pixel's target
         // index and plan-target address.
@@ -653,16 +689,12 @@ fn evaluate_operator(
     programs: &mut Programs<'_, '_>,
 ) {
     let program = show.program(node.program);
-    let (time, frames_elapsed) = (programs.time, programs.frames_elapsed);
-    let duration = show.duration();
-    let context = RunContext {
-        progress: time.as_ticks() as f32 / duration.as_ticks() as f32,
-        time: SampleDuration::from_ticks(time.as_ticks()),
-        duration,
-        frame_rate: show.frame_rate() as f32,
-        frames_elapsed,
-        pixel_count: 0,
-    };
+    let context = run_context(
+        show,
+        SampleDuration::from_ticks(programs.time.as_ticks()),
+        show.duration(),
+        programs.frames_elapsed,
+    );
     let (params, workspace) = programs.params(
         show,
         ParamsRef {
@@ -680,16 +712,7 @@ fn evaluate_operator(
     let mut strip = Strip::new(bound, &context, workspace);
     let pixels = plan.cursor();
     let pixel = PixelSet::Target(&pixels);
-    let layout = StripLayout {
-        show,
-        target: plan,
-        spatial: program.flag(format::PROGRAM_USES_SPATIAL),
-        sections: program
-            .flag(format::PROGRAM_USES_SECTIONS)
-            .then_some(plan.sections),
-        split: program.flag(format::PROGRAM_READS_TARGET),
-        contiguous: false,
-    };
+    let layout = StripLayout::new(show, program, plan, false);
     let end = rendered.len();
     let mut start = 0;
     while start < end {
@@ -869,16 +892,12 @@ mod frames {
                 params,
                 sections: Some(target.sections),
             },
-            context: RunContext {
-                progress: elapsed as f32 / timing.duration as f32,
-                time: SampleDuration::from_ticks(elapsed),
-                duration: SampleDuration::from_ticks(timing.duration),
-                frame_rate: show.frame_rate() as f32,
+            context: run_context(
+                show,
+                SampleDuration::from_ticks(elapsed),
+                SampleDuration::from_ticks(timing.duration),
                 frames_elapsed,
-                pixel_count: 0,
-            },
-            spatial: program.flag(format::PROGRAM_USES_SPATIAL),
-            uses_sections: program.flag(format::PROGRAM_USES_SECTIONS),
+            ),
             target,
         }
     }

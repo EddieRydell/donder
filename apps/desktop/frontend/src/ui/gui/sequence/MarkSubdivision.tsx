@@ -1,6 +1,7 @@
+import { commands } from "../../../api";
+import { runGuiEditCommand } from "../../../store";
 import { useState } from "react";
-import { useSequenceEditorHost } from "../../../editor/host";
-import type { SequenceGuiDocument } from "../../../editor/types";
+import type { SequenceGuiDocument } from "../../../types";
 import { Button, Field, NumberField, Section, Select, TextField } from "../../kit";
 import { defaultMarkColor, subdivisionTimes } from "./marks";
 
@@ -25,7 +26,6 @@ export function MarkSubdivision({
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
   clearMarkSelection: () => void;
 }) {
-  const { commands, runGuiEditCommand } = useSequenceEditorHost();
   const [divisions, setDivisions] = useState(MIN_DIVISIONS);
   const [target, setTarget] = useState(NEW_COLLECTION);
   const [name, setName] = useState("subdivisions");

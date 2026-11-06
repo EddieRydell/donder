@@ -2,7 +2,7 @@
 //! encoding, and references are written relative to the document holding them.
 use super::types;
 use crate::ExportProjectError;
-use crate::address::{DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
+use crate::address::{DocumentId, ObjectAddress, SourceIdentity};
 use crate::source::ProjectSession;
 use donder_language::Point3;
 use donder_language::compiler::ParamDecl;
@@ -15,12 +15,12 @@ use donder_model::Setup;
 use donder_model::{
     Action, Console, ConsoleClipId, InputEvent, LengthSource, PlayLength, PlayedValue,
 };
-use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio, Window};
 use donder_model::{
-    AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver, PlayedQuantity,
+    AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver,
     SequenceCompositionGraph, SequenceLayer,
 };
+use donder_model::{Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
 use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform, OwnedFixture};
 use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
 use donder_model::{ObjectId, OwnedMember};
@@ -125,32 +125,15 @@ impl Encoder<'_> {
             resolved = slot
                 .child_kind(resolved)
                 .ok_or_else(|| self.error(root.object(), "invalid owned object address"))?;
-            match slot {
-                OwnedObjectSlot::Setup => reference.segments.push(segment("setup")?),
-                OwnedObjectSlot::Layout => reference.segments.push(segment("layout")?),
-                OwnedObjectSlot::Patch => reference.segments.push(segment("patch")?),
-                OwnedObjectSlot::Controller(member) => {
-                    reference.segments.push(segment("controllers")?);
-                    reference.segments.push(segment(member.as_str())?);
-                }
-                OwnedObjectSlot::InputDevice(member) => {
-                    reference.segments.push(segment("input_devices")?);
-                    reference.segments.push(segment(member.as_str())?);
-                }
-                OwnedObjectSlot::Sequence(member) => {
-                    reference.segments.push(segment("sequences")?);
-                    reference.segments.push(segment(member.as_str())?);
-                }
-                OwnedObjectSlot::Console(member) => {
-                    reference.segments.push(segment("consoles")?);
-                    reference.segments.push(segment(member.as_str())?);
-                }
-                OwnedObjectSlot::Fixture(_) => {
-                    return Err(self.error(
-                        root.object(),
-                        "owned fixture definitions are not referenced",
-                    ));
-                }
+            let (field, member) = slot.field().ok_or_else(|| {
+                self.error(
+                    root.object(),
+                    "owned fixture definitions are not referenced",
+                )
+            })?;
+            reference.segments.push(segment(field.name())?);
+            if let Some(member) = member {
+                reference.segments.push(segment(member.as_str())?);
             }
         }
         if resolved != kind || id.kind() != kind {
@@ -213,9 +196,8 @@ impl Encoder<'_> {
 
     pub(crate) fn project(&self) -> Result<types::Project, ExportProjectError> {
         let root = self.session.project.root();
-        let metadata = &self.session.source.workspace.metadata;
         Ok(types::Project {
-            format: metadata.format_version,
+            format: crate::PROJECT_FORMAT_VERSION,
             description: root.description.clone(),
             setup: self.source(ObjectKind::Setup, &root.setup, |setup| self.setup(setup))?,
             sequences: root
@@ -506,12 +488,7 @@ impl Encoder<'_> {
                 .iter()
                 .map(|value| types::PlayedValue {
                     param: name(&value.param),
-                    from: match value.from {
-                        PlayedQuantity::Velocity => types::PlayedQuantity::Velocity,
-                        PlayedQuantity::Pitch => types::PlayedQuantity::Pitch,
-                        PlayedQuantity::PitchClass => types::PlayedQuantity::PitchClass,
-                        PlayedQuantity::Fifths => types::PlayedQuantity::Fifths,
-                    },
+                    from: types::PlayedQuantity(value.from),
                     window: window_document(value.window),
                 })
                 .collect()
@@ -540,7 +517,7 @@ impl Encoder<'_> {
                         description: clip.description.clone(),
                         layer: self.layer_name(&console.layers, &clip.layer_id)?,
                         target: self.fixture_target(&clip.target)?,
-                        scope: scope_document(&clip.scope),
+                        scope: types::Scope(clip.scope.clone()),
                         effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
                         params: self.params(&declarations, &clip.param_overrides)?,
                     })
@@ -653,7 +630,7 @@ impl Encoder<'_> {
             start: clip.start.0,
             duration: clip.duration.0,
             target: self.fixture_target(&clip.target)?,
-            scope: scope_document(&clip.scope),
+            scope: types::Scope(clip.scope.clone()),
             effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
             params: self.params(&declarations, &clip.param_overrides)?,
         })
@@ -823,7 +800,7 @@ impl Encoder<'_> {
                 self.object_reference(ObjectKind::Gradient, *id)?.encode()
             }
             ParamValue::Gradient(OwnedGradient::Inline(gradient)) => types::GradientValue {
-                space: gradient_space(gradient.space),
+                space: types::GradientSpace(gradient.space),
                 stops: gradient_stops(gradient),
             }
             .encode(),
@@ -834,13 +811,6 @@ impl Encoder<'_> {
                     .collect::<Result<_, _>>()?,
             ),
         })
-    }
-}
-
-fn scope_document(scope: &donder_model::ClipScope) -> types::Scope {
-    match scope {
-        donder_model::ClipScope::PerFixture => types::Scope::PerFixture,
-        donder_model::ClipScope::WholeTarget => types::Scope::WholeTarget,
     }
 }
 
@@ -914,22 +884,19 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
         protocol: match &controller.protocol {
             ControllerProtocol::E131(config) => types::Protocol::E131 {
                 sender_name: config.sender_name.clone(),
-                bind_address: config.bind_address.to_string(),
+                bind_address: types::Spelled(config.bind_address),
                 priority: config.priority,
                 mode: match config.mode {
                     E131Mode::Multicast => types::E131Mode::Multicast,
                     E131Mode::Unicast { destination } => types::E131Mode::Unicast {
-                        destination: destination.to_string(),
+                        destination: types::Spelled(destination),
                     },
                 },
             },
             ControllerProtocol::ArtNet(config) => types::Protocol::ArtNet {
-                bind_address: config.bind_address.to_string(),
-                destination: config.destination.to_string(),
-                mode: match config.mode {
-                    ArtNetMode::Unicast => types::ArtNetMode::Unicast,
-                    ArtNetMode::Broadcast => types::ArtNetMode::Broadcast,
-                },
+                bind_address: types::Spelled(config.bind_address),
+                destination: types::Spelled(config.destination),
+                mode: types::ArtNetMode(config.mode),
             },
             ControllerProtocol::Donder(config) => types::Protocol::Donder {
                 device: config.device.as_str().to_string(),
@@ -1006,16 +973,8 @@ pub(crate) fn fixture_definition_document(
                         rows: *rows,
                         width: *width,
                         height: *height,
-                        axis: match axis {
-                            donder_model::GridAxis::Rows => types::GridAxis::Rows,
-                            donder_model::GridAxis::Columns => types::GridAxis::Columns,
-                        },
-                        corner: match corner {
-                            donder_model::GridCorner::BottomLeft => types::GridCorner::BottomLeft,
-                            donder_model::GridCorner::BottomRight => types::GridCorner::BottomRight,
-                            donder_model::GridCorner::TopLeft => types::GridCorner::TopLeft,
-                            donder_model::GridCorner::TopRight => types::GridCorner::TopRight,
-                        },
+                        axis: types::GridAxis(*axis),
+                        corner: types::GridCorner(*corner),
                         serpentine: *serpentine,
                     },
                 },
@@ -1050,14 +1009,6 @@ fn curve_value(curve: &Curve) -> types::CurveValue {
     }
 }
 
-fn gradient_space(space: donder_runtime_types::GradientSpace) -> types::GradientSpace {
-    match space {
-        donder_runtime_types::GradientSpace::LinearRgb => types::GradientSpace::LinearRgb,
-        donder_runtime_types::GradientSpace::Hsv => types::GradientSpace::Hsv,
-        donder_runtime_types::GradientSpace::Oklab => types::GradientSpace::Oklab,
-    }
-}
-
 fn gradient_stops(gradient: &Gradient) -> Vec<(f32, donder_runtime_types::Color)> {
     gradient
         .stops
@@ -1076,7 +1027,7 @@ pub(crate) fn curve_document(definition: &donder_model::CurveDefinition) -> type
 pub(crate) fn gradient_document(definition: &donder_model::GradientDefinition) -> types::Gradient {
     types::Gradient {
         description: definition.description.clone(),
-        space: gradient_space(definition.gradient.space),
+        space: types::GradientSpace(definition.gradient.space),
         stops: gradient_stops(&definition.gradient),
     }
 }

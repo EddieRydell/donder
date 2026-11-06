@@ -7,94 +7,114 @@ pub(crate) mod text_cache;
 pub(crate) mod types;
 
 use donder_language::compiler::{Diagnostic, TextSpan};
-use donder_language::data::{Data, Decoder, Record, Schema, declaration};
-use donder_language::data::{DataDeclaration, DataDocument, DataImport, Spanned};
+use donder_language::data::{Choice, Data, Decoder, Record, Refers, Schema, declaration};
+use donder_language::data::{DataDeclaration, DataDocument, DataField, DataImport, Spanned};
 use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
 
-/// One top-level declaration of a data document.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Declaration {
-    Project(types::Project),
-    Setup(types::Setup),
-    Controller(types::Controller),
-    InputDevice(types::InputDevice),
-    Layout(types::Layout),
-    Patch(types::Patch),
-    FixtureDefinition(types::FixtureDefinition),
-    Sequence(types::Sequence),
-    Console(types::Console),
-    Curve(types::Curve),
-    Gradient(types::Gradient),
-}
-
-impl Declaration {
-    pub(crate) fn kind(&self) -> ObjectKind {
-        match self {
-            Self::Project(_) => ObjectKind::Project,
-            Self::Setup(_) => ObjectKind::Setup,
-            Self::Controller(_) => ObjectKind::Controller,
-            Self::InputDevice(_) => ObjectKind::InputDevice,
-            Self::Layout(_) => ObjectKind::Layout,
-            Self::Patch(_) => ObjectKind::Patch,
-            Self::FixtureDefinition(_) => ObjectKind::FixtureDefinition,
-            Self::Sequence(_) => ObjectKind::Sequence,
-            Self::Console(_) => ObjectKind::Console,
-            Self::Curve(_) => ObjectKind::Curve,
-            Self::Gradient(_) => ObjectKind::Gradient,
+/// The declaration types, in schema order. Each is a `types` record and the
+/// `ObjectKind` of the same name; everything a document knows about its
+/// declarations follows from this list.
+macro_rules! declarations {
+    ($($ty:ident),+ $(,)?) => {
+        /// One top-level declaration of a data document.
+        #[derive(Clone, Debug, PartialEq)]
+        pub(crate) enum Declaration {
+            $($ty(types::$ty),)+
         }
-    }
 
-    fn encode(&self, name: &Identifier) -> DataDeclaration {
-        match self {
-            Self::Project(value) => declaration(name, value),
-            Self::Setup(value) => declaration(name, value),
-            Self::Controller(value) => declaration(name, value),
-            Self::InputDevice(value) => declaration(name, value),
-            Self::Layout(value) => declaration(name, value),
-            Self::Patch(value) => declaration(name, value),
-            Self::FixtureDefinition(value) => declaration(name, value),
-            Self::Sequence(value) => declaration(name, value),
-            Self::Console(value) => declaration(name, value),
-            Self::Curve(value) => declaration(name, value),
-            Self::Gradient(value) => declaration(name, value),
+        impl Declaration {
+            pub(crate) fn kind(&self) -> ObjectKind {
+                match self {
+                    $(Self::$ty(_) => ObjectKind::$ty,)+
+                }
+            }
+
+            fn encode(&self, name: &Identifier) -> DataDeclaration {
+                match self {
+                    $(Self::$ty(value) => declaration(name, value),)+
+                }
+            }
+
+            /// The declaration of type `ty`, or `None` with a diagnostic.
+            fn decode(
+                ty: &Spanned<Identifier>,
+                fields: &Spanned<Vec<DataField>>,
+                decoder: &mut Decoder,
+            ) -> Option<Self> {
+                match ty.value.as_str() {
+                    $(types::$ty::TYPE => types::$ty::decode_fields(fields, decoder).map(Self::$ty),)+
+                    other => {
+                        let names = DECLARATION_TYPE_NAMES.map(|name| format!("`{name}`"));
+                        let (last, rest) = names.split_last().unwrap_or_else(|| unreachable!());
+                        decoder.error(
+                            ty.span,
+                            format!(
+                                "`{other}` is not a declaration type; use {} or {last}",
+                                rest.join(", ")
+                            ),
+                        );
+                        None
+                    }
+                }
+            }
         }
+
+        /// Every type a data document may hold, with the declaration types first.
+        pub fn document_schema() -> Schema {
+            let mut schema = Schema::default();
+            $(types::$ty::shape(&mut schema);)+
+            schema
+        }
+
+        /// The types a data document declares at its top level.
+        pub const DECLARATION_TYPE_NAMES: [&str; [$(stringify!($ty)),+].len()] =
+            [$(types::$ty::TYPE),+];
+    };
+}
+
+declarations! {
+    Project,
+    Setup,
+    Controller,
+    InputDevice,
+    Layout,
+    Patch,
+    FixtureDefinition,
+    Sequence,
+    Console,
+    Curve,
+    Gradient,
+}
+
+/// The types whose objects a reference names: the declaration type of a
+/// `Declaration` reference, or whose members a `Fixture` or `Control`
+/// reference names as `declaration.member`, or the types of the objects of
+/// the same document a `Layer`, `Clip`, `Marks` or `Node` reference names.
+/// Effects and operators are scripts', not data types.
+pub fn reference_targets(refers: Refers) -> Vec<&'static str> {
+    match refers {
+        Refers::Declaration(ty) => vec![ty],
+        Refers::Effect | Refers::Operator => Vec::new(),
+        Refers::Fixture => vec![types::Layout::TYPE],
+        Refers::Control => vec![types::InputDevice::TYPE],
+        Refers::Layer => vec![types::Layer::TYPE],
+        Refers::Clip => vec![types::Clip::TYPE, types::ConsoleClip::TYPE],
+        Refers::Marks => vec![types::MarkCollection::TYPE, types::LiveMarks::TYPE],
+        Refers::Node => vec![types::Node::TYPE],
     }
 }
 
-/// Every type a data document may hold, with the declaration types first.
-pub fn document_schema() -> Schema {
-    let mut schema = Schema::default();
-    types::Project::shape(&mut schema);
-    types::Setup::shape(&mut schema);
-    types::Controller::shape(&mut schema);
-    types::InputDevice::shape(&mut schema);
-    types::Layout::shape(&mut schema);
-    types::Patch::shape(&mut schema);
-    types::FixtureDefinition::shape(&mut schema);
-    types::Sequence::shape(&mut schema);
-    types::Console::shape(&mut schema);
-    types::Curve::shape(&mut schema);
-    types::Gradient::shape(&mut schema);
-    schema
+/// What a parameter value of type `ty` names in a clip's or node's `params`.
+pub fn param_refers(ty: &donder_runtime_types::Type) -> Option<Refers> {
+    use donder_runtime_types::Type;
+    match ty {
+        Type::Marks => Some(Refers::Marks),
+        Type::Curve => Some(Refers::Declaration(types::Curve::TYPE)),
+        Type::Gradient => Some(Refers::Declaration(types::Gradient::TYPE)),
+        _ => None,
+    }
 }
-
-/// The types a data document declares at its top level.
-pub const DECLARATION_TYPE_NAMES: [&str; 11] = [
-    "Project",
-    "Setup",
-    "Controller",
-    "InputDevice",
-    "Layout",
-    "Patch",
-    "FixtureDefinition",
-    "Sequence",
-    "Console",
-    "Curve",
-    "Gradient",
-];
-
-const DECLARATION_TYPES: &str = "`Project`, `Setup`, `Controller`, `InputDevice`, `Layout`, `Patch`, `FixtureDefinition`, `Sequence`, `Console`, `Curve` or `Gradient`";
 
 /// A parsed data document: its imports and declarations by name, in order.
 #[derive(Clone, Debug, Default)]
@@ -113,49 +133,7 @@ pub(crate) fn read(source: &str) -> (ParsedDocument, Vec<Diagnostic>) {
         declarations: Vec::new(),
     };
     for item in &tree.declarations {
-        let fields = &item.fields;
-        let decoded = match item.ty.value.as_str() {
-            types::Project::TYPE => {
-                types::Project::decode_fields(fields, &mut decoder).map(Declaration::Project)
-            }
-            types::Setup::TYPE => {
-                types::Setup::decode_fields(fields, &mut decoder).map(Declaration::Setup)
-            }
-            types::Controller::TYPE => {
-                types::Controller::decode_fields(fields, &mut decoder).map(Declaration::Controller)
-            }
-            types::InputDevice::TYPE => types::InputDevice::decode_fields(fields, &mut decoder)
-                .map(Declaration::InputDevice),
-            types::Console::TYPE => {
-                types::Console::decode_fields(fields, &mut decoder).map(Declaration::Console)
-            }
-            types::Layout::TYPE => {
-                types::Layout::decode_fields(fields, &mut decoder).map(Declaration::Layout)
-            }
-            types::Patch::TYPE => {
-                types::Patch::decode_fields(fields, &mut decoder).map(Declaration::Patch)
-            }
-            types::FixtureDefinition::TYPE => {
-                types::FixtureDefinition::decode_fields(fields, &mut decoder)
-                    .map(Declaration::FixtureDefinition)
-            }
-            types::Sequence::TYPE => {
-                types::Sequence::decode_fields(fields, &mut decoder).map(Declaration::Sequence)
-            }
-            types::Curve::TYPE => {
-                types::Curve::decode_fields(fields, &mut decoder).map(Declaration::Curve)
-            }
-            types::Gradient::TYPE => {
-                types::Gradient::decode_fields(fields, &mut decoder).map(Declaration::Gradient)
-            }
-            other => {
-                decoder.error(
-                    item.ty.span,
-                    format!("`{other}` is not a declaration type; use {DECLARATION_TYPES}"),
-                );
-                None
-            }
-        };
+        let decoded = Declaration::decode(&item.ty, &item.fields, &mut decoder);
         if let Some(decoded) = decoded {
             let span = item.ty.span.to(item.fields.span);
             document
@@ -178,9 +156,8 @@ pub(crate) fn read(source: &str) -> (ParsedDocument, Vec<Diagnostic>) {
     (document, diagnostics)
 }
 
-/// The canonical text of a data document.
-/// The document's text; each splice prints a declaration's list field from
-/// items rendered beforehand.
+/// The canonical text of a data document; each splice prints a declaration's
+/// list field from items rendered beforehand.
 pub(crate) fn write(
     imports: Vec<DataImport>,
     declarations: &[(Identifier, Declaration)],

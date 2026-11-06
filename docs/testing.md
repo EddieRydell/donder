@@ -16,7 +16,7 @@ pnpm check
 3. the firmware-owned device-storage tests on the host (`pnpm storage:test`).
 
 The storage tests need a host C compiler and `DONDER_HOST_LIBCLANG_PATH`; see
-the root [development setup](../README.md#development). They build in
+[development](development.md#checks). They build in
 `target/storage-host`. Firmware code outside device storage is checked with the
 commands in the [firmware README](../firmware/esp32/README.md#validation).
 
@@ -47,7 +47,7 @@ Key contracts and their tests:
 
 | Contract | Tests |
 | --- | --- |
-| Save and reload preserve meaning | `donder-project-io` `semantic_preservation`, `roundtrip`, `path_refactor` |
+| Save and reload preserve meaning | `donder-project-io` `exact_round_trip`, `roundtrip`, `path_refactor` |
 | Strict parsing with exact locations | `donder-project-io` `schema_strictness`, `diagnostics` |
 | Controller fragments match full playback | `donder-elaboration` `output_selection` |
 | Show round trips and version rejection | `donder-elaboration` `sequence_archive`, `clip_sampling` |

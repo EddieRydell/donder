@@ -3,7 +3,7 @@ use crate::sequence::{AutomationTarget, Sequence};
 use crate::validation::{AdmissionProblem, ValidationProblem};
 use donder_language::compiler::ParamDecl;
 use donder_runtime_types::{AutomatedQuantity, PreparedAutomation};
-use donder_runtime_types::{SampleDuration, SampleTime};
+
 use std::sync::Arc;
 
 /// Clips bound to the same target are merged into one envelope, so playback
@@ -27,31 +27,26 @@ pub(super) fn admit(
         .into_iter()
         .map(|target| {
             let name = target.param();
-            let (param_index, mapping) = params
+            fn proven<T>() -> T {
+                unreachable!("validation proves an automated parameter is automatable")
+            }
+            let index = params
                 .iter()
                 .position(|param| &param.name == name)
-                .and_then(|index| {
-                    Some((
-                        u16::try_from(index).ok()?,
-                        params[index].automation_mapping()?,
-                    ))
-                })
-                .ok_or(ValidationProblem::Admission(
-                    AdmissionProblem::UnknownAutomationParam,
-                ))?;
-            let envelope =
-                sequence
-                    .automation_envelope(target)
-                    .ok_or(ValidationProblem::Admission(
-                        AdmissionProblem::AutomationWithoutClip,
-                    ))?;
+                .unwrap_or_else(proven);
+            let mapping = params[index].automation_mapping().unwrap_or_else(proven);
+            let param_index = u16::try_from(index)
+                .map_err(|_| ValidationProblem::Admission(AdmissionProblem::TooManyParams))?;
+            let envelope = sequence
+                .automation_envelope(target)
+                .unwrap_or_else(|| unreachable!("the target came from a binding"));
             let mut curve = envelope.curve;
             curve
                 .points
                 .sort_by(|left, right| left.position.total_cmp(&right.position));
             Ok(PreparedAutomation {
-                start: SampleTime::from_ticks(envelope.start.as_micros_rounded() as u32),
-                duration: SampleDuration::from_ticks(envelope.duration.as_micros_rounded() as u32),
+                start: crate::clock::sample_time(&envelope.start),
+                duration: crate::clock::sample_duration(&envelope.duration),
                 curve: Arc::new(curve),
                 mapping,
                 quantity: AutomatedQuantity::Value,

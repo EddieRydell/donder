@@ -1288,7 +1288,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
       frame_rate: 30,
       audio: none,
       marks: [],
-      layers: [],
+      layers: [Layer { name: default, description: none, color: #50a0ff, enabled: true }],
       clips: [],
       graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
       automation: [],
@@ -1562,18 +1562,6 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
                 ))
         );
         state.redo_active_edit();
-        assert_eq!(
-            state.project_session().unwrap().project,
-            disconnected.project
-        );
-        let premature = edit(CompositionGuiEdit::ConnectGraphNodes {
-            connection: SequenceGraphEdge {
-                from_node: node.id,
-                to_node: connection.to_node,
-                input: connection.input.clone(),
-            },
-        });
-        assert!(matches!(premature.document, GuiDocument::Blocked { .. }));
         assert_eq!(
             state.project_session().unwrap().project,
             disconnected.project
@@ -2320,10 +2308,9 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
 /// Replace the root document with `imports` and a `Project show` holding
 /// `fields` after its metadata and description.
 fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
-    let metadata = donder_project_io::ProjectMetadata::read(root).unwrap();
     let text = format!(
         "{imports}\nProject show {{\n  format: {},\n  description: none,\n{fields}\n  consoles: [],\n}}\n",
-        metadata.format_version
+        donder_project_io::PROJECT_FORMAT_VERSION
     );
     std::fs::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
 }
@@ -2367,7 +2354,6 @@ fn member(state: &DesktopState, slot: Slot) -> OwnershipMember {
             path: address.document().to_string(),
             object_key: address.root_source().object().into(),
             kind: id.kind().into(),
-            id: address.root_source().object().into(),
         },
     }
 }

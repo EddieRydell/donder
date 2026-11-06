@@ -1,4 +1,5 @@
-import { useSequenceEditorHost } from "../../../editor/host";
+import { commands } from "../../../api";
+import { runGuiEditCommand } from "../../../store";
 import { useMemo, useState } from "react";
 
 import { CheckCheck, Circle, CircleDot, Eye, EyeOff, Link2, Plus, Trash2 } from "lucide-react";
@@ -14,9 +15,9 @@ import type {
   SequenceMarkRef,
   SequenceClipScope,
   SequenceClipCommonEdit
-} from "../../../editor/types";
+} from "../../../types";
 import { ColorPicker } from "../../ColorPicker";
-import { AddRow, Button, Field, IconButton, NumberField, Section, Select, TextField, type SelectOption } from "../../kit";
+import { AddRow, Button, Field, IconButton, NumberField, Section, Select, Tabs, TextField, type SelectOption } from "../../kit";
 import { EffectDefinitionPicker, effectReferencesEqual } from "./definitionMenu";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
 import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
@@ -40,10 +41,10 @@ type SelectedMarkEntry = {
   label: string | null;
 };
 
-const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
-  { id: "clip", label: "Clip" },
-  { id: "layers", label: "Layers" },
-  { id: "marks", label: "Marks" },
+const SEQUENCE_INSPECTOR_TABS: { value: SequenceInspectorTab; label: string }[] = [
+  { value: "clip", label: "Clip" },
+  { value: "layers", label: "Layers" },
+  { value: "marks", label: "Marks" }
 ];
 
 /** The select value shown while the selected clips differ; never a real layer id or scope. */
@@ -108,27 +109,8 @@ export function SequenceInspector({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const [tab, setActiveTab] = useState<SequenceInspectorTab>("clip");
-  const activeTab = tab;
-
-  const footer = (
-    <div className="sequence-inspector-tabs" role="tablist" aria-label="Sequence inspector sections">
-      {SEQUENCE_INSPECTOR_TABS.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === tab.id}
-          className={activeTab === tab.id ? "active" : ""}
-          onClick={() => {
-            setActiveTab(tab.id);
-          }}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
+  const [activeTab, setActiveTab] = useState<SequenceInspectorTab>("clip");
+  const footer = <Tabs name="Sequence inspector sections" value={activeTab} options={SEQUENCE_INSPECTOR_TABS} onChange={setActiveTab} />;
 
   return (
     <InspectorScrollArea footer={footer}>
@@ -173,8 +155,6 @@ function SelectedClipsInspector({
   clipIds: number[];
   onDelete: () => void;
 }) {
-  const host = useSequenceEditorHost();
-  const { commands, runGuiEditCommand } = host;
 
   const clips = clipIds
     .map((id) => document.clips.find((clip) => clip.id === id))
@@ -319,8 +299,6 @@ function ClipInspectorPanel({
   automationClipChooser: AutomationClipChooser;
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 }) {
-  const host = useSequenceEditorHost();
-  const { commands, runGuiEditCommand } = host;
   const inspectedAutomationClip = selected?.type === "automationClip"
     ? document.automationClips.find((automationClip) => automationClip.id === selected.id) ?? null
     : null;
@@ -501,8 +479,7 @@ function ClipInspectorPanel({
 }
 
 function LayerInspectorPanel({ document }: { document: SequenceGuiDocument }) {
-  const host = useSequenceEditorHost();
-  const composition = useMemo(() => sequenceComposition(host, document, null), [host, document]);
+  const composition = useMemo(() => sequenceComposition(document, null), [document]);
   return <><h2>Layers</h2><LayerList composition={composition} /></>;
 }
 
@@ -527,8 +504,6 @@ function MarkInspectorPanel({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const host = useSequenceEditorHost();
-  const { commands, runGuiEditCommand } = host;
 
   const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
   const activeCollection = activeMarkCollection(document.markCollections, activeMarkCollectionKey);

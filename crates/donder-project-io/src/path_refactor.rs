@@ -1,12 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs;
-use std::io;
 
 use crate::address::DocumentId;
 use camino::{Utf8Path, Utf8PathBuf};
 use tempfile::Builder;
 
-use crate::serialization::document_text;
+use crate::serialization::{FileReplacement, document_text, replace_files};
 use crate::source::ProjectSession;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -168,25 +167,28 @@ pub fn apply_path_change(
         return Err(message);
     }
 
-    let mut backups = BTreeMap::new();
-    let mut written = BTreeSet::new();
-    let result: Result<(), String> = (|| {
-        for (path, bytes) in prepared {
-            backup_path(&mut backups, &path)?;
-            write_bytes(&path, &bytes)?;
-            written.insert(path);
-        }
-        validate_candidate(&candidate)?;
-        Ok(())
+    let result = (|| {
+        let previous = prepared
+            .keys()
+            .map(|path| crate::serialization::read_previous(path))
+            .collect::<Result<Vec<_>, _>>()?;
+        let files = prepared
+            .iter()
+            .zip(&previous)
+            .map(|((path, bytes), previous)| FileReplacement {
+                path: path.clone(),
+                bytes,
+                previous: previous.as_deref(),
+            })
+            .collect::<Vec<_>>();
+        replace_files(&files)
     })();
-
     if let Err(error) = result {
-        let write_rollback = rollback_writes(&backups, &written);
-        let move_rollback = fs::rename(&destination_absolute, &source_absolute);
-        let rollback_error = write_rollback.err().or_else(|| move_rollback.err());
-        return Err(rollback_error.map_or(error.clone(), |rollback_error| {
-            format!("{error}; rollback also failed: {rollback_error}")
-        }));
+        let error = error.to_string();
+        return Err(match fs::rename(&destination_absolute, &source_absolute) {
+            Ok(()) => error,
+            Err(rollback_error) => format!("{error}; rollback also failed: {rollback_error}"),
+        });
     }
     Ok(candidate)
 }
@@ -226,11 +228,6 @@ fn prepare_writes(candidate: &ProjectSession) -> Result<BTreeMap<Utf8PathBuf, Ve
         );
     }
     Ok(writes)
-}
-
-fn validate_candidate(candidate: &ProjectSession) -> Result<(), String> {
-    candidate.source.workspace.metadata.validate()?;
-    crate::serialization::validate_source_inventory(candidate).map_err(|error| error.to_string())
 }
 
 fn normalize_relative(path: &Utf8Path) -> Result<Utf8PathBuf, String> {
@@ -299,49 +296,4 @@ fn replace_prefix(path: &Utf8Path, from: &Utf8Path, to: &Utf8Path) -> Option<Utf
 
 fn logical_path(path: &Utf8Path) -> Utf8PathBuf {
     Utf8PathBuf::from(path.as_str().replace('\\', "/"))
-}
-
-fn backup_path(
-    backups: &mut BTreeMap<Utf8PathBuf, Option<Vec<u8>>>,
-    path: &Utf8Path,
-) -> Result<(), String> {
-    if backups.contains_key(path) {
-        return Ok(());
-    }
-    let bytes = match fs::read(path) {
-        Ok(bytes) => Some(bytes),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(format!("Failed to back up `{path}`: {error}")),
-    };
-    backups.insert(path.to_path_buf(), bytes);
-    Ok(())
-}
-
-fn write_bytes(path: &Utf8Path, bytes: &[u8]) -> Result<(), String> {
-    crate::atomic_write(path, bytes).map_err(|error| format!("Failed to write `{path}`: {error}"))
-}
-
-fn rollback_writes(
-    backups: &BTreeMap<Utf8PathBuf, Option<Vec<u8>>>,
-    written: &BTreeSet<Utf8PathBuf>,
-) -> io::Result<()> {
-    for (path, bytes) in backups.iter().rev() {
-        if !written.contains(path) {
-            continue;
-        }
-        match bytes {
-            Some(bytes) => {
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                crate::atomic_write(path, bytes).map_err(io::Error::other)?;
-            }
-            None => match fs::remove_file(path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error),
-            },
-        }
-    }
-    Ok(())
 }

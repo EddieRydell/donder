@@ -4,7 +4,8 @@
 //!   every field written, in declaration order. It also implements `Record`,
 //!   so it can be a declaration's body.
 //! - An enum is a choice of variants: a unit variant is its bare name, and a
-//!   variant with named fields is written like a record.
+//!   variant with named fields is written like a record. It also implements
+//!   `Choice`, which names it.
 //!
 //! The Rust names are the language names, so a type's definition is its
 //! schema. `#[data(name = "Gradient")]` on a record names it otherwise, for a
@@ -220,6 +221,9 @@ fn choice(ident: &Ident, variants: &[(&Ident, Option<&FieldsNamed>)]) -> Tokens 
         }
     });
     quote! {
+        impl #schema::Choice for #ident {
+            const TYPE: &'static str = #text;
+        }
         impl #schema::Data for #ident {
             fn decode(
                 value: &::donder_language::data::Spanned<::donder_language::data::DataValue>,

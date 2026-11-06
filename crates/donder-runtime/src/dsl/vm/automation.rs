@@ -12,7 +12,10 @@ use bytemuck::{Pod, Zeroable};
 use donder_runtime_types::sampling::{
     curve_area, curve_prefix_areas, curve_slopes, sample_curve_points,
 };
-use donder_runtime_types::{SECONDS_PER_TICK, SampleTime, curve_window_points};
+use donder_runtime_types::{
+    SECONDS_PER_TICK, SampleTime, automated_bool, automated_float, automated_index, automated_int,
+    curve_window_points,
+};
 
 /// A live automation's value for one binding, from when it was set.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
@@ -154,7 +157,7 @@ fn apply(
         let (fmin, fmax) = (f32::from_bits(record.min), f32::from_bits(record.max));
         match record.kind {
             format::BINDING_FLOAT => {
-                scratch.words[destination] = (fmin + (fmax - fmin) * amount()).to_bits();
+                scratch.words[destination] = automated_float(fmin, fmax, amount()).to_bits();
             }
             format::BINDING_FLOAT_INTEGRAL => {
                 // Automation values stay in 0..1, so the value's clamp never
@@ -168,18 +171,15 @@ fn apply(
                     (fmin * elapsed + (fmax - fmin) * seconds * area).to_bits();
             }
             format::BINDING_INT => {
-                let (min, max) = (record.min as i32 as f32, record.max as i32 as f32);
                 scratch.words[destination] =
-                    libm::roundf(min + (max - min) * amount()) as i32 as u32;
+                    automated_int(record.min as i32, record.max as i32, amount()) as u32;
             }
             format::BINDING_BOOL => {
-                scratch.words[destination] = u32::from(amount() >= 0.5);
+                scratch.words[destination] = u32::from(automated_bool(amount()));
             }
             format::BINDING_ENUM => {
                 let options = record.options.get(s.enum_options);
-                let index =
-                    (libm::floorf(amount() * options.len() as f32) as usize).min(options.len() - 1);
-                scratch.words[destination] = options[index];
+                scratch.words[destination] = options[automated_index(options.len(), amount())];
             }
             format::BINDING_LIVE_MARKS => {
                 scratch.resources[destination] = ResourceSlot {

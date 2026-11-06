@@ -2,7 +2,7 @@ use crate::common;
 use crate::common::starter_copy as starter;
 use camino::Utf8Path;
 use donder_project_io::{
-    PROJECT_ROOT_FILE, ProjectMetadata, check_project, export_editable_project, plan_path_change,
+    PROJECT_ROOT_FILE, check_project, export_editable_project, plan_path_change,
 };
 use std::fs;
 
@@ -55,7 +55,7 @@ fn root_stays_fixed_and_copy_preserves_workspace_identity() {
     let session = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap();
-    let metadata = ProjectMetadata::read(&root).unwrap();
+    let root_text = fs::read_to_string(root.join(PROJECT_ROOT_FILE)).unwrap();
     let error = plan_path_change(
         &session,
         Utf8Path::new("project.data.donder"),
@@ -72,5 +72,8 @@ fn root_stays_fixed_and_copy_preserves_workspace_identity() {
             .project,
         session.project
     );
-    assert_eq!(ProjectMetadata::read(&destination).unwrap(), metadata);
+    assert_eq!(
+        fs::read_to_string(destination.join(PROJECT_ROOT_FILE)).unwrap(),
+        root_text
+    );
 }

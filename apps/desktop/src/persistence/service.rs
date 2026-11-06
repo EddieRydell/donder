@@ -6,9 +6,10 @@ use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Manager};
 
 use super::model::*;
+use crate::desktop_state::remap_workspace_path;
 use donder_editor::dto::{AppSettings, AppSnapshot, WorkspaceLayoutState};
 
-const FILE_NAME: &str = "desktop-state-v2.json";
+const FILE_NAME: &str = "desktop-state.json";
 const MAX_RECENT_PROJECTS: usize = 10;
 
 pub(crate) fn sequence_viewport_key(
@@ -428,9 +429,7 @@ impl PersistenceInner {
 }
 
 fn decode_store(text: &str) -> Result<PersistedStore, String> {
-    let store: PersistedStore = serde_json::from_str(text).map_err(|error| error.to_string())?;
-    store.validate()?;
-    Ok(store)
+    serde_json::from_str(text).map_err(|error| error.to_string())
 }
 
 fn persistence_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -455,16 +454,6 @@ fn trim_recent_projects(store: &mut PersistedStore) {
     for project in remove {
         store.projects.remove(&project);
     }
-}
-
-fn remap_workspace_path(path: &str, source: &str, destination: &str) -> String {
-    if path == source {
-        return destination.to_string();
-    }
-    path.strip_prefix(source)
-        .and_then(|suffix| suffix.strip_prefix('/'))
-        .map(|suffix| format!("{destination}/{suffix}"))
-        .unwrap_or_else(|| path.to_string())
 }
 
 #[cfg(test)]
@@ -630,17 +619,13 @@ mod tests {
     }
 
     #[test]
-    fn current_desktop_state_roundtrips_and_other_versions_are_rejected() {
+    fn current_desktop_state_roundtrips() {
         let mut original = serde_json::to_value(PersistedStore::default()).unwrap();
         original["settings"]["autosaveProjectEdits"] = serde_json::json!(false);
         original["workspaceLayout"]["sidebarWidthPx"] = serde_json::json!(345.0);
         original["lastProject"] = serde_json::json!("C:/project");
         let loaded = decode_store(&original.to_string()).unwrap();
         assert_eq!(serde_json::to_value(loaded).unwrap(), original);
-        for version in [VERSION - 1, VERSION + 1] {
-            original["version"] = serde_json::json!(version);
-            assert!(decode_store(&original.to_string()).is_err());
-        }
     }
 
     #[test]

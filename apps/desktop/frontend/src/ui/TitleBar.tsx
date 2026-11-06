@@ -58,17 +58,9 @@ export function TitleBar() {
       </Menubar.Root>
       <HistoryButtons />
       <div className="window-controls">
-        <button onClick={() => void appWindow.minimize()} aria-label="Minimize">
-        <Minus size={THEME_METRICS.iconSizeCompact} />
-        </button>
-        <button onClick={() => void toggleMaximize()} aria-label={isMaximized ? "Restore" : "Maximize"}>
-          {isMaximized
-            ? <Minimize2 size={THEME_METRICS.iconSizeSmall} />
-            : <Maximize2 size={THEME_METRICS.iconSizeSmall} />}
-        </button>
-        <button className="close" onClick={() => void appWindow.close()} aria-label="Close">
-          <X size={THEME_METRICS.iconSizeCompact} />
-        </button>
+        <IconButton icon={Minus} label="Minimize" onClick={() => void appWindow.minimize()} />
+        <IconButton icon={isMaximized ? Minimize2 : Maximize2} label={isMaximized ? "Restore" : "Maximize"} onClick={() => void toggleMaximize()} />
+        <IconButton icon={X} label="Close" command="file.closeWindow" className="window-close" onClick={() => void appWindow.close()} />
       </div>
     </header>
   );

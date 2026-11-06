@@ -4,16 +4,10 @@ use std::fs;
 use camino::{Utf8Path, Utf8PathBuf};
 
 use donder_editor::dto::{
-    WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryPlainRole, WorkspaceEntryRole,
+    ObjectKind, WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryPlainRole, WorkspaceEntryRole,
     WorkspaceOperation,
 };
-use donder_project_io::{ProjectRecovery, ProjectSession};
-
-#[derive(Clone, Copy)]
-pub(crate) enum FsEntryKind {
-    File,
-    Directory,
-}
+use donder_project_io::{ProjectRecovery, ProjectSession, SourceDocumentFormat};
 
 fn canonical_relative_path(path: &Utf8Path) -> Utf8PathBuf {
     Utf8PathBuf::from(path.as_str().replace(std::path::MAIN_SEPARATOR, "/"))
@@ -22,7 +16,7 @@ fn canonical_relative_path(path: &Utf8Path) -> Utf8PathBuf {
 fn collect_workspace_paths(
     root: &Utf8Path,
     relative: &Utf8Path,
-    paths: &mut BTreeMap<Utf8PathBuf, FsEntryKind>,
+    paths: &mut BTreeMap<Utf8PathBuf, WorkspaceEntryKind>,
 ) {
     let absolute = root.join(relative);
     let Ok(entries) = fs::read_dir(absolute) else {
@@ -34,218 +28,167 @@ fn collect_workspace_paths(
         };
         let path = canonical_relative_path(&relative.join(name));
         let kind = if entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
-            FsEntryKind::Directory
+            WorkspaceEntryKind::Directory
         } else {
-            FsEntryKind::File
+            WorkspaceEntryKind::File
         };
         paths.insert(path.clone(), kind);
-        if matches!(kind, FsEntryKind::Directory) {
+        if kind == WorkspaceEntryKind::Directory {
             collect_workspace_paths(root, &path, paths);
         }
     }
 }
 
-fn insert_path_with_parents(paths: &mut BTreeMap<Utf8PathBuf, FsEntryKind>, path: &Utf8Path) {
-    let mut current = Utf8PathBuf::new();
-    let path = canonical_relative_path(path);
-    for component in path.components() {
-        let camino::Utf8Component::Normal(part) = component else {
-            continue;
-        };
-        current.push(part);
-        current = canonical_relative_path(&current);
-        let kind = if current == path {
-            FsEntryKind::File
-        } else {
-            FsEntryKind::Directory
-        };
-        paths.entry(current.clone()).or_insert(kind);
+/// Every file and folder under `root`, with each document and its folders.
+fn workspace_paths<'a>(
+    root: &Utf8Path,
+    documents: impl Iterator<Item = &'a Utf8Path>,
+) -> BTreeMap<Utf8PathBuf, WorkspaceEntryKind> {
+    let mut paths = BTreeMap::new();
+    collect_workspace_paths(root, Utf8Path::new(""), &mut paths);
+    for document in documents {
+        let document = canonical_relative_path(document);
+        let mut current = Utf8PathBuf::new();
+        for component in document.components() {
+            let camino::Utf8Component::Normal(part) = component else {
+                continue;
+            };
+            current = canonical_relative_path(&current.join(part));
+            let kind = if current == document {
+                WorkspaceEntryKind::File
+            } else {
+                WorkspaceEntryKind::Directory
+            };
+            paths.entry(current.clone()).or_insert(kind);
+        }
+    }
+    paths
+}
+
+/// What a document is to the explorer: its format and its first object.
+struct DocumentRole {
+    format: SourceDocumentFormat,
+    first_object: Option<ObjectKind>,
+}
+
+fn role(
+    path: &Utf8Path,
+    kind: WorkspaceEntryKind,
+    document: Option<DocumentRole>,
+    asset: bool,
+) -> WorkspaceEntryRole {
+    let plain = WorkspaceEntryRole::Entry;
+    if kind == WorkspaceEntryKind::Directory {
+        return plain(WorkspaceEntryPlainRole::Directory);
+    }
+    if path == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
+        return plain(WorkspaceEntryPlainRole::Entrypoint);
+    }
+    match document {
+        Some(DocumentRole {
+            first_object: Some(kind),
+            ..
+        }) => WorkspaceEntryRole::Object(kind),
+        Some(DocumentRole {
+            format: SourceDocumentFormat::Script,
+            ..
+        }) => WorkspaceEntryRole::Object(ObjectKind::Effect),
+        Some(_) => plain(WorkspaceEntryPlainRole::File),
+        None if asset => plain(WorkspaceEntryPlainRole::Asset),
+        None => plain(WorkspaceEntryPlainRole::File),
     }
 }
+
+fn entry(
+    path: Utf8PathBuf,
+    kind: WorkspaceEntryKind,
+    role: WorkspaceEntryRole,
+    operations: Vec<WorkspaceOperation>,
+    operation_explanation: Option<String>,
+) -> WorkspaceEntry {
+    WorkspaceEntry {
+        name: path
+            .file_name()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| path.to_string()),
+        parent: path.parent().map(Utf8Path::to_string).unwrap_or_default(),
+        path: canonical_relative_path(&path).to_string(),
+        kind,
+        role,
+        operations,
+        operation_explanation,
+    }
+}
+
+const ROOT_FIXED: &str = "project.data.donder must remain at the project root.";
 
 pub(crate) fn workspace_entries(session: &ProjectSession) -> Vec<WorkspaceEntry> {
-    let mut paths = BTreeMap::new();
-    collect_workspace_paths(session.source.project_root(), Utf8Path::new(""), &mut paths);
-    for document in session.source.documents.keys() {
-        insert_path_with_parents(&mut paths, document.path());
-    }
-    paths
-        .into_iter()
-        .map(|(path, kind)| workspace_entry(session, path, kind))
-        .collect()
-}
-
-pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<WorkspaceEntry> {
-    let mut paths = BTreeMap::new();
-    collect_workspace_paths(&recovery.root, Utf8Path::new(""), &mut paths);
-    for path in recovery.documents.keys() {
-        insert_path_with_parents(&mut paths, path);
-    }
-    paths
+    let documents = session.source.documents.keys().map(|id| id.path());
+    workspace_paths(session.source.project_root(), documents)
         .into_iter()
         .map(|(path, kind)| {
-            let name = path
-                .file_name()
-                .map(ToString::to_string)
-                .unwrap_or_else(|| path.to_string());
-            let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
-            let role = recovery_workspace_role(recovery, &path, kind);
-            let fixed = matches!(
-                role,
-                WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint)
-            );
-            WorkspaceEntry {
-                path: canonical_relative_path(&path).to_string(),
-                kind: match kind {
-                    FsEntryKind::Directory => WorkspaceEntryKind::Directory,
-                    FsEntryKind::File => WorkspaceEntryKind::File,
-                },
-                name,
-                parent,
-                role,
-                operations: match kind {
-                    FsEntryKind::File => vec![WorkspaceOperation::Open],
-                    FsEntryKind::Directory => Vec::new(),
-                },
-                operation_explanation: Some(if fixed {
-                    "project.data.donder must remain at the project root.".to_string()
-                } else {
-                    "Project-model operations are disabled until project errors are fixed."
-                        .to_string()
-                }),
+            let document = session
+                .source
+                .documents
+                .get(&donder_project_io::DocumentId::new(path.clone()))
+                .map(|document| DocumentRole {
+                    format: document.format(),
+                    first_object: document.objects().first().map(|object| object.kind().into()),
+                });
+            let asset = session
+                .source
+                .referenced_assets
+                .iter()
+                .any(|asset| asset.relative_path == path);
+            let role = role(&path, kind, document, asset);
+            let fixed = role == WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
+            let structural = session.source.is_structural_workspace_path(&path);
+            let mut operations = vec![match kind {
+                WorkspaceEntryKind::Directory => WorkspaceOperation::Create,
+                WorkspaceEntryKind::File => WorkspaceOperation::Open,
+            }];
+            if !fixed {
+                operations.extend([WorkspaceOperation::Rename, WorkspaceOperation::Move]);
+                if !structural {
+                    operations.push(WorkspaceOperation::Delete);
+                }
             }
+            let explanation = if fixed {
+                Some(ROOT_FIXED.to_string())
+            } else if structural {
+                Some(
+                    "Imported documents cannot be deleted; rename or move them through the typed path workflow."
+                        .to_string(),
+                )
+            } else {
+                None
+            };
+            entry(path, kind, role, operations, explanation)
         })
         .collect()
 }
 
-fn recovery_workspace_role(
-    recovery: &ProjectRecovery,
-    path: &Utf8Path,
-    kind: FsEntryKind,
-) -> WorkspaceEntryRole {
-    if matches!(kind, FsEntryKind::Directory) {
-        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Directory);
-    }
-    if path == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
-        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
-    }
-    let Some(document) = recovery.documents.get(path) else {
-        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File);
-    };
-    match document.format {
-        donder_project_io::SourceDocumentFormat::Script => {
-            WorkspaceEntryRole::Object(donder_editor::dto::ObjectKind::Effect)
-        }
-        donder_project_io::SourceDocumentFormat::Other => {
-            WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)
-        }
-        donder_project_io::SourceDocumentFormat::Data => document
-            .objects
-            .iter()
-            .map(|object| WorkspaceEntryRole::Object(object.kind.into()))
-            .next()
-            .unwrap_or(WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)),
-    }
-}
-
-fn workspace_entry(
-    session: &ProjectSession,
-    path: Utf8PathBuf,
-    kind: FsEntryKind,
-) -> WorkspaceEntry {
-    let name = path
-        .file_name()
-        .map(ToString::to_string)
-        .unwrap_or_else(|| path.to_string());
-    let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
-    let role = workspace_role(session, &path, kind);
-    let fixed = matches!(
-        role,
-        WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint)
-    );
-    let structural = session.source.is_structural_workspace_path(&path);
-    let operations = match kind {
-        FsEntryKind::Directory => {
-            let mut operations = vec![WorkspaceOperation::Create];
-            if !fixed {
-                operations.extend([WorkspaceOperation::Rename, WorkspaceOperation::Move]);
-                if !structural {
-                    operations.push(WorkspaceOperation::Delete);
-                }
-            }
-            operations
-        }
-        FsEntryKind::File => {
-            let mut operations = vec![WorkspaceOperation::Open];
-            if !fixed {
-                operations.extend([WorkspaceOperation::Rename, WorkspaceOperation::Move]);
-                if !structural {
-                    operations.push(WorkspaceOperation::Delete);
-                }
-            }
-            operations
-        }
-    };
-    WorkspaceEntry {
-        path: canonical_relative_path(&path).to_string(),
-        kind: match kind {
-            FsEntryKind::Directory => WorkspaceEntryKind::Directory,
-            FsEntryKind::File => WorkspaceEntryKind::File,
-        },
-        name,
-        parent,
-        role,
-        operations,
-        operation_explanation: if fixed {
-            Some("project.data.donder must remain at the project root.".to_string())
-        } else if structural {
-            Some(
-                "Imported documents cannot be deleted; rename or move them through the typed path workflow."
-                    .to_string(),
-            )
-        } else {
-            None
-        },
-    }
-}
-
-fn workspace_role(
-    session: &ProjectSession,
-    relative: &Utf8Path,
-    kind: FsEntryKind,
-) -> WorkspaceEntryRole {
-    if matches!(kind, FsEntryKind::Directory) {
-        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Directory);
-    }
-    if relative == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
-        return WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
-    }
-    let document_id = donder_project_io::DocumentId::new(relative.to_path_buf());
-    if let Some(document) = session.source.documents.get(&document_id) {
-        let fallback = match document.format() {
-            donder_project_io::SourceDocumentFormat::Script => {
-                WorkspaceEntryRole::Object(donder_editor::dto::ObjectKind::Effect)
-            }
-            donder_project_io::SourceDocumentFormat::Data
-            | donder_project_io::SourceDocumentFormat::Other => {
-                WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)
-            }
-        };
-        return document
-            .objects()
-            .iter()
-            .map(|object| WorkspaceEntryRole::Object(object.kind().into()))
-            .next()
-            .unwrap_or(fallback);
-    }
-    if session
-        .source
-        .referenced_assets
-        .iter()
-        .any(|asset| asset.relative_path == relative)
-    {
-        WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Asset)
-    } else {
-        WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::File)
-    }
+pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<WorkspaceEntry> {
+    let documents = recovery.documents.keys().map(Utf8PathBuf::as_path);
+    workspace_paths(&recovery.root, documents)
+        .into_iter()
+        .map(|(path, kind)| {
+            let document = recovery.documents.get(&path).map(|document| DocumentRole {
+                format: document.format,
+                first_object: document.objects.first().map(|object| object.kind.into()),
+            });
+            let role = role(&path, kind, document, false);
+            let fixed = role == WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
+            let operations = match kind {
+                WorkspaceEntryKind::File => vec![WorkspaceOperation::Open],
+                WorkspaceEntryKind::Directory => Vec::new(),
+            };
+            let explanation = if fixed {
+                ROOT_FIXED
+            } else {
+                "Project-model operations are disabled until project errors are fixed."
+            };
+            entry(path, kind, role, operations, Some(explanation.to_string()))
+        })
+        .collect()
 }

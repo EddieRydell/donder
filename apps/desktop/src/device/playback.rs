@@ -9,6 +9,7 @@ use std::{
     collections::{BTreeMap, hash_map::RandomState},
     hash::{BuildHasher, Hasher},
     net::{SocketAddr, UdpSocket},
+    num::NonZeroU32,
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -133,7 +134,7 @@ struct Core {
     epoch: u32,
     bindings: Vec<Binding>,
     origin: Instant,
-    clock_id: u32,
+    clock_id: NonZeroU32,
 }
 struct Shared {
     core: Mutex<Core>,
@@ -196,7 +197,7 @@ impl Binding {
     }
 
     /// The controller's clock and loaded show, checked against the prepared one.
-    fn ready(&mut self, origin: Instant, clock_id: u32) -> Result<ScheduleReady, String> {
+    fn ready(&mut self, origin: Instant, clock_id: NonZeroU32) -> Result<ScheduleReady, String> {
         self.synchronize(origin, clock_id)?;
         let sample = self.sample_clock(origin)?;
         let status = self
@@ -221,7 +222,7 @@ impl Binding {
         udp_clock_sample(&self.clock_socket, origin)
     }
 
-    fn synchronize(&mut self, origin: Instant, clock_id: u32) -> Result<(), String> {
+    fn synchronize(&mut self, origin: Instant, clock_id: NonZeroU32) -> Result<(), String> {
         let mut best: Option<ClockSample> = None;
         for _ in 0..8 {
             let sample = self.sample_clock(origin)?;
@@ -280,7 +281,8 @@ impl DevicePlaybackService {
                 epoch: 0,
                 bindings: Vec::new(),
                 origin: Instant::now(),
-                clock_id: (RandomState::new().build_hasher().finish() as u32).max(1),
+                clock_id: NonZeroU32::MIN
+                    .saturating_add(RandomState::new().build_hasher().finish() as u32),
             }),
             stopping: Mutex::new(false),
             wake: Condvar::new(),

@@ -16,7 +16,7 @@ pub(crate) struct LatestScheduler<P> {
 }
 
 impl<P: Send + 'static> LatestScheduler<P> {
-    pub(crate) fn new(worker: impl Fn(P) + Send + 'static) -> Self {
+    pub(crate) fn new(mut worker: impl FnMut(P) + Send + 'static) -> Self {
         let queue = Arc::new((
             Mutex::new(Queue {
                 next: None,
@@ -122,7 +122,6 @@ pub(crate) fn analyze_working_copy(
 
 pub(crate) struct RenderRefreshPayload {
     pub project: Arc<ProjectSession>,
-    pub setup_id: donder_model::SetupId,
     pub sequence_id: donder_model::SequenceId,
     pub project_epoch: u32,
     pub project_revision: u32,

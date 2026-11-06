@@ -34,7 +34,7 @@ kira.workspace = true
 mimalloc.workspace = true
 reqwest.workspace = true
 rfd.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["std"] }
 serde_json.workspace = true
 mdns-sd.workspace = true
 midir.workspace = true

@@ -22,7 +22,8 @@ type DocumentSymbol = { name: string; detail?: string; kind: number; range: Rang
 export type ExternalEdits = { uri: string; edits: TextEdit[] };
 
 export type LanguageClientOptions = {
-  rootUri: string | null;
+  /** The project root, the session's one workspace folder. */
+  rootUri: string;
   /** Apply edits to documents without a Monaco model. */
   applyExternalEdits: (edits: ExternalEdits[]) => Promise<void>;
   /** Show the server's diagnostics as markers; hosts with their own diagnostics turn this off. */
@@ -193,7 +194,7 @@ export class LanguageClient {
   private async initialize() {
     const result = await this.request<{ capabilities: { semanticTokensProvider?: { legend: monaco.languages.SemanticTokensLegend } } }>("initialize", {
       processId: null,
-      rootUri: this.options.rootUri,
+      workspaceFolders: [{ uri: this.options.rootUri, name: decodeURIComponent(this.options.rootUri.split("/").pop() ?? "") }],
       capabilities: {}
     });
     this.notify("initialized", {});

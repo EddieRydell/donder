@@ -1,5 +1,5 @@
 import type { IoDiagnostic } from "../../types";
-import { FOCUS_SIDEBAR_EVENT } from "../../commandRegistry";
+import { focusSidebar } from "../uiEvents";
 import { navigateToText } from "../../workspace/navigation";
 import { Button } from "../kit";
 
@@ -25,7 +25,7 @@ export function BlockedGui({
         </div>
       )}
       <div className="gui-blocked-actions">
-        <Button onClick={() => { window.dispatchEvent(new CustomEvent(FOCUS_SIDEBAR_EVENT, { detail: "problems" })); }}>
+        <Button onClick={() => { focusSidebar("problems"); }}>
           Problems
         </Button>
         {primaryDiagnostic !== undefined && (

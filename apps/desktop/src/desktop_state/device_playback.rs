@@ -364,7 +364,7 @@ impl DesktopState {
             .render_target
             .clone()
             .ok_or("Open a sequence before starting devices")?;
-        let (_, sequence) = target.resolve(&session).ok_or("Sequence is missing")?;
+        let sequence = target.resolve(&session).ok_or("Sequence is missing")?;
         let model = session
             .project
             .get::<donder_model::Sequence>(sequence)

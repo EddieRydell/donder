@@ -9,7 +9,7 @@ import type {
   GuiEditCommand,
   GuiItem,
   SequenceSelection as WireSequenceSelection
-} from "../../editor/types";
+} from "../../types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../theme";
 
 export type Point3 = { x: number; y: number; z: number };
@@ -18,6 +18,8 @@ export type Point3 = { x: number; y: number; z: number };
 export type AudioTransportViewSnapshot = AppSnapshot["audioTransport"];
 
 export type ReadyGuiDocument = Exclude<GuiDocument, { type: "blocked" }>;
+/** The documents whose editor has a selection inspector beside it. */
+export type InspectedGuiDocument = Extract<GuiDocument, { type: "sequence" | "console" }>;
 
 /** A rename, description, color or deletion of one item of the open object. */
 export type GuiItemEdit = Extract<GuiEditCommand, { item: GuiItem }>;

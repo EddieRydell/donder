@@ -1,8 +1,7 @@
 import { commands } from "../api";
 import { runSnapshotCommand, selectGuiObject, useAppStore } from "../store";
 import type { GuiObjectRef, TextRange } from "../types";
-
-export const NAVIGATE_TO_TEXT_EVENT = "donder:navigate-to-text";
+import { dispatchUiEvent } from "../ui/uiEvents";
 
 export type TextNavigation = {
   path: string;
@@ -16,11 +15,7 @@ export async function navigateToText(path: string, range: TextRange | null): Pro
     await runSnapshotCommand(() => commands.setEditorViewMode("text"));
   }
   window.requestAnimationFrame(() => {
-    window.dispatchEvent(
-      new CustomEvent<TextNavigation>(NAVIGATE_TO_TEXT_EVENT, {
-        detail: { path, range }
-      })
-    );
+    dispatchUiEvent("navigateToText", { path, range });
   });
 }
 

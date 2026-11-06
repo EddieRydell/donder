@@ -119,100 +119,21 @@ pub enum TargetScope {
     WholeTarget,
 }
 
+/// A [`PixelEncoding`] whose channel order admission checked is a permutation.
 #[derive(Clone, Copy)]
-pub enum RgbOrder {
-    Rgb,
-    Rbg,
-    Grb,
-    Gbr,
-    Brg,
-    Bgr,
-}
-
-impl RgbOrder {
-    fn admit(channels: [u8; 3]) -> Option<Self> {
-        Some(match channels {
-            [0, 1, 2] => Self::Rgb,
-            [0, 2, 1] => Self::Rbg,
-            [1, 0, 2] => Self::Grb,
-            [1, 2, 0] => Self::Gbr,
-            [2, 0, 1] => Self::Brg,
-            [2, 1, 0] => Self::Bgr,
-            _ => return None,
-        })
-    }
-
-    fn channels(self) -> [u8; 3] {
-        match self {
-            Self::Rgb => [0, 1, 2],
-            Self::Rbg => [0, 2, 1],
-            Self::Grb => [1, 0, 2],
-            Self::Gbr => [1, 2, 0],
-            Self::Brg => [2, 0, 1],
-            Self::Bgr => [2, 1, 0],
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum WhitePosition {
-    First,
-    Second,
-    Third,
-    Fourth,
-}
-
-#[derive(Clone, Copy)]
-pub enum OutputEncoding {
-    Rgb(RgbOrder),
-    Rgbw { rgb: RgbOrder, white: WhitePosition },
-}
+pub struct OutputEncoding(PixelEncoding);
 
 impl OutputEncoding {
-    /// Admit the exact RGB/RGBW channel permutation from an authored route.
     pub fn admit(encoding: PixelEncoding) -> Option<Self> {
-        Some(match encoding {
-            PixelEncoding::Rgb { order } => Self::Rgb(RgbOrder::admit(order)?),
-            PixelEncoding::Rgbw { order } => {
-                let (channels, white) = match order {
-                    [3, a, b, c] => ([a, b, c], WhitePosition::First),
-                    [a, 3, b, c] => ([a, b, c], WhitePosition::Second),
-                    [a, b, 3, c] => ([a, b, c], WhitePosition::Third),
-                    [a, b, c, 3] => ([a, b, c], WhitePosition::Fourth),
-                    _ => return None,
-                };
-                Self::Rgbw {
-                    rgb: RgbOrder::admit(channels)?,
-                    white,
-                }
-            }
-        })
+        encoding.is_valid().then_some(Self(encoding))
     }
 
     pub fn channel_count(self) -> usize {
-        match self {
-            Self::Rgb(_) => 3,
-            Self::Rgbw { .. } => 4,
-        }
+        self.0.channel_order().len()
     }
 
     pub fn encoding(self) -> PixelEncoding {
-        match self {
-            Self::Rgb(order) => PixelEncoding::Rgb {
-                order: order.channels(),
-            },
-            Self::Rgbw { rgb, white } => {
-                let [r, g, b] = rgb.channels();
-                PixelEncoding::Rgbw {
-                    order: match white {
-                        WhitePosition::First => [3, r, g, b],
-                        WhitePosition::Second => [r, 3, g, b],
-                        WhitePosition::Third => [r, g, 3, b],
-                        WhitePosition::Fourth => [r, g, b, 3],
-                    },
-                }
-            }
-        }
+        self.0
     }
 }
 

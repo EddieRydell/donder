@@ -367,6 +367,68 @@ impl Keyword {
     }
 }
 
+/// A word that is a keyword only where the grammar expects it, so it stays
+/// usable as a name everywhere else: a declaration's member words and the
+/// words of `around` and `scan`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ContextualKeyword {
+    Param,
+    Input,
+    Sample,
+    Around,
+    Extended,
+    Mirrored,
+    As,
+    Scan,
+    Forward,
+    Backward,
+    Decay,
+}
+
+impl ContextualKeyword {
+    const ALL: [Self; 11] = [
+        Self::Param,
+        Self::Input,
+        Self::Sample,
+        Self::Around,
+        Self::Extended,
+        Self::Mirrored,
+        Self::As,
+        Self::Scan,
+        Self::Forward,
+        Self::Backward,
+        Self::Decay,
+    ];
+
+    /// The words that start a declaration's members.
+    pub(crate) const MEMBERS: [Self; 3] = [Self::Param, Self::Input, Self::Sample];
+
+    pub(crate) fn text(self) -> &'static str {
+        match self {
+            Self::Param => "param",
+            Self::Input => "input",
+            Self::Sample => "sample",
+            Self::Around => "around",
+            Self::Extended => "extended",
+            Self::Mirrored => "mirrored",
+            Self::As => "as",
+            Self::Scan => "scan",
+            Self::Forward => "forward",
+            Self::Backward => "backward",
+            Self::Decay => "decay",
+        }
+    }
+
+    pub(crate) fn of(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|word| word.text() == text)
+    }
+
+    /// Whether this word starts a declaration's member.
+    pub(crate) fn is_member(self) -> bool {
+        Self::MEMBERS.contains(&self)
+    }
+}
+
 impl LexMode {
     /// The words this mode reserves. Data documents reserve only their own,
     /// so fields may be named `effect`, `input` or `in`.

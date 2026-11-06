@@ -1,4 +1,6 @@
-import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
+import { commands } from "../../../api";
+import { useAppStore } from "../../../store";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { useEffect, useMemo, useState } from "react";
 
@@ -6,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 // once at its natural resolution, and this hook fetches each raster when its
 // revision changes and scales it into the clip's rectangle.
 
-import type { SequenceClipRaster, SequenceGuiDocument } from "../../../editor/types";
+import type { SequenceClipRaster, SequenceGuiDocument } from "../../../types";
 import type { SequenceClipLayout } from "./sequenceSelection";
 
 type DecodedClipRaster = {
@@ -30,16 +32,14 @@ const CLIP_RASTER_DECODE_FRAME_BUDGET_MS = 8;
 const CLIP_RASTER_DECODED_BYTE_BUDGET = 256 * 1024 * 1024;
 
 export function useSequenceClipRasters(document: SequenceGuiDocument, visibleClips: SequenceClipLayout[]): ClipRasterState {
-  const host = useSequenceEditorHost();
-  const { commands, store: useAppStore } = host;
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
   const documentKey = guiObjectKey(document.sourceRef);
   const visibleKey = visibleClips.map((clip) => clip.clip.id).join(",");
   const [version, setVersion] = useState(0);
   // Rasters live outside React: worker callbacks fill the cache and `version`
   // tells the canvas to redraw.
-  const { ownedPath } = document.sourceRef;
-  const { path, objectKey, clips } = document;
+  const { ownedPath, path, objectKey } = document.sourceRef;
+  const { clips } = document;
 
   // Rasters of clips the sequence no longer has are dropped; the canvas
   // never asks for them, so nothing needs to redraw.
@@ -81,7 +81,7 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
         changed = forgetDecoded(cache, error.clipId) || changed;
       }
       if (changed) publish();
-      scheduleDecode(host, cache, publish);
+      scheduleDecode(cache, publish);
       if (batch.pending > 0) {
         pollTimeout = window.setTimeout(() => {
           void poll();
@@ -98,7 +98,7 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
       window.clearTimeout(requestTimeout);
       if (pollTimeout !== null) window.clearTimeout(pollTimeout);
     };
-  }, [commands, documentKey, host, objectKey, ownedPath, path, projectRevision, visibleKey]);
+  }, [documentKey, objectKey, ownedPath, path, projectRevision, visibleKey]);
 
   return useMemo(() => ({
     version,
@@ -163,7 +163,7 @@ function decodeQueue(cache: RasterCache, visible: number[]): SequenceClipRaster[
   return queue;
 }
 
-function scheduleDecode(host: SequenceEditorHost, cache: RasterCache, published: () => void) {
+function scheduleDecode(cache: RasterCache, published: () => void) {
   if (cache.decoding) return;
   cache.decoding = true;
   const decodeFrame = async () => {
@@ -173,7 +173,7 @@ function scheduleDecode(host: SequenceEditorHost, cache: RasterCache, published:
     for (const raster of queue) {
       if (performance.now() - started > CLIP_RASTER_DECODE_FRAME_BUDGET_MS) break;
       try {
-        const image = await decodeClipRaster(host, raster);
+        const image = await decodeClipRaster(raster);
         if (cache.known.get(raster.clipId)?.revision !== raster.revision) continue;
         forgetDecoded(cache, raster.clipId);
         const byteLength = raster.columns * raster.rows * 4;
@@ -214,8 +214,8 @@ export function drawClipRaster(ctx: CanvasRenderingContext2D, raster: DecodedCli
   ctx.imageSmoothingEnabled = true;
 }
 
-async function decodeClipRaster(host: SequenceEditorHost, payload: SequenceClipRaster): Promise<CanvasImageSource> {
-  const response = await fetch(host.resolveAssetUrl(payload.pixelsRgbaToken, "donder-raster"));
+async function decodeClipRaster(payload: SequenceClipRaster): Promise<CanvasImageSource> {
+  const response = await fetch(convertFileSrc(payload.pixelsRgbaToken, "donder-raster"));
   if (!response.ok) throw new Error(`Raster pixel fetch failed with ${response.status}.`);
   const pixels = new Uint8ClampedArray(await response.arrayBuffer());
   return await createImageBitmap(new ImageData(pixels, payload.columns, payload.rows));

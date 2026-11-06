@@ -1,4 +1,4 @@
-import type { SequenceGuiDocument, SequenceClip, SequenceAutomationResize, SequenceClipRef, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
+import type { SequenceGuiDocument, SequenceClip, SequenceAutomationResize, SequenceClipRef, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../types";
 
 import { clamp, type GuiFocus } from "../shared";
 

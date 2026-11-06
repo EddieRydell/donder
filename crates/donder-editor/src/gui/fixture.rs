@@ -1,5 +1,5 @@
 use super::{
-    GuiMutationError,
+    GuiMutationError, IdAllocator,
     model::{domain_point3_meters, rotation3_degrees, scale3},
 };
 use crate::dto::{
@@ -115,12 +115,7 @@ fn edit_geometry(
                 .position(|element| element.id.0 == id)
                 .ok_or_else(|| GuiMutationError::Invalid("Shape was not found.".into()))?;
             let element = &fixture.elements[index];
-            let mut next = fixture
-                .elements
-                .iter()
-                .map(|element| element.id.0)
-                .max()
-                .unwrap_or(0);
+            let mut ids = IdAllocator::after(fixture.elements.iter().map(|element| element.id.0));
             let pixels = donder_model::element_pixels(element)
                 .map_err(|error| {
                     GuiMutationError::Invalid(format!("Cannot expand shape: {error:?}"))
@@ -128,11 +123,8 @@ fn edit_geometry(
                 .into_iter()
                 .enumerate()
                 .map(|(ordinal, pixel)| {
-                    next = next
-                        .checked_add(1)
-                        .ok_or_else(|| GuiMutationError::Invalid("No shape IDs remain.".into()))?;
                     Ok(FixtureElement {
-                        id: FixtureElementId(next),
+                        id: FixtureElementId(ids.next()?),
                         name: donder_language::object_name(&format!(
                             "{}_{}",
                             element.name.as_str(),
@@ -155,29 +147,19 @@ fn edit_geometry(
             fixture.elements.splice(index..=index, pixels);
         }
     }
-    validate_geometry(fixture)?;
     Ok(())
 }
 
 pub(super) fn domain_geometry(
     elements: Vec<GuiFixtureElement>,
 ) -> Result<FixtureDefinition, GuiMutationError> {
-    let geometry = FixtureDefinition {
+    Ok(FixtureDefinition {
         description: None,
         elements: elements
             .into_iter()
             .map(domain_element)
             .collect::<Result<_, _>>()?,
-    };
-    validate_geometry(&geometry)?;
-    Ok(geometry)
-}
-
-fn validate_geometry(geometry: &FixtureDefinition) -> Result<(), GuiMutationError> {
-    geometry.validate_geometry().map_err(|error| {
-        GuiMutationError::Invalid(format!("Invalid fixture geometry: {error:?}"))
-    })?;
-    Ok(())
+    })
 }
 
 fn domain_element(element: GuiFixtureElement) -> Result<FixtureElement, GuiMutationError> {

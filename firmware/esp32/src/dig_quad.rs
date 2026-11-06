@@ -1,6 +1,4 @@
 //! QuinLED Dig-Quad v2/v3 with the QuinLED classic ESP32 module.
-//! Flush UART0 and disable its async interrupt and application diagnostics before
-//! these outputs take ownership of the pins; retain the UART clock for ROM calls.
 
 use esp_hal::{
     gpio::NoPin,

@@ -1,14 +1,18 @@
-import { useSequenceEditorHost, type SequenceEditorHost } from "../../../../editor/host";
+import { commands } from "../../../../api";
+import { runGuiEditCommand } from "../../../../store";
+import { navigateToGuiObject } from "../../../../workspace/navigation";
 import { isSecondaryClick } from "../../../../platform";
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { matchesCommand } from "../../../../commandRegistry";
+import { normalizeHexColor } from "../../../../color";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, SquareArrowOutUpRight, Trash2, X } from "lucide-react";
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
-import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../editor/types";
+import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../types";
 
 import { ColorPicker } from "../../../ColorPicker";
-import { AddRow, Field, IconButton, NumberField, Section, Select, Toggle } from "../../../kit";
+import { AddRow, ContextMenuArea, Field, IconButton, NumberField, Section, Select, Toggle, type MenuEntry } from "../../../kit";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
 import { WindowFields } from "../../WindowFields";
 
@@ -40,11 +44,7 @@ type ParamAutomationControls = {
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 };
 
-export function TypedParamInput(props: Parameters<typeof TypedParamValue>[0]) {
-  return <TypedParamValue {...props} />;
-}
-
-function TypedParamValue({
+export function TypedParamInput({
   param,
   commitParam,
   curveLibrary,
@@ -62,7 +62,6 @@ function TypedParamValue({
   /** Controls that link the parameter to its automation, in place of a sequence's. */
   automationControl?: ReactNode;
 }) {
-  const host = useSequenceEditorHost();
 
   const commit = (value: SequenceParamValue) => {
     return commitParam(param.name, value);
@@ -77,7 +76,7 @@ function TypedParamValue({
   const automationActions = automationControl !== null ? automationControl :
     automation === null || !param.supportsAutomation
       ? null
-      : automationBindingControl(host,
+      : automationBindingControl(
           automation.target,
           param,
           automation.automationClips,
@@ -201,15 +200,13 @@ function NumberArrayParam({ name, tip, values, step, integer, commit }: { name: 
   );
 }
 
-function automationBindingControl(host: SequenceEditorHost,
-  target: SequenceAutomationTarget,
+function automationBindingControl(target: SequenceAutomationTarget,
   param: SequenceClipParam,
   clips: SequenceAutomationClip[],
   canCreateAutomationClip: boolean,
   automationClipChooser: AutomationClipChooser,
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void
 ) {
-  const { commands, runGuiEditCommand } = host;
 
   const choosing = automationClipChooser !== null && automationTargetsEqual(automationClipChooser.target, target);
   if (param.automation !== null) {
@@ -439,7 +436,6 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   flipVerticalPoints?: (points: T[]) => T[];
   render: (props: CurveEditorProps<T>) => ReactNode;
 }) {
-  const { navigateToGuiObject } = useSequenceEditorHost();
 
   const linkedDeclaration = libraryLink.type === "library" ? libraryLink : null;
   const selectedDeclarationIndex = linkedDeclaration === null
@@ -524,66 +520,11 @@ export function CurveParam({
   requestInlineEdit?: () => void;
   showName?: boolean;
 }) {
-  const [drafts, setDrafts] = useState(points);
-  const draftsRef = useRef(points);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const { drafts, draftsRef, selectedIndex, setSelectedIndex, update, setPoint, deletePoint } = usePointDrafts({
+    points, commit, readOnly, requestInlineEdit, normalize: normalizeCurvePoint, nearest: nearestFloatPointIndex
+  });
   const svgRef = useRef<SVGSVGElement | null>(null);
   const draggingPoint = useRef<number | null>(null);
-  const pointsSignature = curvePointsSignature(points);
-  const lastCommittedSignature = useRef(pointsSignature);
-  const pendingSignature = useRef<string | null>(null);
-  useEffect(() => {
-    draftsRef.current = drafts;
-  }, [drafts]);
-  useEffect(() => {
-    const draftSignature = curvePointsSignature(draftsRef.current);
-    if (pointsSignature === draftSignature) {
-      pendingSignature.current = null;
-      return;
-    }
-    if (pendingSignature.current === draftSignature) return;
-    setDrafts(points);
-    draftsRef.current = points;
-    lastCommittedSignature.current = pointsSignature;
-    setSelectedIndex((index) => Math.min(index, points.length - 1));
-  }, [points, pointsSignature]);
-  const update = (next: EditedSequenceCurvePoint[]) => {
-    if (readOnly) {
-      requestInlineEdit?.();
-      return;
-    }
-    if (next.length > 0 && next.every((point) => Number.isFinite(point.time) && Number.isFinite(point.value))) {
-      const sorted = sortCurvePoints(next);
-      const signature = curvePointsSignature(sorted);
-      setDrafts(sorted);
-      draftsRef.current = sorted;
-      setSelectedIndex((index) => Math.min(index, sorted.length - 1));
-      if (signature !== lastCommittedSignature.current) {
-        lastCommittedSignature.current = signature;
-        pendingSignature.current = signature;
-        void commit(sorted).catch(() => {
-          pendingSignature.current = null;
-        });
-      }
-    }
-  };
-  const setPoint = (index: number, point: EditedSequenceCurvePoint, commitChange: boolean) => {
-    const next = sortCurvePoints(replaceAt(draftsRef.current, index, point));
-    const nextIndex = nearestFloatPointIndex(next, point);
-    setDrafts(next);
-    draftsRef.current = next;
-    setSelectedIndex(nextIndex);
-    if (commitChange) {
-      update(next);
-    }
-    return nextIndex;
-  };
-  const deletePoint = (index: number) => {
-    if (draftsRef.current.length <= 1) return;
-    const next = draftsRef.current.filter((_, pointIndex) => pointIndex !== index);
-    update(next);
-    setSelectedIndex(Math.min(index, next.length - 1));
-  };
   const valueRange = curveAxis(drafts, range);
   const path = curveSvgPath(drafts, valueRange);
   const pointFromPointer = (event: PointerEvent<SVGSVGElement>): EditedSequenceCurvePoint => {
@@ -642,27 +583,25 @@ export function CurveParam({
           const x = point.time * CURVE_EDITOR.width;
           const y = CURVE_EDITOR.height - ((point.value - valueRange.min) / (valueRange.max - valueRange.min)) * CURVE_EDITOR.height;
           return (
-            <circle
-              key={index}
-              className={`float-curve-point ${index === selectedIndex ? "selected" : ""}`}
-              cx={x}
-              cy={y}
-              r={index === selectedIndex ? THEME_METRICS.curvePointRadiusSelected : THEME_METRICS.curvePointRadius}
-              tabIndex={0}
-              onPointerDown={(event) => {
-                event.stopPropagation();
-                if (isSecondaryClick(event)) return;
-                event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
-                draggingPoint.current = index;
-                setSelectedIndex(index);
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                deletePoint(index);
-              }}
-              onFocus={() => { setSelectedIndex(index); }}
-            />
+            <ContextMenuArea key={index} entries={pointMenu(drafts.length, () => { deletePoint(index); })}>
+              <circle
+                className={`float-curve-point ${index === selectedIndex ? "selected" : ""}`}
+                cx={x}
+                cy={y}
+                r={index === selectedIndex ? THEME_METRICS.curvePointRadiusSelected : THEME_METRICS.curvePointRadius}
+                tabIndex={0}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  if (isSecondaryClick(event)) return;
+                  event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
+                  draggingPoint.current = index;
+                  setSelectedIndex(index);
+                }}
+                onContextMenu={() => { setSelectedIndex(index); }}
+                onKeyDown={(event) => { deletePointOnKey(event, () => { deletePoint(index); }); }}
+                onFocus={() => { setSelectedIndex(index); }}
+              />
+            </ContextMenuArea>
           );
         })}
       </svg>
@@ -709,61 +648,13 @@ export function GradientParam({
   requestInlineEdit?: () => void;
   showName?: boolean;
 }) {
-  const [drafts, setDrafts] = useState(points);
-  const draftsRef = useRef(points);
+  const { drafts, draftsRef, update, setPoint, deletePoint } = usePointDrafts({
+    points, commit, readOnly, requestInlineEdit, normalize: normalizeGradientStop, nearest: nearestColorPointIndex
+  });
   const [stopPickerRequest, setStopPickerRequest] = useState<{ index: number; key: number } | null>(null);
   const stopPickerRequestKey = useRef(0);
   const gradientRef = useRef<HTMLDivElement | null>(null);
   const draggingPoint = useRef<{ index: number; pointerId: number; startClientX: number; moved: boolean } | null>(null);
-  const lastCommittedValues = useRef(points.map((point) => point.value.toLowerCase()));
-  const pointsSignature = curvePointsSignature(points);
-  const pendingSignature = useRef<string | null>(null);
-  useEffect(() => {
-    draftsRef.current = drafts;
-  }, [drafts]);
-  useEffect(() => {
-    const draftSignature = curvePointsSignature(draftsRef.current);
-    if (pointsSignature === draftSignature) {
-      pendingSignature.current = null;
-      return;
-    }
-    if (pendingSignature.current === draftSignature) return;
-    setDrafts(points);
-    draftsRef.current = points;
-    lastCommittedValues.current = points.map((point) => point.value.toLowerCase());
-  }, [points, pointsSignature]);
-  const update = (next: EditedSequenceGradientStop[]) => {
-    if (readOnly) {
-      requestInlineEdit?.();
-      return;
-    }
-    if (next.length > 0 && next.every((point) => Number.isFinite(point.time) && isHexColor(point.value))) {
-      const sorted = sortCurvePoints(next).map((point) => ({ ...point, value: point.value.toLowerCase() }));
-      const signature = curvePointsSignature(sorted);
-      setDrafts(sorted);
-      draftsRef.current = sorted;
-      lastCommittedValues.current = sorted.map((point) => point.value);
-      pendingSignature.current = signature;
-      void commit(sorted).catch(() => {
-        pendingSignature.current = null;
-      });
-    }
-  };
-  const setPoint = (index: number, point: EditedSequenceGradientStop, commitChange: boolean) => {
-    const next = sortCurvePoints(replaceAt(draftsRef.current, index, point));
-    const nextIndex = nearestColorPointIndex(next, point);
-    setDrafts(next);
-    draftsRef.current = next;
-    if (commitChange) {
-      update(next);
-    }
-    return nextIndex;
-  };
-  const deletePoint = (index: number) => {
-    if (draftsRef.current.length <= 1) return;
-    const next = draftsRef.current.filter((_, pointIndex) => pointIndex !== index);
-    update(next);
-  };
   const pointFromClientX = (clientX: number, color: string): EditedSequenceGradientStop => {
     const rect = gradientRef.current?.getBoundingClientRect();
     if (rect === undefined) return { time: 0, value: color };
@@ -851,48 +742,144 @@ export function GradientParam({
       >
         {!readOnly && drafts.map((point, index) => {
           return (
-            <span
-              key={index}
-              className="color-curve-stop"
-              draggable={false}
-              style={{ left: `${point.time * 100}%` }}
-              onPointerDown={(event) => {
-                if (!event.currentTarget.contains(event.target as Node)) return;
-                if (event.button !== 0 || isSecondaryClick(event)) return;
-                event.preventDefault();
-                event.stopPropagation();
-                startStopDrag(index, event.pointerId, event.clientX);
-              }}
-              onDragStart={(event) => {
-                event.preventDefault();
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                deletePoint(index);
-              }}
-            >
-              <span className="color-curve-stop-line" />
-              <ColorPicker
-                className="color-curve-stop-color-picker"
-                triggerClassName="color-curve-stop-color-trigger"
-                openRequestKey={stopPickerRequest?.index === index ? stopPickerRequest.key : 0}
-                onOpenChange={(open) => {
-                  if (!open && stopPickerRequest?.index === index) setStopPickerRequest(null);
+            <ContextMenuArea key={index} entries={pointMenu(drafts.length, () => { deletePoint(index); })}>
+              <span
+                className="color-curve-stop"
+                draggable={false}
+                style={{ left: `${point.time * 100}%` }}
+                onPointerDown={(event) => {
+                  if (!event.currentTarget.contains(event.target as Node)) return;
+                  if (event.button !== 0 || isSecondaryClick(event)) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startStopDrag(index, event.pointerId, event.clientX);
                 }}
-                value={isHexColor(point.value) ? point.value : (points[index]?.value ?? CURVE_EDITOR.defaultColor)}
-                label={`${name} stop ${index + 1} color`}
-                commit={(value) => {
-                  setPoint(index, { ...point, value }, true);
-                  return Promise.resolve();
+                onDragStart={(event) => {
+                  event.preventDefault();
                 }}
-              />
-            </span>
+                onKeyDown={(event) => {
+                  // Keys typed in the stop's color popover bubble here through the portal.
+                  if (event.currentTarget.contains(event.target as Node)) deletePointOnKey(event, () => { deletePoint(index); });
+                }}
+              >
+                <span className="color-curve-stop-line" />
+                <ColorPicker
+                  className="color-curve-stop-color-picker"
+                  triggerClassName="color-curve-stop-color-trigger"
+                  openRequestKey={stopPickerRequest?.index === index ? stopPickerRequest.key : 0}
+                  onOpenChange={(open) => {
+                    if (!open && stopPickerRequest?.index === index) setStopPickerRequest(null);
+                  }}
+                  value={normalizeHexColor(point.value) ?? points[index]?.value ?? CURVE_EDITOR.defaultColor}
+                  label={`${name} stop ${index + 1} color`}
+                  commit={(value) => {
+                    setPoint(index, { ...point, value }, true);
+                    return Promise.resolve();
+                  }}
+                />
+              </span>
+            </ContextMenuArea>
           );
         })}
       </div>
     </div>
   );
+}
+
+/**
+ * The editable copy of a curve's points or a gradient's stops. Edits show at once and commit when
+ * they change the value; a new value from the project replaces the copy unless it is the commit
+ * still in flight.
+ */
+function usePointDrafts<T extends { time: number; value: number | string }>({ points, commit, readOnly, requestInlineEdit, normalize, nearest }: {
+  points: T[];
+  commit: (points: T[]) => Promise<void>;
+  readOnly: boolean;
+  requestInlineEdit: (() => void) | undefined;
+  /** The point as it is committed, or `null` when it is invalid. */
+  normalize: (point: T) => T | null;
+  /** The index in `points` of the point closest to `point`. */
+  nearest: (points: T[], point: T) => number;
+}) {
+  const [drafts, setDrafts] = useState(points);
+  const draftsRef = useRef(points);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const pointsSignature = curvePointsSignature(points);
+  const lastCommittedSignature = useRef(pointsSignature);
+  const pendingSignature = useRef<string | null>(null);
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
+  useEffect(() => {
+    const draftSignature = curvePointsSignature(draftsRef.current);
+    if (pointsSignature === draftSignature) {
+      pendingSignature.current = null;
+      return;
+    }
+    if (pendingSignature.current === draftSignature) return;
+    setDrafts(points);
+    draftsRef.current = points;
+    lastCommittedSignature.current = pointsSignature;
+    setSelectedIndex((index) => Math.min(index, points.length - 1));
+  }, [points, pointsSignature]);
+  const show = (next: T[]) => {
+    setDrafts(next);
+    draftsRef.current = next;
+  };
+  const update = (next: T[]) => {
+    if (readOnly) {
+      requestInlineEdit?.();
+      return;
+    }
+    const normalized = next.map(normalize).filter((point): point is T => point !== null);
+    if (normalized.length === 0 || normalized.length !== next.length) return;
+    const sorted = sortCurvePoints(normalized);
+    const signature = curvePointsSignature(sorted);
+    show(sorted);
+    setSelectedIndex((index) => Math.min(index, sorted.length - 1));
+    if (signature === lastCommittedSignature.current) return;
+    lastCommittedSignature.current = signature;
+    pendingSignature.current = signature;
+    void commit(sorted).catch(() => {
+      pendingSignature.current = null;
+    });
+  };
+  const setPoint = (index: number, point: T, commitChange: boolean) => {
+    const next = sortCurvePoints(replaceAt(draftsRef.current, index, point));
+    const nextIndex = nearest(next, point);
+    show(next);
+    setSelectedIndex(nextIndex);
+    if (commitChange) update(next);
+    return nextIndex;
+  };
+  const deletePoint = (index: number) => {
+    if (draftsRef.current.length <= 1) return;
+    const next = draftsRef.current.filter((_, pointIndex) => pointIndex !== index);
+    update(next);
+    setSelectedIndex(Math.min(index, next.length - 1));
+  };
+  return { drafts, draftsRef, selectedIndex, setSelectedIndex, update, setPoint, deletePoint };
+}
+
+/** A curve point's or gradient stop's right-click menu; the last one cannot be deleted. */
+function pointMenu(count: number, onDelete: () => void): MenuEntry[] {
+  return [{ type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", disabled: count <= 1, onSelect: onDelete }];
+}
+
+function deletePointOnKey(event: KeyboardEvent, onDelete: () => void) {
+  if (!matchesCommand(event.nativeEvent, "edit.delete")) return;
+  event.preventDefault();
+  event.stopPropagation();
+  onDelete();
+}
+
+function normalizeCurvePoint(point: EditedSequenceCurvePoint): EditedSequenceCurvePoint | null {
+  return Number.isFinite(point.time) && Number.isFinite(point.value) ? point : null;
+}
+
+function normalizeGradientStop(point: EditedSequenceGradientStop): EditedSequenceGradientStop | null {
+  const value = normalizeHexColor(point.value);
+  return Number.isFinite(point.time) && value !== null ? { ...point, value } : null;
 }
 
 function replaceAt<T>(items: T[], index: number, value: T) {
@@ -973,8 +960,10 @@ const GRADIENT_SPACES: { value: SequenceGradientSpace; label: string; css: strin
 
 function gradientCss(points: EditedSequenceGradientStop[], space: SequenceGradientSpace) {
   const stops = sortCurvePoints(points)
-    .filter((point) => isHexColor(point.value))
-    .map((point) => `${point.value} ${clamp(point.time, 0, 1) * 100}%`);
+    .flatMap((point) => {
+      const color = normalizeHexColor(point.value);
+      return color === null ? [] : [`${color} ${clamp(point.time, 0, 1) * 100}%`];
+    });
   if (stops.length === 0) return CURVE_EDITOR.emptyGradient;
   if (stops.length === 1) return stops[0]?.split(" ")[0] ?? CURVE_EDITOR.emptyGradient;
   return `linear-gradient(${GRADIENT_SPACES.find((option) => option.value === space)?.css ?? ""}90deg, ${stops.join(", ")})`;
@@ -997,12 +986,8 @@ function normalizeSequenceCurvePoints(points: SequenceCurvePoint[]): EditedSeque
 
 function normalizeSequenceGradientStops(points: SequenceGradientStop[]): EditedSequenceGradientStop[] {
   const normalized = points
-    .filter((point) => isHexColor(point.value))
-    .filter((point) => Number.isFinite(point.time))
-    .map((point) => ({ time: clamp(point.time, 0, 1), value: point.value.toLowerCase() }));
+    .flatMap((point) => normalizeGradientStop(point) ?? [])
+    .map((point) => ({ time: clamp(point.time, 0, 1), value: point.value }));
   return normalized.length > 0 ? normalized : [{ time: 0, value: CURVE_EDITOR.defaultColor }];
 }
 
-function isHexColor(value: string): boolean {
-  return /^#[0-9a-fA-F]{6}$/.test(value);
-}

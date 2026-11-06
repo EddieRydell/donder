@@ -1,6 +1,6 @@
 name: Release
 
-# Bumps the app version in tauri.conf.json, commits and tags it on main, builds
+# Bumps the product version in Cargo.toml, commits and tags it on main, builds
 # unsigned desktop installers for every platform into a draft GitHub release
 # for that tag, then publishes it once every platform has uploaded. The
 # website lists releases from the GitHub API, so it needs no redeploy.
@@ -34,16 +34,18 @@ jobs:
         env:
           BUMP: ${{ inputs.bump }}
         run: |
-          config=apps/desktop/tauri.conf.json
-          IFS=. read -r major minor patch < <(jq -r .version "$config")
+          config=Cargo.toml
+          current=$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$config" | head -n 1)
+          IFS=. read -r major minor patch <<< "$current"
           case "$BUMP" in
             major) version="$((major + 1)).0.0" ;;
             minor) version="$major.$((minor + 1)).0" ;;
             patch) version="$major.$minor.$((patch + 1))" ;;
           esac
-          # jq would reflow the file's inline arrays, so only the version line is rewritten.
-          sed -i "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$version\"/" "$config"
+          # The workspace version is the first top-level `version =` line.
+          sed -i "0,/^version = \"[^\"]*\"/s//version = \"$version\"/" "$config"
           git diff --exit-code --quiet "$config" && { echo "version line not found"; exit 1; }
+          cargo update --workspace
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Release v$version"

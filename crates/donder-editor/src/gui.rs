@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use camino::Utf8Path;
-use donder_language::{DonderDuration, DonderTime};
+use donder_language::{DonderDuration, DonderTime, SecondsError};
 use donder_model::Clip;
 use donder_model::SequenceId;
 use donder_project_io::SourceIdentity;
@@ -59,14 +59,52 @@ pub use document::{
 };
 pub use document::{ResolvedGuiObject, affected_paths, gui_editor_order, resolve_request};
 
+/// A time typed or dragged in the GUI. Negative times are refused, never clamped.
 fn checked_gui_time(seconds: f64) -> Result<DonderTime, GuiMutationError> {
-    DonderTime::try_from_seconds_f64(seconds)
-        .map_err(|_| GuiMutationError::Invalid("Time is outside the supported range.".into()))
+    DonderTime::try_from_seconds_f64(seconds).map_err(|error| seconds_error("Times", error))
 }
 
+/// A duration typed or dragged in the GUI, which must be greater than zero.
 fn checked_gui_duration(seconds: f64) -> Result<DonderDuration, GuiMutationError> {
-    DonderDuration::try_from_seconds_f64(seconds)
-        .map_err(|_| GuiMutationError::Invalid("Duration is outside the supported range.".into()))
+    let duration = DonderDuration::try_from_seconds_f64(seconds)
+        .map_err(|error| seconds_error("Durations", error))?;
+    if duration.is_zero() {
+        return Err(GuiMutationError::Invalid(
+            "Durations must be greater than zero.".into(),
+        ));
+    }
+    Ok(duration)
+}
+
+fn seconds_error(quantity: &str, error: SecondsError) -> GuiMutationError {
+    GuiMutationError::Invalid(match error {
+        SecondsError::NotFinite => format!("{quantity} must be finite."),
+        SecondsError::Negative => format!("{quantity} cannot be negative."),
+        SecondsError::OutOfRange => format!("{quantity} must be within the supported range."),
+    })
+}
+
+/// Allocates the ids after the largest one in use, so an id is never reused
+/// while a larger one exists; running out of ids is an error.
+struct IdAllocator(u32);
+
+impl IdAllocator {
+    fn after(ids: impl IntoIterator<Item = u32>) -> Self {
+        Self(ids.into_iter().max().unwrap_or(0))
+    }
+
+    fn next(&mut self) -> Result<u32, GuiMutationError> {
+        self.0 = self
+            .0
+            .checked_add(1)
+            .ok_or_else(|| GuiMutationError::Invalid("No free IDs remain.".into()))?;
+        Ok(self.0)
+    }
+}
+
+/// The id after the largest of `ids`.
+fn next_id(ids: impl IntoIterator<Item = u32>) -> Result<u32, GuiMutationError> {
+    IdAllocator::after(ids).next()
 }
 
 #[cfg(test)]

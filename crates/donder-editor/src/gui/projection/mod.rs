@@ -84,9 +84,7 @@ pub(super) fn project_sequence_clips(
     GuiDocument::Sequence {
         document: SequenceGuiDocument {
             description: sequence.description.clone(),
-            path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
-            object_key: resolved.identity.object().to_string(),
             duration_seconds: sequence.duration.as_seconds_f64(),
             frame_rate: sequence.frame_rate as f32,
             audio: sequence_audio(session, &sequence.audio),
@@ -199,15 +197,18 @@ pub(super) fn automation_target_to_gui<Clip: GuiClipId>(
     }
 }
 
-pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
+pub(super) fn active_setup(session: &ProjectSession) -> Option<&donder_model::Setup> {
     session
         .project
         .get::<donder_model::Setup>(*session.project.root().setup.id())
-        .and_then(|setup| {
-            session
-                .project
-                .get::<donder_model::Layout>(*setup.layout.id())
-        })
+}
+
+pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
+    active_setup(session).and_then(|setup| {
+        session
+            .project
+            .get::<donder_model::Layout>(*setup.layout.id())
+    })
 }
 
 fn sequence_audio(
@@ -311,11 +312,6 @@ pub(super) fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffect
                 name: definition.name().to_string(),
                 description: definition.description().map(str::to_string),
                 effect: source,
-                import_path: Some(
-                    crate::gui::model::declared_identity(session, *id)
-                        .document()
-                        .to_string(),
-                ),
                 params: params::definition_params_to_gui(definition.params()),
             }
         })

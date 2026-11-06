@@ -1,4 +1,6 @@
-import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
+import { commands } from "../../../api";
+import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { EditorCommands } from "../../../shortcuts";
 import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Magnet, Monitor, Music, Pause, Play, RadioTower, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
 import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
@@ -6,13 +8,14 @@ import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 
-import type { AppSnapshot, AudioTransportState, SequenceGuiDocument, SequenceFollowMode } from "../../../editor/types";
+import type { AppSnapshot, AudioTransportState, SequenceGuiDocument, SequenceFollowMode } from "../../../types";
 
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph, requestTapMark } from "../../uiEvents";
 import { IconButton, Tip } from "../../kit";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
+import { SequenceExportDialog } from "./SequenceExportDialog";
 
 export function SequenceTransportControls({
   document,
@@ -21,8 +24,6 @@ export function SequenceTransportControls({
   document: SequenceGuiDocument;
   previewOpen: boolean;
 }) {
-  const host = useSequenceEditorHost();
-  const { commands, store: useAppStore, runSnapshotCommand } = host;
 
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
@@ -36,7 +37,7 @@ export function SequenceTransportControls({
   // Each failing controller, Donder or streamed, once.
   const liveFailures = [...new Set(liveOutput.controllers.flatMap((controller) => controller.lastError === null ? [] : [controller.lastError]))];
   const stepFrame = (direction: -1 | 1) => {
-    stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, direction);
+    stepSequenceFrame(document, transport.positionSeconds, transport.durationSeconds, direction);
   };
   return (
     <div className="sequence-toolbar" aria-label="Sequence transport">
@@ -46,34 +47,30 @@ export function SequenceTransportControls({
       <IconButton icon={Repeat} label="Loop" command="transport.toggleLooping" pressed={transport.looping} disabled={unsupported}
         onClick={() => void runSnapshotCommand(() => commands.audioSetLooping(!transport.looping))} />
       <IconButton icon={FOLLOW_MODES[followMode].Icon} label={FOLLOW_MODES[followMode].title} command="transport.cycleFollowMode" pressed={followMode !== "off"}
-        onClick={() => { cycleSequenceFollowMode(host); }} />
+        onClick={() => { cycleSequenceFollowMode(); }} />
       <IconButton icon={SkipBack} label="Rewind to start" command="transport.rewind" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioRewindToZero)} />
       <IconButton icon={ChevronLeft} label="Step backward" command="edit.moveLeft" disabled={unsupported} onClick={() => { stepFrame(-1); }} />
       <IconButton icon={ChevronRight} label="Step forward" command="edit.moveRight" disabled={unsupported} onClick={() => { stepFrame(1); }} />
-      {host.capabilities.liveOutput && (
-        <IconButton
-          icon={RadioTower}
-          label={liveFailures.length > 0 ? liveFailures.join("; ") : liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
-          pressed={liveActive}
-          disabled={liveOutput.state === "stopping"}
-          onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
-        />
-      )}
-      {host.capabilities.previewWindow && (
-        <IconButton icon={Monitor} label="Preview" pressed={previewOpen} onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))} />
-      )}
+      <IconButton
+        icon={RadioTower}
+        label={liveFailures.length > 0 ? liveFailures.join("; ") : liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
+        pressed={liveActive}
+        disabled={liveOutput.state === "stopping"}
+        onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
+      />
+      <IconButton icon={Monitor} label="Preview" pressed={previewOpen} onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))} />
       <IconButton icon={Workflow} label="Layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph} />
       <IconButton icon={Scissors} label="Slice clips" command="sequence.toggleSliceTool" pressed={sliceTool} onClick={toggleSliceTool} />
-      <IconButton icon={Magnet} label={snapping ? "Snap: on, Alt bypasses" : "Snap: off, Alt snaps"} pressed={snapping} onClick={() => { toggleSequenceSnap(host); }} />
-      {host.capabilities.audioFile && <IconButton icon={Music} label="Choose audio" onClick={() => void chooseAudio(host, document)} />}
-      {host.capabilities.playbackSpeed ? <SequencePlaybackSpeedControls speed={transport.playbackSpeed} /> : null}
+      <IconButton icon={Magnet} label={snapping ? "Snap: on, Alt bypasses" : "Snap: off, Alt snaps"} pressed={snapping} onClick={() => { toggleSequenceSnap(); }} />
+      <IconButton icon={Music} label="Choose audio" onClick={() => void chooseAudio(document)} />
+      <SequencePlaybackSpeedControls speed={transport.playbackSpeed} />
       <Tip label="Stop returns to Home. Click the ruler to move Home; drag in it to set a playback range.">
         <span className="sequence-time-readout">
           <SequenceTimeReadout transport={transport} durationSeconds={document.durationSeconds} />
           {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeControllerCount} controllers)` : ""}
         </span>
       </Tip>
-      {host.exportControls}
+      <SequenceExportDialog />
     </div>
   );
 }
@@ -84,21 +81,20 @@ const FOLLOW_MODES = {
   continuous: { next: "off", title: "Follow playhead: continuous", Icon: LocateFixed }
 } as const satisfies Record<SequenceFollowMode, { next: SequenceFollowMode; title: string; Icon: typeof Locate }>;
 
-function cycleSequenceFollowMode(host: SequenceEditorHost) {
-  const settings = host.store.getState().snapshot?.settings;
+function cycleSequenceFollowMode() {
+  const settings = useAppStore.getState().snapshot?.settings;
   if (settings === undefined) return;
-  void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceFollowMode: FOLLOW_MODES[settings.sequenceFollowMode].next }));
+  void runSnapshotCommand(() => commands.updateAppSettings({ ...settings, sequenceFollowMode: FOLLOW_MODES[settings.sequenceFollowMode].next }));
 }
 
-function toggleSequenceSnap(host: SequenceEditorHost) {
-  const settings = host.store.getState().snapshot?.settings;
+function toggleSequenceSnap() {
+  const settings = useAppStore.getState().snapshot?.settings;
   if (settings === undefined) return;
-  void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceSnap: !settings.sequenceSnap }));
+  void runSnapshotCommand(() => commands.updateAppSettings({ ...settings, sequenceSnap: !settings.sequenceSnap }));
 }
 
 /** Chooses the sequence's audio, then fits the sequence to its length; undo reverts the resize. */
-async function chooseAudio(host: SequenceEditorHost, document: SequenceGuiDocument) {
-  const { commands, runGuiEditCommand } = host;
+async function chooseAudio(document: SequenceGuiDocument) {
 
   const result = await runGuiEditCommand(commands.chooseSequenceAudio);
   const edited = result.change.type === "sequenceClips"
@@ -106,7 +102,7 @@ async function chooseAudio(host: SequenceEditorHost, document: SequenceGuiDocume
     : result.change.document.type === "sequence" ? result.change.document.document : null;
   const audio = edited?.audio ?? null;
   if (audio === null) return;
-  const durationSeconds = await loadAudioDurationSeconds(host, audio.resolvedPath);
+  const durationSeconds = await loadAudioDurationSeconds(audio.resolvedPath);
   if (durationSeconds === null || Math.abs(durationSeconds - document.durationSeconds) < 0.01) return;
   await runGuiEditCommand((request) =>
     commands.applyGuiEdit(request, { type: "sequence", edit: {
@@ -117,8 +113,7 @@ async function chooseAudio(host: SequenceEditorHost, document: SequenceGuiDocume
 }
 
 
-function loadAudioDurationSeconds(host: SequenceEditorHost, path: string): Promise<number | null> {
-  const { resolveAssetUrl: convertFileSrc } = host;
+function loadAudioDurationSeconds(path: string): Promise<number | null> {
 
   return new Promise((resolve) => {
     const audio = new Audio();
@@ -198,16 +193,15 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"], p
 }
 
 /** The transport's keyboard commands, which act while the sequence's audio is loaded. */
-export function sequenceTransportCommands(host: SequenceEditorHost, document: SequenceGuiDocument) {
-  const { commands, runSnapshotCommand } = host;
-  const transport = () => host.store.getState().snapshot?.audioTransport;
+export function sequenceTransportCommands(document: SequenceGuiDocument) {
+  const transport = () => useAppStore.getState().snapshot?.audioTransport;
   const enabled = () => {
     const current = transport();
     return current !== undefined && !isSequenceTransportUnsupported(document, current);
   };
   const step = (direction: -1 | 1) => () => {
     const current = transport();
-    if (current !== undefined) stepSequenceFrame(host, document, current.positionSeconds, current.durationSeconds, direction);
+    if (current !== undefined) stepSequenceFrame(document, current.positionSeconds, current.durationSeconds, direction);
   };
   // Alt+arrows seek to the nearest mark of any collection before or after the playhead.
   const jumpToMark = (direction: -1 | 1) => () => {
@@ -242,7 +236,7 @@ export function sequenceTransportCommands(host: SequenceEditorHost, document: Se
     } },
     "transport.stop": { enabled, run: () => { void runSnapshotCommand(commands.audioStop); } },
     "transport.toggleLooping": { enabled, run: () => { void runSnapshotCommand(() => commands.audioSetLooping(!(transport()?.looping ?? false))); } },
-    "transport.cycleFollowMode": { enabled, run: () => { cycleSequenceFollowMode(host); } },
+    "transport.cycleFollowMode": { enabled, run: () => { cycleSequenceFollowMode(); } },
     // M drops a mark at the playhead, so marks can be tapped along with the music.
     "transport.tapMark": { enabled, run: ({ repeat }) => { if (!repeat) requestTapMark(); } },
     "transport.rewind": { enabled, run: () => { void runSnapshotCommand(commands.audioRewindToZero); } },
@@ -270,8 +264,7 @@ function transportExtrapolationSeconds(anchoredAt: number) {
   return anchoredAt > 0 ? (performance.now() - anchoredAt) / 1000 : 0;
 }
 
-function stepSequenceFrame(host: SequenceEditorHost, document: SequenceGuiDocument, positionSeconds: number, transportDurationSeconds: number, direction: -1 | 1) {
-  const { commands, runSnapshotCommand } = host;
+function stepSequenceFrame(document: SequenceGuiDocument, positionSeconds: number, transportDurationSeconds: number, direction: -1 | 1) {
 
   const frameSeconds = 1 / Math.max(1, document.frameRate);
   const nextPositionSeconds = clamp(positionSeconds + direction * frameSeconds, 0, transportDurationSeconds || document.durationSeconds);

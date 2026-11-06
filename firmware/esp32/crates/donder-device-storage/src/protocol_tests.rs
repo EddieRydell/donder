@@ -13,7 +13,7 @@ fn clock_command_decodes_with_the_embedded_parser() {
         command,
         Command::SyncClock {
             boot_id: 1,
-            clock_id: 2,
+            clock_id: core::num::NonZeroU32::new(2).unwrap(),
             local_micros: 4294967300,
             master_micros: 100000,
             rate_ppb: -100,
@@ -31,7 +31,7 @@ fn scheduled_and_cancel_commands_decode_with_the_embedded_parser() {
         command,
         Command::Schedule {
             boot_id: 1,
-            clock_id: 2,
+            clock_id: core::num::NonZeroU32::new(2).unwrap(),
             command_id: 3,
             at_micros: 4294967400,
             action: Action::Play,

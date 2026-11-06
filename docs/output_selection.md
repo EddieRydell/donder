@@ -127,8 +127,8 @@ operator inputs. An empty layer feeding an operator remains a valid input: an
 operator can produce a nonblack result from black. Retained programs, targets,
 automation slots, graph nodes, and frame/VM slots are compacted or replanned.
 
-Only pixel storage addresses change. Original effect/operator `pixel_index`,
-`pixel_count`, and `pixel_fraction` values remain intact, so splitting a strip or
+Only pixel storage addresses change. Original effect/operator `pixel.index`,
+`target.count`, and `pixel.fraction` values remain intact, so splitting a strip or
 whole-target effect across devices preserves the appearance. Resources referenced
 by retained code (curves, marks, gradients, target metadata) retain their contents;
 their meaning cannot be changed merely because fewer output pixels are retained.

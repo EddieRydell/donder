@@ -3,20 +3,23 @@
 
 use crate::fit::{self, Ellipse, Pixel};
 use crate::report::{
-    ControllerSkip, DropReason, DroppedMember, ImportReport, SkipReason, Skipped,
-    SkippedController, Unrouted, UnroutedReason,
+    ControllerSkip, DropReason, DroppedMember, ImportReport, Scale, SkipReason, Skipped,
+    SkippedController, TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
 };
 use camino::Utf8PathBuf;
 use donder_model::{
-    Controller, ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId,
-    ControllerProtocol, FixtureDefinition, FixtureInstanceId, FixtureTarget, FixtureTransform,
-    Layout, LayoutFixture, LayoutFixtureKind, LayoutId, ObjectId, Owned, OwnedMember,
-    OwnershipSite, Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan, ProjectEdit, Setup,
+    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
+    ControllerPortId, ControllerProtocol, ControllerValidationError, E131Config, E131Mode,
+    FixtureDefinition, FixtureInstanceId, FixtureTarget, FixtureTransform, Layout, LayoutFixture,
+    LayoutFixtureKind, LayoutId, ObjectId, Owned, OwnedMember, OwnershipSite, Patch, PatchId,
+    PixelRoute, PixelRouteId, PixelSpan, ProjectEdit, Setup,
 };
 use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::{Identifier, PixelEncoding};
+use glam::DVec3;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 #[derive(Debug)]
 pub enum ImportError {
@@ -175,11 +178,24 @@ pub(crate) struct ProfileOutput {
     pub(crate) channels: u16,
 }
 
+/// How Donder sends to a controller.
+pub(crate) enum ProfileProtocol {
+    E131 {
+        priority: u8,
+        mode: E131Mode,
+    },
+    /// Art-Net unicast to this address.
+    ArtNet(IpAddr),
+}
+
+/// The UDP port Art-Net sends and listens on.
+const ARTNET_PORT: u16 = 6454;
+
 pub(crate) struct ProfileController {
     pub(crate) name: String,
     pub(crate) description: Option<String>,
     /// How Donder sends to it, or why it is not created.
-    pub(crate) protocol: Result<ControllerProtocol, ControllerSkip>,
+    pub(crate) protocol: Result<ProfileProtocol, ControllerSkip>,
     /// What it sends, by the output index slots refer to.
     pub(crate) outputs: Vec<ProfileOutput>,
 }
@@ -199,14 +215,27 @@ pub(crate) struct Profile {
     pub(crate) report: ImportReport,
 }
 
-/// Meters per layout unit when the typical gap between neighbouring pixels
-/// is `spacing` meters, from the gaps of each fixture's pixels in channel
-/// order, in layout units.
-pub(crate) fn typical_scale(gaps: impl IntoIterator<Item = f64>, spacing: f64) -> f64 {
-    let mut gaps: Vec<f64> = gaps.into_iter().filter(|gap| *gap > 0.0).collect();
+/// Meters per layout unit, and how it was set: from the gaps between each
+/// fixture's neighbouring pixels in channel order, in layout units, so the
+/// typical gap is `pixel_spacing` meters, or [`TYPICAL_PIXEL_SPACING`].
+pub(crate) fn typical_scale(
+    fixtures: impl IntoIterator<Item = Vec<DVec3>>,
+    pixel_spacing: Option<f64>,
+) -> (f64, Scale) {
+    let spacing = pixel_spacing.unwrap_or(TYPICAL_PIXEL_SPACING);
+    let mut gaps: Vec<f64> = fixtures
+        .into_iter()
+        .flat_map(|pixels| {
+            pixels
+                .windows(2)
+                .map(|pair| pair[0].distance(pair[1]))
+                .collect::<Vec<_>>()
+        })
+        .filter(|gap| *gap > 0.0)
+        .collect();
     gaps.sort_by(f64::total_cmp);
     let typical = gaps.get(gaps.len() / 2).copied().unwrap_or(1.0);
-    spacing / typical
+    (spacing / typical, Scale::PixelSpacing(spacing))
 }
 
 /// The Donder controllers, with each profile output's port.
@@ -216,44 +245,106 @@ struct Controllers {
     ports: HashMap<(usize, usize), (ControllerId, ControllerPortId, u32)>,
 }
 
+/// How Donder sends to a controller and addresses its outputs.
+fn protocol(protocol: &ProfileProtocol) -> (ControllerProtocol, fn(u16) -> ControllerPortAddress) {
+    let unspecified = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+    match protocol {
+        ProfileProtocol::E131 { priority, mode } => (
+            ControllerProtocol::E131(E131Config {
+                sender_name: "Donder".to_string(),
+                bind_address: unspecified,
+                priority: *priority,
+                mode: mode.clone(),
+            }),
+            ControllerPortAddress::E131Universe,
+        ),
+        ProfileProtocol::ArtNet(destination) => (
+            ControllerProtocol::ArtNet(ArtNetConfig {
+                bind_address: SocketAddr::new(unspecified, ARTNET_PORT),
+                destination: SocketAddr::new(*destination, ARTNET_PORT),
+                mode: ArtNetMode::Unicast,
+            }),
+            ControllerPortAddress::ArtNetPort,
+        ),
+    }
+}
+
+/// Why Donder cannot send to a controller the importer built, or an error
+/// when the importer built it wrong.
+fn refusal(error: ControllerValidationError) -> Result<ControllerSkip, ImportError> {
+    use ControllerValidationError as Invalid;
+    Ok(match error {
+        Invalid::InvalidPriority(priority) => ControllerSkip::Priority(priority.into()),
+        Invalid::EmptyPort(_) => ControllerSkip::EmptyOutput,
+        Invalid::TooManySlots { slots, .. } => ControllerSkip::LargeOutput(slots.into()),
+        Invalid::InvalidE131Universe { universe, .. } => ControllerSkip::Universe(universe.into()),
+        Invalid::InvalidArtNetPort { address, .. } => ControllerSkip::Universe(address.into()),
+        Invalid::DuplicateProtocolAddress(
+            ControllerPortAddress::E131Universe(universe)
+            | ControllerPortAddress::ArtNetPort(universe),
+        ) => ControllerSkip::RepeatedUniverse(universe.into()),
+        Invalid::EmptySenderName
+        | Invalid::DuplicatePort(_)
+        | Invalid::InvalidPortName(_)
+        | Invalid::ProtocolAddressMismatch(_)
+        | Invalid::InvalidDonderOutput { .. }
+        | Invalid::DuplicateProtocolAddress(ControllerPortAddress::DonderOutput(_)) => {
+            return Err(ImportError::Project(error.to_string()));
+        }
+    })
+}
+
 fn controllers(
     profile: &[ProfileController],
     report: &mut ImportReport,
     mut new_id: impl FnMut() -> u32,
-) -> Controllers {
+) -> Result<Controllers, ImportError> {
     let mut result = Controllers {
         controllers: Vec::new(),
         ports: HashMap::new(),
     };
     let mut taken = HashSet::new();
     for (index, controller) in profile.iter().enumerate() {
-        let protocol = match &controller.protocol {
-            Ok(protocol) => protocol.clone(),
+        let skip = |reason| SkippedController {
+            controller: controller.name.clone(),
+            reason,
+        };
+        let (protocol, address) = match &controller.protocol {
+            Ok(read) => protocol(read),
             Err(reason) => {
-                report.skipped_controllers.push(SkippedController {
-                    controller: controller.name.clone(),
-                    reason: reason.clone(),
-                });
+                report.skipped_controllers.push(skip(reason.clone()));
                 continue;
             }
         };
-        let id = ControllerId(new_id());
-        let mut ports = Vec::new();
-        for (output_index, output) in controller.outputs.iter().enumerate() {
-            let address = match protocol {
-                ControllerProtocol::ArtNet(_) => ControllerPortAddress::ArtNetPort(output.universe),
-                _ => ControllerPortAddress::E131Universe(output.universe),
-            };
-            let port = ControllerPortId(ports.len() as u32 + 1);
+        let mut ports: Vec<ControllerPort> = Vec::new();
+        for output in &controller.outputs {
+            // A repeated universe takes another name, so the model reports
+            // it as a repeated address.
+            let name =
+                donder_language::unique_name(&format!("universe_{}", output.universe), |name| {
+                    ports.iter().any(|port| port.name.as_str() == name)
+                });
             ports.push(ControllerPort {
-                id: port,
-                name: donder_language::object_name(&format!("universe_{}", output.universe)),
-                address,
+                id: ControllerPortId(ports.len() as u32 + 1),
+                name,
+                address: address(output.universe),
                 slot_count: output.channels,
             });
+        }
+        let built = Controller {
+            id: ControllerId(new_id()),
+            description: controller.description.clone(),
+            protocol,
+            ports,
+        };
+        if let Err(error) = built.validate() {
+            report.skipped_controllers.push(skip(refusal(error)?));
+            continue;
+        }
+        for (output, port) in built.ports.iter().enumerate() {
             result.ports.insert(
-                (index, output_index),
-                (id, port, u32::from(output.channels)),
+                (index, output),
+                (built.id, port.id, u32::from(port.slot_count)),
             );
         }
         let name = donder_language::unique_name(
@@ -261,17 +352,9 @@ fn controllers(
             |name| taken.contains(name),
         );
         taken.insert(name.as_str().to_string());
-        result.controllers.push((
-            name,
-            Controller {
-                id,
-                description: controller.description.clone(),
-                protocol,
-                ports,
-            },
-        ));
+        result.controllers.push((name, built));
     }
-    result
+    Ok(result)
 }
 
 /// A fixture's routes as runs of pixels: the slot of the first, its index,
@@ -327,7 +410,7 @@ pub(crate) fn build(
     } = profile;
     let controllers = controllers(&profile_controllers, &mut report, || {
         session.project.new_id()
-    });
+    })?;
 
     // Patch each fixture whose channels no earlier fixture has.
     let layout_id = LayoutId(session.project.new_id());
@@ -590,37 +673,31 @@ fn groups(
     (items, root_members)
 }
 
-/// A new data document under `directory` named `stem`, or `stem_2` and so on
-/// when that is taken.
+/// A new data document under `directory` named `main`, or `main_2` and so
+/// on when that is taken.
 fn new_document(
     session: &mut ProjectSession,
     directory: &str,
     objects: Vec<(ObjectId, Identifier)>,
 ) -> Result<DocumentId, ImportError> {
-    for index in 1_u32.. {
-        let stem = if index == 1 {
-            "main".to_string()
-        } else {
-            format!("main_{index}")
-        };
-        let path = Utf8PathBuf::from(format!(
+    let path = |stem: &str| {
+        Utf8PathBuf::from(format!(
             "{directory}/{stem}{}",
             donder_language::data::DATA_DOCUMENT_SUFFIX
-        ));
-        if session
+        ))
+    };
+    let stem = donder_language::unique_name("main", |stem| {
+        let path = path(stem);
+        session
             .source
             .documents
             .contains_key(&session.source.project_document(path.clone()))
             || session.source.project_root().join(&path).exists()
-        {
-            continue;
-        }
-        return session
-            .source
-            .add_data_document(path, objects)
-            .map_err(ImportError::Project);
-    }
-    Err(ImportError::Project("No document names remain.".into()))
+    });
+    session
+        .source
+        .add_data_document(path(stem.as_str()), objects)
+        .map_err(ImportError::Project)
 }
 
 /// Put the layout, patch and controllers in the project's setup, each in its
@@ -633,22 +710,13 @@ fn insert(
 ) -> Result<(), ImportError> {
     let project = &session.project;
     let root = project.root().clone();
-    let setup_id = match &root.setup {
-        Owned::Inline(setup) => setup.id,
-        Owned::Reference(id) => *id,
-    };
+    let setup_id = *root.setup.id();
     let setup = project
         .get::<Setup>(setup_id)
         .ok_or_else(|| ImportError::Project("The project has no setup.".into()))?
         .clone();
-    let layout_id = match &setup.layout {
-        Owned::Inline(layout) => layout.id,
-        Owned::Reference(id) => *id,
-    };
-    let patch_id = match &setup.patch {
-        Owned::Inline(patch) => patch.id,
-        Owned::Reference(id) => *id,
-    };
+    let layout_id = *setup.layout.id();
+    let patch_id = *setup.patch.id();
     let has_fixtures = project
         .get::<Layout>(layout_id)
         .is_some_and(|layout| !layout.fixtures.is_empty());

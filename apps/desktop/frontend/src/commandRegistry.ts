@@ -7,14 +7,8 @@ import { runSnapshotCommand, useAppStore } from "./store";
 import type { AppCommandId, CommandId, EditorCommandId, KeyBinding, Shortcut, SidebarView } from "./types";
 import { editTarget, formatShortcut, isMac, matchesShortcut, shortcut } from "./platform";
 import { activeEditorCommand, editorSurfaceRoot } from "./shortcuts";
-import { requestOpenLayerGraph } from "./ui/uiEvents";
+import { dispatchUiEvent, focusSidebar, requestOpenLayerGraph } from "./ui/uiEvents";
 import { isPerforming, stopPerforming } from "./perform";
-
-import { GUI_HISTORY_CHANGED_EVENT } from "./editor/host";
-
-export const OPEN_COMMAND_PALETTE_EVENT = "donder:open-command-palette";
-export const OPEN_QUICK_OPEN_EVENT = "donder:open-quick-open";
-export const FOCUS_SIDEBAR_EVENT = "donder:focus-sidebar";
 
 export type CommandDefinition = {
   label: string;
@@ -34,22 +28,20 @@ const always = () => true;
 const hasProject = () => useAppStore.getState().snapshot?.projectRoot !== null;
 const sequenceOpen = () => useAppStore.getState().guiDocument?.type === "sequence";
 const settings = () => useAppStore.getState().snapshot?.settings;
-const focusSidebar = (view: SidebarView) => () => {
-  window.dispatchEvent(new CustomEvent<SidebarView>(FOCUS_SIDEBAR_EVENT, { detail: view }));
-};
+const focusingSidebar = (view: SidebarView) => () => { focusSidebar(view); };
 
 const appCommands: Record<AppCommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
-    window.dispatchEvent(new CustomEvent("donder:new-project"));
+    dispatchUiEvent("newProject");
   }),
   "file.copyProject": command("Create Standalone Project Copy...", "File", ["copy", "folder"], () => {
-    window.dispatchEvent(new CustomEvent("donder:copy-project"));
+    dispatchUiEvent("copyProject");
   }, hasProject),
   "file.importProfile": command("Import Profile...", "File", ["xlights", "vixen", "layout", "controllers", "create"], () => {
-    window.dispatchEvent(new CustomEvent("donder:import-profile"));
+    dispatchUiEvent("importProfile");
   }),
   "file.newSequence": command("New Sequence...", "File", ["create", "document"], () => {
-    window.dispatchEvent(new CustomEvent("donder:new-sequence"));
+    dispatchUiEvent("newSequence");
   }, hasProject),
   "file.openProject": command("Open Project...", "File", ["folder", "workspace"], async () => {
     await openProjectDialog();
@@ -70,17 +62,17 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
     await getCurrentWindow().close();
   }, always, [shortcut("w", { primary: true, shift: true })]),
   "file.settings": command("Settings...", "File", ["preferences"], () => {
-    window.dispatchEvent(new CustomEvent("donder:settings"));
+    dispatchUiEvent("settings");
   }, always, [shortcut(",", { primary: true })]),
   "edit.undo": command("Undo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.undoActiveEdit);
-    window.dispatchEvent(new Event(GUI_HISTORY_CHANGED_EVENT));
+    dispatchUiEvent("guiHistoryChanged");
   }, hasProject, [shortcut("z", { primary: true })]),
   "edit.redo": command("Redo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.redoActiveEdit);
-    window.dispatchEvent(new Event(GUI_HISTORY_CHANGED_EVENT));
+    dispatchUiEvent("guiHistoryChanged");
   }, hasProject, isMac ? [shortcut("z", { primary: true, shift: true })] : [shortcut("z", { primary: true, shift: true }), shortcut("y", { primary: true })]),
   "view.toggleGuiMode": {
     ...command("Toggle GUI / Text Mode", "View", ["editor"], async () => {
@@ -89,7 +81,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
       if (mode === "gui" && snapshot.projectHealth !== "ready" && snapshot.activeFile !== null) {
         const diagnostic = snapshot.diagnostics.find((item) => item.severity === "error");
         await navigateToText(snapshot.activeFile, diagnostic?.range ?? null);
-        focusSidebar("problems")();
+        focusSidebar("problems");
       }
     }, hasProject),
     checked: () => (settings()?.editorViewMode ?? "gui") === "gui"
@@ -100,7 +92,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
       if (current === undefined) return;
       await runSnapshotCommand(() => commands.updateAppSettings({
         ...current,
-        sequenceSpectrogramEnabled: !(current.sequenceSpectrogramEnabled ?? false)
+        sequenceSpectrogramEnabled: !current.sequenceSpectrogramEnabled
       }));
     }, hasProject),
     checked: () => settings()?.sequenceSpectrogramEnabled ?? false
@@ -111,7 +103,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
       if (current === undefined) return;
       await runSnapshotCommand(() => commands.updateAppSettings({
         ...current,
-        sequenceMarksLaneOnly: !(current.sequenceMarksLaneOnly ?? false)
+        sequenceMarksLaneOnly: !current.sequenceMarksLaneOnly
       }));
     }, hasProject),
     checked: () => settings()?.sequenceMarksLaneOnly ?? false
@@ -120,14 +112,14 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
   "view.toggleProjectTree": command("Toggle Side Bar", "View", ["collapse", "panel"], async () => {
     await runSnapshotCommand(commands.toggleProjectTree);
   }, always, [shortcut("b", { primary: true })]),
-  "view.focusExplorer": command("Focus Explorer", "View", ["files", "sidebar"], focusSidebar("explorer")),
-  "view.focusSearch": command("Focus Search", "View", ["find", "sidebar"], focusSidebar("search")),
-  "view.focusProblems": command("Focus Problems", "View", ["diagnostics", "errors", "sidebar"], focusSidebar("problems")),
+  "view.focusExplorer": command("Focus Explorer", "View", ["files", "sidebar"], focusingSidebar("explorer")),
+  "view.focusSearch": command("Focus Search", "View", ["find", "sidebar"], focusingSidebar("search")),
+  "view.focusProblems": command("Focus Problems", "View", ["diagnostics", "errors", "sidebar"], focusingSidebar("problems")),
   "workbench.quickOpen": command("Quick Open...", "Workbench", ["file", "recent"], () => {
-    window.dispatchEvent(new CustomEvent(OPEN_QUICK_OPEN_EVENT));
+    dispatchUiEvent("openQuickOpen");
   }, hasProject, [shortcut("p", { primary: true })]),
   "workbench.commandPalette": command("Command Palette...", "Workbench", ["commands"], () => {
-    window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT));
+    dispatchUiEvent("openCommandPalette");
   }, always, [shortcut("p", { primary: true, shift: true })]),
   "project.reload": command("Reload / Check Project", "Project", ["refresh", "diagnostics"], async () => {
     await runWorkspaceTransition({ type: "reloadProject" });

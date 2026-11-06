@@ -52,7 +52,7 @@ fn assert_same_playback(
 
 #[test]
 fn strips_preserve_local_and_subset_target_addressing() {
-    use donder_runtime_types::{OutputEncoding, RgbOrder};
+    use donder_runtime_types::OutputEncoding;
     let source = effect("effect Source { sample { rgb(pixel.fraction, time * 0.2, 0.5) } }");
     let operator = operator(
         "operator Address { input source; sample {
@@ -80,7 +80,16 @@ fn strips_preserve_local_and_subset_target_addressing() {
                     TargetScope::WholeTarget,
                 ));
                 let port = builder.port(0, 0);
-                builder.route(port, full, OutputEncoding::Rgb(RgbOrder::Rgb), None, false);
+                builder.route(
+                    port,
+                    full,
+                    OutputEncoding::admit(donder_runtime_types::PixelEncoding::Rgb {
+                        order: [0, 1, 2],
+                    })
+                    .unwrap(),
+                    None,
+                    false,
+                );
                 let effect = builder.clip(
                     None,
                     &source,

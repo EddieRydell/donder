@@ -10,7 +10,7 @@
     )
 )]
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 mod audio;
 mod bindings;
@@ -18,6 +18,7 @@ mod commands;
 mod desktop_foundation_tests;
 mod desktop_state;
 mod device;
+mod events;
 mod language_server;
 mod midi;
 mod osc;
@@ -38,6 +39,7 @@ pub fn run() -> Result<(), String> {
 
 fn run_desktop() -> Result<(), tauri::Error> {
     let bindings = bindings::builder();
+    let invoke_handler = bindings.invoke_handler();
 
     tauri::Builder::default()
         .register_uri_scheme_protocol("donder-raster", |context, request| {
@@ -46,11 +48,12 @@ fn run_desktop() -> Result<(), tauri::Error> {
                 request,
             )
         })
-        .setup(|app| {
+        .setup(move |app| {
+            bindings.mount_events(app);
             let handle = app.handle().clone();
             let analysis_app = handle.clone();
             let state = desktop_state::DesktopState::new(move |snapshot| {
-                let _ = analysis_app.emit("app_snapshot_changed", snapshot);
+                events::send(&analysis_app, events::AppSnapshotChanged { snapshot });
             });
             let preview = preview::PreviewWindowService::new(state.preview_wake());
             app.manage(state);
@@ -66,7 +69,7 @@ fn run_desktop() -> Result<(), tauri::Error> {
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
-                        let _ = close_app.emit("close_requested", ());
+                        events::send(&close_app, events::CloseRequested);
                     }
                 });
             }
@@ -92,7 +95,7 @@ fn run_desktop() -> Result<(), tauri::Error> {
             }
             Ok(())
         })
-        .invoke_handler(bindings.invoke_handler())
+        .invoke_handler(invoke_handler)
         .build(tauri::generate_context!())?
         .run(|app, event| {
             // Quitting from the macOS app menu or Dock requests an exit without a code; route it
@@ -103,7 +106,7 @@ fn run_desktop() -> Result<(), tauri::Error> {
             } = event
             {
                 api.prevent_exit();
-                let _ = app.emit("close_requested", ());
+                events::send(app, events::CloseRequested);
             }
         });
     Ok(())

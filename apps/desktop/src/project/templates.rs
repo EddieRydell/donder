@@ -1,7 +1,7 @@
 use std::fs;
 
 use camino::Utf8Path;
-use donder_project_io::{PROJECT_ROOT_FILE, ProjectMetadata};
+use donder_project_io::{PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE};
 
 pub(crate) struct ProjectBoilerplateFile {
     path: &'static str,
@@ -16,7 +16,6 @@ pub(crate) fn new_project_files(
         .ok_or("Invalid initial project color.")?
         .to_hex();
     let project = project_name_from_text(project_name);
-    let config = ProjectMetadata::default();
     let root = format!(
         r#"import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>;
 import vixen from <effects/vixen.donder>;
@@ -51,7 +50,7 @@ Project {project} {{
   consoles: [],
 }}
 "#,
-        format = config.format_version,
+        format = PROJECT_FORMAT_VERSION,
     );
     let (document, diagnostics) = donder_language::data::parse(&root);
     if let Some(diagnostic) = diagnostics.first() {

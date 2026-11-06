@@ -20,38 +20,58 @@ const TYPES: [SemanticTokenType; 12] = [
     SemanticTokenType::ENUM_MEMBER,
 ];
 
-const DECLARATION: u32 = 1;
-const DEFAULT_LIBRARY: u32 = 1 << 1;
-const READONLY: u32 = 1 << 2;
+const MODIFIERS: [SemanticTokenModifier; 3] = [
+    SemanticTokenModifier::DECLARATION,
+    SemanticTokenModifier::DEFAULT_LIBRARY,
+    SemanticTokenModifier::READONLY,
+];
 
 pub(crate) fn legend() -> SemanticTokensLegend {
     SemanticTokensLegend {
         token_types: TYPES.to_vec(),
-        token_modifiers: vec![
-            SemanticTokenModifier::DECLARATION,
-            SemanticTokenModifier::DEFAULT_LIBRARY,
-            SemanticTokenModifier::READONLY,
-        ],
+        token_modifiers: MODIFIERS.to_vec(),
     }
 }
 
+/// A modifier's bit, by its place in the legend.
+fn modifier(modifier: &SemanticTokenModifier) -> u32 {
+    let index = MODIFIERS
+        .iter()
+        .position(|listed| listed == modifier)
+        .unwrap_or_else(|| unreachable!("the legend lists every modifier"));
+    1 << index
+}
+
+/// A class's token type, by its place in the legend, and modifiers.
 fn encoding(class: TokenClass) -> (u32, u32) {
-    match class {
-        TokenClass::Comment => (0, 0),
-        TokenClass::Keyword => (1, 0),
-        TokenClass::Type => (2, 0),
-        TokenClass::Number => (3, 0),
-        TokenClass::String => (4, 0),
-        TokenClass::Operator => (5, 0),
-        TokenClass::Namespace => (6, 0),
-        TokenClass::Function => (7, 0),
-        TokenClass::Parameter => (8, 0),
-        TokenClass::Variable => (9, 0),
-        TokenClass::Property => (10, 0),
-        TokenClass::EnumMember => (11, 0),
-        TokenClass::Builtin => (7, DEFAULT_LIBRARY),
-        TokenClass::Context => (9, DEFAULT_LIBRARY | READONLY),
-    }
+    let (ty, modifiers) = match class {
+        TokenClass::Comment => (SemanticTokenType::COMMENT, 0),
+        TokenClass::Keyword => (SemanticTokenType::KEYWORD, 0),
+        TokenClass::Type => (SemanticTokenType::TYPE, 0),
+        TokenClass::Number => (SemanticTokenType::NUMBER, 0),
+        TokenClass::String => (SemanticTokenType::STRING, 0),
+        TokenClass::Operator => (SemanticTokenType::OPERATOR, 0),
+        TokenClass::Namespace => (SemanticTokenType::NAMESPACE, 0),
+        TokenClass::Function => (SemanticTokenType::FUNCTION, 0),
+        TokenClass::Parameter => (SemanticTokenType::PARAMETER, 0),
+        TokenClass::Variable => (SemanticTokenType::VARIABLE, 0),
+        TokenClass::Property => (SemanticTokenType::PROPERTY, 0),
+        TokenClass::EnumMember => (SemanticTokenType::ENUM_MEMBER, 0),
+        TokenClass::Builtin => (
+            SemanticTokenType::FUNCTION,
+            modifier(&SemanticTokenModifier::DEFAULT_LIBRARY),
+        ),
+        TokenClass::Context => (
+            SemanticTokenType::VARIABLE,
+            modifier(&SemanticTokenModifier::DEFAULT_LIBRARY)
+                | modifier(&SemanticTokenModifier::READONLY),
+        ),
+    };
+    let index = TYPES
+        .iter()
+        .position(|listed| *listed == ty)
+        .unwrap_or_else(|| unreachable!("the legend lists every token type"));
+    (index as u32, modifiers)
 }
 
 /// `tokens`, in source order, as LSP encodes them: each relative to the one
@@ -68,7 +88,7 @@ pub(crate) fn encode(document: &Document, tokens: &[SemanticToken]) -> SemanticT
         }
         let (token_type, mut modifiers) = encoding(token.class);
         if token.declaration {
-            modifiers |= DECLARATION;
+            modifiers |= modifier(&SemanticTokenModifier::DECLARATION);
         }
         let delta_line = start.line - previous_line;
         let delta_start = if delta_line == 0 {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::address::{ObjectAddress, OwnedObjectSlot};
+use crate::address::{ObjectAddress, OwningField};
 use donder_model::ObjectKind;
 
 impl Loader {
@@ -15,40 +15,29 @@ impl Loader {
         let mut kind = root.kind();
         let mut identity = self.address(root);
         while let Some((field, after)) = rest.split_first() {
-            let (slot, after) = match field.value.as_str() {
-                "setup" => (OwnedObjectSlot::Setup, after),
-                "layout" => (OwnedObjectSlot::Layout, after),
-                "patch" => (OwnedObjectSlot::Patch, after),
-                collection => {
-                    let slot: fn(Identifier) -> OwnedObjectSlot = match collection {
-                        "controllers" => OwnedObjectSlot::Controller,
-                        "input_devices" => OwnedObjectSlot::InputDevice,
-                        "sequences" => OwnedObjectSlot::Sequence,
-                        "consoles" => OwnedObjectSlot::Console,
-                        _ => return Err(self.unresolved(document, reference)),
-                    };
-                    let (member, after) = after
-                        .split_first()
-                        .ok_or_else(|| self.unresolved(document, reference))?;
-                    (slot(member.value.clone()), after)
-                }
+            let field = OwningField::ALL
+                .into_iter()
+                .find(|owning| owning.name() == field.value.as_str())
+                .ok_or_else(|| self.unresolved(document, reference))?;
+            let (member, after) = if field.is_collection() {
+                let (member, after) = after
+                    .split_first()
+                    .ok_or_else(|| self.unresolved(document, reference))?;
+                (Some(member), after)
+            } else {
+                (None, after)
             };
-            let member = matches!(
-                slot,
-                OwnedObjectSlot::Controller(_)
-                    | OwnedObjectSlot::InputDevice(_)
-                    | OwnedObjectSlot::Sequence(_)
-                    | OwnedObjectSlot::Console(_)
-            );
+            let slot = field
+                .slot(member.map(|member| member.value.clone()))
+                .ok_or_else(|| self.unresolved(document, reference))?;
             kind = slot
                 .child_kind(kind)
                 .ok_or_else(|| self.unresolved(document, reference))?;
             identity = identity.owned(slot);
-            if member
-                && let Some(segment) = rest.get(1)
+            if let Some(member) = member
                 && let Some(target) = self.member_span(&identity)
             {
-                self.link(document, segment.span, target);
+                self.link(document, member.span, target);
             }
             rest = after;
         }

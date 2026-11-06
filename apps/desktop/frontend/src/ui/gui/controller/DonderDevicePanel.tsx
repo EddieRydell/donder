@@ -6,7 +6,6 @@ import type { DonderDeviceNetworkRequest, DonderDeviceStatus } from "../../../ty
 import { Badge, Button, Field, Section, TextField } from "../../kit";
 
 const MAX_DEVICE_NAME = 32;
-const MIN_WIFI_PASSWORD = 8;
 
 /** Live status and settings for the Donder controller a setup controller targets. */
 export function DonderDevicePanel({ deviceId }: { deviceId: string }) {
@@ -50,7 +49,7 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
       <div className="dialog-actions">
         {device.network === "station" && <Button tip="Host its own Wi-Fi network again" disabled={pending} onClick={() => { run(() => runSnapshotCommand(() => commands.setDeviceNetwork(device.id, null))); }}>Own network</Button>}
         <Button tip="Join a 2.4 GHz WPA2 network. It restarts to apply the change and returns to its own network when it cannot join."
-          disabled={pending || ssid.trim() === "" || password.length < MIN_WIFI_PASSWORD}
+          disabled={pending}
           onClick={() => { run(() => runSnapshotCommand(() => commands.setDeviceNetwork(device.id, { ssid, password } satisfies DonderDeviceNetworkRequest)).then(() => { setPassword(""); })); }}>Join</Button>
       </div>
     </Section>

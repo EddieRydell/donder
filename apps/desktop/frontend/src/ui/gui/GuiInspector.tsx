@@ -1,4 +1,4 @@
-import type { AutomationClipChooser, GuiFocus, ReadyGuiDocument, SequenceSelection } from "./shared";
+import type { AutomationClipChooser, GuiFocus, InspectedGuiDocument, SequenceSelection } from "./shared";
 import { ConsoleInspector } from "./console/ConsoleInspector";
 import { SequenceInspector } from "./sequence/SequenceInspector";
 
@@ -15,7 +15,7 @@ export function GuiInspector({
   visibleMarkCollectionKeys,
   setVisibleMarkCollectionKeys
 }: {
-  gui: ReadyGuiDocument;
+  gui: InspectedGuiDocument;
   selected: GuiFocus;
   setSelected: (id: GuiFocus) => void;
   sequenceSelection: SequenceSelection;
@@ -27,23 +27,20 @@ export function GuiInspector({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  if (gui.type === "sequence") {
-    return (
-      <SequenceInspector
-        document={gui.document}
-        selected={selected}
-        setSelected={setSelected}
-        sequenceSelection={sequenceSelection}
-        setSequenceSelection={setSequenceSelection}
-        automationClipChooser={automationClipChooser}
-        setAutomationClipChooser={setAutomationClipChooser}
-        activeMarkCollectionKey={activeMarkCollectionKey}
-        setActiveMarkCollectionKey={setActiveMarkCollectionKey}
-        visibleMarkCollectionKeys={visibleMarkCollectionKeys}
-        setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
-      />
-    );
-  }
   if (gui.type === "console") return <ConsoleInspector document={gui.document} selected={selected} setSelected={setSelected} />;
-  return null;
+  return (
+    <SequenceInspector
+      document={gui.document}
+      selected={selected}
+      setSelected={setSelected}
+      sequenceSelection={sequenceSelection}
+      setSequenceSelection={setSequenceSelection}
+      automationClipChooser={automationClipChooser}
+      setAutomationClipChooser={setAutomationClipChooser}
+      activeMarkCollectionKey={activeMarkCollectionKey}
+      setActiveMarkCollectionKey={setActiveMarkCollectionKey}
+      visibleMarkCollectionKeys={visibleMarkCollectionKeys}
+      setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
+    />
+  );
 }

@@ -1,8 +1,8 @@
-use crate::diagnostics::{push_diagnostic, read_error};
+use crate::diagnostics::push_diagnostic;
 use crate::loader::Loader;
 use crate::{
     IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, ProjectCheckCache,
-    ProjectCheckReport, ProjectMetadata, ProjectWorkspace, analysis,
+    ProjectCheckReport, ProjectWorkspace, analysis,
 };
 use camino::{Utf8Path, Utf8PathBuf};
 use indexmap::IndexSet;
@@ -72,19 +72,13 @@ pub fn check_project(
     let mut diagnostics = Vec::new();
     let mut checked_scripts = IndexSet::new();
     let mut index = crate::ProjectIndex::default();
-    let metadata = match texts.text(Utf8Path::new(PROJECT_ROOT_FILE)) {
-        Ok(text) => ProjectMetadata::parse(text),
-        Err(error) => Err(read_error(PROJECT_ROOT_FILE, error)),
-    };
-    let workspace = metadata.and_then(|metadata| {
-        ProjectWorkspace::new(root, metadata).map_err(|message| {
-            vec![IoDiagnostic::error(
-                PROJECT_ROOT_FILE,
-                None,
-                IoDiagnosticCode::DonderLoad,
-                message,
-            )]
-        })
+    let workspace = ProjectWorkspace::new(root).map_err(|message| {
+        vec![IoDiagnostic::error(
+            PROJECT_ROOT_FILE,
+            None,
+            IoDiagnosticCode::DonderLoad,
+            message,
+        )]
     });
     let compiled = match workspace {
         Ok(workspace) => {

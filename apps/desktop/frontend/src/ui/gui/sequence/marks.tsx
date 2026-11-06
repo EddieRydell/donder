@@ -1,4 +1,4 @@
-import type { SequenceMarkCollection } from "../../../editor/types";
+import type { SequenceMarkCollection } from "../../../types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 
 import type { GuiFocus } from "../shared";

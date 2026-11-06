@@ -1,21 +1,18 @@
-import { useSequenceEditorHost } from "../../../editor/host";
+import { useAppStore } from "../../../store";
 import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { THEME_COLORS } from "../../../theme";
-import type { GuiDocumentRequest, SequenceGraphEdge, SequenceLayer } from "../../../editor/types";
+import type { GuiDocumentRequest, SequenceGraphEdge, SequenceLayer } from "../../../types";
 import type { CompositionDocument, CompositionEditing } from "./composition";
 import { ColorPicker } from "../../ColorPicker";
 import { Button, Dialog, Field, IconButton, Select, TextField, Toggle } from "../../kit";
 import { graphEdgeId } from "./graphEdge";
 
 export function useSequenceEditErrorReporter() {
- const host = useSequenceEditorHost();
- return useCallback((error: unknown) => { host.store.getState().setError(String(error)); }, [host]);
+ return useCallback((error: unknown) => { useAppStore.getState().setError(String(error)); }, []);
 }
 
 export function useSequenceEditable() {
-  const host = useSequenceEditorHost();
-  const { store: useAppStore } = host;
 
   return useAppStore((state) => state.guiRequest !== null
     && state.guiRequest.projectRevision === state.guiDocumentRevision
@@ -33,9 +30,7 @@ export function deletableGraphNodes(document: CompositionDocument, nodeIds: numb
   return document.compositionGraph.nodes.filter((node) => {
     if (!nodeIds.includes(node.id)) return false;
     if (node.kind.type === "operator") return true;
-    if (node.kind.type === "root") return false;
-    const layerId = node.kind.layerId;
-    return document.layers.some((layer) => layer.id === layerId && !layer.isDefault);
+    return node.kind.type === "layer";
   });
 }
 
@@ -55,7 +50,7 @@ export function LayerProperties({ layer, composition, onDelete }: { layer: Seque
       if (name === "" || name === layer.name) return;
       void composition.applyItem({ type: "rename", item: { type: "layer", id: layer.id }, name }).catch(reportSequenceEditError);
     }} />
-    {!layer.isDefault && onDelete !== undefined && <IconButton icon={Trash2} label={`Delete ${layer.name}`} danger disabled={!editable} onClick={onDelete} />}
+    {onDelete !== undefined && <IconButton icon={Trash2} label={`Delete ${layer.name}`} danger disabled={!editable} onClick={onDelete} />}
   </fieldset>;
 }
 
@@ -72,8 +67,6 @@ type Deletion = {
  * layer their clips move to.
  */
 export function useGraphDeletion(composition: CompositionEditing, onDeleted?: () => void) {
-  const host = useSequenceEditorHost();
-  const { store: useAppStore } = host;
   const { document } = composition;
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
@@ -103,25 +96,25 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
     const nodes = deletableGraphNodes(document, nodeIds);
     const edges = document.compositionGraph.edges.filter((edge) => edgeIds.includes(graphEdgeId(edge)));
     const layerIds = [...new Set([
-      ...document.layers.filter((layer) => !layer.isDefault && explicitLayerIds.includes(layer.id)).map((layer) => layer.id),
+      ...explicitLayerIds,
       ...nodes.flatMap((node) => node.kind.type === "layer" ? [node.kind.layerId] : [])
     ])];
     if (nodes.length === 0 && edges.length === 0 && layerIds.length === 0) return;
-    const defaultLayer = document.layers.find((layer) => layer.isDefault);
+    const survivor = document.layers.find((layer) => !layerIds.includes(layer.id));
     const deletion: Deletion = {
       nodeIds: nodes.map((node) => node.id), edges, layerIds, origin,
       clipCount: layerIds.reduce((count, layerId) => count + composition.layerUses(layerId), 0)
     };
     setError(null);
     if (deletion.clipCount === 0) {
-      void commit(deletion, layerIds.length === 0 ? null : defaultLayer?.id ?? null);
+      void commit(deletion, layerIds.length === 0 ? null : survivor?.id ?? null);
     } else {
       const active = window.document.activeElement;
       returnFocus.current = active instanceof HTMLElement ? active : null;
-      setDestination(defaultLayer?.id ?? null);
+      setDestination(survivor?.id ?? null);
       setPending(deletion);
     }
-  }, [commit, composition, document, editable, useAppStore]);
+  }, [commit, composition, document, editable]);
   const destinations = document.layers
     .filter((layer) => pending?.layerIds.includes(layer.id) !== true)
     .map((layer) => ({ value: String(layer.id), label: layer.name }));

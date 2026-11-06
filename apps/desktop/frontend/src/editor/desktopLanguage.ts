@@ -1,8 +1,7 @@
 // The desktop's language server session: the server runs in the app process
 // behind a Tauri command and event, one session per open project.
-import { listen } from "@tauri-apps/api/event";
 import EditorWorker from "monaco-editor/editor/editor.worker.js?worker";
-import { commands } from "../api";
+import { commands, events } from "../api";
 import { runSnapshotCommand, useAppStore } from "../store";
 import { LanguageClient, type LanguageTransport } from "../ui/source/languageClient";
 import { configureMonaco, monaco } from "../ui/source/monaco";
@@ -15,7 +14,7 @@ const transport: LanguageTransport = {
     void commands.languageServerSend(message).catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
   },
   listen: (listener) => {
-    const stop = listen<string>("language_server_message", (event) => { listener(event.payload); });
+    const stop = events.languageServerMessage.listen((event) => { listener(event.payload.message); });
     return () => { void stop.then((unlisten) => { unlisten(); }); };
   }
 };

@@ -68,23 +68,7 @@ pub enum GraphValidationError {
         input: Option<Identifier>,
     },
     DuplicateEdge(CompositionGraphNodeId),
-    UnconnectedInput {
-        node: CompositionGraphNodeId,
-        input: Identifier,
-    },
     Cycle,
-    UnknownParam {
-        node: CompositionGraphNodeId,
-        param: Identifier,
-    },
-    WrongParamType {
-        node: CompositionGraphNodeId,
-        param: Identifier,
-    },
-    MissingParam {
-        node: CompositionGraphNodeId,
-        param: Identifier,
-    },
 }
 
 impl GraphValidationError {
@@ -96,11 +80,7 @@ impl GraphValidationError {
             | Self::MissingEdgeNode(node)
             | Self::DuplicateEdge(node)
             | Self::EdgeFromRoot(node)
-            | Self::UnknownInput { node, .. }
-            | Self::UnconnectedInput { node, .. }
-            | Self::UnknownParam { node, .. }
-            | Self::WrongParamType { node, .. }
-            | Self::MissingParam { node, .. } => Some(node.clone()),
+            | Self::UnknownInput { node, .. } => Some(node.clone()),
             Self::RootCount(_) | Self::Cycle => None,
         }
     }
@@ -124,17 +104,7 @@ impl std::fmt::Display for GraphValidationError {
                 f.write_str("an edge to an operator names its input")
             }
             Self::DuplicateEdge(_) => f.write_str("an edge appears twice"),
-            Self::UnconnectedInput { input, .. } => {
-                write!(f, "input `{}` is not connected", input.as_str())
-            }
             Self::Cycle => f.write_str("the composition graph contains a cycle"),
-            Self::UnknownParam { param, .. } => write!(f, "no parameter `{}`", param.as_str()),
-            Self::WrongParamType { param, .. } => {
-                write!(f, "parameter `{}` has the wrong type", param.as_str())
-            }
-            Self::MissingParam { param, .. } => {
-                write!(f, "required parameter `{}` is missing", param.as_str())
-            }
         }
     }
 }
@@ -151,10 +121,9 @@ pub fn validate_composition_graph(
         }
         match &node.kind {
             CompositionGraphNodeKind::Operator(operator) => {
-                let definition = definitions
-                    .get(&operator.operator)
-                    .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone()))?;
-                validate_operator_params(&node.id, operator, definition)?;
+                if !definitions.contains_key(&operator.operator) {
+                    return Err(GraphValidationError::MissingOperator(node.id.clone()));
+                }
             }
             CompositionGraphNodeKind::Root => root_count += 1,
             CompositionGraphNodeKind::Layer { .. } => {}
@@ -173,34 +142,10 @@ pub fn validate_composition_graph(
     for edge in &graph.edges {
         validate_edge(edge, &nodes, definitions, &mut edges)?;
     }
-    let connected_inputs = graph
-        .edges
-        .iter()
-        .filter_map(|edge| Some((&edge.to, edge.input.as_ref()?)))
-        .collect::<HashSet<_>>();
-    let root_dependencies = composition_graph_root_dependencies(graph);
-    for node in &graph.nodes {
-        if root_dependencies.contains(&node.id)
-            && let CompositionGraphNodeKind::Operator(operator) = &node.kind
-        {
-            let definition = definitions
-                .get(&operator.operator)
-                .ok_or_else(|| GraphValidationError::MissingOperator(node.id.clone()))?;
-            for input in definition.inputs() {
-                if !connected_inputs.contains(&(&node.id, input)) {
-                    return Err(GraphValidationError::UnconnectedInput {
-                        node: node.id.clone(),
-                        input: input.clone(),
-                    });
-                }
-            }
-        }
-    }
     validate_acyclic(graph)
 }
 
-/// Nodes that can contribute to the root. Disconnected authoring branches
-/// retain their definitions and edges, but need not have all inputs wired yet.
+/// Nodes that can contribute to the root; preparation skips the rest.
 pub fn composition_graph_root_dependencies(
     graph: &SequenceCompositionGraph,
 ) -> HashSet<crate::sequence::CompositionGraphNodeId> {
@@ -302,38 +247,6 @@ fn validate_acyclic(graph: &SequenceCompositionGraph) -> Result<(), GraphValidat
     } else {
         Err(GraphValidationError::Cycle)
     }
-}
-
-fn validate_operator_params(
-    id: &CompositionGraphNodeId,
-    node: &GraphOperatorNode,
-    definition: &OperatorDefinition,
-) -> Result<(), GraphValidationError> {
-    for (name, value) in &node.params {
-        let declaration = definition
-            .params()
-            .iter()
-            .find(|param| param.name == *name)
-            .ok_or_else(|| GraphValidationError::UnknownParam {
-                node: id.clone(),
-                param: name.clone(),
-            })?;
-        if !param_matches_type(value, &declaration.ty) {
-            return Err(GraphValidationError::WrongParamType {
-                node: id.clone(),
-                param: name.clone(),
-            });
-        }
-    }
-    for declaration in definition.params() {
-        if declaration.default.is_none() && !node.params.contains_key(&declaration.name) {
-            return Err(GraphValidationError::MissingParam {
-                node: id.clone(),
-                param: declaration.name.clone(),
-            });
-        }
-    }
-    Ok(())
 }
 
 pub fn param_matches_type(value: &ParamValue, ty: &Type) -> bool {

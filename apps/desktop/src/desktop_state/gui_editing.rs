@@ -170,13 +170,13 @@ impl DesktopState {
         mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
     ) -> Result<(GuiEditUpdate, T), GuiMutationError> {
         if self.snapshot().project_revision != request.project_revision {
-            return Err(GuiMutationError::Blocked(
+            return Err(GuiMutationError::Invalid(
                 "The project changed before the GUI edit arrived.".into(),
             ));
         }
         let before = self
             .project_session()
-            .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
+            .ok_or_else(|| GuiMutationError::Invalid("No project is loaded.".to_string()))?;
         let mut affected_paths = donder_editor::affected_paths(&before, request)?;
         let mut edited = (*before).clone();
         let value = mutate(&mut edited).map_err(|error| error.named(&edited))?;
@@ -196,7 +196,6 @@ impl DesktopState {
             before,
             after: Arc::clone(&edited),
             affected_paths: affected_paths.clone(),
-            status_path: request.path.clone(),
         });
         Ok((gui_update(snapshot, change), value))
     }
@@ -212,14 +211,10 @@ impl DesktopState {
 
     pub(crate) fn finish_composition_graph_editing(&self) -> AppSnapshot {
         let _authoring = lock_unpoisoned(&self.authoring);
-        self.render_refresh.invalidate_pending();
-        let render_error = self
-            .project_session()
-            .and_then(|session| self.refresh_render_session(&session.project));
-        self.update_snapshot(|snapshot| {
-            snapshot.render_error =
-                render_error.map(|error| format!("Render refresh failed: {error:?}"));
-        })
+        if let Some(session) = self.project_session() {
+            self.schedule_render_refresh(session);
+        }
+        self.snapshot()
     }
 
     /// Copy a sequence selection to the clipboard; the project does not change.
@@ -231,13 +226,13 @@ impl DesktopState {
         let _authoring = lock_unpoisoned(&self.authoring);
         let copied = (|| {
             if self.snapshot().project_revision != request.project_revision {
-                return Err(GuiMutationError::Blocked(
+                return Err(GuiMutationError::Invalid(
                     "The project changed before copying".into(),
                 ));
             }
             let project = self
                 .project_session()
-                .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
+                .ok_or_else(|| GuiMutationError::Invalid("No project is loaded.".to_string()))?;
             let (clipboard, outcome) =
                 donder_editor::copy_selection(&project, &request, &selection)?;
             *lock_unpoisoned(&self.sequence_clipboard) = clipboard;
@@ -270,7 +265,7 @@ impl DesktopState {
         ) {
             Ok(text) => text,
             Err(message) => {
-                return self.snapshot_with_error("gui.undo", &entry.status_path, &message);
+                return self.snapshot_with_error(&message);
             }
         };
         let entry = {
@@ -282,9 +277,7 @@ impl DesktopState {
             entry
         };
         self.accept_gui_sources(entry.before, generated_text, "GUI edit undone")
-            .unwrap_or_else(|error| {
-                self.snapshot_with_error("gui.undo", &entry.status_path, &error)
-            })
+            .unwrap_or_else(|error| self.snapshot_with_error(&error))
     }
 
     pub(crate) fn redo_active_edit(&self) -> AppSnapshot {
@@ -301,7 +294,7 @@ impl DesktopState {
         ) {
             Ok(text) => text,
             Err(message) => {
-                return self.snapshot_with_error("gui.redo", &entry.status_path, &message);
+                return self.snapshot_with_error(&message);
             }
         };
         let entry = {
@@ -313,9 +306,7 @@ impl DesktopState {
             entry
         };
         self.accept_gui_sources(entry.after, generated_text, "GUI edit redone")
-            .unwrap_or_else(|error| {
-                self.snapshot_with_error("gui.redo", &entry.status_path, &error)
-            })
+            .unwrap_or_else(|error| self.snapshot_with_error(&error))
     }
 }
 

@@ -20,7 +20,7 @@ Do not add or modify tests unless specifically requested. Prefer `examples/start
 
 ### Development version policy
 
-Donder is pre-release with no users or compatibility obligations; the product version and the current project/serialization formats are one moving development line (`0.1` / `0.1.0`). Do not add migrations, compatibility layers, legacy aliases, shims, version ranges, or fallbacks; change the current implementation, fixtures and docs in place. Do not add fallbacks when something fails; that hides errors. Keep safeguards that detect malformed data, corruption, impossible values, or an actually incompatible current format.
+Donder is pre-release with no users or compatibility obligations; the current project and serialization formats are one moving development line; the product version (the workspace `version` in `Cargo.toml`) only counts releases. Do not add migrations, compatibility layers, legacy aliases, shims, version ranges, or fallbacks; change the current implementation, fixtures and docs in place. Do not add fallbacks when something fails; that hides errors. Keep safeguards that detect malformed data, corruption, impossible values, or an actually incompatible current format.
 
 ### Rules
 

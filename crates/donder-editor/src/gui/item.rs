@@ -1,10 +1,10 @@
 //! The generic edits of an open object's parts: renaming, describing,
 //! coloring and deleting the item a `GuiItem` names.
-use donder_model::{Action, Console, ConsoleClipId, MarkCollectionKey, ObjectKind, Sequence};
+use donder_model::{Console, ConsoleClipId, MarkCollectionKey, ObjectKind, Sequence};
 use donder_project_io::ProjectSession;
 
-use super::console::{clip_mut, console_mark_references_mut, delete_clip, live_marks_mut};
-use super::graph::{Composition, layer_mut, node_mut};
+use super::console::{clip_mut, delete_clip, live_marks_mut};
+use super::graph::{Composition, layer_mut, node_mut, replace_mark_collection};
 use super::model::{mark_collection_mut, parse_color, typed_name};
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::GuiItem;
@@ -80,39 +80,12 @@ fn sequence_item(
             super::model::clip_mut(sequence, id)?.description =
                 super::description::normalized(description);
         }
-        (GuiItem::MarkCollection { key }, Verb::Rename(name)) => {
-            // A rename moves every clip parameter that names the collection.
-            let name = typed_name(&name)?;
-            let from = mark_collection_mut(sequence, &key)?.key.name.clone();
-            mark_collection_mut(sequence, &key)?.key.name = name.clone();
-            super::edit::mark_references_mut(sequence, |reference| {
-                if let Some(collection) = reference
-                    && collection.name == from
-                {
-                    collection.name = name.clone();
-                }
-            });
-        }
         (GuiItem::MarkCollection { key }, Verb::Describe(description)) => {
             mark_collection_mut(sequence, &key)?.description =
                 super::description::normalized(description);
         }
         (GuiItem::MarkCollection { key }, Verb::Color(color)) => {
             mark_collection_mut(sequence, &key)?.display_color = parse_color(&color)?;
-        }
-        (GuiItem::MarkCollection { key }, Verb::Delete) => {
-            mark_collection_mut(sequence, &key)?;
-            super::edit::mark_references_mut(sequence, |reference| {
-                if reference
-                    .as_ref()
-                    .is_some_and(|collection| collection.name.as_str() == key)
-                {
-                    *reference = None;
-                }
-            });
-            sequence
-                .mark_collections
-                .retain(|collection| collection.key.name.as_str() != key);
         }
         (item, verb) => composition_item(sequence, item, verb)?,
     }
@@ -122,45 +95,11 @@ fn sequence_item(
 fn console_item(console: &mut Console, item: GuiItem, verb: Verb) -> Result<(), GuiMutationError> {
     let description = super::description::normalized;
     match (item, verb) {
-        (GuiItem::MarkCollection { key }, Verb::Rename(name)) => {
-            // Renaming live marks renames every parameter and action naming them.
-            let to = MarkCollectionKey {
-                name: typed_name(&name)?,
-            };
-            let from = live_marks_mut(console, &key)?.key.clone();
-            live_marks_mut(console, &key)?.key = to.clone();
-            console_mark_references_mut(console, |reference| {
-                if reference.as_ref() == Some(&from) {
-                    *reference = Some(to.clone());
-                }
-            });
-            for action in console.events.iter_mut().flat_map(|on| &mut on.actions) {
-                if let Action::Mark(key) = action
-                    && *key == from
-                {
-                    *key = to.clone();
-                }
-            }
-        }
         (GuiItem::MarkCollection { key }, Verb::Describe(text)) => {
             live_marks_mut(console, &key)?.description = description(text);
         }
         (GuiItem::MarkCollection { key }, Verb::Color(color)) => {
             live_marks_mut(console, &key)?.display_color = parse_color(&color)?;
-        }
-        (GuiItem::MarkCollection { key }, Verb::Delete) => {
-            // Parameters keep working with no marks; actions adding marks go.
-            let removed = live_marks_mut(console, &key)?.key.clone();
-            console_mark_references_mut(console, |reference| {
-                if reference.as_ref() == Some(&removed) {
-                    *reference = None;
-                }
-            });
-            for on in &mut console.events {
-                on.actions
-                    .retain(|action| !matches!(action, Action::Mark(key) if *key == removed));
-            }
-            console.live_marks.retain(|marks| marks.key != removed);
         }
         (GuiItem::Clip { id }, Verb::Rename(name)) => {
             clip_mut(console, ConsoleClipId(id))?.name = typed_name(&name)?;
@@ -184,13 +123,24 @@ fn console_item(console: &mut Console, item: GuiItem, verb: Verb) -> Result<(), 
     Ok(())
 }
 
-/// The layers and graph nodes sequences and consoles share.
+/// The layers, graph nodes and mark collections sequences and consoles share.
 fn composition_item(
     composition: &mut impl Composition,
     item: GuiItem,
     verb: Verb,
 ) -> Result<(), GuiMutationError> {
     match (item, verb) {
+        // Every parameter naming the collection follows a rename; after a
+        // delete, those parameters name no marks.
+        (GuiItem::MarkCollection { key }, Verb::Rename(name)) => {
+            let to = MarkCollectionKey {
+                name: typed_name(&name)?,
+            };
+            replace_mark_collection(composition, &key, Some(to))?;
+        }
+        (GuiItem::MarkCollection { key }, Verb::Delete) => {
+            replace_mark_collection(composition, &key, None)?;
+        }
         (GuiItem::Layer { id }, Verb::Rename(name)) => {
             layer_mut(composition, id)?.name = typed_name(&name)?;
         }

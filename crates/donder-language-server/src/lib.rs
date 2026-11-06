@@ -215,12 +215,11 @@ impl Server {
                     None => Checker::Own(Default::default()),
                 });
                 let initialize = decode::<InitializeParams>(params)?;
-                #[expect(deprecated, reason = "older clients send only `rootUri`")]
                 let root = initialize
                     .workspace_folders
-                    .and_then(|folders| folders.into_iter().next().map(|folder| folder.uri))
-                    .or(initialize.root_uri);
-                if let Some(root) = root.and_then(|root| uri_path(root.as_str())) {
+                    .and_then(|folders| folders.into_iter().next())
+                    .and_then(|folder| uri_path(folder.uri.as_str()));
+                if let Some(root) = root {
                     self.workspace.root = Some(root);
                     self.workspace.stale = true;
                 }
@@ -423,7 +422,7 @@ impl Server {
         if document.kind() != workspace::Kind::Script {
             return Ok(Value::Null);
         }
-        let Some(help) = script_signature(document.text(), offset) else {
+        let Some(help) = script_signature(document.text(), document.script(), offset) else {
             return Ok(Value::Null);
         };
         to_value(LspSignatureHelp {

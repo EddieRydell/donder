@@ -5,8 +5,8 @@ import { THEME_COLORS } from "../theme";
 import { navigateToGuiObject } from "../workspace/navigation";
 import type { NewSequenceStorage } from "../types";
 import { Button, Dialog, Field, NumberField, Select, TextField, type SelectOption } from "./kit";
+import { listenUiEvent } from "./uiEvents";
 
-const NEW_SEQUENCE_EVENT = "donder:new-sequence";
 const DEFAULT_NAME = "Sequence";
 const DEFAULT_DURATION_SECONDS = 60;
 const DEFAULT_FRAME_RATE = 60;
@@ -27,20 +27,14 @@ export function NewSequenceDialog() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    const onNewSequence = () => {
+  useEffect(() => listenUiEvent("newSequence", () => {
       setDeclarationName(DEFAULT_NAME);
       setStorage("inline");
       setDurationSeconds(DEFAULT_DURATION_SECONDS);
       setFrameRate(DEFAULT_FRAME_RATE);
       setError(null);
       setOpen(true);
-    };
-    window.addEventListener(NEW_SEQUENCE_EVENT, onNewSequence);
-    return () => {
-      window.removeEventListener(NEW_SEQUENCE_EVENT, onNewSequence);
-    };
-  }, []);
+  }), []);
 
   const validationError = projectRoot === null
     ? "No project open"

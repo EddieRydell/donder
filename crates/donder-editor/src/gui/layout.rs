@@ -1,5 +1,5 @@
 use super::fixture::{checked_transform, reference_definition};
-use super::{GuiMutationError, ResolvedGuiObject};
+use super::{GuiMutationError, ResolvedGuiObject, next_id};
 use crate::dto::{FixtureStorage, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
 use donder_model::{FixtureDefinition, OwnedFixture};
 use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
@@ -119,9 +119,7 @@ pub(super) fn edit_layout(
             parent,
             transform,
         } => {
-            if name.trim().is_empty() {
-                return Err(GuiMutationError::Invalid("Enter a fixture name.".into()));
-            }
+            let declared = super::model::typed_name(&name)?;
             let definition = match storage {
                 FixtureStorage::Inline => OwnedFixture::Inline(FixtureDefinition {
                     description: None,
@@ -135,7 +133,7 @@ pub(super) fn edit_layout(
                             .add_object(
                                 resolved.document_id(),
                                 definition.into(),
-                                donder_language::object_name(&name).as_str(),
+                                declared.as_str(),
                             )
                             .map_err(GuiMutationError::Invalid)?;
                     } else {
@@ -276,15 +274,13 @@ fn add_instance(
 ) -> Result<(), GuiMutationError> {
     let name = super::model::typed_name(&name)?;
     let transform = checked_transform(transform)?;
+    let fixtures = session
+        .project
+        .get::<Layout>(*layout_id)
+        .into_iter()
+        .flat_map(Layout::iter_fixtures);
+    let id = FixtureInstanceId(next_id(fixtures.map(|fixture| fixture.id.0))?);
     update_layout(session, layout_id, |layout| {
-        let id = layout
-            .iter_fixtures()
-            .map(|fixture| fixture.id.0)
-            .max()
-            .unwrap_or(0)
-            .checked_add(1)
-            .map(FixtureInstanceId)
-            .ok_or(donder_model::EditRejection::NoFreeIds)?;
         layout.fixtures.push(LayoutFixture {
             id,
             name,

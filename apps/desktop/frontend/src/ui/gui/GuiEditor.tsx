@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { GuiDocument, WorkspaceLayoutState } from "../../types";
 import type { AppStaticSnapshot } from "../../store";
 
-import type { AutomationClipChooser, GuiFocus, ReadyGuiDocument, SequenceSelection } from "./shared";
+import type { AutomationClipChooser, GuiFocus, InspectedGuiDocument, ReadyGuiDocument, SequenceSelection } from "./shared";
 
 
 
@@ -21,7 +21,7 @@ import { THEME_METRICS } from "../../theme";
 
 
 import { WorkspaceResizeHandle } from "../WorkspaceResizeHandle";
-import { OPEN_LAYER_GRAPH_EVENT } from "../uiEvents";
+import { listenUiEvent } from "../uiEvents";
 import { SetupEditor } from "./setup/SetupEditor";
 import { ProjectEditor } from "./project/ProjectEditor";
 import { LibraryEditor } from "./library/LibraryEditor";
@@ -64,45 +64,31 @@ function ResourceEditor({
   resetRevision: number;
 }) {
   const gui = guiDocument;
-
-  if (!gui) {
-    return <BlockedGui reason="GUI data is not available for this document." diagnostics={[]} />;
-  }
-  if (gui.type === "blocked") {
-    return <BlockedGui reason={gui.reason} diagnostics={gui.diagnostics} />;
-  }
-
-  if (gui.type === "setup") {
-    return <SetupEditor document={gui.document} />;
-  }
-  if (gui.type === "project") {
-    return <ProjectEditor document={gui.document} />;
-  }
-  if (gui.type === "curve" || gui.type === "gradient") {
-    return <LibraryEditor gui={gui} />;
-  }
-  if (gui.type === "controller") {
-    return <ControllerEditor document={gui.document} />;
-  }
-  if (gui.type === "patch") {
-    return <PatchEditor document={gui.document} />;
-  }
-  if (gui.type === "inputDevice") {
-    return <InputDeviceEditor document={gui.document} />;
-  }
-
-
-  if (gui.type === "fixture" || gui.type === "layout") return <CompositionEditor gui={gui} />;
-
-  return (
-    <GuiEditorInner
+  if (gui === null) return <BlockedGui reason="GUI data is not available for this document." diagnostics={[]} />;
+  switch (gui.type) {
+    case "blocked": return <BlockedGui reason={gui.reason} diagnostics={gui.diagnostics} />;
+    case "setup": return <SetupEditor document={gui.document} />;
+    case "project": return <ProjectEditor document={gui.document} />;
+    case "curve":
+    case "gradient": return <LibraryEditor gui={gui} />;
+    case "controller": return <ControllerEditor document={gui.document} />;
+    case "patch": return <PatchEditor document={gui.document} />;
+    case "inputDevice": return <InputDeviceEditor document={gui.document} />;
+    case "fixture":
+    case "layout": return <CompositionEditor gui={gui} />;
+    case "sequence":
+    case "console": return <GuiEditorInner
       gui={gui}
       workspaceLayout={workspaceLayout}
       onWorkspaceLayoutChange={onWorkspaceLayoutChange}
       sequenceSelection={sequenceSelection}
       setSequenceSelection={setSequenceSelection}
-    />
-  );
+    />;
+    default: {
+      const unhandled: never = gui;
+      return unhandled;
+    }
+  }
 }
 
 function GuiEditorInner({
@@ -112,7 +98,7 @@ function GuiEditorInner({
   sequenceSelection,
   setSequenceSelection
 }: {
-  gui: ReadyGuiDocument;
+  gui: InspectedGuiDocument;
   workspaceLayout: WorkspaceLayoutState;
   onWorkspaceLayoutChange: (layout: WorkspaceLayoutState) => void;
   sequenceSelection: SequenceSelection;
@@ -144,13 +130,7 @@ function GuiEditorInner({
 
   useEffect(() => {
     if (gui.type !== "sequence") return;
-    const openLayerGraph = () => {
-      setCompositionGraphOpen(true);
-    };
-    window.addEventListener(OPEN_LAYER_GRAPH_EVENT, openLayerGraph);
-    return () => {
-      window.removeEventListener(OPEN_LAYER_GRAPH_EVENT, openLayerGraph);
-    };
+    return listenUiEvent("openLayerGraph", () => { setCompositionGraphOpen(true); });
   }, [gui.type, setCompositionGraphOpen]);
 
   useEffect(

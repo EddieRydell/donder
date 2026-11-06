@@ -126,9 +126,6 @@ pub(super) fn paste_sequence_clipboard(
     anchor: SequencePasteAnchor,
     clipboard: Option<&SequenceClipboard>,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
-    let document = super::model::object_address(session, *sequence_id)
-        .document_id()
-        .clone();
     let mut draft = session
         .project
         .get::<donder_model::Sequence>(*sequence_id)
@@ -138,11 +135,7 @@ pub(super) fn paste_sequence_clipboard(
         let clipboard = clipboard.ok_or_else(|| {
             GuiMutationError::Invalid("Copy clips or marks before pasting.".into())
         })?;
-        if !anchor.time_seconds.is_finite() || anchor.time_seconds < 0.0 {
-            return Err(GuiMutationError::Invalid(
-                "Paste time must be finite and nonnegative.".into(),
-            ));
-        }
+        super::checked_gui_time(anchor.time_seconds)?;
         match clipboard {
             SequenceClipboard::Clips {
                 clips,
@@ -192,28 +185,16 @@ pub(super) fn paste_sequence_clipboard(
                     .iter()
                     .map(|entry| destination(entry.lane_index))
                     .collect::<Result<Vec<_>, _>>()?;
-                donder_project_io::ensure_document_can_reference_object(
-                    session,
-                    &document,
-                    targets[anchor_lane].layout.into(),
-                )
-                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
                 let sequence = &mut draft;
-                let mut next_id = sequence
-                    .clips
-                    .iter()
-                    .map(|clip| clip.id.0)
-                    .max()
-                    .unwrap_or(0);
+                let mut clip_ids_after =
+                    IdAllocator::after(sequence.clips.iter().map(|clip| clip.id.0));
                 let mut clip_ids = Vec::new();
                 let mut id_map = BTreeMap::new();
                 for (entry, target) in clips.iter().zip(clip_targets) {
-                    next_id = next_id
-                        .checked_add(1)
-                        .ok_or_else(|| GuiMutationError::Invalid("Clip IDs exhausted.".into()))?;
+                    let id = clip_ids_after.next()?;
                     let mut clip = entry.clip.clone();
-                    id_map.insert(clip.id.0, next_id);
-                    clip.id = ClipId(next_id);
+                    id_map.insert(clip.id.0, id);
+                    clip.id = ClipId(id);
                     clip.name = donder_language::unique_name(clip.name.as_str(), |name| {
                         sequence
                             .clips
@@ -225,21 +206,15 @@ pub(super) fn paste_sequence_clipboard(
                     )?;
                     clip.target = target;
                     sequence.clips.push(std::sync::Arc::new(clip));
-                    clip_ids.push(next_id);
+                    clip_ids.push(id);
                 }
-                let mut next_id = sequence
-                    .automation_clips
-                    .iter()
-                    .map(|clip| clip.id.0)
-                    .max()
-                    .unwrap_or(0);
+                let mut automation_ids_after =
+                    IdAllocator::after(sequence.automation_clips.iter().map(|clip| clip.id.0));
                 let mut automation_ids = Vec::new();
                 for (entry, target) in automation.iter().zip(automation_targets) {
-                    next_id = next_id.checked_add(1).ok_or_else(|| {
-                        GuiMutationError::Invalid("Automation IDs exhausted.".into())
-                    })?;
+                    let id = automation_ids_after.next()?;
                     let mut clip = entry.clip.clone();
-                    clip.id = donder_model::AutomationClipId(next_id);
+                    clip.id = donder_model::AutomationClipId(id);
                     clip.row_target = target;
                     clip.start = super::checked_gui_time(
                         anchor.time_seconds + entry.clip.start.as_seconds_f64() - min_start,
@@ -265,7 +240,7 @@ pub(super) fn paste_sequence_clipboard(
                     clip.detached_bindings
                         .retain_mut(|binding| remap(&mut binding.target));
                     sequence.automation_clips.push(clip);
-                    automation_ids.push(next_id);
+                    automation_ids.push(id);
                 }
                 Ok(GuiEditOutcome {
                     selection: Some(SequenceSelection::Clips {
@@ -293,7 +268,7 @@ pub(super) fn paste_sequence_clipboard(
                         }
                     };
                     let time = super::checked_gui_time(
-                        (anchor.time_seconds + mark.time_seconds - min_time).max(0.0),
+                        anchor.time_seconds + mark.time_seconds - min_time,
                     )?;
                     collection.marks.push(donder_model::Mark {
                         time: time.clone(),
@@ -384,34 +359,6 @@ pub(super) fn edit_clip_selection(
             }
         }
         let value = param_value_from_gui(session, owner, value.clone())?;
-        let sequence = session
-            .project
-            .get::<donder_model::Sequence>(*sequence_id)
-            .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-        for id in clip_ids {
-            let clip = sequence
-                .clips
-                .iter()
-                .find(|clip| clip.id.0 == *id)
-                .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".into()))?;
-            let definition = session
-                .project
-                .get::<donder_model::EffectDefinition>(clip.definition)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Effect definition was not found.".into())
-                })?;
-            let declaration = definition
-                .params()
-                .iter()
-                .find(|param| param.name == name)
-                .ok_or_else(|| GuiMutationError::Invalid("Clip parameter was not found.".into()))?;
-            if !donder_model::param_matches_type(&value, &declaration.ty) {
-                return Err(GuiMutationError::Invalid(format!(
-                    "Clip {id} parameter `{}` cannot accept this value.",
-                    name.as_str()
-                )));
-            }
-        }
         Some((name, value))
     } else {
         None
@@ -434,23 +381,13 @@ pub(super) fn edit_clip_selection(
             }
         }
         SequenceClipCommonEdit::Start { start_seconds } => {
-            if !start_seconds.is_finite() {
-                return Err(GuiMutationError::Invalid(
-                    "Clip start must be finite.".into(),
-                ));
-            }
-            let start = super::checked_gui_time(start_seconds.max(0.0))?;
+            let start = super::checked_gui_time(start_seconds)?;
             for id in clip_ids {
                 clip_mut(sequence, *id)?.start = start.clone();
             }
         }
         SequenceClipCommonEdit::Duration { duration_seconds } => {
-            if !duration_seconds.is_finite() {
-                return Err(GuiMutationError::Invalid(
-                    "Clip duration must be finite.".into(),
-                ));
-            }
-            let duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
+            let duration = super::checked_gui_duration(duration_seconds)?;
             for id in clip_ids {
                 clip_mut(sequence, *id)?.duration = duration.clone();
             }
@@ -501,7 +438,7 @@ pub(super) fn move_clip_selection(
     for id in clip_ids {
         let clip = clip_mut(sequence, *id)?;
         clip.target = destination(&clip.target)?;
-        clip.start = shifted_start(&clip.start, time_delta_seconds)?;
+        clip.start = shifted_time(&clip.start, time_delta_seconds)?;
     }
     for id in automation_ids {
         let clip = sequence
@@ -510,20 +447,14 @@ pub(super) fn move_clip_selection(
             .find(|clip| clip.id.0 == *id)
             .ok_or_else(|| GuiMutationError::Invalid("Automation clip is missing.".into()))?;
         clip.row_target = destination(&clip.row_target)?;
-        clip.start = shifted_start(&clip.start, time_delta_seconds)?;
+        clip.start = shifted_time(&clip.start, time_delta_seconds)?;
     }
     session.project.put(draft).map_err(GuiMutationError::from)?;
     Ok(())
 }
 
-fn shifted_start(start: &DonderTime, delta: f64) -> Result<DonderTime, GuiMutationError> {
-    let seconds = start.as_seconds_f64() + delta;
-    if !seconds.is_finite() || seconds < 0.0 {
-        return Err(GuiMutationError::Invalid(
-            "Clip start must be finite and nonnegative.".into(),
-        ));
-    }
-    super::checked_gui_time(seconds)
+fn shifted_time(time: &DonderTime, delta: f64) -> Result<DonderTime, GuiMutationError> {
+    super::checked_gui_time(time.as_seconds_f64() + delta)
 }
 
 pub(super) fn resize_clip_selection(
@@ -547,15 +478,10 @@ pub(super) fn resize_clip_selection(
                     SequenceResizeEdge::Left => -time_delta_seconds,
                     SequenceResizeEdge::Right => time_delta_seconds,
                 };
-            if !seconds.is_finite() || seconds <= 0.0 {
-                return Err(GuiMutationError::Invalid(
-                    "Clip duration must be positive and finite.".into(),
-                ));
-            }
-            if matches!(edge, SequenceResizeEdge::Left) {
-                *start = shifted_start(start, time_delta_seconds)?;
-            }
             *duration = super::checked_gui_duration(seconds)?;
+            if matches!(edge, SequenceResizeEdge::Left) {
+                *start = shifted_time(start, time_delta_seconds)?;
+            }
             Ok(())
         };
     let sequence = &mut draft;
@@ -601,9 +527,7 @@ pub(super) fn move_mark_selection(
         for index in indexes {
             let collection = mark_collection_mut(sequence, &collection_key)?;
             if let Some(value) = collection.marks.get_mut(index) {
-                value.time = super::checked_gui_time(
-                    (value.time.as_seconds_f64() + time_delta_seconds).max(0.0),
-                )?;
+                value.time = shifted_time(&value.time, time_delta_seconds)?;
                 moved_times.push(value.time.clone());
             }
         }
@@ -700,7 +624,7 @@ use super::model::{clip_mut, clip_scope, identifier, mark_collection_mut, param_
 use super::projection::active_layout;
 use super::{
     ClipboardAutomation, ClipboardClip, ClipboardMark, GuiEditOutcome, GuiMutationError,
-    SequenceClipboard,
+    IdAllocator, SequenceClipboard,
 };
 use crate::dto::{
     SequenceAutomationResize, SequenceClipCommonEdit, SequenceClipRef, SequenceMarkRef,

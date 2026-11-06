@@ -1,6 +1,8 @@
 //! Arches: each a half ellipse of lights, side by side.
 
-use super::{ArcPoint, Common, Ellipse, Local, Node, Span, Strings, account};
+use super::{
+    ArcPoint, Common, Ellipse, Local, Node, Span, Strings, account, rotate_point, to_radians,
+};
 use crate::report::SkipReason;
 use crate::xlights::placement::{self, RenderSize};
 use crate::xlights::read::{self, Name, Reader, Table, Use};
@@ -72,19 +74,6 @@ fn settings(reader: &Reader) -> Result<Settings, SkipReason> {
         skew,
         height: reader.as_float("Height", 1.0)?,
     })
-}
-
-/// xLights: `toRadians` in `UtilFunctions.h`.
-fn to_radians(degrees: f32) -> f64 {
-    2.0 * PI * f64::from(degrees) / 360.0
-}
-
-/// xLights: `rotate_point` in `ArchesModel.cpp`, about `(cx, 0)`.
-fn rotate_point(cx: f32, angle: f32, x: &mut f32, y: &mut f32) {
-    let (s, c) = angle.sin_cos();
-    let (px, py) = (*x - cx, *y);
-    *x = px * c - py * s + cx;
-    *y = px * s + py * c;
 }
 
 pub(super) fn arches(

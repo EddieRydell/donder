@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SequenceClipArrangement, SequenceClipRef } from "../../../editor/types";
+import type { SequenceClipArrangement, SequenceClipRef } from "../../../types";
 import { Button, ContextMenuEntries, Dialog, Field, NumberField, Toggle, type MenuEntry } from "../../kit";
 
 type ReferenceArrangement = Extract<SequenceClipArrangement, { reference: SequenceClipRef }>["type"];

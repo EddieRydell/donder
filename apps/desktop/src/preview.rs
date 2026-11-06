@@ -6,7 +6,7 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::persistence::{PersistedPreviewWindowState, PersistenceService};
 use donder_editor::dto::{
@@ -164,7 +164,7 @@ impl PreviewWindowService {
     ) -> Result<(), String> {
         let startup = PreviewStartup {
             appearance,
-            window: restore.geometry.map(Into::into),
+            window: restore.geometry,
         };
         let startup = serde_json::to_string(&startup)
             .map_err(|error| format!("Cannot encode Preview startup data: {error}"))?;
@@ -291,7 +291,7 @@ fn monitor_process(
                     .persistence()
                     .record_preview_window(PersistedPreviewWindowState {
                         open: true,
-                        geometry: Some(window.into()),
+                        geometry: Some(window),
                     });
             }
             Ok(PreviewEvent::Closed { window }) => {
@@ -302,15 +302,18 @@ fn monitor_process(
                     .persistence()
                     .record_preview_window(PersistedPreviewWindowState {
                         open: keep_open,
-                        geometry: Some(window.into()),
+                        geometry: Some(window),
                     });
                 if !keep_open {
                     let snapshot = state.update_snapshot(|snapshot| {
                         snapshot.preview_open = false;
                     });
-                    let _ = monitor
-                        .app
-                        .emit("preview_window_changed", snapshot.preview_open);
+                    crate::events::send(
+                        &monitor.app,
+                        crate::events::PreviewWindowChanged {
+                            open: snapshot.preview_open,
+                        },
+                    );
                 }
             }
             Ok(PreviewEvent::Key { code, pressed }) => {
@@ -327,7 +330,7 @@ fn monitor_process(
                 if let Some(window) = monitor.app.get_window("main") {
                     let _ = window.set_focus();
                 }
-                let _ = monitor.app.emit("close_requested", ());
+                crate::events::send(&monitor.app, crate::events::CloseRequested);
             }
             Ok(PreviewEvent::Error { message }) | Err(message) => {
                 reported_error = true;
@@ -373,9 +376,12 @@ fn monitor_process(
                 snapshot.preview_error = Some(message);
             }
         });
-        let _ = monitor
-            .app
-            .emit("preview_window_changed", snapshot.preview_open);
+        crate::events::send(
+            &monitor.app,
+            crate::events::PreviewWindowChanged {
+                open: snapshot.preview_open,
+            },
+        );
     }
 }
 

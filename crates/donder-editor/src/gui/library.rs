@@ -54,11 +54,7 @@ pub(super) fn edit_curve(
         .get(&resolved.id::<CurveId>())
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Curve definition was not found.".into()))?;
-    let curve = model::curve_from_points(points);
-    curve
-        .validate()
-        .map_err(|error| GuiMutationError::Invalid(format!("Invalid curve: {error:?}")))?;
-    definition.curve = curve;
+    definition.curve = model::curve_from_points(points);
     session
         .project
         .apply_edits([donder_model::ProjectEdit::Put(donder_model::Object::Curve(
@@ -79,11 +75,7 @@ pub(super) fn edit_gradient(
         .get(&resolved.id::<GradientId>())
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Gradient definition was not found.".into()))?;
-    let gradient = model::gradient_from_dto(gradient)?;
-    gradient
-        .validate()
-        .map_err(|error| GuiMutationError::Invalid(format!("Invalid gradient: {error:?}")))?;
-    definition.gradient = gradient;
+    definition.gradient = model::gradient_from_dto(gradient)?;
     session
         .project
         .apply_edits([donder_model::ProjectEdit::Put(

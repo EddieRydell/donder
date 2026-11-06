@@ -29,7 +29,7 @@ pub use ownership_edit::maintain_ownership_sources;
 mod project_config;
 mod project_loading;
 pub use project_config::{
-    PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE, ProjectMetadata, ProjectWorkspace, atomic_write,
+    PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE, ProjectWorkspace, atomic_write,
     validate_document_path, validate_relative_path,
 };
 mod path_refactor;
@@ -43,9 +43,12 @@ pub use diagnostics::{
     IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoFix, IoRelatedLocation,
     ProjectCheckReport, TextPosition, TextRange,
 };
-pub use document::{DECLARATION_TYPE_NAMES, document_schema};
+pub use document::{DECLARATION_TYPE_NAMES, document_schema, param_refers, reference_targets};
 pub use errors::ExportProjectError;
-pub use imports::{available_declarations, ensure_document_can_reference_object, link_declaration};
+pub use imports::{
+    available_declarations, canonical_reference_alias, ensure_document_can_reference_object,
+    link_declaration,
+};
 pub use inclusion::{Inclusion, include_document};
 pub use index::{Link, LinkTarget, ProjectIndex, ScriptMember};
 pub use path_refactor::{
@@ -57,7 +60,7 @@ pub use project_edit::{
 pub use project_loading::{SourceOverrides, check_project, project_source_texts};
 pub use serialization::{SourceTextWrite, write_source_texts};
 pub use source::{
-    ExportReport, ImportEdge, ProjectSession, ReferencedAsset, SaveReport, SourceDocument,
-    SourceDocumentFormat, SourceProject, source_document_format,
+    AssetError, ExportReport, ImportEdge, ProjectSession, ReferencedAsset, SourceDocument,
+    SourceDocumentFormat, SourceProject, reference_asset, source_document_format,
 };
 pub use source_copy::export_editable_project;

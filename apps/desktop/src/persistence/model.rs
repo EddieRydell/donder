@@ -7,8 +7,6 @@ use donder_editor::dto::{
     AppSettings, AppSnapshot, PlaybackRange, WorkspaceExplorerState, WorkspaceLayoutState,
 };
 
-pub(crate) const VERSION: u32 = 2;
-
 pub(crate) use donder_editor::dto::{
     PersistedEditorViewState, PersistedEditorViewStateUpdate, PersistedGraphViewState,
     PersistedGraphViewStateUpdate, PersistedPreviewWindowState, PersistedSequenceViewportState,
@@ -26,10 +24,7 @@ pub(crate) struct ProjectSessionRestore {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PersistedStore {
-    version: u32,
-    #[serde(default)]
     pub(crate) settings: AppSettings,
-    #[serde(default)]
     pub(crate) workspace_layout: WorkspaceLayoutState,
     pub(crate) last_project: Option<String>,
     pub(crate) projects: BTreeMap<String, PersistedProjectSession>,
@@ -37,22 +32,9 @@ pub(crate) struct PersistedStore {
     pub(crate) preview_window: PersistedPreviewWindowState,
 }
 
-impl PersistedStore {
-    pub(crate) fn validate(&self) -> Result<(), String> {
-        if self.version != VERSION {
-            return Err(format!(
-                "Unsupported desktop state version {}",
-                self.version
-            ));
-        }
-        Ok(())
-    }
-}
-
 impl Default for PersistedStore {
     fn default() -> Self {
         Self {
-            version: VERSION,
             settings: AppSettings::default(),
             workspace_layout: WorkspaceLayoutState::default(),
             last_project: None,
@@ -71,14 +53,11 @@ impl Default for PersistedStore {
 pub(crate) struct PersistedProjectSession {
     pub tabs: Vec<String>,
     pub active_file: Option<String>,
-    pub audio_position_seconds: f64,
-    pub audio_home_seconds: f64,
     pub editor_states: BTreeMap<String, PersistedEditorViewState>,
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
     pub spatial_views: BTreeMap<String, PersistedSpatialViewState>,
     pub graph_views: BTreeMap<String, PersistedGraphViewState>,
     pub sequence_transports: BTreeMap<String, PersistedSequenceTransport>,
-    #[serde(default)]
     pub workspace_explorer: WorkspaceExplorerState,
 }
 
@@ -95,8 +74,6 @@ impl PersistedProjectSession {
         Self {
             tabs: Vec::new(),
             active_file: None,
-            audio_position_seconds: 0.0,
-            audio_home_seconds: 0.0,
             editor_states: BTreeMap::new(),
             sequence_viewports: BTreeMap::new(),
             spatial_views: BTreeMap::new(),
@@ -109,8 +86,6 @@ impl PersistedProjectSession {
     pub(crate) fn with_snapshot(mut self, snapshot: &AppSnapshot) -> Self {
         self.tabs = snapshot.tabs.iter().map(|tab| tab.path.clone()).collect();
         self.active_file = snapshot.active_file.clone();
-        self.audio_position_seconds = snapshot.audio_transport.position_seconds;
-        self.audio_home_seconds = snapshot.audio_transport.home_seconds;
         self.workspace_explorer = snapshot.workspace_explorer.clone();
         self
     }

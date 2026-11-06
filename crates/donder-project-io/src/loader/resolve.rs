@@ -6,7 +6,6 @@ use donder_model::ObjectKind;
 use std::sync::Arc;
 
 use crate::address::{DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
-use camino::Utf8PathBuf;
 use donder_language::compiler::{ParamDecl, TextSpan};
 use donder_language::data::{
     Data, Decoder, Meters, Name, OwnedNamedRecord, OwnedRecord, Params, Reference,
@@ -23,7 +22,7 @@ use donder_model::{
     On, OnId, Play, PlayLength,
 };
 use donder_model::{
-    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
+    ArtNetConfig, Controller, ControllerId, ControllerPort, ControllerPortAddress,
     ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
 };
 use donder_model::{
@@ -35,15 +34,12 @@ use donder_model::{
 };
 use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControl, InputControlId, InputControlKind,
-    InputDevice, InputDeviceId, InputDriver, MidiChannel, NoteRange, OscAddress, PlayedQuantity,
-    PlayedValue,
+    InputDevice, InputDeviceId, InputDriver, MidiChannel, NoteRange, OscAddress, PlayedValue,
 };
-use donder_model::{
-    Clip, ClipId, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue,
-};
+use donder_model::{Clip, ClipId, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue};
 use donder_model::{
     FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
-    FixtureTransform, GridAxis, GridCorner, OwnedFixture,
+    FixtureTransform, OwnedFixture,
 };
 use donder_model::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind, LayoutId,
@@ -61,7 +57,6 @@ use super::{DataDocument, Loader};
 use crate::diagnostics::LoadError;
 use crate::document::{Declaration, types};
 use crate::index::{LinkTarget, ScriptMember};
-use crate::source::ReferencedAsset;
 
 pub(super) struct DomainResolver<'a> {
     pub(super) loader: &'a mut Loader,
@@ -107,15 +102,11 @@ pub(super) fn curve(points: &[(f32, f32)]) -> Curve {
 }
 
 pub(super) fn gradient(
-    space: types::GradientSpace,
+    space: &types::GradientSpace,
     stops: &[(f32, donder_runtime_types::Color)],
 ) -> Gradient {
     Gradient {
-        space: match space {
-            types::GradientSpace::LinearRgb => donder_runtime_types::GradientSpace::LinearRgb,
-            types::GradientSpace::Hsv => donder_runtime_types::GradientSpace::Hsv,
-            types::GradientSpace::Oklab => donder_runtime_types::GradientSpace::Oklab,
-        },
+        space: space.0,
         stops: stops
             .iter()
             .map(|&(position, color)| GradientStop { position, color })
@@ -137,6 +128,74 @@ fn name(name: &Name) -> Identifier {
 
 fn window((low, high): (f32, f32)) -> Window {
     Window { low, high }
+}
+
+/// A kind of object a declaration resolves to: its document type, where
+/// loading stores it, and how it is built from its document.
+pub(super) trait Resolve: donder_model::Reusable {
+    type Document;
+    const KIND: ObjectKind;
+    fn id(raw: u32) -> Self::Id;
+    fn document(declaration: &Declaration) -> Option<&Self::Document>;
+    fn loaded(project: &mut ProjectData) -> &mut IndexMap<Self::Id, Self>;
+    /// The object `id`, written as `value` in `document`; `span` is its
+    /// declaration's, or its member name's when owned under a name.
+    fn build(
+        resolver: &mut DomainResolver<'_>,
+        id: &Self::Id,
+        document: &DocumentId,
+        span: TextSpan,
+        value: &Self::Document,
+    ) -> Result<Self, LoadError>;
+}
+
+/// Each kind's model type, document type, declaration and object kind share
+/// its name.
+macro_rules! resolve_kinds {
+    ($($kind:ident($id:ident) in $store:ident =
+        |$resolver:pat_param, $object:pat_param, $document:pat_param, $span:pat_param, $value:pat_param|
+        $build:expr;)+) => {$(
+        impl Resolve for $kind {
+            type Document = types::$kind;
+            const KIND: ObjectKind = ObjectKind::$kind;
+            fn id(raw: u32) -> $id {
+                $id(raw)
+            }
+            fn document(declaration: &Declaration) -> Option<&types::$kind> {
+                match declaration {
+                    Declaration::$kind(value) => Some(value),
+                    _ => None,
+                }
+            }
+            fn loaded(project: &mut ProjectData) -> &mut IndexMap<$id, Self> {
+                &mut project.$store
+            }
+            fn build(
+                $resolver: &mut DomainResolver<'_>,
+                $object: &$id,
+                $document: &DocumentId,
+                $span: TextSpan,
+                $value: &types::$kind,
+            ) -> Result<Self, LoadError> {
+                $build
+            }
+        }
+    )+};
+}
+
+resolve_kinds! {
+    Setup(SetupId) in setups = |resolver, id, document, _, value| resolver.setup(id, document, value);
+    Layout(LayoutId) in layouts = |resolver, id, document, _, value| resolver.layout(id, document, value);
+    Patch(PatchId) in patches = |resolver, id, document, _, value| resolver.patch(id, document, value);
+    Controller(ControllerId) in controllers =
+        |resolver, id, document, span, value| resolver.controller(id, document, span, value);
+    InputDevice(InputDeviceId) in input_devices =
+        |_, id, _, _, value| Ok(DomainResolver::input_device(id, value));
+    Sequence(SequenceId) in sequences =
+        |resolver, id, document, span, value| resolver.sequence(id, document, span, value);
+    Console(ConsoleId) in consoles = |resolver, id, document, _, value| resolver.console(id, document, value);
+    FixtureDefinition(FixtureDefinitionId) in fixtures =
+        |resolver, _, document, _, value| resolver.fixture_definition(document, value);
 }
 
 impl DomainResolver<'_> {
@@ -180,318 +239,83 @@ impl DomainResolver<'_> {
 
     // Owned records: a declared object, resolved once, or one written in place.
 
-    pub(super) fn owned_setup(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        record: &OwnedRecord<types::Setup>,
-    ) -> Result<donder_model::OwnedSetup, LoadError> {
-        match record {
-            OwnedRecord::Reference(reference) => {
-                let ObjectId::Setup(id) =
-                    self.loader
-                        .resolve_reference(document, reference, ObjectKind::Setup)?
-                else {
-                    return Err(self.loader.unresolved(document, reference));
-                };
-                self.resolve_setup(&id)?;
-                Ok(Owned::Reference(id))
-            }
-            OwnedRecord::Inline(setup) => {
-                let id = SetupId(self.loader.intern(owner.owned(OwnedObjectSlot::Setup)));
-                Ok(Owned::Inline(Box::new(self.setup(&id, document, setup)?)))
-            }
-        }
-    }
-
-    fn owned_layout(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        record: &OwnedRecord<types::Layout>,
-    ) -> Result<donder_model::OwnedLayout, LoadError> {
-        match record {
-            OwnedRecord::Reference(reference) => {
-                let ObjectId::Layout(id) =
-                    self.loader
-                        .resolve_reference(document, reference, ObjectKind::Layout)?
-                else {
-                    return Err(self.loader.unresolved(document, reference));
-                };
-                self.resolve_layout(&id)?;
-                Ok(Owned::Reference(id))
-            }
-            OwnedRecord::Inline(layout) => {
-                let id = LayoutId(self.loader.intern(owner.owned(OwnedObjectSlot::Layout)));
-                Ok(Owned::Inline(Box::new(self.layout(&id, document, layout)?)))
-            }
-        }
-    }
-
-    fn owned_patch(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        record: &OwnedRecord<types::Patch>,
-    ) -> Result<donder_model::OwnedPatch, LoadError> {
-        match record {
-            OwnedRecord::Reference(reference) => {
-                let ObjectId::Patch(id) =
-                    self.loader
-                        .resolve_reference(document, reference, ObjectKind::Patch)?
-                else {
-                    return Err(self.loader.unresolved(document, reference));
-                };
-                self.resolve_patch(&id)?;
-                Ok(Owned::Reference(id))
-            }
-            OwnedRecord::Inline(patch) => {
-                let id = PatchId(self.loader.intern(owner.owned(OwnedObjectSlot::Patch)));
-                Ok(Owned::Inline(Box::new(self.patch(&id, document, patch)?)))
-            }
-        }
-    }
-
-    fn owned_controller(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        record: &OwnedNamedRecord<types::Controller>,
-    ) -> Result<donder_model::OwnedController, LoadError> {
-        match record {
-            OwnedNamedRecord::Reference(reference) => {
-                let ObjectId::Controller(id) =
-                    self.loader
-                        .resolve_reference(document, reference, ObjectKind::Controller)?
-                else {
-                    return Err(self.loader.unresolved(document, reference));
-                };
-                self.resolve_controller(&id)?;
-                Ok(OwnedMember::Reference(id))
-            }
-            OwnedNamedRecord::Inline(member, controller) => {
-                let id = ControllerId(
-                    self.loader
-                        .intern(owner.owned(OwnedObjectSlot::Controller(name(member)))),
-                );
-                Ok(OwnedMember::Inline {
-                    name: name(member),
-                    value: Box::new(self.controller(&id, document, member.0.span, controller)?),
-                })
-            }
-        }
-    }
-
-    fn owned_input_device(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        record: &OwnedNamedRecord<types::InputDevice>,
-    ) -> Result<donder_model::OwnedInputDevice, LoadError> {
-        match record {
-            OwnedNamedRecord::Reference(reference) => {
-                let ObjectId::InputDevice(id) =
-                    self.loader
-                        .resolve_reference(document, reference, ObjectKind::InputDevice)?
-                else {
-                    return Err(self.loader.unresolved(document, reference));
-                };
-                self.resolve_input_device(&id)?;
-                Ok(OwnedMember::Reference(id))
-            }
-            OwnedNamedRecord::Inline(member, device) => {
-                let id = InputDeviceId(
-                    self.loader
-                        .intern(owner.owned(OwnedObjectSlot::InputDevice(name(member)))),
-                );
-                Ok(OwnedMember::Inline {
-                    name: name(member),
-                    value: Box::new(Self::input_device(&id, device)),
-                })
-            }
-        }
-    }
-
-    pub(super) fn owned_console(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        record: &OwnedNamedRecord<types::Console>,
-    ) -> Result<donder_model::OwnedConsole, LoadError> {
-        match record {
-            OwnedNamedRecord::Reference(reference) => {
-                let ObjectId::Console(id) =
-                    self.loader
-                        .resolve_reference(document, reference, ObjectKind::Console)?
-                else {
-                    return Err(self.loader.unresolved(document, reference));
-                };
-                self.resolve_console(&id)?;
-                Ok(OwnedMember::Reference(id))
-            }
-            OwnedNamedRecord::Inline(member, console) => {
-                let id = ConsoleId(
-                    self.loader
-                        .intern(owner.owned(OwnedObjectSlot::Console(name(member)))),
-                );
-                Ok(OwnedMember::Inline {
-                    name: name(member),
-                    value: Box::new(self.console(&id, document, console)?),
-                })
-            }
-        }
-    }
-
-    pub(super) fn owned_sequence(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        record: &OwnedNamedRecord<types::Sequence>,
-    ) -> Result<donder_model::OwnedSequence, LoadError> {
-        match record {
-            OwnedNamedRecord::Reference(reference) => {
-                let ObjectId::Sequence(id) =
-                    self.loader
-                        .resolve_reference(document, reference, ObjectKind::Sequence)?
-                else {
-                    return Err(self.loader.unresolved(document, reference));
-                };
-                self.resolve_sequence(&id)?;
-                Ok(OwnedMember::Reference(id))
-            }
-            OwnedNamedRecord::Inline(member, sequence) => {
-                let id = SequenceId(
-                    self.loader
-                        .intern(owner.owned(OwnedObjectSlot::Sequence(name(member)))),
-                );
-                Ok(OwnedMember::Inline {
-                    name: name(member),
-                    value: Box::new(self.sequence(&id, document, member.0.span, sequence)?),
-                })
-            }
-        }
-    }
-
-    // Declared objects.
-
-    pub(super) fn resolve_setup(&mut self, id: &SetupId) -> Result<(), LoadError> {
-        if self.project.setups.contains_key(id) {
+    /// A declared object of kind `T`, resolved once.
+    pub(super) fn resolve<T: Resolve>(&mut self, id: T::Id) -> Result<(), LoadError> {
+        if T::loaded(self.project).contains_key(&id) {
             return Ok(());
         }
-        let address = self.loader.address(*id);
-        let source = address.root_source();
-        let (data, _) = self.declared(source)?;
-        let Declaration::Setup(setup) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = self.setup(id, source.document_id(), setup)?;
-        self.project.setups.insert(*id, value);
-        Ok(())
-    }
-
-    pub(super) fn resolve_controller(&mut self, id: &ControllerId) -> Result<(), LoadError> {
-        if self.project.controllers.contains_key(id) {
-            return Ok(());
-        }
-        let address = self.loader.address(*id);
+        let address = self.loader.address(id);
         let source = address.root_source();
         let (data, span) = self.declared(source)?;
-        let Declaration::Controller(controller) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = self.controller(id, source.document_id(), span, controller)?;
-        self.project.controllers.insert(*id, value);
+        let value =
+            T::document(data.declared(source.object()).1).ok_or_else(|| self.wrong_kind(source))?;
+        let value = T::build(self, &id, source.document_id(), span, value)?;
+        T::loaded(self.project).insert(id, value);
         Ok(())
     }
 
-    pub(super) fn resolve_input_device(&mut self, id: &InputDeviceId) -> Result<(), LoadError> {
-        if self.project.input_devices.contains_key(id) {
-            return Ok(());
-        }
-        let address = self.loader.address(*id);
-        let source = address.root_source();
-        let (data, _) = self.declared(source)?;
-        let Declaration::InputDevice(device) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = Self::input_device(id, device);
-        self.project.input_devices.insert(*id, value);
-        Ok(())
+    /// The declared object of kind `T` a reference names, resolved.
+    fn declared_reference<T: Resolve>(
+        &mut self,
+        document: &DocumentId,
+        reference: &Reference,
+    ) -> Result<T::Id, LoadError> {
+        let object = self
+            .loader
+            .resolve_reference(document, reference, T::KIND)?;
+        let id =
+            T::Id::try_from(object).map_err(|_| self.loader.unresolved(document, reference))?;
+        self.resolve::<T>(id)?;
+        Ok(id)
     }
 
-    pub(super) fn resolve_console(&mut self, id: &ConsoleId) -> Result<(), LoadError> {
-        if self.project.consoles.contains_key(id) {
-            return Ok(());
+    /// An owned record: a declared object, or one written in place at `slot`
+    /// of `owner`.
+    pub(super) fn owned<T: Resolve>(
+        &mut self,
+        document: &DocumentId,
+        owner: &ObjectAddress,
+        slot: OwnedObjectSlot,
+        record: &OwnedRecord<T::Document>,
+    ) -> Result<Owned<Box<T>, T::Id>, LoadError> {
+        match record {
+            OwnedRecord::Reference(reference) => Ok(Owned::Reference(
+                self.declared_reference::<T>(document, reference)?,
+            )),
+            OwnedRecord::Inline(value) => {
+                let id = T::id(self.loader.intern(owner.owned(slot)));
+                Ok(Owned::Inline(Box::new(T::build(
+                    self,
+                    &id,
+                    document,
+                    donder_language::data::NO_SPAN,
+                    value,
+                )?)))
+            }
         }
-        let address = self.loader.address(*id);
-        let source = address.root_source();
-        let (data, _) = self.declared(source)?;
-        let Declaration::Console(console) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = self.console(id, source.document_id(), console)?;
-        self.project.consoles.insert(*id, value);
-        Ok(())
     }
 
-    pub(super) fn resolve_layout(&mut self, id: &LayoutId) -> Result<(), LoadError> {
-        if self.project.layouts.contains_key(id) {
-            return Ok(());
+    /// An owned collection member: a declared object, or one written in place
+    /// under its name, at the slot `slot` makes of it.
+    pub(super) fn owned_member<T: Resolve>(
+        &mut self,
+        document: &DocumentId,
+        owner: &ObjectAddress,
+        slot: fn(Identifier) -> OwnedObjectSlot,
+        record: &OwnedNamedRecord<T::Document>,
+    ) -> Result<OwnedMember<T, T::Id>, LoadError> {
+        match record {
+            OwnedNamedRecord::Reference(reference) => Ok(OwnedMember::Reference(
+                self.declared_reference::<T>(document, reference)?,
+            )),
+            OwnedNamedRecord::Inline(member, value) => {
+                let id = T::id(self.loader.intern(owner.owned(slot(name(member)))));
+                Ok(OwnedMember::Inline {
+                    name: name(member),
+                    value: Box::new(T::build(self, &id, document, member.0.span, value)?),
+                })
+            }
         }
-        let address = self.loader.address(*id);
-        let source = address.root_source();
-        let (data, _) = self.declared(source)?;
-        let Declaration::Layout(layout) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = self.layout(id, source.document_id(), layout)?;
-        self.project.layouts.insert(*id, value);
-        Ok(())
-    }
-
-    pub(super) fn resolve_patch(&mut self, id: &PatchId) -> Result<(), LoadError> {
-        if self.project.patches.contains_key(id) {
-            return Ok(());
-        }
-        let address = self.loader.address(*id);
-        let source = address.root_source();
-        let (data, _) = self.declared(source)?;
-        let Declaration::Patch(patch) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = self.patch(id, source.document_id(), patch)?;
-        self.project.patches.insert(*id, value);
-        Ok(())
-    }
-
-    pub(super) fn resolve_fixture(&mut self, id: &FixtureDefinitionId) -> Result<(), LoadError> {
-        if self.project.fixtures.contains_key(id) {
-            return Ok(());
-        }
-        let address = self.loader.address(*id);
-        let source = address.root_source();
-        let (data, _) = self.declared(source)?;
-        let Declaration::FixtureDefinition(definition) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = self.fixture_definition(source.document_id(), definition)?;
-        self.project.fixtures.insert(*id, value);
-        Ok(())
-    }
-
-    pub(super) fn resolve_sequence(&mut self, id: &SequenceId) -> Result<(), LoadError> {
-        if self.project.sequences.contains_key(id) {
-            return Ok(());
-        }
-        let address = self.loader.address(*id);
-        let source = address.root_source();
-        let (data, span) = self.declared(source)?;
-        let Declaration::Sequence(sequence) = data.declared(source.object()).1 else {
-            return Err(self.wrong_kind(source));
-        };
-        let value = self.sequence(id, source.document_id(), span, sequence)?;
-        self.project.sequences.insert(*id, value);
-        Ok(())
     }
 
     // Identities inside other objects, from their declarations.
@@ -600,18 +424,22 @@ impl DomainResolver<'_> {
         setup: &types::Setup,
     ) -> Result<Setup, LoadError> {
         let address = self.loader.address(*id);
-        let layout = self.owned_layout(document, &address, &setup.layout)?;
+        let layout = self.owned(document, &address, OwnedObjectSlot::Layout, &setup.layout)?;
         let controllers = setup
             .controllers
             .iter()
-            .map(|record| self.owned_controller(document, &address, record))
+            .map(|record| {
+                self.owned_member(document, &address, OwnedObjectSlot::Controller, record)
+            })
             .collect::<Result<_, _>>()?;
         let input_devices = setup
             .input_devices
             .iter()
-            .map(|record| self.owned_input_device(document, &address, record))
+            .map(|record| {
+                self.owned_member(document, &address, OwnedObjectSlot::InputDevice, record)
+            })
             .collect::<Result<_, _>>()?;
-        let patch = self.owned_patch(document, &address, &setup.patch)?;
+        let patch = self.owned(document, &address, OwnedObjectSlot::Patch, &setup.patch)?;
         Ok(Setup {
             id: *id,
             description: setup.description.clone(),
@@ -782,18 +610,6 @@ impl DomainResolver<'_> {
         span: TextSpan,
         controller: &types::Controller,
     ) -> Result<Controller, LoadError> {
-        fn parse<T: std::str::FromStr>(
-            resolver: &DomainResolver<'_>,
-            document: &DocumentId,
-            span: TextSpan,
-            text: &str,
-            what: &str,
-        ) -> Result<T, LoadError> {
-            text.parse()
-                .map_err(|_| resolver.invalid(document, span, format!("`{text}` is not {what}")))
-        }
-        let address = |text: &str, what: &str| parse(self, document, span, text, what);
-        let socket = |text: &str, what: &str| parse(self, document, span, text, what);
         let protocol = match &controller.protocol {
             types::Protocol::E131 {
                 sender_name,
@@ -802,12 +618,12 @@ impl DomainResolver<'_> {
                 mode,
             } => ControllerProtocol::E131(E131Config {
                 sender_name: sender_name.clone(),
-                bind_address: address(bind_address, "an IP address")?,
+                bind_address: bind_address.0,
                 priority: *priority,
                 mode: match mode {
                     types::E131Mode::Multicast => E131Mode::Multicast,
                     types::E131Mode::Unicast { destination } => E131Mode::Unicast {
-                        destination: address(destination, "an IP address")?,
+                        destination: destination.0,
                     },
                 },
             }),
@@ -816,12 +632,9 @@ impl DomainResolver<'_> {
                 destination,
                 mode,
             } => ControllerProtocol::ArtNet(ArtNetConfig {
-                bind_address: socket(bind_address, "a socket address like `0.0.0.0:6454`")?,
-                destination: socket(destination, "a socket address like `10.0.0.2:6454`")?,
-                mode: match mode {
-                    types::ArtNetMode::Unicast => ArtNetMode::Unicast,
-                    types::ArtNetMode::Broadcast => ArtNetMode::Broadcast,
-                },
+                bind_address: bind_address.0,
+                destination: destination.0,
+                mode: mode.0,
             }),
             types::Protocol::Donder { device } => ControllerProtocol::Donder(DonderConfig {
                 device: DonderDeviceId::parse(device).ok_or_else(|| {
@@ -942,19 +755,9 @@ impl DomainResolver<'_> {
                 description: description.clone(),
                 kind: LayoutFixtureKind::Fixture {
                     definition: match definition {
-                        OwnedRecord::Reference(reference) => {
-                            let ObjectId::FixtureDefinition(definition) =
-                                self.loader.resolve_reference(
-                                    document,
-                                    reference,
-                                    ObjectKind::FixtureDefinition,
-                                )?
-                            else {
-                                return Err(self.loader.unresolved(document, reference));
-                            };
-                            self.resolve_fixture(&definition)?;
-                            OwnedFixture::Reference(definition)
-                        }
+                        OwnedRecord::Reference(reference) => OwnedFixture::Reference(
+                            self.declared_reference::<FixtureDefinition>(document, reference)?,
+                        ),
                         OwnedRecord::Inline(definition) => {
                             OwnedFixture::Inline(self.fixture_definition(document, definition)?)
                         }
@@ -1067,16 +870,8 @@ impl DomainResolver<'_> {
                             rows: *rows,
                             width: *width,
                             height: *height,
-                            axis: match axis {
-                                types::GridAxis::Rows => GridAxis::Rows,
-                                types::GridAxis::Columns => GridAxis::Columns,
-                            },
-                            corner: match corner {
-                                types::GridCorner::BottomLeft => GridCorner::BottomLeft,
-                                types::GridCorner::BottomRight => GridCorner::BottomRight,
-                                types::GridCorner::TopLeft => GridCorner::TopLeft,
-                                types::GridCorner::TopRight => GridCorner::TopRight,
-                            },
+                            axis: axis.0,
+                            corner: corner.0,
                             serpentine: *serpentine,
                         },
                     },
@@ -1376,13 +1171,6 @@ impl DomainResolver<'_> {
         Ok(definition)
     }
 
-    fn scope(scope: &types::Scope) -> ClipScope {
-        match scope {
-            types::Scope::PerFixture => ClipScope::PerFixture,
-            types::Scope::WholeTarget => ClipScope::WholeTarget,
-        }
-    }
-
     fn sequence(
         &mut self,
         id: &SequenceId,
@@ -1436,7 +1224,7 @@ impl DomainResolver<'_> {
                 start: DonderTime(clip.start),
                 duration: DonderDuration(clip.duration),
                 target: self.fixture_target(document, &clip.target)?,
-                scope: Self::scope(&clip.scope),
+                scope: clip.scope.0.clone(),
                 definition,
                 param_overrides: self.params(
                     document,
@@ -1573,7 +1361,7 @@ impl DomainResolver<'_> {
                 description: clip.description.clone(),
                 layer_id: self.layer(document, &layer_ids, &clip.layer)?,
                 target: self.fixture_target(document, &clip.target)?,
-                scope: Self::scope(&clip.scope),
+                scope: clip.scope.0.clone(),
                 param_overrides: self.params(
                     document,
                     definition.into(),
@@ -1609,12 +1397,7 @@ impl DomainResolver<'_> {
                     self.link_param(document, definition, &value.param);
                     PlayedValue {
                         param: name(&value.param),
-                        from: match value.from {
-                            types::PlayedQuantity::Velocity => PlayedQuantity::Velocity,
-                            types::PlayedQuantity::Pitch => PlayedQuantity::Pitch,
-                            types::PlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
-                            types::PlayedQuantity::Fifths => PlayedQuantity::Fifths,
-                        },
+                        from: value.from.0,
                         window: window(value.window),
                     }
                 })
@@ -1764,38 +1547,14 @@ impl DomainResolver<'_> {
         span: TextSpan,
         path: &str,
     ) -> Result<AssetId, LoadError> {
-        crate::validate_relative_path(path)
-            .map_err(|message| self.invalid(document, span, message))?;
-        let unresolved = self.loader.workspace.root.join(path);
-        let absolute = unresolved
-            .canonicalize_utf8()
-            .map_err(|source| crate::diagnostics::read_error(unresolved, &source))?;
-        if !absolute.is_file() || !absolute.starts_with(&self.loader.workspace.root) {
-            return Err(self.invalid(
-                document,
-                span,
-                format!("audio asset does not exist inside the project: {path}"),
-            ));
-        }
-        let relative = Utf8PathBuf::from(path);
-        if let Some(existing) = self
-            .loader
-            .referenced_assets
-            .iter_mut()
-            .find(|asset| asset.relative_path == relative)
-        {
-            existing.referenced_by.insert(document.clone());
-            return Ok(existing.id.clone());
-        }
-        let id = AssetId(self.loader.next_asset_id);
-        self.loader.next_asset_id += 1;
-        self.loader.referenced_assets.push(ReferencedAsset {
-            id: id.clone(),
-            relative_path: relative,
-            absolute_path: absolute,
-            referenced_by: std::collections::BTreeSet::from([document.clone()]),
-        });
-        Ok(id)
+        let root = self.loader.workspace.root.clone();
+        crate::source::reference_asset(&mut self.loader.referenced_assets, &root, document, path)
+            .map_err(|error| match error {
+                crate::AssetError::Read(source) => {
+                    crate::diagnostics::read_error(root.join(path), &source)
+                }
+                error => self.invalid(document, span, format!("audio asset {path}: {error}")),
+            })
     }
 
     /// Parameter values, typed by their declarations and written in
@@ -1931,7 +1690,7 @@ impl DomainResolver<'_> {
             (Type::Gradient, DataValue::Record(..)) => {
                 let literal = self.decode::<types::GradientValue>(document, value)?;
                 ParamValue::Gradient(OwnedGradient::Inline(gradient(
-                    literal.space,
+                    &literal.space,
                     &literal.stops,
                 )))
             }

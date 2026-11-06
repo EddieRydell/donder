@@ -82,21 +82,13 @@ pub(super) fn edit_site(
             .map_err(GuiMutationError::from)?;
         }
         GuiOwnershipEdit::MakeReusable { name, storage } => {
-            if name.trim().is_empty() {
-                return Err(GuiMutationError::Invalid(
-                    "Enter a name for the reusable declaration.".into(),
-                ));
-            }
+            let declared = super::model::typed_name(&name)?;
             let id = make_reusable(&mut session.project, &site).map_err(GuiMutationError::from)?;
             match storage {
                 ReusableStorage::SameFile => {
                     session
                         .source
-                        .add_object(
-                            owner.document_id(),
-                            id,
-                            donder_language::object_name(&name).as_str(),
-                        )
+                        .add_object(owner.document_id(), id, declared.as_str())
                         .map_err(GuiMutationError::Invalid)?;
                 }
                 ReusableStorage::NewFile => {

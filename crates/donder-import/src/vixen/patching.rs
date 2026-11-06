@@ -11,7 +11,7 @@ use crate::xml::Element;
 use donder_runtime_types::PixelEncoding;
 use std::collections::{HashMap, HashSet};
 
-const COLOR_BREAKDOWN: &str = "ab38a16f-0de1-4f6e-a8c0-ae5b20d347e0";
+pub(crate) const COLOR_BREAKDOWN: &str = "ab38a16f-0de1-4f6e-a8c0-ae5b20d347e0";
 const DIMMING_CURVE: &str = "2e40d6b1-43d2-4668-b63a-c600fadd7dd5";
 
 /// A `System.Drawing.Color` as written: `Color.Equals` compares all four.

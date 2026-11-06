@@ -57,6 +57,11 @@ pub trait Record: Data {
     fn encode_fields(&self) -> Vec<DataField>;
 }
 
+/// A variant type: its value is one of its variants.
+pub trait Choice: Data {
+    const TYPE: &'static str;
+}
+
 /// Decode `Type { fields }` for a record type.
 pub fn decode_record<T: Record>(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<T> {
     match &value.value {
@@ -263,6 +268,13 @@ pub enum Refers {
 
 /// The name of a composition graph's root node, which edges reach as `to: root`.
 pub const ROOT_NODE: &str = "root";
+
+/// The field that holds an object's own name. Other fields of the [`Name`]
+/// shape name what they refer to, such as a route's `port`.
+pub const NAME_FIELD: &str = "name";
+
+/// The field that describes an object.
+pub const DESCRIPTION_FIELD: &str = "description";
 
 /// A record's fields, or a variant's, in order.
 pub type Fields = Vec<(&'static str, Shape)>;

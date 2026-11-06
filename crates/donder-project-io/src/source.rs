@@ -52,15 +52,7 @@ impl SourceProject {
         path: Utf8PathBuf,
         objects: Vec<(ObjectId, Identifier)>,
     ) -> Result<DocumentId, String> {
-        if path.as_str().is_empty()
-            || path.is_absolute()
-            || path.as_str().contains('\\')
-            || !path
-                .components()
-                .all(|component| matches!(component, camino::Utf8Component::Normal(_)))
-        {
-            return Err("New document paths must be module-relative paths.".to_string());
-        }
+        crate::validate_relative_path(path.as_str())?;
         if objects.is_empty() {
             return Err("A new source document must contain an object.".to_string());
         }
@@ -229,19 +221,16 @@ impl SourceDocument {
     }
 }
 
+/// An import: its alias and the documents it names, in order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportEdge {
-    pub(crate) declaration: donder_language::ImportDeclaration,
+    pub(crate) alias: donder_language::ImportAlias,
     pub(crate) targets: Vec<DocumentId>,
 }
 
 impl ImportEdge {
     pub fn alias(&self) -> &str {
-        self.declaration.alias.as_str()
-    }
-
-    pub(crate) fn documents(&self) -> &[Utf8PathBuf] {
-        &self.declaration.documents
+        self.alias.as_str()
     }
 
     pub fn targets(&self) -> &[DocumentId] {
@@ -257,15 +246,65 @@ pub struct ReferencedAsset {
     pub referenced_by: BTreeSet<DocumentId>,
 }
 
+/// Why a file cannot be referenced as an asset.
+#[derive(Debug)]
+pub enum AssetError {
+    /// The path is not a project-relative path.
+    Path(String),
+    Read(std::io::Error),
+    /// The path names no file inside the project.
+    Outside,
+}
+
+impl std::fmt::Display for AssetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Path(message) => f.write_str(message),
+            Self::Read(error) => error.fmt(f),
+            Self::Outside => f.write_str("the asset is not a file inside the project"),
+        }
+    }
+}
+
+/// Reference the file at `path`, relative to the project `root`, from
+/// `document`. An asset already referenced at that path gains the document; a
+/// new one takes the next id.
+pub fn reference_asset(
+    assets: &mut Vec<ReferencedAsset>,
+    root: &Utf8Path,
+    document: &DocumentId,
+    path: &str,
+) -> Result<AssetId, AssetError> {
+    crate::validate_relative_path(path).map_err(AssetError::Path)?;
+    let relative = Utf8PathBuf::from(path);
+    if let Some(existing) = assets
+        .iter_mut()
+        .find(|asset| asset.relative_path == relative)
+    {
+        existing.referenced_by.insert(document.clone());
+        return Ok(existing.id.clone());
+    }
+    let absolute = root
+        .join(path)
+        .canonicalize_utf8()
+        .map_err(AssetError::Read)?;
+    if !absolute.is_file() || !absolute.starts_with(root) {
+        return Err(AssetError::Outside);
+    }
+    let id = AssetId(assets.iter().map(|asset| asset.id.0).max().unwrap_or(0) + 1);
+    assets.push(ReferencedAsset {
+        id: id.clone(),
+        relative_path: relative,
+        absolute_path: absolute,
+        referenced_by: BTreeSet::from([document.clone()]),
+    });
+    Ok(id)
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExportReport {
     pub written_files: Vec<Utf8PathBuf>,
     pub copied_assets: Vec<Utf8PathBuf>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SaveReport {
-    pub(crate) written_files: Vec<Utf8PathBuf>,
 }
 
 impl ProjectSession {

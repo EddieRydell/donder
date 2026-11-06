@@ -1,7 +1,7 @@
-use super::{DesktopState, LoadedProject, lock_unpoisoned};
+use super::{DesktopState, lock_unpoisoned};
 use camino::Utf8Path;
 use donder_editor::dto::{
-    BufferExternalState, DocumentSaveState, ProjectHealth, TransitionDecision, TransitionRequest,
+    BufferExternalState, DocumentSaveState, TransitionDecision, TransitionRequest,
     TransitionResult, WorkspaceTransition,
 };
 
@@ -184,16 +184,9 @@ impl DesktopState {
                 }
             }
         }
-        workspace.view.project_revision += 1;
-        workspace.view.state_revision += 1;
-        workspace.typed_revision = None;
-        workspace.project = LoadedProject::Checking;
-        workspace.view.project_health = ProjectHealth::Checking;
-        workspace.view.active_document_descriptor = None;
+        workspace.mark_checking();
         drop(workspace);
-        lock_unpoisoned(&self.gui_history).clear();
-        self.invalidate_prepared_project();
-        self.schedule_working_copy(false);
+        self.recheck();
         Ok(())
     }
 
@@ -210,7 +203,7 @@ impl DesktopState {
         match watcher {
             Ok(watcher) => *lock_unpoisoned(&self.watcher) = Some(watcher),
             Err(error) => {
-                self.snapshot_with_error("project.watch", root.as_str(), &error);
+                self.snapshot_with_error(&error);
             }
         }
     }

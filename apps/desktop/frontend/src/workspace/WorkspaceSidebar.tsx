@@ -1,7 +1,7 @@
 import { AlertTriangle, Files, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
-import { FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
+import { listenUiEvent } from "../ui/uiEvents";
 import { runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import type {
   CommandId,
@@ -40,11 +40,7 @@ export function WorkspaceSidebar({
     onLayoutChange({ ...layout, activeSidebarView: view, sidebarCollapsed: false }, true);
   }, [layout, onLayoutChange]);
 
-  useEffect(() => {
-    const onFocus = (event: Event) => { focus((event as CustomEvent<SidebarView>).detail); };
-    window.addEventListener(FOCUS_SIDEBAR_EVENT, onFocus);
-    return () => { window.removeEventListener(FOCUS_SIDEBAR_EVENT, onFocus); };
-  }, [focus]);
+  useEffect(() => listenUiEvent("focusSidebar", focus), [focus]);
 
   const requestPathChange = async (source: string, destination: string) => {
     try {

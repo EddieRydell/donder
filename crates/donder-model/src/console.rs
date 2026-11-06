@@ -181,15 +181,10 @@ impl PlayLength {
     /// Admission checked that a fixed length fits the playback clock.
     pub fn fixed(&self) -> Option<donder_runtime_types::SampleDuration> {
         match self {
-            Self::Fixed(duration) => Some(sample_duration(duration)),
+            Self::Fixed(duration) => Some(crate::clock::sample_duration(duration)),
             Self::Scaled { .. } => None,
         }
     }
-}
-
-/// A validated duration on the playback clock.
-pub fn sample_duration(duration: &DonderDuration) -> donder_runtime_types::SampleDuration {
-    donder_runtime_types::SampleDuration::from_ticks(duration.as_micros_rounded() as u32)
 }
 
 /// A parameter a press sets on the copy it starts, from how it was played.

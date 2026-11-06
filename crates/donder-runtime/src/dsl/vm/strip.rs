@@ -542,6 +542,36 @@ fn offset_count(start: Src<'_, i32>, end: Src<'_, i32>, i: usize) -> i32 {
     end.at(i).wrapping_sub(start.at(i)).max(0)
 }
 
+/// The union of the selected pixels' nonempty ranges, as `(first, past)`;
+/// `past <= first` when no pixel has one.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn range_union(start: Src<'_, i32>, end: Src<'_, i32>, sel: Sel<'_>) -> (i32, i32) {
+    let (mut first, mut past) = (i32::MAX, i32::MIN);
+    each(sel, |i| {
+        let count = offset_count(start, end, i);
+        if count > 0 {
+            first = first.min(start.at(i));
+            past = past.max(start.at(i).wrapping_add(count));
+        }
+    });
+    (first, past)
+}
+
+/// `max` or `min` of two ints, one loop body for both orders.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn int_extreme(max: bool, a: i32, b: i32) -> i32 {
+    if (b > a) == max && b != a { b } else { a }
+}
+
+/// The time of the last mark at or before `seconds`; NaN before the first.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn previous_mark_time(marks: &MarkWindow<'_>, seconds: f32, cursor: &Cell<usize>) -> f32 {
+    previous_mark(marks, seconds, cursor).map_or(f32::NAN, |(_, time)| time)
+}
+
 /// A stencil's neighborhood, read by every offset.
 struct Term<'n, 'm> {
     edges: Edges,
@@ -943,7 +973,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             reducer,
             Reducer::Any | Reducer::All | Reducer::First | Reducer::Last
         );
-        let count = |i: usize| end.at(i).wrapping_sub(start.at(i)).max(0);
+        let count = |i: usize| offset_count(start, end, i);
         let index_at = |i: usize, k: i32| {
             if last {
                 end.at(i).wrapping_sub(1).wrapping_sub(k)
@@ -992,13 +1022,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         let (mut first, mut past) = (i32::MAX, i32::MIN);
         let mut iterations = 0;
         if shared {
-            each(sel, |i| {
-                let count = count(i);
-                if count > 0 {
-                    first = first.min(start.at(i));
-                    past = past.max(start.at(i).wrapping_add(count));
-                }
-            });
+            (first, past) = range_union(start, end, sel);
             // No pixel takes part when none has a count.
             iterations = if past > first { past - first } else { 0 };
         } else {
@@ -1038,13 +1062,10 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             // instead of narrowing the selection every iteration.
             if !early && !filter_slot.is_none() && contribute.is_empty() {
                 self.combine_where(reducer, bank, acc, value, filter_slot, participating);
-                if matches!(reducer, Reducer::Any | Reducer::All) {
-                    let (decided, any) = (self.boolean(acc), reducer == Reducer::Any);
-                    let mut open = false;
-                    each(sel, |i| open |= decided.at(i) != any);
-                    if !open {
-                        break;
-                    }
+                if matches!(reducer, Reducer::Any | Reducer::All)
+                    && self.all_decided(reducer, acc, sel)
+                {
+                    break;
                 }
                 continue;
             }
@@ -1061,13 +1082,10 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             self.block(contribute, contributing, inner, signals);
             if !early {
                 self.combine(reducer, bank, acc, value, contributing);
-                if matches!(reducer, Reducer::Any | Reducer::All) {
-                    let (decided, any) = (self.boolean(acc), reducer == Reducer::Any);
-                    let mut open = false;
-                    each(sel, |i| open |= decided.at(i) != any);
-                    if !open {
-                        break;
-                    }
+                if matches!(reducer, Reducer::Any | Reducer::All)
+                    && self.all_decided(reducer, acc, sel)
+                {
+                    break;
                 }
                 continue;
             }
@@ -1125,14 +1143,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             unreachable!()
         };
         let (start, end) = (self.int(start), self.int(end));
-        let (mut first, mut past) = (i32::MAX, i32::MIN);
-        each(sel, |i| {
-            let count = offset_count(start, end, i);
-            if count > 0 {
-                first = first.min(start.at(i));
-                past = past.max(start.at(i).wrapping_add(count));
-            }
-        });
+        let (first, past) = range_union(start, end, sel);
         if past <= first {
             return;
         }
@@ -1407,6 +1418,16 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         pick_color(sel, self.color_dst(dst), |i| samples[i]);
     }
 
+    /// Whether an `any` or `all` reduction has decided every selected pixel.
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn all_decided(&self, reducer: Reducer, acc: Slot, sel: Sel<'_>) -> bool {
+        let (decided, any) = (self.boolean(acc), reducer == Reducer::Any);
+        let mut open = false;
+        each(sel, |i| open |= decided.at(i) != any);
+        !open
+    }
+
     /// Whether `value` at pixel `i` ends an early-exit reduction there.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn decides(&self, reducer: Reducer, value: Slot, i: usize) -> bool {
@@ -1438,13 +1459,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 let max = reducer == Reducer::Max;
                 match reducer {
                     Reducer::Max | Reducer::Min => {
-                        map2(
-                            sel,
-                            dst,
-                            a,
-                            b,
-                            |a, b| if (b > a) == max && b != a { b } else { a },
-                        )
+                        map2(sel, dst, a, b, |a, b| int_extreme(max, a, b))
                     }
                     _ => map2(sel, dst, a, b, i32::wrapping_add),
                 }
@@ -1483,13 +1498,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 pick_each(sel, dst, |i| {
                     let (a, b) = (a.at(i), b.at(i));
                     let combined = match reducer {
-                        Reducer::Max | Reducer::Min => {
-                            if (b > a) == max && b != a {
-                                b
-                            } else {
-                                a
-                            }
-                        }
+                        Reducer::Max | Reducer::Min => int_extreme(max, a, b),
                         _ => a.wrapping_add(b),
                     };
                     choose(mask.at(i), combined, a)
@@ -1639,7 +1648,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn previous_mark(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> f32 {
-        previous_mark(&self.marks(marks), seconds, cursor).map_or(f32::NAN, |(_, time)| time)
+        previous_mark_time(&self.marks(marks), seconds, cursor)
     }
 
     #[inline(never)]
@@ -1966,8 +1975,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         }),
                         MarkOp::Last => {
                             map1(sel, self.float_dst(dst), self.float(operand), |seconds| {
-                                previous_mark(&window, seconds, &cursor)
-                                    .map_or(f32::NAN, |(_, time)| time)
+                                previous_mark_time(&window, seconds, &cursor)
                             });
                         }
                         MarkOp::LastIndex => {

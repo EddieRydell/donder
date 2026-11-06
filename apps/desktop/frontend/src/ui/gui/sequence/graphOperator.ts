@@ -1,7 +1,7 @@
 import type {
   SequenceGraphOperator,
   SequenceGraphOperatorDefinition
-} from "../../../editor/types";
+} from "../../../types";
 
 export function graphOperatorDefinition(
   catalog: SequenceGraphOperatorDefinition[],

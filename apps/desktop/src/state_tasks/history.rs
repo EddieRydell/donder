@@ -9,7 +9,6 @@ pub(crate) struct GuiHistoryEntry {
     pub(crate) before: Arc<ProjectSession>,
     pub(crate) after: Arc<ProjectSession>,
     pub(crate) affected_paths: BTreeSet<String>,
-    pub(crate) status_path: String,
 }
 
 pub(crate) struct GuiHistory {

@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Donder",
-  "version": "0.2.2",
   "identifier": "studio.donder.desktop",
   "build": {
     "beforeDevCommand": "pnpm --dir frontend dev",

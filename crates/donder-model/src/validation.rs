@@ -538,6 +538,9 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
             _ => None,
         })
     };
+    if layers.is_empty() {
+        return Err(CompositionProblem::NoLayers.into());
+    }
     if let Some(layer) = first_repeat(layers, |layer| layer.id.clone()) {
         return Err(CompositionProblem::DuplicateLayerId(layer.id.clone()).into());
     }
@@ -558,13 +561,16 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
     validate_composition_graph(graph, project.reusable::<crate::OperatorDefinition>())
         .map_err(CompositionProblem::Graph)?;
     for (node, operator) in operators() {
+        let definition = project
+            .get::<crate::OperatorDefinition>(operator.operator)
+            .unwrap_or_else(|| unreachable!("the graph's operators were found"));
+        let problem = |problem| CompositionProblem::Param {
+            node: node.clone(),
+            problem,
+        };
+        validate_overrides(definition.params(), &operator.params).map_err(problem)?;
         for (name, value) in &operator.params {
-            validate_param_references(project, name, value, mark_keys).map_err(|problem| {
-                CompositionProblem::Param {
-                    node: node.clone(),
-                    problem,
-                }
-            })?;
+            validate_param_references(project, name, value, mark_keys).map_err(problem)?;
         }
     }
     let layer_ids = layers.iter().map(|layer| &layer.id).collect::<HashSet<_>>();
@@ -607,24 +613,34 @@ fn validate_params(
     let definition = project
         .get::<crate::EffectDefinition>(*definition)
         .ok_or(ClipProblem::MissingDefinition)?;
-    let param = |problem| Err(ClipProblem::Param(problem));
+    validate_overrides(definition.params(), overrides).map_err(ClipProblem::Param)?;
+    for (name, value) in overrides {
+        validate_param_references(project, name, value, mark_keys).map_err(ClipProblem::Param)?;
+    }
+    Ok(())
+}
+
+/// Parameter overrides of a clip or operator node: each declared and typed by
+/// its declaration, and every parameter without a default supplied.
+fn validate_overrides(
+    declarations: &[donder_language::compiler::ParamDecl],
+    overrides: &IndexMap<Identifier, ParamValue>,
+) -> Result<(), ParamProblem> {
     if let Some(name) = overrides
         .keys()
-        .find(|name| !definition.params().iter().any(|param| &param.name == *name))
+        .find(|name| !declarations.iter().any(|param| &param.name == *name))
     {
-        return param(ParamProblem::Undeclared(name.clone()));
+        return Err(ParamProblem::Undeclared(name.clone()));
     }
-    for declaration in definition.params() {
+    for declaration in declarations {
         match overrides.get(&declaration.name) {
-            Some(value) if param_matches_type(value, &declaration.ty) => {
-                validate_param_references(project, &declaration.name, value, mark_keys)
-                    .map_err(ClipProblem::Param)?;
+            Some(value) if !param_matches_type(value, &declaration.ty) => {
+                return Err(ParamProblem::WrongType(declaration.name.clone()));
             }
-            Some(_) => return param(ParamProblem::WrongType(declaration.name.clone())),
             None if declaration.default.is_none() => {
-                return param(ParamProblem::MissingRequired(declaration.name.clone()));
+                return Err(ParamProblem::MissingRequired(declaration.name.clone()));
             }
-            None => {}
+            _ => {}
         }
     }
     Ok(())

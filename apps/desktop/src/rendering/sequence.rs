@@ -14,7 +14,6 @@ use donder_editor::dto::{AudioTransportSnapshot, AudioTransportState};
 pub(crate) struct SequenceRenderService {
     session: Option<PreparedRenderSession>,
     session_generation: u64,
-    preparation: PreparationCache,
 }
 
 /// Desktop ownership around portable playback: document identities, network
@@ -94,38 +93,13 @@ impl SequenceRenderService {
         Self {
             session: None,
             session_generation: 0,
-            preparation: PreparationCache::default(),
         }
-    }
-
-    fn prepare(
-        &mut self,
-        project: &DonderProject,
-        sequence_id: &SequenceId,
-    ) -> Result<(), RenderSessionPrepareError> {
-        let session = prepare_render_session_cached(project, sequence_id, &mut self.preparation)?;
-        self.apply_prepared(session);
-        Ok(())
     }
 
     pub(crate) fn unload(&mut self) {
         if self.session.take().is_some() {
             self.session_generation = self.session_generation.saturating_add(1);
         }
-    }
-
-    pub(crate) fn refresh_project(
-        &mut self,
-        project: &DonderProject,
-    ) -> Result<(), RenderSessionPrepareError> {
-        let Some(sequence_id) = self.session.as_ref().map(|session| session.sequence_id) else {
-            return Ok(());
-        };
-        if project.get::<donder_model::Sequence>(sequence_id).is_none() {
-            self.unload();
-            return Ok(());
-        }
-        self.prepare(project, &sequence_id)
     }
 
     pub(crate) fn render_current_sequence_frame(

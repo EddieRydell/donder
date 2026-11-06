@@ -1,13 +1,12 @@
-import { useSequenceEditorHost } from "../../../editor/host";
+import { commands } from "../../../api";
+import { useAppStore } from "../../../store";
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import { useCallback, useState } from "react";
-import type { PersistedGraphViewState, GuiObjectRef } from "../../../editor/types";
+import type { PersistedGraphViewState, GuiObjectRef } from "../../../types";
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 import { useSequenceEditErrorReporter } from "./sequenceLayers";
 
 export function useGraphViewState(reference: GuiObjectRef) {
-  const host = useSequenceEditorHost();
-  const { commands, store: useAppStore } = host;
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
   const { path, objectKey, ownedPath } = reference;
@@ -28,10 +27,10 @@ export function useGraphViewState(reference: GuiObjectRef) {
       const snapshot = await commands.saveViewState({ type: "graph", state: { path, objectKey, ownedPath, state } });
       useAppStore.getState().setSnapshot(snapshot, "command");
     }, reportSequenceEditError);
-  }, [commands, reportSequenceEditError, useAppStore, initial, key, objectKey, path, ownedPath]);
+  }, [reportSequenceEditError, initial, key, objectKey, path, ownedPath]);
   const saveSize = useCallback((id: string, width: number, height: number) => {
     const current = useAppStore.getState().restoreState?.graphViews[key] ?? initial;
     save({ nodeSizes: { ...current.nodeSizes, [id]: { width, height } } });
-  }, [useAppStore, initial, key, save]);
+  }, [initial, key, save]);
   return { initial, view, save, saveSize };
 }

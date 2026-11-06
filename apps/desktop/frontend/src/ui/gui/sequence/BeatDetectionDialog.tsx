@@ -1,14 +1,15 @@
+import { commands } from "../../../api";
+import { useAppStore, runGuiEditCommand } from "../../../store";
 import { AudioWaveform } from "lucide-react";
 import { useState } from "react";
-import { useSequenceEditorHost } from "../../../editor/host";
-import type { NewMarkCollection, SequenceGuiDocument } from "../../../editor/types";
+import type { NewMarkCollection, SequenceGuiDocument } from "../../../types";
 import { sameGuiDocument } from "../../../snapshotState";
 import { Button, Dialog, Field, TextField, Toggle } from "../../kit";
 import { defaultMarkColor } from "./marks";
 
 /**
  * Detects beats and bars in the sequence's audio and adds them as new mark collections in one
- * undoable edit. Shown only when the host can analyze audio.
+ * undoable edit.
  */
 export function BeatDetectionDialog({
   document,
@@ -21,9 +22,7 @@ export function BeatDetectionDialog({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const host = useSequenceEditorHost();
-  const { commands, runGuiEditCommand, detectSequenceBeats } = host;
-  const request = host.store((state) => state.guiRequest);
+  const request = useAppStore((state) => state.guiRequest);
   const [open, setOpen] = useState(false);
   const [beats, setBeats] = useState(true);
   const [bars, setBars] = useState(true);
@@ -31,7 +30,6 @@ export function BeatDetectionDialog({
   const [barsName, setBarsName] = useState("bars");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (detectSequenceBeats === undefined) return null;
   const hasAudio = document.audio?.exists === true;
   const options = [
     { label: "Beats", tip: "A mark collection of every beat", enabled: beats, setEnabled: setBeats, name: beatsName, setName: setBeatsName },
@@ -47,8 +45,8 @@ export function BeatDetectionDialog({
     setPending(true);
     setError(null);
     try {
-      const detection = await detectSequenceBeats(request);
-      if (!sameGuiDocument(host.store.getState().guiRequest, request)) {
+      const detection = await commands.detectSequenceBeats(request);
+      if (!sameGuiDocument(useAppStore.getState().guiRequest, request)) {
         throw new Error("The open sequence changed during beat detection.");
       }
       const wanted: [string, number[]][] = [];

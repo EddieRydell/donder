@@ -53,6 +53,12 @@ impl DeviceClient {
     }
 
     pub(crate) fn rename(&self, name: &str) -> Result<(), String> {
+        if !donder_device_protocol::valid_name(name) {
+            return Err(format!(
+                "A controller name is 1-{} bytes without control characters.",
+                donder_device_protocol::MAX_NAME_BYTES
+            ));
+        }
         let response = self
             .client
             .put(self.url(path::NAME))
@@ -69,7 +75,22 @@ impl DeviceClient {
         network: Option<&DonderDeviceNetworkRequest>,
     ) -> Result<(), String> {
         let body = match network {
-            Some(network) => serde_json::to_vec(network).map_err(|error| error.to_string())?,
+            Some(network) => {
+                let credentials = donder_device_protocol::NetworkCredentials {
+                    ssid: network.ssid.clone(),
+                    password: network.password.clone(),
+                };
+                if !credentials.is_valid() {
+                    return Err(format!(
+                        "A Wi-Fi network needs a {}-{} byte name and a {}-{} byte WPA2 password.",
+                        donder_device_protocol::NetworkCredentials::SSID_BYTES.start(),
+                        donder_device_protocol::NetworkCredentials::SSID_BYTES.end(),
+                        donder_device_protocol::NetworkCredentials::PASSWORD_BYTES.start(),
+                        donder_device_protocol::NetworkCredentials::PASSWORD_BYTES.end(),
+                    ));
+                }
+                serde_json::to_vec(&credentials).map_err(|error| error.to_string())?
+            }
             None => Vec::new(),
         };
         let response = self
@@ -141,17 +162,17 @@ mod tests {
                 (
                     "POST",
                     "/transport/play",
-                    r#"{"playback":{"mode":"playing","positionMicros":0,"durationMicros":1000000,"showId":0,"showBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"playing","positionMicros":0,"showId":0,"showBytes":0,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/pause",
-                    r#"{"playback":{"mode":"paused","positionMicros":500000,"durationMicros":1000000,"showId":0,"showBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"paused","positionMicros":500000,"showId":0,"showBytes":0,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/stop",
-                    r#"{"playback":{"mode":"stopped","positionMicros":0,"durationMicros":1000000,"showId":0,"showBytes":0,"pendingCommand":null,"commandId":0}}"#,
+                    r#"{"playback":{"mode":"stopped","positionMicros":0,"showId":0,"showBytes":0,"commandId":0}}"#,
                 ),
             ] {
                 let (mut stream, _) = listener.accept().unwrap();

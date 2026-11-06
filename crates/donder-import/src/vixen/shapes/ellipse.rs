@@ -1,8 +1,7 @@
 //! Lights evenly around an ellipse. Vixen: `PreviewEllipse`.
 
 use super::single::own_pixels;
-use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, unrotated};
-use crate::vixen::contract;
+use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, point, unrotated};
 use crate::xml::Element;
 use glam::DVec2;
 
@@ -31,18 +30,12 @@ pub(super) fn at(ellipse: &Ellipse2, degrees: f64) -> DVec2 {
     ellipse.center + ellipse.u * cos + ellipse.v * sin
 }
 
-/// A box corner. Vixen: `PreviewPoint`.
-fn corner(shape: &Element, name: &str) -> Result<DVec2, ShapeSkip> {
-    let (x, y) = contract::point(shape, name)?;
-    Ok(DVec2::new(f64::from(x), f64::from(y)))
-}
-
 /// Vixen: `PreviewEllipse.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     unrotated(shape)?;
     let nodes = own_pixels(shape)?;
-    let top_left = corner(shape, "_topLeft")?;
-    let bottom_right = corner(shape, "_bottomRight")?;
+    let top_left = point(shape, "_topLeft")?;
+    let bottom_right = point(shape, "_bottomRight")?;
     let ellipse = inscribed(top_left, bottom_right - top_left);
     let count = nodes.len();
     Ok(Laid {

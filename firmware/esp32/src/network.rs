@@ -1,12 +1,13 @@
 //! Network bring-up and discovery. A controller joins its saved network, or
-//! hosts its own open access point when it has none or cannot join it. Either
+//! hosts its own WPA2 access point when it has none or cannot join it. Either
 //! way it advertises `_donder._tcp` over mDNS so the editor can find it.
 use core::cell::RefCell;
 use core::fmt::Write as _;
 use core::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
 
 use donder_device_protocol::ACCESS_POINT_PASSWORD;
-use donder_device_storage::device_config::{DeviceConfig, MAX_NAME_BYTES, Network};
+use donder_device_protocol::{MAX_NAME_BYTES, Network, NetworkCredentials, advertisement};
+use donder_device_storage::device_config::DeviceConfig;
 use edge_mdns::domain::base::Ttl;
 use edge_mdns::host::{Host, Service, ServiceAnswers};
 use edge_mdns::{HostAnswer, HostAnswers, HostAnswersMdnsHandler, MdnsError};
@@ -69,26 +70,11 @@ pub(crate) fn default_config() -> DeviceConfig {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Mode {
-    Station,
-    AccessPoint,
-}
-
-impl Mode {
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::Station => "station",
-            Self::AccessPoint => "accessPoint",
-        }
-    }
-}
-
 /// Join the saved network, falling back to the controller's own access point.
 pub(crate) async fn start(
     device: esp_hal::peripherals::WIFI<'static>,
     config: &DeviceConfig,
-) -> (WifiController<'static>, Interface, Mode) {
+) -> (WifiController<'static>, Interface, Network) {
     let access_point = Config::AccessPoint(
         AccessPointConfig::default()
             .with_ssid(access_point_ssid().as_str().try_into().unwrap())
@@ -114,17 +100,17 @@ pub(crate) async fn start(
         .unwrap();
     if config.network.is_some() {
         match with_timeout(STATION_JOIN_TIMEOUT, join(&mut controller)).await {
-            Ok(()) => return (controller, Interface::station(), Mode::Station),
+            Ok(()) => return (controller, Interface::station(), Network::Station),
             Err(_) => {
                 println!("WIFI JOIN FAILED; starting access point");
                 controller.set_config(&access_point).unwrap();
             }
         }
     }
-    (controller, Interface::access_point(), Mode::AccessPoint)
+    (controller, Interface::access_point(), Network::AccessPoint)
 }
 
-fn station(network: &Network) -> Config {
+fn station(network: &NetworkCredentials) -> Config {
     Config::Station(
         StationConfig::default()
             .with_ssid(network.ssid.as_str().try_into().unwrap())
@@ -140,10 +126,10 @@ async fn join(controller: &mut WifiController<'static>) {
     }
 }
 
-pub(crate) fn stack_config(mode: Mode) -> embassy_net::Config {
+pub(crate) fn stack_config(mode: Network) -> embassy_net::Config {
     match mode {
-        Mode::Station => embassy_net::Config::dhcpv4(Default::default()),
-        Mode::AccessPoint => embassy_net::Config::ipv4_static(StaticConfigV4 {
+        Network::Station => embassy_net::Config::dhcpv4(Default::default()),
+        Network::AccessPoint => embassy_net::Config::ipv4_static(StaticConfigV4 {
             address: Ipv4Cidr::new(ACCESS_POINT_ADDRESS, 24),
             gateway: None,
             dns_servers: Default::default(),
@@ -152,8 +138,8 @@ pub(crate) fn stack_config(mode: Mode) -> embassy_net::Config {
 }
 
 #[embassy_executor::task]
-pub async fn reconnect(mut controller: WifiController<'static>, mode: Mode) {
-    if mode == Mode::AccessPoint {
+pub async fn reconnect(mut controller: WifiController<'static>, mode: Network) {
+    if mode == Network::AccessPoint {
         // The access point runs without supervision; keep the controller alive.
         core::future::pending::<()>().await;
     }
@@ -225,7 +211,7 @@ struct Answers {
     stack: Stack<'static>,
     hostname: &'static str,
     id: &'static str,
-    mode: Mode,
+    mode: Network,
 }
 
 impl HostAnswers for Answers {
@@ -247,17 +233,17 @@ impl HostAnswers for Answers {
             ttl: Ttl::from_secs(60),
         };
         let txt = [
-            ("id", self.id),
-            ("name", name.as_str()),
-            ("format", format.as_str()),
-            ("network", self.mode.label()),
+            (advertisement::ID, self.id),
+            (advertisement::NAME, name.as_str()),
+            (advertisement::FORMAT, format.as_str()),
+            (advertisement::NETWORK, self.mode.label()),
         ];
         let service = Service {
             name: self.hostname,
             priority: 0,
             weight: 0,
-            service: "_donder",
-            protocol: "_tcp",
+            service: advertisement::SERVICE,
+            protocol: advertisement::PROTOCOL,
             port: crate::HTTP_PORT,
             service_subtypes: &[],
             txt_kvs: &txt,
@@ -272,7 +258,7 @@ pub async fn mdns_responder(
     pool: &'static UdpPool,
     id: &'static str,
     hostname: &'static str,
-    mode: Mode,
+    mode: Network,
 ) -> ! {
     use edge_mdns::io::{IPV4_DEFAULT_SOCKET, Mdns, bind};
     stack.wait_config_up().await;

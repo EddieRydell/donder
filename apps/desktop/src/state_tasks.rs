@@ -17,12 +17,11 @@ mod tests {
     use camino::Utf8Path;
     use donder_project_io::{ProjectSession, check_project};
 
-    fn entry(session: &ProjectSession, status_path: &str) -> GuiHistoryEntry {
+    fn entry(session: &ProjectSession, path: &str) -> GuiHistoryEntry {
         GuiHistoryEntry {
             before: Arc::new(session.clone()),
             after: Arc::new(session.clone()),
-            affected_paths: BTreeSet::new(),
-            status_path: status_path.to_string(),
+            affected_paths: BTreeSet::from([path.to_string()]),
         }
     }
 
@@ -46,8 +45,8 @@ mod tests {
         history.push_undo(entry(&session, "three"));
 
         assert!(history.pop_redo().is_none());
-        assert_eq!(history.pop_undo().unwrap().status_path, "three");
-        assert_eq!(history.pop_undo().unwrap().status_path, "two");
+        assert!(history.pop_undo().unwrap().affected_paths.contains("three"));
+        assert!(history.pop_undo().unwrap().affected_paths.contains("two"));
         assert!(history.pop_undo().is_none());
     }
 }

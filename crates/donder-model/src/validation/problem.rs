@@ -168,6 +168,8 @@ pub enum NameProblem {
 /// The layers and composition graph of a sequence or console.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CompositionProblem {
+    /// Clips play on layers, so a sequence or console keeps at least one.
+    NoLayers,
     DuplicateLayerId(SequenceLayerId),
     Graph(GraphValidationError),
     MissingLayer(CompositionGraphNodeId),
@@ -278,12 +280,8 @@ pub enum EventProblem {
 /// Rules found while binding a validated project for playback.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AdmissionProblem {
-    UnknownAutomationParam,
-    AutomationWithoutClip,
     GeometryOutOfRange,
     InvalidEncoding(PixelRouteId),
-    TimingUnrepresentable,
-    MissingParam(Identifier),
     Binding(Member, BindingError),
     LiveMarksInOperator(CompositionGraphNodeId),
     TooManyParams,
@@ -464,6 +462,7 @@ impl NameProblem {
 impl CompositionProblem {
     fn site(&self) -> Option<ProblemSite> {
         match self {
+            Self::NoLayers => None,
             Self::DuplicateLayerId(layer) => Some(ProblemSite::of(Member::Layer(layer.clone()))),
             Self::Graph(error) => error.node().map(|node| ProblemSite::of(Member::Node(node))),
             Self::MissingLayer(node) | Self::RepeatedLayer(node) => {
@@ -704,6 +703,7 @@ impl fmt::Display for ConsoleValidationError {
 impl fmt::Display for CompositionProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NoLayers => f.write_str("there must be at least one layer"),
             Self::DuplicateLayerId(layer) => write!(f, "layer id {} is used twice", layer.0),
             Self::Graph(error) => error.fmt(f),
             Self::MissingLayer(_) => f.write_str("a layer node names a missing layer"),
@@ -887,18 +887,12 @@ impl fmt::Display for EventProblem {
 impl fmt::Display for AdmissionProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnknownAutomationParam => f.write_str("an automated parameter is unknown"),
-            Self::AutomationWithoutClip => f.write_str("an automation target has no clip"),
             Self::GeometryOutOfRange => {
                 f.write_str("transformed fixture geometry is outside the playback coordinate range")
             }
             Self::InvalidEncoding(route) => {
                 write!(f, "output {} has an invalid output encoding", route.0)
             }
-            Self::TimingUnrepresentable => {
-                f.write_str("the timing is not representable by the playback clock")
-            }
-            Self::MissingParam(param) => write!(f, "parameter `{}` has no value", param.as_str()),
             Self::Binding(_, error) => f.write_str(&error.message),
             Self::LiveMarksInOperator(_) => {
                 f.write_str("operators in a console cannot read live mark collections")

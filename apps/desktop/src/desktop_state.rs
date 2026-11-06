@@ -74,9 +74,8 @@ pub(crate) struct DesktopServices {
     persistence: PersistenceService,
     preview_wake: crate::preview::PreviewWake,
     autosave_generation: std::sync::atomic::AtomicU32,
-    audio_poll_running: AtomicBool,
-    live_output_poll_running: AtomicBool,
-    perform_poll_running: AtomicBool,
+    /// Which polls run, indexed by [`Poll`]; at most one of each.
+    polls: [AtomicBool; 3],
 }
 
 pub(crate) fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -127,20 +126,19 @@ impl DesktopState {
                                 if let Err(error) = event.and_then(|()| {
                                     state.reconcile_external_files_locked().map(|_| ())
                                 }) {
-                                    state.snapshot_with_error("project.watch", "", &error);
+                                    state.snapshot_with_error(&error);
                                 }
                             }
                         },
                     ),
                     render_refresh: LatestScheduler::new({
                         // Owned by the refresh worker; it keeps unchanged clips lowered between edits.
-                        let preparation =
-                            Mutex::new(donder_elaboration::PreparationCache::default());
+                        let mut preparation = donder_elaboration::PreparationCache::default();
                         move |request: RenderRefreshPayload| {
                             let result = crate::rendering::prepare_render_session_cached(
                                 &request.project.project,
                                 &request.sequence_id,
-                                &mut lock_unpoisoned(&preparation),
+                                &mut preparation,
                             );
                             if let Some(state) = render_state.upgrade() {
                                 DesktopState(state).complete_render_refresh(request, result);
@@ -182,9 +180,7 @@ impl DesktopState {
                     persistence: PersistenceService::new(),
                     preview_wake,
                     autosave_generation: std::sync::atomic::AtomicU32::new(0),
-                    audio_poll_running: AtomicBool::new(false),
-                    live_output_poll_running: AtomicBool::new(false),
-                    perform_poll_running: AtomicBool::new(false),
+                    polls: Default::default(),
                 }
             },
         ))
@@ -221,29 +217,13 @@ impl DesktopState {
         self.live_output_view(output)
     }
 
-    pub(crate) fn claim_audio_poll(&self) -> bool {
-        !self.audio_poll_running.swap(true, Ordering::AcqRel)
+    /// Start `poll` unless it already runs.
+    pub(crate) fn claim_poll(&self, poll: Poll) -> bool {
+        !self.polls[poll as usize].swap(true, Ordering::AcqRel)
     }
 
-    pub(crate) fn release_audio_poll(&self) {
-        self.audio_poll_running.store(false, Ordering::Release);
-    }
-
-    pub(crate) fn claim_live_output_poll(&self) -> bool {
-        !self.live_output_poll_running.swap(true, Ordering::AcqRel)
-    }
-
-    pub(crate) fn release_live_output_poll(&self) {
-        self.live_output_poll_running
-            .store(false, Ordering::Release);
-    }
-
-    pub(crate) fn claim_perform_poll(&self) -> bool {
-        !self.perform_poll_running.swap(true, Ordering::AcqRel)
-    }
-
-    pub(crate) fn release_perform_poll(&self) {
-        self.perform_poll_running.store(false, Ordering::Release);
+    pub(crate) fn release_poll(&self, poll: Poll) {
+        self.polls[poll as usize].store(false, Ordering::Release);
     }
 
     fn merged_audio_snapshot(&self, previous: &AudioTransportSnapshot) -> AudioTransportSnapshot {
@@ -471,7 +451,7 @@ pub(crate) use working_copy::whole_text;
 mod workspace;
 mod workspace_projection;
 mod workspace_state;
-pub(super) use workspace_projection::{FsEntryKind, recovery_workspace_entries, workspace_entries};
+pub(super) use workspace_projection::{recovery_workspace_entries, workspace_entries};
 
 fn empty_snapshot() -> AppSnapshot {
     AppSnapshot {
@@ -528,11 +508,43 @@ fn valid_child_name(name: &str) -> bool {
     !name.is_empty() && !name.contains('/') && !name.contains('\\') && name != "." && name != ".."
 }
 
+/// A background loop that publishes state while it changes.
+#[derive(Clone, Copy)]
+pub(crate) enum Poll {
+    Audio,
+    LiveOutput,
+    Perform,
+}
+
+/// A project that does not check can only be edited as text: show its problems.
+fn show_problems(
+    settings: &mut donder_editor::dto::AppSettings,
+    layout: &mut donder_editor::dto::WorkspaceLayoutState,
+) {
+    settings.editor_view_mode = donder_editor::dto::EditorViewMode::Text;
+    layout.active_sidebar_view = donder_editor::dto::SidebarView::Problems;
+    layout.sidebar_collapsed = false;
+}
+
+/// The part of a workspace path below `parent`, empty for `parent` itself.
+fn workspace_suffix<'a>(path: &'a str, parent: &str) -> Option<&'a str> {
+    match path.strip_prefix(parent)? {
+        "" => Some(""),
+        rest => rest.strip_prefix('/'),
+    }
+}
+
 fn path_matches_or_is_child(candidate: &str, parent: &str) -> bool {
-    candidate == parent
-        || candidate
-            .strip_prefix(parent)
-            .is_some_and(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
+    workspace_suffix(candidate, parent).is_some()
+}
+
+/// `path`, moved with `source` to `destination` when it is at or below it.
+pub(crate) fn remap_workspace_path(path: &str, source: &str, destination: &str) -> String {
+    match workspace_suffix(path, source) {
+        Some("") => destination.to_string(),
+        Some(rest) => format!("{destination}/{rest}"),
+        None => path.to_string(),
+    }
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@
 //! Syntax trees are at most [`MAX_NESTING`] levels deep, so checking and
 //! dropping them cannot exhaust the stack.
 use super::ast::*;
-use super::lexer::{Keyword, TextSpan, Token, TokenKind, lex};
+use super::lexer::{ContextualKeyword, Keyword, TextSpan, Token, TokenKind, lex};
 use crate::compiler::Diagnostic;
 use donder_runtime_types::Color;
 use donder_runtime_types::Identifier;
@@ -172,19 +172,18 @@ impl Parser<'_> {
         // Member words are reserved only where a member starts.
         loop {
             let token = self.peek();
-            let word = (token.kind == TokenKind::Identifier).then(|| self.text(token.span));
-            match (token.kind, word) {
+            match (token.kind, self.word(token)) {
                 (TokenKind::RightBrace, _) => break,
-                (_, Some("param")) => {
+                (_, Some(ContextualKeyword::Param)) => {
                     self.advance();
                     params.push(self.param()?);
                 }
-                (_, Some("input")) => {
+                (_, Some(ContextualKeyword::Input)) => {
                     self.advance();
                     inputs.push(self.name("an input name")?);
                     self.expect(TokenKind::Semicolon, "`;`")?;
                 }
-                (_, Some("sample")) => {
+                (_, Some(ContextualKeyword::Sample)) => {
                     let keyword = self.advance();
                     if sample.is_some() {
                         return Err(Diagnostic::new(
@@ -650,7 +649,7 @@ impl Parser<'_> {
         };
         self.advance();
         let end = self.binary(ADDITIVE)?;
-        let around = if self.at_word("around") {
+        let around = if self.at_word(ContextualKeyword::Around) {
             Some(self.around()?)
         } else {
             None
@@ -696,9 +695,11 @@ impl Parser<'_> {
     /// `scan forward` or `scan backward` followed by an input name.
     fn at_scan(&self) -> bool {
         let (direction, input) = (self.peek_at(1), self.peek_at(2));
-        self.at_word("scan")
-            && direction.kind == TokenKind::Identifier
-            && matches!(self.text(direction.span), "forward" | "backward")
+        self.at_word(ContextualKeyword::Scan)
+            && matches!(
+                self.word(direction),
+                Some(ContextualKeyword::Forward | ContextualKeyword::Backward)
+            )
             && input.kind == TokenKind::Identifier
     }
 
@@ -706,17 +707,17 @@ impl Parser<'_> {
     fn scan(&mut self) -> Parsed<Expr> {
         let start = self.advance().span;
         let token = self.advance();
-        let direction = match self.text(token.span) {
-            "forward" => Direction::Forward,
+        let direction = match self.word(token) {
+            Some(ContextualKeyword::Forward) => Direction::Forward,
             _ => Direction::Backward,
         };
         let input = self.name("an input name")?;
-        if !self.at_word("decay") {
+        if !self.at_word(ContextualKeyword::Decay) {
             return Err(self.unexpected("`decay` and the trail's decay at each pixel"));
         }
         self.advance();
         let decay = self.expression()?;
-        let light = if self.at_word("as") {
+        let light = if self.at_word(ContextualKeyword::As) {
             self.advance();
             let name = self.name("a name for the input's light")?;
             Some((name, self.block()?))
@@ -737,9 +738,15 @@ impl Parser<'_> {
 
     /// Whether the current token is the identifier `word`, which is only a
     /// keyword where the grammar expects it.
-    fn at_word(&self, word: &str) -> bool {
-        let token = self.peek();
-        token.kind == TokenKind::Identifier && self.text(token.span) == word
+    fn at_word(&self, word: ContextualKeyword) -> bool {
+        self.word(self.peek()) == Some(word)
+    }
+
+    /// The contextual keyword `token` spells, if any.
+    fn word(&self, token: Token) -> Option<ContextualKeyword> {
+        (token.kind == TokenKind::Identifier)
+            .then(|| ContextualKeyword::of(self.text(token.span)))
+            .flatten()
     }
 
     /// `around [extended | mirrored] input [as neighbor]`. An edge word is the
@@ -747,17 +754,18 @@ impl Parser<'_> {
     fn around(&mut self) -> Parsed<Around> {
         self.advance();
         let next = self.peek_at(1);
-        let named = next.kind == TokenKind::Identifier && self.text(next.span) != "as";
-        let edges = match self.text(self.peek().span) {
-            "extended" if named => Edges::Extend,
-            "mirrored" if named => Edges::Mirror,
+        let named =
+            next.kind == TokenKind::Identifier && self.word(next) != Some(ContextualKeyword::As);
+        let edges = match self.word(self.peek()) {
+            Some(ContextualKeyword::Extended) if named => Edges::Extend,
+            Some(ContextualKeyword::Mirrored) if named => Edges::Mirror,
             _ => Edges::Skip,
         };
         if edges != Edges::Skip {
             self.advance();
         }
         let input = self.name("an input name")?;
-        let neighbor = if self.at_word("as") {
+        let neighbor = if self.at_word(ContextualKeyword::As) {
             self.advance();
             Some(self.name("a neighbor name")?)
         } else {

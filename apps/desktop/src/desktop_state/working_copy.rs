@@ -10,8 +10,7 @@ use super::{DesktopState, LoadedProject, absolute_root_path, lock_unpoisoned};
 use crate::state_tasks::WorkingCopyPayload;
 use donder_editor::dto::{
     AppSnapshot, BufferExternalState, DocumentSaveState, DocumentText, DocumentTextEdit,
-    DocumentTextEdits, DocumentUpdate, EditorBuffer, EditorViewMode, ExternalConflictDecision,
-    ProjectHealth, SidebarView,
+    DocumentTextEdits, DocumentUpdate, EditorBuffer, ExternalConflictDecision, ProjectHealth,
 };
 
 /// A rewrite of one document's text.
@@ -84,6 +83,13 @@ impl WorkingDocument {
 }
 
 impl DesktopState {
+    /// Check the changed sources; history from the stale project no longer applies.
+    pub(super) fn recheck(&self) {
+        lock_unpoisoned(&self.gui_history).clear();
+        self.invalidate_prepared_project();
+        self.schedule_working_copy(false);
+    }
+
     pub(super) fn settled_authoring(&self) -> std::sync::MutexGuard<'_, ()> {
         loop {
             self.working_copy.finish_pending();
@@ -119,16 +125,9 @@ impl DesktopState {
                 return Ok(workspace.snapshot());
             }
             document.edit(text);
-            workspace.view.state_revision += 1;
-            workspace.view.project_revision += 1;
-            workspace.typed_revision = None;
-            workspace.project = LoadedProject::Checking;
-            workspace.view.project_health = ProjectHealth::Checking;
-            workspace.view.active_document_descriptor = None;
+            workspace.mark_checking();
         }
-        lock_unpoisoned(&self.gui_history).clear();
-        self.invalidate_prepared_project();
-        self.schedule_working_copy(false);
+        self.recheck();
         Ok(self.update_snapshot(|snapshot| snapshot.status = "Checking project".into()))
     }
 
@@ -203,16 +202,9 @@ impl DesktopState {
                 let text = change(&document.buffer.text)?;
                 document.edit(text);
             }
-            workspace.view.state_revision += 1;
-            workspace.view.project_revision += 1;
-            workspace.typed_revision = None;
-            workspace.project = LoadedProject::Checking;
-            workspace.view.project_health = ProjectHealth::Checking;
-            workspace.view.active_document_descriptor = None;
+            workspace.mark_checking();
         }
-        lock_unpoisoned(&self.gui_history).clear();
-        self.invalidate_prepared_project();
-        self.schedule_working_copy(false);
+        self.recheck();
         Ok(self.update_snapshot(|snapshot| snapshot.status = "Checking project".into()))
     }
 
@@ -372,9 +364,8 @@ impl DesktopState {
                     workspace.project = LoadedProject::Invalid;
                     workspace.view.project_health = ProjectHealth::Invalid;
                     workspace.view.active_document_descriptor = None;
-                    workspace.view.settings.editor_view_mode = EditorViewMode::Text;
-                    workspace.view.workspace_layout.active_sidebar_view = SidebarView::Problems;
-                    workspace.view.workspace_layout.sidebar_collapsed = false;
+                    let view = &mut workspace.view;
+                    super::show_problems(&mut view.settings, &mut view.workspace_layout);
                     drop(workspace);
                     self.invalidate_prepared_project();
                     self.update_snapshot(|snapshot| snapshot.status.clone_from(&message));
@@ -570,18 +561,11 @@ impl DesktopState {
                 }
             }
             if changed {
-                workspace.view.state_revision += 1;
-                workspace.view.project_revision += 1;
-                workspace.typed_revision = None;
-                workspace.project = LoadedProject::Checking;
-                workspace.view.project_health = ProjectHealth::Checking;
-                workspace.view.active_document_descriptor = None;
+                workspace.mark_checking();
             }
         }
         if changed {
-            lock_unpoisoned(&self.gui_history).clear();
-            self.invalidate_prepared_project();
-            self.schedule_working_copy(false);
+            self.recheck();
             Ok(self.update_snapshot(|snapshot| {
                 snapshot.status = "Project files changed; checking project".into()
             }))
@@ -642,15 +626,9 @@ impl DesktopState {
             }
         }
         document.buffer.external_state = BufferExternalState::Current;
-        workspace.view.state_revision += 1;
-        workspace.view.project_revision += 1;
-        workspace.typed_revision = None;
-        workspace.project = LoadedProject::Checking;
-        workspace.view.project_health = ProjectHealth::Checking;
+        workspace.mark_checking();
         drop(workspace);
-        self.invalidate_prepared_project();
-        lock_unpoisoned(&self.gui_history).clear();
-        self.schedule_working_copy(false);
+        self.recheck();
         Ok(self.update_snapshot(|_| {}))
     }
 }
@@ -667,6 +645,7 @@ pub(super) fn read_disk(path: &Utf8Path) -> Result<Option<Vec<u8>>, String> {
 mod tests {
     use super::*;
     use crate::desktop_foundation_tests::tests::starter_copy;
+    use donder_editor::dto::{EditorViewMode, SidebarView};
     use donder_editor::dto::{
         GuiDocument, GuiDocumentRequest, GuiEditCommand, NewSequenceRequest, SequenceGuiEdit,
         TransitionDecision, TransitionRequest, TransitionResult, WorkspaceTransition,
@@ -1067,7 +1046,6 @@ mod tests {
         let request = crate::state_tasks::RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
-            setup_id: *project.project.root().setup.id(),
             sequence_id,
             project,
         };

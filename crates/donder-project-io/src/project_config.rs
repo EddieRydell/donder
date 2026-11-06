@@ -2,93 +2,24 @@ use camino::{Utf8Path, Utf8PathBuf};
 use std::{fs, io, io::Write};
 
 pub const PROJECT_ROOT_FILE: &str = "project.data.donder";
-pub const PROJECT_FORMAT_VERSION: u8 = 1;
-
 /// The root `Project` declaration's `format`.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectMetadata {
-    pub format_version: u8,
-}
-
-impl Default for ProjectMetadata {
-    fn default() -> Self {
-        Self {
-            format_version: PROJECT_FORMAT_VERSION,
-        }
-    }
-}
-
-impl ProjectMetadata {
-    pub fn read(root: &Utf8Path) -> Result<Self, Vec<crate::IoDiagnostic>> {
-        let text = fs::read_to_string(root.join(PROJECT_ROOT_FILE))
-            .map_err(|source| crate::diagnostics::read_error(PROJECT_ROOT_FILE, &source))?;
-        Self::parse(&text)
-    }
-
-    pub(crate) fn parse(text: &str) -> Result<Self, Vec<crate::IoDiagnostic>> {
-        let path = Utf8Path::new(PROJECT_ROOT_FILE);
-        let (document, diagnostics) = crate::document::read(text);
-        if !diagnostics.is_empty() {
-            return Err(diagnostics
-                .into_iter()
-                .map(|diagnostic| crate::diagnostics::data_diagnostic(path, text, diagnostic))
-                .collect());
-        }
-        let (span, project) = document
-            .declarations
-            .iter()
-            .find_map(|(_, span, declaration)| match declaration {
-                crate::document::Declaration::Project(project) => Some((*span, project)),
-                _ => None,
-            })
-            .ok_or_else(|| {
-                crate::diagnostics::invalid_document(
-                    path,
-                    None,
-                    format!("{PROJECT_ROOT_FILE} must declare a `Project`"),
-                )
-            })?;
-        let metadata = Self {
-            format_version: project.format,
-        };
-        metadata.validate().map_err(|message| {
-            crate::diagnostics::invalid_document(
-                path,
-                Some(crate::diagnostics::byte_range(text, span.start, span.end)),
-                message,
-            )
-        })?;
-        Ok(metadata)
-    }
-
-    pub(crate) fn validate(&self) -> Result<(), String> {
-        if self.format_version != PROJECT_FORMAT_VERSION {
-            return Err(format!(
-                "Unsupported project format {}; expected {}",
-                self.format_version, PROJECT_FORMAT_VERSION
-            ));
-        }
-        Ok(())
-    }
-}
+pub const PROJECT_FORMAT_VERSION: u8 = 1;
 
 /// The one editable source root of a local project.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectWorkspace {
     pub(crate) root: Utf8PathBuf,
-    pub(crate) metadata: ProjectMetadata,
 }
 
 impl ProjectWorkspace {
-    pub(crate) fn new(root: &Utf8Path, metadata: ProjectMetadata) -> Result<Self, String> {
-        metadata.validate()?;
+    pub(crate) fn new(root: &Utf8Path) -> Result<Self, String> {
         let root = root
             .canonicalize_utf8()
             .map_err(|error| error.to_string())?;
         if !root.is_dir() {
             return Err("Project root must be a directory".into());
         }
-        Ok(Self { root, metadata })
+        Ok(Self { root })
     }
 }
 

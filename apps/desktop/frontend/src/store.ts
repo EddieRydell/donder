@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { listen } from "@tauri-apps/api/event";
-import { commands } from "./api";
+import { commands, events } from "./api";
 import { effectiveEditorViewMode } from "./editorViewMode";
 import { DocumentSync } from "./documentSync";
 import { PREVIEW_APPEARANCE } from "./previewAppearance";
@@ -172,17 +171,17 @@ export async function resolveDocumentSyncFailure(keepText: boolean) {
 
 export function subscribeToSnapshots(): Promise<() => void> {
   return Promise.all([
-    listen<AppSnapshot>("app_snapshot_changed", (event) => {
-      useAppStore.getState().setSnapshot(event.payload, "event");
+    events.appSnapshotChanged.listen((event) => {
+      useAppStore.getState().setSnapshot(event.payload.snapshot, "event");
     }),
-    listen<AudioTransportSnapshot>("audio_transport_changed", (event) => {
-      useAppStore.getState().setAudioTransport(event.payload);
+    events.audioTransportChanged.listen((event) => {
+      useAppStore.getState().setAudioTransport(event.payload.transport);
     }),
-    listen<boolean>("preview_window_changed", (event) => {
-      useAppStore.getState().setPreviewOpen(event.payload);
+    events.previewWindowChanged.listen((event) => {
+      useAppStore.getState().setPreviewOpen(event.payload.open);
     }),
-    listen<LiveOutputSnapshot>("live_output_changed", (event) => {
-      useAppStore.getState().setLiveOutput(event.payload);
+    events.liveOutputChanged.listen((event) => {
+      useAppStore.getState().setLiveOutput(event.payload.output);
     })
   ]).then((unsubscribes) => () => {
     for (const unsubscribe of unsubscribes) {

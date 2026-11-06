@@ -5,7 +5,7 @@ use donder_language::compiler::{
 };
 use donder_runtime::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
 use donder_runtime_types::{
-    BindingError, BoundProgram, Color, FixtureGeometry, OutputEncoding, RgbOrder, SampleTime,
+    BindingError, BoundProgram, Color, FixtureGeometry, OutputEncoding, PixelEncoding, SampleTime,
     SequenceTiming, TargetGeometry, TargetScope, Value,
 };
 use std::num::NonZeroU32;
@@ -48,7 +48,7 @@ pub fn build(
         builder.route(
             port,
             target,
-            OutputEncoding::Rgb(RgbOrder::Grb),
+            OutputEncoding::admit(PixelEncoding::Rgb { order: [1, 0, 2] }).unwrap(),
             None,
             false,
         );

@@ -1,7 +1,8 @@
 //! A mega tree: straight strings from points around a base ellipse up to
 //! points around a smaller top ellipse. Vixen: `PreviewMegaTree`.
 
-use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, strings, unrotated};
+use super::multi_string::{add_line, child_line};
+use super::{Laid, ShapeSkip, strings, unrotated};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -122,36 +123,15 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
         ));
     }
 
-    let mut pixels = Vec::new();
+    let mut laid = Laid::default();
     // String `k` takes the ellipses' points at `count - 1 - k`.
     for ((line, top_end), base_end) in lines
         .into_iter()
         .zip(top_points.into_iter().rev())
         .zip(base_points.into_iter().rev())
     {
-        if contract::type_name(line) != Some("PreviewLine") {
-            // Vixen leaves a string that is not a line where it was saved.
-            return Err(ShapeSkip::Setting("strings that are not lines"));
-        }
-        // The string rotates its lights about its own centre.
-        unrotated(line)?;
-        // Vixen sets the line's two saved points, which must be there.
-        super::line::ends(line)?;
-        let nodes = pixel_nodes(line)?;
-        let positions = super::line::spaced(base_end, top_end, nodes.len(), false, false)?;
-        pixels.extend(
-            nodes
-                .into_iter()
-                .zip(positions)
-                .map(|(node, position)| ShapePixel {
-                    node,
-                    position,
-                    arc: None,
-                }),
-        );
+        let nodes = child_line(line)?;
+        add_line(&mut laid, nodes, base_end, top_end, false, false)?;
     }
-    Ok(Laid {
-        pixels,
-        ellipses: Vec::new(),
-    })
+    Ok(laid)
 }

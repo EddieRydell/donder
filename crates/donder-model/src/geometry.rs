@@ -124,11 +124,14 @@ impl PreparedLayout {
     }
 }
 
+/// The order a fixture transform's rotation turns about its axes.
+const FIXTURE_EULER: EulerRot = EulerRot::XYZ;
+
 pub fn fixture_transform(transform: &FixtureTransform) -> Affine3A {
     Affine3A::from_scale_rotation_translation(
         Vec3::new(transform.scale.x, transform.scale.y, transform.scale.z),
         Quat::from_euler(
-            EulerRot::XYZ,
+            FIXTURE_EULER,
             transform.rotation.x.to_radians(),
             transform.rotation.y.to_radians(),
             transform.rotation.z.to_radians(),
@@ -139,4 +142,14 @@ pub fn fixture_transform(transform: &FixtureTransform) -> Affine3A {
             transform.position.z.as_meters_f32(),
         ),
     )
+}
+
+/// The fixture rotation that [`fixture_transform`] turns by `rotation`.
+pub fn fixture_rotation(rotation: Quat) -> donder_language::Rotation3 {
+    let (x, y, z) = rotation.to_euler(FIXTURE_EULER);
+    donder_language::Rotation3 {
+        x: x.to_degrees(),
+        y: y.to_degrees(),
+        z: z.to_degrees(),
+    }
 }

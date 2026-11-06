@@ -43,7 +43,7 @@ export function ConsoleEditor({ document, selected, setSelected }: {
   const addLiveMarks = () => void applyConsoleEdit({ type: "addLiveMarks", name: "Live marks", color: defaultMarkColor(document.liveMarks.length) });
   return <main className="setup-editor console-editor">
     <header className="object-overview-header">
-      <div><span className="object-overview-eyebrow">Console · {document.path}</span><h2>{document.name}</h2></div>
+      <div><span className="object-overview-eyebrow">Console · {document.sourceRef.path}</span><h2>{document.name}</h2></div>
       {performIndex !== null && <Button icon={Play} disabled={performing} onClick={() => { startPerforming(performIndex); }}>Perform</Button>}
     </header>
     <div className="console-sections">

@@ -13,7 +13,7 @@ donder-runtime.workspace = true
 donder-runtime-types.workspace = true
 donder-project-io.workspace = true
 indexmap.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["std"] }
 specta.workspace = true
 glam.workspace = true
 

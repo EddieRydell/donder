@@ -33,21 +33,35 @@ fn state_is_visible_on_monitor<R: Runtime>(
     window: &Window<R>,
     state: &PersistedWindowState,
 ) -> bool {
-    if state.width == 0 || state.height == 0 {
-        return false;
-    }
     let Ok(monitors) = window.available_monitors() else {
         return false;
     };
-    monitors.into_iter().any(|monitor| {
-        let work_area = monitor.work_area();
-        let window_right = i64::from(state.x) + i64::from(state.width);
-        let window_bottom = i64::from(state.y) + i64::from(state.height);
-        let area_right = i64::from(work_area.position.x) + i64::from(work_area.size.width);
-        let area_bottom = i64::from(work_area.position.y) + i64::from(work_area.size.height);
-        i64::from(state.x) < area_right
-            && window_right > i64::from(work_area.position.x)
-            && i64::from(state.y) < area_bottom
-            && window_bottom > i64::from(work_area.position.y)
-    })
+    overlaps_any_area(
+        state,
+        monitors.into_iter().map(|monitor| {
+            let area = monitor.work_area();
+            (
+                area.position.x,
+                area.position.y,
+                area.size.width,
+                area.size.height,
+            )
+        }),
+    )
+}
+
+/// Whether a saved window, with some size, overlaps one of the `(x, y,
+/// width, height)` screen areas, so restoring it shows it.
+pub(crate) fn overlaps_any_area(
+    state: &PersistedWindowState,
+    areas: impl IntoIterator<Item = (i32, i32, u32, u32)>,
+) -> bool {
+    state.width > 0
+        && state.height > 0
+        && areas.into_iter().any(|(x, y, width, height)| {
+            i64::from(state.x) < i64::from(x) + i64::from(width)
+                && i64::from(state.x) + i64::from(state.width) > i64::from(x)
+                && i64::from(state.y) < i64::from(y) + i64::from(height)
+                && i64::from(state.y) + i64::from(state.height) > i64::from(y)
+        })
 }

@@ -4,10 +4,9 @@ use std::fs;
 /// A root document declaring `Project main` with a fresh project id and no
 /// consoles. `fields` are written after `description`; imports come first.
 pub(crate) fn root_document(imports: &str, fields: &str) -> String {
-    let metadata = donder_project_io::ProjectMetadata::default();
     format!(
         "{imports}\nProject main {{\n  format: {},\n  description: none,\n{fields}  consoles: [],\n}}\n",
-        metadata.format_version
+        donder_project_io::PROJECT_FORMAT_VERSION
     )
 }
 
@@ -77,7 +76,7 @@ pub(crate) const MINIMAL_SEQUENCE: &str = r#"Sequence main {
   frame_rate: 60,
   audio: none,
   marks: [],
-  layers: [],
+  layers: [Layer { name: default, description: none, color: #50a0ff, enabled: true }],
   clips: [],
   graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
   automation: [],

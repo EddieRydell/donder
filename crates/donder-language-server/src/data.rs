@@ -1,19 +1,21 @@
 //! Data document features: hover, completion, outline and formatting, read
 //! from the syntax tree, the schema and the project index.
-use donder_language::analysis::{Completion, CompletionKind, DataToken, DataTokenKind, SymbolKind};
+use donder_language::analysis::{
+    Completion, CompletionKind, DataToken, DataTokenKind, SymbolKind, contains,
+};
 use donder_language::compiler::TextSpan;
+use donder_language::data::{DESCRIPTION_FIELD, NAME_FIELD, ROOT_NODE};
 use donder_language::data::{DataField, DataValue, Spanned, is_pascal_case};
 use donder_language::data::{Definition, Fields, Refers, Schema, Shape};
-use donder_project_io::{DECLARATION_TYPE_NAMES, LinkTarget, ScriptMember, document_schema};
+use donder_project_io::{
+    DECLARATION_TYPE_NAMES, LinkTarget, ScriptMember, document_schema, param_refers,
+    reference_targets,
+};
 use donder_runtime_types::Type;
 
 use crate::document::Document;
 use crate::navigation::script_member;
 use crate::workspace::{Kind, Workspace, kind};
-
-fn within(span: TextSpan, offset: usize) -> bool {
-    span.start <= offset && offset <= span.end
-}
 
 /// The canonical text, when the document parses without errors.
 pub(crate) fn format(document: &Document) -> Option<String> {
@@ -25,7 +27,7 @@ pub(crate) fn format(document: &Document) -> Option<String> {
 
 fn description(fields: &[DataField]) -> Option<&str> {
     fields.iter().find_map(|field| match &field.value.value {
-        DataValue::String(text) if field.name.value.as_str() == "description" => {
+        DataValue::String(text) if field.name.value.as_str() == DESCRIPTION_FIELD => {
             Some(text.as_str())
         }
         _ => None,
@@ -51,7 +53,7 @@ pub(crate) fn describe(document: &Document, span: TextSpan) -> Option<String> {
                     .iter()
                     .find_map(|field| match &field.value.value {
                         DataValue::Reference(segments)
-                            if field.name.value.as_str() == "name"
+                            if field.name.value.as_str() == NAME_FIELD
                                 && segments.len() == 1
                                 && segments[0].span == span =>
                         {
@@ -176,6 +178,14 @@ fn fields<'a>(schema: &'a Schema, ty: &str) -> Option<&'a Fields> {
         })
 }
 
+/// The shape of field `field` of a record type or a variant.
+fn field_shape<'a>(schema: &'a Schema, ty: &str, field: &str) -> Option<&'a Shape> {
+    fields(schema, ty)?
+        .iter()
+        .find(|(name, _)| *name == field)
+        .map(|(_, shape)| shape)
+}
+
 fn definition_text(schema: &Schema, ty: &str) -> Option<String> {
     let field_lines = |fields: &Fields| {
         fields
@@ -209,7 +219,9 @@ pub(crate) fn schema_hover(document: &Document, offset: usize) -> Option<String>
     let schema = document_schema();
     let text = document.text();
     let tokens = document.stream();
-    let index = tokens.iter().position(|token| within(token.span, offset))?;
+    let index = tokens
+        .iter()
+        .position(|token| contains(token.span, offset))?;
     let token = tokens[index];
     let word = &text[token.span.start..token.span.end];
     if token.kind != DataTokenKind::Name {
@@ -235,9 +247,9 @@ pub(crate) fn schema_hover(document: &Document, offset: usize) -> Option<String>
         .get(index + 1)
         .is_some_and(|next| next.kind == DataTokenKind::Colon)
     {
-        let frames = frames(text, &tokens[..index]);
+        let frames = frames(&schema, text, &tokens[..index]);
         if let Some(Frame::Record { ty, .. }) = frames.last()
-            && let Some((_, shape)) = fields(&schema, ty)?.iter().find(|(name, _)| *name == word)
+            && let Some(shape) = field_shape(&schema, ty, word)
         {
             return Some(format!(
                 "```donder\n{ty}.{word}\n```\n\n{}",
@@ -271,7 +283,7 @@ enum Frame {
     Other,
 }
 
-fn frames(text: &str, tokens: &[DataToken]) -> Vec<Frame> {
+fn frames(schema: &Schema, text: &str, tokens: &[DataToken]) -> Vec<Frame> {
     let word = |token: &DataToken| &text[token.span.start..token.span.end];
     let mut stack = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
@@ -303,11 +315,12 @@ fn frames(text: &str, tokens: &[DataToken]) -> Vec<Frame> {
                     (
                         None,
                         Some(Frame::Record {
+                            ty,
                             field: Some(field),
                             definition,
                             ..
                         }),
-                    ) if field == "params" => Frame::Map {
+                    ) if field_shape(schema, ty, field) == Some(&Shape::Params) => Frame::Map {
                         definition: *definition,
                         seen: Vec::new(),
                         field: None,
@@ -349,11 +362,15 @@ fn frames(text: &str, tokens: &[DataToken]) -> Vec<Frame> {
             }
             DataTokenKind::Name => {
                 if let Some(Frame::Record {
+                    ty,
                     field: Some(field),
                     definition,
                     ..
                 }) = stack.last_mut()
-                    && (field == "effect" || field == "operator")
+                    && matches!(
+                        wanted(schema, ty, field),
+                        Some(Refers::Effect | Refers::Operator)
+                    )
                 {
                     *definition = Some(token.span);
                 }
@@ -378,21 +395,39 @@ fn wanted(schema: &Schema, ty: &str, field: &str) -> Option<Refers> {
             _ => None,
         }
     }
-    let (_, shape) = fields(schema, ty)?
-        .iter()
-        .find(|(name, _)| *name == field)?;
-    refers(shape)
+    refers(field_shape(schema, ty, field)?)
 }
 
-/// The declarations a document can name, as `name` or `alias.name`, with
-/// their type: `Layout`, `Effect` or `Operator` for scripts.
-fn visible(workspace: &Workspace, document: &Document) -> Vec<(String, String)> {
+/// A declaration a document can name, as `name` or `alias.name`.
+struct Visible {
+    name: String,
+    /// A data declaration's type, or a script declaration's summary.
+    detail: String,
+    named: Named,
+}
+
+/// What a visible name names.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Named {
+    /// A data declaration of this type.
+    Declaration(String),
+    /// A script declaration of this kind.
+    Script(SymbolKind),
+}
+
+/// The declarations a document can name.
+fn visible(workspace: &Workspace, document: &Document) -> Vec<Visible> {
+    let declared = |name: String, ty: &str| Visible {
+        name,
+        detail: ty.to_string(),
+        named: Named::Declaration(ty.to_string()),
+    };
     let mut names = Vec::new();
     let local = document.tree();
     for declaration in &local.declarations {
-        names.push((
+        names.push(declared(
             declaration.name.value.as_str().to_string(),
-            declaration.ty.value.as_str().to_string(),
+            declaration.ty.value.as_str(),
         ));
     }
     for import in &local.imports {
@@ -407,20 +442,21 @@ fn visible(workspace: &Workspace, document: &Document) -> Vec<(String, String)> 
             match kind(&path_uri) {
                 Kind::Data => {
                     for declaration in &source.tree().declarations {
-                        names.push((
+                        names.push(declared(
                             format!("{alias}.{}", declaration.name.value.as_str()),
-                            declaration.ty.value.as_str().to_string(),
+                            declaration.ty.value.as_str(),
                         ));
                     }
                 }
                 Kind::Script => {
                     for symbol in &source.script().symbols {
-                        let ty = match symbol.kind {
-                            SymbolKind::Effect => "Effect",
-                            SymbolKind::Operator => "Operator",
-                            _ => continue,
-                        };
-                        names.push((format!("{alias}.{}", symbol.name), ty.to_string()));
+                        if matches!(symbol.kind, SymbolKind::Effect | SymbolKind::Operator) {
+                            names.push(Visible {
+                                name: format!("{alias}.{}", symbol.name),
+                                detail: symbol.detail.clone(),
+                                named: Named::Script(symbol.kind),
+                            });
+                        }
                     }
                 }
                 Kind::Other => {}
@@ -430,17 +466,51 @@ fn visible(workspace: &Workspace, document: &Document) -> Vec<(String, String)> 
     names
 }
 
-/// Names declared in this document by `Type { name: X` or `LayerNode { layer: X`.
-fn local_names(document: &Document, ty: &str, field: &str) -> Vec<String> {
+/// The record or variant types an object of type `ty` is written as, with
+/// their fields.
+fn object_types<'a>(schema: &'a Schema, ty: &str) -> Vec<(&'static str, &'a Fields)> {
+    match schema.types.get_key_value(ty) {
+        Some((ty, Some(Definition::Record(fields)))) => vec![(*ty, fields)],
+        Some((_, Some(Definition::Variants(variants)))) => variants
+            .iter()
+            .filter_map(|(name, fields)| Some((*name, fields.as_ref()?)))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The field that names an object: its own name, or, for an object named by
+/// what it refers to, such as a layer's graph node, that reference.
+fn name_field(fields: &Fields) -> Option<&'static str> {
+    fields
+        .iter()
+        .find(|(name, shape)| *name == NAME_FIELD && *shape == Shape::Name)
+        .or_else(|| {
+            fields
+                .iter()
+                .find(|(_, shape)| matches!(shape, Shape::Reference(_)))
+        })
+        .map(|(name, _)| *name)
+}
+
+/// Names of the objects of types `types` in this document, written
+/// `Type { name: X` with the field that names them first.
+fn local_names(schema: &Schema, document: &Document, types: &[&str]) -> Vec<String> {
     let text = document.text();
     let tokens = document.stream();
     let word = |token: &DataToken| &text[token.span.start..token.span.end];
+    let objects = types
+        .iter()
+        .flat_map(|ty| object_types(schema, ty))
+        .filter_map(|(ty, fields)| Some((ty, name_field(fields)?)))
+        .collect::<Vec<_>>();
     let mut names = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
-        if word(token) == ty
-            && let [open, name, colon, value, ..] = &tokens[index + 1..]
+        if let [open, name, colon, value, ..] = &tokens[index + 1..]
+            && objects
+                .iter()
+                .any(|(ty, field)| word(token) == *ty && word(name) == *field)
             && open.kind == DataTokenKind::Open('{')
-            && word(name) == field
             && colon.kind == DataTokenKind::Colon
             && value.kind == DataTokenKind::Name
         {
@@ -450,40 +520,44 @@ fn local_names(document: &Document, ty: &str, field: &str) -> Vec<String> {
     names
 }
 
-/// The named members a reference reaches inside a declaration: the list
-/// field that holds them and the record types they are written as.
-#[derive(Clone, Copy)]
-struct Members {
-    field: &'static str,
-    types: &'static [&'static str],
+/// The named members of a declaration of type `ty`: each of its list fields
+/// whose items have their own names, with the types the items are written as.
+fn members(schema: &Schema, ty: &str) -> Vec<(&'static str, Vec<&'static str>)> {
+    fields(schema, ty)
+        .into_iter()
+        .flatten()
+        .filter_map(|(field, shape)| {
+            let Shape::List(item) = shape else {
+                return None;
+            };
+            let Shape::Named(item) = item.as_ref() else {
+                return None;
+            };
+            let types = object_types(schema, item)
+                .into_iter()
+                .filter(|(_, fields)| name_field(fields) == Some(NAME_FIELD))
+                .map(|(ty, _)| ty)
+                .collect::<Vec<_>>();
+            (!types.is_empty()).then_some((*field, types))
+        })
+        .collect()
 }
 
-impl Members {
-    /// A layout's fixtures and groups.
-    const LAYOUT: Self = Self {
-        field: "items",
-        types: &["Group", "Fixture"],
-    };
-    /// An input device's controls.
-    const DEVICE: Self = Self {
-        field: "controls",
-        types: &["Button", "Axis"],
-    };
-}
-
-/// The names of the members of the declaration a reference names.
+/// The names of the members of the declaration of type `owner` a reference
+/// names.
 fn declaration_members(
     workspace: &Workspace,
     document: &Document,
+    schema: &Schema,
     prefix: &[&str],
-    members: Members,
+    owner: &str,
 ) -> Vec<String> {
     fn collect(value: &Spanned<DataValue>, types: &[&str], names: &mut Vec<String>) {
         match &value.value {
             DataValue::Record(ty, fields) if types.contains(&ty.value.as_str()) => {
                 for field in &fields.value {
-                    if let (DataValue::Reference(segments), "name") =
-                        (&field.value.value, field.name.value.as_str())
+                    if let DataValue::Reference(segments) = &field.value.value
+                        && field.name.value.as_str() == NAME_FIELD
                         && segments.len() == 1
                     {
                         names.push(segments[0].value.as_str().to_string());
@@ -494,13 +568,17 @@ fn declaration_members(
             _ => {}
         }
     }
-    let layout = |source: &Document, name: &str| {
+    let members = members(schema, owner);
+    let declared = |source: &Document, name: &str| {
         let mut names = Vec::new();
         for declaration in &source.tree().declarations {
-            if declaration.name.value.as_str() == name {
+            if declaration.ty.value.as_str() == owner && declaration.name.value.as_str() == name {
                 for field in &declaration.fields.value {
-                    if field.name.value.as_str() == members.field {
-                        collect(&field.value, members.types, &mut names);
+                    for (_, types) in members
+                        .iter()
+                        .filter(|(member, _)| field.name.value.as_str() == *member)
+                    {
+                        collect(&field.value, types, &mut names);
                     }
                 }
             }
@@ -508,7 +586,7 @@ fn declaration_members(
         names
     };
     match prefix {
-        [name] => layout(document, name),
+        [name] => declared(document, name),
         [alias, name] => {
             let Some(import) = document
                 .tree()
@@ -523,7 +601,7 @@ fn declaration_members(
                 .iter()
                 .filter_map(|path| workspace.uri(camino::Utf8Path::new(&path.value)))
                 .filter_map(|path| workspace.document(&path))
-                .flat_map(|source| layout(&source, name))
+                .flat_map(|source| declared(&source, name))
                 .collect()
         }
         _ => Vec::new(),
@@ -559,6 +637,13 @@ fn record_completions(schema: &Schema, ty: &str, named: bool) -> Vec<Completion>
     ]
 }
 
+fn bools() -> Vec<Completion> {
+    ["true", "false"]
+        .iter()
+        .map(|word| Completion::new(*word, CompletionKind::Keyword))
+        .collect()
+}
+
 fn shape_completions(schema: &Schema, shape: &Shape, references: &[String]) -> Vec<Completion> {
     let reference_items = || {
         references
@@ -567,10 +652,7 @@ fn shape_completions(schema: &Schema, shape: &Shape, references: &[String]) -> V
             .collect::<Vec<_>>()
     };
     match shape {
-        Shape::Bool => ["true", "false"]
-            .iter()
-            .map(|word| Completion::new(*word, CompletionKind::Keyword))
-            .collect(),
+        Shape::Bool => bools(),
         Shape::Option(inner) => std::iter::once(Completion::new("none", CompletionKind::Keyword))
             .chain(shape_completions(schema, inner, references))
             .collect(),
@@ -658,51 +740,35 @@ pub(crate) fn completions(
         prefix.insert(0, word(&tokens[index - 2]));
         index -= 2;
     }
-    let stack = frames(text, &tokens[..index]);
+    let stack = frames(&schema, text, &tokens[..index]);
     let names_for = |wanted: Refers| -> Vec<String> {
+        let targets = reference_targets(wanted);
+        let declared = |script: Option<SymbolKind>| {
+            visible(workspace, document)
+                .into_iter()
+                .filter(|visible| match (&visible.named, script) {
+                    (Named::Declaration(ty), None) => targets.contains(&ty.as_str()),
+                    (Named::Script(kind), Some(wanted)) => *kind == wanted,
+                    _ => false,
+                })
+                .map(|visible| visible.name)
+                .collect::<Vec<_>>()
+        };
         match wanted {
-            Refers::Declaration(ty) => visible(workspace, document)
+            Refers::Declaration(_) => declared(None),
+            Refers::Effect => declared(Some(SymbolKind::Effect)),
+            Refers::Operator => declared(Some(SymbolKind::Operator)),
+            // A member, written `declaration.member`.
+            Refers::Fixture | Refers::Control => declared(None)
                 .into_iter()
-                .filter(|(_, kind)| kind == ty)
-                .map(|(name, _)| name)
+                .map(|name| format!("{name}."))
                 .collect(),
-            Refers::Effect | Refers::Operator => {
-                let ty = if wanted == Refers::Effect {
-                    "Effect"
-                } else {
-                    "Operator"
-                };
-                visible(workspace, document)
-                    .into_iter()
-                    .filter(|(_, kind)| kind == ty)
-                    .map(|(name, _)| name)
-                    .collect()
-            }
-            Refers::Fixture => visible(workspace, document)
-                .into_iter()
-                .filter(|(_, kind)| kind == "Layout")
-                .map(|(name, _)| format!("{name}."))
-                .collect(),
-            Refers::Control => visible(workspace, document)
-                .into_iter()
-                .filter(|(_, kind)| kind == "InputDevice")
-                .map(|(name, _)| format!("{name}."))
-                .collect(),
-            Refers::Layer => local_names(document, "Layer", "name"),
-            Refers::Clip => {
-                let mut names = local_names(document, "Clip", "name");
-                names.extend(local_names(document, "ConsoleClip", "name"));
-                names
-            }
-            Refers::Marks => {
-                let mut names = local_names(document, "MarkCollection", "name");
-                names.extend(local_names(document, "LiveMarks", "name"));
-                names
+            Refers::Layer | Refers::Clip | Refers::Marks => {
+                local_names(&schema, document, &targets)
             }
             Refers::Node => {
-                let mut names = local_names(document, "OperatorNode", "name");
-                names.extend(local_names(document, "LayerNode", "layer"));
-                names.push(donder_language::data::ROOT_NODE.into());
+                let mut names = local_names(&schema, document, &targets);
+                names.push(ROOT_NODE.into());
                 names
             }
         }
@@ -718,15 +784,15 @@ pub(crate) fn completions(
     };
     if !prefix.is_empty() {
         // After a dot: a layout's fixtures, or an alias's declarations.
-        let members =
-            field_owner
-                .as_ref()
-                .and_then(|(ty, field)| match wanted(&schema, ty, field) {
-                    Some(Refers::Fixture) => Some(Members::LAYOUT),
-                    Some(Refers::Control) => Some(Members::DEVICE),
-                    _ => None,
-                });
-        if let Some(members) = members
+        let owner = field_owner
+            .as_ref()
+            .and_then(|(ty, field)| match wanted(&schema, ty, field) {
+                Some(refers @ (Refers::Fixture | Refers::Control)) => {
+                    reference_targets(refers).into_iter().next()
+                }
+                _ => None,
+            });
+        if let Some(owner) = owner
             && !(prefix.len() == 1
                 && document
                     .tree()
@@ -734,7 +800,7 @@ pub(crate) fn completions(
                     .iter()
                     .any(|import| import.alias.value.as_str() == prefix[0]))
         {
-            return declaration_members(workspace, document, &prefix, members)
+            return declaration_members(workspace, document, &schema, &prefix, owner)
                 .into_iter()
                 .map(|name| Completion::new(name, CompletionKind::Reference))
                 .collect();
@@ -745,17 +811,18 @@ pub(crate) fn completions(
             && let Some(wanted) = wanted(&schema, ty, field)
         {
             let wanted_names = names_for(wanted);
-            names.retain(|(name, _)| {
+            names.retain(|visible| {
                 wanted_names
                     .iter()
-                    .any(|wanted| wanted.trim_end_matches('.') == name)
+                    .any(|wanted| wanted.trim_end_matches('.') == visible.name)
             });
         }
         return names
             .into_iter()
-            .filter_map(|(name, ty)| {
-                name.strip_prefix(&qualified)
-                    .map(|rest| Completion::new(rest, CompletionKind::Reference).detail(ty))
+            .filter_map(|visible| {
+                visible.name.strip_prefix(&qualified).map(|rest| {
+                    Completion::new(rest, CompletionKind::Reference).detail(visible.detail)
+                })
             })
             .collect();
     }
@@ -793,28 +860,11 @@ pub(crate) fn completions(
                     .collect()
             })
             .unwrap_or_default(),
-        Some(Frame::Record {
-            ty,
-            field: Some(field),
-            ..
-        }) => {
-            let Some((_, shape)) = fields(&schema, ty)
-                .and_then(|fields| fields.iter().find(|(name, _)| name == field))
-            else {
+        Some(Frame::Record { .. } | Frame::List { .. }) => {
+            let Some((ty, field)) = &field_owner else {
                 return Vec::new();
             };
-            let references = wanted(&schema, ty, field)
-                .map(names_for)
-                .unwrap_or_default();
-            shape_completions(&schema, shape, &references)
-        }
-        Some(Frame::List { owner }) => {
-            let Some((ty, field)) = owner else {
-                return Vec::new();
-            };
-            let Some((_, shape)) = fields(&schema, ty)
-                .and_then(|fields| fields.iter().find(|(name, _)| name == field))
-            else {
+            let Some(shape) = field_shape(&schema, ty, field) else {
                 return Vec::new();
             };
             let references = wanted(&schema, ty, field)
@@ -862,28 +912,16 @@ pub(crate) fn completions(
                     if !options.is_empty() {
                         return options;
                     }
-                    let wanted = match symbol.ty {
-                        Some(Type::Bool) => {
-                            return ["true", "false"]
-                                .iter()
-                                .map(|word| Completion::new(*word, CompletionKind::Keyword))
-                                .collect();
-                        }
-                        Some(Type::Marks) => {
-                            return names_for(Refers::Marks)
-                                .into_iter()
-                                .map(|name| Completion::new(name, CompletionKind::Reference))
-                                .collect();
-                        }
-                        Some(Type::Curve) => "Curve",
-                        Some(Type::Gradient) => "Gradient",
-                        _ => return Vec::new(),
-                    };
-                    visible(workspace, document)
-                        .into_iter()
-                        .filter(|(_, kind)| kind == wanted)
-                        .map(|(name, _)| Completion::new(name, CompletionKind::Reference))
-                        .collect()
+                    match &symbol.ty {
+                        Some(Type::Bool) => bools(),
+                        Some(ty) => param_refers(ty)
+                            .map(names_for)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|name| Completion::new(name, CompletionKind::Reference))
+                            .collect(),
+                        None => Vec::new(),
+                    }
                 }
             }
         }
@@ -915,7 +953,7 @@ pub(crate) fn outline(document: &Document) -> Vec<Outline> {
                     .iter()
                     .find_map(|field| match &field.value.value {
                         DataValue::Reference(segments)
-                            if field.name.value.as_str() == "name" && segments.len() == 1 =>
+                            if field.name.value.as_str() == NAME_FIELD && segments.len() == 1 =>
                         {
                             Some(&segments[0])
                         }

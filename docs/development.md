@@ -5,19 +5,22 @@
 ```text
 crates/donder-runtime-types/    Values, bytecode and prepared inputs that playback accepts (no_std)
 crates/donder-language/         The text language: data-document syntax, effect compiler, analysis
+crates/donder-data-derive/      Derives the project-language schema of document types
 crates/donder-model/            Domain model: fixtures, layouts, setups, sequences, validated edits
 crates/donder-project-io/       Project loading, imports, diagnostics and saving
 crates/donder-elaboration/      Preparing a sequence for selected outputs
 crates/donder-runtime/          Portable no_std playback runtime: trusted shows and their evaluation
 crates/donder-output/           E1.31 and Art-Net transports, FSEQ export
+crates/donder-device-protocol/  Editor-controller wire protocol (no_std), shared with the firmware
 crates/donder-audio-analysis/   Beat and downbeat detection from song audio
 crates/donder-language-server/  Language server for documents and scripts
 crates/donder-import/           Show import from xLights and Vixen (layout, controllers, patch)
 crates/donder-cli/              Command-line project tools
 crates/donder-editor/           Shared GUI projection and edits, and the editor DTOs exported to TypeScript
+crates/donder-test-support/     Dev-only playback workloads for tests and benchmarks
 apps/desktop/                   Tauri desktop app: Rust service and React frontend
 firmware/esp32/                 ESP32 controller firmware (separate Cargo workspace)
-examples/                       The starter project and the Stanford room show
+examples/                       The starter project, the Stanford room show and the Rydell house show
 docs/                           User guides and reference
 ```
 

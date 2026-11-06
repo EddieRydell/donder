@@ -1,7 +1,7 @@
 //! A string of lights along a path of points. Vixen: `PreviewPolyLine`.
 
 use super::single::own_pixels;
-use super::{Laid, ShapePixel, ShapeSkip, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, position, unrotated};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -13,7 +13,7 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     let nodes = own_pixels(shape)?;
     let points: Vec<DVec2> = contract::points(shape, "_points")?
         .into_iter()
-        .map(|(x, y)| DVec2::new(f64::from(x), f64::from(y)))
+        .map(position)
         .collect();
     let Some(&last) = points.last() else {
         return Err(ShapeSkip::Unplaceable("a poly line without points"));

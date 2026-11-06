@@ -1,12 +1,10 @@
 //! The language server, on its own thread. The editor sends each JSON-RPC
 //! message with `language_server_send`, and receives every reply and
-//! notification as a `language_server_message` event.
+//! notification as a [`LanguageServerMessage`](crate::events::LanguageServerMessage) event.
 use std::sync::{Mutex, mpsc};
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter};
-
-const MESSAGE_EVENT: &str = "language_server_message";
+use tauri::AppHandle;
 
 pub(crate) struct LanguageServerHost {
     sender: Mutex<mpsc::Sender<serde_json::Value>>,
@@ -42,7 +40,12 @@ impl LanguageServerHost {
                 let pause = Duration::from_millis(donder_language_server::IDLE_DELAY_MS);
                 let emit = |messages: Vec<serde_json::Value>| {
                     for message in messages {
-                        let _ = app.emit(MESSAGE_EVENT, message.to_string());
+                        crate::events::send(
+                            &app,
+                            crate::events::LanguageServerMessage {
+                                message: message.to_string(),
+                            },
+                        );
                     }
                 };
                 loop {

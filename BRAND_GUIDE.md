@@ -99,7 +99,7 @@ There is no persistent accent. Color is reserved for data the user authored (cli
 
 ## 7. Components
 
-Every common pattern has exactly one component in `apps/desktop/frontend/src/ui/kit`: button and icon button, number field, text field, select, toggle, labelled field, section, badge, tooltip, menu and context menu, dialog, and empty-list "+" row. Screens compose them and never restyle raw `<button>`, `<input>`, `<select>` or `<label>`. A new pattern goes into the kit and this guide before it is used twice.
+Every common pattern has exactly one component in `apps/desktop/frontend/src/ui/kit`: button and icon button, number field, text field, select and menu select (a choice from a menu tree, such as definitions in their folders), tabs (equal-width tabs that pick which view a panel shows), toggle, labelled field, section, badge, tooltip, menu and context menu, dialog, and empty-list "+" row. Screens compose them and never restyle raw `<button>`, `<input>`, `<select>` or `<label>`. A new pattern goes into the kit and this guide before it is used twice.
 
 ### 7.1 Surfaces
 - Flat. Prefer borders over shadows.

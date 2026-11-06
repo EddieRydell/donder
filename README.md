@@ -50,7 +50,6 @@ the library doesn't have, you can write it yourself (or ask an LLM to write it f
   shows. `donder check` validates a project the way a compiler does. That also
   makes it so an LLM can set up fixtures, patch controllers, or edit a sequence and get
   exact errors back. → [Project language](docs/project_language.md)
-  <!-- TODO: link the registry website once it is public. -->
 - **GUI and code are the same project.** Switch between the graphical editor and
   the text view at any time. Every editor state is a document, every edit can be
   undone, and saving never rewrites a token you typed. A language server gives

@@ -35,7 +35,7 @@ import "monaco-editor/features/wordOperations/register.js";
 import "monaco-editor/features/wordPartOperations/register.js";
 import "monaco-editor/editor/contrib/semanticTokens/browser/documentSemanticTokens.js";
 import "monaco-editor/editor/contrib/gotoSymbol/browser/goToCommands.js";
-import type { TextDocumentSyntax } from "../../editor/types";
+import type { TextDocumentSyntax } from "../../types";
 import { THEME_CODE_EDITOR } from "../../theme";
 
 export { monaco };

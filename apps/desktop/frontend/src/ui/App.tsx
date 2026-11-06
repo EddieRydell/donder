@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { commands } from "../api";
+import { commands, events } from "../api";
 import { FolderOpen, Plus } from "lucide-react";
 import { installKeyboardShortcuts, runCommand } from "../commandRegistry";
 import { installNativeMenu } from "../nativeMenu";
@@ -20,7 +20,6 @@ import { WorkspaceSidebar } from "../workspace/WorkspaceSidebar";
 import { runWorkspaceTransition, useTransitionStore } from "../workspaceTransitions";
 import { UnsavedChangesDialog } from "./UnsavedChangesDialog";
 import { Button, TipProvider } from "./kit";
-import { listen } from "@tauri-apps/api/event";
 import { scheduleViewStateSave } from "../viewStatePersistence";
 
 const PROJECT_TREE_MIN_WIDTH_PX = THEME_METRICS.projectPanelMinWidth;
@@ -63,7 +62,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const close = listen("close_requested", () => { void runWorkspaceTransition({ type: "closeApplication" }); });
+    const close = events.closeRequested.listen(() => { void runWorkspaceTransition({ type: "closeApplication" }); });
     const onFocus = () => { void runSnapshotCommand(commands.reconcileExternalFiles); };
     window.addEventListener("focus", onFocus);
     return () => {

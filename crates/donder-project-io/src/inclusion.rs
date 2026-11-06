@@ -139,7 +139,7 @@ fn alias_base(objects: &[RecoveryObject]) -> Option<&'static str> {
     if kinds.len() > 1 && kinds.iter().all(script) {
         return Some("scripts");
     }
-    canonical_reference_alias(kinds.first()?)
+    kinds.first().map(|kind| canonical_reference_alias(**kind))
 }
 
 /// The root import that can take `objects`: `base`, if its documents declare

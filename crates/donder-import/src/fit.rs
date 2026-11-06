@@ -2,9 +2,9 @@
 //! put each pixel where it is: runs of evenly spaced pixels along a line or
 //! an ellipse, and single pixels between them.
 
-use donder_language::{Distance, DistanceSpan, Point3, Rotation3, Scale3};
+use donder_language::{Distance, DistanceSpan, Point3, Scale3};
 use donder_model::{FixtureElement, FixtureElementId, FixtureShape, FixtureTransform};
-use glam::{DMat3, DQuat, DVec3, EulerRot};
+use glam::{DMat3, DQuat, DVec3};
 
 /// Bulbs drawn in the Preview this wide, as for 12 mm pixels in a holder.
 const DIAMETER: f32 = 0.043;
@@ -30,15 +30,6 @@ fn point(position: DVec3) -> Point3 {
         x: Distance::from_meters(position.x as f32),
         y: Distance::from_meters(position.y as f32),
         z: Distance::from_meters(position.z as f32),
-    }
-}
-
-fn rotation(rotation: DQuat) -> Rotation3 {
-    let (x, y, z) = rotation.to_euler(EulerRot::XYZ);
-    Rotation3 {
-        x: x.to_degrees() as f32,
-        y: y.to_degrees() as f32,
-        z: z.to_degrees() as f32,
     }
 }
 
@@ -176,7 +167,7 @@ pub(crate) fn shapes(pixels: &[Pixel], ellipses: &[Ellipse], origin: DVec3) -> V
             name: donder_language::object_name(&format!("shape_{id}")),
             transform: FixtureTransform {
                 position: point(position - origin),
-                rotation: rotation(turned),
+                rotation: donder_model::fixture_rotation(turned.as_quat()),
                 scale,
             },
             diameter: DistanceSpan::from_meters(DIAMETER),

@@ -14,7 +14,8 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, ModifiersState, PhysicalKey};
 use winit::window::{Window, WindowId};
 
-use super::protocol::{PreviewCommand, PreviewEvent, PreviewStartup, PreviewWindowState};
+use super::protocol::{PreviewCommand, PreviewEvent, PreviewStartup};
+use crate::persistence::{PersistedWindowState, overlaps_any_area};
 
 enum HostEvent {
     Command(PreviewCommand),
@@ -139,11 +140,15 @@ impl PreviewHostApplication {
                 appearance.window_min_width,
                 appearance.window_min_height,
             ));
-        if let Some(saved) = self
-            .startup
-            .window
-            .filter(|saved| window_state_is_visible(event_loop, *saved))
-        {
+        if let Some(saved) = self.startup.window.clone().filter(|saved| {
+            overlaps_any_area(
+                saved,
+                event_loop.available_monitors().map(|monitor| {
+                    let (position, size) = (monitor.position(), monitor.size());
+                    (position.x, position.y, size.width, size.height)
+                }),
+            )
+        }) {
             attributes = attributes
                 .with_inner_size(PhysicalSize::new(saved.width, saved.height))
                 .with_position(PhysicalPosition::new(saved.x, saved.y))
@@ -524,39 +529,18 @@ fn playback_state(state: donder_editor::dto::AudioTransportState) -> PreviewPlay
     }
 }
 
-fn window_state(window: &Window) -> Option<PreviewWindowState> {
+fn window_state(window: &Window) -> Option<PersistedWindowState> {
     if window.is_minimized().unwrap_or(false) {
         return None;
     }
     let position = window.outer_position().ok()?;
     let size = window.inner_size();
-    Some(PreviewWindowState {
+    Some(PersistedWindowState {
         x: position.x,
         y: position.y,
         width: size.width,
         height: size.height,
         maximized: window.is_maximized(),
-    })
-}
-
-fn window_state_is_visible(event_loop: &ActiveEventLoop, state: PreviewWindowState) -> bool {
-    if state.width == 0 || state.height == 0 {
-        return false;
-    }
-    event_loop.available_monitors().any(|monitor| {
-        let position = monitor.position();
-        let size = monitor.size();
-        if state.width > size.width || state.height > size.height {
-            return false;
-        }
-        let window_right = i64::from(state.x) + i64::from(state.width);
-        let window_bottom = i64::from(state.y) + i64::from(state.height);
-        let monitor_right = i64::from(position.x) + i64::from(size.width);
-        let monitor_bottom = i64::from(position.y) + i64::from(size.height);
-        i64::from(state.x) < monitor_right
-            && window_right > i64::from(position.x)
-            && i64::from(state.y) < monitor_bottom
-            && window_bottom > i64::from(position.y)
     })
 }
 

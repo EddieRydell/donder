@@ -58,10 +58,11 @@ pub(crate) struct Laid {
 
 pub(crate) use crate::report::ShapeSkip;
 
-/// The node of each of a shape's own `Pixels`, in order. Vixen:
-/// `PreviewLightBaseShape._pixels`, `PreviewPixel.NodeId`. A high-precision
-/// pixel is refused: `SetPixelZoomRotate` puts it at its saved `Location`
-/// over the shape's layout.
+/// The node of each of a shape's own `Pixels`, in order, refusing a pixel
+/// that keeps a high-precision location: Vixen then places it at that saved
+/// location rather than where the shape's layout puts it. Vixen:
+/// `PreviewLightBaseShape._pixels`, `PreviewPixel.NodeId`,
+/// `PreviewLightBaseShape.SetPixelZoomRotate`, `PreviewPixel.Point`.
 pub(crate) fn pixel_nodes(shape: &Element) -> Result<Vec<Option<String>>, ShapeSkip> {
     let Some(pixels) = contract::field(shape, "Pixels") else {
         return Ok(Vec::new());
@@ -70,11 +71,21 @@ pub(crate) fn pixel_nodes(shape: &Element) -> Result<Vec<Option<String>>, ShapeS
         .children("PreviewPixel")
         .map(|pixel| {
             if contract::boolean(pixel, "IsHighPrecision", false)? {
-                return Err(ShapeSkip::Setting("high-precision pixel locations"));
+                return Err(ShapeSkip::Setting("high-precision lights"));
             }
             contract::guid(pixel, "NodeId").map_err(ShapeSkip::from)
         })
         .collect()
+}
+
+/// A preview point as a position. Vixen: `PreviewPoint`.
+fn position((x, y): (i32, i32)) -> DVec2 {
+    DVec2::new(f64::from(x), f64::from(y))
+}
+
+/// The point a field holds, as a position.
+fn point(shape: &Element, name: &str) -> Result<DVec2, ShapeSkip> {
+    Ok(position(contract::point(shape, name)?))
 }
 
 /// The shape's child strings, in order. Vixen: `PreviewLightBaseShape._strings`.

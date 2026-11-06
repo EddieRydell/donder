@@ -12,6 +12,7 @@
     )
 )]
 
+mod clock;
 mod console;
 mod controller;
 mod effect;
@@ -28,10 +29,11 @@ mod sequence;
 mod setup;
 mod validation;
 
+pub use clock::{sample_duration, sample_time};
 pub use console::{
     Action, ClipUse, Console, ConsoleAutomationTarget, ConsoleClip, ConsoleClipId, InputEvent,
     LengthSource, LiveMarks, MAX_COPIES, On, OnId, OwnedConsole, Play, PlayLength, PlayedQuantity,
-    PlayedValue, sample_duration,
+    PlayedValue,
 };
 pub use controller::{
     ArtNetConfig, ArtNetMode, Controller, ControllerPort, ControllerPortAddress, ControllerPortId,
@@ -49,7 +51,8 @@ pub use fixture::{
 };
 pub use geometry::{
     InvalidFixtureElement, PreparedFixtureDefinitions, PreparedFixtureInstance, PreparedLayout,
-    PreparedPixel, element_handles, element_pixels, fixture_transform, prepare_geometry,
+    PreparedPixel, element_handles, element_pixels, fixture_rotation, fixture_transform,
+    prepare_geometry,
 };
 pub use identity::{
     ConsoleId, ControllerId, CurveId, EffectDefinitionId, FixtureDefinitionId, GradientId,

@@ -17,7 +17,7 @@ export function SetupEditor({ document }: { document: SetupGuiDocument }) {
   return (
     <main className="project-overview">
       <header className="object-overview-header">
-        <div><span className="object-overview-eyebrow">Display setup</span><h2>{document.sourceRef.ownedPath.length > 0 ? "Display setup" : document.objectKey}</h2></div>
+        <div><span className="object-overview-eyebrow">Display setup</span><h2>{document.sourceRef.ownedPath.length > 0 ? "Display setup" : document.sourceRef.objectKey}</h2></div>
         <span>{document.controllers.length} controllers · {document.inputDevices.length} input devices</span>
       </header>
       <section className="object-overview-group">

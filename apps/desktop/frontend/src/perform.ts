@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { listen } from "@tauri-apps/api/event";
-import { commands } from "./api";
+import { commands, events } from "./api";
 import { editTarget } from "./platform";
 import { useAppStore } from "./store";
 import type { PerformSnapshot } from "./types";
@@ -61,8 +60,8 @@ export function installPerformKeys() {
   const onBlur = () => {
     if (isPerforming()) void runPerformCommand(commands.performReleaseAll);
   };
-  const changed = listen<PerformSnapshot>("perform_changed", (event) => {
-    usePerformStore.getState().setPerform(event.payload);
+  const changed = events.performChanged.listen((event) => {
+    usePerformStore.getState().setPerform(event.payload.perform);
   });
   window.addEventListener("keydown", onKey, { capture: true });
   window.addEventListener("keyup", onKey, { capture: true });

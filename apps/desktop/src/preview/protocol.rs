@@ -10,41 +10,7 @@ pub(crate) const PREVIEW_HOST_ARGUMENT: &str = "--donder-preview-host";
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PreviewStartup {
     pub(crate) appearance: PreviewAppearance,
-    pub(crate) window: Option<PreviewWindowState>,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PreviewWindowState {
-    pub(crate) x: i32,
-    pub(crate) y: i32,
-    pub(crate) width: u32,
-    pub(crate) height: u32,
-    pub(crate) maximized: bool,
-}
-
-impl From<PersistedWindowState> for PreviewWindowState {
-    fn from(value: PersistedWindowState) -> Self {
-        Self {
-            x: value.x,
-            y: value.y,
-            width: value.width,
-            height: value.height,
-            maximized: value.maximized,
-        }
-    }
-}
-
-impl From<PreviewWindowState> for PersistedWindowState {
-    fn from(value: PreviewWindowState) -> Self {
-        Self {
-            x: value.x,
-            y: value.y,
-            width: value.width,
-            height: value.height,
-            maximized: value.maximized,
-        }
-    }
+    pub(crate) window: Option<PersistedWindowState>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -93,10 +59,10 @@ pub(crate) enum PreviewCommand {
 pub(crate) enum PreviewEvent {
     Ready,
     GeometryChanged {
-        window: PreviewWindowState,
+        window: PersistedWindowState,
     },
     Closed {
-        window: PreviewWindowState,
+        window: PersistedWindowState,
     },
     QuitRequested,
     /// A key pressed or released in the Preview, by its `KeyboardEvent.code` name.

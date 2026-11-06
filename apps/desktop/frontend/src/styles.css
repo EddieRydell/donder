@@ -22,7 +22,6 @@
   --donder-danger-border: #5e3434;
   --donder-danger-text: #ffd7d7;
   --donder-warning-surface: #292319;
-  --donder-default-project-color: #000000;
   --donder-default-sequence-color: #38bdf8;
   --donder-code-keyword: #d99adf;
   --donder-code-name: #87c7ff;
@@ -49,8 +48,6 @@
   --donder-preview-canvas-fill-ratio: 0.82;
   --donder-preview-minimum-radius-pixels: 2;
   --donder-layout-selected: #d7dbe0;
-  --donder-layout-label: #aeb4bc;
-  --donder-layout-emitter: #8ecae6;
   --donder-automation: #8ecae6;
   --donder-playhead: #d6a35a;
   --donder-mark-blue: #38bdf8;
@@ -68,8 +65,6 @@
   --donder-graph-grid: var(--donder-hover);
   --donder-graph-edge-neutral: var(--donder-text-graph-port);
   --donder-white: #ffffff;
-  --donder-sequence-page: #111214;
-  --donder-sequence-panel: #17181b;
   --donder-sequence-lane-alternate: #15171a;
   --donder-sequence-lane-selected: rgb(174 180 188 / 12%);
   --donder-sequence-grid: #484e58;
@@ -109,6 +104,9 @@
   --donder-text-secondary: #d8d2c9;
   --donder-project-file-project: var(--donder-text-strong);
   --donder-project-file-setup: var(--donder-mark-yellow);
+  --donder-project-file-controller: var(--donder-mark-orange);
+  --donder-project-file-input-device: var(--donder-mark-green);
+  --donder-project-file-console: var(--donder-mark-blue);
   --donder-project-file-layout: var(--donder-graph-blue);
   --donder-project-file-fixture: var(--donder-graph-green);
   --donder-project-file-patch: var(--donder-graph-red);
@@ -154,7 +152,6 @@
   --donder-grid-spatial-major: #343a42;
   --donder-error-underline: #171a1fdd;
   --donder-text-graph: #c7cbd1;
-  --donder-surface-graph-hover: #303741;
   --donder-border-transparent: #373b4200;
 
   --donder-alpha-black-28: rgb(0 0 0 / 28%);
@@ -285,7 +282,6 @@
   --donder-path-refactor-max-width: 680px;
   --donder-tooltip-delay-ms: 400;
   --donder-search-debounce-ms: 220;
-  --donder-document-analysis-delay-ms: 180;
   --donder-graph-dialog-max-width: 1180px;
   --donder-editor-tooltip-max-width: 420px;
   --donder-inspector-padding: var(--donder-space-12);
@@ -314,7 +310,6 @@
   --donder-z-notification: 10;
   --donder-z-dialog-overlay: 20;
   --donder-z-dialog: 30;
-  --donder-z-tooltip: 40;
   --donder-z-titlebar: 50;
   --donder-z-graph-modal: 80;
   --donder-z-context-menu: 100;
@@ -409,8 +404,6 @@
   --donder-graph-max-zoom: 2;
   --donder-graph-keyboard-large-step: 5;
   --donder-graph-node-stroke-width-strong: 2px;
-  --donder-graph-point-radius: 4px;
-  --donder-graph-point-radius-selected: 5px;
   --donder-sequence-clip-resize-hit-width: 8px;
   --donder-sequence-mark-hit-radius: 5px;
   --donder-visual-line-width: 1px;
@@ -469,7 +462,6 @@
   --donder-raster-warning-size-min: 6px;
   --donder-raster-warning-size-max: 12px;
   --donder-raster-warning-inset: 4px;
-  --donder-automation-label-offset-y: 18px;
   --donder-sequence-drag-threshold: 4px;
   --donder-unsaved-indicator-delay-ms: 400;
   --donder-sequence-wheel-zoom-scale: 0.002;
@@ -495,23 +487,9 @@
   --donder-canvas-label-top-inset: 14px;
   --donder-canvas-label-x-offset: 5px;
   --donder-canvas-label-y-offset: 3px;
-  --donder-layout-point-radius: 7px;
-  --donder-layout-selected-point-radius: 8px;
-  --donder-layout-emitter-half-size: 2px;
-  --donder-layout-label-offset-x: 10px;
-  --donder-layout-label-offset-y: 8px;
-  --donder-layout-selection-dash: 5px;
-  --donder-layout-selection-gap: 3px;
   --donder-spatial-point-radius: 6px;
   --donder-spatial-hit-radius: 12px;
   --donder-spatial-pan-threshold: 3px;
-  --donder-layout-selected-alpha: 0.42;
-  --donder-layout-unselected-alpha: 0.28;
-  --donder-layout-label-alpha: 0.9;
-  --donder-layout-selected-line-width: 18px;
-  --donder-layout-unselected-line-width: 14px;
-  --donder-layout-line-width: 1px;
-  --donder-layout-line-width-selected: 2px;
 
 }
 
@@ -684,8 +662,7 @@ html.donder-app-shell body {
   -webkit-app-region: no-drag;
 }
 
-.menu-trigger,
-.window-controls button {
+.menu-trigger {
   height: var(--donder-control-height-md);
   border: 0;
   background: transparent;
@@ -700,7 +677,7 @@ html.donder-app-shell body {
 .menu-trigger:hover,
 .menu-trigger[data-highlighted],
 .menu-trigger[data-state="open"],
-.window-controls button:hover {
+.window-controls .kit-icon-button:hover {
   background: var(--donder-hover);
 }
 
@@ -718,14 +695,13 @@ html.donder-app-shell body {
   height: 100%;
 }
 
-.window-controls button {
-  display: grid;
+.window-controls .kit-icon-button {
   width: var(--donder-titlebar-control-width);
   height: 100%;
-  place-items: center;
+  border-radius: 0;
 }
 
-.window-controls .close:hover {
+.window-controls .window-close:hover {
   background: var(--donder-close-hover);
 }
 
@@ -795,6 +771,8 @@ html.donder-app-shell body {
   height: 100%;
   gap: var(--donder-space-4);
   padding-right: var(--donder-space-8);
+  /* An object document's row is tinted by its kind (ExplorerView's ROLE_STYLES). */
+  background: color-mix(in srgb, var(--tree-row-tint, transparent) 7%, transparent);
   color: var(--donder-text);
   outline: none;
   font-size: var(--donder-font-size-lg);
@@ -1229,16 +1207,6 @@ html.donder-app-shell body {
   font-size: var(--donder-font-size-sm);
 }
 
-.spatial-controls button:not([class*="kit-"]) {
-  min-width: var(--donder-control-height-sm);
-  height: var(--donder-control-height-sm);
-  border: 0;
-  border-radius: var(--donder-radius-sm);
-  background: transparent;
-  color: inherit;
-}
-
-.spatial-controls button:not([class*="kit-"]):hover { background: var(--donder-surface-graph-hover); }
 .spatial-controls span { min-width: calc(var(--donder-control-height-sm) * 2); text-align: center; }
 
 .sequence-canvas-shell {
@@ -1271,10 +1239,6 @@ html.donder-app-shell body {
 .sequence-shared-badge-anchor {
   position: absolute;
   pointer-events: none;
-}
-
-.sequence-shared-badge-tooltip {
-  max-width: var(--donder-editor-tooltip-max-width);
 }
 
 .sequence-gutter-scrollbar-divider {
@@ -1521,42 +1485,6 @@ html.donder-app-shell body {
   padding: var(--donder-space-0);
 }
 
-.sequence-inspector-tabs {
-  display: grid;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
-  border-top: var(--donder-border-width) solid var(--donder-border);
-  background: var(--donder-bg-rail);
-}
-
-.sequence-inspector-tabs button:not([class*="kit-"]) {
-  min-width: 0;
-  height: var(--donder-panel-header-height);
-  overflow: hidden;
-  border: 0;
-  border-right: var(--donder-border-width) solid var(--donder-border);
-  border-radius: 0;
-  background: transparent;
-  padding: var(--donder-space-0) var(--donder-space-8);
-  color: var(--donder-text-soft);
-  font-size: var(--donder-font-size-md);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sequence-inspector-tabs button:not([class*="kit-"]):last-child {
-  border-right: 0;
-}
-
-.sequence-inspector-tabs button:not([class*="kit-"]):hover {
-  background: var(--donder-hover);
-}
-
-.sequence-inspector-tabs button.active {
-  background: var(--donder-accent-bg);
-  color: var(--donder-text-strong);
-}
-
 .sequence-layer-list {
   display: grid;
   gap: var(--donder-space-8);
@@ -1703,12 +1631,6 @@ html.donder-app-shell body {
   width: var(--donder-scrollbar-width);
   height: var(--donder-scrollbar-width);
   border: var(--donder-border-width-strong) solid var(--donder-text-strong);
-}
-
-.selected-mark-row {
-  display: grid;
-  gap: var(--donder-space-8);
-  color: var(--donder-text-soft);
 }
 
 .effect-param-row {
@@ -2211,8 +2133,7 @@ html.donder-app-shell body {
 
 .empty-project > * { pointer-events: auto; }
 
-.menu-content,
-.dialog-content {
+.menu-content {
   z-index: var(--donder-z-dialog);
   border: var(--donder-border-width) solid var(--donder-border);
   border-radius: var(--donder-radius-md);
@@ -2256,43 +2177,6 @@ html.donder-app-shell body {
 
 .shortcut {
   color: var(--donder-text-muted);
-}
-
-.tooltip {
-  z-index: var(--donder-z-tooltip);
-  border-radius: var(--donder-radius-md);
-  background: var(--donder-bg-page);
-  padding: var(--donder-space-4) var(--donder-space-8);
-  color: var(--donder-text);
-  font-size: var(--donder-font-size-sm);
-}
-
-.dialog-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: var(--donder-z-dialog-overlay);
-  background: var(--donder-alpha-black-45);
-}
-
-.dialog-content {
-  position: fixed;
-  z-index: var(--donder-z-dialog-content);
-  top: 50%;
-  left: 50%;
-  width: min(360px, calc(100vw - var(--donder-toolbar-height)));
-  transform: translate(-50%, -50%);
-  padding: var(--donder-space-16);
-}
-
-.dialog-content h2 {
-  margin: var(--donder-space-0) var(--donder-space-0) var(--donder-space-8);
-  font-size: var(--donder-font-size-dialog);
-}
-
-.dialog-content p {
-  margin: var(--donder-space-0);
-  color: var(--donder-text-muted);
-  font-size: var(--donder-font-size-lg);
 }
 
 .dialog-actions {
@@ -2769,21 +2653,6 @@ html.donder-app-shell body {
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-.dialog-content.resource-editor-dialog {
-  width: min(1200px, calc(100vw - var(--donder-space-24) * 2));
-  height: min(840px, calc(100vh - var(--donder-space-24) * 2));
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--donder-space-12);
-}
-
-.resource-editor-dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--donder-space-12);
 }
 
 .project-overview {
@@ -3322,17 +3191,6 @@ fieldset.sequence-layer-row {
   min-height: 0;
 }
 
-.tree-row.role-project,
-.tree-row.role-entrypoint { background: color-mix(in srgb, var(--donder-project-file-project) 8%, transparent); }
-.tree-row.role-setup { background: color-mix(in srgb, var(--donder-project-file-setup) 7%, transparent); }
-.tree-row.role-layout { background: color-mix(in srgb, var(--donder-project-file-layout) 7%, transparent); }
-.tree-row.role-fixture { background: color-mix(in srgb, var(--donder-project-file-fixture) 7%, transparent); }
-.tree-row.role-patch { background: color-mix(in srgb, var(--donder-project-file-patch) 7%, transparent); }
-.tree-row.role-curve { background: color-mix(in srgb, var(--donder-project-file-curve) 7%, transparent); }
-.tree-row.role-gradient { background: color-mix(in srgb, var(--donder-project-file-gradient) 7%, transparent); }
-.tree-row.role-effect { background: color-mix(in srgb, var(--donder-project-file-effect) 7%, transparent); }
-.tree-row.role-sequence { background: color-mix(in srgb, var(--donder-project-file-sequence) 7%, transparent); }
-.tree-row.role-operator { background: color-mix(in srgb, var(--donder-project-file-operator) 7%, transparent); }
 
 .tree-row-chevron {
   display: grid;
@@ -3556,17 +3414,6 @@ fieldset.sequence-layer-row {
   padding: var(--donder-space-20);
   color: var(--donder-text-muted);
   text-align: center;
-}
-
-.tooltip-content {
-  z-index: var(--donder-z-tooltip);
-  padding: var(--donder-space-4) var(--donder-space-8);
-  border: var(--donder-border-width) solid var(--donder-border-control);
-  border-radius: var(--donder-radius-md);
-  background: var(--donder-surface-tooltip);
-  color: var(--donder-text-tooltip);
-  font-size: var(--donder-font-size-sm);
-  box-shadow: var(--donder-shadow-float);
 }
 
 .path-impact-groups {
@@ -3834,6 +3681,33 @@ button.status-chip:hover {
 }
 
 .kit-tip-keys { color: var(--donder-text-muted); white-space: nowrap; }
+
+.kit-tabs {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  border-top: var(--donder-border-width) solid var(--donder-border);
+  background: var(--donder-bg-rail);
+}
+
+:where(html.donder-app-shell) .kit-tab {
+  min-width: 0;
+  height: var(--donder-panel-header-height);
+  overflow: hidden;
+  border: 0;
+  border-right: var(--donder-border-width) solid var(--donder-border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 var(--donder-space-8);
+  color: var(--donder-text-soft);
+  font-size: var(--donder-font-size-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kit-tab:last-child { border-right: 0; }
+.kit-tab:hover { background: var(--donder-hover); }
+.kit-tab[aria-selected="true"] { background: var(--donder-accent-bg); color: var(--donder-text-strong); }
 
 :where(html.donder-app-shell) :where(.kit-number, .kit-text, .kit-select) {
   height: var(--donder-control-height-sm);

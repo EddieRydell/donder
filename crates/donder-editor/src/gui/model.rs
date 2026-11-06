@@ -1,59 +1,3 @@
-pub(super) fn register_sequence_audio_asset(
-    session: &mut ProjectSession,
-    document: &DocumentId,
-    import_path: &str,
-) -> Result<AssetId, GuiMutationError> {
-    if let Some(asset) = session
-        .source
-        .referenced_assets
-        .iter_mut()
-        .find(|asset| asset.relative_path.as_str() == import_path)
-    {
-        asset.referenced_by.insert(document.clone());
-        return Ok(asset.id.clone());
-    }
-
-    donder_project_io::validate_relative_path(import_path).map_err(GuiMutationError::Invalid)?;
-    let selected_path = session.source.project_root().join(import_path);
-    let absolute_path = fs::canonicalize(&selected_path)
-        .map_err(|error| GuiMutationError::Invalid(format!("Audio file was not found: {error}")))?;
-    let absolute_path = Utf8PathBuf::from_path_buf(absolute_path).map_err(|path| {
-        GuiMutationError::Invalid(format!("Audio path is not valid UTF-8: {}", path.display()))
-    })?;
-    if !absolute_path.is_file() || !absolute_path.starts_with(session.source.project_root()) {
-        return Err(GuiMutationError::Invalid(
-            "Selected audio path is not a file inside the project module.".to_string(),
-        ));
-    }
-
-    if let Some(asset) = session
-        .source
-        .referenced_assets
-        .iter()
-        .find(|asset| asset.absolute_path == absolute_path)
-    {
-        return Ok(asset.id.clone());
-    }
-
-    let relative_path = Utf8PathBuf::from(import_path);
-    let next_id = session
-        .source
-        .referenced_assets
-        .iter()
-        .map(|asset| asset.id.0)
-        .max()
-        .unwrap_or(0)
-        .saturating_add(1);
-    let id = AssetId(next_id);
-    session.source.referenced_assets.push(ReferencedAsset {
-        id: id.clone(),
-        relative_path,
-        absolute_path,
-        referenced_by: std::collections::BTreeSet::from([document.clone()]),
-    });
-    Ok(id)
-}
-
 pub(super) fn clip_mut(
     sequence: &mut donder_model::Sequence,
     id: u32,
@@ -177,19 +121,13 @@ pub(super) fn effect_ref_from_gui(
     declared_from_gui(session, &reference.path, &reference.effect_name)
 }
 
-/// The values a new invocation of `definition` gives its parameters without
-/// defaults, starting colors at `initial_color`.
+/// The values a new invocation gives the `params` without defaults, starting
+/// colors at `initial_color`.
 pub(super) fn required_param_values(
-    session: &ProjectSession,
-    definition: &EffectDefinitionId,
+    params: &[ParamDecl],
     initial_color: Color,
 ) -> Result<IndexMap<Identifier, ParamValue>, GuiMutationError> {
-    let effect = session
-        .project
-        .get::<donder_model::EffectDefinition>(*definition)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect definition was not found.".to_string()))?;
-    effect
-        .params()
+    params
         .iter()
         .filter(|param| param.default.is_none())
         .map(|param| {
@@ -197,7 +135,7 @@ pub(super) fn required_param_values(
                 .map(|value| (param.name.clone(), value))
                 .ok_or_else(|| {
                     GuiMutationError::Invalid(format!(
-                        "Clip parameter `{}` requires an explicit value.",
+                        "Parameter `{}` requires an explicit value.",
                         param.name.as_str()
                     ))
                 })
@@ -205,16 +143,50 @@ pub(super) fn required_param_values(
         .collect()
 }
 
-/// Visit a parameter value's marks references, including a marks array's.
-pub(super) fn visit_marks(
+/// An effect definition `owner` may name, which it then imports, with its
+/// name and the values a new clip of it gives its parameters without defaults.
+pub(super) fn imported_effect(
+    session: &mut ProjectSession,
+    owner: &DocumentId,
+    reference: SequenceEffectReference,
+    initial_color: &str,
+) -> Result<(EffectDefinitionId, String, IndexMap<Identifier, ParamValue>), GuiMutationError> {
+    let definition = effect_ref_from_gui(session, reference)?;
+    let effect = session
+        .project
+        .get::<donder_model::EffectDefinition>(definition)
+        .ok_or_else(|| GuiMutationError::Invalid("Effect definition was not found.".to_string()))?;
+    let name = effect.name().to_string();
+    let params = required_param_values(effect.params(), parse_color(initial_color)?)?;
+    donder_project_io::ensure_document_can_reference_object(session, owner, definition.into())
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+    Ok((definition, name, params))
+}
+
+/// Whether a parameter value names the mark collection `key`, itself or in
+/// a marks array.
+pub(super) fn names_marks(value: &ParamValue, key: &MarkCollectionKey) -> bool {
+    match value {
+        ParamValue::Marks(reference) => reference.as_ref() == Some(key),
+        ParamValue::Array(values) => values.iter().any(|value| names_marks(value, key)),
+        _ => false,
+    }
+}
+
+/// Point a parameter value's references to the mark collection `from`,
+/// including a marks array's, at `to`.
+pub(super) fn replace_marks(
     value: &mut ParamValue,
-    visit: &mut impl FnMut(&mut Option<MarkCollectionKey>),
+    from: &MarkCollectionKey,
+    to: Option<&MarkCollectionKey>,
 ) {
     match value {
-        ParamValue::Marks(reference) => visit(reference),
+        ParamValue::Marks(reference) if reference.as_ref() == Some(from) => {
+            *reference = to.cloned();
+        }
         ParamValue::Array(values) => {
             for value in values {
-                visit_marks(value, visit);
+                replace_marks(value, from, to);
             }
         }
         _ => {}
@@ -307,7 +279,7 @@ fn library_identity(
         .filter(|id| id.kind() == kind)
         .ok_or_else(|| GuiMutationError::Invalid(format!("`{object_key}` was not found.")))?;
     donder_project_io::link_declaration(session, owner, id)
-        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(Some(id))
 }
 
@@ -447,18 +419,17 @@ pub(crate) fn point3_meters(point: Point3) -> Point3Meters {
     }
 }
 
-use std::fs;
-
 use camino::Utf8PathBuf;
+use donder_language::compiler::ParamDecl;
 use donder_language::{Distance, Point3, Rotation3 as DomainRotation3, Scale3 as DomainScale3};
 use donder_model::{
-    AssetId, AutomationClip, MarkCollection, MarkCollectionKey, Window, automation_value_at,
+    AutomationClip, MarkCollection, MarkCollectionKey, Window, automation_value_at,
 };
 use donder_model::{Clip, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue};
 use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use donder_model::{ObjectId, OperatorDefinitionId};
 use donder_project_io::SourceIdentity;
-use donder_project_io::{DocumentId, ProjectSession, ReferencedAsset};
+use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::{AutomationMapping, AutomationValue};
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientSpace, GradientStop};
@@ -492,34 +463,27 @@ pub(super) fn create_object_document(
         Kind::EffectDefinition => "effects",
         Kind::OperatorDefinition => "operators",
     };
-    let key = donder_language::object_name(name).as_str().to_string();
-    for index in 1_u32.. {
-        let stem = if index == 1 {
-            key.clone()
-        } else {
-            format!("{key}_{index}")
-        };
-        let path = camino::Utf8PathBuf::from(format!(
+    let path = |stem: &str| {
+        camino::Utf8PathBuf::from(format!(
             "{directory}/{stem}{}",
             donder_language::data::DATA_DOCUMENT_SUFFIX
-        ));
-        let document = session.source.project_document(path.clone());
-        if session.source.documents.contains_key(&document)
-            || session.source.project_root().join(&path).exists()
-        {
-            continue;
-        }
-        let name = identifier(&stem)?;
-        let document = session
+        ))
+    };
+    let stem = fresh_name(name, |stem| {
+        let path = path(stem);
+        session
             .source
-            .add_data_document(path, vec![(id, name)])
-            .map_err(GuiMutationError::Invalid)?;
-        return Ok(donder_project_io::SourceIdentity::from_document(
-            document, stem,
-        ));
-    }
-    Err(GuiMutationError::Invalid(
-        "No source document names remain.".into(),
+            .documents
+            .contains_key(&session.source.project_document(path.clone()))
+            || session.source.project_root().join(&path).exists()
+    });
+    let document = session
+        .source
+        .add_data_document(path(stem.as_str()), vec![(id, stem.clone())])
+        .map_err(GuiMutationError::Invalid)?;
+    Ok(donder_project_io::SourceIdentity::from_document(
+        document,
+        stem.as_str().to_string(),
     ))
 }
 
@@ -566,7 +530,6 @@ fn address_ref(
         path: root.document().to_string(),
         object_key: root.object().to_string(),
         kind: crate::dto::ObjectKind::from(kind),
-        id: root.object().to_string(),
     }
 }
 
@@ -579,4 +542,23 @@ pub(crate) fn declared_identity(
     session
         .source_identity(id.into())
         .unwrap_or_else(|| unreachable!("definitions are declared"))
+}
+
+/// Drop points of an edited curve that cannot affect sampling: exact repeats
+/// of the previous point and the interior of three or more points at one
+/// position. A step needs only the first and last point at its position.
+pub(super) fn collapse_coincident_points(curve: &mut Curve) {
+    let mut points: Vec<CurvePoint> = Vec::with_capacity(curve.points.len());
+    for point in curve.points.drain(..) {
+        match points.as_mut_slice() {
+            [.., previous] if previous == &point => {}
+            [.., first, last]
+                if first.position == point.position && last.position == point.position =>
+            {
+                *last = point;
+            }
+            _ => points.push(point),
+        }
+    }
+    curve.points = points;
 }

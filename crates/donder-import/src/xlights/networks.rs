@@ -34,14 +34,20 @@ pub(crate) enum OutputType {
     Twinkly,
 }
 
+/// An output type name, taking any `Sy… Ethernet` as `xxx Ethernet` as
+/// xLights does. xLights: `Output::Create`, `OutputManager::Load`.
+fn ethernet_alias(name: &str) -> &str {
+    if name.ends_with(" Ethernet") && name.starts_with("Sy") {
+        "xxx Ethernet"
+    } else {
+        name
+    }
+}
+
 impl OutputType {
-    /// xLights: `Output::Create`, which takes any `Sy… Ethernet` as xxx
-    /// Ethernet.
+    /// xLights: `Output::Create`.
     fn from_name(name: &str) -> Option<Self> {
-        if name.ends_with(" Ethernet") && name.starts_with("Sy") {
-            return Some(Self::XxxEthernet);
-        }
-        Some(match name {
+        Some(match ethernet_alias(name) {
             "E131" => Self::E131,
             "ZCPP" => Self::Zcpp,
             "NULL" => Self::Null,
@@ -280,10 +286,7 @@ impl Networks {
                         converting = None;
                         continue;
                     };
-                    let mut kind = reader.as_string("NetworkType", "").to_string();
-                    if kind.ends_with(" Ethernet") && kind.starts_with("Sy") {
-                        kind = "xxx Ethernet".to_string();
-                    }
+                    let kind = ethernet_alias(reader.as_string("NetworkType", "")).to_string();
                     let port = reader.as_string("ComPort", "").to_string();
                     let mut universe = reader.as_int("BaudRate", -1);
                     let count = reader.as_int("NumUniverses", 1);

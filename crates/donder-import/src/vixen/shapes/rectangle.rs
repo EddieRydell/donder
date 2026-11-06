@@ -1,9 +1,8 @@
 //! Four strings of lights around a quadrilateral's sides, starting at its
 //! bottom left corner. Vixen: `PreviewRectangle`.
 
-use super::arch::point;
 use super::multi_string::{add_line, child_line};
-use super::{Laid, ShapeSkip, strings, unrotated};
+use super::{Laid, ShapeSkip, point, strings, unrotated};
 use crate::vixen::contract::{self, FieldError};
 use crate::xml::Element;
 use glam::DVec2;

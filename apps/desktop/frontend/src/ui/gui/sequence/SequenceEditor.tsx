@@ -1,7 +1,8 @@
-import { useSequenceEditorHost } from "../../../editor/host";
+import { commands } from "../../../api";
+import { runSnapshotCommand } from "../../../store";
 import { useCallback, useMemo } from "react";
 
-import type { SequenceGuiDocument } from "../../../editor/types";
+import type { SequenceGuiDocument } from "../../../types";
 
 import type { AutomationClipChooser, GuiFocus, SequenceSelection } from "../shared";
 
@@ -39,8 +40,6 @@ export function SequenceEditor({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const host = useSequenceEditorHost();
-  const { commands, runSnapshotCommand } = host;
 
   const setSelectedGraphItem = useCallback(
     (item: SelectedGraphItem) => {
@@ -60,10 +59,10 @@ export function SequenceEditor({
     setCompositionGraphOpen(false);
     setSelected(null);
     void runSnapshotCommand(commands.finishCompositionGraphEditing);
-  }, [commands.finishCompositionGraphEditing, runSnapshotCommand, setCompositionGraphOpen, setSelected]);
-  const composition = useMemo(() => sequenceComposition(host, document, {
+  }, [setCompositionGraphOpen, setSelected]);
+  const composition = useMemo(() => sequenceComposition(document, {
     automationClips: document.automationClips, automationClipChooser, setAutomationClipChooser
-  }), [host, document, automationClipChooser, setAutomationClipChooser]);
+  }), [document, automationClipChooser, setAutomationClipChooser]);
   return (
     <div className="sequence-editor">
       <SequenceCanvas

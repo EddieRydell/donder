@@ -21,11 +21,6 @@ pub(crate) fn remap_documents(
                     *target = next.clone();
                 }
             }
-            import.declaration.documents = import
-                .targets
-                .iter()
-                .map(|target| target.path().to_path_buf())
-                .collect();
         }
         if documents.insert(next_id, document).is_some() {
             return Err("Copied document paths collide.".into());

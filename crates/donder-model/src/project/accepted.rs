@@ -225,13 +225,11 @@ impl<'a> AcceptedClipInputs<'a> {
     /// When the clip starts on the sequence clock; admission checked that it
     /// plays within the sequence.
     pub fn start(self) -> donder_runtime_types::SampleTime {
-        donder_runtime_types::SampleTime::from_ticks(self.clip.start.as_micros_rounded() as u32)
+        crate::clock::sample_time(&self.clip.start)
     }
 
     pub fn duration(self) -> donder_runtime_types::SampleDuration {
-        donder_runtime_types::SampleDuration::from_ticks(
-            self.clip.duration.as_micros_rounded() as u32
-        )
+        crate::clock::sample_duration(&self.clip.duration)
     }
 }
 

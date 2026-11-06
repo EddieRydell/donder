@@ -709,6 +709,31 @@ Sequence sequence_2 {
         color_scheme: Gradient,
       },
     },
+    Clip {
+      name: wipe_5,
+      description: none,
+      layer: default,
+      start: 337.789226458s,
+      duration: 0.418437504s,
+      target: layouts.main.desk_top,
+      scope: WholeTarget,
+      effect: effects.Wipe,
+      params: {
+        gradient: Gradient {
+          space: Hsv,
+          stops: [(0.0, #ffffff), (0.271, #ff0000), (0.492, #ff4100)],
+        },
+        gradient_mode: PerPulse,
+        pulse_width: 0.8,
+        direction_angle: 20.0,
+        wipe_position: Curve {
+          points: [
+            (0.0, 0.0), (0.096, 0.285), (0.285, 0.639), (0.515, 0.861), (0.718, 0.943), (1.0, 1.0),
+          ],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
   ],
   graph: Graph {
     nodes: [

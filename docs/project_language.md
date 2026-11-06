@@ -554,10 +554,10 @@ before it maps onto the parameter's range. `(0.0, 1.0)` is the whole range,
 has a window for each, and a detached binding keeps none.
 
 Layers produce signals, operators combine and transform them, and the single
-root node is what plays. Nodes not connected to the root may remain while
-you edit, and are not prepared. An operator on the root's path must have every
-input connected. Any input, the root's included, may have several edges:
-they combine by their channel-wise maximum, as the clips of a layer do.
+root node is what plays. Nodes not connected to the root are kept but not
+prepared. An input with no edge, the root's included, is black. Any input may
+have several edges: they combine by their channel-wise maximum, as the clips
+of a layer do.
 
 Every fixture or group has one clip row and one automation row. A member of
 several groups shows its rows under each, and every copy holds the same clips.

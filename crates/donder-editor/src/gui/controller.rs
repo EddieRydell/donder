@@ -119,11 +119,6 @@ pub(super) fn domain_controller(
             })?,
         }),
     };
-    if ports.is_empty() {
-        return Err(GuiMutationError::Invalid(
-            "Add at least one output port.".into(),
-        ));
-    }
     let ports = ports
         .into_iter()
         .map(|port| {
@@ -153,8 +148,5 @@ pub(super) fn domain_controller(
         protocol,
         ports,
     };
-    controller.validate().map_err(|error| {
-        GuiMutationError::Invalid(format!("Invalid controller configuration: {error:?}"))
-    })?;
     Ok(controller)
 }

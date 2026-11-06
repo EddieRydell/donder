@@ -1,4 +1,4 @@
-//! Authenticated control commands: clock estimates and scheduled transport.
+//! Control commands: clock estimates and scheduled transport.
 use super::*;
 use picoserve::extract::FromRequest;
 
@@ -47,8 +47,7 @@ impl RequestHandlerService<LoaderState> for Control {
                 } else {
                     let mut clock = state.clock.lock().await;
                     let active = state.playback.lock().await;
-                    if clock.id != 0
-                        && clock.id != clock_id
+                    if clock.id.is_some_and(|id| id != clock_id)
                         && active.as_ref().is_some_and(|p| {
                             p.transport
                                 .sample(
@@ -63,7 +62,7 @@ impl RequestHandlerService<LoaderState> for Control {
                         Err("Stop playback before changing clock master")
                     } else {
                         *clock = transport::Clock {
-                            id: clock_id,
+                            id: Some(clock_id),
                             local_anchor: local_micros,
                             master_anchor: master_micros,
                             rate_ppb,
@@ -118,9 +117,7 @@ impl RequestHandlerService<LoaderState> for Control {
             Command::Cancel { command_id } => {
                 let master_now = state.clock.lock().await.master_at(now);
                 // A future frame may already be in the peripheral's DMA queue.
-                let cancellation_cutoff = master_now
-                    + (DATA_SAMPLES as u64 * 1_000_000).div_ceil(u64::from(I2S_SAMPLE_RATE))
-                    + 1_000;
+                let cancellation_cutoff = master_now + DATA_MICROS + 1_000;
                 let mut active = state.playback.lock().await;
                 match active.as_mut() {
                     Some(p) => {

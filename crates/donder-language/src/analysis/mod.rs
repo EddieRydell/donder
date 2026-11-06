@@ -154,6 +154,7 @@ pub struct Signature {
     pub documentation: Option<String>,
 }
 
-pub(crate) fn contains(span: TextSpan, offset: usize) -> bool {
+/// Whether `offset` is in `span`, either end included.
+pub fn contains(span: TextSpan, offset: usize) -> bool {
     span.start <= offset && offset <= span.end
 }

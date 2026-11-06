@@ -13,7 +13,7 @@ use donder_language::compiler::{CompiledDefinition, Instance, ParamDecl, ParamRa
 use donder_runtime_types::{BoundProgram, Type, Value};
 use donder_runtime_types::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
 use donder_runtime_types::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SequenceTiming, SpatialContext,
+    FixtureGeometry, OutputEncoding, PreparedAutomation, SequenceTiming, SpatialContext,
     TargetGeometry, TargetScope,
 };
 use std::prelude::rust_2024::*;
@@ -378,7 +378,8 @@ pub(super) fn build(
         builder.route(
             port,
             target,
-            OutputEncoding::Rgb(RgbOrder::Grb),
+            OutputEncoding::admit(donder_runtime_types::PixelEncoding::Rgb { order: [1, 0, 2] })
+                .unwrap(),
             None,
             false,
         );

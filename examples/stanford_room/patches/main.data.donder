@@ -12,7 +12,7 @@ Patch main {
       start_slot: 0,
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
-      brightness: 0.1,
+      brightness: 1.0,
       dither: false,
     },
     Route {
@@ -23,7 +23,7 @@ Patch main {
       start_slot: 90,
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
-      brightness: 0.1,
+      brightness: 1.0,
       dither: false,
     },
     Route {
@@ -34,7 +34,7 @@ Patch main {
       start_slot: 210,
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
-      brightness: 0.1,
+      brightness: 1.0,
       dither: false,
     },
     Route {
@@ -45,7 +45,7 @@ Patch main {
       start_slot: 300,
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
-      brightness: 0.1,
+      brightness: 1.0,
       dither: false,
     },
     Route {
@@ -56,7 +56,7 @@ Patch main {
       start_slot: 375,
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
-      brightness: 0.1,
+      brightness: 1.0,
       dither: false,
     },
   ],

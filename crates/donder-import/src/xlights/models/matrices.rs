@@ -1,7 +1,7 @@
 //! Matrices, trees and spheres: strands of lights in a grid, as xLights'
 //! `MatrixModel` numbers them, placed flat, on a cone or on a sphere.
 
-use super::{ArcPoint, Common, Ellipse, Local, Node, Span, Strings, account};
+use super::{ArcPoint, Common, Ellipse, Local, Node, Span, Strings, account, to_radians};
 use crate::report::SkipReason;
 use crate::xlights::placement::{self, Placement, RenderSize};
 use crate::xlights::read::{Name, Reader, Table, Use, strtol};
@@ -241,11 +241,6 @@ pub(super) fn matrix(
         boxed_local(reader, nodes, Vec::new())
     });
     (span, local)
-}
-
-/// xLights: `toRadians` in `UtilFunctions.h`.
-fn to_radians(degrees: f32) -> f64 {
-    2.0 * PI * f64::from(degrees) / 360.0
 }
 
 pub(super) fn tree(

@@ -2,6 +2,7 @@
 //! place. The show is trusted: only its producer writes it, so playback
 //! checks nothing but its format version.
 use crate::format::{self, NONE, Sections};
+use crate::workspace::Timing;
 use donder_runtime_types::bytecode::Banks;
 use donder_runtime_types::{InstructionWord, SampleDuration, SampleTime};
 
@@ -72,11 +73,16 @@ impl<'a> Show<'a> {
 
     /// Clips of the show's timeline active at `time`, for diagnostics.
     pub(crate) fn active_clip_count(&self, time: SampleTime) -> usize {
-        let ticks = time.as_ticks();
         self.s
             .clips
             .iter()
-            .filter(|clip| ticks >= clip.start && ticks - clip.start < clip.duration)
+            .filter(|clip| {
+                Timing {
+                    start: clip.start,
+                    duration: clip.duration,
+                }
+                .is_active(time)
+            })
             .count()
     }
 

@@ -1,6 +1,6 @@
 pub use crate::document::text_cache::DocumentTextCache;
 use crate::serialization::{document_text, write_source_documents};
-use crate::{ExportProjectError, ExportReport, ProjectSession, SaveReport, serialization};
+use crate::{ExportProjectError, ExportReport, ProjectSession, serialization};
 use camino::Utf8Path;
 use std::fs;
 
@@ -43,10 +43,9 @@ pub fn export_project(
     })
 }
 
-pub fn save_project(session: &ProjectSession) -> Result<SaveReport, ExportProjectError> {
-    let project_root = session.source.project_root();
-    let written_files = write_source_documents(session, project_root)?;
-    Ok(SaveReport { written_files })
+pub fn save_project(session: &ProjectSession) -> Result<(), ExportProjectError> {
+    write_source_documents(session, session.source.project_root())?;
+    Ok(())
 }
 
 pub fn source_document_text(

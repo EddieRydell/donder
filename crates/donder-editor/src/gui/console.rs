@@ -1,24 +1,25 @@
 //! Consoles: sequences built live from input devices.
 use donder_model::{
-    Action, ClipScope, CompositionGraphNodeKind, Console, ConsoleClipId, ConsoleId, ControlRef,
-    EffectDefinitionId, FixtureInstanceId, FixtureTarget as DomainFixtureTarget, InputDevice,
-    InputDeviceId, InputEvent, LengthSource, LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId,
-    Play, PlayLength, PlayedQuantity, PlayedValue, SequenceLayerId, Window,
+    Action, ClipScope, Console, ConsoleClipId, ConsoleId, ControlRef, FixtureInstanceId,
+    FixtureTarget as DomainFixtureTarget, InputDevice, InputDeviceId, InputEvent, LengthSource,
+    LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId, Play, PlayLength, PlayedQuantity,
+    PlayedValue, SequenceLayerId, Window,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 
 use super::edit::automation_target_from_gui;
+use super::graph::new_clip;
 use super::input_device::gui_control;
 use super::model::{
-    clip_scope, effect_ref_from_gui, fresh_name, identifier, object_address, object_id_from_gui,
-    object_ref, param_value_from_gui, parse_color, required_param_values, typed_name,
+    clip_scope, fresh_name, identifier, imported_effect, object_address, object_id_from_gui,
+    object_ref, param_value_from_gui, parse_color, typed_name,
 };
 use super::projection::{
-    active_layout, automation_target_to_gui, composition_graph, curve_library, effect_definitions,
-    effect_ref_to_gui, gradient_library, invocation_params, layers_to_gui, layout_lanes,
-    target_label, target_to_gui,
+    active_layout, active_setup, automation_target_to_gui, composition_graph, curve_library,
+    effect_definitions, effect_ref_to_gui, gradient_library, invocation_params, layers_to_gui,
+    layout_lanes, target_label, target_to_gui,
 };
-use super::{GuiMutationError, ResolvedGuiObject, blocked, checked_gui_duration};
+use super::{GuiMutationError, ResolvedGuiObject, blocked, checked_gui_duration, next_id};
 use crate::dto::{
     ConsoleAction, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument,
     ConsoleGuiEdit, ConsoleInput, ConsoleInputControl, ConsoleInputDevice, ConsoleLengthSource,
@@ -40,9 +41,7 @@ pub(super) fn project_console(
     GuiDocument::Console {
         document: ConsoleGuiDocument {
             description: console.description.clone(),
-            path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
-            object_key: resolved.identity.object().to_string(),
             name: object_address(session, id).declared_name().to_string(),
             perform_index: session
                 .project
@@ -320,10 +319,7 @@ fn controls(device: &InputDevice, buttons: bool) -> Vec<ConsoleInputControl> {
 
 /// The active setup's input devices and their buttons and axes.
 fn input_devices(session: &ProjectSession) -> Vec<ConsoleInputDevice> {
-    let Some(setup) = session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
-    else {
+    let Some(setup) = active_setup(session) else {
         return Vec::new();
     };
     setup
@@ -415,7 +411,7 @@ pub(super) fn edit_console(
                         length: PlayLength::Fixed(checked_gui_duration(1.0)?),
                         values: Vec::new(),
                     }),
-                ),
+                )?,
                 ConsolePlayMode::Toggle => push_action(
                     &mut draft,
                     event,
@@ -424,7 +420,7 @@ pub(super) fn edit_console(
                         clip,
                         values: Vec::new(),
                     },
-                ),
+                )?,
                 ConsolePlayMode::Held => {
                     push_action(
                         &mut draft,
@@ -434,13 +430,13 @@ pub(super) fn edit_console(
                             clip,
                             values: Vec::new(),
                         },
-                    );
+                    )?;
                     push_action(
                         &mut draft,
                         ConsoleEventKind::Release,
                         control,
                         Action::Stop { clip },
-                    );
+                    )?;
                 }
             }
         }
@@ -451,7 +447,7 @@ pub(super) fn edit_console(
         } => {
             let control = control_from_gui(session, owner, &control)?;
             let action = action_from_gui(session, owner, action)?;
-            push_action(&mut draft, event, control, action);
+            push_action(&mut draft, event, control, action)?;
         }
         ConsoleGuiEdit::RemoveAction { on, index } => {
             let actions = &mut event_mut(&mut draft, on)?.actions;
@@ -513,20 +509,20 @@ pub(super) fn edit_console(
                             target: target.clone(),
                             window,
                         },
-                    );
+                    )?;
                     push_action(
                         &mut draft,
                         ConsoleEventKind::Release,
                         control,
                         Action::Set { target, window },
-                    );
+                    )?;
                 } else {
                     push_action(
                         &mut draft,
                         ConsoleEventKind::Move,
                         control,
                         Action::Set { target, window },
-                    );
+                    )?;
                 }
             }
             draft.events.retain(|on| !on.actions.is_empty());
@@ -540,7 +536,7 @@ pub(super) fn edit_console(
         ConsoleGuiEdit::AddEvent { event, input } => {
             let input = control_from_gui(session, owner, &input)?;
             draft.events.push(On {
-                id: OnId(next_id(draft.events.iter().map(|on| on.id.0))),
+                id: OnId(next_id(draft.events.iter().map(|on| on.id.0))?),
                 event: input_event(event, input),
                 actions: Vec::new(),
             });
@@ -599,46 +595,35 @@ fn add_clip(
     effect: SequenceEffectReference,
     target: FixtureTarget,
 ) -> Result<(ConsoleClipId, String), GuiMutationError> {
-    let definition = effect_definition_from_gui(session, owner, effect)?;
-    let param_overrides = required_param_values(session, &definition, parse_color(initial_color)?)?;
-    let effect_name = session
-        .project
-        .get::<donder_model::EffectDefinition>(definition)
-        .map(|definition| definition.name().to_string())
-        .ok_or_else(|| GuiMutationError::Invalid("Effect definition was not found.".into()))?;
-    let name = fresh_name(&effect_name, |candidate| {
-        draft
-            .clips
-            .iter()
-            .any(|clip| clip.name.as_str() == candidate)
-    });
-    let id = ConsoleClipId(next_id(draft.clips.iter().map(|clip| clip.id.0)));
-    let shown = name.as_str().to_string();
+    let clip = new_clip(session, owner, draft, effect, initial_color)?;
+    let id = ConsoleClipId(clip.id);
+    let shown = clip.name.as_str().to_string();
     draft.clips.push(donder_model::ConsoleClip {
         id,
-        name,
+        name: clip.name,
         description: None,
-        layer_id: draft
-            .layers
-            .first()
-            .map(|layer| layer.id.clone())
-            .ok_or_else(|| GuiMutationError::Invalid("The console has no layer.".into()))?,
+        layer_id: clip.layer_id,
         target: target_from_gui(session, owner, target)?,
         scope: ClipScope::WholeTarget,
-        definition,
-        param_overrides,
+        definition: clip.definition,
+        param_overrides: clip.param_overrides,
     });
     Ok((id, shown))
 }
 
 /// Append `action` to what `control` does on `kind`, adding the event when it has none.
-fn push_action(console: &mut Console, kind: ConsoleEventKind, control: ControlRef, action: Action) {
+fn push_action(
+    console: &mut Console,
+    kind: ConsoleEventKind,
+    control: ControlRef,
+    action: Action,
+) -> Result<(), GuiMutationError> {
     let wanted = input_event(kind, control);
     let index = match console.events.iter().position(|on| on.event == wanted) {
         Some(index) => index,
         None => {
             console.events.push(On {
-                id: OnId(next_id(console.events.iter().map(|on| on.id.0))),
+                id: OnId(next_id(console.events.iter().map(|on| on.id.0))?),
                 event: wanted,
                 actions: Vec::new(),
             });
@@ -646,6 +631,7 @@ fn push_action(console: &mut Console, kind: ConsoleEventKind, control: ControlRe
         }
     };
     console.events[index].actions.push(action);
+    Ok(())
 }
 
 /// Remove a clip, the actions that play it and the bindings to it.
@@ -697,8 +683,8 @@ fn edit_clip(
             initial_color,
             effect: reference,
         } => {
-            let definition = effect_definition_from_gui(session, owner, reference)?;
-            let params = required_param_values(session, &definition, parse_color(&initial_color)?)?;
+            let (definition, _, params) =
+                imported_effect(session, owner, reference, &initial_color)?;
             let authored = clip_mut(console, id)?;
             authored.definition = definition;
             authored.param_overrides = params;
@@ -722,31 +708,17 @@ fn edit_clip(
     Ok(())
 }
 
-/// An effect the console's document may name, importing its definition.
-fn effect_definition_from_gui(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
-    reference: SequenceEffectReference,
-) -> Result<EffectDefinitionId, GuiMutationError> {
-    let definition = effect_ref_from_gui(session, reference)?;
-    ensure_document_can_reference_object(session, owner, definition.into())
-        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-    Ok(definition)
-}
-
 /// A fixture or group of the active layout, which the console's document then imports.
 fn target_from_gui(
     session: &mut ProjectSession,
     owner: &DocumentId,
     target: FixtureTarget,
 ) -> Result<DomainFixtureTarget, GuiMutationError> {
-    let layout = session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
-        .map(|setup| *setup.layout.id())
+    let layout = active_layout(session)
+        .map(|layout| layout.id)
         .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".into()))?;
     ensure_document_can_reference_object(session, owner, layout.into())
-        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(DomainFixtureTarget {
         layout,
         fixture: FixtureInstanceId(target.fixture),
@@ -761,39 +733,11 @@ fn control_from_gui(
 ) -> Result<ControlRef, GuiMutationError> {
     let device: InputDeviceId = object_id_from_gui(session, &control.device)?;
     ensure_document_can_reference_object(session, owner, device.into())
-        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(ControlRef {
         device,
         control: donder_model::InputControlId(control.control),
     })
-}
-
-fn next_id(ids: impl Iterator<Item = u32>) -> u32 {
-    ids.max().unwrap_or(0) + 1
-}
-
-/// Visit every marks parameter value in the console's clips and operator nodes.
-pub(super) fn console_mark_references_mut(
-    console: &mut Console,
-    mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
-) {
-    let operators = console
-        .composition_graph
-        .nodes
-        .iter_mut()
-        .filter_map(|node| match &mut node.kind {
-            CompositionGraphNodeKind::Operator(operator) => Some(operator.params.values_mut()),
-            _ => None,
-        })
-        .flatten();
-    for value in operators {
-        super::model::visit_marks(value, &mut visit);
-    }
-    for clip in &mut console.clips {
-        for value in clip.param_overrides.values_mut() {
-            super::model::visit_marks(value, &mut visit);
-        }
-    }
 }
 
 pub(super) fn live_marks_mut<'a>(

@@ -26,7 +26,7 @@ use core::{
     fmt::Write as _,
     sync::atomic::{AtomicBool, Ordering::Relaxed},
 };
-use donder_device_protocol::{Action, LOADED, PlaybackStatus, TransportStatus, clock, path};
+use donder_device_protocol::{Action, LOADED, OK, PlaybackStatus, TransportStatus, clock, path};
 use donder_runtime::{FrameTiming, LoadError as ShowError, SequenceFrame, ShowBytes, ShowPlayback};
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 use embassy_net::StackResources;
@@ -120,6 +120,8 @@ const I2S_SAMPLE_RATE: u32 = 2_400_000;
 const DATA_SAMPLES: usize = OUTPUT_PIXELS * 3 * 8 * 3;
 const RESET_SAMPLES: usize = I2S_SAMPLE_RATE as usize * 300 / 1_000_000;
 const DMA_BYTES: usize = DATA_SAMPLES + RESET_SAMPLES;
+/// How long one frame's output data takes to send.
+const DATA_MICROS: u64 = (DATA_SAMPLES as u64 * 1_000_000).div_ceil(I2S_SAMPLE_RATE as u64);
 /// The fastest frame rate the outputs carry: a frame's data and latch must
 /// fit in its period.
 const MAX_FRAME_RATE: u32 = (I2S_SAMPLE_RATE as usize / (DATA_SAMPLES + RESET_SAMPLES)) as u32;
@@ -262,7 +264,7 @@ impl RequestHandlerService<LoaderState> for Rename {
         mut request: picoserve::request::Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        let body = read_body::<_, { donder_device_storage::device_config::MAX_NAME_BYTES }>(
+        let body = read_body::<_, { donder_device_protocol::MAX_NAME_BYTES }>(
             &mut request.body_connection,
         )
         .await?;
@@ -270,7 +272,7 @@ impl RequestHandlerService<LoaderState> for Rename {
         let Some(name) = body
             .as_deref()
             .and_then(|bytes| core::str::from_utf8(bytes).ok())
-            .filter(|name| donder_device_storage::device_config::valid_name(name))
+            .filter(|name| donder_device_protocol::valid_name(name))
             .and_then(|name| network::Name::try_from(name).ok())
         else {
             return (
@@ -288,7 +290,7 @@ impl RequestHandlerService<LoaderState> for Rename {
         }
         network::IDENTITY.lock(|identity| identity.borrow_mut().name = name);
         network::ANNOUNCE.signal(());
-        (StatusCode::OK, "OK\n")
+        (StatusCode::OK, format_args!("{OK}\n"))
             .write_to(connection, response_writer)
             .await
     }
@@ -313,7 +315,7 @@ impl RequestHandlerService<LoaderState> for SetNetwork {
         let connection = request.body_connection.finalize().await?;
         let network = match body.as_deref() {
             Some([]) => None,
-            Some(bytes) => match donder_device_storage::device_config::Network::from_json(bytes) {
+            Some(bytes) => match donder_device_storage::device_config::network_from_json(bytes) {
                 Ok(network) => Some(network),
                 Err(_) => {
                     return (
@@ -339,7 +341,7 @@ impl RequestHandlerService<LoaderState> for SetNetwork {
                 .await;
         }
         network::RESTART.signal(());
-        (StatusCode::OK, "OK; restarting\n")
+        (StatusCode::OK, format_args!("{OK}; restarting\n"))
             .write_to(connection, response_writer)
             .await
     }
@@ -599,7 +601,7 @@ impl AppBuilder for WebApp {
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
         picoserve::Router::new()
             .route(path::SHOW, put_service(UploadShow))
-            .route("/frame", post_service(EvaluateFrame))
+            .route(path::FRAME, post_service(EvaluateFrame))
             .route(path::NAME, put_service(Rename))
             .route(path::NETWORK, put_service(SetNetwork))
             .route(path::CONTROL, post_service(loader_control::Control))
@@ -726,11 +728,10 @@ fn render_outputs(
     mut spare_buffer: DmaTxBuf,
 ) -> ! {
     encode_frame(None, ready_buffer.as_mut_slice());
-    let data_micros = (DATA_SAMPLES as u64 * 1_000_000).div_ceil(u64::from(I2S_SAMPLE_RATE));
     let mut next_transmit = local_micros();
     let mut ready_frame = 0;
     let mut render_budget = 1_000;
-    let mut previous_clock = 0;
+    let mut previous_clock = None;
     let mut previous_rate = 0;
     let mut ready_signature = None;
     let mut ready_display_time = 0;
@@ -763,11 +764,11 @@ fn render_outputs(
             previous_rate = frame_rate;
         }
         let next_frame = (ready_frame + 1).max(
-            ((master_now + data_micros + render_budget) * u64::from(frame_rate))
+            ((master_now + DATA_MICROS + render_budget) * u64::from(frame_rate))
                 .div_ceil(1_000_000),
         );
         let next_latch = (next_frame * 1_000_000).div_ceil(u64::from(frame_rate));
-        next_transmit = model.local_at(next_latch.saturating_sub(data_micros));
+        next_transmit = model.local_at(next_latch.saturating_sub(DATA_MICROS));
         ready_frame = next_frame;
         let render_start = Instant::now();
         let mut active = spin_lock(playback);
@@ -906,7 +907,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     spawner.spawn(network_runner(runner).unwrap());
     spawner.spawn(network::reconnect(controller, mode).unwrap());
     spawner.spawn(network::restart_after_change().unwrap());
-    if mode == network::Mode::AccessPoint {
+    if mode == donder_device_protocol::Network::AccessPoint {
         spawner.spawn(network::dhcp_server(stack, udp_pool).unwrap());
     }
     spawner.spawn(network::mdns_responder(stack, udp_pool, id, hostname, mode).unwrap());

@@ -17,16 +17,8 @@ fn clamp_f32(value: f32, min: f32, max: f32) -> f32 {
     value.clamp(min, max)
 }
 
+/// Settings arrive as JSON, which has no non-finite numbers.
 pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
-    if !settings.sequence_initial_px_per_second.is_finite() {
-        settings.sequence_initial_px_per_second = 80.0;
-    }
-    if !settings.sequence_initial_lane_height_px.is_finite() {
-        settings.sequence_initial_lane_height_px = 42.0;
-    }
-    if !settings.sequence_spectrogram_time_resolution_ms.is_finite() {
-        settings.sequence_spectrogram_time_resolution_ms = 10.0;
-    }
     settings.sequence_initial_px_per_second =
         settings.sequence_initial_px_per_second.clamp(20.0, 12000.0);
     settings.sequence_initial_lane_height_px =
@@ -45,11 +37,7 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
         &mut clip_match.end,
         &mut clip_match.duration,
     ] {
-        time.tolerance_seconds = if time.tolerance_seconds.is_finite() {
-            time.tolerance_seconds.clamp(0.0, 10.0)
-        } else {
-            0.005
-        };
+        time.tolerance_seconds = time.tolerance_seconds.clamp(0.0, 10.0);
     }
     // One binding per command, the latest winning; a shortcut needs a key.
     let mut keybindings: Vec<KeyBinding> = Vec::with_capacity(settings.keybindings.len());

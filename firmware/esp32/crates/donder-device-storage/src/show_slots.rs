@@ -1,4 +1,5 @@
-//! Two contiguous flash slots. Payloads stay memory-mappable for playback.
+//! Two contiguous flash slots holding the latest shows; playback reads a show
+//! into RAM.
 use crate::{Error, Storage};
 
 pub const SLOT_BYTES: usize = 128 * 1024;

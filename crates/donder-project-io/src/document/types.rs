@@ -8,7 +8,94 @@ use donder_language::data::{
     Schema, Spanned, spanned,
 };
 use donder_runtime_types::Color;
+use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
+
+/// A choice of bare variants that is a model enum, named in the language by
+/// the model's variant names. The one list of variants maps both ways, and
+/// encoding matches the model enum exhaustively.
+macro_rules! model_choice {
+    ($(#[$meta:meta])* $name:ident($model:path) { $($variant:ident),+ $(,)? }) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub(crate) struct $name(pub $model);
+
+        impl donder_language::data::Choice for $name {
+            const TYPE: &'static str = stringify!($name);
+        }
+
+        impl Data for $name {
+            fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
+                type Model = $model;
+                if let DataValue::Variant(name) = &value.value {
+                    $(if name.value.as_str() == stringify!($variant) {
+                        return Some(Self(Model::$variant));
+                    })+
+                }
+                let variants: &[&str] = &[$(concat!("`", stringify!($variant), "`")),+];
+                decoder.mismatch(value, &format!("one of {}", variants.join(", ")))
+            }
+            fn encode(&self) -> DataValue {
+                type Model = $model;
+                donder_language::data::variant(match &self.0 {
+                    $(Model::$variant => stringify!($variant),)+
+                })
+            }
+            fn shape(schema: &mut Schema) -> donder_language::data::Shape {
+                schema.named(stringify!($name), |_| {
+                    donder_language::data::Definition::Variants(vec![
+                        $((stringify!($variant), None)),+
+                    ])
+                })
+            }
+        }
+    };
+}
+
+/// A value written as a string in its one canonical spelling, the one its
+/// `Display` prints, so saving a loaded document rewrites no byte of it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Spelled<T>(pub T);
+
+/// A value with a canonical string spelling.
+pub(crate) trait Spelling: std::str::FromStr + std::fmt::Display {
+    /// What a string of this type is, for diagnostics.
+    const WHAT: &'static str;
+}
+
+impl Spelling for IpAddr {
+    const WHAT: &'static str = "an IP address like `10.0.0.2`";
+}
+
+impl Spelling for SocketAddr {
+    const WHAT: &'static str = "a socket address like `10.0.0.2:6454`";
+}
+
+impl<T: Spelling> Data for Spelled<T> {
+    fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
+        let text = String::decode(value, decoder)?;
+        match text.parse::<T>() {
+            Ok(parsed) if parsed.to_string() == text => Some(Self(parsed)),
+            Ok(parsed) => {
+                decoder.error(
+                    value.span,
+                    format!("write `\"{parsed}\"`, the canonical spelling of this address"),
+                );
+                None
+            }
+            Err(_) => {
+                decoder.error(value.span, format!("`{text}` is not {}", T::WHAT));
+                None
+            }
+        }
+    }
+    fn encode(&self) -> DataValue {
+        self.0.to_string().encode()
+    }
+    fn shape(schema: &mut Schema) -> donder_language::data::Shape {
+        String::shape(schema)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Project {
@@ -39,13 +126,13 @@ pub(crate) struct Controller {
 pub(crate) enum Protocol {
     E131 {
         sender_name: String,
-        bind_address: String,
+        bind_address: Spelled<IpAddr>,
         priority: u8,
         mode: E131Mode,
     },
     ArtNet {
-        bind_address: String,
-        destination: String,
+        bind_address: Spelled<SocketAddr>,
+        destination: Spelled<SocketAddr>,
         mode: ArtNetMode,
     },
     Donder {
@@ -56,14 +143,10 @@ pub(crate) enum Protocol {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) enum E131Mode {
     Multicast,
-    Unicast { destination: String },
+    Unicast { destination: Spelled<IpAddr> },
 }
 
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum ArtNetMode {
-    Unicast,
-    Broadcast,
-}
+model_choice!(ArtNetMode(donder_model::ArtNetMode) { Unicast, Broadcast });
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Port {
@@ -260,19 +343,14 @@ pub(crate) enum Geometry {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum GridAxis {
-    Rows,
-    Columns,
-}
+model_choice!(GridAxis(donder_model::GridAxis) { Rows, Columns });
 
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum GridCorner {
+model_choice!(GridCorner(donder_model::GridCorner) {
     BottomLeft,
     BottomRight,
     TopLeft,
     TopRight,
-}
+});
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Patch {
@@ -393,11 +471,7 @@ pub(crate) struct Clip {
     pub params: Params,
 }
 
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum Scope {
-    PerFixture,
-    WholeTarget,
-}
+model_choice!(Scope(donder_model::ClipScope) { PerFixture, WholeTarget });
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Graph {
@@ -603,13 +677,13 @@ pub(crate) struct PlayedValue {
     pub window: (f32, f32),
 }
 
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum PlayedQuantity {
+model_choice!(PlayedQuantity(donder_model::PlayedQuantity) {
     Velocity,
     Pitch,
     PitchClass,
     Fifths,
-}
+});
+
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Curve {
     pub description: Option<String>,
@@ -640,10 +714,7 @@ pub(crate) struct GradientValue {
     pub stops: Vec<(f32, Color)>,
 }
 
-/// The color space a gradient interpolates in.
-#[derive(Clone, Copy, Debug, PartialEq, Data)]
-pub(crate) enum GradientSpace {
-    LinearRgb,
-    Hsv,
-    Oklab,
-}
+model_choice!(
+    /// The color space a gradient interpolates in.
+    GradientSpace(donder_runtime_types::GradientSpace) { LinearRgb, Hsv, Oklab }
+);

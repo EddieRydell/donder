@@ -37,16 +37,15 @@ mod values;
 mod word;
 
 pub use automation::{
-    AutomationMapping, AutomationValue, automation_value_at_position, curve_window_into,
-    curve_window_points,
+    AutomationMapping, AutomationValue, automated_bool, automated_float, automated_index,
+    automated_int, automation_value_at_position, curve_window_points,
 };
 pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
 pub use console::{ConsoleCommand, ConsoleEvent};
 pub use prepared::{
     AutomatedQuantity, FixtureGeometry, OutputEncoding, PixelEncoding, PreparedAutomation,
-    RgbOrder, SequenceTiming, SpatialContext, TargetGeometry, TargetPixel, TargetScope,
-    WhitePosition,
+    SequenceTiming, SpatialContext, TargetGeometry, TargetPixel, TargetScope,
 };
 pub use program::{BoundProgram, Program};
 pub use types::{Identifier, IdentifierError, Type, Value};

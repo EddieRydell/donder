@@ -5,8 +5,7 @@ use super::{
 };
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_editor::dto::{
-    AppSnapshot, EditorViewMode, GuiDocument, GuiDocumentRequest, ProjectHealth, SequenceAudio,
-    SidebarView,
+    AppSnapshot, GuiDocument, GuiDocumentRequest, ProjectHealth, SequenceAudio,
 };
 use donder_project_io::{ProjectCheckReport, ProjectSession};
 use std::sync::Arc;
@@ -28,7 +27,7 @@ impl DesktopState {
         let sources = match donder_project_io::project_source_texts(&root) {
             Ok(sources) => Arc::new(sources),
             Err(error) => {
-                return self.snapshot_with_error("project.open", root.as_str(), &error.to_string());
+                return self.snapshot_with_error(&error.to_string());
             }
         };
         // Open from a single captured source input, including project configuration.
@@ -80,12 +79,7 @@ impl DesktopState {
         {
             let mut workspace = lock_unpoisoned(&self.workspace);
             workspace.view.project_epoch += 1;
-            workspace.view.state_revision += 1;
-            workspace.view.project_revision += 1;
-            workspace.typed_revision = None;
-            workspace.project = LoadedProject::Checking;
-            workspace.view.project_health = ProjectHealth::Checking;
-            workspace.view.active_document_descriptor = None;
+            workspace.mark_checking();
             workspace.view.project_root = Some(root.to_string());
             workspace.documents = documents;
             workspace.render_target = None;
@@ -155,9 +149,7 @@ impl DesktopState {
                 "Fix the project errors in Text to use GUI editing".into()
             };
             if session.is_none() {
-                snapshot.settings.editor_view_mode = EditorViewMode::Text;
-                snapshot.workspace_layout.active_sidebar_view = SidebarView::Problems;
-                snapshot.workspace_layout.sidebar_collapsed = false;
+                super::show_problems(&mut snapshot.settings, &mut snapshot.workspace_layout);
             }
         });
         if let Some(session) = session {

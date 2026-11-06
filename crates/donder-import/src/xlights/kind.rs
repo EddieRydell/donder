@@ -39,6 +39,41 @@ pub(crate) enum ModelType {
 }
 
 impl ModelType {
+    const ALL: [Self; 28] = [
+        Self::Arches,
+        Self::CandyCanes,
+        Self::ChannelBlock,
+        Self::Circle,
+        Self::Cube,
+        Self::Custom,
+        Self::DmxMovingHead,
+        Self::DmxMovingHeadAdv,
+        Self::DmxFloodArea,
+        Self::DmxFloodlight,
+        Self::DmxGeneral,
+        Self::DmxServo,
+        Self::DmxServo3d,
+        Self::DmxSkull,
+        Self::Icicles,
+        Self::Image,
+        Self::Label,
+        Self::Matrix,
+        Self::ModelGroup,
+        Self::MultiPoint,
+        Self::SingleLine,
+        Self::PolyLine,
+        Self::Sphere,
+        Self::Spinner,
+        Self::Star,
+        Self::Tree,
+        Self::WindowFrame,
+        Self::Wreath,
+    ];
+
+    /// The types xLights loads from any `DisplayAs` holding their name, in
+    /// the order it tests them.
+    const NAMED_WITHIN: [Self; 3] = [Self::Matrix, Self::MultiPoint, Self::Tree];
+
     /// The type of a `DisplayAs`, or none for one xLights does not load.
     /// xLights: `XmlDeserializingModelFactory::Deserialize`, which also
     /// rewrites `DmxMovingHead3D` and `DMX` before dispatching
@@ -51,39 +86,17 @@ impl ModelType {
                 "Skulltronix Skull" => "DmxSkull",
                 _ => "DmxMovingHead",
             },
+            "DmxServo3Axis" => "DmxServo3d",
             other => other,
         };
-        Some(match migrated {
-            "Arches" => Self::Arches,
-            "Candy Canes" => Self::CandyCanes,
-            "Channel Block" => Self::ChannelBlock,
-            "Circle" => Self::Circle,
-            "Cube" => Self::Cube,
-            "Custom" => Self::Custom,
-            "DmxMovingHead" => Self::DmxMovingHead,
-            "DmxMovingHeadAdv" => Self::DmxMovingHeadAdv,
-            "DmxFloodArea" => Self::DmxFloodArea,
-            "DmxFloodlight" => Self::DmxFloodlight,
-            "DmxGeneral" => Self::DmxGeneral,
-            "DmxServo" => Self::DmxServo,
-            "DmxServo3d" | "DmxServo3Axis" => Self::DmxServo3d,
-            "DmxSkull" => Self::DmxSkull,
-            "Icicles" => Self::Icicles,
-            "Image" => Self::Image,
-            "Label" => Self::Label,
-            text if text.contains("Matrix") => Self::Matrix,
-            "ModelGroup" => Self::ModelGroup,
-            text if text.contains("MultiPoint") => Self::MultiPoint,
-            "Single Line" => Self::SingleLine,
-            "Poly Line" => Self::PolyLine,
-            "Sphere" => Self::Sphere,
-            "Spinner" => Self::Spinner,
-            "Star" => Self::Star,
-            text if text.contains("Tree") => Self::Tree,
-            "Window Frame" => Self::WindowFrame,
-            "Wreath" => Self::Wreath,
-            _ => return None,
-        })
+        Self::ALL
+            .into_iter()
+            .find(|kind| kind.name() == migrated)
+            .or_else(|| {
+                Self::NAMED_WITHIN
+                    .into_iter()
+                    .find(|kind| migrated.contains(kind.name()))
+            })
     }
 
     /// The type's name, as xLights writes it.

@@ -72,7 +72,6 @@ pub struct WorkspaceExplorerState {
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub reopen_last_project: bool,
-    #[serde(default = "default_editor_view_mode")]
     pub editor_view_mode: EditorViewMode,
     pub reopen_preview_window: bool,
     pub autosave_project_edits: bool,
@@ -83,32 +82,15 @@ pub struct AppSettings {
     pub sequence_clip_match: SequenceClipMatch,
     pub sequence_initial_px_per_second: f32,
     pub sequence_initial_lane_height_px: f32,
-    #[serde(default)]
     sequence_spectrogram_enabled: bool,
-    #[serde(default = "default_sequence_spectrogram_time_resolution_ms")]
     pub sequence_spectrogram_time_resolution_ms: f32,
-    #[serde(default = "default_sequence_spectrogram_fft_size")]
     pub sequence_spectrogram_fft_size: u32,
     /// Marks draw only in the Marks lane instead of also across the waveform and lanes.
-    #[serde(default)]
     sequence_marks_lane_only: bool,
     pub clip_raster: ClipRasterSettings,
     pub spatial_snap: SpatialSnapSettings,
     /// Commands whose keys differ from their defaults.
-    #[serde(default)]
     pub keybindings: Vec<KeyBinding>,
-}
-
-fn default_editor_view_mode() -> EditorViewMode {
-    EditorViewMode::Gui
-}
-
-fn default_sequence_spectrogram_time_resolution_ms() -> f32 {
-    10.0
-}
-
-fn default_sequence_spectrogram_fft_size() -> u32 {
-    2048
 }
 
 impl Default for AppSettings {
@@ -125,9 +107,8 @@ impl Default for AppSettings {
             sequence_initial_px_per_second: 80.0,
             sequence_initial_lane_height_px: 42.0,
             sequence_spectrogram_enabled: false,
-            sequence_spectrogram_time_resolution_ms:
-                default_sequence_spectrogram_time_resolution_ms(),
-            sequence_spectrogram_fft_size: default_sequence_spectrogram_fft_size(),
+            sequence_spectrogram_time_resolution_ms: 10.0,
+            sequence_spectrogram_fft_size: 2048,
             sequence_marks_lane_only: false,
             clip_raster: ClipRasterSettings::default(),
             spatial_snap: SpatialSnapSettings::default(),
@@ -357,7 +338,7 @@ impl From<donder_model::ObjectKind> for ObjectKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum WorkspaceEntryKind {
     Directory,

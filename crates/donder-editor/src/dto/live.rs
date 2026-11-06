@@ -135,9 +135,7 @@ pub enum GuiControlInput {
 pub struct ConsoleGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub(crate) description: Option<String>,
-    pub(crate) path: String,
     pub(crate) source_ref: GuiObjectRef,
-    pub(crate) object_key: String,
     /// The declared name, or the name the console is stored under.
     pub(crate) name: String,
     /// The console's position among the project's consoles, which Perform

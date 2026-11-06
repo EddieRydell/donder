@@ -14,7 +14,6 @@ const PROTOCOLS = [
   { value: "donder", label: "Donder" }
 ] as const;
 
-const PORT_NAME = /^[a-z_][a-z0-9_]*$/;
 const MAX_UNIVERSE_SLOTS = 512;
 
 function defaultConfig(type: ControllerConfig["type"], device: string): ControllerConfig {
@@ -32,16 +31,6 @@ function freshPortName(ports: ControllerPorts): string {
     const name = `port_${index}`;
     if (!used.has(name)) return name;
   }
-}
-
-/** Whether the settings can be applied: every text a protocol needs is set, and port names are unique snake_case. */
-function configValid(config: ControllerConfig, ports: ControllerPorts): boolean {
-  const fields = config.type === "e131" ? [config.bindAddress, config.senderName]
-    : config.type === "artNet" ? [config.bindAddress, config.destination]
-      : [config.device];
-  return fields.every((field) => field.trim() !== "")
-    && ports.every((port) => PORT_NAME.test(port.name))
-    && new Set(ports.map((port) => port.name)).size === ports.length;
 }
 
 export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDocument["controllers"][number]; onSave: (config: ControllerConfig, ports: ControllerPorts) => Promise<void> }) {
@@ -85,7 +74,7 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDo
         <Select name="Device" value={config.device} options={deviceOptions} onChange={(device) => { setConfig({ ...config, device }); }} />
       </Field>}
       {ports.map((port, index) => <div className="controller-port-row" key={port.id}>
-        <Field label="Name"><TextField name="Output name" value={port.name} invalid={!PORT_NAME.test(port.name) || ports.some((other) => other.id !== port.id && other.name === port.name)} onCommit={(name) => { changePort(index, { name }); }} /></Field>
+        <Field label="Name"><TextField name="Output name" value={port.name} onCommit={(name) => { changePort(index, { name }); }} /></Field>
         {config.type === "donder" ? <span>Output {port.address}</span>
           : <Field label={config.type === "e131" ? "Universe" : "Port address"}>
             <NumberField name={config.type === "e131" ? "Universe" : "Port address"} value={port.address} step={1} min={firstAddress} integer onCommit={(address) => { changePort(index, { address }); }} />
@@ -103,7 +92,7 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDo
         const id = Math.max(0, ...ports.map((port) => port.id)) + 1;
         setPorts([...ports, { id, name: freshPortName(ports), address, slotCount: config.type === "donder" ? 600 : MAX_UNIVERSE_SLOTS }]);
       }} />
-      <Button type="submit" variant="primary" disabled={!configValid(config, ports)}>{controller === undefined ? "Add controller" : "Apply"}</Button>
+      <Button type="submit" variant="primary">{controller === undefined ? "Add controller" : "Apply"}</Button>
     </fieldset>
   </form>;
 }

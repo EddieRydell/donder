@@ -4,13 +4,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
+use donder_device_protocol::{Network, advertisement};
 use donder_model::DonderDeviceId;
 use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent};
 
 use crate::desktop_state::lock_unpoisoned;
 use donder_editor::dto::DonderDeviceNetwork;
-
-const SERVICE: &str = "_donder._tcp.local.";
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Advertised {
@@ -32,7 +31,11 @@ impl DeviceDiscovery {
     pub(crate) fn new(on_change: impl Fn() + Send + 'static) -> Self {
         let devices = Arc::new(Mutex::new(Advertisements::new()));
         let started = ServiceDaemon::new().and_then(|daemon| {
-            let events = daemon.browse(SERVICE)?;
+            let events = daemon.browse(&format!(
+                "{}.{}.local.",
+                advertisement::SERVICE,
+                advertisement::PROTOCOL
+            ))?;
             Ok((daemon, events))
         });
         let daemon = match started {
@@ -84,18 +87,24 @@ impl Drop for DeviceDiscovery {
 }
 
 fn parse(service: &ResolvedService) -> Option<(DonderDeviceId, Advertised)> {
-    let id = DonderDeviceId::parse(service.get_property_val_str("id")?)?;
+    let id = DonderDeviceId::parse(service.get_property_val_str(advertisement::ID)?)?;
     let ip = service.get_addresses_v4().into_iter().min()?;
     Some((
         id,
         Advertised {
-            name: service.get_property_val_str("name")?.to_string(),
+            name: service
+                .get_property_val_str(advertisement::NAME)?
+                .to_string(),
             address: SocketAddr::new(IpAddr::V4(ip), service.get_port()),
-            format: service.get_property_val_str("format")?.parse().ok()?,
-            network: match service.get_property_val_str("network")? {
-                "accessPoint" => DonderDeviceNetwork::AccessPoint,
-                "station" => DonderDeviceNetwork::Station,
-                _ => return None,
+            format: service
+                .get_property_val_str(advertisement::FORMAT)?
+                .parse()
+                .ok()?,
+            network: match Network::from_label(
+                service.get_property_val_str(advertisement::NETWORK)?,
+            )? {
+                Network::AccessPoint => DonderDeviceNetwork::AccessPoint,
+                Network::Station => DonderDeviceNetwork::Station,
             },
         },
     ))

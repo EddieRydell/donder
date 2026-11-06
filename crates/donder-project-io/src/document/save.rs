@@ -37,12 +37,12 @@ pub(crate) fn data_document_text(
                     message: "invalid import alias".to_string(),
                 }
             })?;
-            let documents = import.documents();
             Ok(DataImport {
                 alias: Spanned::new(alias, NO_SPAN),
-                paths: documents
+                paths: import
+                    .targets()
                     .iter()
-                    .map(|path| Spanned::new(path.to_string(), NO_SPAN))
+                    .map(|target| Spanned::new(target.path().to_string(), NO_SPAN))
                     .collect(),
             })
         })

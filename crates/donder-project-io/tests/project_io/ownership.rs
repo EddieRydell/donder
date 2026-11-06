@@ -80,7 +80,7 @@ const SEQUENCE: &str = r#"Sequence song_4 {
       frame_rate: 30,
       audio: none,
       marks: [],
-      layers: [],
+      layers: [Layer { name: default, description: none, color: #50a0ff, enabled: true }],
       clips: [],
       graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
       automation: [],
@@ -91,7 +91,7 @@ const CONSOLE: &str = r#"  consoles: [
       description: none,
       frame_rate: 60,
       marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
-      layers: [],
+      layers: [Layer { name: default, description: none, color: #50a0ff, enabled: true }],
       clips: [],
       always: [],
       events: [

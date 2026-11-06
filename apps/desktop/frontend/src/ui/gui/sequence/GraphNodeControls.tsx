@@ -1,4 +1,4 @@
-import type { SequenceGraphNode } from "../../../editor/types";
+import type { SequenceGraphNode } from "../../../types";
 import { TypedParamInput } from "./params/TypedParamInput";
 import { LayerProperties, useSequenceEditable } from "./sequenceLayers";
 import { NameField } from "./NameField";
@@ -16,7 +16,7 @@ export function GraphNodeControls({ node, composition }: { node: SequenceGraphNo
       <LayerProperties layer={layer} composition={composition} />
       <DescriptionField description={layer.description} disabled={!editable} onCommit={(description) =>
         composition.applyItem({ type: "setDescription", item: { type: "layer", id: layer.id }, description })} />
-      <p>{composition.layerUses(layer.id)} clips{layer.isDefault ? " · Default layer" : ""}</p>
+      <p>{composition.layerUses(layer.id)} clips</p>
     </div>;
   }
   if (node.kind.type !== "operator") return null;

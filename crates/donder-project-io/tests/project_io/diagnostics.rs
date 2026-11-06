@@ -559,10 +559,7 @@ fn missing_fixture_and_layer_names_are_reported_at_the_name() {
     let sequence = format!(
         "import display from <display.data.donder>;\nimport fx from <flat.donder>;\n\n{}",
         common::MINIMAL_SEQUENCE
-            .replace(
-                "layers: []",
-                "layers: [Layer { name: base, description: none, color: #ffffff, enabled: true }]"
-            )
+            .replace("name: default", "name: base")
             .replace("clips: []", clip)
     );
     for (before, after, needle) in [

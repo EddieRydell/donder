@@ -13,8 +13,8 @@ pub(crate) mod shapes;
 
 use crate::fit::{Ellipse, Pixel};
 use crate::report::{
-    GroupSkip, ImportOptions, ImportReport, Scale, SkipReason, Skipped, SkippedGroup,
-    TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
+    GroupSkip, ImportOptions, ImportReport, SkipReason, Skipped, SkippedGroup, Unrouted,
+    UnroutedReason,
 };
 use crate::setup::{ImportError, Profile, ProfileFixture, ProfileGroup, Slot, unique};
 use crate::xml;
@@ -22,14 +22,12 @@ use camino::Utf8Path;
 use config::Config;
 use donder_runtime_types::PixelEncoding;
 use glam::{DVec2, DVec3};
-use patching::{Breakdown, Patching};
+use patching::{Breakdown, COLOR_BREAKDOWN, Patching};
 use shapes::Laid;
 use std::collections::{HashMap, HashSet};
 
 pub(crate) const SYSTEM_CONFIG_FILE: &str = "SystemData/SystemConfig.xml";
 pub(crate) const MODULE_STORE_FILE: &str = "SystemData/ModuleStore.xml";
-
-const COLOR_BREAKDOWN: &str = "ab38a16f-0de1-4f6e-a8c0-ae5b20d347e0";
 
 /// The preview whose shapes the importer places: the one enabled, or the
 /// one named.
@@ -389,18 +387,19 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
         })
         .collect();
 
-    let spacing = options.pixel_spacing.unwrap_or(TYPICAL_PIXEL_SPACING);
-    let gaps = placed.iter().flat_map(|shape| {
-        shape
-            .laid
-            .pixels
-            .windows(2)
-            .map(|pair| pair[0].position.distance(pair[1].position))
-            .collect::<Vec<_>>()
-    });
-    let meters = crate::setup::typical_scale(gaps, spacing);
+    let (meters, scale) = crate::setup::typical_scale(
+        placed.iter().map(|shape| {
+            shape
+                .laid
+                .pixels
+                .iter()
+                .map(|pixel| pixel.position.extend(0.0))
+                .collect()
+        }),
+        options.pixel_spacing,
+    );
     report.meters_per_unit = meters;
-    report.scale = Some(Scale::PixelSpacing(spacing));
+    report.scale = Some(scale);
     // Preview units run down the screen; layout y runs up.
     let place = |point: DVec2| DVec3::new(point.x, -point.y, 0.0) * meters;
     let vector = |vector: DVec2| DVec3::new(vector.x, -vector.y, 0.0) * meters;

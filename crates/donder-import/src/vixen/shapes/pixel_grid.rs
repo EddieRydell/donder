@@ -1,9 +1,8 @@
 //! Parallel strings of lights evenly spaced across a box, running up it or
 //! across it. Vixen: `PreviewPixelGrid`.
 
-use super::arch::point;
 use super::multi_string::{add_line, child_line, counted_strings};
-use super::{Laid, ShapeSkip, unrotated};
+use super::{Laid, ShapeSkip, point, unrotated};
 use crate::vixen::contract::{self, FieldError};
 use crate::xml::Element;
 use glam::DVec2;

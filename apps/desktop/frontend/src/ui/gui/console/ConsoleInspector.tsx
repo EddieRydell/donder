@@ -2,7 +2,7 @@ import { Link2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ConsoleAction, ConsoleGuiDocument, ConsoleOn } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { Badge, Button, Field, Select, Toggle } from "../../kit";
+import { Badge, Button, Field, Select, Tabs, Toggle } from "../../kit";
 import { InspectorScrollArea } from "../InspectorScrollArea";
 import { LayerList } from "../sequence/sequenceLayers";
 import type { GuiFocus } from "../shared";
@@ -14,9 +14,9 @@ import { applyConsoleEdit, applyConsoleItemEdit, marksReaders, targetLabel } fro
 
 type Tab = "selection" | "layers";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "selection", label: "Selection" },
-  { id: "layers", label: "Layers" }
+const TABS: { value: Tab; label: string }[] = [
+  { value: "selection", label: "Selection" },
+  { value: "layers", label: "Layers" }
 ];
 
 /** The side panel of a console, as a sequence's: the selected action and its effect, or the layers. */
@@ -27,9 +27,7 @@ export function ConsoleInspector({ document, selected, setSelected }: {
 }) {
   const [tab, setTab] = useState<Tab>("selection");
   const composition = useMemo(() => consoleComposition(document), [document]);
-  const footer = <div className="sequence-inspector-tabs" role="tablist" aria-label="Console inspector sections">
-    {TABS.map((entry) => <Button key={entry.id} variant="ghost" role="tab" aria-selected={tab === entry.id} className={tab === entry.id ? "active" : ""} onClick={() => { setTab(entry.id); }}>{entry.label}</Button>)}
-  </div>;
+  const footer = <Tabs name="Console inspector sections" value={tab} options={TABS} onChange={setTab} />;
   return <InspectorScrollArea footer={footer}>
     {tab === "selection" ? <Selection document={document} selected={selected} setSelected={setSelected} />
       : <><h2>Layers</h2><LayerList composition={composition} /></>}

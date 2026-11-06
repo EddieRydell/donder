@@ -1,6 +1,6 @@
 //! A straight string of lights between two points. Vixen: `PreviewLine`.
 
-use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, position, unrotated};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -33,10 +33,7 @@ pub(super) fn spaced(
 pub(super) fn ends(shape: &Element) -> Result<(DVec2, DVec2), ShapeSkip> {
     let points = contract::points(shape, "_points")?;
     match points[..] {
-        [(x0, y0), (x1, y1), ..] => Ok((
-            DVec2::new(f64::from(x0), f64::from(y0)),
-            DVec2::new(f64::from(x1), f64::from(y1)),
-        )),
+        [start, end, ..] => Ok((position(start), position(end))),
         _ => Err(ShapeSkip::Unplaceable("a line without two points")),
     }
 }

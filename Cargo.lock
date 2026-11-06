@@ -1435,7 +1435,7 @@ dependencies = [
 
 [[package]]
 name = "donder-audio-analysis"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "realfft",
  "rubato",
@@ -1445,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "donder-cli"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "camino",
  "clap",
@@ -1464,7 +1464,7 @@ dependencies = [
 
 [[package]]
 name = "donder-data-derive"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "donder-desktop"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "bytemuck",
  "camino",
@@ -1518,7 +1518,7 @@ dependencies = [
 
 [[package]]
 name = "donder-device-protocol"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "donder-runtime",
  "serde",
@@ -1526,7 +1526,7 @@ dependencies = [
 
 [[package]]
 name = "donder-editor"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "camino",
  "donder-language",
@@ -1542,7 +1542,7 @@ dependencies = [
 
 [[package]]
 name = "donder-elaboration"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "camino",
  "crc32fast",
@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "donder-import"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "camino",
  "donder-language",
@@ -1572,7 +1572,7 @@ dependencies = [
 
 [[package]]
 name = "donder-language"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "camino",
  "donder-runtime-types",
@@ -1581,7 +1581,7 @@ dependencies = [
 
 [[package]]
 name = "donder-language-server"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "camino",
  "donder-language",
@@ -1591,11 +1591,12 @@ dependencies = [
  "lsp-types",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
 name = "donder-model"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "donder-language",
  "donder-runtime-types",
@@ -1605,7 +1606,7 @@ dependencies = [
 
 [[package]]
 name = "donder-output"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "artnet_protocol",
  "donder-language",
@@ -1619,7 +1620,7 @@ dependencies = [
 
 [[package]]
 name = "donder-project-io"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "camino",
  "donder-data-derive",
@@ -1635,7 +1636,7 @@ dependencies = [
 
 [[package]]
 name = "donder-runtime"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "bytemuck",
  "criterion",
@@ -1647,7 +1648,7 @@ dependencies = [
 
 [[package]]
 name = "donder-runtime-types"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "bytemuck",
  "libm",
@@ -1656,7 +1657,7 @@ dependencies = [
 
 [[package]]
 name = "donder-test-support"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "donder-language",
  "donder-runtime",

@@ -79,13 +79,10 @@ under `target/` and summarize durable results in
 
 ## Implementation notes
 
-- Flash reads and writes use aligned 256-byte scratch buffers and the SDK's
-  low-level flash routines.
-- A flash mutation first waits for the renderer to acknowledge its IRAM
-  checkpoint, then takes the cross-core critical section and parks that core.
-  Parking the core in hardware without the checkpoint can freeze an outstanding
-  cache fill. While the other core is parked, its cache is disabled for the
-  flash operation, then flushed and enabled again.
+- Neither core may run from or read flash while it is read, written or erased,
+  so every storage access first pauses the rendering core: between frames it
+  waits in a RAM loop, taking no interrupts, until the access ends
+  (`src/storage.rs`).
 - Upload blackout waits between completed DMA transfers in an interrupt-free IRAM
   loop.
 - Keep large flash buffers off the core-0 startup and network stack. Show
@@ -93,9 +90,8 @@ under `target/` and summarize durable results in
 - The runtime `atomic` feature lets the active show and its workspace cross
   cores.
 - The runtime's `iram` feature places the interpreter and graph evaluation in
-  instruction RAM, and `pnpm firmware:build` fails if any of that code is left
-  in flash (see
-  [performance](../../docs/performance.md#esp32-memory-placement)).
+  instruction RAM; see
+  [development](../../docs/development.md#firmware-runtime-constraints).
 
 ## Validation
 
@@ -109,7 +105,7 @@ pnpm firmware:cargo clippy --release --features dig-quad --bin loader --locked -
 ```
 
 `pnpm storage:test` is part of `pnpm check`. It uses the host toolchain and
-`DONDER_HOST_LIBCLANG_PATH` (see the root
-[development setup](../../README.md#development)) and builds in
+`DONDER_HOST_LIBCLANG_PATH` (see
+[development](../../docs/development.md#checks)) and builds in
 `target/storage-host`. These checks do not flash a board. Report source checks,
 device checksums, deadlines, DMA completion and physical LED output separately.

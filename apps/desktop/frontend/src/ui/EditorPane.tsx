@@ -1,9 +1,5 @@
-import { SequenceEditorHostProvider } from "../editor/host";
-import { desktopSequenceEditorHost } from "../editor/desktopHost";
-export function EditorPane(props: Parameters<typeof EditorPaneContent>[0]) { return <SequenceEditorHostProvider host={desktopSequenceEditorHost}><EditorPaneContent {...props} /></SequenceEditorHostProvider>; }
 import { AlertTriangle, FileText, FolderOpen, ListX, RefreshCw, Save, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import { commands } from "../api";
 import { SequenceAudioSync, sequenceAudioKey } from "../sequenceAudioSync";
 import type { PersistedEditorViewState, SequenceSelection, WorkspaceLayoutState } from "../types";
@@ -20,9 +16,11 @@ import { scheduleViewStateSave } from "../viewStatePersistence";
 import { sameGuiDocument } from "../snapshotState";
 import { guiRequestKind } from "../workspace/guiIdentity";
 import { resolveDocumentSyncFailure } from "../store";
-import { NAVIGATE_TO_TEXT_EVENT, navigateToText, type TextNavigation } from "../workspace/navigation";
+import { navigateToText, type TextNavigation } from "../workspace/navigation";
+import { listenUiEvent } from "./uiEvents";
 import { displayedProjectHealth, sameWorkspacePath } from "../workspace/helpers";
-import { Button, IconButton, Tip } from "./kit";
+import { Button, Dialog, IconButton, Tip } from "./kit";
+import { OverlayPortal } from "./OverlayPortal";
 
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
@@ -31,7 +29,7 @@ const sequenceAudioSync = new SequenceAudioSync(async (request) => {
   return request === null || snapshot.projectRevision === request.projectRevision;
 });
 
-function EditorPaneContent({
+export function EditorPane({
   snapshot,
   workspaceLayout,
   onWorkspaceLayoutChange
@@ -44,6 +42,7 @@ function EditorPaneContent({
   const guiParents = useAppStore((store) => store.guiParents);
   const inlineEditorOpen = guiParents.length > 0;
   const [savingInline, setSavingInline] = useState(false);
+  const [inlinePortal, setInlinePortal] = useState<HTMLDivElement | null>(null);
   const saveAndCloseFixture = async () => {
     const origin = useAppStore.getState();
     setSavingInline(true);
@@ -94,13 +93,7 @@ function EditorPaneContent({
     [activePath, guiResetRevision]
   );
 
-  useEffect(() => {
-    const onNavigate = (event: Event) => {
-      setPendingTextNavigation((event as CustomEvent<TextNavigation>).detail);
-    };
-    window.addEventListener(NAVIGATE_TO_TEXT_EVENT, onNavigate);
-    return () => { window.removeEventListener(NAVIGATE_TO_TEXT_EVENT, onNavigate); };
-  }, []);
+  useEffect(() => listenUiEvent("navigateToText", setPendingTextNavigation), []);
 
   useEffect(() => {
     if (activeGuiRequest === null) {
@@ -171,7 +164,7 @@ function EditorPaneContent({
               type="button"
               className="tab-select"
               aria-current={tab.path === activeTabPath ? "page" : undefined}
-              onClick={() => void runSnapshotCommand(() => commands.setActiveFile(tab.path))}
+              onClick={() => void runSnapshotCommand(() => commands.openFile(tab.path))}
             >
               <span>{tab.name}</span>
               <span className={tab.dirty ? "dirty-dot unsaved" : "dirty-dot"} aria-hidden="true" />
@@ -243,10 +236,15 @@ function EditorPaneContent({
             resetRevision={guiResetRevision}
           />
         </div>
-        <Dialog.Root open={inlineEditorOpen} onOpenChange={(open) => { if (!open && !savingInline) closeInlineEditor(); }}>
-          <Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content resource-editor-dialog" aria-describedby={undefined}>
-            <header className="resource-editor-dialog-header"><Dialog.Title>{activeGuiRequest?.objectKey}</Dialog.Title>{guiDocument?.type === "fixture" ? <Button variant="primary" icon={Save} disabled={interactionPending || savingInline} onClick={() => { void saveAndCloseFixture(); }}>{savingInline ? "Saving" : "Save and close"}</Button> : <Dialog.Close asChild><Button disabled={guiEditPending}>Close</Button></Dialog.Close>}</header>
-            <div className="gui-projection" inert={interactionPending || savingInline} aria-busy={interactionPending || savingInline}>
+        <Dialog
+          ref={setInlinePortal}
+          open={inlineEditorOpen}
+          onOpenChange={(open) => { if (!open && !savingInline && !guiEditPending) closeInlineEditor(); }}
+          title={activeGuiRequest?.objectKey ?? ""}
+          size="full"
+          {...(guiDocument?.type === "fixture" ? { actions: <Button variant="primary" icon={Save} disabled={interactionPending || savingInline} onClick={() => { void saveAndCloseFixture(); }}>{savingInline ? "Saving" : "Save and close"}</Button> } : {})}
+        >
+          <OverlayPortal value={inlinePortal}><div className="gui-projection" inert={interactionPending || savingInline} aria-busy={interactionPending || savingInline}>
               <GuiEditor
                 guiDocument={guiDocument}
                 snapshot={snapshot}
@@ -256,9 +254,8 @@ function EditorPaneContent({
                 setSequenceSelection={setSequenceSelection}
                 resetRevision={guiResetRevision}
               />
-            </div>
-          </Dialog.Content></Dialog.Portal>
-        </Dialog.Root></>
+            </div></OverlayPortal>
+        </Dialog></>
       ) : (
         <div className={`resource-editor-frame ${activeConflicted ? "conflicted" : ""}`}>
           {activePath !== null && snapshot.projectRoot !== null && (

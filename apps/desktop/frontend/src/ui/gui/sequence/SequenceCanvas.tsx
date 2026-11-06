@@ -1,28 +1,27 @@
+import { commands } from "../../../api";
+import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
 import { MIN_CLIP_DURATION_SECONDS, markIndexAfterMove } from "./sequenceSelection";
 import { hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
 import { OverlayPortal } from "../../OverlayPortal";
-import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import * as Tooltip from "@radix-ui/react-tooltip";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, useContext } from "react";
 import { createStore, useStore, type StoreApi } from "zustand";
 
 import { ChevronRight, Scissors, Trash2 } from "lucide-react";
-import { ContextMenuEntries, type MenuEntry } from "../../kit";
+import { ContextMenuEntries, Tip, type MenuEntry } from "../../kit";
 
-import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceClipScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
+import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceClipScope, SequenceEffectDefinition, SequenceLane } from "../../../types";
 
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 
 import { activeMarkCollection, defaultMarkColor, drawSequenceMarks, committedMarkDrafts } from "./marks";
-import { TAP_MARK_EVENT } from "../../uiEvents";
+import { listenUiEvent } from "../../uiEvents";
 
 import { graphOperatorDefinition } from "./graphOperator";
 import { lanesForTarget, nearestLane, targetAtLane, targetsEqual } from "./sequenceTargets";
@@ -235,9 +234,7 @@ export function SequenceCanvas({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const host = useSequenceEditorHost();
   const overlayContainer = useContext(OverlayPortal);
-  const { commands, store: useAppStore, runGuiEditCommand, runSnapshotCommand } = host;
 
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<SequenceDragState>(null);
@@ -489,7 +486,7 @@ export function SequenceCanvas({
         scrollY: clamp(current.scrollY + event.deltaY, 0, maxScrollY)
       };
     });
-  }, [document, followingContinuously, layoutRows, left, revealAutomation, scrollbarHeight, settings, setViewport, top, useAppStore]);
+  }, [document, followingContinuously, layoutRows, left, revealAutomation, scrollbarHeight, settings, setViewport, top]);
 
   useEffect(() => {
     const target = canvas.current;
@@ -521,8 +518,7 @@ export function SequenceCanvas({
       setSequenceContextMenu(null);
       requestPaint();
     };
-    window.addEventListener(GUI_HISTORY_CHANGED_EVENT, clearHistorySelection);
-    return () => { window.removeEventListener(GUI_HISTORY_CHANGED_EVENT, clearHistorySelection); };
+    return listenUiEvent("guiHistoryChanged", clearHistorySelection);
   }, [requestPaint, setSelected, updateSequenceSelection]);
 
 
@@ -597,8 +593,8 @@ export function SequenceCanvas({
       activeMarkCollectionKey,
       visibleMarkCollectionKeys: [...visibleMarkCollectionKeys]
     };
-    scheduleSequenceViewportStateSave(host, document.sourceRef, state);
-  }, [host, followingContinuously, activeMarkCollectionKey, automationRowHeight, revealAutomation, document, settings, viewport, visibleMarkCollectionKeys]);
+    scheduleSequenceViewportStateSave(document.sourceRef, state);
+  }, [followingContinuously, activeMarkCollectionKey, automationRowHeight, revealAutomation, document, settings, viewport, visibleMarkCollectionKeys]);
 
   const visibleClips = useMemo(
     () => buildSequenceClipLayout(
@@ -1041,11 +1037,7 @@ export function SequenceCanvas({
       .then(() => addMark(null, timeSeconds))
       .catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
   });
-  useEffect(() => {
-    const listener = () => { tapMark(); };
-    window.addEventListener(TAP_MARK_EVENT, listener);
-    return () => { window.removeEventListener(TAP_MARK_EVENT, listener); };
-  }, []);
+  useEffect(() => listenUiEvent("tapMark", () => { tapMark(); }), []);
   const addAutomationClipFromContextMenu = async (menu: LaneContextMenu) => {
     await runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
@@ -1189,7 +1181,7 @@ export function SequenceCanvas({
     const request = useAppStore.getState().guiRequest;
     if (request === null) return Promise.reject(new Error("No sequence is open."));
     return commands.matchSequenceClips(request, { ...seed, criteria, params });
-  }, [commands, useAppStore]);
+  }, []);
   /** "Select Matching" seeds from the selected clips. */
   const selectedClipSeed = (): ClipMatchSeed | null => {
     const selection = sequenceSelectionRef.current;
@@ -1272,7 +1264,7 @@ export function SequenceCanvas({
       setMarkDrafts(new Map());
     });
   };
-  const transportCommands = sequenceTransportCommands(host, document);
+  const transportCommands = sequenceTransportCommands(document);
   // Arrow keys move a selected mark; otherwise they step the playhead.
   const arrowCommand = (direction: -1 | 1) => selectedMark === null
     ? transportCommands[direction < 0 ? "edit.moveLeft" : "edit.moveRight"]
@@ -2044,22 +2036,17 @@ export function SequenceCanvas({
         />
       )}
       <div className="sequence-gutter-scrollbar-divider" style={{ left }} aria-hidden="true" />
-      <Tooltip.Provider>
-        <Tooltip.Root open={badgeTooltip !== null && badgeLane !== undefined}>
-          <Tooltip.Trigger asChild>
-            <span
-              className="sequence-shared-badge-anchor"
-              style={badgeTooltip === null ? undefined : { left: sharedBadgeX(left), top: badgeTooltip.y, width: left - sharedBadgeX(left), height: badgeTooltip.height }}
-              aria-hidden="true"
-            />
-          </Tooltip.Trigger>
-          <Tooltip.Portal>
-            <Tooltip.Content className="tooltip-content sequence-shared-badge-tooltip" side="right">
-              {badgeLane === undefined ? null : `${badgeLane.label} is in ${badgeLane.occurrences} places in this list because it belongs to more than one group. Every copy shows the same clips. Click to jump to the next one.`}
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
-      </Tooltip.Provider>
+      <Tip
+        side="right"
+        open={badgeTooltip !== null && badgeLane !== undefined}
+        label={badgeLane === undefined ? null : `${badgeLane.label} is in ${badgeLane.occurrences} places in this list because it belongs to more than one group. Every copy shows the same clips. Click to jump to the next one.`}
+      >
+        <span
+          className="sequence-shared-badge-anchor"
+          style={badgeTooltip === null ? undefined : { left: sharedBadgeX(left), top: badgeTooltip.y, width: left - sharedBadgeX(left), height: badgeTooltip.height }}
+          aria-hidden="true"
+        />
+      </Tip>
       <div className="sequence-horizontal-scrollbar" style={{ left, width: timelineWidth }} onPointerDown={handleScrollbarPointerDown} onPointerMove={handleScrollbarPointerMove} onPointerUp={() => { sequenceScrollbar.current = null; }} onPointerCancel={() => { sequenceScrollbar.current = null; }} aria-label="Sequence horizontal scrollbar" role="scrollbar" aria-orientation="horizontal" aria-valuemin={0} aria-valuemax={Math.round(maxScrollXSeconds * 1000)} aria-valuenow={Math.round(viewport.scrollXSeconds * 1000)}>
         <div className={`sequence-horizontal-scrollbar-thumb ${maxScrollXSeconds === 0 ? "disabled" : ""}`} style={{ left: scrollbarThumbLeft, width: scrollbarThumbWidth }} />
       </div>
@@ -2112,8 +2099,6 @@ function SequenceTransportOverlay({
   canvasSize: { width: number; height: number };
   playheadClockRef: RefObject<(() => number) | null>;
 }) {
-  const host = useSequenceEditorHost();
-  const { store: useAppStore } = host;
 
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   if (transport === null) return null;
@@ -2269,8 +2254,7 @@ function automationTargetLabel(document: SequenceGuiDocument, target: SequenceAu
   return `${graphOperatorDefinition(document.compositionGraph.operatorCatalog, node.kind.operator).displayName}: ${target.param}`;
 }
 
-function scheduleSequenceViewportStateSave(host: SequenceEditorHost, reference: GuiObjectRef, state: PersistedSequenceViewportState) {
-  const { commands, store: useAppStore } = host;
+function scheduleSequenceViewportStateSave(reference: GuiObjectRef, state: PersistedSequenceViewportState) {
 
   const { path, objectKey, ownedPath } = reference;
   const store = useAppStore.getState();

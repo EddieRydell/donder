@@ -1,6 +1,6 @@
-import { ACCESS_POINT_PASSWORD, commands as generatedCommands } from "./generated/bindings";
+import { ACCESS_POINT_PASSWORD, commands as generatedCommands, events } from "./generated/bindings";
 
-export { ACCESS_POINT_PASSWORD };
+export { ACCESS_POINT_PASSWORD, events };
 
 type CommandResult<T> = { status: "ok"; data: T } | { status: "error"; error: unknown };
 type GeneratedCommands = typeof generatedCommands;

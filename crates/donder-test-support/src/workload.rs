@@ -6,8 +6,8 @@ use donder_language::compiler::{CompiledDefinition, Invocation, ProgramConstants
 use donder_runtime::PreparedShow;
 use donder_runtime_types::bytecode::{Bank, BytecodeProgram, Instruction, Slot};
 use donder_runtime_types::{
-    BoundProgram, InstructionWord, OutputEncoding, Program, RgbOrder, SampleDuration, SampleTime,
-    SequenceTiming, TargetScope,
+    BoundProgram, InstructionWord, OutputEncoding, PixelEncoding, Program, SampleDuration,
+    SampleTime, SequenceTiming, TargetScope,
 };
 
 /// An effect of a workload: its program and when it plays.
@@ -80,7 +80,7 @@ impl Workload {
             builder.route(
                 output,
                 target,
-                OutputEncoding::Rgb(RgbOrder::Grb),
+                OutputEncoding::admit(PixelEncoding::Rgb { order: [1, 0, 2] }).unwrap(),
                 self.lookup,
                 false,
             );

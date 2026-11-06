@@ -3,7 +3,7 @@
 //! session ids; the source inventory names each declared one, and an owned
 //! object's address follows from its owner's.
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_model::{ObjectId, ObjectKind, Owned, OwnedMember, Setup};
+use donder_model::{DonderProject, Identified, ObjectId, ObjectKind, Owned, OwnedMember, Setup};
 use donder_runtime_types::Identifier;
 use std::collections::HashMap;
 
@@ -110,13 +110,8 @@ impl ObjectAddress {
     /// The name a controller, input device, sequence or console is declared or
     /// stored under: its owned slot's name, else its source object's.
     pub fn declared_name(&self) -> &str {
-        match self.owned_path.last() {
-            Some(
-                OwnedObjectSlot::Controller(name)
-                | OwnedObjectSlot::InputDevice(name)
-                | OwnedObjectSlot::Sequence(name)
-                | OwnedObjectSlot::Console(name),
-            ) => name.as_str(),
+        match self.owned_path.last().and_then(OwnedObjectSlot::field) {
+            Some((_, Some(name))) => name.as_str(),
             _ => self.root.object(),
         }
     }
@@ -192,36 +187,152 @@ impl DeclaredObject {
     }
 }
 
+/// A field of a project or setup that owns objects in place: one object, or
+/// a collection of members named like declarations. This is the one table of
+/// the ownership tree; slots, references and traversals follow from it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OwningField {
+    Setup,
+    Sequences,
+    Consoles,
+    Layout,
+    Patch,
+    Controllers,
+    InputDevices,
+}
+
+impl OwningField {
+    pub(crate) const ALL: [Self; 7] = [
+        Self::Setup,
+        Self::Sequences,
+        Self::Consoles,
+        Self::Layout,
+        Self::Patch,
+        Self::Controllers,
+        Self::InputDevices,
+    ];
+
+    /// The field's name in documents and references.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Setup => "setup",
+            Self::Sequences => "sequences",
+            Self::Consoles => "consoles",
+            Self::Layout => "layout",
+            Self::Patch => "patch",
+            Self::Controllers => "controllers",
+            Self::InputDevices => "input_devices",
+        }
+    }
+
+    /// The kind of object holding the field, and the kind it owns.
+    pub(crate) fn kinds(self) -> (ObjectKind, ObjectKind) {
+        use ObjectKind as Kind;
+        match self {
+            Self::Setup => (Kind::Project, Kind::Setup),
+            Self::Sequences => (Kind::Project, Kind::Sequence),
+            Self::Consoles => (Kind::Project, Kind::Console),
+            Self::Layout => (Kind::Setup, Kind::Layout),
+            Self::Patch => (Kind::Setup, Kind::Patch),
+            Self::Controllers => (Kind::Setup, Kind::Controller),
+            Self::InputDevices => (Kind::Setup, Kind::InputDevice),
+        }
+    }
+
+    /// The slot of the object the field owns: the field itself, or its
+    /// collection member `name`.
+    pub(crate) fn slot(self, name: Option<Identifier>) -> Option<OwnedObjectSlot> {
+        Some(match (self, name) {
+            (Self::Setup, None) => OwnedObjectSlot::Setup,
+            (Self::Layout, None) => OwnedObjectSlot::Layout,
+            (Self::Patch, None) => OwnedObjectSlot::Patch,
+            (Self::Sequences, Some(name)) => OwnedObjectSlot::Sequence(name),
+            (Self::Consoles, Some(name)) => OwnedObjectSlot::Console(name),
+            (Self::Controllers, Some(name)) => OwnedObjectSlot::Controller(name),
+            (Self::InputDevices, Some(name)) => OwnedObjectSlot::InputDevice(name),
+            _ => return None,
+        })
+    }
+
+    /// Whether the field is a collection of named members.
+    pub(crate) fn is_collection(self) -> bool {
+        self.slot(None).is_none()
+    }
+}
+
 impl OwnedObjectSlot {
+    /// The field owning this slot and, for a collection, the member's name.
+    /// An owned fixture definition belongs to a layout item, not a field.
+    pub(crate) fn field(&self) -> Option<(OwningField, Option<&Identifier>)> {
+        Some(match self {
+            Self::Setup => (OwningField::Setup, None),
+            Self::Layout => (OwningField::Layout, None),
+            Self::Patch => (OwningField::Patch, None),
+            Self::Sequence(name) => (OwningField::Sequences, Some(name)),
+            Self::Console(name) => (OwningField::Consoles, Some(name)),
+            Self::Controller(name) => (OwningField::Controllers, Some(name)),
+            Self::InputDevice(name) => (OwningField::InputDevices, Some(name)),
+            Self::Fixture(_) => return None,
+        })
+    }
+
     /// The kind of the object owned at this slot of an owner of kind `owner`.
     pub fn child_kind(&self, owner: ObjectKind) -> Option<ObjectKind> {
-        use ObjectKind as Kind;
-        match (owner, self) {
-            (Kind::Project, Self::Setup) => Some(Kind::Setup),
-            (Kind::Project, Self::Sequence(_)) => Some(Kind::Sequence),
-            (Kind::Project, Self::Console(_)) => Some(Kind::Console),
-            (Kind::Setup, Self::Layout) => Some(Kind::Layout),
-            (Kind::Setup, Self::Patch) => Some(Kind::Patch),
-            (Kind::Setup, Self::Controller(_)) => Some(Kind::Controller),
-            (Kind::Setup, Self::InputDevice(_)) => Some(Kind::InputDevice),
-            (Kind::Layout, Self::Fixture(_)) => Some(Kind::FixtureDefinition),
-            _ => None,
+        match self.field() {
+            Some((field, _)) => {
+                let (holder, kind) = field.kinds();
+                (holder == owner).then_some(kind)
+            }
+            None => (owner == ObjectKind::Layout).then_some(ObjectKind::FixtureDefinition),
         }
     }
 }
 
-/// Each member of a collection by the name it is owned under.
-fn member<T, I: Copy + Into<ObjectId>>(
-    members: &[OwnedMember<T, I>],
-    name: &Identifier,
-) -> Option<ObjectId>
-where
-    T: donder_model::Identified<Id = I>,
-{
-    members
-        .iter()
-        .find(|source| source.name() == Some(name))
-        .map(|source| (*source.id()).into())
+/// Visit each object `owner` owns in place, with its slot.
+fn owned_children(
+    project: &DonderProject,
+    owner: ObjectId,
+    visit: &mut dyn FnMut(OwnedObjectSlot, ObjectId),
+) {
+    fn single<T: Identified<Id = I>, I: Copy + Into<ObjectId>>(
+        field: OwningField,
+        owned: &Owned<T, I>,
+        visit: &mut dyn FnMut(OwnedObjectSlot, ObjectId),
+    ) {
+        if let (Owned::Inline(value), Some(slot)) = (owned, field.slot(None)) {
+            visit(slot, (*value.id()).into());
+        }
+    }
+    fn members<T: Identified<Id = I>, I: Copy + Into<ObjectId>>(
+        field: OwningField,
+        members: &[OwnedMember<T, I>],
+        visit: &mut dyn FnMut(OwnedObjectSlot, ObjectId),
+    ) {
+        for member in members {
+            if let OwnedMember::Inline { name, value } = member
+                && let Some(slot) = field.slot(Some(name.clone()))
+            {
+                visit(slot, (*value.id()).into());
+            }
+        }
+    }
+    match owner {
+        ObjectId::Project(id) if id == project.root().id => {
+            let root = project.root();
+            single(OwningField::Setup, &root.setup, visit);
+            members(OwningField::Sequences, &root.sequences, visit);
+            members(OwningField::Consoles, &root.consoles, visit);
+        }
+        ObjectId::Setup(id) => {
+            if let Some(setup) = project.get::<Setup>(id) {
+                single(OwningField::Layout, &setup.layout, visit);
+                single(OwningField::Patch, &setup.patch, visit);
+                members(OwningField::Controllers, &setup.controllers, visit);
+                members(OwningField::InputDevices, &setup.input_devices, visit);
+            }
+        }
+        _ => {}
+    }
 }
 
 impl SourceProject {
@@ -313,98 +424,40 @@ impl ProjectSession {
     }
 
     fn owned_child(&self, owner: ObjectId, slot: &OwnedObjectSlot) -> Option<ObjectId> {
-        let project = &self.project;
-        match (owner, slot) {
-            (ObjectId::Project(id), OwnedObjectSlot::Setup) if id == project.root().id => {
-                match &project.root().setup {
-                    Owned::Inline(setup) => Some(setup.id.into()),
-                    Owned::Reference(_) => None,
-                }
+        let mut found = None;
+        owned_children(&self.project, owner, &mut |child, id| {
+            if &child == slot {
+                found = Some(id);
             }
-            (ObjectId::Project(id), OwnedObjectSlot::Sequence(name)) if id == project.root().id => {
-                member(&project.root().sequences, name)
-            }
-            (ObjectId::Project(id), OwnedObjectSlot::Console(name)) if id == project.root().id => {
-                member(&project.root().consoles, name)
-            }
-            (ObjectId::Setup(id), slot) => {
-                let setup = project.get::<donder_model::Setup>(id)?;
-                match slot {
-                    OwnedObjectSlot::Layout => setup.layout.inline().map(|value| value.id.into()),
-                    OwnedObjectSlot::Patch => setup.patch.inline().map(|value| value.id.into()),
-                    OwnedObjectSlot::Controller(name) => member(&setup.controllers, name),
-                    OwnedObjectSlot::InputDevice(name) => member(&setup.input_devices, name),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
+        });
+        found
     }
 
     /// Visit every object owned in place with its address.
     fn owned_addresses(&self, visit: &mut dyn FnMut(ObjectId, &ObjectAddress)) {
-        let project = &self.project;
-        let Some(root) = self.address_of_declared(project.root().id.into()) else {
-            return;
-        };
-        if let Owned::Inline(setup) = &project.root().setup {
-            let address = root.owned(OwnedObjectSlot::Setup);
-            visit(setup.id.into(), &address);
-            setup_addresses(setup, &address, visit);
-        }
-        for source in &project.root().sequences {
-            if let OwnedMember::Inline { name, value } = source {
-                visit(
-                    value.id.into(),
-                    &root.owned(OwnedObjectSlot::Sequence(name.clone())),
-                );
-            }
-        }
-        for source in &project.root().consoles {
-            if let OwnedMember::Inline { name, value } = source {
-                visit(
-                    value.id.into(),
-                    &root.owned(OwnedObjectSlot::Console(name.clone())),
-                );
-            }
-        }
-        for setup in project.reusable::<donder_model::Setup>().values() {
-            if let Some(address) = self.address_of_declared(setup.id.into()) {
-                setup_addresses(setup, &address, visit);
+        for (document, source) in &self.source.documents {
+            for object in &source.objects {
+                let address = SourceIdentity::from_document(
+                    document.clone(),
+                    object.name.as_str().to_string(),
+                )
+                .into();
+                self.owned_below(object.id, &address, visit);
             }
         }
     }
 
-    fn address_of_declared(&self, id: ObjectId) -> Option<ObjectAddress> {
-        self.source_identity(id).map(ObjectAddress::from)
-    }
-}
-
-fn setup_addresses(
-    setup: &Setup,
-    address: &ObjectAddress,
-    visit: &mut dyn FnMut(ObjectId, &ObjectAddress),
-) {
-    if let Owned::Inline(layout) = &setup.layout {
-        visit(layout.id.into(), &address.owned(OwnedObjectSlot::Layout));
-    }
-    if let Owned::Inline(patch) = &setup.patch {
-        visit(patch.id.into(), &address.owned(OwnedObjectSlot::Patch));
-    }
-    for source in &setup.controllers {
-        if let OwnedMember::Inline { name, value } = source {
-            visit(
-                value.id.into(),
-                &address.owned(OwnedObjectSlot::Controller(name.clone())),
-            );
-        }
-    }
-    for source in &setup.input_devices {
-        if let OwnedMember::Inline { name, value } = source {
-            visit(
-                value.id.into(),
-                &address.owned(OwnedObjectSlot::InputDevice(name.clone())),
-            );
-        }
+    /// Visit the objects `owner`, at `address`, owns at any depth.
+    fn owned_below(
+        &self,
+        owner: ObjectId,
+        address: &ObjectAddress,
+        visit: &mut dyn FnMut(ObjectId, &ObjectAddress),
+    ) {
+        owned_children(&self.project, owner, &mut |slot, id| {
+            let child = address.owned(slot);
+            visit(id, &child);
+            self.owned_below(id, &child, visit);
+        });
     }
 }

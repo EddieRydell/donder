@@ -20,6 +20,7 @@ has one owner:
 | --- | --- |
 | `donder-runtime-types` | What playback accepts and what it means, `no_std + alloc`: colors, curves, gradients, marks and sample time; the strip bytecode (`bytecode`); `Program` (bytecode and its signal input count; an effect's has none) and `BoundProgram` (a program bound to checked parameter values and automation); prepared inputs such as sequence timing, fixture and target geometry and output encodings; and the sampling math (`sampling`) shared by constant folding and evaluation. An item belongs here only if the runtime consumes it and an upstream crate produces it. |
 | `donder-language` | The text language. `data`: the data-document syntax tree, parser, printer, literal rules and schema traits. `compiler`: the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission). `analysis`: semantic tokens, symbols, hover and completion for editors. The root holds import syntax, naming rules and authored quantities (times, distances, transforms). It does not depend on the model or the runtime. |
+| `donder-data-derive` | `#[derive(Data)]` for the data-document types: a type's Rust definition is its project-language schema, records for structs and choices for enums. Used by `donder-project-io`. |
 | `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, consoles, effect and operator definitions, ownership, opaque object ids, geometry preparation, validation, and the validated edits that change it: `ProjectEdit::Put` and `ProjectEdit::Remove` batches over one `Object` enum, and the ownership edits. |
 | `donder-project-io` | Source documents and object addresses, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence or a console and an output selection into a `PreparedShow`: targets, fixture geometry, bound programs, automation, the global signal graph (black-signal folding, operator fusion), retention. Sequences and consoles share one preparation (`stage::build`) and differ only in how they place their clips. See [output selection](output_selection.md). |
@@ -28,6 +29,7 @@ has one owner:
 | `donder-device-protocol` | The editor-controller wire protocol, `no_std`: HTTP paths, the access point password, the JSON commands and replies, and the UDP clock packets. The desktop and the firmware both use it. |
 | `donder-audio-analysis` | Beat and downbeat detection from song audio: decoding, the log-mel spectrogram and the embedded Beat This! model (small, MIT licensed) run with tract. Host-only. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
+| `donder-import` | Importing an xLights show's or a Vixen profile's layout, controllers and patch into a project: one reader per source and one shared setup builder. Used by the desktop and the CLI. |
 | `donder-cli` | `check`, `copy`, `render` (fixture colors at chosen times), `export-fseq`, `lsp` (the language server over stdio) and the generated builtin reference. |
 | `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion, shared by the desktop and browser hosts, and in its `dto` module the serialized editor contract exported to TypeScript. Edit helpers mutate the candidate session they are given. |
 | `donder-test-support` | Dev-only playback workloads shared by runtime and elaboration tests and benchmarks. |
@@ -125,7 +127,7 @@ Who checks the project depends on the host:
 
 | Host | Server | Checks | Transport |
 | --- | --- | --- | --- |
-| Desktop | `Server::with_source`, a thread in the app process | `DesktopState`, whose working-copy check the server publishes through its `DocumentSource` | The `language_server_send` command and the `language_server_message` event |
+| Desktop | `Server::with_source`, a thread in the app process | `DesktopState`, whose working-copy check the server publishes through its `DocumentSource` | The `language_server_send` command and the `language-server-message` event |
 | Website | The WASM `LanguageServer` in a worker, with no project | The server | Worker messages |
 | Other editors | `donder lsp` | The server | stdio |
 

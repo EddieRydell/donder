@@ -1,10 +1,8 @@
 // Effect and operator pickers as nested folders: each script file is a
 // submenu of its definitions, inside submenus for its folders.
-import { ChevronDown } from "lucide-react";
 import { useMemo } from "react";
-import type { SequenceEffectDefinition, SequenceEffectReference } from "../../../editor/types";
-import { THEME_METRICS } from "../../../theme";
-import { MenuButton, type MenuEntry } from "../../kit";
+import type { SequenceEffectDefinition, SequenceEffectReference } from "../../../types";
+import { MenuSelect, type MenuEntry } from "../../kit";
 
 /** A folder or script file, by its title-cased name. */
 export type DefinitionFolder<T> = {
@@ -89,10 +87,6 @@ export function EffectDefinitionPicker({ definitions, label, onSelect, disabled 
   disabled?: boolean;
 }) {
   const tree = useMemo(() => definitionTree(definitions, (definition) => definition.effect.path), [definitions]);
-  return <MenuButton entries={definitionEntries(tree, (definition) => definition.name, onSelect, "No effects")}>
-    <button type="button" className="kit-select" aria-label="Effect" disabled={disabled || definitions.length === 0}>
-      <span className="kit-select-value">{label}</span>
-      <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} aria-hidden />
-    </button>
-  </MenuButton>;
+  return <MenuSelect label={label} name="Effect" disabled={disabled || definitions.length === 0}
+    entries={definitionEntries(tree, (definition) => definition.name, onSelect, "No effects")} />;
 }

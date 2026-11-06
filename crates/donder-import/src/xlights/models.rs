@@ -890,3 +890,17 @@ pub(crate) const NO_CHILDREN: Table = &[];
 pub(crate) const BOXED_PLACEMENT: Table = BOXED;
 pub(crate) const TWO_POINT_PLACEMENT: Table = TWO_POINT;
 pub(crate) const THREE_POINT_PLACEMENT: Table = THREE_POINT;
+
+/// xLights: `toRadians` in `UtilFunctions.h`.
+fn to_radians(degrees: f32) -> f64 {
+    2.0 * std::f64::consts::PI * f64::from(degrees) / 360.0
+}
+
+/// xLights: `rotate_point` in `ArchesModel.cpp` and `CandyCaneModel.cpp`,
+/// about `(cx, 0)`.
+fn rotate_point(cx: f32, angle: f32, x: &mut f32, y: &mut f32) {
+    let (s, c) = angle.sin_cos();
+    let (px, py) = (*x - cx, *y);
+    *x = px * c - py * s + cx;
+    *y = px * s + py * c;
+}

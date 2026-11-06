@@ -1,6 +1,7 @@
+import { commands } from "../../../api";
+import { runGuiEditCommand } from "../../../store";
 import type { ReactNode } from "react";
-import type { SequenceEditorHost } from "../../../editor/host";
-import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection, SequenceParamRange } from "../../../editor/types";
+import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection, SequenceParamRange } from "../../../types";
 import type { AutomationClipChooser, GuiItemEdit } from "../shared";
 
 /** What the layer and graph editors show of a sequence or console. */
@@ -27,15 +28,14 @@ export type CompositionEditing = {
 };
 
 export function sequenceComposition(
-  host: SequenceEditorHost,
   document: SequenceGuiDocument,
   automation: CompositionEditing["automation"]
 ): CompositionEditing {
   return {
     document,
     layerUses: (layerId) => document.clips.filter((clip) => clip.layerId === layerId).length,
-    apply: (edit, origin) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit } }), origin),
-    applyItem: (edit) => host.runGuiEditCommand((request) => host.commands.applyGuiEdit(request, edit)),
+    apply: (edit, origin) => runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit } }), origin),
+    applyItem: (edit) => runGuiEditCommand((request) => commands.applyGuiEdit(request, edit)),
     automation,
     operatorParamControl: null
   };

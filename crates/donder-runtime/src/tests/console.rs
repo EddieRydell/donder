@@ -7,7 +7,7 @@ use crate::{PreparedShow, ShowPlayback};
 use donder_language::compiler::ProgramConstants;
 use donder_runtime_types::{
     AutomatedQuantity, AutomationMapping, BoundProgram, Color, ConsoleCommand, ConsoleEvent, Curve,
-    CurvePoint, FixtureGeometry, Marks, OutputEncoding, PreparedAutomation, RgbOrder,
+    CurvePoint, FixtureGeometry, Marks, OutputEncoding, PixelEncoding, PreparedAutomation,
     SampleDuration, SampleTime, Shared, TargetScope, Value,
 };
 use std::prelude::rust_2024::*;
@@ -44,7 +44,7 @@ fn console(
         builder.route(
             port,
             target,
-            OutputEncoding::Rgb(RgbOrder::Rgb),
+            OutputEncoding::admit(PixelEncoding::Rgb { order: [0, 1, 2] }).unwrap(),
             None,
             false,
         );
@@ -107,7 +107,7 @@ fn archived_console_plays_like_the_prepared_one() {
         builder.route(
             port,
             target,
-            OutputEncoding::Rgb(RgbOrder::Rgb),
+            OutputEncoding::admit(PixelEncoding::Rgb { order: [0, 1, 2] }).unwrap(),
             None,
             false,
         );

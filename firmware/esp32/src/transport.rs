@@ -1,11 +1,13 @@
 //! Show time follows a clock, never the number of completed render iterations.
 
+use core::num::NonZeroU32;
 pub(crate) use donder_device_protocol::Mode;
 use donder_runtime::PlaybackRate;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Clock {
-    pub id: u32,
+    /// The editor clock this estimate follows; `None` before the first sync.
+    pub id: Option<NonZeroU32>,
     pub local_anchor: u64,
     pub master_anchor: u64,
     pub rate_ppb: i32,
@@ -15,7 +17,7 @@ pub(crate) struct Clock {
 impl Clock {
     pub(crate) const fn new() -> Self {
         Self {
-            id: 0,
+            id: None,
             local_anchor: 0,
             master_anchor: 0,
             rate_ppb: 0,
@@ -34,8 +36,8 @@ impl Clock {
             / (1_000_000_000 + i128::from(self.rate_ppb));
         (i128::from(self.local_anchor) + elapsed).clamp(0, i128::from(u64::MAX)) as u64
     }
-    pub(crate) fn usable(&self, id: u32, local: u64) -> bool {
-        id != 0 && self.id == id && local < self.valid_until
+    pub(crate) fn usable(&self, id: NonZeroU32, local: u64) -> bool {
+        self.id == Some(id) && local < self.valid_until
     }
 }
 
@@ -288,9 +290,10 @@ mod tests {
     }
     #[test]
     fn clock_offset_drift_and_freshness() {
-        assert!(!Clock::new().usable(1, 0));
+        let id = |id| NonZeroU32::new(id).unwrap();
+        assert!(!Clock::new().usable(id(1), 0));
         let clock = Clock {
-            id: 1,
+            id: Some(id(1)),
             local_anchor: 100_000,
             master_anchor: 200_000,
             rate_ppb: 100_000,
@@ -298,9 +301,9 @@ mod tests {
         };
         assert_eq!(clock.master_at(10_100_000), 10_201_000);
         assert_eq!(clock.local_at(10_201_000), 10_100_000);
-        assert!(clock.usable(1, 100_000));
-        assert!(!clock.usable(2, 100_000));
-        assert!(!clock.usable(1, 10_100_000));
+        assert!(clock.usable(id(1), 100_000));
+        assert!(!clock.usable(id(2), 100_000));
+        assert!(!clock.usable(id(1), 10_100_000));
         let mut transport = Transport::new();
         transport.apply(Mode::Playing, 0, 0, false, PlaybackRate::NORMAL);
         transport.refresh(8_000_000, 8_000_000);
