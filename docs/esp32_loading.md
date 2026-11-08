@@ -1,7 +1,7 @@
 # ESP32 controllers
 
-An ESP32 running the Donder loader plays shows from flash, either on
-its own or in sync with the desktop editor. The loader runs `donder-runtime`, the
+An ESP32 running the Donder loader plays what the desktop editor plays, in
+sync with it. The loader runs `donder-runtime`, the
 same engine as the preview, not a second interpreter. The host does all loading,
 checking and preparation and sends a `.dondershow` show prepared for that
 controller's output ports.
@@ -42,31 +42,22 @@ controller's settings or the controller form are open; otherwise it binds no
 mDNS socket. While live output is on it connects to each Donder controller in
 the open setup that runs a matching format.
 
-## Storage and upload
+## Storage and shows
 
 The configuration record (name and optional station network) lives
-in LittleFS. Shows use two 128 KiB slots in a separate
-256 KiB partition; a slot's first 4 KiB sector is its header, so a show may be
-up to 124 KiB (`show_slots::CAPACITY`). A longer upload is refused with HTTP
-422 and the show's size and that limit. An upload:
+in LittleFS in the `donder` partition. The partition is formatted at boot when
+it holds no usable filesystem, and a damaged device record is replaced by
+defaults, so damaged storage never stops a controller from starting.
+
+Shows live only in RAM: a controller boots with none, and the editor sends the
+show it plays whenever the controller lacks it. Receiving a show:
 1. releases the current show, so its memory is free;
 2. receives the show into RAM, if it fits beside the network reserve;
-3. writes it to the inactive slot, erasing only the sectors it needs;
-4. opens it and checks it against the controller;
-5. commits the slot only after the show loads, and replies `LOADED`.
+3. opens it and checks it against the controller, and replies `LOADED`.
 
-A failed or interrupted upload leaves no show loaded, but the previous committed
-show stays saved. Reboot restores the newest committed slot, stopped. A saved
-show that the current firmware rejects is left in place and the controller boots
-without one; the editor uploads a current show on its next live Play.
-An upload or configuration change waits for one in progress. The `donder`
-partition is formatted at boot when it holds no usable filesystem, and a damaged
-device record is replaced by defaults, so damaged storage never stops a
-controller from starting.
+A failed or interrupted show leaves none loaded. One show is received at a time.
 
-The loader plays the show from RAM, beside its playback buffer, as the
-`ShowBytes` an upload or a restore filled: reading it through the flash cache
-cost Stanford `main` about a quarter of each frame. The playback stays
+The loader plays the show from RAM, beside its playback buffer. The playback stays
 open while the show plays. The show is trusted: the editor built
 it, so the loader checks only its format version. It rejects a show
 - of another format version ("prepared for another firmware format");
@@ -80,7 +71,7 @@ it, so the loader checks only its format version. It rejects a show
 
 With no show loaded, about 77 KiB of heap is free for a show and its playback
 buffer together. The
-editor does not check a show against the controller before it uploads.
+editor does not check a show against the controller before sending it.
 
 A panic prints `LOADER PANIC` and its message on the serial port (not on a
 Dig-Quad, whose UART pins drive LEDs) and restarts the controller. Playback allocates nothing after the show loads.
@@ -97,8 +88,8 @@ control it, so the access point's password is the only access control.
 - `PUT /show` and `POST /frame`;
 - `PUT /name` with a 1-32 byte UTF-8 name, and `PUT /network` with
   `{"ssid": ..., "password": ...}` or an empty body for the access point;
-- `GET /transport` and `POST /transport/play`, `/pause` or
-  `/stop`;
+- `GET /transport` for the loaded show's playback, and `POST
+  /transport/stop`, which stops it when the editor releases the controller;
 - JSON `POST /control` for clock sync, scheduling and cancellation.
 
 TCP sockets disable Nagle.
@@ -111,8 +102,8 @@ controllers follow live output, like E1.31 and Art-Net controllers: with live
 output off, Play only plays the Preview and the editor connects to no
 controller. Turning live output on starts discovery; the editor then connects
 to each controller as it appears on the network and whenever the open
-project changes, never during playback. Connecting stops the controller's
-standalone show and synchronizes its clock. Turning live output off, opening
+project changes, never during playback. Connecting stops whatever the
+controller plays and synchronizes its clock. Turning live output off, opening
 another sequence or project, or stopping a performance stops and releases every
 controller; opening another sequence while performing does not.
 
@@ -140,9 +131,7 @@ frames at the sequence's frame rate; a show faster than the outputs can carry
 (158 fps for 200 pixels a lane) is rejected at upload. With no show loaded the
 controller sends black at 30 fps. Changing
 speed during playback reschedules every controller and the audio from the
-position reached at a new shared deadline. **Loop saved show** in the controller's
-editor, or the standalone HTTP Play endpoint, loops the last uploaded show
-without the editor instead.
+position reached at a new shared deadline.
 
 ## Performing
 

@@ -212,9 +212,9 @@ everywhere:
   Donder controllers. A controller that is missing or fails is reported in the
   live-output status and does not stop the others. mDNS discovery runs only
   while live output drives Donder controllers or a view that lists them is open.
-- **Controllers.** Sequence shows, built for a controller's ports, are
-  uploaded to the ESP32 loader, which stores them in a flash slot and plays
-  them from a copy in RAM beside their playback buffer.
+- **Controllers.** Shows, built for a controller's ports, are sent to the
+  ESP32 loader, which keeps them in RAM beside their playback buffer until
+  the next show or a restart.
 
 Perform mode plays a console instead of a sequence (`desktop_state/perform.rs`).
 Starting arms the console on the active setup and starts a session clock;

@@ -59,8 +59,8 @@ the library doesn't have, you can write it yourself (or ask an LLM to write it f
   button presses travel; every device that plays the console renders the frames
   itself. → [Live input](docs/live_input.md)
 - **Plays on multiple platforms.** Stream live over E1.31 or Art-Net, export an FSEQ
-  file and schedule it in FPP next to your existing shows, or upload to an ESP32
-  with the Donder VM. The preview, the live output and the firmware run
+  file and schedule it in FPP next to your existing shows, or play it on ESP32
+  controllers running the Donder VM. The preview, the live output and the firmware run
   the same runtime, and their frames match checksum for checksum.
   → [ESP32 controllers](docs/esp32_loading.md)
 
@@ -102,8 +102,7 @@ The user guides are also published at
 - [Write an effect](docs/effect_tutorial.md)
 - [Fixture authoring](docs/fixture_authoring.md): lines, arcs, grids and
   matrices, layouts and groups
-- [ESP32 controllers](docs/esp32_loading.md): install, upload and standalone
-  playback
+- [ESP32 controllers](docs/esp32_loading.md): install, set up and play
 - [Performance](docs/performance.md) and [architecture](docs/architecture.md)
 - [All documentation](docs/README.md)
 
@@ -119,14 +118,14 @@ out for you. I've found this works especially well for setting up layouts and fi
 layout, controllers and patch of an xLights or Vixen profile import into a new project with
 File > Import Profile; see [profile import](docs/profile_import.md).
 
-Standalone playback supports classic ESP32 boards with 4 MB flash, including the
+Donder controllers are classic ESP32 boards with 4 MB flash, including the
 QuinLED Dig-Quad, with up to 800 pixels on four outputs of 200 per controller. Larger
 displays use live E1.31/Art-Net output or FSEQ export.
 
 Not yet supported:
 - Code-signed installers
 - Non-pixel DMX fixtures such as moving heads
-- Audio input, and live input on a standalone ESP32. Consoles play
+- Audio input, and live input read by an ESP32 controller itself. Consoles play
   from the computer keyboard, MIDI and OSC today; see [live input](docs/live_input.md).
 
 ## License

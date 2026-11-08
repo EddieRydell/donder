@@ -2,7 +2,7 @@ pub(crate) mod console;
 pub(crate) mod discovery;
 pub(crate) mod playback;
 
-use donder_device_protocol::{Action, LOADED, TransportStatus, path};
+use donder_device_protocol::{LOADED, TransportStatus, path};
 use donder_editor::dto::DonderDeviceNetworkRequest;
 use reqwest::blocking::Client;
 use std::{io::Read, net::SocketAddr, time::Duration};
@@ -104,27 +104,26 @@ impl DeviceClient {
         self.response(response).map(|_| ())
     }
 
-    pub(crate) fn transport(&self, action: Option<Action>) -> Result<TransportStatus, String> {
-        let request = match action {
-            None => self.client.get(self.url(path::TRANSPORT)),
-            Some(action) => {
-                let command = match action {
-                    Action::Play => path::PLAY,
-                    Action::Pause => path::PAUSE,
-                    Action::Stop => path::STOP,
-                };
-                self.client.post(self.url(command)).body(Vec::new())
-            }
+    /// The loaded show's playback, after stopping it when `stop`.
+    pub(crate) fn transport(&self, stop: bool) -> Result<TransportStatus, String> {
+        let request = if stop {
+            self.client.post(self.url(path::STOP)).body(Vec::new())
+        } else {
+            self.client.get(self.url(path::TRANSPORT))
         };
         let response = request.send().map_err(|error| format!("Device transport request did not finish: {error}. Refresh device status before retrying."))?;
         serde_json::from_str(&self.response(response)?)
             .map_err(|error| format!("Device returned invalid playback status: {error}"))
     }
 
-    fn upload(&self, bytes: Vec<u8>) -> Result<String, String> {
-        let response = self.client.put(self.url(path::SHOW))
-            .header("content-type", "application/octet-stream").body(bytes).send()
-            .map_err(|error| format!("Upload did not finish: {error}. Check the device before retrying; it may have received the sequence."))?;
+    fn upload(&self, bytes: Vec<u8>) -> Result<(), String> {
+        let response = self
+            .client
+            .put(self.url(path::SHOW))
+            .header("content-type", "application/octet-stream")
+            .body(bytes)
+            .send()
+            .map_err(|error| format!("Could not send the show to the controller: {error}"))?;
         // The controller admits a show only if it fits; the same show is
         // refused again however often it is sent.
         if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
@@ -137,9 +136,9 @@ impl DeviceClient {
         }
         let response = self.response(response)?;
         if !response.starts_with(LOADED) {
-            return Err("Device did not acknowledge loading the sequence.".into());
+            return Err("Controller did not acknowledge the show.".into());
         }
-        Ok("Sequence uploaded and saved on the device. Press Play to start; uploads and restarts leave playback stopped.".into())
+        Ok(())
     }
 }
 
@@ -154,22 +153,12 @@ mod tests {
     };
 
     #[test]
-    fn transport_uses_get_and_bodyless_posts_and_reads_device_state() {
+    fn transport_uses_get_and_a_bodyless_stop_and_reads_device_state() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let server = thread::spawn(move || {
             for (method, path, body) in [
                 ("GET", "/transport", r#"{"playback":null}"#),
-                (
-                    "POST",
-                    "/transport/play",
-                    r#"{"playback":{"mode":"playing","positionMicros":0,"showId":0,"showBytes":0,"commandId":0}}"#,
-                ),
-                (
-                    "POST",
-                    "/transport/pause",
-                    r#"{"playback":{"mode":"paused","positionMicros":500000,"showId":0,"showBytes":0,"commandId":0}}"#,
-                ),
                 (
                     "POST",
                     "/transport/stop",
@@ -204,25 +193,8 @@ mod tests {
             }
         });
         let client = DeviceClient::new(address).unwrap();
-        assert!(client.transport(None).unwrap().playback.is_none());
-        let playing = client
-            .transport(Some(Action::Play))
-            .unwrap()
-            .playback
-            .unwrap();
-        assert!(matches!(playing.mode, Mode::Playing));
-        let paused = client
-            .transport(Some(Action::Pause))
-            .unwrap()
-            .playback
-            .unwrap();
-        assert!(matches!(paused.mode, Mode::Paused));
-        assert_eq!(paused.position_micros, 500_000);
-        let stopped = client
-            .transport(Some(Action::Stop))
-            .unwrap()
-            .playback
-            .unwrap();
+        assert!(client.transport(false).unwrap().playback.is_none());
+        let stopped = client.transport(true).unwrap().playback.unwrap();
         assert!(matches!(stopped.mode, Mode::Stopped));
         assert_eq!(stopped.position_micros, 0);
         server.join().unwrap();

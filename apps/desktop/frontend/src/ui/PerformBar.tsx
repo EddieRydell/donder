@@ -15,7 +15,7 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
   useEffect(() => { refreshPerform(); }, [projectEpoch, projectRevision]);
 
   if (session === null || liveOutput === null) return null;
-  const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
+  const liveActive = liveOutput.enabled;
   return (
     <section className="perform-bar" aria-label="Performing">
       <span className="perform-bar-console">Performing {session.console.name}</span>
@@ -35,7 +35,6 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
         icon={RadioTower}
         label={liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
         pressed={liveActive}
-        disabled={liveOutput.state === "stopping"}
         onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
       />
       <IconButton

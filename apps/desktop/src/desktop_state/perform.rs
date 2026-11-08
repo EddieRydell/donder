@@ -14,8 +14,8 @@ use crate::midi::{ChannelMessage, MidiInputs, MidiMessage};
 use crate::osc::{OscInputs, OscMessage};
 use crate::rendering::{ConsoleOutput, SessionClock};
 use donder_editor::dto::{
-    AudioTransportState, LiveOutputState, PerformButton, PerformConsole, PerformMidi, PerformOsc,
-    PerformSession, PerformSnapshot,
+    AudioTransportState, PerformButton, PerformConsole, PerformMidi, PerformOsc, PerformSession,
+    PerformSnapshot,
 };
 use donder_elaboration::{PreparationCache, Retain};
 use donder_model::{
@@ -337,11 +337,6 @@ impl DesktopState {
         let console_id = *source.id();
         let described = perform_console(&session, console, console_id)?;
         check_armable(&session, &console_id, &described.name)?;
-        // Output that is on plays the new performance in place of what it played.
-        let live = matches!(
-            lock_unpoisoned(&self.live_output).snapshot().state,
-            LiveOutputState::Preparing | LiveOutputState::Holding | LiveOutputState::Streaming
-        );
         if matches!(
             self.audio_snapshot().state,
             AudioTransportState::Playing | AudioTransportState::Paused
@@ -355,9 +350,8 @@ impl DesktopState {
             self.arm_performance(&mut perform, &session, console_id, described, false)?;
         }
         self.preview_wake.notify();
-        if live && let Err(error) = self.set_live_output_active(true) {
-            self.update_snapshot(|snapshot| snapshot.status = error);
-        }
+        // Output that is on plays the new performance in place of what it played.
+        self.restart_live_output();
         self.schedule_device_reconcile();
         Ok(self.perform_snapshot())
     }
@@ -633,15 +627,7 @@ impl DesktopState {
             Ok(()) => {
                 self.preview_wake.notify();
                 // Output that is on plays the new performance in place of the old.
-                let live = matches!(
-                    lock_unpoisoned(&self.live_output).snapshot().state,
-                    LiveOutputState::Preparing
-                        | LiveOutputState::Holding
-                        | LiveOutputState::Streaming
-                );
-                if live && let Err(error) = self.set_live_output_active(true) {
-                    self.update_snapshot(|snapshot| snapshot.status = error);
-                }
+                self.restart_live_output();
                 // Donder controllers take the new console and join it again.
                 self.schedule_device_reconcile();
             }
@@ -665,9 +651,14 @@ impl DesktopState {
         };
         if stopped {
             self.console_feed.stop();
-            self.set_devices_live(false);
-            let output = lock_unpoisoned(&self.live_output).disable();
-            self.update_snapshot(|snapshot| snapshot.live_output = output);
+            // Output that is on returns to the sequence once it stopped.
+            lock_unpoisoned(&self.live_output).disable();
+            if self.live_output_enabled() {
+                self.restart_live_output();
+            } else {
+                self.publish_live_output(None);
+            }
+            self.schedule_device_reconcile();
             self.preview_wake.notify();
         }
         self.perform_snapshot()
@@ -1046,6 +1037,7 @@ fn check_armable(session: &ProjectSession, console: &ConsoleId, name: &str) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use donder_editor::dto::LiveOutputState;
     use std::net::UdpSocket;
     use std::time::{Duration, Instant};
 
@@ -1104,7 +1096,7 @@ mod tests {
             state.audio_play().status,
             "Stop performing to play a sequence."
         );
-        state.set_live_output_active(true).unwrap();
+        state.set_live_output_active(true);
 
         // Unbound keys and key names do nothing.
         state.perform_key("KeyQ", true);

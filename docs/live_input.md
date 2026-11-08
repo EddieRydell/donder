@@ -238,7 +238,7 @@ hold, with toggles for live output and the Preview, and **Stop**.
 
 Live output plays a performance on every controller of the setup. E1.31 and
 Art-Net controllers receive the frames Donder renders. Donder controllers play
-the console themselves: Donder uploads each one its part of the console, starts
+the console themselves: Donder sends each one its part of the console, starts
 it at the session's place on the editor's clock, and sends it your presses over
 the network, which it plays as they arrive. Effects you start on a Donder
 controller can begin a few milliseconds after the same effect on an E1.31 or

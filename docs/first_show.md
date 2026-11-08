@@ -47,8 +47,9 @@ effects persist. GUI edits support undo and redo.
 ## Use a controller
 
 Play always plays the Preview; light controllers follow only while live output
-is on (the toolbar's antenna button). Live output stays on through Stop and
-Pause until you turn it off or open another sequence or project.
+is on (the toolbar's antenna button). Live output is one switch for every
+sequence, performance and project: it stays on until you turn it off, including
+across restarts. Each sequence reopens with its playhead where you left it.
 
 For live E1.31 output, configure the real receiver's address, universe, channels,
 and pixel order, then enable live output and play. Setup's channel test sends a
@@ -57,8 +58,8 @@ test bypasses the patch and does not edit the project.
 
 For a supported ESP32 flashed with the Donder firmware, join the
 controller's `Donder-XXXX` Wi-Fi network (password `12345678`), and add a
-**Donder controller** to the setup. Turn on live output, then press Play: the editor uploads the
-sequence and starts the controller in sync with the audio. A controller that is
+**Donder controller** to the setup. Turn on live output, then press Play: the controller plays the
+sequence in sync with the audio. A controller that is
 off the network or fails is listed as failed in the live-output status and the
 rest still play. See [controller setup](esp32_loading.md#set-up-a-controller).
 

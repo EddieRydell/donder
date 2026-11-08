@@ -180,6 +180,25 @@ Sequence take_you_down {
         pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
     },
+    Clip {
+      name: mark_pulse_3,
+      description: none,
+      layer: default,
+      start: 80.040648409s,
+      duration: 21.62746935s,
+      target: layouts.main.desk_top,
+      scope: WholeTarget,
+      effect: effects.MarkPulse,
+      params: {
+        beats: marks,
+        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        offset_seconds: -0.08,
+        decay_seconds: 0.3,
+        cluster_width_pixels: 100,
+        clusters_per_mark: 10,
+      },
+    },
   ],
   graph: Graph {
     nodes: [

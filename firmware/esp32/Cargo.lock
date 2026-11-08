@@ -484,7 +484,6 @@ dependencies = [
 name = "donder-device-storage"
 version = "0.1.0"
 dependencies = [
- "crc32fast",
  "donder-device-protocol",
  "donder-runtime",
  "littlefs2",

@@ -53,6 +53,13 @@ fn run_desktop() -> Result<(), tauri::Error> {
             let handle = app.handle().clone();
             let analysis_app = handle.clone();
             let state = desktop_state::DesktopState::new(move |snapshot| {
+                if !matches!(
+                    snapshot.live_output.state,
+                    donder_editor::dto::LiveOutputState::Disabled
+                        | donder_editor::dto::LiveOutputState::Error
+                ) {
+                    commands::start_live_output_poll(analysis_app.clone());
+                }
                 events::send(&analysis_app, events::AppSnapshotChanged { snapshot });
             });
             let preview = preview::PreviewWindowService::new(state.preview_wake());

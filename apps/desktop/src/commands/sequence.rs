@@ -271,19 +271,6 @@ pub(crate) async fn rename_device(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn set_device_standalone(
-    id: String,
-    playing: bool,
-    state: State<'_, DesktopState>,
-) -> Result<AppSnapshot, String> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || state.set_device_standalone(&id, playing))
-        .await
-        .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-#[specta::specta]
 pub(crate) async fn set_device_network(
     id: String,
     network: Option<donder_editor::dto::DonderDeviceNetworkRequest>,

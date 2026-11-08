@@ -5,38 +5,19 @@ use super::*;
 pub(crate) fn start_output_test(
     request: GuiDocumentRequest,
     test: donder_editor::dto::ControllerOutputTest,
-    app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
-    let snapshot = state.start_output_test(&request, test)?;
-    crate::events::send(
-        &app,
-        crate::events::LiveOutputChanged {
-            output: snapshot.live_output.clone(),
-        },
-    );
-    start_live_output_poll(app);
-    Ok(snapshot)
+    state.start_output_test(&request, test)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn set_live_output_active(
-    active: bool,
-    app: AppHandle,
-    state: State<'_, DesktopState>,
-) -> Result<AppSnapshot, String> {
-    let snapshot = state.set_live_output_active(active)?;
-    crate::events::send(
-        &app,
-        crate::events::LiveOutputChanged {
-            output: snapshot.live_output.clone(),
-        },
-    );
-    start_live_output_poll(app);
-    Ok(snapshot)
+pub(crate) fn set_live_output_active(active: bool, state: State<'_, DesktopState>) -> AppSnapshot {
+    state.set_live_output_active(active)
 }
 
+/// Publishes live output while it runs. Every snapshot that shows it running
+/// starts it, so output started in the background reports too.
 pub(crate) fn start_live_output_poll(app: AppHandle) {
     fn running(state: donder_editor::dto::LiveOutputState) -> bool {
         !matches!(

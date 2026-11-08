@@ -33,7 +33,7 @@ export function SequenceTransportControls({
   if (transport === null || liveOutput === null || followMode === null || snapping === null) return null;
   const unsupported = isSequenceTransportUnsupported(document, transport);
   const activePlayback = isActiveAudioPlayback(transport.state);
-  const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
+  const liveActive = liveOutput.enabled;
   // Each failing controller, Donder or streamed, once.
   const liveFailures = [...new Set(liveOutput.controllers.flatMap((controller) => controller.lastError === null ? [] : [controller.lastError]))];
   const stepFrame = (direction: -1 | 1) => {
@@ -55,7 +55,6 @@ export function SequenceTransportControls({
         icon={RadioTower}
         label={liveFailures.length > 0 ? liveFailures.join("; ") : liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
         pressed={liveActive}
-        disabled={liveOutput.state === "stopping"}
         onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
       />
       <IconButton icon={Monitor} label="Preview" pressed={previewOpen} onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))} />

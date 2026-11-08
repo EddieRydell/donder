@@ -352,6 +352,20 @@ impl DesktopState {
         self.open_file_path(path)
     }
 
+    /// Move the tab for `path` to `index` among the tabs and make it active.
+    pub(crate) fn move_tab(&self, path: &str, index: u32) -> AppSnapshot {
+        let _authoring = self.settled_authoring();
+        {
+            let mut workspace = lock_unpoisoned(&self.workspace);
+            if let Some(from) = workspace.tabs.iter().position(|item| item == path) {
+                let tab = workspace.tabs.remove(from);
+                let index = (index as usize).min(workspace.tabs.len());
+                workspace.tabs.insert(index, tab);
+            }
+        }
+        self.open_file_path(path)
+    }
+
     pub(super) fn close_file_path(&self, path: &str) -> AppSnapshot {
         let path = Utf8Path::new(path);
         let next = {

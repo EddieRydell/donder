@@ -15,7 +15,7 @@ mod fast_divide;
 
 #[path = "../storage.rs"]
 mod storage;
-use donder_device_storage::{device_config::DeviceConfig, show_slots};
+use donder_device_storage::device_config::DeviceConfig;
 use storage::SharedStorage;
 
 #[path = "../ws281x_parallel.rs"]
@@ -26,7 +26,7 @@ use core::{
     fmt::Write as _,
     sync::atomic::{AtomicBool, Ordering::Relaxed},
 };
-use donder_device_protocol::{Action, LOADED, OK, PlaybackStatus, TransportStatus, clock, path};
+use donder_device_protocol::{LOADED, OK, PlaybackStatus, TransportStatus, clock, path};
 use donder_runtime::{FrameTiming, LoadError as ShowError, SequenceFrame, ShowBytes, ShowPlayback};
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 use embassy_net::StackResources;
@@ -137,8 +137,6 @@ enum LoadError {
     Outputs,
     /// It was prepared for another format.
     Version,
-    /// Its flash slot could not be read.
-    Read,
 }
 
 impl From<ShowError> for LoadError {
@@ -217,7 +215,6 @@ async fn update_config(
     state: &LoaderState,
     change: impl FnOnce(&mut DeviceConfig),
 ) -> Result<(), &'static str> {
-    let _upload = state.upload.lock().await;
     let mut storage = storage::access(state.storage).await;
     let mut config = DeviceConfig::load(&mut *storage)
         .ok()
@@ -363,21 +360,8 @@ impl RequestHandlerService<LoaderState> for UploadShow {
         // One show replaces another at a time: each needs the free heap.
         let _upload = state.upload.lock().await;
         let length = request.body_connection.content_length();
-        if length > show_slots::CAPACITY {
-            return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                format_args!(
-                    "The show is {length} bytes; this controller stores at most {}.\n",
-                    show_slots::CAPACITY
-                ),
-            )
-                .write_to(request.body_connection.finalize().await?, response_writer)
-                .await;
-        }
-
         // Replacement stops playback immediately, releasing the show and its
-        // buffer for the new one; the previous committed flash slot survives
-        // until the new show is admitted.
+        // buffer for the new one.
         state.playback.lock().await.take();
         let mut bytes = match allocate(length) {
             Ok(bytes) => bytes,
@@ -407,30 +391,10 @@ impl RequestHandlerService<LoaderState> for UploadShow {
             Err(embedded_io_async::ReadExactError::Other(error)) => return Err(error),
         }
         let connection = request.body_connection.finalize().await?;
-        let mut storage = storage::access(state.storage).await;
-        let Ok(slot) = show_slots::begin(&mut storage.shows(), length).and_then(|slot| {
-            show_slots::append(&mut storage.shows(), slot, 0, bytes.as_mut_bytes())?;
-            Ok(slot)
-        }) else {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Cannot save the show in flash\n",
-            )
-                .write_to(connection, response_writer)
-                .await;
-        };
         let playback = match admit(bytes, length) {
             Ok(playback) => playback,
             Err(error) => return rejected(error, connection, response_writer).await,
         };
-        if show_slots::commit(&mut storage.shows(), slot).is_err() {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Cannot commit the show; playback stopped and the previous saved show remains\n",
-            )
-                .write_to(connection, response_writer)
-                .await;
-        }
         *state.playback.lock().await = Some(playback);
         (StatusCode::OK, format_args!("{LOADED}\n"))
             .write_to(connection, response_writer)
@@ -449,10 +413,7 @@ async fn rejected<
 ) -> Result<picoserve::ResponseSent, W::Error> {
     (
         StatusCode::UNPROCESSABLE_ENTITY,
-        format_args!(
-            "{}. Playback stopped; the previous saved show remains.\n",
-            Rejection(error)
-        ),
+        format_args!("{}.\n", Rejection(error)),
     )
         .write_to(connection, response_writer)
         .await
@@ -475,7 +436,6 @@ impl core::fmt::Display for Rejection {
             LoadError::Version => {
                 formatter.write_str("The show was prepared for another firmware format")
             }
-            LoadError::Read => formatter.write_str("The staged show could not be read back"),
         }
     }
 }
@@ -528,7 +488,11 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
     }
 }
 
-struct DeviceTransport(Option<Action>);
+/// `GET /transport` replies with the loaded show's playback; `POST
+/// /transport/stop` stops it first, when the editor releases the controller.
+struct DeviceTransport {
+    stop: bool,
+}
 
 impl RequestHandlerService<LoaderState> for DeviceTransport {
     async fn call_request_handler_service<
@@ -544,27 +508,14 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
         let connection = request.body_connection.finalize().await?;
         let now = state.clock.lock().await.master_at(local_micros());
         let mut active = state.playback.lock().await;
-        if let Some(action) = self.0 {
-            let Some(playback) = active.as_mut() else {
-                drop(active);
-                return (StatusCode::CONFLICT, "No show is loaded\n")
-                    .write_to(connection, response_writer)
-                    .await;
-            };
-            let mode = transport::Mode::from(action);
-            let position = if mode == transport::Mode::Stopped {
-                0
-            } else {
-                playback
-                    .transport
-                    .sample(now, playback.show.prepared().duration().as_ticks())
-                    .1
-            };
+        if self.stop
+            && let Some(playback) = active.as_mut()
+        {
             playback.transport.apply(
-                mode,
-                position,
+                transport::Mode::Stopped,
+                0,
                 now,
-                true,
+                false,
                 donder_runtime::PlaybackRate::NORMAL,
             );
         }
@@ -605,19 +556,11 @@ impl AppBuilder for WebApp {
             .route(path::NAME, put_service(Rename))
             .route(path::NETWORK, put_service(SetNetwork))
             .route(path::CONTROL, post_service(loader_control::Control))
-            .route(path::TRANSPORT, get_service(DeviceTransport(None)))
             .route(
-                path::PLAY,
-                post_service(DeviceTransport(Some(Action::Play))),
+                path::TRANSPORT,
+                get_service(DeviceTransport { stop: false }),
             )
-            .route(
-                path::PAUSE,
-                post_service(DeviceTransport(Some(Action::Pause))),
-            )
-            .route(
-                path::STOP,
-                post_service(DeviceTransport(Some(Action::Stop))),
-            )
+            .route(path::STOP, post_service(DeviceTransport { stop: true }))
             .with_state(self.state)
     }
 }
@@ -860,33 +803,6 @@ fn render_outputs(
     }
 }
 
-/// Load the newest saved show, stopped. This runs after the network has
-/// allocated its buffers, so releasing the show for an upload frees one
-/// contiguous region instead of gaps between network buffers.
-async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
-    let mut storage = storage::access(storage).await;
-    let restored = match show_slots::latest(&mut storage.shows()) {
-        Ok(Some(slot)) => allocate(slot.length)
-            .and_then(|mut bytes| {
-                storage
-                    .read_show(slot, bytes.as_mut_bytes())
-                    .map_err(|_| LoadError::Read)?;
-                admit(bytes, slot.length)
-            })
-            .ok(),
-        Ok(None) => return,
-        Err(_) => None,
-    };
-    // The editor uploads a current show on its next Play; the slot is
-    // replaced then, not erased now.
-    if restored.is_none() {
-        println!(
-            "DONDER saved show is unreadable or invalid for this firmware; starting without it"
-        );
-    }
-    *playback.lock().await = restored;
-}
-
 #[esp_rtos::main]
 async fn main(spawner: embassy_executor::Spawner) -> ! {
     let p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
@@ -924,8 +840,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     #[cfg(feature = "dig-quad")]
     SERIAL_DIAGNOSTICS.store(false, Relaxed);
 
-    // Start output before the network: joining a missing network must not
-    // delay a restored show.
+    // Start output before the network, so the outputs send black from boot.
     // Rendering has core 1 to itself, outside the esp-rtos scheduler.
     let mut cpu_control = esp_hal::system::CpuControl::new(p.CPU_CTRL);
     let _render_core = cpu_control
@@ -979,7 +894,6 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         spawner.spawn(network::dhcp_server(stack, udp_pool).unwrap());
     }
     spawner.spawn(network::mdns_responder(stack, udp_pool, id, hostname, mode).unwrap());
-    restore_show(storage, playback).await;
     let app = picoserve::make_static!(
         AppRouter<WebApp>,
         WebApp {

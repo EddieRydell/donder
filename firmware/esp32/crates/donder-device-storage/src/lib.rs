@@ -14,7 +14,6 @@ pub use littlefs2::{driver::Storage, io::Error};
 use littlefs2::{fs::Filesystem, path, path::Path};
 
 pub mod device_config;
-pub mod show_slots;
 
 pub use littlefs2::consts;
 

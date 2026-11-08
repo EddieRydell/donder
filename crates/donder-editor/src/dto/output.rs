@@ -22,6 +22,9 @@ pub struct SequenceExportOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveOutputSnapshot {
+    /// Whether the user turned live output on. It stays on across sequences,
+    /// performances and restarts; `state` is what the output does now.
+    pub enabled: bool,
     pub state: LiveOutputState,
     pub generation: u32,
     pub active_controller_count: u32,

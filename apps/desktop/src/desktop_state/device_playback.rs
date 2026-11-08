@@ -255,6 +255,7 @@ impl DesktopState {
     /// Live output's view: its streamed controllers, then, while live output
     /// drives them, each Donder controller in the open setup.
     pub(super) fn live_output_view(&self, mut output: LiveOutputSnapshot) -> LiveOutputSnapshot {
+        output.enabled = self.live_output_enabled();
         if !self.devices_live() {
             return output;
         }
@@ -383,28 +384,6 @@ impl DesktopState {
     pub(crate) fn rename_device(&self, id: &str, name: &str) -> Result<AppSnapshot, String> {
         self.device_client(id)?.rename(name)?;
         Ok(self.snapshot())
-    }
-
-    /// Loop the controller's saved show without the editor, or stop it.
-    pub(crate) fn set_device_standalone(
-        &self,
-        id: &str,
-        playing: bool,
-    ) -> Result<AppSnapshot, String> {
-        let client = self.device_client(id)?;
-        if client.transport(None)?.playback.is_none() {
-            return Err(
-                "The controller has no saved show. Press Play in a sequence to upload one.".into(),
-            );
-        }
-        client.transport(Some(if playing { Action::Play } else { Action::Stop }))?;
-        Ok(self.update_snapshot(|snapshot| {
-            snapshot.status = if playing {
-                "Controller is looping its saved show.".into()
-            } else {
-                "Controller stopped its saved show.".into()
-            }
-        }))
     }
 
     pub(crate) fn set_device_network(

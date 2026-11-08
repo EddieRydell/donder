@@ -1,11 +1,11 @@
 # Donder ESP32 firmware
 
 This separate Cargo workspace builds the controller loader for the classic ESP32:
-Wi-Fi upload and control, flash storage, and four-output WS281x playback. It
+Wi-Fi control, configuration storage, and four-output WS281x playback. It
 consumes `donder-runtime` and `donder-runtime-types` with default features off;
 parsing, imports, target resolution and output selection stay on the host. The
 local `crates/donder-device-storage` crate owns the LittleFS configuration record
-(name and station network) and the two show slots. How the controller behaves is described in
+(name and station network). How the controller behaves is described in
 [ESP32 controllers](../../docs/esp32_loading.md).
 
 ## Toolchain
@@ -31,7 +31,7 @@ repeated.
 ## Features and builds
 
 Every build has access point or station networking, mDNS discovery,
-Wi-Fi upload and continuous four-output WS281x playback on the second core, on
+Wi-Fi control and continuous four-output WS281x playback on the second core, on
 the reference-board pins. The only feature is:
 
 - `dig-quad`: QuinLED Dig-Quad pins.
@@ -53,15 +53,14 @@ espflash flash --port COM4 --baud 460800 --chip esp32 --non-interactive --flash-
 ```
 
 To factory reset a controller, flash it with its saved data erased: add
-`--erase-parts shows,donder` to the command above. That clears its name,
-Wi-Fi network and saved show.
+`--erase-parts donder` to the command above. That clears its name and
+Wi-Fi network.
 
 ## Uploading and measuring
 
-The editor uploads each controller's show when Play is pressed (see
-[ESP32 loading](../../docs/esp32_loading.md)). Uploads stay stopped, so start
-playback through the editor or `POST /transport/play`. To check a build's
-frames against the host, export a fragment with checksums:
+The editor sends each controller its show when Play is pressed (see
+[ESP32 loading](../../docs/esp32_loading.md)). To check a build's frames
+against the host, export a fragment with checksums:
 
 ```powershell
 cargo run -p donder-elaboration --example export_show -- examples/starter firmware/esp32/target/loaded.dondershow
@@ -85,8 +84,8 @@ under `target/` and summarize durable results in
   (`src/storage.rs`).
 - Upload blackout waits between completed DMA transfers in an interrupt-free IRAM
   loop.
-- Keep large flash buffers off the core-0 startup and network stack. Show
-  restoration and upload persistence share it with filesystem and SDK calls.
+- Keep large buffers off the core-0 startup and network stack; it is shared
+  with filesystem and SDK calls.
 - The runtime `atomic` feature lets the active show and its workspace cross
   cores.
 - The runtime's `iram` feature places the interpreter and graph evaluation in

@@ -27,13 +27,6 @@ pub(crate) async fn start_performing(
             perform: snapshot.clone(),
         },
     );
-    crate::events::send(
-        &app,
-        crate::events::LiveOutputChanged {
-            output: state.live_output_snapshot(),
-        },
-    );
-    start_live_output_poll(app.clone());
     start_perform_poll(app);
     Ok(snapshot)
 }
@@ -48,7 +41,6 @@ pub(crate) fn stop_performing(app: AppHandle, state: State<'_, DesktopState>) ->
             perform: snapshot.clone(),
         },
     );
-    start_live_output_poll(app);
     snapshot
 }
 

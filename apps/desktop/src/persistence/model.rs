@@ -30,6 +30,8 @@ pub(crate) struct PersistedStore {
     pub(crate) projects: BTreeMap<String, PersistedProjectSession>,
     pub(crate) main_window: Option<PersistedWindowState>,
     pub(crate) preview_window: PersistedPreviewWindowState,
+    /// Whether live output is on, for every project.
+    pub(crate) live_output: bool,
 }
 
 impl Default for PersistedStore {
@@ -44,6 +46,7 @@ impl Default for PersistedStore {
                 open: false,
                 geometry: None,
             },
+            live_output: false,
         }
     }
 }
@@ -61,10 +64,11 @@ pub(crate) struct PersistedProjectSession {
     pub workspace_explorer: WorkspaceExplorerState,
 }
 
-/// A sequence's playback range and loop toggle, keyed like its viewport.
+/// A sequence's playhead, playback range and loop toggle, keyed like its viewport.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PersistedSequenceTransport {
+    pub position_seconds: f64,
     pub range: Option<PlaybackRange>,
     pub looping: bool,
 }

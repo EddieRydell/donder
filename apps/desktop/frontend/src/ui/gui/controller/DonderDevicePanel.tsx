@@ -53,10 +53,6 @@ function DeviceSettings({ device }: { device: DonderDeviceStatus }) {
           onClick={() => { run(() => runSnapshotCommand(() => commands.setDeviceNetwork(device.id, { ssid, password } satisfies DonderDeviceNetworkRequest)).then(() => { setPassword(""); })); }}>Join</Button>
       </div>
     </Section>
-    <Field label="Saved show" tip="The controller keeps the last show the editor played and can loop it with no computer attached. Restarts leave it stopped.">
-      <Button disabled={pending} onClick={() => { run(() => runSnapshotCommand(() => commands.setDeviceStandalone(device.id, true))); }}>Loop</Button>
-      <Button disabled={pending} onClick={() => { run(() => runSnapshotCommand(() => commands.setDeviceStandalone(device.id, false))); }}>Stop</Button>
-    </Field>
   </div>;
 }
 

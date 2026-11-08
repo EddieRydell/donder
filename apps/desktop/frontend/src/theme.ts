@@ -159,6 +159,8 @@ export const THEME_METRICS = {
   numberScrubPixelsPerStep: cssNumber("--donder-number-scrub-pixels-per-step"),
   workspaceLayoutSaveDelay: cssNumber("--donder-workspace-layout-save-delay"),
   tooltipDelayMs: cssNumber("--donder-tooltip-delay-ms"),
+  tabReorderDurationMs: cssNumber("--donder-tab-reorder-duration-ms"),
+  tabReorderEasing: cssValue("--donder-ease-standard"),
   unsavedIndicatorDelayMs: cssNumber("--donder-unsaved-indicator-delay-ms"),
   searchDebounceMs: cssNumber("--donder-search-debounce-ms"),
   sequenceLeftGutter: cssNumber("--donder-sequence-left-gutter"),

@@ -73,11 +73,10 @@ pub(crate) fn pause() {
     PAUSED.store(false, Release);
 }
 
-/// The Donder data and show partitions.
+/// The Donder data partition.
 pub(crate) struct DeviceStorage {
     flash: FlashStorage<'static>,
     offset: u32,
-    show_offset: u32,
 }
 
 impl DeviceStorage {
@@ -88,35 +87,16 @@ impl DeviceStorage {
         let mut bytes = alloc::vec![0; PARTITION_TABLE_MAX_LEN];
         let table =
             read_partition_table(&mut flash, &mut bytes).map_err(|_| "Invalid partition table")?;
-        // The build flashes this table; only a different firmware's table lacks these.
-        let partition = |label: &str, len: usize| {
-            table
-                .iter()
-                .find(|entry| entry.label_as_str() == label && entry.len() as usize == len)
-                .map(|entry| entry.offset())
-        };
-        let offset = partition("donder", Self::BLOCK_COUNT * Self::BLOCK_SIZE)
+        // The build flashes this table; only a different firmware's table lacks it.
+        let offset = table
+            .iter()
+            .find(|entry| {
+                entry.label_as_str() == "donder"
+                    && entry.len() as usize == Self::BLOCK_COUNT * Self::BLOCK_SIZE
+            })
+            .map(|entry| entry.offset())
             .ok_or("Install the controller firmware with its Donder data partition")?;
-        let show_offset = partition("shows", donder_device_storage::show_slots::PARTITION_BYTES)
-            .ok_or("Install the controller firmware with its show partition")?;
-        Ok(Self {
-            flash,
-            offset,
-            show_offset,
-        })
-    }
-
-    pub(crate) fn shows(&mut self) -> Shows<'_> {
-        Shows(self)
-    }
-
-    /// Read the slot's show into `bytes`, where playback reads it.
-    pub(crate) fn read_show(
-        &mut self,
-        slot: donder_device_storage::show_slots::Slot,
-        bytes: &mut [u8],
-    ) -> Result<(), Error> {
-        self.shows().read(slot.data_offset(), bytes).map(|_| ())
+        Ok(Self { flash, offset })
     }
 
     fn read_at(&mut self, address: u32, bytes: &mut [u8]) -> Result<usize, Error> {
@@ -156,27 +136,5 @@ impl Storage for DeviceStorage {
     }
     fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
         self.erase_at(self.offset + offset as u32, length)
-    }
-}
-
-pub(crate) struct Shows<'a>(&'a mut DeviceStorage);
-
-impl Storage for Shows<'_> {
-    const READ_SIZE: usize = 4;
-    const WRITE_SIZE: usize = 4;
-    const BLOCK_SIZE: usize = 4096;
-    const BLOCK_COUNT: usize = 64;
-    const BLOCK_CYCLES: isize = -1;
-    type CACHE_SIZE = consts::U256;
-    type LOOKAHEAD_SIZE = consts::U1;
-
-    fn read(&mut self, offset: usize, bytes: &mut [u8]) -> Result<usize, Error> {
-        self.0.read_at(self.0.show_offset + offset as u32, bytes)
-    }
-    fn write(&mut self, offset: usize, bytes: &[u8]) -> Result<usize, Error> {
-        self.0.write_at(self.0.show_offset + offset as u32, bytes)
-    }
-    fn erase(&mut self, offset: usize, length: usize) -> Result<usize, Error> {
-        self.0.erase_at(self.0.show_offset + offset as u32, length)
     }
 }

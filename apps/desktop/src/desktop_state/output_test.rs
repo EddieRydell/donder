@@ -192,24 +192,15 @@ mod tests {
                 break;
             }
             lock_unpoisoned(&state.sequence_render).unload();
-            assert!(
-                state
-                    .set_live_output_active(true)
-                    .unwrap_err()
-                    .contains("prepared sequence")
-            );
+            state.set_live_output_active(true);
             assert_eq!(state.snapshot().live_output.state, LiveOutputState::Testing);
             assert_eq!(state.live_output_snapshot().state, LiveOutputState::Testing);
             assert_eq!(receive(), [0, 47, 47, 47, 0, 0]);
             if suspend {
-                state.suspend_live_output();
+                state.stop_live_output();
             } else {
                 assert_eq!(
-                    state
-                        .set_live_output_active(false)
-                        .unwrap()
-                        .live_output
-                        .state,
+                    state.set_live_output_active(false).live_output.state,
                     LiveOutputState::Stopping
                 );
             }
@@ -220,7 +211,7 @@ mod tests {
                 }
                 assert!(Instant::now() < deadline);
             }
-            assert!(!lock_unpoisoned(&state.live_output).take_resume_after_prepare());
+            assert!(!lock_unpoisoned(&state.live_output).take_pending_start());
             let deadline = Instant::now() + Duration::from_secs(2);
             while state.live_output_snapshot().state == LiveOutputState::Stopping {
                 assert!(Instant::now() < deadline, "stop was not acknowledged");

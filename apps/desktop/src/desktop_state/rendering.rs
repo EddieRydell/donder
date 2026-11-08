@@ -88,11 +88,14 @@ impl DesktopState {
         match result {
             Ok(()) => {
                 self.clear_render_error_if_set();
-                self.resume_live_output_after_prepare();
+                // A performance owns live output while it runs.
+                if !self.is_performing() {
+                    self.restart_live_output();
+                }
                 self.schedule_device_reconcile();
             }
             Err(error) => {
-                self.suspend_live_output();
+                self.stop_live_output();
                 self.set_render_error_if_changed(format!("Render refresh failed: {error:?}"));
             }
         }
@@ -100,7 +103,7 @@ impl DesktopState {
     }
 
     pub(super) fn unload_render_session(&self) {
-        self.disable_live_output();
+        self.stop_live_output();
         lock_unpoisoned(&self.sequence_render).unload();
         self.schedule_device_reconcile();
     }

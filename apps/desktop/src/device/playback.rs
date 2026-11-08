@@ -87,10 +87,7 @@ fn udp_clock_sample(socket: &UdpSocket, origin: Instant) -> Result<ClockSample, 
 
 impl DeviceClient {
     fn stop_loaded(&self) -> Result<(), String> {
-        if self.transport(None)?.playback.is_some() {
-            self.transport(Some(Action::Stop))?;
-        }
-        Ok(())
+        self.transport(true).map(|_| ())
     }
     fn control(&self, command: &Command) -> Result<(), String> {
         let body = serde_json::to_vec(command).map_err(|error| error.to_string())?;
@@ -190,7 +187,7 @@ impl Binding {
             .prepared
             .as_ref()
             .ok_or("Prepared sequence is missing")?;
-        let status = self.client.transport(None)?;
+        let status = self.client.transport(false)?;
         let matches = status.playback.as_ref().is_some_and(|playback| {
             playback.show_bytes as usize == prepared.bytes.len() && playback.show_id == prepared.id
         });
@@ -207,7 +204,7 @@ impl Binding {
         let sample = self.sample_clock(origin)?;
         let status = self
             .client
-            .transport(None)?
+            .transport(false)?
             .playback
             .ok_or("Controller has no loaded sequence")?;
         let prepared = self
@@ -215,10 +212,7 @@ impl Binding {
             .as_ref()
             .ok_or("Prepare the current sequence before scheduling")?;
         if status.show_id != prepared.id || status.show_bytes as usize != prepared.bytes.len() {
-            return Err(
-                "Controller has a different show loaded; press Play to upload the current sequence"
-                    .into(),
-            );
+            return Err("The controller's show changed before playback started".into());
         }
         Ok((sample, status))
     }
@@ -331,8 +325,8 @@ impl DevicePlaybackService {
         }
     }
     /// Match bindings to the controllers the open setup wants. Unchanged
-    /// bindings keep their clock state and uploaded show; new ones stop the
-    /// controller's standalone show and synchronize clocks.
+    /// bindings keep their clock state and uploaded show; new ones stop
+    /// whatever the controller plays and synchronize clocks.
     pub(crate) fn sync(
         &self,
         epoch: u32,
@@ -621,7 +615,7 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
     clock_socket
         .set_write_timeout(Some(Duration::from_secs(2)))
         .map_err(|error| error.to_string())?;
-    // Changing clock masters while an old standalone show runs would move its time origin.
+    // Changing clock masters while a show runs would move its time origin.
     client.stop_loaded()?;
     let mut binding = Binding {
         id: device.id.clone(),

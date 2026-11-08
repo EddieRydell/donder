@@ -67,6 +67,8 @@ pub(crate) struct DesktopServices {
     device_watchers: Mutex<u32>,
     /// Whether live output drives the setup's Donder controllers.
     devices_live: AtomicBool,
+    /// Whether the user turned live output on, for every sequence and performance.
+    live_output_enabled: AtomicBool,
     device_reconcile: LatestScheduler<()>,
     device_failures: Mutex<crate::device::playback::DeviceFailures>,
     transport_operation: Mutex<()>,
@@ -165,6 +167,7 @@ impl DesktopState {
                     discovery: Mutex::new(None),
                     device_watchers: Mutex::new(0),
                     devices_live: AtomicBool::new(false),
+                    live_output_enabled: AtomicBool::new(false),
                     device_reconcile: LatestScheduler::new({
                         let weak = weak.clone();
                         move |()| {
@@ -200,9 +203,13 @@ impl DesktopState {
     pub(crate) fn apply_persisted_settings(&self) -> AppSnapshot {
         let settings = sanitize_app_settings(self.persistence.settings());
         let workspace_layout = sanitize_workspace_layout(self.persistence.workspace_layout());
+        self.live_output_enabled
+            .store(self.persistence.live_output(), Ordering::Release);
+        let live_output = self.live_output_view(lock_unpoisoned(&self.live_output).snapshot());
         self.update_snapshot(|snapshot| {
             snapshot.settings = settings;
             snapshot.workspace_layout = workspace_layout;
+            snapshot.live_output = live_output;
         })
     }
 
@@ -323,104 +330,135 @@ impl DesktopState {
         }
     }
 
-    /// Live output streams frames to the setup's E1.31 and Art-Net controllers
-    /// and drives its Donder controllers, which play uploaded shows on the
-    /// editor's clock. A performance plays only on streamed controllers.
-    pub(crate) fn set_live_output_active(&self, active: bool) -> Result<AppSnapshot, String> {
-        let output = if active {
-            let project = self.project_session().ok_or("No project is loaded.")?;
-            let mut streamed = Vec::new();
-            let mut donder = false;
-            if let Some(setup) = project
-                .project
-                .get::<donder_model::Setup>(*project.project.root().setup.id())
-            {
-                for id in setup.controllers.iter().map(|source| *source.id()) {
-                    match project
-                        .project
-                        .get::<donder_model::Controller>(id)
-                        .map(|controller| &controller.protocol)
-                    {
-                        Some(donder_model::ControllerProtocol::Donder(_)) => donder = true,
-                        Some(_) => streamed.push(id),
-                        None => {}
-                    }
-                }
-            }
-            let controllers = project
-                .project
-                .objects::<donder_model::Controller>()
-                .map(|controller| (controller.id, controller.clone()))
-                .collect();
-            // A performance in progress plays in place of the sequence.
-            let (output, devices) = self.perform_live_output(|performance| {
-                let render_ready = performance.is_some()
-                    || lock_unpoisoned(&self.sequence_render)
-                        .active_target()
-                        .is_some();
-                if !render_ready || (streamed.is_empty() && !donder) {
-                    return Err(
-                        "Live output requires a prepared sequence or a performance, and a controller."
-                            .to_string(),
-                    );
-                }
-                let mut service = lock_unpoisoned(&self.live_output);
-                if service.snapshot().state == donder_editor::dto::LiveOutputState::Stopping {
-                    return Err(
-                        "Wait for output to finish stopping before starting it again.".into(),
-                    );
-                }
-                let output = match performance {
-                    _ if streamed.is_empty() => service.snapshot(),
-                    Some(output) => service.perform(controllers, streamed, output),
-                    None => service.enable(controllers, streamed),
-                };
-                Ok((output, donder))
-            })?;
-            self.set_devices_live(devices);
-            output
+    pub(crate) fn live_output_enabled(&self) -> bool {
+        self.live_output_enabled.load(Ordering::Acquire)
+    }
+
+    /// Turn live output on or off for every sequence and performance; the
+    /// choice outlasts the project and the app.
+    pub(crate) fn set_live_output_active(&self, active: bool) -> AppSnapshot {
+        self.live_output_enabled.store(active, Ordering::Release);
+        let error = self
+            .persistence
+            .record_live_output(active)
+            .err()
+            .map(|error| format!("Live output was not saved: {error}"));
+        let error = if active {
+            self.start_live_output().err().or(error)
         } else {
             self.set_devices_live(false);
-            lock_unpoisoned(&self.live_output).disable()
+            lock_unpoisoned(&self.live_output).disable();
+            error
         };
-        let output = self.live_output_view(output);
-        Ok(self.update_snapshot(|snapshot| snapshot.live_output = output))
+        self.publish_live_output(error)
     }
 
-    // A performance owns live output while it runs, so the sequence's
-    // preparation neither suspends, stops nor resumes it. Donder controllers
-    // stay live while a sequence prepares; they reload at the next Play.
+    /// Live output streams frames to the setup's E1.31 and Art-Net controllers
+    /// and drives its Donder controllers, which play uploaded shows on the
+    /// editor's clock. A performance in progress plays in place of the
+    /// sequence, and only on streamed controllers.
+    fn start_live_output(&self) -> Result<(), String> {
+        let project = self.project_session().ok_or("No project is loaded.")?;
+        let mut streamed = Vec::new();
+        let mut donder = false;
+        if let Some(setup) = project
+            .project
+            .get::<donder_model::Setup>(*project.project.root().setup.id())
+        {
+            for id in setup.controllers.iter().map(|source| *source.id()) {
+                match project
+                    .project
+                    .get::<donder_model::Controller>(id)
+                    .map(|controller| &controller.protocol)
+                {
+                    Some(donder_model::ControllerProtocol::Donder(_)) => donder = true,
+                    Some(_) => streamed.push(id),
+                    None => {}
+                }
+            }
+        }
+        let controllers = project
+            .project
+            .objects::<donder_model::Controller>()
+            .map(|controller| (controller.id, controller.clone()))
+            .collect();
+        let devices = self.perform_live_output(|performance| {
+            if streamed.is_empty() && !donder {
+                return Err("Live output requires a controller in the setup.".to_string());
+            }
+            let render_ready = performance.is_some()
+                || lock_unpoisoned(&self.sequence_render)
+                    .active_target()
+                    .is_some();
+            // Output waits for a sequence to prepare or a performance to start.
+            if !render_ready {
+                return Ok(None);
+            }
+            let mut service = lock_unpoisoned(&self.live_output);
+            if service.stopping() {
+                service.defer_start();
+                return Ok(Some(donder));
+            }
+            match performance {
+                _ if streamed.is_empty() => {}
+                Some(output) => {
+                    service.perform(controllers, streamed, output);
+                }
+                None => {
+                    service.enable(controllers, streamed);
+                }
+            }
+            Ok(Some(donder))
+        })?;
+        if let Some(devices) = devices {
+            self.set_devices_live(devices);
+        }
+        Ok(())
+    }
 
-    fn suspend_live_output(&self) {
+    /// Publish live output's current state, with `error` as the status.
+    fn publish_live_output(&self, error: Option<String>) -> AppSnapshot {
+        let output = self.live_output_view(lock_unpoisoned(&self.live_output).snapshot());
+        self.update_snapshot(|snapshot| {
+            snapshot.live_output = output;
+            if let Some(error) = error {
+                snapshot.status = error;
+            }
+        })
+    }
+
+    /// Live output follows what plays now: the performance, or else the
+    /// prepared sequence. It stops while neither is ready and starts again,
+    /// when it is on, once one is.
+    pub(super) fn restart_live_output(&self) {
+        if !self.live_output_enabled() {
+            return;
+        }
+        let error = self
+            .start_live_output()
+            .err()
+            .inspect(|_| self.stop_live_output());
+        self.publish_live_output(error);
+    }
+
+    /// Stop the streamed output while the sequence it plays is not ready. A
+    /// performance owns live output while it runs, so the sequence leaves it
+    /// alone. Donder controllers stay live; they reload at the next Play.
+    fn stop_live_output(&self) {
         if self.is_performing() {
             return;
         }
-        let output = lock_unpoisoned(&self.live_output).suspend();
-        let output = self.live_output_view(output);
-        lock_unpoisoned(&self.workspace).view.live_output = output;
-    }
-
-    fn disable_live_output(&self) {
-        if self.is_performing() {
-            return;
-        }
-        self.set_devices_live(false);
         let output = lock_unpoisoned(&self.live_output).disable();
         let output = self.live_output_view(output);
         lock_unpoisoned(&self.workspace).view.live_output = output;
     }
 
-    fn resume_live_output_after_prepare(&self) {
-        if self.is_performing() {
-            return;
-        }
-        lock_unpoisoned(&self.live_output).mark_prepared();
-        self.resume_live_output_if_ready();
-    }
-
     fn resume_live_output_if_ready(&self) {
-        if lock_unpoisoned(&self.live_output).take_resume_after_prepare() {
-            let _ = self.set_live_output_active(true);
+        if lock_unpoisoned(&self.live_output).take_pending_start()
+            && self.live_output_enabled()
+            && let Err(error) = self.start_live_output()
+        {
+            self.publish_live_output(Some(error));
         }
     }
 

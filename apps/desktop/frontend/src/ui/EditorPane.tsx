@@ -1,4 +1,4 @@
-import { AlertTriangle, FileText, FolderOpen, ListX, RefreshCw, Save, Undo2, X } from "lucide-react";
+import { AlertTriangle, FileText, FolderOpen, ListX, RefreshCw, Save, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
 import { SequenceAudioSync, sequenceAudioKey } from "../sequenceAudioSync";
@@ -6,7 +6,6 @@ import type { PersistedEditorViewState, SequenceSelection, WorkspaceLayoutState 
 import { runCommand } from "../commandRegistry";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
-import { runWorkspaceTransition } from "../workspaceTransitions";
 import { GuiEditor } from "./gui/GuiEditor";
 import { TextEditor } from "./TextEditor";
 import { reconcileSequenceSelection } from "./gui/sequence/sequenceSelection";
@@ -19,8 +18,9 @@ import { resolveDocumentSyncFailure } from "../store";
 import { navigateToText, type TextNavigation } from "../workspace/navigation";
 import { listenUiEvent } from "./uiEvents";
 import { displayedProjectHealth, sameWorkspacePath } from "../workspace/helpers";
-import { Button, Dialog, IconButton, Tip } from "./kit";
+import { Button, Dialog, Tip } from "./kit";
 import { OverlayPortal } from "./OverlayPortal";
+import { EditorTabStrip } from "./EditorTabStrip";
 
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
@@ -154,35 +154,7 @@ export function EditorPane({
 
   return (
     <section className={`editor-shell ${editableSequenceDocument !== null ? "has-editor-toolbar" : ""} ${activeConflicted || failedDocumentSync !== null ? "has-conflict-banner" : ""}`}>
-      <div className="tab-strip">
-        {snapshot.tabs.map((tab) => (
-          <div
-            key={tab.path}
-            className={`tab ${tab.path === activeTabPath ? "active" : ""}`}
-          >
-            <button
-              type="button"
-              className="tab-select"
-              aria-current={tab.path === activeTabPath ? "page" : undefined}
-              onClick={() => void runSnapshotCommand(() => commands.openFile(tab.path))}
-            >
-              <span>{tab.name}</span>
-              <span className={tab.dirty ? "dirty-dot unsaved" : "dirty-dot"} aria-hidden="true" />
-              {tab.externalState !== "current" && <Tip label={tab.externalState === "deletedOnDisk" ? "Deleted on disk" : "Changed on disk"}><span className="conflict-dot" /></Tip>}
-            </button>
-            <IconButton
-              icon={X}
-              className="tab-close"
-              label={`Close ${tab.name}`}
-              {...(tab.path === activeTabPath ? { command: "file.closeEditor" as const } : {})}
-              onClick={(event) => {
-                event.stopPropagation();
-                void runWorkspaceTransition({ type: "closeFile", path: tab.path });
-              }}
-            />
-          </div>
-        ))}
-      </div>
+      <EditorTabStrip tabs={snapshot.tabs} activePath={activeTabPath} />
       {displayedProjectHealth(snapshot) === "invalid" && (
         <div className="project-invalid-banner">
           <Tip label="GUI editing needs a project without errors."><span><AlertTriangle size={THEME_METRICS.iconSizeSmall} aria-hidden /> Project has errors</span></Tip>

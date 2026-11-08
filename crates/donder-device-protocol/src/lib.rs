@@ -94,11 +94,10 @@ pub mod path {
     pub const FRAME: &str = "/frame";
     /// A [`Command`](super::Command), replied to with [`OK`](super::OK).
     pub const CONTROL: &str = "/control";
-    /// The [`TransportStatus`](super::TransportStatus), which the transport
-    /// commands also reply with.
+    /// The [`TransportStatus`](super::TransportStatus).
     pub const TRANSPORT: &str = "/transport";
-    pub const PLAY: &str = "/transport/play";
-    pub const PAUSE: &str = "/transport/pause";
+    /// Stops the loaded show at once, replying with the
+    /// [`TransportStatus`](super::TransportStatus).
     pub const STOP: &str = "/transport/stop";
 }
 

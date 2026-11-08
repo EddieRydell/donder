@@ -13,6 +13,7 @@ impl DesktopState {
         {
             return self.snapshot();
         }
+        self.record_playhead();
         let audio = self.resolve_sequence_audio(&request);
         let sequence_id = self.resolve_sequence_id(&request);
         let sequence_address = sequence_id.and_then(|id| {
@@ -80,6 +81,7 @@ impl DesktopState {
         {
             return self.device_transport_error(error);
         }
+        self.record_playhead();
         let audio_transport = lock_unpoisoned(&self.audio).unload();
         lock_unpoisoned(&self.workspace).transport_view_key = None;
         if self.snapshot().project_health == donder_editor::dto::ProjectHealth::Ready {
@@ -129,9 +131,7 @@ impl DesktopState {
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).pause();
-        self.update_snapshot(|snapshot| {
-            snapshot.audio_transport = audio_transport;
-        })
+        self.playhead_moved(audio_transport)
     }
 
     pub(crate) fn audio_stop(&self) -> AppSnapshot {
@@ -145,9 +145,7 @@ impl DesktopState {
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).stop();
-        self.update_snapshot(|snapshot| {
-            snapshot.audio_transport = audio_transport;
-        })
+        self.playhead_moved(audio_transport)
     }
 
     pub(crate) fn audio_rewind_to_zero(&self) -> AppSnapshot {
@@ -157,9 +155,7 @@ impl DesktopState {
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).rewind_to_zero();
-        self.update_snapshot(|snapshot| {
-            snapshot.audio_transport = audio_transport;
-        })
+        self.playhead_moved(audio_transport)
     }
 
     pub(crate) fn audio_seek(&self, position_seconds: f64) -> AppSnapshot {
@@ -177,9 +173,20 @@ impl DesktopState {
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).seek(position_seconds);
+        self.playhead_moved(audio_transport)
+    }
+
+    /// The playhead came to rest at a new place, which its sequence keeps.
+    fn playhead_moved(&self, audio_transport: AudioTransportSnapshot) -> AppSnapshot {
+        self.record_sequence_transport(&audio_transport);
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;
         })
+    }
+
+    /// Keep where the loaded sequence's playhead is, for when it opens again.
+    pub(crate) fn record_playhead(&self) {
+        self.record_sequence_transport(&self.audio_snapshot());
     }
 
     pub(crate) fn audio_set_playback_rate(
@@ -233,7 +240,7 @@ impl DesktopState {
         self.audio_snapshot()
     }
 
-    /// Each sequence keeps its own playback range and loop toggle.
+    /// Each sequence keeps its own playhead, playback range and loop toggle.
     fn restore_sequence_transport(
         &self,
         view_key: Option<String>,
@@ -253,10 +260,14 @@ impl DesktopState {
         let mut audio = lock_unpoisoned(&self.audio);
         audio.set_looping(saved.looping);
         // A sequence that has since gotten shorter may no longer contain its saved range.
-        match audio.set_range(saved.range) {
+        let audio_transport = match audio.set_range(saved.range) {
             Ok(audio_transport) => audio_transport,
             Err(_) => audio.set_range(None).unwrap_or(audio_transport),
+        };
+        if saved.position_seconds == audio_transport.position_seconds {
+            return audio_transport;
         }
+        audio.seek(saved.position_seconds)
     }
 
     fn record_sequence_transport(&self, audio_transport: &AudioTransportSnapshot) {
@@ -266,7 +277,14 @@ impl DesktopState {
         let Some(project_root) = self.snapshot().project_root else {
             return;
         };
+        if matches!(
+            audio_transport.state,
+            AudioTransportState::Unloaded | AudioTransportState::Error
+        ) {
+            return;
+        }
         let transport = PersistedSequenceTransport {
+            position_seconds: audio_transport.position_seconds,
             range: audio_transport.range,
             looping: audio_transport.looping,
         };

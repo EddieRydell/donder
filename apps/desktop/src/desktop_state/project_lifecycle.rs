@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 impl DesktopState {
     pub(super) fn load_working_copy(&self, root: &Utf8Path) -> AppSnapshot {
+        self.record_playhead();
         self.stop_performing();
         if let Err(error) = self
             .device_playback
@@ -21,7 +22,8 @@ impl DesktopState {
         }
         self.working_copy.invalidate_pending();
         let root = root.to_path_buf();
-        self.disable_live_output();
+        self.set_devices_live(false);
+        self.stop_live_output();
         self.invalidate_prepared_project();
         lock_unpoisoned(&self.gui_history).clear();
         let sources = match donder_project_io::project_source_texts(&root) {

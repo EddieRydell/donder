@@ -64,8 +64,8 @@ pub(crate) struct LiveOutputService {
     receiver: mpsc::Receiver<Update>,
     generation: u32,
     snapshot: LiveOutputSnapshot,
-    resume_after_prepare: bool,
-    resume_ready: bool,
+    /// A start that waits for the output to finish stopping.
+    pending_start: bool,
     /// Whether the active output plays a performance.
     console: bool,
     worker: Option<JoinHandle<()>>,
@@ -84,8 +84,7 @@ impl LiveOutputService {
             receiver,
             generation: 0,
             snapshot: disabled_snapshot(0),
-            resume_after_prepare: false,
-            resume_ready: false,
+            pending_start: false,
             console: false,
             worker: Some(worker),
         }
@@ -151,8 +150,7 @@ impl LiveOutputService {
         active: Vec<ControllerId>,
         feed: LiveFeed,
     ) -> LiveOutputSnapshot {
-        self.resume_after_prepare = false;
-        self.resume_ready = false;
+        self.pending_start = false;
         self.console = matches!(feed, LiveFeed::Console(_));
         self.generation = self.generation.saturating_add(1);
         self.snapshot = preparing_snapshot(self.generation, &controllers, &active);
@@ -176,12 +174,7 @@ impl LiveOutputService {
     }
 
     pub(crate) fn disable(&mut self) -> LiveOutputSnapshot {
-        self.resume_after_prepare = false;
-        self.resume_ready = false;
-        self.disable_preserving_resume()
-    }
-
-    fn disable_preserving_resume(&mut self) -> LiveOutputSnapshot {
+        self.pending_start = false;
         self.console = false;
         self.snapshot();
         if matches!(
@@ -208,31 +201,23 @@ impl LiveOutputService {
         self.snapshot.clone()
     }
 
-    pub(crate) fn suspend(&mut self) -> LiveOutputSnapshot {
-        self.snapshot();
-        self.resume_ready = false;
-        self.resume_after_prepare |= matches!(
-            self.snapshot.state,
-            LiveOutputState::Preparing | LiveOutputState::Holding | LiveOutputState::Streaming
-        );
-        self.disable_preserving_resume()
+    /// Whether the output is stopping; a start then waits until it stopped.
+    pub(crate) fn stopping(&mut self) -> bool {
+        self.snapshot().state == LiveOutputState::Stopping
     }
 
-    pub(crate) fn mark_prepared(&mut self) {
-        self.resume_ready = true;
+    /// Start once the output finished stopping.
+    pub(crate) fn defer_start(&mut self) {
+        self.pending_start = true;
     }
 
-    pub(crate) fn take_resume_after_prepare(&mut self) -> bool {
-        self.snapshot();
-        if self.snapshot.state == LiveOutputState::Error {
-            self.resume_after_prepare = false;
+    /// Whether a deferred start can go ahead now.
+    pub(crate) fn take_pending_start(&mut self) -> bool {
+        if self.pending_start && !self.stopping() {
+            self.pending_start = false;
+            return true;
         }
-        if self.resume_ready && self.snapshot.state != LiveOutputState::Stopping {
-            self.resume_ready = false;
-            std::mem::take(&mut self.resume_after_prepare)
-        } else {
-            false
-        }
+        false
     }
 
     pub(crate) fn snapshot(&mut self) -> LiveOutputSnapshot {
@@ -528,6 +513,7 @@ fn preparing_snapshot(
         .map(|controller| controller.ports.len() as u32)
         .sum();
     LiveOutputSnapshot {
+        enabled: false,
         state: LiveOutputState::Preparing,
         generation,
         active_controller_count: active.len() as u32,
@@ -546,6 +532,7 @@ fn preparing_snapshot(
 
 pub(crate) fn disabled_snapshot(generation: u32) -> LiveOutputSnapshot {
     LiveOutputSnapshot {
+        enabled: false,
         state: LiveOutputState::Disabled,
         generation,
         active_controller_count: 0,
@@ -606,50 +593,5 @@ mod tests {
         assert_eq!(repeated.state, LiveOutputState::Error);
         assert_eq!(repeated.generation, 5);
         assert_eq!(repeated.last_error.as_deref(), Some(message.as_str()));
-    }
-
-    #[test]
-    fn suspend_uses_pending_worker_state_before_deciding_to_resume() {
-        for (state, stop_state, resume) in [
-            (LiveOutputState::Error, LiveOutputState::Disabled, false),
-            (LiveOutputState::Disabled, LiveOutputState::Disabled, false),
-            (LiveOutputState::Holding, LiveOutputState::Disabled, true),
-            (LiveOutputState::Holding, LiveOutputState::Error, false),
-        ] {
-            let (sender, _commands) = mpsc::channel();
-            let (updates, receiver) = mpsc::channel();
-            let mut snapshot = disabled_snapshot(9);
-            snapshot.state = LiveOutputState::Preparing;
-            let mut service = LiveOutputService {
-                sender,
-                receiver,
-                generation: 9,
-                snapshot,
-                resume_after_prepare: false,
-                resume_ready: false,
-                console: false,
-                worker: None,
-            };
-            let mut completed = disabled_snapshot(9);
-            completed.state = state.clone();
-            updates
-                .send(Update {
-                    generation: 9,
-                    snapshot: completed,
-                })
-                .unwrap();
-            service.suspend();
-            service.mark_prepared();
-            assert!(!service.take_resume_after_prepare());
-            let mut stopped = disabled_snapshot(10);
-            stopped.state = stop_state;
-            updates
-                .send(Update {
-                    generation: 10,
-                    snapshot: stopped,
-                })
-                .unwrap();
-            assert_eq!(service.take_resume_after_prepare(), resume);
-        }
     }
 }

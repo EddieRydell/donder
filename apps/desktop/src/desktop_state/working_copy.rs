@@ -268,7 +268,7 @@ impl DesktopState {
 
     pub(super) fn invalidate_prepared_project(&self) {
         self.render_refresh.invalidate_pending();
-        self.suspend_live_output();
+        self.stop_live_output();
         lock_unpoisoned(&self.sequence_render).unload();
     }
 

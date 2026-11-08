@@ -106,6 +106,19 @@ impl PersistenceService {
         inner.save_now()
     }
 
+    pub(crate) fn live_output(&self) -> bool {
+        self.inner().store.live_output
+    }
+
+    pub(crate) fn record_live_output(&self, enabled: bool) -> Result<(), String> {
+        let mut inner = self.inner();
+        if !inner.write_allowed {
+            return Ok(());
+        }
+        inner.store.live_output = enabled;
+        inner.save_now()
+    }
+
     pub(crate) fn record_snapshot(&self, snapshot: &AppSnapshot) -> Result<(), String> {
         let Some(project_root) = snapshot.project_root.clone() else {
             return Ok(());

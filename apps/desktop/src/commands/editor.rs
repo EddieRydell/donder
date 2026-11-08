@@ -110,6 +110,7 @@ pub(crate) fn complete_close(
         preview
             .close_for_main_shutdown(state.persistence())
             .map_err(|error| error.to_string())?;
+        state.record_playhead();
         state.shutdown_live_output();
         app.exit(0);
         Ok(())
@@ -120,6 +121,12 @@ pub(crate) fn complete_close(
 #[specta::specta]
 pub(crate) fn open_file(path: String, state: State<'_, DesktopState>) -> AppSnapshot {
     state.set_active_file_path(&path)
+}
+
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn move_tab(path: String, index: u32, state: State<'_, DesktopState>) -> AppSnapshot {
+    state.move_tab(&path, index)
 }
 
 #[tauri::command]
