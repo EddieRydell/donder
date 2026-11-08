@@ -6,7 +6,20 @@ Setup main {
   layout: layout.main,
   patch: patches.main,
   controllers: [dig_quad],
-  input_devices: [],
+  input_devices: [
+    InputDevice input_device {
+      description: none,
+      driver: Midi { port: none },
+      controls: [
+        Button {
+          name: control_1,
+          description: none,
+          input: Notes { low: 48, high: 72, channel: none },
+        },
+        Axis { name: knob_1, description: none, input: ControlChange { number: 1, channel: none } },
+      ],
+    },
+  ],
 }
 
 Controller dig_quad {

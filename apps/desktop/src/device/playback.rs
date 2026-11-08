@@ -158,6 +158,11 @@ impl GroupSchedule {
     pub(crate) fn device_count(&self) -> usize {
         self.commands.len()
     }
+
+    /// The addresses of the controllers that follow the schedule.
+    pub(crate) fn addresses(&self) -> impl Iterator<Item = SocketAddr> + '_ {
+        self.commands.iter().map(|(address, _)| *address)
+    }
 }
 
 impl Binding {
@@ -378,6 +383,15 @@ impl DevicePlaybackService {
             })
             .collect()
     }
+    /// The addresses of the connected controllers.
+    pub(crate) fn addresses(&self) -> Vec<SocketAddr> {
+        lock_unpoisoned(&self.shared.core)
+            .bindings
+            .iter()
+            .map(|binding| binding.client.address)
+            .collect()
+    }
+
     pub(crate) fn has_devices(&self) -> bool {
         !lock_unpoisoned(&self.shared.core).bindings.is_empty()
     }

@@ -2,7 +2,7 @@ import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { useMemo, useState } from "react";
 
-import { CheckCheck, Circle, CircleDot, Eye, EyeOff, Link2, Plus, Trash2, Workflow } from "lucide-react";
+import { CheckCheck, Circle, CircleDot, Eye, EyeOff, Link2, Plus, Trash2 } from "lucide-react";
 import { THEME_COLORS } from "../../../theme";
 
 import type {
@@ -31,7 +31,6 @@ import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
 import { LayerList } from "./sequenceLayers";
-import { requestOpenLayerGraph } from "../../uiEvents";
 
 type SequenceInspectorTab = "clip" | "layers" | "marks";
 
@@ -481,11 +480,7 @@ function ClipInspectorPanel({
 
 function LayerInspectorPanel({ document }: { document: SequenceGuiDocument }) {
   const composition = useMemo(() => sequenceComposition(document, null), [document]);
-  return <>
-    <h2>Layers</h2>
-    <Button icon={Workflow} tip="Open layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph}>Layer graph</Button>
-    <LayerList composition={composition} />
-  </>;
+  return <LayerList composition={composition} />;
 }
 
 function MarkInspectorPanel({

@@ -501,6 +501,88 @@ pub(crate) struct LiveTarget {
     pub(crate) clip: u32,
 }
 
+/// A control a console reads: the notes of one that reads notes, from `low`
+/// to `high`, or `low` [`NONE`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct ConsoleControl {
+    pub(crate) low: u32,
+    pub(crate) high: u32,
+}
+
+/// What a console's `On` answers.
+pub(crate) const HAPPENING_PRESS: u32 = 0;
+pub(crate) const HAPPENING_RELEASE: u32 = 1;
+pub(crate) const HAPPENING_MOVE: u32 = 2;
+
+/// The actions a happening of a control runs, in order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct ConsoleOn {
+    pub(crate) control: u32,
+    pub(crate) happening: u32,
+    pub(crate) actions: Range,
+}
+
+pub(crate) const ACTION_PLAY: u32 = 0;
+pub(crate) const ACTION_START: u32 = 1;
+pub(crate) const ACTION_STOP: u32 = 2;
+pub(crate) const ACTION_TOGGLE: u32 = 3;
+pub(crate) const ACTION_MARK: u32 = 4;
+pub(crate) const ACTION_SET: u32 = 5;
+
+/// How long a played copy plays: `shortest`, or from `shortest` to `longest`
+/// by the velocity or an axis.
+pub(crate) const LENGTH_FIXED: u32 = 0;
+pub(crate) const LENGTH_VELOCITY: u32 = 1;
+pub(crate) const LENGTH_AXIS: u32 = 2;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct ConsoleAction {
+    pub(crate) kind: u32,
+    /// The console clip a play, start, stop or toggle names, the live mark
+    /// collection a mark adds to, or the live automation a set writes.
+    pub(crate) target: u32,
+    /// The most copies a play plays at once.
+    pub(crate) copies: u32,
+    pub(crate) length: u32,
+    /// The control a [`LENGTH_AXIS`] length reads.
+    pub(crate) axis: u32,
+    /// Ticks.
+    pub(crate) shortest: u32,
+    pub(crate) longest: u32,
+    /// The part of `0..1` a set's value maps through.
+    pub(crate) low: f32,
+    pub(crate) high: f32,
+    /// The played values of a play, start or toggle.
+    pub(crate) values: Range,
+}
+
+pub(crate) const PLAYED_VELOCITY: u32 = 0;
+pub(crate) const PLAYED_PITCH: u32 = 1;
+pub(crate) const PLAYED_PITCH_CLASS: u32 = 2;
+pub(crate) const PLAYED_FIFTHS: u32 = 3;
+
+/// A parameter a press sets on the copy it starts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct PlayedValue {
+    pub(crate) source: u32,
+    pub(crate) low: f32,
+    pub(crate) high: f32,
+    /// The live automation that sets it on each of the clip's voices, in
+    /// console indices.
+    pub(crate) automations: Range,
+}
+
+/// A console clip: its voices, in console indices.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct ConsoleClip {
+    pub(crate) voices: Range,
+}
+
 pub(crate) use donder_runtime_types::InstructionWord;
 pub(crate) use donder_runtime_types::{Color, CurvePoint};
 
@@ -607,6 +689,13 @@ sections! {
     voices: u32,
     live_automations: LiveAutomation,
     live_targets: LiveTarget,
+    console_controls: ConsoleControl,
+    console_ons: ConsoleOn,
+    console_actions: ConsoleAction,
+    played_values: PlayedValue,
+    console_clips: ConsoleClip,
+    console_indices: u32,
+    console_always: u32,
 }
 
 fn section<T: Pod>(payload: &[u8], entry: SectionEntry) -> &[T] {

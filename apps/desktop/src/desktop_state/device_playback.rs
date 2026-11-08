@@ -1,3 +1,4 @@
+use super::perform::DevicePerformance;
 use super::{DesktopState, lock_unpoisoned};
 use crate::audio::DeviceBoundary;
 use crate::device::DeviceClient;
@@ -129,11 +130,13 @@ impl DesktopState {
 
     /// Connect live output to every Donder controller in the open setup that
     /// is on the network, or release them all
-    /// while live output is off, then publish the device list. Performs
-    /// network I/O on the reconcile task.
+    /// while live output is off, then publish the device list. A performance
+    /// in progress plays on every connected controller. Performs network I/O
+    /// on the reconcile task.
     pub(super) fn reconcile_devices(&self) {
         let _operation = lock_unpoisoned(&self.transport_operation);
         if !self.devices_live() {
+            self.console_feed.stop();
             // Releasing a binding stops the show it plays.
             self.device_playback
                 .sync(self.snapshot().project_epoch, Vec::new());
@@ -141,8 +144,75 @@ impl DesktopState {
         } else if !matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
             // New bindings stop the controller's show; never interrupt a running one.
             self.connect_setup_devices();
+            match self.device_performance() {
+                Some(performance) => self.perform_on_devices(performance),
+                None => self.console_feed.stop(),
+            }
         }
         self.publish_devices();
+    }
+
+    /// Play the performance on each connected controller that has not joined
+    /// it: upload its part of the console when it changed, start every
+    /// controller at the session's place on a shared deadline, and join the
+    /// new ones to its inputs. The caller holds the transport operation lock.
+    fn perform_on_devices(&self, performance: DevicePerformance) {
+        let generation = performance.generation;
+        let joining = self
+            .device_playback
+            .addresses()
+            .into_iter()
+            .any(|address| !self.console_feed.has_joined(generation, address));
+        if !joining {
+            return;
+        }
+        let Some(session) = self.project_session() else {
+            return;
+        };
+        let Some(address) = session.address_of(performance.console.into()) else {
+            return;
+        };
+        let mut cache = self.take_preparation();
+        let prepared = self.device_playback.prepare(
+            self.snapshot().project_epoch,
+            generation,
+            &address,
+            |ports| {
+                donder_elaboration::arm(
+                    &session.project,
+                    &performance.console,
+                    donder_elaboration::Retain::Ports(ports),
+                    &mut cache,
+                )
+                .map(|armed| armed.prepared)
+                .ok_or_else(|| "The console or a connected device output is unavailable.".into())
+            },
+        );
+        self.keep_preparation(cache);
+        let scheduled = prepared.and_then(|failures| {
+            self.record_device_failures(failures);
+            self.device_playback.schedule(
+                Action::Play,
+                performance.position,
+                Some(PlaybackRate::NORMAL),
+                PlaybackRate::NORMAL,
+                performance.duration,
+                performance.observed_at,
+            )
+        });
+        match scheduled {
+            Ok(schedule) => {
+                for address in schedule.addresses() {
+                    if !self.console_feed.has_joined(generation, address) {
+                        self.console_feed.join(generation, address);
+                    }
+                }
+                self.record_device_failures(schedule.failures);
+            }
+            Err(error) => {
+                self.update_snapshot(|snapshot| snapshot.status = error);
+            }
+        }
     }
 
     /// The caller holds the transport operation lock.

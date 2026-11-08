@@ -7,6 +7,7 @@
 extern crate alloc;
 
 pub mod clock;
+pub mod console;
 
 use alloc::string::String;
 use core::num::NonZeroU32;

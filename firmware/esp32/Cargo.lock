@@ -476,6 +476,7 @@ name = "donder-device-protocol"
 version = "0.2.2"
 dependencies = [
  "donder-runtime",
+ "donder-runtime-types",
  "serde",
 ]
 

@@ -694,6 +694,73 @@ async fn clock_server(stack: embassy_net::Stack<'static>, boot_id: u32) -> ! {
     }
 }
 
+/// A performance's inputs from the editor, one connection at a time. Each
+/// connection plays the loaded console from its start, applies the replayed
+/// inputs, then stamps each live input with the show time it arrives at.
+#[embassy_executor::task]
+async fn console_server(
+    stack: embassy_net::Stack<'static>,
+    playback: &'static SharedPlayback,
+    clock: &'static SharedClock,
+) -> ! {
+    use donder_device_protocol::console::{self, MESSAGE_BYTES, Message};
+    use donder_runtime_types::ConsoleEvent;
+    let mut rx = [0; 256];
+    let mut tx = [0; 64];
+    // The show time at `master`, which never runs back: replayed inputs may
+    // end after a scheduled start's position.
+    let at = |playback: &Playback, master: u64, last: SampleTime| {
+        let (_, position) = playback
+            .transport
+            .sample(master, playback.show.prepared().duration().as_ticks());
+        SampleTime::from_ticks(position).max(last)
+    };
+    loop {
+        let mut socket = embassy_net::tcp::TcpSocket::new(stack, &mut rx, &mut tx);
+        socket.set_nagle_enabled(false);
+        // A connection that stops answering releases what it held.
+        socket.set_keep_alive(Some(Duration::from_secs(2)));
+        socket.set_timeout(Some(Duration::from_secs(6)));
+        if let Err(error) = socket.accept(console::PORT).await {
+            println!("Performance accept failed: {:?}", error);
+            continue;
+        }
+        if let Some(current) = playback.lock().await.as_mut() {
+            current.show.restart();
+        }
+        let mut last = SampleTime::from_ticks(0);
+        let mut bytes = [0; MESSAGE_BYTES];
+        while socket.read_exact(&mut bytes).await.is_ok() {
+            let Some(message) = console::decode_message(&bytes) else {
+                break;
+            };
+            let master = clock.lock().await.master_at(local_micros());
+            let mut current = playback.lock().await;
+            let Some(current) = current.as_mut() else {
+                continue;
+            };
+            let event = match message {
+                Message::Replayed(event) => ConsoleEvent {
+                    time: event.time.max(last),
+                    ..event
+                },
+                Message::Live(input) => ConsoleEvent {
+                    time: at(current, master, last),
+                    input,
+                },
+            };
+            last = event.time;
+            current.show.apply(event);
+        }
+        let master = clock.lock().await.master_at(local_micros());
+        if let Some(current) = playback.lock().await.as_mut() {
+            let time = at(current, master, last);
+            current.show.release_all(time);
+        }
+        socket.abort();
+    }
+}
+
 /// Start sending `buffer` to the LEDs.
 fn transmit(
     output: ParallelOutput,
@@ -900,8 +967,9 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         hostname
     });
     let seed = (u64::from(rng.random()) << 32) | u64::from(rng.random());
-    // HTTP workers, clock, mDNS, and the DHCP client or server.
-    let resources = Box::leak(Box::new(StackResources::<{ HTTP_WORKERS + 3 }>::new()));
+    // HTTP workers, performance inputs, clock, mDNS, and the DHCP client or
+    // server.
+    let resources = Box::leak(Box::new(StackResources::<{ HTTP_WORKERS + 4 }>::new()));
     let (stack, runner) = embassy_net::new(interface, network::stack_config(mode), resources, seed);
     let udp_pool = network::udp_pool();
     spawner.spawn(network_runner(runner).unwrap());
@@ -929,6 +997,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         spawner.spawn(web_server(task_id, stack, app).unwrap());
     }
     spawner.spawn(clock_server(stack, boot_id).unwrap());
+    spawner.spawn(console_server(stack, playback, clock).unwrap());
     println!(
         "NETWORK mode={} id={} heap_free={}",
         mode.label(),

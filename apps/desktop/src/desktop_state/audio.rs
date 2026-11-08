@@ -19,9 +19,11 @@ impl DesktopState {
             self.project_session()
                 .and_then(|session| session.address_of(id.into()))
         });
-        if let Err(error) = self
-            .device_playback
-            .stop_for_source(self.snapshot().project_epoch, sequence_address.as_ref())
+        // Donder controllers playing a performance keep playing it.
+        if !self.is_performing()
+            && let Err(error) = self
+                .device_playback
+                .stop_for_source(self.snapshot().project_epoch, sequence_address.as_ref())
         {
             return self.device_transport_error(error);
         }
@@ -71,9 +73,10 @@ impl DesktopState {
     pub(crate) fn unload_audio(&self) -> AppSnapshot {
         let _operation = lock_unpoisoned(&self.transport_operation);
         let _authoring = lock_unpoisoned(&self.authoring);
-        if let Err(error) = self
-            .device_playback
-            .stop_for_source(self.snapshot().project_epoch, None)
+        if !self.is_performing()
+            && let Err(error) = self
+                .device_playback
+                .stop_for_source(self.snapshot().project_epoch, None)
         {
             return self.device_transport_error(error);
         }

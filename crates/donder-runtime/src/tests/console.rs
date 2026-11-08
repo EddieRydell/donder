@@ -3,12 +3,13 @@
 use super::evaluation::whole;
 use super::playback;
 use super::std;
+use crate::playback::ConsoleCommand;
 use crate::{PreparedShow, ShowPlayback};
 use donder_language::compiler::ProgramConstants;
 use donder_runtime_types::{
-    AutomatedQuantity, AutomationMapping, BoundProgram, Color, ConsoleCommand, ConsoleEvent, Curve,
-    CurvePoint, FixtureGeometry, Marks, OutputEncoding, PixelEncoding, PreparedAutomation,
-    SampleDuration, SampleTime, Shared, TargetScope, Value,
+    AutomatedQuantity, AutomationMapping, BoundProgram, Color, Curve, CurvePoint, FixtureGeometry,
+    Marks, OutputEncoding, PixelEncoding, PreparedAutomation, SampleDuration, SampleTime, Shared,
+    TargetScope, Value,
 };
 use std::prelude::rust_2024::*;
 
@@ -19,11 +20,8 @@ fn at(seconds: f32) -> SampleTime {
     SampleTime::from_ticks((seconds * 1_000_000.0) as u32)
 }
 
-fn event(seconds: f32, command: ConsoleCommand) -> ConsoleEvent {
-    ConsoleEvent {
-        time: at(seconds),
-        command,
-    }
+fn event(seconds: f32, command: ConsoleCommand) -> (SampleTime, ConsoleCommand) {
+    (at(seconds), command)
 }
 
 fn color(console: &mut ShowPlayback, seconds: f32) -> Color {
@@ -74,7 +72,7 @@ fn fixed_voice_plays_its_length_from_each_start() {
         Color::BLACK,
         "dormant before a start"
     );
-    console.apply(event(
+    console.command(event(
         1.0,
         ConsoleCommand::Start {
             voice: 0,
@@ -87,7 +85,7 @@ fn fixed_voice_plays_its_length_from_each_start() {
         Color::BLACK,
         "ends after its length"
     );
-    console.apply(event(
+    console.command(event(
         2.0,
         ConsoleCommand::Start {
             voice: 0,
@@ -124,7 +122,7 @@ fn archived_console_plays_like_the_prepared_one() {
     });
     let bytes = prepared.encode();
     let mut console = crate::PreparedShow::decode(&bytes).unwrap().into_playback();
-    console.apply(event(
+    console.command(event(
         1.0,
         ConsoleCommand::Start {
             voice: 0,
@@ -139,7 +137,7 @@ fn open_voice_plays_until_stopped() {
     let mut console = console(&[white()], |builder, effects| {
         builder.voice(effects[0]);
     });
-    console.apply(event(
+    console.command(event(
         1.0,
         ConsoleCommand::Start {
             voice: 0,
@@ -147,9 +145,9 @@ fn open_voice_plays_until_stopped() {
         },
     ));
     assert_eq!(color(&mut console, 4.0), WHITE);
-    console.apply(event(4.5, ConsoleCommand::Stop { voice: 0 }));
+    console.command(event(4.5, ConsoleCommand::Stop { voice: 0 }));
     assert_eq!(color(&mut console, 4.6), Color::BLACK);
-    console.apply(event(5.0, ConsoleCommand::Stop { voice: 0 }));
+    console.command(event(5.0, ConsoleCommand::Stop { voice: 0 }));
     assert_eq!(
         color(&mut console, 5.1),
         Color::BLACK,
@@ -175,10 +173,10 @@ fn live_marks_reach_a_running_effect() {
         builder.live_marks([(effects[0], 0)]);
     });
     assert_eq!(color(&mut console, 0.5), Color::BLACK, "no marks yet");
-    console.apply(event(1.0, ConsoleCommand::Mark { collection: 0 }));
+    console.command(event(1.0, ConsoleCommand::Mark { collection: 0 }));
     assert_eq!(color(&mut console, 1.05), WHITE);
     assert_eq!(color(&mut console, 1.2), Color::BLACK);
-    console.apply(event(3.0, ConsoleCommand::Mark { collection: 0 }));
+    console.command(event(3.0, ConsoleCommand::Mark { collection: 0 }));
     assert_eq!(color(&mut console, 3.05), WHITE, "every mark restarts it");
 }
 
@@ -251,7 +249,7 @@ fn set_changes_a_parameter_while_it_plays() {
         builder.live_automation(bindings.iter().map(|&binding| (effects[0], binding)));
     });
     assert_eq!(color(&mut console, 0.5), Color::BLACK);
-    console.apply(event(
+    console.command(event(
         1.0,
         ConsoleCommand::Set {
             automation: 0,
@@ -270,7 +268,7 @@ fn set_keeps_an_integral_continuous() {
     let mut console = console(&[sample], |builder, effects| {
         builder.live_automation(bindings.iter().map(|&binding| (effects[0], binding)));
     });
-    console.apply(event(
+    console.command(event(
         0.0,
         ConsoleCommand::Set {
             automation: 0,
@@ -279,7 +277,7 @@ fn set_keeps_an_integral_continuous() {
     ));
     assert_eq!(color(&mut console, 0.4), Color::BLACK, "travelled 0.4");
     assert_eq!(color(&mut console, 0.6), WHITE, "travelled 0.6");
-    console.apply(event(
+    console.command(event(
         0.6,
         ConsoleCommand::Set {
             automation: 0,

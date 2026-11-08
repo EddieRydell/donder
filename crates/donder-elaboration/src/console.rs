@@ -1,42 +1,41 @@
 //! Arming a console: its clips prepared once on the active setup, each with
 //! its pool of dormant voices and a live automation per voice for each
 //! parameter actions play, and its clips and operators with the parameters its
-//! `Set` actions write. The host routes input events to the commands that start
-//! and stop them.
+//! `Set` actions write, and its events routed to the actions that start and
+//! stop them.
 use crate::Retain;
 use crate::sequence::PreparationCache;
 use crate::stage::{self, Parts};
 use donder_model::{
-    ClipUse, ConsoleAutomationTarget, ConsoleBinding, ConsoleClipId, ConsoleId, DonderProject,
-    MarkCollectionKey,
+    Action, ClipUse, ConsoleBinding, ConsoleClipId, ConsoleId, ControlRef, DonderProject,
+    InputEvent, LengthSource, PlayLength, PlayedQuantity, sample_duration,
 };
-use donder_runtime::{ClipHandle, PreparedShow, ShowBuilder, SignalHandle};
+use donder_runtime::{
+    ClipHandle, ConsoleRouting, PlayedSource, PreparedShow, RoutedAction, RoutedLength, RoutedOn,
+    RoutedValue, ShowBuilder, SignalHandle,
+};
 use donder_runtime_types::{
-    BoundProgram, Curve, Identifier, SampleTime, Shared, sample_duration_seconds_f32,
+    BoundProgram, Curve, Identifier, InputHappening, SampleTime, Shared,
+    sample_duration_seconds_f32,
 };
 use indexmap::IndexMap;
 
 /// Automation bindings one live automation sets: a clip, and its binding.
 type Bindings<'a> = Vec<(ClipHandle<'a>, u16)>;
 
-/// A console ready to perform: its playback data and what its actions
-/// command.
+/// A console ready to perform: its playback data, which routes its inputs.
 pub struct ArmedConsole {
     pub prepared: PreparedShow,
-    /// Each clip's voices and played parameters.
-    pub clips: IndexMap<ConsoleClipId, ArmedClip>,
-    /// The live automation of each parameter `Set` actions write.
-    pub automations: IndexMap<ConsoleAutomationTarget, u16>,
-    /// Each live mark collection.
-    pub collections: IndexMap<MarkCollectionKey, u16>,
+    /// The controls its inputs name, by index.
+    pub controls: Vec<ControlRef>,
 }
 
 /// A clip's voices: one for a held clip, or as many as the most copies its
 /// `Play` actions play. Every voice starts dormant, `always` clips' too.
-pub struct ArmedClip {
-    pub voices: Box<[u16]>,
+struct ArmedClip {
+    voices: Vec<u16>,
     /// The live automation of each parameter actions play, on each voice.
-    pub played: IndexMap<Identifier, Box<[u16]>>,
+    played: IndexMap<Identifier, Vec<u16>>,
 }
 
 /// Prepare `console` against the project's active setup. `None` means the
@@ -51,9 +50,31 @@ pub fn arm(
     let selected = crate::selection::resolve_console(project, console, retain)?;
     let accepted = selected.show;
     let console = accepted.console();
+    let mut controls: Vec<ControlRef> = Vec::new();
+    for control in console.inputs() {
+        if !controls.contains(control) {
+            controls.push(control.clone());
+        }
+    }
+    let notes = controls
+        .iter()
+        .map(|control| {
+            let notes = project
+                .get::<donder_model::InputDevice>(control.device)?
+                .control(control.control)?
+                .kind
+                .notes();
+            Some(notes.map(|notes| (notes.low, notes.high)))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let control = |control: &ControlRef| {
+        controls
+            .iter()
+            .position(|read| read == control)
+            .unwrap_or_else(|| unreachable!("the controls list every control the console reads"))
+            as u16
+    };
     let mut armed_clips = IndexMap::new();
-    let mut armed_automations = IndexMap::new();
-    let mut armed_collections = IndexMap::new();
     let parts = Parts {
         layers: &console.layers,
         graph: &console.composition_graph,
@@ -151,24 +172,22 @@ pub fn arm(
                 armed_clips.insert(
                     authored.id,
                     ArmedClip {
-                        voices: voices.into(),
+                        voices,
                         played: IndexMap::new(),
                     },
                 );
                 played.push((authored.id, values));
             }
             let builder = &mut *clips.builder;
-            for (marks, targets) in console.live_marks.iter().zip(collections) {
-                armed_collections.insert(marks.key.clone(), builder.live_marks(targets));
-            }
-            let live = set
+            let collections = console
+                .live_marks
+                .iter()
+                .zip(collections)
+                .map(|(marks, targets)| (&marks.key, builder.live_marks(targets)))
+                .collect::<IndexMap<_, _>>();
+            let live = automations
                 .into_iter()
-                .zip(automations)
-                .map(|(target, targets)| {
-                    let index = builder.live_automation(targets);
-                    armed_automations.insert(target.clone(), index);
-                    index
-                })
+                .map(|targets| builder.live_automation(targets))
                 .collect::<Vec<_>>();
             for ((id, mut voices), clip) in played.into_iter().zip(accepted.clips()) {
                 let armed = &mut armed_clips[&id];
@@ -180,16 +199,111 @@ pub fn arm(
                     armed.played.insert(param.clone(), automations);
                 }
             }
+            let clip = |id| {
+                armed_clips.get_index_of(&id).unwrap_or_else(|| {
+                    unreachable!("validation keeps actions on the console's clips")
+                }) as u16
+            };
+            let values = |id, values: &[donder_model::PlayedValue]| {
+                values
+                    .iter()
+                    .map(|value| RoutedValue {
+                        source: match value.from {
+                            PlayedQuantity::Velocity => PlayedSource::Velocity,
+                            PlayedQuantity::Pitch => PlayedSource::Pitch,
+                            PlayedQuantity::PitchClass => PlayedSource::PitchClass,
+                            PlayedQuantity::Fifths => PlayedSource::Fifths,
+                        },
+                        window: (value.window.low, value.window.high),
+                        automations: armed_clips[&id].played[&value.param].clone(),
+                    })
+                    .collect()
+            };
+            let ons = console
+                .events
+                .iter()
+                .map(|on| RoutedOn {
+                    control: control(on.event.control()),
+                    happening: match on.event {
+                        InputEvent::Press(_) => InputHappening::Press,
+                        InputEvent::Release(_) => InputHappening::Release,
+                        InputEvent::Move(_) => InputHappening::Move,
+                    },
+                    actions: on
+                        .actions
+                        .iter()
+                        .map(|action| match action {
+                            Action::Play(play) => RoutedAction::Play {
+                                clip: clip(play.clip),
+                                copies: u16::from(play.copies),
+                                length: match &play.length {
+                                    PlayLength::Fixed(duration) => {
+                                        RoutedLength::Fixed(sample_duration(duration))
+                                    }
+                                    PlayLength::Scaled {
+                                        by,
+                                        shortest,
+                                        longest,
+                                    } => RoutedLength::Scaled {
+                                        by: match by {
+                                            LengthSource::Velocity => {
+                                                donder_runtime::LengthSource::Velocity
+                                            }
+                                            LengthSource::Axis(axis) => {
+                                                donder_runtime::LengthSource::Axis(control(axis))
+                                            }
+                                        },
+                                        shortest: sample_duration(shortest),
+                                        longest: sample_duration(longest),
+                                    },
+                                },
+                                values: values(play.clip, &play.values),
+                            },
+                            Action::Start {
+                                clip: id,
+                                values: played,
+                            } => RoutedAction::Start {
+                                clip: clip(*id),
+                                values: values(*id, played),
+                            },
+                            Action::Stop { clip: id } => RoutedAction::Stop { clip: clip(*id) },
+                            Action::Toggle {
+                                clip: id,
+                                values: played,
+                            } => RoutedAction::Toggle {
+                                clip: clip(*id),
+                                values: values(*id, played),
+                            },
+                            Action::Mark(key) => RoutedAction::Mark {
+                                collection: collections[key],
+                            },
+                            Action::Set { target, window } => RoutedAction::Set {
+                                automation: live[set
+                                    .iter()
+                                    .position(|set| *set == target)
+                                    .unwrap_or_else(|| {
+                                        unreachable!("set targets list every action's target")
+                                    })],
+                                window: (window.low, window.high),
+                            },
+                        })
+                        .collect(),
+                })
+                .collect();
+            builder.console(ConsoleRouting {
+                controls: notes,
+                clips: armed_clips
+                    .values()
+                    .map(|clip| clip.voices.clone())
+                    .collect(),
+                ons,
+                always: console.always.iter().map(|&id| clip(id)).collect(),
+            });
             live
         },
         |builder, automated, live| automate_operators(builder, automated, &operator_curves, &live),
     );
-    Some(ArmedConsole {
-        prepared,
-        clips: armed_clips,
-        automations: armed_automations,
-        collections: armed_collections,
-    })
+    Some(ArmedConsole { prepared, controls })
 }
 
 /// Bind each built operator's automation bindings that a `Set` writes, found

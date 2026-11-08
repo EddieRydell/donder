@@ -131,8 +131,8 @@ impl PreviewPlayback {
         Ok(())
     }
 
-    /// Apply a performance's commands, in order, to the console the Preview
-    /// plays; a show they do not address ignores them.
+    /// Apply a performance's inputs, in order, to the console the Preview
+    /// plays; a show that does not read their controls ignores them.
     pub(crate) fn apply_console_events(&mut self, events: &[ConsoleEvent]) {
         if let Some(playback) = self.content.as_mut() {
             for event in events {

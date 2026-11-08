@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::persistence::PersistedWindowState;
+use donder_device_protocol::console::{EVENT_BYTES, decode_event, encode_event};
 use donder_editor::dto::{AudioTransportState, PlaybackSpeed, PreviewAppearance};
-use donder_runtime_types::{ConsoleCommand, ConsoleEvent, SampleDuration, SampleTime};
+use donder_runtime_types::ConsoleEvent;
 
 pub(crate) const PREVIEW_HOST_ARGUMENT: &str = "--donder-preview-host";
 
@@ -30,7 +31,7 @@ pub(crate) enum PreviewCommand {
         /// The encoded show the Preview plays: a sequence's or a console's.
         show: Option<Vec<u8>>,
     },
-    /// Commands for the console the content plays, in the order they apply. They
+    /// Inputs for the console the content plays, in the order they apply. They
     /// travel as the frame's binary payload.
     ConsoleEvents {
         #[serde(skip)]
@@ -219,76 +220,20 @@ fn read_content_payload(payload: &[u8]) -> Result<PreviewContent, String> {
     Ok((instances, show))
 }
 
-/// Start a voice for the duration that follows.
-const START: u8 = 0;
-const STOP: u8 = 1;
-const MARK: u8 = 2;
-const SET: u8 = 3;
-/// Start a voice until it is stopped.
-const HOLD: u8 = 4;
-const CONSOLE_EVENT_BYTES: usize = 11;
-
-/// Each event as its time in ticks, its command kind, the voice, collection or
-/// automation index, and four bytes more: a start's duration in ticks, a set's
-/// value, or zero.
+/// Each event as the device protocol encodes it.
 fn console_events_payload(events: &[ConsoleEvent]) -> Vec<u8> {
-    let mut payload = Vec::with_capacity(events.len() * CONSOLE_EVENT_BYTES);
-    for event in events {
-        let (kind, index, more) = match event.command {
-            ConsoleCommand::Start {
-                voice,
-                duration: Some(duration),
-            } => (START, voice, duration.as_ticks().to_le_bytes()),
-            ConsoleCommand::Start {
-                voice,
-                duration: None,
-            } => (HOLD, voice, [0; 4]),
-            ConsoleCommand::Stop { voice } => (STOP, voice, [0; 4]),
-            ConsoleCommand::Mark { collection } => (MARK, collection, [0; 4]),
-            ConsoleCommand::Set { automation, value } => (SET, automation, value.to_le_bytes()),
-        };
-        payload.extend_from_slice(&event.time.as_ticks().to_le_bytes());
-        payload.push(kind);
-        payload.extend_from_slice(&index.to_le_bytes());
-        payload.extend_from_slice(&more);
-    }
-    payload
+    events.iter().flat_map(encode_event).collect()
 }
 
 fn read_console_events_payload(payload: &[u8]) -> Result<Vec<ConsoleEvent>, String> {
     let invalid = || "Console event payload is malformed.".to_string();
-    let (events, rest) = payload.as_chunks::<CONSOLE_EVENT_BYTES>();
+    let (events, rest) = payload.as_chunks::<EVENT_BYTES>();
     if !rest.is_empty() {
         return Err(invalid());
     }
     events
         .iter()
-        .map(|event| {
-            let [t0, t1, t2, t3, kind, i0, i1, m0, m1, m2, m3] = *event;
-            let index = u16::from_le_bytes([i0, i1]);
-            let more = [m0, m1, m2, m3];
-            let command = match kind {
-                START => ConsoleCommand::Start {
-                    voice: index,
-                    duration: Some(SampleDuration::from_ticks(u32::from_le_bytes(more))),
-                },
-                HOLD => ConsoleCommand::Start {
-                    voice: index,
-                    duration: None,
-                },
-                STOP => ConsoleCommand::Stop { voice: index },
-                MARK => ConsoleCommand::Mark { collection: index },
-                SET => ConsoleCommand::Set {
-                    automation: index,
-                    value: f32::from_le_bytes(more),
-                },
-                _ => return Err(invalid()),
-            };
-            Ok(ConsoleEvent {
-                time: SampleTime::from_ticks(u32::from_le_bytes([t0, t1, t2, t3])),
-                command,
-            })
-        })
+        .map(|event| decode_event(event).ok_or_else(invalid))
         .collect()
 }
 
@@ -297,7 +242,7 @@ mod tests {
     use super::{
         PreviewCommand, PreviewEvent, read_command, read_event, write_command, write_event,
     };
-    use donder_runtime_types::{ConsoleCommand, ConsoleEvent, SampleDuration, SampleTime};
+    use donder_runtime_types::{ConsoleEvent, InputEvent, InputHappening, SampleTime};
 
     #[test]
     fn content_round_trips_through_a_binary_frame() {
@@ -336,32 +281,20 @@ mod tests {
 
     #[test]
     fn console_events_and_preview_keys_round_trip() {
+        let event = |ticks, control, note, happening, value| ConsoleEvent {
+            time: SampleTime::from_ticks(ticks),
+            input: InputEvent {
+                control,
+                note,
+                happening,
+                value,
+            },
+        };
         let events = vec![
-            ConsoleEvent {
-                time: SampleTime::from_ticks(1_250_000),
-                command: ConsoleCommand::Start {
-                    voice: 2,
-                    duration: Some(SampleDuration::from_ticks(400_000)),
-                },
-            },
-            ConsoleEvent {
-                time: SampleTime::from_ticks(1_250_000),
-                command: ConsoleCommand::Start {
-                    voice: 3,
-                    duration: None,
-                },
-            },
-            ConsoleEvent {
-                time: SampleTime::from_ticks(1_250_000),
-                command: ConsoleCommand::Set {
-                    automation: 1,
-                    value: 0.5,
-                },
-            },
-            ConsoleEvent {
-                time: SampleTime::from_ticks(u32::MAX),
-                command: ConsoleCommand::Mark { collection: 0 },
-            },
+            event(1_250_000, 2, None, InputHappening::Press, 1.0),
+            event(1_250_000, 3, Some(60), InputHappening::Press, 0.75),
+            event(1_250_000, 1, None, InputHappening::Move, 0.5),
+            event(u32::MAX, 0, Some(127), InputHappening::Release, 0.0),
         ];
         let mut bytes = Vec::new();
         write_command(

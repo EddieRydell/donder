@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 donder-runtime = { path = "../donder-runtime", default-features = false }
+donder-runtime-types = { path = "../donder-runtime-types" }
 serde.workspace = true
 
 [lints]

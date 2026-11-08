@@ -5,6 +5,7 @@ use crate::format;
 use alloc::{boxed::Box, vec, vec::Vec};
 use donder_runtime_types::{ConsoleEvent, SampleDuration, SampleTime, Shared};
 
+use crate::console::Router;
 use crate::playback::{Playback, SequenceFrame};
 use crate::view::{LoadError, Show};
 use crate::workspace::Layout;
@@ -134,22 +135,24 @@ impl PreparedShow {
         self.layout.words() * 4
     }
 
+    /// Play the show from its start; a console's session starts its
+    /// `always` clips.
     pub fn into_playback(self) -> ShowPlayback {
-        let mut buffer = vec![0u32; self.layout.words()].into_boxed_slice();
-        if Playback::new(self.show(), &self.layout, &mut buffer).is_none() {
-            unreachable!("the buffer holds the layout's words")
-        }
-        ShowPlayback {
+        let mut playback = ShowPlayback {
+            router: Router::new(self.show()),
+            buffer: vec![0u32; self.layout.words()].into_boxed_slice(),
             prepared: self,
-            buffer,
-        }
+        };
+        playback.restart();
+        playback
     }
 }
 
-/// Owns a show and its playback buffer.
+/// Owns a show, its playback buffer and a console's routing state.
 pub struct ShowPlayback {
     prepared: PreparedShow,
     buffer: Box<[u32]>,
+    router: Router,
 }
 
 impl ShowPlayback {
@@ -161,6 +164,22 @@ impl ShowPlayback {
         playback
     }
 
+    /// Play the show from its start again, as [`PreparedShow::into_playback`]
+    /// does, in the buffer it has.
+    pub fn restart(&mut self) {
+        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        self.buffer.fill(0);
+        let Some(mut playback) = Playback::new(show, &self.prepared.layout, &mut self.buffer)
+        else {
+            unreachable!("the buffer holds the layout's words")
+        };
+        self.router = Router::new(show);
+        self.router
+            .start(show, SampleTime::from_ticks(0), &mut |command| {
+                playback.apply(SampleTime::from_ticks(0), command);
+            });
+    }
+
     pub fn prepared(&self) -> &PreparedShow {
         &self.prepared
     }
@@ -169,9 +188,38 @@ impl ShowPlayback {
         self.playback().frame(time)
     }
 
-    /// Apply a console command at its time. Commands arrive in time order; one
-    /// the show does not address is ignored.
+    /// Route a console input at its time. Inputs arrive in time order; one of
+    /// a control the console does not read is ignored.
     pub fn apply(&mut self, event: ConsoleEvent) {
-        self.playback().apply(event);
+        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        let Some(mut playback) = Playback::resume(show, &self.prepared.layout, &mut self.buffer)
+        else {
+            unreachable!("the buffer holds the layout's words")
+        };
+        self.router.route(show, event, &mut |command| {
+            playback.apply(event.time, command);
+        });
+    }
+
+    /// Release every held control at `time`, as when the input that held them
+    /// goes away.
+    pub fn release_all(&mut self, time: SampleTime) {
+        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        let Some(mut playback) = Playback::resume(show, &self.prepared.layout, &mut self.buffer)
+        else {
+            unreachable!("the buffer holds the layout's words")
+        };
+        self.router.release_all(show, time, &mut |command| {
+            playback.apply(time, command);
+        });
+    }
+
+    /// Apply a console command at `time`, without routing.
+    #[cfg(test)]
+    pub(crate) fn command(
+        &mut self,
+        (time, command): (SampleTime, crate::playback::ConsoleCommand),
+    ) {
+        self.playback().apply(time, command);
     }
 }

@@ -42,7 +42,7 @@ pub use automation::{
 };
 pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
-pub use console::{ConsoleCommand, ConsoleEvent};
+pub use console::{ConsoleEvent, InputEvent, InputHappening};
 pub use prepared::{
     AutomatedQuantity, FixtureGeometry, OutputEncoding, PixelEncoding, PreparedAutomation,
     SequenceTiming, SpatialContext, TargetGeometry, TargetPixel, TargetScope,

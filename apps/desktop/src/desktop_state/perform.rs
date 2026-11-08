@@ -1,13 +1,13 @@
 //! Perform mode: one console played live from the setup's input devices. A
 //! performance is not an edit; it never touches project documents or history.
-//! Each input is stamped on the session clock, routed to console commands, and the
-//! commands fan out in order to live output and the Preview.
+//! Each input is stamped on the session clock and fans out in order to every
+//! evaluator, which routes it: live output, the Preview and Donder controllers.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-mod router;
+mod inputs;
 
 use super::{DesktopState, lock_unpoisoned};
 use crate::midi::{ChannelMessage, MidiInputs, MidiMessage};
@@ -25,7 +25,7 @@ use donder_model::{
 use donder_project_io::ProjectSession;
 use donder_runtime::PreparedShow;
 use donder_runtime_types::{ConsoleEvent, SampleTime, sample_time_seconds_f32};
-use router::ConsoleRouter;
+use inputs::ConsoleInputs;
 
 #[derive(Default)]
 pub(crate) struct PerformService {
@@ -35,6 +35,17 @@ pub(crate) struct PerformService {
     revision: u32,
     /// Keeps clips lowered between performances.
     preparation: PreparationCache,
+}
+
+/// The performance in progress, as Donder controllers join it.
+pub(super) struct DevicePerformance {
+    pub(super) generation: u32,
+    pub(super) console: ConsoleId,
+    /// Ticks.
+    pub(super) duration: u32,
+    /// The session clock's position at `observed_at`, in ticks.
+    pub(super) position: u32,
+    pub(super) observed_at: std::time::Instant,
 }
 
 /// What the Preview needs to play a performance.
@@ -52,7 +63,7 @@ struct MidiBinding {
     /// The channel it reads, or every channel.
     channel: Option<MidiChannel>,
     reads: MidiRead,
-    /// The router input.
+    /// The console control.
     input: usize,
 }
 
@@ -73,7 +84,7 @@ struct OscBinding {
     port: u16,
     address: OscAddress,
     reads: OscRead,
-    /// The router input.
+    /// The console control.
     input: usize,
 }
 
@@ -88,7 +99,7 @@ enum OscRead {
     },
 }
 
-/// The binding of `device`'s control at router input `input`, which reads
+/// The binding of `device`'s control at console control `input`, which reads
 /// `address`.
 fn osc_binding(
     device: &InputDevice,
@@ -186,15 +197,15 @@ struct Performance {
     /// The prepared console, encoded once for the Preview.
     show: Vec<u8>,
     fixtures: Vec<(u32, usize)>,
-    router: ConsoleRouter,
-    /// Each router button's device and control names.
+    inputs: ConsoleInputs,
+    /// Each control's device and control names.
     buttons: Box<[PerformButton]>,
-    /// The router buttons each key presses.
+    /// The controls each key presses.
     keys: HashMap<KeyCode, Vec<usize>>,
-    /// The router inputs MIDI plays.
+    /// The controls MIDI plays.
     midi: Vec<MidiBinding>,
-    /// The ports and channels holding each MIDI press down, by router input
-    /// and note or pedal number: the router hears the press when the first
+    /// The ports and channels holding each MIDI press down, by control and
+    /// note or pedal number: the console hears the press when the first
     /// holds it and its release when the last lets go.
     midi_held: HashMap<(usize, u8), Vec<(usize, MidiChannel)>>,
     /// The names of the ports MIDI has come from, by the index `midi_held`
@@ -204,14 +215,14 @@ struct Performance {
     /// MIDI, and which ports it wants, sorted.
     midi_inputs: Option<MidiInputs>,
     midi_wanted: Vec<Option<String>>,
-    /// The router inputs OSC plays.
+    /// The controls OSC plays.
     osc: Vec<OscBinding>,
     /// The UDP ports the performance listens on, when it plays from OSC, and
     /// which ports it wants, sorted.
     osc_inputs: Option<OscInputs>,
     osc_wanted: Vec<u16>,
     controllers: Vec<ControllerId>,
-    /// Every command so far, for an evaluator that joins mid-performance.
+    /// Every input so far, for an evaluator that joins mid-performance.
     events: Vec<ConsoleEvent>,
 }
 
@@ -230,7 +241,7 @@ impl Performance {
                 .buttons
                 .iter()
                 .enumerate()
-                .filter(|(index, _)| self.router.pressed(*index))
+                .filter(|(index, _)| self.inputs.pressed(*index))
                 .map(|(_, button)| button.clone())
                 .collect(),
             keys,
@@ -339,8 +350,6 @@ impl DesktopState {
         }
         // The performance reads the devices itself, so learning lets go of them.
         self.end_learning(None);
-        // A console plays only on streamed controllers.
-        self.set_devices_live(false);
         {
             let mut perform = lock_unpoisoned(&self.perform);
             self.arm_performance(&mut perform, &session, console_id, described, false)?;
@@ -349,6 +358,7 @@ impl DesktopState {
         if live && let Err(error) = self.set_live_output_active(true) {
             self.update_snapshot(|snapshot| snapshot.status = error);
         }
+        self.schedule_device_reconcile();
         Ok(self.perform_snapshot())
     }
 
@@ -377,16 +387,15 @@ impl DesktopState {
         let console = project
             .get::<donder_model::Console>(console_id)
             .ok_or("The console is no longer in the project.")?;
-        let mut router = ConsoleRouter::new(project, console, &armed)
-            .ok_or("An input control of the console is missing.")?;
+        let mut inputs = ConsoleInputs::new(armed.controls.clone());
         let setup = project
             .get::<donder_model::Setup>(*project.root().setup.id())
             .ok_or("The active setup is missing.")?;
         let mut keys: HashMap<KeyCode, Vec<usize>> = HashMap::new();
         let mut midi = Vec::new();
         let mut osc = Vec::new();
-        let mut buttons = Vec::with_capacity(router.inputs().len());
-        for (index, button) in router.inputs().iter().enumerate() {
+        let mut buttons = Vec::with_capacity(inputs.controls().len());
+        for (index, button) in inputs.controls().iter().enumerate() {
             let device = project
                 .get::<donder_model::InputDevice>(button.device)
                 .ok_or("An input device of the console is missing.")?;
@@ -443,7 +452,7 @@ impl DesktopState {
             });
         }
         let mut devices: Vec<InputDevice> = Vec::new();
-        for control in router.inputs() {
+        for control in inputs.controls() {
             if !devices.iter().any(|device| device.id == control.device) {
                 let device = project
                     .get::<InputDevice>(control.device)
@@ -469,7 +478,6 @@ impl DesktopState {
         osc_wanted.dedup();
         let (listening, mut midi_inputs, mut osc_inputs, carried) = match previous {
             Some(mut previous) => {
-                let log = previous.router.take_log();
                 let midi_inputs = previous
                     .midi_inputs
                     .take()
@@ -479,7 +487,7 @@ impl DesktopState {
                     .take()
                     .filter(|_| previous.osc_wanted == osc_wanted);
                 let listening = Arc::clone(&previous.listening);
-                (listening, midi_inputs, osc_inputs, Some((previous, log)))
+                (listening, midi_inputs, osc_inputs, Some(previous))
             }
             None => (Arc::new(AtomicU32::new(0)), None, None, None),
         };
@@ -525,30 +533,30 @@ impl DesktopState {
                 },
             ));
         }
-        // Every clip starts dormant; the session starts the `always` clips.
-        let mut events = router.start(SampleTime::from_ticks(0));
         let prepared = armed.prepared;
-        let (clock, midi_held, midi_ports) = match carried {
-            Some((previous, log)) => {
-                events.extend(router.resume(log));
+        let (clock, midi_held, midi_ports, events) = match carried {
+            Some(previous) => {
+                let events = inputs.resume(previous.inputs.controls(), &previous.events);
                 // A press a port holds stays held, under the control's new place.
                 let midi_held = previous
                     .midi_held
                     .into_iter()
                     .filter_map(|((input, number), holders)| {
-                        let control = previous.router.inputs().get(input)?;
-                        let input = router.inputs().iter().position(|read| read == control)?;
+                        let control = previous.inputs.controls().get(input)?;
+                        let input = inputs.controls().iter().position(|read| read == control)?;
                         Some(((input, number), holders))
                     })
                     .collect();
-                (previous.clock, midi_held, previous.midi_ports)
+                (previous.clock, midi_held, previous.midi_ports, events)
             }
             None => (
                 SessionClock::start(prepared.duration()),
                 HashMap::new(),
                 Vec::new(),
+                Vec::new(),
             ),
         };
+        self.console_feed.perform(generation, events.clone());
         perform.generation = generation;
         perform.revision = perform.revision.wrapping_add(1);
         perform.performance = Some(Performance {
@@ -566,7 +574,7 @@ impl DesktopState {
                 .map(|fixture| (fixture.id, fixture.pixel_count as usize))
                 .collect(),
             prepared,
-            router,
+            inputs,
             buttons: buttons.into(),
             keys,
             midi,
@@ -634,6 +642,8 @@ impl DesktopState {
                 if live && let Err(error) = self.set_live_output_active(true) {
                     self.update_snapshot(|snapshot| snapshot.status = error);
                 }
+                // Donder controllers take the new console and join it again.
+                self.schedule_device_reconcile();
             }
             Err(error) => {
                 self.update_snapshot(|snapshot| snapshot.status = error);
@@ -642,7 +652,8 @@ impl DesktopState {
     }
 
     /// End the performance: its routing and held buttons go with it, its
-    /// output blacks out and the Preview returns to the sequence.
+    /// output blacks out, its Donder controllers are released and the Preview
+    /// returns to the sequence.
     pub(crate) fn stop_performing(&self) -> PerformSnapshot {
         let stopped = {
             let mut perform = lock_unpoisoned(&self.perform);
@@ -653,6 +664,8 @@ impl DesktopState {
             stopped
         };
         if stopped {
+            self.console_feed.stop();
+            self.set_devices_live(false);
             let output = lock_unpoisoned(&self.live_output).disable();
             self.update_snapshot(|snapshot| snapshot.live_output = output);
             self.preview_wake.notify();
@@ -671,9 +684,9 @@ impl DesktopState {
                         .into_iter()
                         .flat_map(|button| {
                             if pressed {
-                                performance.router.press(button, time)
+                                performance.inputs.press(button, time)
                             } else {
-                                performance.router.release(button, time)
+                                performance.inputs.release(button, time)
                             }
                         })
                         .collect(),
@@ -716,7 +729,7 @@ impl DesktopState {
                 let Some(touch) = MidiTouch::of(binding.reads, message) else {
                     continue;
                 };
-                let router = &mut performance.router;
+                let inputs = &mut performance.inputs;
                 let input = binding.input;
                 let pedal = matches!(binding.reads, MidiRead::Pedal(_));
                 match touch {
@@ -731,9 +744,9 @@ impl DesktopState {
                             continue;
                         }
                         events.extend(if pedal {
-                            router.press(input, time)
+                            inputs.press(input, time)
                         } else {
-                            router.strike(input, number, velocity, time)
+                            inputs.strike(input, number, velocity, time)
                         });
                     }
                     MidiTouch::Up { number } => {
@@ -751,12 +764,12 @@ impl DesktopState {
                         }
                         performance.midi_held.remove(&(input, number));
                         events.extend(if pedal {
-                            router.release(input, time)
+                            inputs.release(input, time)
                         } else {
-                            router.release_note(input, number, time)
+                            inputs.release_note(input, number, time)
                         });
                     }
-                    MidiTouch::Move(value) => events.extend(router.move_axis(input, value, time)),
+                    MidiTouch::Move(value) => events.extend(inputs.move_axis(input, value, time)),
                 }
             }
             (!events.is_empty()).then_some(events)
@@ -781,16 +794,16 @@ impl DesktopState {
                 })
             };
             let midi = &performance.midi;
-            let router = &mut performance.router;
+            let inputs = &mut performance.inputs;
             performance.midi_held.retain(|&(input, number), holders| {
                 holders.retain(|(holder, _)| *holder != port);
                 if !holders.is_empty() {
                     return true;
                 }
                 events.extend(if pedals(input, midi) {
-                    router.release(input, time)
+                    inputs.release(input, time)
                 } else {
-                    router.release_note(input, number, time)
+                    inputs.release_note(input, number, time)
                 });
                 false
             });
@@ -813,19 +826,19 @@ impl DesktopState {
                 if binding.port != port || binding.address.0 != message.address {
                     continue;
                 }
-                let router = &mut performance.router;
+                let inputs = &mut performance.inputs;
                 let input = binding.input;
                 match (binding.reads, message.value) {
                     (OscRead::Button, None) => {
-                        events.extend(router.press(input, time));
-                        events.extend(router.release(input, time));
+                        events.extend(inputs.press(input, time));
+                        events.extend(inputs.release(input, time));
                     }
                     (OscRead::Button, Some(value)) if value > 0.0 => {
-                        events.extend(router.press(input, time));
+                        events.extend(inputs.press(input, time));
                     }
-                    (OscRead::Button, Some(_)) => events.extend(router.release(input, time)),
+                    (OscRead::Button, Some(_)) => events.extend(inputs.release(input, time)),
                     (OscRead::Axis { low, high }, Some(value)) => {
-                        events.extend(router.move_axis(input, (value - low) / (high - low), time));
+                        events.extend(inputs.move_axis(input, (value - low) / (high - low), time));
                     }
                     (OscRead::Axis { .. }, None) => {}
                 }
@@ -838,13 +851,13 @@ impl DesktopState {
     pub(crate) fn perform_release_all(&self) -> PerformSnapshot {
         self.route(|performance, time| {
             performance.midi_held.clear();
-            Some(performance.router.release_all(time))
+            Some(performance.inputs.release_all(time))
         });
         self.perform_snapshot()
     }
 
-    /// Stamp an input on the session clock and fan the commands it routes to
-    /// out to every evaluator, in order.
+    /// Stamp an input on the session clock and fan it out to every evaluator,
+    /// in order.
     fn route(&self, input: impl FnOnce(&mut Performance, SampleTime) -> Option<Vec<ConsoleEvent>>) {
         let mut perform = lock_unpoisoned(&self.perform);
         let Some(performance) = perform.performance.as_mut() else {
@@ -857,6 +870,7 @@ impl DesktopState {
         performance.events.extend_from_slice(&events);
         if !events.is_empty() {
             lock_unpoisoned(&self.live_output).console_events(&events);
+            self.console_feed.events(performance.generation, &events);
         }
         perform.revision = perform.revision.wrapping_add(1);
         drop(perform);
@@ -871,6 +885,28 @@ impl DesktopState {
     ) -> R {
         let perform = lock_unpoisoned(&self.perform);
         start(perform.performance.as_ref().map(Performance::output))
+    }
+
+    /// The performance in progress as Donder controllers play it.
+    pub(super) fn device_performance(&self) -> Option<DevicePerformance> {
+        let perform = lock_unpoisoned(&self.perform);
+        let performance = perform.performance.as_ref()?;
+        Some(DevicePerformance {
+            generation: performance.generation,
+            console: performance.console_id,
+            duration: performance.prepared.duration().as_ticks(),
+            position: performance.clock.now().as_ticks(),
+            observed_at: std::time::Instant::now(),
+        })
+    }
+
+    /// Keeps clips lowered between preparations of the performance.
+    pub(super) fn take_preparation(&self) -> PreparationCache {
+        std::mem::take(&mut lock_unpoisoned(&self.perform).preparation)
+    }
+
+    pub(super) fn keep_preparation(&self, cache: PreparationCache) {
+        lock_unpoisoned(&self.perform).preparation = cache;
     }
 
     pub(crate) fn performance_generation(&self) -> Option<u32> {
@@ -892,7 +928,7 @@ impl DesktopState {
             })
     }
 
-    /// The performance's commands from the `from`th on, while `generation` is
+    /// The performance's inputs from the `from`th on, while `generation` is
     /// still performing.
     pub(crate) fn performance_events(
         &self,

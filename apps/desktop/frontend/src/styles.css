@@ -2711,6 +2711,12 @@ fieldset.sequence-layer-row {
   border-bottom: var(--donder-border-width) solid var(--donder-border);
 }
 
+.object-overview-header-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--donder-space-12);
+}
+
 .object-overview-header h2,
 .object-overview-group h3 { margin: 0; }
 

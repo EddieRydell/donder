@@ -1,0 +1,50 @@
+import setups from <setups/main.data.donder>;
+import effects from <effects/standard.donder>;
+import layouts from <layouts/main.data.donder>;
+
+Console console {
+  description: none,
+  frame_rate: 100,
+  marks: [],
+  layers: [
+    Layer { name: default, description: none, color: #38bdf8, enabled: true },
+    Layer { name: layer, description: none, color: #f45b69, enabled: true },
+  ],
+  clips: [
+    ConsoleClip {
+      name: chase,
+      description: none,
+      layer: default,
+      target: layouts.main.desk,
+      scope: WholeTarget,
+      effect: effects.Chase,
+      params: {
+        gradient: Gradient {
+          space: LinearRgb,
+          stops: [(0.0, #ffffff), (0.2, #ff0000), (0.871, #ff4200)],
+        },
+        gradient_mode: PerPulse,
+        pulse_overlap: 20.0,
+        chase_position: Curve {
+          points: [(0.0, 0.0), (0.153, 0.5), (0.362, 0.788), (0.6, 0.894), (1.0, 1.0)],
+        },
+        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      },
+    },
+  ],
+  always: [],
+  events: [
+    On {
+      event: Press { control: setups.main.input_devices.input_device.control_1 },
+      actions: [Play { clip: chase, copies: 5, length: Fixed { duration: 1s }, values: [] }],
+    },
+  ],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 80.0) },
+      RootNode { position: (420.0, 80.0) },
+      LayerNode { layer: layer, position: (80.0, 200.0) },
+    ],
+    edges: [Edge { from: default, to: root }, Edge { from: layer, to: root }],
+  },
+}

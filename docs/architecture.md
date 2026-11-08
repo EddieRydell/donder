@@ -217,21 +217,21 @@ everywhere:
   them from a copy in RAM beside their playback buffer.
 
 Perform mode plays a console instead of a sequence (`desktop_state/perform.rs`).
-Starting arms the console on the active setup, starts its `always` clips and
-starts a session clock; sequence playback stops until the performance ends.
-Keys from the main window and from
-the Preview (forwarded over its event pipe) are stamped on the session clock
-when the desktop receives them, routed by the performance's `ConsoleRouter`
-(`desktop_state/perform/router.rs`, which reads the model's events, actions,
-lengths and played quantities directly and keeps the only performance state:
-the copies playing per clip, the next copy each `Play` takes, each live
-automation's last value and the held buttons), and the
-resulting `ConsoleEvent`s fan out in order to every evaluator: the live output
-worker plays its own `ShowPlayback` on the session clock, and the Preview
-receives the console show as its content, then the events as they arrive, with
-the session time as its clock anchor. An evaluator that joins mid-performance
-replays the performance's events from the start. Frame caches include the
-events applied, since an event changes a frame without changing its time.
+Starting arms the console on the active setup and starts a session clock;
+sequence playback stops until the performance ends. Keys from the main window
+and from the Preview (forwarded over its event pipe), MIDI and OSC are stamped
+on the session clock when the desktop receives them and become `ConsoleEvent`s:
+an `InputEvent` (a control by its index in `ArmedConsole::controls`, a note,
+press, release or move, and a value) at its time. The desktop keeps only which
+presses are held (`desktop_state/perform/inputs.rs`), so a repeating key
+presses once. The events fan out in order to every evaluator, and each routes
+them itself: the live output worker plays its own `ShowPlayback` on the
+session clock, the Preview receives the console show as its content, then the
+events as they arrive, with the session time as its clock anchor, and each
+Donder controller plays its part of the console (`desktop_state/device_playback.rs`,
+`device/console.rs`). An evaluator that joins mid-performance replays the
+performance's events from the start. Frame caches include the events applied,
+since an event changes a frame without changing its time.
 
 The show is trusted: only the host builder writes it, so opening it
 (`PreparedShow::decode`, or `PreparedShow::read`, which lets the caller write
@@ -240,8 +240,14 @@ indexes records without checking them. The header holds an `id`
 (`PreparedShow::id`), a hash of the show the builder writes, which a
 controller reports so a host can tell which show it holds; playback never reads
 it. A console is a show with voices, live mark
-collections and live automations; `ConsoleCommand`s (`Start`, with a duration
-or until stopped, `Stop`, `Mark` and `Set`) change only the playback buffer.
+collections, live automations and its routing: each control's notes, each
+`On`'s actions, each clip's voices and played values, and its `always` clips.
+`ShowPlayback` routes each input (`console.rs`), keeping the only
+performance state: the copy each voice last started and until when, each
+axis's position, each live automation's last value and the held presses. A
+new playback starts the `always` clips. Routing issues commands (`Start`,
+with a duration or until stopped, `Stop`, `Mark` and `Set`), which change
+only the playback buffer.
 Every console clip, `always` clips included, is a voice, with as many voices
 as its largest `Play` `copies`. A live automation sets automation bindings of
 clips' and operator nodes' plans (an operator's fused into its consumer's

@@ -1,12 +1,12 @@
 import { Eye, Play, Plus, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { commands } from "../../../api";
 import { startPerforming, usePerformStore } from "../../../perform";
 import { runSnapshotCommand, useAppStore } from "../../../store";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import type { ConsoleGuiDocument } from "../../../types";
 import { ColorPicker } from "../../ColorPicker";
-import { AddRow, Badge, Button, Field, IconButton, NumberField, Section, Tip } from "../../kit";
+import { AddRow, Badge, Button, Field, IconButton, NumberField, Tip } from "../../kit";
 import { DescriptionField } from "../DescriptionField";
 import type { GuiFocus } from "../shared";
 import { GraphEditorModal } from "../sequence/GraphEditorModal";
@@ -36,7 +36,6 @@ export function ConsoleEditor({ document, selected, setSelected }: {
     setGraphOpen(false);
     void runSnapshotCommand(commands.finishCompositionGraphEditing);
   }, [setGraphOpen]);
-  useEffect(() => () => { setGraphOpen(false); }, [setGraphOpen]);
   const target = document.targets[0];
   const performIndex = document.performIndex;
   const iconSize = THEME_METRICS.iconSizeSmall;
@@ -44,7 +43,12 @@ export function ConsoleEditor({ document, selected, setSelected }: {
   return <main className="setup-editor console-editor">
     <header className="object-overview-header">
       <div><span className="object-overview-eyebrow">Console · {document.sourceRef.path}</span><h2>{document.name}</h2></div>
-      {performIndex !== null && <Button icon={Play} disabled={performing} onClick={() => { startPerforming(performIndex); }}>Perform</Button>}
+      <div className="object-overview-header-actions">
+        <Field label="Frame rate">
+          <NumberField name="Frame rate" value={document.frameRate} step={1} min={1} integer unit="fps" onCommit={(frameRate) => void applyConsoleEdit({ type: "setFrameRate", frameRate })} />
+        </Field>
+        {performIndex !== null && <Button icon={Play} disabled={performing} onClick={() => { startPerforming(performIndex); }}>Perform</Button>}
+      </div>
     </header>
     <div className="console-sections">
       <section className="console-section">
@@ -95,14 +99,6 @@ export function ConsoleEditor({ document, selected, setSelected }: {
         })}
       </section>
 
-      <div className="console-section">
-        <Section title="Settings" defaultOpen={false}>
-          <Field label="Frame rate">
-            <NumberField name="Frame rate" value={document.frameRate} step={1} min={1} integer unit="fps" onCommit={(frameRate) => void applyConsoleEdit({ type: "setFrameRate", frameRate })} />
-          </Field>
-          <Button tip="Edit layers and operators" onClick={() => { setGraphOpen(true); }}>Layers</Button>
-        </Section>
-      </div>
     </div>
     {graphOpen && <GraphEditorModal composition={composition} description="Console layers and operators" setSelectedItem={setSelectedGraphItem} onClose={closeGraph} />}
   </main>;

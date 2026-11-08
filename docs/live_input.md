@@ -12,8 +12,8 @@ and setting a parameter changes its value from now on. Its layers and operator
 graph are a sequence's.
 
 Every device that plays a console runs the same Donder runtime, so only your
-button presses travel: the Preview and live E1.31 or Art-Net output receive the
-same timestamped commands and render the same frames.
+button presses travel: the Preview, live E1.31 or Art-Net output and Donder
+controllers receive the same presses and each plays the console itself.
 
 A console never plays on top of a sequence. Stop the sequence, then perform.
 
@@ -237,14 +237,26 @@ Choose **Perform** for a console: in the project's console list, or by
 right-clicking the console's document in the Explorer. Donder prepares the
 console on the active setup, starts its `always` clips and starts the session
 clock. The Perform bar shows the console, the elapsed time and which buttons you
-hold, with toggles for live output and the Preview, and **Stop**. Live output
-plays a performance on E1.31 and Art-Net controllers only; starting one stops
-and releases the setup's Donder controllers.
+hold, with toggles for live output and the Preview, and **Stop**.
+
+Live output plays a performance on every controller of the setup. E1.31 and
+Art-Net controllers receive the frames Donder renders. Donder controllers play
+the console themselves: Donder uploads each one its part of the console, starts
+it at the session's place on the editor's clock, and sends it your presses over
+the network, which it plays as they arrive. Effects you start on a Donder
+controller can begin a few milliseconds after the same effect on an E1.31 or
+Art-Net controller, or on another Donder controller, as Wi-Fi delivers them;
+`always` effects stay together. A controller that comes onto the network
+while you perform joins the performance where it is. One that loses its
+connection releases the buttons you hold on it, and joins again with
+everything you played when the connection returns.
 
 Edits to the console you are performing, or to an input device it reads, apply
 at once: Donder arms the console again on the same clock, replays your inputs
 into it, so held buttons, marks added and parameters set carry over, and keeps
-the MIDI and OSC ports it has open. `always` effects start again.
+the MIDI and OSC ports it has open. `always` effects start again. Each Donder
+controller whose part changed takes the new console, and goes dark while it
+loads.
 
 While you perform, the console's keys go to the console before any editor
 shortcut, both in the main window and in the Preview window. Keys typed into a

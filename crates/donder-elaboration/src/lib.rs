@@ -19,7 +19,7 @@ mod selection;
 mod sequence;
 mod stage;
 
-pub use console::{ArmedClip, ArmedConsole, arm};
+pub use console::{ArmedConsole, arm};
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::{ControllerId, ControllerPortId};

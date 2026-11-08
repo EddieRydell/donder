@@ -113,8 +113,8 @@ controller. Turning live output on starts discovery; the editor then connects
 to each controller as it appears on the network and whenever the open
 project changes, never during playback. Connecting stops the controller's
 standalone show and synchronizes its clock. Turning live output off, opening
-another sequence or project, or starting a performance stops and releases every
-controller.
+another sequence or project, or stopping a performance stops and releases every
+controller; opening another sequence while performing does not.
 
 While live output is on, the editor's Play button:
 1. connects any controller that is not yet connected, and prepares each
@@ -143,6 +143,25 @@ speed during playback reschedules every controller and the audio from the
 position reached at a new shared deadline. **Loop saved show** in the controller's
 editor, or the standalone HTTP Play endpoint, loops the last uploaded show
 without the editor instead.
+
+## Performing
+
+While a performance plays with live output on, the editor connects each Donder
+controller as it does for a sequence, then plays the console on it: it
+prepares the controller's part of the console, uploads it unless the
+controller holds it, and schedules every connected controller to play from the
+session clock's position at a shared deadline. A controller that has not yet
+joined this console then opens a TCP connection to port 81
+(`donder_device_protocol::console`) and receives the performance's inputs:
+13-byte messages, each a kind and an encoded `ConsoleEvent` (time in ticks,
+control, happening, note or 255, value). Each connection plays the loaded
+console from its start; `Replayed` inputs apply at their times, and `Live`
+inputs at the show time they arrive, never earlier than the input before.
+Routing runs on the controller, like on the editor. An edit arms the console
+again and every controller joins again, taking an upload when its part
+changed. When a connection ends, or stops answering keepalives for 6 s, the
+controller releases every held control; the editor reconnects each second and
+replays every input so far.
 
 Clock synchronization:
 - **Exchanges.** Eight UDP four-timestamp exchanges, sent to the

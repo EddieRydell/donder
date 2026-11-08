@@ -1,3 +1,4 @@
+pub(crate) mod console;
 pub(crate) mod discovery;
 pub(crate) mod playback;
 

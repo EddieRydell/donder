@@ -1,11 +1,12 @@
 import { useAppStore } from "../../../store";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Workflow } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { THEME_COLORS } from "../../../theme";
 import type { GuiDocumentRequest, SequenceGraphEdge, SequenceLayer } from "../../../types";
 import type { CompositionDocument, CompositionEditing } from "./composition";
 import { ColorPicker } from "../../ColorPicker";
 import { Button, Dialog, Field, IconButton, Select, TextField, Toggle } from "../../kit";
+import { requestOpenLayerGraph } from "../../uiEvents";
 import { graphEdgeId } from "./graphEdge";
 
 export function useSequenceEditErrorReporter() {
@@ -146,13 +147,15 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
   return { requestDelete, dialog };
 }
 
-/** A sequence's or console's layers, with adding, editing and deleting. */
+/** A sequence's or console's layers, with adding, editing and deleting, and its layer graph. */
 export function LayerList({ composition }: { composition: CompositionEditing }) {
   const { document } = composition;
   const reportSequenceEditError = useSequenceEditErrorReporter();
   const editable = useSequenceEditable();
   const { requestDelete, dialog } = useGraphDeletion(composition);
   return <>
+    <h2>Layers</h2>
+    <Button icon={Workflow} tip="Open layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph}>Layer graph</Button>
     <Button icon={Plus} disabled={!editable} onClick={() => {
       void composition.apply({
         type: "createLayer", name: "Layer", color: defaultLayerColor(document.layers.length)

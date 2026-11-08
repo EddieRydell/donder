@@ -59,6 +59,8 @@ pub(crate) struct DesktopServices {
     perform: Mutex<perform::PerformService>,
     learn: Mutex<learn::LearnService>,
     device_playback: crate::device::playback::DevicePlaybackService,
+    /// A performance's inputs to the Donder controllers that play it.
+    console_feed: crate::device::console::ConsoleFeed,
     /// Runs while live output drives Donder controllers or a view lists them.
     discovery: Mutex<Option<crate::device::discovery::DeviceDiscovery>>,
     /// Open views that list Donder controllers.
@@ -159,6 +161,7 @@ impl DesktopState {
                             }
                         }
                     }),
+                    console_feed: crate::device::console::ConsoleFeed::default(),
                     discovery: Mutex::new(None),
                     device_watchers: Mutex::new(0),
                     devices_live: AtomicBool::new(false),
@@ -355,10 +358,9 @@ impl DesktopState {
                     || lock_unpoisoned(&self.sequence_render)
                         .active_target()
                         .is_some();
-                let devices = donder && performance.is_none();
-                if !render_ready || (streamed.is_empty() && !devices) {
+                if !render_ready || (streamed.is_empty() && !donder) {
                     return Err(
-                        "Live output requires a prepared sequence and a controller, or a performance and an E1.31 or Art-Net controller."
+                        "Live output requires a prepared sequence or a performance, and a controller."
                             .to_string(),
                     );
                 }
@@ -373,7 +375,7 @@ impl DesktopState {
                     Some(output) => service.perform(controllers, streamed, output),
                     None => service.enable(controllers, streamed),
                 };
-                Ok((output, devices))
+                Ok((output, donder))
             })?;
             self.set_devices_live(devices);
             output
@@ -399,10 +401,10 @@ impl DesktopState {
     }
 
     fn disable_live_output(&self) {
-        self.set_devices_live(false);
         if self.is_performing() {
             return;
         }
+        self.set_devices_live(false);
         let output = lock_unpoisoned(&self.live_output).disable();
         let output = self.live_output_view(output);
         lock_unpoisoned(&self.workspace).view.live_output = output;

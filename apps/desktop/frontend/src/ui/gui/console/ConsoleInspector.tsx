@@ -30,7 +30,7 @@ export function ConsoleInspector({ document, selected, setSelected }: {
   const footer = <Tabs name="Console inspector sections" value={tab} options={TABS} onChange={setTab} />;
   return <InspectorScrollArea footer={footer}>
     {tab === "selection" ? <Selection document={document} selected={selected} setSelected={setSelected} />
-      : <><h2>Layers</h2><LayerList composition={composition} /></>}
+      : <LayerList composition={composition} />}
   </InspectorScrollArea>;
 }
 

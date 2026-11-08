@@ -5,14 +5,30 @@
 //! layer's start order, live marks, and the live automations' parameter
 //! values.
 use crate::format::{self, NONE};
-use donder_runtime_types::{
-    Color, ConsoleCommand, ConsoleEvent, MICROS_PER_SECOND, SampleTime, mul_div,
-};
+use donder_runtime_types::{Color, MICROS_PER_SECOND, SampleDuration, SampleTime, mul_div};
 
 use crate::dsl::set_value;
 use crate::evaluation::{evaluate_frame, index_layer, root_buffer};
 use crate::view::Show;
 use crate::workspace::{LIVE_MARK_CAPACITY, Layout, Timing, Workspace, carve};
+
+/// What a routed input does to a console's playback, by index of the
+/// prepared console's voices, live mark collections and live automations.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ConsoleCommand {
+    /// Start a voice from its beginning, restarting it if it is playing. It
+    /// plays for `duration`, or until stopped when `None`.
+    Start {
+        voice: u16,
+        duration: Option<SampleDuration>,
+    },
+    /// End a voice; a voice that is not playing is unchanged.
+    Stop { voice: u16 },
+    /// Add a mark to a live mark collection.
+    Mark { collection: u16 },
+    /// Set a live automation to a value in `0..=1`.
+    Set { automation: u16, value: f32 },
+}
 
 /// A show playing in a caller's buffer of [`Layout::words`] words.
 pub(crate) struct Playback<'a, 'w> {
@@ -59,8 +75,8 @@ impl<'a, 'w> Playback<'a, 'w> {
 
     /// Apply a command at its time. Commands arrive in time order; one the
     /// show does not address is ignored.
-    pub(crate) fn apply(&mut self, event: ConsoleEvent) {
-        apply(self.show, &mut self.workspace, event);
+    pub(crate) fn apply(&mut self, time: SampleTime, command: ConsoleCommand) {
+        apply(self.show, &mut self.workspace, time, command);
     }
 }
 
@@ -179,15 +195,14 @@ impl Show<'_> {
     }
 }
 
-fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, event: ConsoleEvent) {
-    if !show.accepts(event.command) {
+fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime, command: ConsoleCommand) {
+    if !show.accepts(command) {
         return;
     }
     let s = &show.s;
-    let time = event.time;
     let ticks = time.as_ticks();
     let console = &mut workspace.console;
-    match event.command {
+    match command {
         ConsoleCommand::Start { voice, duration } => {
             let clip = s.voices[usize::from(voice)];
             console.timing[clip as usize] = Timing {

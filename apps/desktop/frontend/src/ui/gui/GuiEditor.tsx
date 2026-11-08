@@ -129,16 +129,9 @@ function GuiEditorInner({
   );
 
   useEffect(() => {
-    if (gui.type !== "sequence") return;
-    return listenUiEvent("openLayerGraph", () => { setCompositionGraphOpen(true); });
-  }, [gui.type, setCompositionGraphOpen]);
-
-  useEffect(
-    () => () => {
-      if (gui.type === "sequence") setCompositionGraphOpen(false);
-    },
-    [gui.type, setCompositionGraphOpen]
-  );
+    const stop = listenUiEvent("openLayerGraph", () => { setCompositionGraphOpen(true); });
+    return () => { stop(); setCompositionGraphOpen(false); };
+  }, [setCompositionGraphOpen]);
 
   return (
     <div

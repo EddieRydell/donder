@@ -1,30 +1,34 @@
-//! Commands a console's playback takes while it runs. The host routes inputs
-//! to commands; every device that plays the console receives the same
-//! commands, so a frame depends only on the time and the commands applied
-//! before it.
+//! Inputs a console's playback takes while it runs. A host reads its input
+//! devices and turns what they send into input events on the console's
+//! controls; every device that plays the console routes the same events
+//! itself, so a frame depends only on the time and the events applied before
+//! it.
 
-use crate::{SampleDuration, SampleTime};
+use crate::SampleTime;
 
-/// Indices of a prepared console's voices, live mark collections and live
-/// automations.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ConsoleCommand {
-    /// Start a voice from its beginning, restarting it if it is playing. It
-    /// plays for `duration`, or until stopped when `None`.
-    Start {
-        voice: u16,
-        duration: Option<SampleDuration>,
-    },
-    /// End a voice; a voice that is not playing is unchanged.
-    Stop { voice: u16 },
-    /// Add a mark to a live mark collection.
-    Mark { collection: u16 },
-    /// Set a live automation to a value in `0..=1`.
-    Set { automation: u16, value: f32 },
+/// What happened to a control.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InputHappening {
+    Press,
+    Release,
+    Move,
 }
 
+/// One input on one of a console's controls.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InputEvent {
+    /// The control, by index in the console's controls.
+    pub control: u16,
+    /// The note of a control reading notes; every note is its own press.
+    pub note: Option<u8>,
+    pub happening: InputHappening,
+    /// A press's velocity, an axis's position, or 0 for a release, in `0..=1`.
+    pub value: f32,
+}
+
+/// An input at its time on the session clock.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ConsoleEvent {
     pub time: SampleTime,
-    pub command: ConsoleCommand,
+    pub input: InputEvent,
 }

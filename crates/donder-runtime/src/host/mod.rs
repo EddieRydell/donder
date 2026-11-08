@@ -7,7 +7,10 @@ use crate::show::PreparedShow;
 mod builder;
 mod clip;
 
-pub use builder::{ClipHandle, OutputHandle, ShowBuilder, SignalHandle, TargetHandle};
+pub use builder::{
+    ClipHandle, ConsoleRouting, LengthSource, OutputHandle, PlayedSource, RoutedAction,
+    RoutedLength, RoutedOn, RoutedValue, ShowBuilder, SignalHandle, TargetHandle,
+};
 pub use clip::{ClipRaster, ShowClip};
 
 impl PreparedShow {

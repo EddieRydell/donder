@@ -26,7 +26,10 @@ export type CommandDefinition = {
 
 const always = () => true;
 const hasProject = () => useAppStore.getState().snapshot?.projectRoot !== null;
-const sequenceOpen = () => useAppStore.getState().guiDocument?.type === "sequence";
+const layersOpen = () => {
+  const type = useAppStore.getState().guiDocument?.type;
+  return type === "sequence" || type === "console";
+};
 const settings = () => useAppStore.getState().snapshot?.settings;
 const focusingSidebar = (view: SidebarView) => () => { focusSidebar(view); };
 
@@ -108,7 +111,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
     }, hasProject),
     checked: () => settings()?.sequenceMarksLaneOnly ?? false
   },
-  "view.openLayerGraph": command("Layer Graph", "View", ["composition", "operators"], requestOpenLayerGraph, sequenceOpen),
+  "view.openLayerGraph": command("Layer Graph", "View", ["composition", "operators"], requestOpenLayerGraph, layersOpen),
   "view.toggleProjectTree": command("Toggle Side Bar", "View", ["collapse", "panel"], async () => {
     await runSnapshotCommand(commands.toggleProjectTree);
   }, always, [shortcut("b", { primary: true })]),
