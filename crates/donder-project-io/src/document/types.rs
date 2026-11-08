@@ -583,6 +583,8 @@ pub(crate) struct ConsoleClip {
     #[refers(Effect)]
     pub effect: Reference,
     pub params: Params,
+    /// Parameters each copy takes from the press that started it.
+    pub played: Vec<PlayedValue>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -623,12 +625,10 @@ pub(crate) enum Action {
         clip: Name,
         copies: u8,
         length: PlayLength,
-        values: Vec<PlayedValue>,
     },
     Start {
         #[refers(Clip)]
         clip: Name,
-        values: Vec<PlayedValue>,
     },
     Stop {
         #[refers(Clip)]
@@ -637,7 +637,6 @@ pub(crate) enum Action {
     Toggle {
         #[refers(Clip)]
         clip: Name,
-        values: Vec<PlayedValue>,
     },
     Mark {
         #[refers(Marks)]
@@ -669,7 +668,7 @@ pub(crate) enum LengthSource {
     },
 }
 
-/// A parameter a press sets on the copy it starts.
+/// A parameter a copy takes from how the press that started it was played.
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct PlayedValue {
     pub param: Name,
@@ -679,9 +678,7 @@ pub(crate) struct PlayedValue {
 
 model_choice!(PlayedQuantity(donder_model::PlayedQuantity) {
     Velocity,
-    Pitch,
     PitchClass,
-    Fifths,
 });
 
 #[derive(Clone, Debug, PartialEq, Data)]

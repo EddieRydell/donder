@@ -5,8 +5,8 @@ import { DescriptionField } from "../DescriptionField";
 import { NameField } from "../sequence/NameField";
 import { EffectDefinitionPicker, effectReferencesEqual } from "../sequence/definitionMenu";
 import { TypedParamInput } from "../sequence/params/TypedParamInput";
-import { applyConsoleItemEdit, editConsoleEffect } from "./consoleEditing";
-import { KnobSelect } from "./KnobSelect";
+import { applyConsoleItemEdit, editConsoleEffect, isLinked } from "./consoleEditing";
+import { ParamSourceSelect } from "./ParamSourceSelect";
 
 const SCOPES: { value: SequenceClipScope; label: string }[] = [
   { value: "perFixture", label: "Per fixture" },
@@ -47,7 +47,8 @@ export function EffectFields({ document, clip }: { document: ConsoleGuiDocument;
       {clip.params.map((param, index) => <div key={param.name} className={`clip-param-row ${index % 2 === 0 ? "clip-param-row-even" : "clip-param-row-odd"}`}>
         <TypedParamInput param={param} commitParam={(name, value) => editConsoleEffect(clip.id, { type: "param", name, value }).then(() => undefined)}
           curveLibrary={document.curveLibrary} gradientLibrary={document.gradientLibrary} markCollections={document.liveMarks}
-          automationControl={param.supportsAutomation ? <KnobSelect document={document} target={{ type: "clipParam", clipId: clip.id, param: param.name }} label={param.name} range={param.range} /> : null} />
+          automationControl={param.supportsAutomation ? <ParamSourceSelect document={document} target={{ type: "clipParam", clipId: clip.id, param: param.name }} clip={clip} label={param.name} range={param.range} /> : null}
+          linked={isLinked(document, { type: "clipParam", clipId: clip.id, param: param.name }, clip)} />
       </div>)}
     </Section>}
   </>;

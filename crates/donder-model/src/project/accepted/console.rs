@@ -1,6 +1,6 @@
 //! Playback invocations of a console's clips and operators, admitted with the
 //! project like a sequence's. Each parameter a `Set` action writes, each
-//! parameter actions play on the copies they start, and each marks parameter
+//! parameter a clip's copies take from their presses, and each marks parameter
 //! reading a live collection is an automation binding on its clip or operator
 //! that playback sets.
 use super::inputs::{invalid, resolve_values};
@@ -13,7 +13,7 @@ use crate::validation::{AdmissionProblem, Member, ProjectValidationError, Valida
 use donder_language::compiler::ParamDecl;
 use donder_runtime_types::{
     AutomatedQuantity, AutomationMapping, Curve, CurvePoint, Identifier, PreparedAutomation,
-    SampleDuration, SampleTime, SequenceTiming, Value,
+    SampleDuration, SampleTime, SequenceTiming,
 };
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
@@ -39,8 +39,6 @@ pub(super) struct ConsoleClipInputs {
     /// What sets each of the invocation's automation bindings, in binding
     /// order.
     pub(super) bindings: Box<[ConsoleBinding]>,
-    /// The parameters actions play on the copies they start.
-    pub(super) played: Box<[Identifier]>,
 }
 
 /// What sets an automation binding of a console clip.
@@ -48,8 +46,7 @@ pub(super) struct ConsoleClipInputs {
 pub enum ConsoleBinding {
     /// The console's `index`th set parameter, for every copy of the clip.
     Set(usize),
-    /// The clip's `index`th played parameter, for the copy each action
-    /// starts.
+    /// The clip's `index`th played value, for the copy each press starts.
     Played(usize),
     /// The console's `index`th live mark collection, for every copy of the
     /// clip.
@@ -103,15 +100,18 @@ fn admit_console(
             &operator.params,
             session(),
         )?;
-        // Each of its parameters a `Set` writes, starting at its own value.
+        // Each of its parameters a `Set` writes, starting where its control rests.
         let mut automation = Vec::new();
         let mut automations = Vec::new();
         for (index, target) in console.set_targets().into_iter().enumerate() {
             if let AutomationTarget::CompositionNodeParam { node_id, param } = target
                 && *node_id == node.id
             {
-                let start = starting_position(definition.params(), param, &values);
-                automation.push(set_binding(definition.params(), param, start)?);
+                automation.push(set_binding(
+                    definition.params(),
+                    param,
+                    console.rest(target),
+                )?);
                 automations.push(index);
             }
         }
@@ -150,31 +150,18 @@ fn admit_clip(
         &clip.param_overrides,
         session(),
     )?;
-    // Each set parameter with its starting value, its own; validation
-    // checked that each is automatable and that no control plays it too.
+    // Each set parameter, starting where its control rests; validation
+    // checked that each is automatable and that the clip does not play it.
     let mut set = Vec::new();
     for (index, target) in console.set_targets().into_iter().enumerate() {
         if let AutomationTarget::ClipParam { clip_id, param } = target
             && *clip_id == clip.id
         {
-            set.push((
-                ConsoleBinding::Set(index),
-                param,
-                starting_position(params, param, &values),
-            ));
+            set.push((ConsoleBinding::Set(index), param, console.rest(target)));
         }
     }
-    let mut played: Vec<Identifier> = Vec::new();
-    for action in console.actions() {
-        if action.clip() != Some(clip.id) {
-            continue;
-        }
-        for value in action.values() {
-            if !played.contains(&value.param) {
-                set.push((ConsoleBinding::Played(played.len()), &value.param, 0.0));
-                played.push(value.param.clone());
-            }
-        }
+    for (index, value) in clip.played.iter().enumerate() {
+        set.push((ConsoleBinding::Played(index), &value.param, 0.0));
     }
     let mut bindings: Vec<ConsoleBinding> = set.iter().map(|(binding, ..)| *binding).collect();
     let mut automation = set
@@ -208,36 +195,7 @@ fn admit_clip(
     Ok(ConsoleClipInputs {
         invocation,
         bindings: bindings.into(),
-        played: played.into(),
     })
-}
-
-/// Where parameter `name` of `params` starts when a control sets it: its
-/// value's place in the parameter's range, until the control first writes.
-fn starting_position(params: &[ParamDecl], name: &Identifier, values: &[Value]) -> f32 {
-    let index = params
-        .iter()
-        .position(|param| &param.name == name)
-        .unwrap_or_else(|| unreachable!("validation resolves set parameters"));
-    let mapping = params[index]
-        .automation_mapping()
-        .unwrap_or_else(|| unreachable!("validation checks set parameters automate"));
-    match (&mapping, &values[index]) {
-        (AutomationMapping::Float { min, max }, Value::Float(value)) => (value - min) / (max - min),
-        (AutomationMapping::Int { min, max }, Value::Int(value)) => {
-            (value - min) as f32 / (max - min) as f32
-        }
-        (AutomationMapping::Bool, Value::Bool(value)) => f32::from(u8::from(*value)),
-        (AutomationMapping::Enum { values: options }, Value::Enum(option)) => {
-            let place = options.iter().position(|candidate| candidate == option);
-            place.map_or(0.0, |place| {
-                place as f32 / (options.len() - 1).max(1) as f32
-            })
-        }
-        // A curve has no position along its range to start from.
-        (AutomationMapping::Curve { .. }, _) => 0.0,
-        _ => unreachable!("a value has its parameter's type"),
-    }
 }
 
 /// The binding of parameter `name` of `params` that a `Set` or a played

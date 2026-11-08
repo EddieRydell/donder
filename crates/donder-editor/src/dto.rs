@@ -25,8 +25,8 @@ pub use donder_project_io::{IoDiagnostic, TextPosition, TextRange};
 pub use live::{
     ConsoleAction, ConsoleClip, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind,
     ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInput, ConsoleInputControl, ConsoleInputDevice,
-    ConsoleLengthSource, ConsoleLiveMarks, ConsoleOn, ConsolePlayLength, ConsolePlayMode,
-    ConsolePlayedQuantity, ConsolePlayedValue, GuiControlInput, GuiInputControl,
+    ConsoleLengthSource, ConsoleLiveMarks, ConsoleOn, ConsoleParamSource, ConsolePlayLength,
+    ConsolePlayMode, ConsolePlayedQuantity, ConsolePlayedValue, GuiControlInput, GuiInputControl,
     GuiInputControlKind, GuiInputDriver, GuiInputLimits, InputDeviceGuiDocument, LearnedInput,
     ProjectGuiEdit, SetupInputDevice,
 };

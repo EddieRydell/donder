@@ -30,13 +30,14 @@ Console console {
         },
         pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
+      played: [PlayedValue { param: pulse_overlap, from: Velocity, window: (0.0, 1.0) }],
     },
   ],
   always: [],
   events: [
     On {
       event: Press { control: setups.main.input_devices.input_device.control_1 },
-      actions: [Play { clip: chase, copies: 5, length: Fixed { duration: 1s }, values: [] }],
+      actions: [Play { clip: chase, copies: 5, length: Fixed { duration: 1s } }],
     },
   ],
   graph: Graph {

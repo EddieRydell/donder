@@ -163,29 +163,17 @@ pub(super) fn site_span(
                 .map(|marks| name_span(&marks.name)),
             Member::ConsoleClip(id) => {
                 let clip = nth(&console.clips, id.0)?;
-                with_param(&clip.name, &clip.params)
-            }
-            Member::Event(id) => {
-                let on = nth(&console.events, id.0)?;
-                let control = on.event.control().span;
                 match part {
-                    Some(MemberPart::PlayedValue(name)) => on
-                        .actions
+                    Some(MemberPart::PlayedValue(name)) => clip
+                        .played
                         .iter()
-                        .flat_map(|action| match action {
-                            types::Action::Play { values, .. }
-                            | types::Action::Start { values, .. }
-                            | types::Action::Toggle { values, .. } => values.as_slice(),
-                            types::Action::Stop { .. }
-                            | types::Action::Mark { .. }
-                            | types::Action::Set { .. } => &[],
-                        })
                         .find(|value| &value.param.0.value == name)
                         .map(|value| name_span(&value.param))
-                        .or(Some(control)),
-                    _ => Some(control),
+                        .or(Some(name_span(&clip.name))),
+                    _ => with_param(&clip.name, &clip.params),
                 }
             }
+            Member::Event(id) => Some(nth(&console.events, id.0)?.event.control().span),
             _ => None,
         },
         (Located::InputDevice(device), Member::Control(id)) => {

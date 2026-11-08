@@ -8,7 +8,7 @@ mod builder;
 mod clip;
 
 pub use builder::{
-    ClipHandle, ConsoleRouting, LengthSource, OutputHandle, PlayedSource, RoutedAction,
+    ClipHandle, ConsoleRouting, LengthSource, OutputHandle, PlayedSource, RoutedAction, RoutedClip,
     RoutedLength, RoutedOn, RoutedValue, ShowBuilder, SignalHandle, TargetHandle,
 };
 pub use clip::{ClipRaster, ShowClip};

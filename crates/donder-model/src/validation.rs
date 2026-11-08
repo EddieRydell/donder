@@ -26,8 +26,8 @@ use indexmap::IndexMap;
 pub use problem::{
     AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
     EventProblem, InputProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem,
-    ProblemSite, ProjectValidationError, RegionProblem, RouteProblem, SequenceValidationError,
-    SetupProblem, TimingProblem, ValidationProblem,
+    PlayedProblem, ProblemSite, ProjectValidationError, RegionProblem, RouteProblem,
+    SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
 };
 
 pub(crate) const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
@@ -800,6 +800,16 @@ pub fn validate_console(
             }
         })?;
     }
+    for clip in &console.clips {
+        validate_played(project, console, clip, &control).map_err(|(param, problem)| {
+            Error::Played {
+                clip: clip.id,
+                name: clip.name.clone(),
+                param,
+                problem,
+            }
+        })?;
+    }
     Ok(())
 }
 
@@ -837,10 +847,11 @@ fn validate_event<'a>(
         Ok(())
     };
     for action in &on.actions {
-        let clip = match action.clip() {
-            Some(id) => Some(console.clip(id).ok_or(EventProblem::MissingClip)?),
-            None => None,
-        };
+        if let Some(id) = action.clip()
+            && console.clip(id).is_none()
+        {
+            return Err(EventProblem::MissingClip);
+        }
         match action {
             Action::Play(play) => {
                 if !(1..=MAX_COPIES).contains(&play.copies) {
@@ -891,14 +902,6 @@ fn validate_event<'a>(
                 if declaration.automation_mapping().is_none() {
                     return Err(EventProblem::NotAutomatable(param.clone()));
                 }
-                if let AutomationTarget::ClipParam { clip_id, .. } = target
-                    && console.actions().any(|action| {
-                        action.clip() == Some(*clip_id)
-                            && action.values().iter().any(|value| &value.param == param)
-                    })
-                {
-                    return Err(EventProblem::SetAlsoPlayed(param.clone()));
-                }
                 // One control sets a parameter, by every event it answers.
                 if console.events.iter().any(|other| {
                     other.event.control() != on.event.control()
@@ -912,29 +915,62 @@ fn validate_event<'a>(
             }
             Action::Start { .. } | Action::Stop { .. } | Action::Toggle { .. } => {}
         }
-        if !action.values().is_empty() && !matches!(on.event, InputEvent::Press(_)) {
-            return Err(EventProblem::ValuesWithoutPress);
+    }
+    Ok(())
+}
+
+/// A clip's played values: each an automatable parameter of its effect, once,
+/// that no `Set` writes, on a clip only presses start, and from a note only
+/// when every control that starts it reads notes.
+fn validate_played<'a>(
+    project: &'a DonderProject,
+    console: &Console,
+    clip: &ConsoleClip,
+    control: &impl Fn(&ControlRef) -> Result<&'a InputControlKind, InputProblem>,
+) -> Result<(), (Identifier, PlayedProblem)> {
+    let starts = console
+        .events
+        .iter()
+        .filter(|on| {
+            on.actions
+                .iter()
+                .any(|action| action.started() == Some(clip.id))
+        })
+        .collect::<Vec<_>>();
+    let pressed = !console.always.contains(&clip.id)
+        && starts
+            .iter()
+            .all(|on| matches!(on.event, InputEvent::Press(_)));
+    let notes = starts
+        .iter()
+        .all(|on| control(on.event.control()).is_ok_and(|input| input.notes().is_some()));
+    let set = console.set_targets();
+    let mut played = HashSet::new();
+    for value in &clip.played {
+        let fail = |problem| Err((value.param.clone(), problem));
+        match param_mapping(project, &clip.definition, &value.param) {
+            None => return fail(PlayedProblem::UnknownParam),
+            Some(None) => return fail(PlayedProblem::NotAutomatable),
+            Some(Some(_)) => {}
         }
-        let mut played = HashSet::new();
-        for value in action.values() {
-            let name = || value.param.clone();
-            let Some(clip) = clip else {
-                unreachable!("only actions that start a clip play values")
-            };
-            match param_mapping(project, &clip.definition, &value.param) {
-                None => return Err(EventProblem::UnknownValue(name())),
-                Some(None) => return Err(EventProblem::ValueNotAutomatable(name())),
-                Some(Some(_)) => {}
-            }
-            if !played.insert(&value.param) {
-                return Err(EventProblem::ValueTwice(name()));
-            }
-            if !value.window.is_normalized() {
-                return Err(EventProblem::WindowOutOfRange(name()));
-            }
-            if value.from.needs_note() && input.notes().is_none() {
-                return Err(EventProblem::PitchWithoutNotes(name()));
-            }
+        if !played.insert(&value.param) {
+            return fail(PlayedProblem::Twice);
+        }
+        if !value.window.is_normalized() {
+            return fail(PlayedProblem::WindowOutOfRange);
+        }
+        if !pressed {
+            return fail(PlayedProblem::WithoutPress);
+        }
+        if value.from.needs_note() && !notes {
+            return fail(PlayedProblem::WithoutNotes);
+        }
+        let target = AutomationTarget::ClipParam {
+            clip_id: clip.id,
+            param: value.param.clone(),
+        };
+        if set.contains(&&target) {
+            return fail(PlayedProblem::AlsoSet);
         }
     }
     Ok(())

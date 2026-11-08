@@ -29,7 +29,8 @@ pub use crate::format::{Fixture, Output};
 #[cfg(feature = "host")]
 pub use host::{
     ClipHandle, ClipRaster, ConsoleRouting, LengthSource, OutputHandle, PlayedSource, RoutedAction,
-    RoutedLength, RoutedOn, RoutedValue, ShowBuilder, ShowClip, SignalHandle, TargetHandle,
+    RoutedClip, RoutedLength, RoutedOn, RoutedValue, ShowBuilder, ShowClip, SignalHandle,
+    TargetHandle,
 };
 
 use donder_runtime_types::sampling;

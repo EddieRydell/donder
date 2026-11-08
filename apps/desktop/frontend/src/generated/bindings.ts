@@ -214,9 +214,9 @@ export type CompositionGuiEdit = { type: "createLayer"; name: string; color: str
 
 export type ConsoleAction = 
 /**  Play a copy of a clip for its length, on top of the copies playing. */
-{ type: "play"; clipId: number; copies: number; length: ConsolePlayLength; values: ConsolePlayedValue[] } | 
+{ type: "play"; clipId: number; copies: number; length: ConsolePlayLength } | 
 /**  Play one copy of a clip until it is stopped. */
-{ type: "start"; clipId: number; values: ConsolePlayedValue[] } | { type: "stop"; clipId: number } | { type: "toggle"; clipId: number; values: ConsolePlayedValue[] } | 
+{ type: "start"; clipId: number } | { type: "stop"; clipId: number } | { type: "toggle"; clipId: number } | 
 /**  Add a mark to the live mark collection `into`. */
 { type: "mark"; into: string } | 
 /**
@@ -237,17 +237,19 @@ export type ConsoleClip = {
 	effect: SequenceEffectReference,
 	effectName: string,
 	/**
-	 *  A console's parameters are always editable: one a control sets starts
-	 *  at its own value, so none carries an `automation`.
+	 *  None carries an `automation`: the console's `Set`s and the clip's
+	 *  `played` say what sets a parameter live.
 	 */
 	params: SequenceClipParam[],
+	/**  Parameters each copy takes from the press that started it. */
+	played: ConsolePlayedValue[],
 };
 
 export type ConsoleClipEdit = { type: "layer"; layerId: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceClipScope } | 
 /**
  *  Play another effect; its required parameters start from
- *  `initial_color`, and the played values and automation bindings of the
- *  old effect's parameters go.
+ *  `initial_color`, and the played values and `Set`s of the old effect's
+ *  parameters go.
  */
 { type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceParamValue };
 
@@ -304,12 +306,10 @@ export type ConsoleGuiEdit =
 /**  An action added to what a control does on an event. */
 { type: "addAction"; control: ConsoleControlRef; event: ConsoleEventKind; action: ConsoleAction } | 
 /**
- *  Link a parameter to a control, or to none. An axis sets it when moved,
- *  and a button by the press's velocity and 0 on the release; whatever
- *  controlled it before lets go. The control's value reaches the
- *  parameter through `window`.
+ *  Link a parameter to what sets it live, or to nothing; whatever set it
+ *  before lets go. The value reaches the parameter through `window`.
  */
-{ type: "controlParam"; target: SequenceAutomationTarget; control: ConsoleControlRef | null; window: GuiWindow } | 
+{ type: "controlParam"; target: SequenceAutomationTarget; source: ConsoleParamSource | null; window: GuiWindow } | 
 /**
  *  Remove an action. An effect nothing plays or holds then goes with it,
  *  and so does an event with no actions left. A removed `Set` takes the
@@ -326,9 +326,8 @@ export type ConsoleGuiEdit =
 /**  A new event with no actions. */
 { type: "addEvent"; event: ConsoleEventKind; input: ConsoleControlRef } | 
 /**
- *  Change what an event answers. Actions the new event cannot run go:
- *  all but `Set` for a move, played values for all but a press, and
- *  values played from a note for a control without notes.
+ *  Change what an event answers. Actions a move cannot run go: all but
+ *  `Set`.
  */
 { type: "setEvent"; id: number; event: ConsoleEventKind; input: ConsoleControlRef } | { type: "setActions"; id: number; actions: ConsoleAction[] };
 
@@ -376,6 +375,19 @@ export type ConsoleOn = {
 	actions: ConsoleAction[],
 };
 
+/**  What sets a parameter live. */
+export type ConsoleParamSource = 
+/**
+ *  An axis when moved, or a button by the press's velocity and 0 on the
+ *  release.
+ */
+{ type: "control"; control: ConsoleControlRef } | 
+/**
+ *  How the press that started each copy of the clip was played; only a
+ *  clip's parameter.
+ */
+{ type: "played"; from: ConsolePlayedQuantity };
+
 export type ConsolePlayLength = { type: "fixed"; durationSeconds: number } | 
 /**  From `shortest_seconds` at 0 to `longest_seconds` at 1 of `by`. */
 { type: "scaled"; by: ConsoleLengthSource; shortestSeconds: number; longestSeconds: number };
@@ -392,14 +404,10 @@ export type ConsolePlayMode =
 export type ConsolePlayedQuantity = 
 /**  How hard the note was struck; a computer key or pedal plays at 1. */
 "velocity" | 
-/**  The note's place in its button's note range. */
-"pitch" | 
 /**  The note's name, C to B up the chromatic scale. */
-"pitchClass" | 
-/**  The note's name round the circle of fifths. */
-"fifths";
+"pitchClass";
 
-/**  A parameter a press sets on the copy it starts. */
+/**  A parameter a copy takes from how the press that started it was played. */
 export type ConsolePlayedValue = {
 	param: string,
 	from: ConsolePlayedQuantity,

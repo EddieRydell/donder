@@ -43,7 +43,7 @@ pub struct LiveMarks {
 /// A parameter a `Set` action writes: a clip's, on every copy of the clip, or
 /// an operator node's. The value's `0..1`, through the action's window, maps
 /// onto the parameter's declared range as sequence automation does, and the
-/// parameter holds its own value until the first `Set`.
+/// parameter rests at the window's low end until the first `Set`.
 pub type ConsoleAutomationTarget = AutomationTarget<ConsoleClipId>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -61,6 +61,8 @@ pub struct ConsoleClip {
     pub definition: EffectDefinitionId,
     /// Marks parameters name the console's live mark collections.
     pub param_overrides: IndexMap<Identifier, ParamValue>,
+    /// Parameters each copy takes from the press that started it.
+    pub played: Vec<PlayedValue>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -102,17 +104,11 @@ pub enum Action {
     /// Play a copy of a clip for its length, on top of the copies playing.
     Play(Play),
     /// Play one copy of a clip until it is stopped; nothing while it plays.
-    Start {
-        clip: ConsoleClipId,
-        values: Vec<PlayedValue>,
-    },
+    Start { clip: ConsoleClipId },
     /// Stop every playing copy of a clip.
     Stop { clip: ConsoleClipId },
     /// `Start` while no copy of the clip plays, else `Stop`.
-    Toggle {
-        clip: ConsoleClipId,
-        values: Vec<PlayedValue>,
-    },
+    Toggle { clip: ConsoleClipId },
     /// Add a mark to a live collection.
     Mark(MarkCollectionKey),
     /// Write the event's value into a parameter: an axis's position, a
@@ -128,19 +124,18 @@ impl Action {
     pub fn clip(&self) -> Option<ConsoleClipId> {
         match self {
             Self::Play(play) => Some(play.clip),
-            Self::Start { clip, .. } | Self::Stop { clip } | Self::Toggle { clip, .. } => {
-                Some(*clip)
-            }
+            Self::Start { clip } | Self::Stop { clip } | Self::Toggle { clip } => Some(*clip),
             Self::Mark(_) | Self::Set { .. } => None,
         }
     }
 
-    /// The parameters the action sets on the copy it starts.
-    pub fn values(&self) -> &[PlayedValue] {
+    /// The clip the action starts a copy of, from the event's press.
+    pub fn started(&self) -> Option<ConsoleClipId> {
         match self {
-            Self::Play(play) => &play.values,
-            Self::Start { values, .. } | Self::Toggle { values, .. } => values,
-            Self::Stop { .. } | Self::Mark(_) | Self::Set { .. } => &[],
+            Self::Play(Play { clip, .. }) | Self::Start { clip } | Self::Toggle { clip } => {
+                Some(*clip)
+            }
+            Self::Stop { .. } | Self::Mark(_) | Self::Set { .. } => None,
         }
     }
 }
@@ -152,8 +147,6 @@ pub struct Play {
     /// when all play, the oldest is reused.
     pub copies: u8,
     pub length: PlayLength,
-    /// Parameters the press sets on the copy it starts.
-    pub values: Vec<PlayedValue>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -187,7 +180,8 @@ impl PlayLength {
     }
 }
 
-/// A parameter a press sets on the copy it starts, from how it was played.
+/// A parameter a copy of a clip takes from how the press that started it was
+/// played.
 /// The value's `0..1`, through `window`, maps onto the parameter's range as
 /// automation does.
 #[derive(Clone, Debug, PartialEq)]
@@ -201,15 +195,8 @@ pub struct PlayedValue {
 pub enum PlayedQuantity {
     /// How hard a note was struck; a computer key or a pedal plays at 1.
     Velocity,
-    /// The note's place in its button's note range, from its lowest note at
-    /// 0 to its highest at 1; a button of one note is at its place among all
-    /// 128 notes.
-    Pitch,
     /// The note's name, from C at 0 up the chromatic scale to B at 11/12.
     PitchClass,
-    /// The note's name round the circle of fifths: C at 0, G at 1/12, D at
-    /// 2/12, and on to F at 11/12.
-    Fifths,
 }
 
 impl PlayedQuantity {
@@ -245,6 +232,20 @@ impl Console {
             }
         }
         targets
+    }
+
+    /// Where a parameter `Set`s write rests until the first: its window's low
+    /// end, the value of an axis not yet moved or of a released button.
+    pub fn rest(&self, target: &ConsoleAutomationTarget) -> f32 {
+        self.actions()
+            .find_map(|action| match action {
+                Action::Set {
+                    target: set,
+                    window,
+                } if set == target => Some(window.low),
+                _ => None,
+            })
+            .unwrap_or_else(|| unreachable!("set targets name parameters a `Set` writes"))
     }
 
     /// The control whose events `Set` `target`; validation allows one.

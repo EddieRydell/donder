@@ -26,15 +26,14 @@ Console console {
         passes: 1,
         pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },
+      played: [],
     },
   ],
   always: [],
   events: [
     On {
       event: Press { control: setups.main.input_devices.input_device_2.control_1 },
-      actions: [
-        Play { clip: radial_wipe_2, copies: 10, length: Fixed { duration: 1s }, values: [] },
-      ],
+      actions: [Play { clip: radial_wipe_2, copies: 10, length: Fixed { duration: 1s } }],
     },
     On {
       event: Move { control: devices.mpk_mini.knob_1 },

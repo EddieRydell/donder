@@ -634,6 +634,7 @@ Console jam {
         pulse_shape: curves.ease_down,
         decay_seconds: 0.01,
       },
+      played: [],
     },
     ConsoleClip {
       name: flash,
@@ -643,6 +644,7 @@ Console jam {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
+      played: [],
     },
     ConsoleClip {
       name: wash,
@@ -652,18 +654,16 @@ Console jam {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
+      played: [],
     },
   ],
   always: [background],
   events: [
     On {
       event: Press { control: devices.keyboard.kick },
-      actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s }, values: [] }],
+      actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s } }],
     },
-    On {
-      event: Press { control: devices.keyboard.swell },
-      actions: [Start { clip: wash, values: [] }],
-    },
+    On { event: Press { control: devices.keyboard.swell }, actions: [Start { clip: wash }] },
     On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
     On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
     On {
@@ -698,23 +698,26 @@ Console jam {
   node, there is one output node, and operator inputs on the output path are
   connected.
 - `ConsoleClip`: `name`, `description`, `layer`, `target`, `scope`, `effect`,
-  `params`: a clip without `start` or `duration`. Parameters are a clip's,
-  except that a marks value names one of the console's live mark collections,
-  or is `none`.
+  `params`, `played`: a clip without `start` or `duration`. Parameters are a
+  clip's, except that a marks value names one of the console's live mark
+  collections, or is `none`. `played` are `PlayedValue { param, from, window }`:
+  each copy takes that parameter from the press that started it, `from`
+  `Velocity` or `PitchClass`, through `window`, mapped onto
+  the parameter's range as automation is.
 - `always` names clips that play for the whole session.
 - `On`: `event`, `actions`. `event` is `Press { control }` or
   `Release { control }` of a button, or `Move { control }` of an axis, each
   `device.control`. `actions` run in order, and are each one of:
-  - `Play { clip, copies, length, values }` plays a copy of `clip` on top of
+  - `Play { clip, copies, length }` plays a copy of `clip` on top of
     those playing, up to `copies` (1 to 16) at once, reusing the oldest.
     `length` is `Fixed { duration }` or `Scaled { by, shortest, longest }`,
     `by` being `Velocity` or `Axis { control }` (a `device.control` axis; one
     not yet moved reads 0), a value from 0 to 1 read when the copy starts and
     mapped from `shortest` to `longest`.
-  - `Start { clip, values }` plays one copy until stopped; it does nothing
+  - `Start { clip }` plays one copy until stopped; it does nothing
     while the clip plays.
   - `Stop { clip }` stops every copy of the clip.
-  - `Toggle { clip, values }` is `Start` while no copy plays, else `Stop`.
+  - `Toggle { clip }` is `Start` while no copy plays, else `Stop`.
   - `Mark { into }` adds a mark to that live mark collection.
   - `Set { param, window }` writes the event's value into a parameter: an axis's
     position, a press's velocity, or 0 for a release. `param` is
@@ -722,14 +725,10 @@ Console jam {
     on every copy of the clip, or `NodeParam { node, param }`, an automatable
     parameter of an operator node of the console's graph. The value, through
     `window`, maps onto the parameter exactly as an automation curve does, and
-    the parameter holds
-    its own value until the first `Set`. One control sets a parameter, by any
+    the parameter rests
+    at the window's low end until the first `Set`. One control sets a parameter, by any
     of its events. Deleting a clip or node removes the `Set`s of its
     parameters.
-
-  `values` are `PlayedValue { param, from, window }`: each press sets that
-  parameter of the copy it starts, `from` `Velocity`, `Pitch`, `PitchClass` or
-  `Fifths`, through `window`, mapped onto the parameter's range as automation is.
 - Every input device a console of the project reads must be among the project
   setup's `input_devices`, and its clips target the setup's layout.
 
@@ -836,10 +835,11 @@ preparation does not repeat them.
   16; lengths are positive, fit the playback clock and have `shortest` at most
   `longest`, and a length scaled by an axis names an axis.
 - Events read controls of input devices in the project's setup: `Press` and
-  `Release` a button, and `Move` an axis, which runs only `Set`. Played values
-  are only on `Press`, name automatable parameters of the clip, each at most
-  once per action, and `Pitch`, `PitchClass` and `Fifths` only from a button
-  reading notes.
+  `Release` a button, and `Move` an axis, which runs only `Set`. A clip's
+  played values name automatable parameters of its effect, each at most once,
+  that no `Set` writes; only `Press` events start the clip and it is not in
+  `always`, and `PitchClass` needs every control that starts it to read
+  notes.
 
 ## Saving
 

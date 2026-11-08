@@ -12,9 +12,7 @@ use donder_model::ObjectKind;
 use donder_model::Owned;
 use donder_model::Patch;
 use donder_model::Setup;
-use donder_model::{
-    Action, Console, ConsoleClipId, InputEvent, LengthSource, PlayLength, PlayedValue,
-};
+use donder_model::{Action, Console, ConsoleClipId, InputEvent, LengthSource, PlayLength};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio, Window};
 use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver,
@@ -483,16 +481,6 @@ impl Encoder<'_> {
                 .map(|clip| name(&clip.name))
                 .ok_or_else(|| self.error("", "a console clip is missing"))
         };
-        let values = |values: &[PlayedValue]| {
-            values
-                .iter()
-                .map(|value| types::PlayedValue {
-                    param: name(&value.param),
-                    from: types::PlayedQuantity(value.from),
-                    window: window_document(value.window),
-                })
-                .collect()
-        };
         Ok(types::Console {
             description: console.description.clone(),
             frame_rate: console.frame_rate,
@@ -520,6 +508,15 @@ impl Encoder<'_> {
                         scope: types::Scope(clip.scope.clone()),
                         effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
                         params: self.params(&declarations, &clip.param_overrides)?,
+                        played: clip
+                            .played
+                            .iter()
+                            .map(|value| types::PlayedValue {
+                                param: name(&value.param),
+                                from: types::PlayedQuantity(value.from),
+                                window: window_document(value.window),
+                            })
+                            .collect(),
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
@@ -572,24 +569,15 @@ impl Encoder<'_> {
                                                 longest: longest.0,
                                             },
                                         },
-                                        values: values(&play.values),
                                     },
-                                    Action::Start {
-                                        clip,
-                                        values: played,
-                                    } => types::Action::Start {
+                                    Action::Start { clip } => types::Action::Start {
                                         clip: clip_name(clip)?,
-                                        values: values(played),
                                     },
                                     Action::Stop { clip } => types::Action::Stop {
                                         clip: clip_name(clip)?,
                                     },
-                                    Action::Toggle {
-                                        clip,
-                                        values: played,
-                                    } => types::Action::Toggle {
+                                    Action::Toggle { clip } => types::Action::Toggle {
                                         clip: clip_name(clip)?,
-                                        values: values(played),
                                     },
                                     Action::Mark(key) => types::Action::Mark {
                                         into: name(&key.name),

@@ -98,7 +98,7 @@ pub use setup::{OwnedSetup, Setup};
 pub use validation::{
     AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
     EventProblem, InputProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem,
-    ProblemSite, ProjectValidationError, RegionProblem, RouteProblem, SequenceValidationError,
-    SetupProblem, TimingProblem, ValidationProblem, automation_target_param, validate_console,
-    validate_project, validate_sequence,
+    PlayedProblem, ProblemSite, ProjectValidationError, RegionProblem, RouteProblem,
+    SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
+    automation_target_param, validate_console, validate_project, validate_sequence,
 };

@@ -147,6 +147,28 @@ pub enum ConsoleValidationError {
         event: OnId,
         problem: EventProblem,
     },
+    Played {
+        clip: ConsoleClipId,
+        name: Identifier,
+        param: Identifier,
+        problem: PlayedProblem,
+    },
+}
+
+/// A clip's played value that cannot be played.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PlayedProblem {
+    Twice,
+    UnknownParam,
+    NotAutomatable,
+    /// The window leaves `0..1`.
+    WindowOutOfRange,
+    /// `always`, or an event other than a press, starts the clip.
+    WithoutPress,
+    /// A control that starts the clip reads no notes.
+    WithoutNotes,
+    /// A `Set` writes the parameter too.
+    AlsoSet,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TimingProblem {
@@ -253,27 +275,19 @@ pub enum EventProblem {
     Input(InputProblem),
     /// An axis's `Move` only sets parameters.
     AxisPlays,
-    /// Played values on an event other than a press.
-    ValuesWithoutPress,
     MissingClip,
     MissingNode,
     MissingLiveMarks(Identifier),
     /// `Set` names a parameter its clip or operator does not have.
     UnknownParam(Identifier),
     NotAutomatable(Identifier),
-    /// Actions also play the parameter on the copies they start.
-    SetAlsoPlayed(Identifier),
     /// Another control's events set the same parameter.
     SetByOtherControl(Identifier),
     Copies(u8),
     DurationBeyondClock,
     NonPositiveDuration,
     ShortestAboveLongest,
-    ValueTwice(Identifier),
-    PitchWithoutNotes(Identifier),
-    UnknownValue(Identifier),
-    ValueNotAutomatable(Identifier),
-    /// A `Set`'s or played value's window leaves `0..1`.
+    /// A `Set`'s window leaves `0..1`.
     WindowOutOfRange(Identifier),
 }
 
@@ -310,7 +324,7 @@ pub enum Member {
 pub enum MemberPart {
     /// A parameter value it sets.
     Param(Identifier),
-    /// A value an action plays on the copy it starts.
+    /// A value each copy of a console clip takes from its press.
     PlayedValue(Identifier),
     /// The control an event reads.
     Input,
@@ -425,19 +439,11 @@ impl ConsoleValidationError {
                     EventProblem::Input(_) => ProblemSite::with(member, MemberPart::Input),
                     EventProblem::UnknownParam(param)
                     | EventProblem::NotAutomatable(param)
-                    | EventProblem::SetAlsoPlayed(param)
                     | EventProblem::SetByOtherControl(param)
                     | EventProblem::WindowOutOfRange(param) => {
                         ProblemSite::with(member, MemberPart::Param(param.clone()))
                     }
-                    EventProblem::ValueTwice(param)
-                    | EventProblem::PitchWithoutNotes(param)
-                    | EventProblem::UnknownValue(param)
-                    | EventProblem::ValueNotAutomatable(param) => {
-                        ProblemSite::with(member, MemberPart::PlayedValue(param.clone()))
-                    }
                     EventProblem::AxisPlays
-                    | EventProblem::ValuesWithoutPress
                     | EventProblem::MissingClip
                     | EventProblem::MissingNode
                     | EventProblem::MissingLiveMarks(_)
@@ -447,6 +453,10 @@ impl ConsoleValidationError {
                     | EventProblem::ShortestAboveLongest => ProblemSite::of(member),
                 })
             }
+            Self::Played { clip, param, .. } => Some(ProblemSite::with(
+                Member::ConsoleClip(*clip),
+                MemberPart::PlayedValue(param.clone()),
+            )),
             Self::MissingActiveSetup | Self::Timing(_) | Self::MissingAlwaysClip => None,
         }
     }
@@ -696,6 +706,44 @@ impl fmt::Display for ConsoleValidationError {
                 write!(f, "`always` lists clip `{}` twice", name.as_str())
             }
             Self::Event { problem, .. } => problem.fmt(f),
+            Self::Played {
+                name,
+                param,
+                problem,
+                ..
+            } => {
+                let (clip, param) = (name.as_str(), param.as_str());
+                match problem {
+                    PlayedProblem::Twice => write!(f, "clip `{clip}` plays `{param}` twice"),
+                    PlayedProblem::UnknownParam => {
+                        write!(
+                            f,
+                            "clip `{clip}` plays `{param}`, which its effect does not have"
+                        )
+                    }
+                    PlayedProblem::NotAutomatable => write!(
+                        f,
+                        "clip `{clip}` cannot play `{param}`; a played value sets a float, int, bool, enum or curve parameter"
+                    ),
+                    PlayedProblem::WindowOutOfRange => {
+                        write!(f, "clip `{clip}`: `{param}`'s window must lie in 0..1")
+                    }
+                    PlayedProblem::WithoutPress => write!(
+                        f,
+                        "clip `{clip}` plays `{param}`, but `always` or an event other than a `Press` starts it"
+                    ),
+                    PlayedProblem::WithoutNotes => write!(
+                        f,
+                        "clip `{clip}` plays `{param}` from a note, but a control that starts it plays no notes"
+                    ),
+                    PlayedProblem::AlsoSet => {
+                        write!(
+                            f,
+                            "clip `{clip}` plays `{param}`, which a `Set` also writes"
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -834,18 +882,12 @@ impl fmt::Display for EventProblem {
         match self {
             Self::Input(problem) => problem.fmt(f),
             Self::AxisPlays => f.write_str("a `Move` can only `Set` parameters"),
-            Self::ValuesWithoutPress => f.write_str("only a `Press` plays values"),
             Self::MissingClip => f.write_str("an action names a missing clip"),
             Self::MissingNode => f.write_str("`Set` names a missing operator node"),
             Self::UnknownParam(param) => write!(f, "no parameter `{}`", param.as_str()),
             Self::NotAutomatable(param) => write!(
                 f,
                 "`{}` cannot be set; `Set` writes a float, int, bool, enum or curve parameter",
-                param.as_str()
-            ),
-            Self::SetAlsoPlayed(param) => write!(
-                f,
-                "parameter `{}` is also played by an action's values",
                 param.as_str()
             ),
             Self::SetByOtherControl(param) => write!(
@@ -865,21 +907,9 @@ impl fmt::Display for EventProblem {
             Self::ShortestAboveLongest => {
                 f.write_str("a `Scaled` length's `shortest` is longer than its `longest`")
             }
-            Self::ValueTwice(param) => write!(f, "`{}` is played twice", param.as_str()),
-            Self::PitchWithoutNotes(param) => write!(
-                f,
-                "`{}` is played from a note, but the input plays no notes",
-                param.as_str()
-            ),
             Self::WindowOutOfRange(param) => {
                 write!(f, "`{}`'s window must lie in 0..1", param.as_str())
             }
-            Self::UnknownValue(param) => write!(f, "no parameter `{}`", param.as_str()),
-            Self::ValueNotAutomatable(param) => write!(
-                f,
-                "`{}` cannot be played; a played value sets a float, int, bool, enum or curve parameter",
-                param.as_str()
-            ),
         }
     }
 }

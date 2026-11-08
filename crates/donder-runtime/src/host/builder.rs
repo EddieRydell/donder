@@ -33,13 +33,19 @@ handle!(TargetHandle, ClipHandle, SignalHandle, OutputHandle);
 /// How a console routes its inputs, by index of its controls, its clips, and
 /// the voices, live mark collections and live automations the builder issued.
 pub struct ConsoleRouting {
-    /// Each control's notes, `(low, high)`, when it reads notes.
-    pub controls: Vec<Option<(u8, u8)>>,
-    /// Each clip's voices.
-    pub clips: Vec<Vec<u16>>,
+    /// How many controls it reads.
+    pub controls: u16,
+    pub clips: Vec<RoutedClip>,
     pub ons: Vec<RoutedOn>,
     /// The clips that play for the whole session.
     pub always: Vec<u16>,
+}
+
+/// A console clip: its voices, and the parameters each copy takes from the
+/// press that started it.
+pub struct RoutedClip {
+    pub voices: Vec<u16>,
+    pub values: Vec<RoutedValue>,
 }
 
 /// The actions a happening of a control runs, in order.
@@ -54,18 +60,15 @@ pub enum RoutedAction {
         clip: u16,
         copies: u16,
         length: RoutedLength,
-        values: Vec<RoutedValue>,
     },
     Start {
         clip: u16,
-        values: Vec<RoutedValue>,
     },
     Stop {
         clip: u16,
     },
     Toggle {
         clip: u16,
-        values: Vec<RoutedValue>,
     },
     Mark {
         collection: u16,
@@ -93,7 +96,7 @@ pub enum LengthSource {
     Axis(u16),
 }
 
-/// A parameter a press sets on the copy it starts.
+/// A parameter a copy takes from the press that started it.
 pub struct RoutedValue {
     pub source: PlayedSource,
     pub window: (f32, f32),
@@ -103,9 +106,7 @@ pub struct RoutedValue {
 
 pub enum PlayedSource {
     Velocity,
-    Pitch,
     PitchClass,
-    Fifths,
 }
 
 struct Target {
@@ -162,6 +163,8 @@ pub struct ShowBuilder<'id> {
     outputs: Vec<Output>,
     /// Live mark collections so far.
     collections: u32,
+    /// The controls a console reads.
+    controls: u32,
     live_automations: Vec<Vec<format::LiveTarget>>,
     brand: PhantomData<fn(&'id ()) -> &'id ()>,
 }
@@ -598,6 +601,7 @@ impl<'id> ShowBuilder<'id> {
             nodes: Vec::new(),
             outputs: Vec::new(),
             collections: 0,
+            controls: 0,
             live_automations: Vec::new(),
             brand: PhantomData,
         }
@@ -771,23 +775,17 @@ impl<'id> ShowBuilder<'id> {
 
     /// Route the console's inputs as `routing` describes.
     pub fn console(&mut self, routing: ConsoleRouting) {
+        self.controls = u32::from(routing.controls);
         let w = &mut self.w;
-        w.console_controls = routing
-            .controls
-            .into_iter()
-            .map(|notes| match notes {
-                Some((low, high)) => format::ConsoleControl {
-                    low: u32::from(low),
-                    high: u32::from(high),
-                },
-                None => format::ConsoleControl { low: NONE, high: 0 },
-            })
-            .collect();
         w.console_clips = routing
             .clips
             .into_iter()
-            .map(|voices| format::ConsoleClip {
-                voices: push(&mut w.console_indices, voices.into_iter().map(u32::from)),
+            .map(|clip| format::ConsoleClip {
+                voices: push(
+                    &mut w.console_indices,
+                    clip.voices.into_iter().map(u32::from),
+                ),
+                values: played_values(w, clip.values),
             })
             .collect();
         w.console_always = routing.always.into_iter().map(u32::from).collect();
@@ -795,7 +793,7 @@ impl<'id> ShowBuilder<'id> {
             let actions = on
                 .actions
                 .into_iter()
-                .map(|action| console_action(w, action))
+                .map(console_action)
                 .collect::<Vec<_>>();
             let actions = push(&mut w.console_actions, actions);
             w.console_ons.push(format::ConsoleOn {
@@ -1156,33 +1154,34 @@ impl<'id> ShowBuilder<'id> {
             buffers,
             states,
             collections: self.collections,
+            controls: self.controls,
         });
         w.finish(crate::view::FORMAT_VERSION)
     }
 }
 
-/// An action's record, with its played values written.
-fn console_action(w: &mut SectionsWriter, action: RoutedAction) -> format::ConsoleAction {
-    let mut values = |values: Vec<RoutedValue>| {
-        let values = values
-            .into_iter()
-            .map(|value| format::PlayedValue {
-                source: match value.source {
-                    PlayedSource::Velocity => format::PLAYED_VELOCITY,
-                    PlayedSource::Pitch => format::PLAYED_PITCH,
-                    PlayedSource::PitchClass => format::PLAYED_PITCH_CLASS,
-                    PlayedSource::Fifths => format::PLAYED_FIFTHS,
-                },
-                low: value.window.0,
-                high: value.window.1,
-                automations: push(
-                    &mut w.console_indices,
-                    value.automations.into_iter().map(u32::from),
-                ),
-            })
-            .collect::<Vec<_>>();
-        push(&mut w.played_values, values)
-    };
+/// A clip's played values, written.
+fn played_values(w: &mut SectionsWriter, values: Vec<RoutedValue>) -> format::Range {
+    let values = values
+        .into_iter()
+        .map(|value| format::PlayedValue {
+            source: match value.source {
+                PlayedSource::Velocity => format::PLAYED_VELOCITY,
+                PlayedSource::PitchClass => format::PLAYED_PITCH_CLASS,
+            },
+            low: value.window.0,
+            high: value.window.1,
+            automations: push(
+                &mut w.console_indices,
+                value.automations.into_iter().map(u32::from),
+            ),
+        })
+        .collect::<Vec<_>>();
+    push(&mut w.played_values, values)
+}
+
+/// An action's record.
+fn console_action(action: RoutedAction) -> format::ConsoleAction {
     let record = |kind: u32, target: u16| format::ConsoleAction {
         kind,
         target: u32::from(target),
@@ -1193,7 +1192,6 @@ fn console_action(w: &mut SectionsWriter, action: RoutedAction) -> format::Conso
             clip,
             copies,
             length,
-            values: played,
         } => {
             let (length, axis, shortest, longest) = match length {
                 RoutedLength::Fixed(duration) => (format::LENGTH_FIXED, NONE, duration, duration),
@@ -1214,25 +1212,12 @@ fn console_action(w: &mut SectionsWriter, action: RoutedAction) -> format::Conso
                 axis,
                 shortest: shortest.as_ticks(),
                 longest: longest.as_ticks(),
-                values: values(played),
                 ..record(format::ACTION_PLAY, clip)
             }
         }
-        RoutedAction::Start {
-            clip,
-            values: played,
-        } => format::ConsoleAction {
-            values: values(played),
-            ..record(format::ACTION_START, clip)
-        },
+        RoutedAction::Start { clip } => record(format::ACTION_START, clip),
         RoutedAction::Stop { clip } => record(format::ACTION_STOP, clip),
-        RoutedAction::Toggle {
-            clip,
-            values: played,
-        } => format::ConsoleAction {
-            values: values(played),
-            ..record(format::ACTION_TOGGLE, clip)
-        },
+        RoutedAction::Toggle { clip } => record(format::ACTION_TOGGLE, clip),
         RoutedAction::Mark { collection } => record(format::ACTION_MARK, collection),
         RoutedAction::Set { automation, window } => format::ConsoleAction {
             low: window.0,

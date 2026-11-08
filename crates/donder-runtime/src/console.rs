@@ -7,7 +7,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use donder_runtime_types::{ConsoleEvent, InputEvent, InputHappening, SampleDuration, SampleTime};
 
-use crate::format::{self, NONE};
+use crate::format;
 use crate::playback::ConsoleCommand;
 use crate::view::Show;
 
@@ -35,8 +35,8 @@ pub(crate) struct Router {
     copies: Vec<Option<Copy>>,
     /// Where each control's axis is now; an axis not yet moved is at 0.
     axes: Vec<f32>,
-    /// The value each live automation was last set to; a parameter holds its
-    /// own value until written, so the first write is always applied.
+    /// The value each live automation was last set to; none until written, so
+    /// the first write is always applied.
     values: Vec<f32>,
     held: Vec<Press>,
 }
@@ -45,7 +45,7 @@ impl Router {
     pub(crate) fn new(show: Show<'_>) -> Self {
         Self {
             copies: vec![None; show.s.voices.len()],
-            axes: vec![0.0; show.s.console_controls.len()],
+            axes: vec![0.0; show.meta().controls as usize],
             values: vec![f32::NAN; show.s.live_automations.len()],
             held: Vec::new(),
         }
@@ -60,17 +60,7 @@ impl Router {
         apply: &mut impl FnMut(ConsoleCommand),
     ) {
         for &clip in show.s.console_always {
-            self.start_copy(
-                show,
-                clip,
-                0,
-                None,
-                format::Range::EMPTY,
-                1.0,
-                None,
-                time,
-                apply,
-            );
+            self.start_copy(show, clip, 0, None, 1.0, None, time, apply);
         }
     }
 
@@ -116,7 +106,7 @@ impl Router {
             .filter(|on| on.control == u32::from(control) && on.happening == happening)
         {
             for action in on.actions.get(show.s.console_actions) {
-                self.act(show, action, press, value, event.time, apply);
+                self.act(show, action, note, value, event.time, apply);
             }
         }
     }
@@ -143,12 +133,11 @@ impl Router {
         &mut self,
         show: Show<'_>,
         action: &format::ConsoleAction,
-        (control, note): Press,
+        note: Option<u8>,
         value: f32,
         time: SampleTime,
         apply: &mut impl FnMut(ConsoleCommand),
     ) {
-        let note = note.map(|note| (note, show.s.console_controls[usize::from(control)]));
         let clip = action.target;
         match action.kind {
             format::ACTION_PLAY => {
@@ -178,7 +167,6 @@ impl Router {
                     clip,
                     position,
                     Some(duration),
-                    action.values,
                     value,
                     note,
                     time,
@@ -187,7 +175,7 @@ impl Router {
             }
             format::ACTION_START => {
                 if !self.plays(show, clip, time) {
-                    self.start_copy(show, clip, 0, None, action.values, value, note, time, apply);
+                    self.start_copy(show, clip, 0, None, value, note, time, apply);
                 }
             }
             format::ACTION_STOP => self.stop(show, clip, time, apply),
@@ -195,7 +183,7 @@ impl Router {
                 if self.plays(show, clip, time) {
                     self.stop(show, clip, time, apply);
                 } else {
-                    self.start_copy(show, clip, 0, None, action.values, value, note, time, apply);
+                    self.start_copy(show, clip, 0, None, value, note, time, apply);
                 }
             }
             format::ACTION_MARK => apply(ConsoleCommand::Mark {
@@ -229,7 +217,7 @@ impl Router {
     }
 
     /// Start the copy at `position` of `clip`, for `duration` or until
-    /// stopped, with the values played on it.
+    /// stopped, with the values its press played.
     #[allow(clippy::too_many_arguments)]
     fn start_copy(
         &mut self,
@@ -237,9 +225,8 @@ impl Router {
         clip: u32,
         position: usize,
         duration: Option<SampleDuration>,
-        values: format::Range,
         velocity: f32,
-        note: Option<(u8, format::ConsoleControl)>,
+        note: Option<u8>,
         time: SampleTime,
         apply: &mut impl FnMut(ConsoleCommand),
     ) {
@@ -254,6 +241,7 @@ impl Router {
         });
         // Values follow the start, so a copy plays with its own from the
         // frame it starts.
+        let values = show.s.console_clips[clip as usize].values;
         for value in values.get(show.s.played_values) {
             let automation = value.automations.get(show.s.console_indices)[position];
             apply(ConsoleCommand::Set {
@@ -283,29 +271,13 @@ impl Router {
     }
 }
 
-/// A played value, in `0..=1`, from a press at `velocity` of `note` of a
-/// control, or of no note.
-fn played(source: u32, velocity: f32, note: Option<(u8, format::ConsoleControl)>) -> f32 {
-    let Some((note, control)) = note else {
+/// A played value, in `0..=1`, from a press at `velocity` of `note`, or of
+/// no note.
+fn played(source: u32, velocity: f32, note: Option<u8>) -> f32 {
+    match (source, note) {
+        (format::PLAYED_PITCH_CLASS, Some(note)) => f32::from(note % 12) / 12.0,
         // Validation keeps note sources off buttons without notes.
-        return if source == format::PLAYED_VELOCITY {
-            velocity
-        } else {
-            0.0
-        };
-    };
-    match source {
-        format::PLAYED_VELOCITY => velocity,
-        format::PLAYED_PITCH => {
-            if control.low != NONE && control.high > control.low {
-                (u32::from(note).saturating_sub(control.low)) as f32
-                    / (control.high - control.low) as f32
-            } else {
-                // A button of one note is at its place among all 128 notes.
-                f32::from(note) / 127.0
-            }
-        }
-        format::PLAYED_PITCH_CLASS => f32::from(note % 12) / 12.0,
-        _ => f32::from((u16::from(note) * 7 % 12) as u8) / 12.0,
+        (format::PLAYED_PITCH_CLASS, None) => 0.0,
+        _ => velocity,
     }
 }

@@ -1,9 +1,9 @@
 //! Consoles: sequences built live from input devices.
 use donder_model::{
-    Action, ClipScope, Console, ConsoleClipId, ConsoleId, ControlRef, FixtureInstanceId,
-    FixtureTarget as DomainFixtureTarget, InputDevice, InputDeviceId, InputEvent, LengthSource,
-    LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId, Play, PlayLength, PlayedQuantity,
-    PlayedValue, SequenceLayerId, Window,
+    Action, AutomationTarget, ClipScope, Console, ConsoleClipId, ConsoleId, ControlRef,
+    FixtureInstanceId, FixtureTarget as DomainFixtureTarget, InputDevice, InputDeviceId,
+    InputEvent, LengthSource, LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId, Play, PlayLength,
+    PlayedQuantity, PlayedValue, SequenceLayerId, Window,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 
@@ -23,8 +23,9 @@ use super::{GuiMutationError, ResolvedGuiObject, blocked, checked_gui_duration, 
 use crate::dto::{
     ConsoleAction, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument,
     ConsoleGuiEdit, ConsoleInput, ConsoleInputControl, ConsoleInputDevice, ConsoleLengthSource,
-    ConsoleLiveMarks, ConsoleOn, ConsolePlayLength, ConsolePlayMode, ConsolePlayedQuantity,
-    ConsolePlayedValue, FixtureTarget, GuiDocument, SequenceClipScope, SequenceEffectReference,
+    ConsoleLiveMarks, ConsoleOn, ConsoleParamSource, ConsolePlayLength, ConsolePlayMode,
+    ConsolePlayedQuantity, ConsolePlayedValue, FixtureTarget, GuiDocument, SequenceClipScope,
+    SequenceEffectReference,
 };
 
 pub(super) fn project_console(
@@ -112,6 +113,18 @@ fn project_clip(
         params: invocation_params(session, &clip.definition, &clip.param_overrides, |_, _| {
             None
         }),
+        played: clip
+            .played
+            .iter()
+            .map(|value| ConsolePlayedValue {
+                param: value.param.as_str().to_string(),
+                from: match value.from {
+                    PlayedQuantity::Velocity => ConsolePlayedQuantity::Velocity,
+                    PlayedQuantity::PitchClass => ConsolePlayedQuantity::PitchClass,
+                },
+                window: value.window.into(),
+            })
+            .collect(),
     }
 }
 
@@ -133,21 +146,6 @@ fn project_event(session: &ProjectSession, on: &On) -> ConsoleOn {
 }
 
 fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
-    let values = |values: &[PlayedValue]| {
-        values
-            .iter()
-            .map(|value| ConsolePlayedValue {
-                param: value.param.as_str().to_string(),
-                from: match value.from {
-                    PlayedQuantity::Velocity => ConsolePlayedQuantity::Velocity,
-                    PlayedQuantity::Pitch => ConsolePlayedQuantity::Pitch,
-                    PlayedQuantity::PitchClass => ConsolePlayedQuantity::PitchClass,
-                    PlayedQuantity::Fifths => ConsolePlayedQuantity::Fifths,
-                },
-                window: value.window.into(),
-            })
-            .collect()
-    };
     match action {
         Action::Play(play) => ConsoleAction::Play {
             clip_id: play.clip.0,
@@ -171,23 +169,10 @@ fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
                     longest_seconds: longest.as_seconds_f64(),
                 },
             },
-            values: values(&play.values),
         },
-        Action::Start {
-            clip,
-            values: played,
-        } => ConsoleAction::Start {
-            clip_id: clip.0,
-            values: values(played),
-        },
+        Action::Start { clip } => ConsoleAction::Start { clip_id: clip.0 },
         Action::Stop { clip } => ConsoleAction::Stop { clip_id: clip.0 },
-        Action::Toggle {
-            clip,
-            values: played,
-        } => ConsoleAction::Toggle {
-            clip_id: clip.0,
-            values: values(played),
-        },
+        Action::Toggle { clip } => ConsoleAction::Toggle { clip_id: clip.0 },
         Action::Mark(key) => ConsoleAction::Mark {
             into: key.name.as_str().to_string(),
         },
@@ -203,29 +188,11 @@ fn action_from_gui(
     owner: &DocumentId,
     action: ConsoleAction,
 ) -> Result<Action, GuiMutationError> {
-    let values = |values: Vec<ConsolePlayedValue>| {
-        values
-            .into_iter()
-            .map(|value| {
-                Ok(PlayedValue {
-                    param: identifier(&value.param)?,
-                    from: match value.from {
-                        ConsolePlayedQuantity::Velocity => PlayedQuantity::Velocity,
-                        ConsolePlayedQuantity::Pitch => PlayedQuantity::Pitch,
-                        ConsolePlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
-                        ConsolePlayedQuantity::Fifths => PlayedQuantity::Fifths,
-                    },
-                    window: value.window.into(),
-                })
-            })
-            .collect::<Result<Vec<_>, GuiMutationError>>()
-    };
     Ok(match action {
         ConsoleAction::Play {
             clip_id,
             copies,
             length,
-            values: played,
         } => Action::Play(Play {
             clip: ConsoleClipId(clip_id),
             copies: u8::try_from(copies).map_err(|_| {
@@ -250,24 +217,15 @@ fn action_from_gui(
                     longest: checked_gui_duration(longest_seconds)?,
                 },
             },
-            values: values(played)?,
         }),
-        ConsoleAction::Start {
-            clip_id,
-            values: played,
-        } => Action::Start {
+        ConsoleAction::Start { clip_id } => Action::Start {
             clip: ConsoleClipId(clip_id),
-            values: values(played)?,
         },
         ConsoleAction::Stop { clip_id } => Action::Stop {
             clip: ConsoleClipId(clip_id),
         },
-        ConsoleAction::Toggle {
-            clip_id,
-            values: played,
-        } => Action::Toggle {
+        ConsoleAction::Toggle { clip_id } => Action::Toggle {
             clip: ConsoleClipId(clip_id),
-            values: values(played)?,
         },
         ConsoleAction::Mark { into } => Action::Mark(MarkCollectionKey {
             name: identifier(&into)?,
@@ -409,27 +367,17 @@ pub(super) fn edit_console(
                         clip,
                         copies: 1,
                         length: PlayLength::Fixed(checked_gui_duration(1.0)?),
-                        values: Vec::new(),
                     }),
                 )?,
-                ConsolePlayMode::Toggle => push_action(
-                    &mut draft,
-                    event,
-                    control,
-                    Action::Toggle {
-                        clip,
-                        values: Vec::new(),
-                    },
-                )?,
+                ConsolePlayMode::Toggle => {
+                    push_action(&mut draft, event, control, Action::Toggle { clip })?
+                }
                 ConsolePlayMode::Held => {
                     push_action(
                         &mut draft,
                         ConsoleEventKind::Press,
                         control.clone(),
-                        Action::Start {
-                            clip,
-                            values: Vec::new(),
-                        },
+                        Action::Start { clip },
                     )?;
                     push_action(
                         &mut draft,
@@ -480,18 +428,37 @@ pub(super) fn edit_console(
         }
         ConsoleGuiEdit::ControlParam {
             target,
-            control,
+            source,
             window,
         } => {
             let target = automation_target_from_gui(target)?;
             let window = Window::from(window);
-            // Whatever controlled the parameter before lets go of it.
+            // Whatever set the parameter before lets go of it.
             for on in &mut draft.events {
                 on.actions.retain(
                     |action| !matches!(action, Action::Set { target: set, .. } if *set == target),
                 );
             }
-            if let Some(control) = control {
+            if let AutomationTarget::ClipParam { clip_id, param } = &target {
+                clip_mut(&mut draft, *clip_id)?
+                    .played
+                    .retain(|value| value.param != *param);
+            }
+            if let Some(ConsoleParamSource::Played { from }) = source {
+                let AutomationTarget::ClipParam { clip_id, param } = target else {
+                    return Err(GuiMutationError::Invalid(
+                        "Only an effect's parameter is played.".into(),
+                    ));
+                };
+                clip_mut(&mut draft, clip_id)?.played.push(PlayedValue {
+                    param,
+                    from: match from {
+                        ConsolePlayedQuantity::Velocity => PlayedQuantity::Velocity,
+                        ConsolePlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
+                    },
+                    window,
+                });
+            } else if let Some(ConsoleParamSource::Control { control }) = source {
                 let control = control_from_gui(session, owner, &control)?;
                 let button = session
                     .project
@@ -551,26 +518,24 @@ pub(super) fn edit_console(
                 .is_some();
             let on = event_mut(&mut draft, id)?;
             on.event = input_event(event, input);
-            match event {
-                ConsoleEventKind::Move => {
-                    on.actions
-                        .retain(|action| matches!(action, Action::Set { .. }));
-                }
-                ConsoleEventKind::Release => {
-                    on.actions.iter_mut().for_each(|action| {
-                        if let Some(values) = values_mut(action) {
-                            values.clear();
-                        }
-                    });
-                }
-                ConsoleEventKind::Press if !notes => {
-                    on.actions.iter_mut().for_each(|action| {
-                        if let Some(values) = values_mut(action) {
-                            values.retain(|value| !value.from.needs_note());
-                        }
-                    });
-                }
-                ConsoleEventKind::Press => {}
+            if event == ConsoleEventKind::Move {
+                on.actions
+                    .retain(|action| matches!(action, Action::Set { .. }));
+            }
+            // The clips it starts keep only the values it can play.
+            let started = on
+                .actions
+                .iter()
+                .filter_map(Action::started)
+                .collect::<Vec<_>>();
+            for clip in draft
+                .clips
+                .iter_mut()
+                .filter(|clip| started.contains(&clip.id))
+            {
+                clip.played.retain(|value| {
+                    event == ConsoleEventKind::Press && (notes || !value.from.needs_note())
+                });
             }
         }
         ConsoleGuiEdit::SetActions { id, actions } => {
@@ -607,6 +572,7 @@ fn add_clip(
         scope: ClipScope::WholeTarget,
         definition: clip.definition,
         param_overrides: clip.param_overrides,
+        played: Vec::new(),
     });
     Ok((id, shown))
 }
@@ -652,15 +618,6 @@ fn input_event(kind: ConsoleEventKind, control: ControlRef) -> InputEvent {
     }
 }
 
-/// The parameters an action sets on the copy it starts.
-fn values_mut(action: &mut Action) -> Option<&mut Vec<PlayedValue>> {
-    match action {
-        Action::Play(play) => Some(&mut play.values),
-        Action::Start { values, .. } | Action::Toggle { values, .. } => Some(values),
-        Action::Stop { .. } | Action::Mark(_) | Action::Set { .. } => None,
-    }
-}
-
 fn edit_clip(
     session: &mut ProjectSession,
     owner: &DocumentId,
@@ -688,14 +645,8 @@ fn edit_clip(
             let authored = clip_mut(console, id)?;
             authored.definition = definition;
             authored.param_overrides = params;
-            // Played values and bindings name the old effect's parameters.
-            for action in console.events.iter_mut().flat_map(|on| &mut on.actions) {
-                if action.clip() == Some(id)
-                    && let Some(values) = values_mut(action)
-                {
-                    values.clear();
-                }
-            }
+            // Played values and `Set`s name the old effect's parameters.
+            authored.played.clear();
             console.forget_clip(id);
         }
         ConsoleClipEdit::Param { name, value } => {

@@ -128,8 +128,9 @@ live:
   mark each time a `Mark` action runs. Any effect with a marks parameter can
   read one, so effects such as MarkPulse react to the beat you tap.
 - **Clips** (`ConsoleClip`): a sequence clip without a start or a duration: a
-  name, a layer, a fixture or group, a scope, an effect and its parameters.
-  Actions name the clip they play.
+  name, a layer, a fixture or group, a scope, an effect and its parameters,
+  and the parameters each copy takes from how it was played (see
+  [Played values](#played-values)). Actions name the clip they play.
 - **`always`**: clips that play for the whole session.
 - **Events** (`On { event, actions }`): what a control does. The event is
   `Press { control }` or `Release { control }` of a button, or
@@ -139,7 +140,7 @@ live:
 
 An action is one of:
 
-- **`Play { clip, copies, length, values }`** plays a copy of the clip for its
+- **`Play { clip, copies, length }`** plays a copy of the clip for its
   length, on top of the copies already playing: up to `copies`, 1 to 16, play
   at once, and when they all play the oldest is reused. `length` is
   `Fixed { duration }` or `Scaled { by, shortest, longest }`, where `by` is
@@ -147,10 +148,10 @@ An action is one of:
   `Axis { control }` (where an axis is now; one not yet moved reads 0), mapped
   from `shortest` at 0 to `longest` at 1. The length is read once when the copy
   starts; later changes do not affect copies already playing.
-- **`Start { clip, values }`** plays one copy until it is stopped. Pressing
+- **`Start { clip }`** plays one copy until it is stopped. Pressing
   again while the clip plays does nothing.
 - **`Stop { clip }`** stops every playing copy of the clip.
-- **`Toggle { clip, values }`** starts the clip if no copy plays, and otherwise
+- **`Toggle { clip }`** starts the clip if no copy plays, and otherwise
   stops it.
 - **`Mark { into }`** adds a mark to a live mark collection.
 - **`Set { param, window }`** writes the event's value into a parameter of a clip
@@ -159,8 +160,8 @@ An action is one of:
   `Press`, and 0 on `Release`. The value's `0..1`, through `window` (a `(low,
   high)` part of `0..1`, so `(0.0, 0.7)` makes the knob's top 70% of the
   range), maps onto the parameter's declared range, as sequence automation
-  does, and the parameter holds its own
-  value until the first `Set`. One control sets a parameter, by any of its
+  does, and the parameter rests at the window's low end, where an axis not
+  yet moved or a released button puts it, until the first `Set`. One control sets a parameter, by any of its
   events, and a played value cannot also set it.
 
 A clip is played either by `Play` actions or by `Start`, `Toggle` and `always`,
@@ -176,43 +177,39 @@ sequence's grid, with the actions it runs when pressed and when released. **+**
 in a cell adds an action. Playing an effect adds the effect and its action
 together, as one edit: for a moment (a `Play` of one second), while held
 (`Start` on the press and `Stop` on the release) or toggled. Selecting an
-action opens it in the side panel, as a sequence's clips open, with its copies,
-length and played values, and the effect it plays: layer, target, scope, effect
-type and parameters. Knobs (axes) are not rows of the grid: a parameter of an
-effect, or of an operator in the layers and operators editor, picks the knob that
-sets it from its own row, by the knob's position. Removing an action removes the
+action opens it in the side panel, as a sequence's clips open, with its copies
+and length, and the effect it plays: layer, target, scope, effect type and
+parameters. Knobs (axes) are not rows of the grid: a parameter of an effect, or
+of an operator in the layers and operators editor, picks what sets it live from
+its own row: a knob, by its position, or, for an effect, how the press that
+started each copy was played. Removing an action removes the
 effect it played when nothing else plays or holds it, with the stop that went with
 it. Effects that play for the whole session are listed above the controls. A mark
 action's panel names the effects that read its collection.
 
 ### Played values
 
-The `values` of a `Play`, `Start` or `Toggle` set parameters of the copy it
-starts from how it was played, so every note sounds its own way:
+A clip's `played` values set parameters of each copy from how the press that
+started it was played, so every note sounds its own way:
 
 ```text
-values: [
+played: [
   PlayedValue { param: level, from: Velocity, window: (0.2, 1.0) },
-  PlayedValue { param: position, from: Fifths, window: (0.0, 1.0) },
+  PlayedValue { param: hue, from: PitchClass, window: (0.0, 1.0) },
 ],
 ```
 
 - `Velocity`: how hard the note was struck; a computer key or a pedal plays
   at 1.
-- `Pitch`: the note's place in its button's note range, from the lowest at 0
-  to the highest at 1; a button of one note is at its place among all 128
-  notes.
 - `PitchClass`: the note's name, C at 0 up the chromatic scale to B at 11/12,
   whatever its octave.
-- `Fifths`: the note's name round the circle of fifths, C at 0, G at 1/12, D
-  at 2/12 and on to F at 11/12, so the notes of a chord sit close together.
 
 The value's `0..1`, through `window`, maps onto the parameter's declared range,
-as with automation, and the parameter is a float, int, bool, enum or curve. Values are
-played only on `Press`, and the last three only from a button reading notes. A
-parameter a `Set` writes cannot also be played. Played from a range of
-notes, `Play` is polyphonic: each note takes a copy and plays it with its own
-values.
+as with automation, and the parameter is a float, int, bool, enum or curve. A
+clip with played values is started only by `Press` events, never `always`, and
+plays `PitchClass` only when every control that starts it reads notes. A
+parameter a `Set` writes cannot also be played. Played from a range of notes,
+`Play` is polyphonic: each note takes a copy and plays it with its own values.
 
 ### The starter's jam console
 

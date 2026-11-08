@@ -31,6 +31,7 @@ Console mpk_mini {
         clusters_per_mark: 30,
         overlap_marks: true,
       },
+      played: [],
     },
     ConsoleClip {
       name: mark_field_wipe,
@@ -53,16 +54,14 @@ Console mpk_mini {
         pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
         overlap_marks: true,
       },
+      played: [],
     },
   ],
   always: [],
   events: [
     On { event: Press { control: devices.mpk_mini.pad_1 }, actions: [Mark { into: beat1 }] },
     On { event: Press { control: devices.mpk_mini.pad_2 }, actions: [Mark { into: beat2 }] },
-    On {
-      event: Press { control: devices.mpk_mini.pad_8 },
-      actions: [Toggle { clip: mark_pulse, values: [] }],
-    },
+    On { event: Press { control: devices.mpk_mini.pad_8 }, actions: [Toggle { clip: mark_pulse }] },
     On { event: Press { control: devices.mpk_mini.pad_3 }, actions: [Mark { into: beat3 }] },
     On {
       event: Move { control: devices.mpk_mini.knob_1 },
@@ -83,7 +82,7 @@ Console mpk_mini {
     },
     On {
       event: Press { control: devices.mpk_mini.pad_7 },
-      actions: [Toggle { clip: mark_field_wipe, values: [] }],
+      actions: [Toggle { clip: mark_field_wipe }],
     },
     On {
       event: Move { control: devices.mpk_mini.knob_3 },

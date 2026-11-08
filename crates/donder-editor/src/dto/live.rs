@@ -182,9 +182,11 @@ pub struct ConsoleClip {
     pub(crate) scope: SequenceClipScope,
     pub(crate) effect: SequenceEffectReference,
     pub(crate) effect_name: String,
-    /// A console's parameters are always editable: one a control sets starts
-    /// at its own value, so none carries an `automation`.
+    /// None carries an `automation`: the console's `Set`s and the clip's
+    /// `played` say what sets a parameter live.
     pub(crate) params: Vec<SequenceClipParam>,
+    /// Parameters each copy takes from the press that started it.
+    pub(crate) played: Vec<ConsolePlayedValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -255,19 +257,16 @@ pub enum ConsoleAction {
         clip_id: u32,
         copies: u32,
         length: ConsolePlayLength,
-        values: Vec<ConsolePlayedValue>,
     },
     /// Play one copy of a clip until it is stopped.
     Start {
         clip_id: u32,
-        values: Vec<ConsolePlayedValue>,
     },
     Stop {
         clip_id: u32,
     },
     Toggle {
         clip_id: u32,
-        values: Vec<ConsolePlayedValue>,
     },
     /// Add a mark to the live mark collection `into`.
     Mark {
@@ -312,7 +311,7 @@ pub enum ConsoleLengthSource {
     Axis { control: ConsoleControlRef },
 }
 
-/// A parameter a press sets on the copy it starts.
+/// A parameter a copy takes from how the press that started it was played.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsolePlayedValue {
@@ -326,12 +325,8 @@ pub struct ConsolePlayedValue {
 pub enum ConsolePlayedQuantity {
     /// How hard the note was struck; a computer key or pedal plays at 1.
     Velocity,
-    /// The note's place in its button's note range.
-    Pitch,
     /// The note's name, C to B up the chromatic scale.
     PitchClass,
-    /// The note's name round the circle of fifths.
-    Fifths,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -351,8 +346,8 @@ pub enum ConsoleClipEdit {
         scope: SequenceClipScope,
     },
     /// Play another effect; its required parameters start from
-    /// `initial_color`, and the played values and automation bindings of the
-    /// old effect's parameters go.
+    /// `initial_color`, and the played values and `Set`s of the old effect's
+    /// parameters go.
     Definition {
         initial_color: String,
         effect: SequenceEffectReference,
@@ -361,6 +356,22 @@ pub enum ConsoleClipEdit {
         name: String,
         value: SequenceParamValue,
     },
+}
+
+/// What sets a parameter live.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ConsoleParamSource {
+    /// An axis when moved, or a button by the press's velocity and 0 on the
+    /// release.
+    Control { control: ConsoleControlRef },
+    /// How the press that started each copy of the clip was played; only a
+    /// clip's parameter.
+    Played { from: ConsolePlayedQuantity },
 }
 
 /// How a control plays a new effect.
@@ -405,13 +416,11 @@ pub enum ConsoleGuiEdit {
         event: ConsoleEventKind,
         action: ConsoleAction,
     },
-    /// Link a parameter to a control, or to none. An axis sets it when moved,
-    /// and a button by the press's velocity and 0 on the release; whatever
-    /// controlled it before lets go. The control's value reaches the
-    /// parameter through `window`.
+    /// Link a parameter to what sets it live, or to nothing; whatever set it
+    /// before lets go. The value reaches the parameter through `window`.
     ControlParam {
         target: SequenceAutomationTarget,
-        control: Option<ConsoleControlRef>,
+        source: Option<ConsoleParamSource>,
         window: GuiWindow,
     },
     /// Remove an action. An effect nothing plays or holds then goes with it,
@@ -451,9 +460,8 @@ pub enum ConsoleGuiEdit {
         event: ConsoleEventKind,
         input: ConsoleControlRef,
     },
-    /// Change what an event answers. Actions the new event cannot run go:
-    /// all but `Set` for a move, played values for all but a press, and
-    /// values played from a note for a control without notes.
+    /// Change what an event answers. Actions a move cannot run go: all but
+    /// `Set`.
     SetEvent {
         id: u32,
         event: ConsoleEventKind,

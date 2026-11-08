@@ -3939,7 +3939,6 @@ button.status-chip:hover {
 .kit-badge { display: inline-flex; align-items: center; gap: var(--donder-space-2); color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); }
 .kit-select[aria-invalid="true"] { border-color: var(--donder-danger-border); }
 .gui-object-description { field-sizing: content; min-height: var(--donder-control-height-sm); }
-.console-played-value { display: grid; gap: var(--donder-space-4); padding-block: var(--donder-space-4); border-bottom: var(--donder-border-width) solid var(--donder-border-soft); }
 .ownership-actions { display: inline-flex; align-items: center; gap: var(--donder-space-4); }
 .learn-on-focus { display: contents; }
 

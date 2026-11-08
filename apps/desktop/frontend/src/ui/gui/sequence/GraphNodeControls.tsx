@@ -23,14 +23,17 @@ export function GraphNodeControls({ node, composition }: { node: SequenceGraphNo
   return <fieldset className="graph-node-parameters" disabled={!editable} aria-label="Project operator parameters">
     <NameField name={node.kind.name} label="Name" commit={(name) =>
       composition.applyItem({ type: "rename", item: { type: "graphNode", nodeId: node.id }, name })} />
-    {node.kind.params.map((param, index) => <div key={param.name} className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}>
+    {node.kind.params.map((param, index) => {
+      const live = composition.operatorParamControl === null || !param.supportsAutomation ? null : composition.operatorParamControl(node.id, param.name, param.range);
+      return <div key={param.name} className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}>
       <TypedParamInput param={param} commitParam={(name, value) =>
         composition.apply({ type: "updateGraphOperatorParam", nodeId: node.id, name, value }).then(() => undefined)
       } curveLibrary={document.curveLibrary} gradientLibrary={document.gradientLibrary} markCollections={document.markCollections}
-        automationControl={composition.operatorParamControl === null || !param.supportsAutomation ? null : composition.operatorParamControl(node.id, param.name, param.range)}
+        automationControl={live?.control ?? null} linked={live?.linked ?? false}
         automation={automation === null ? null : { target: { type: "compositionNodeParam", nodeId: node.id, param: param.name },
           automationClips: automation.automationClips, canCreateAutomationClip: document.layers.length > 0,
           automationClipChooser: automation.automationClipChooser, setAutomationClipChooser: automation.setAutomationClipChooser }} />
-    </div>)}
+    </div>;
+    })}
   </fieldset>;
 }

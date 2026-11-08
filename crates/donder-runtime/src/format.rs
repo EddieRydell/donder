@@ -79,6 +79,8 @@ pub(crate) struct Meta {
     pub(crate) states: u32,
     /// A console's live mark collections.
     pub(crate) collections: u32,
+    /// The controls a console reads.
+    pub(crate) controls: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -501,15 +503,6 @@ pub(crate) struct LiveTarget {
     pub(crate) clip: u32,
 }
 
-/// A control a console reads: the notes of one that reads notes, from `low`
-/// to `high`, or `low` [`NONE`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct ConsoleControl {
-    pub(crate) low: u32,
-    pub(crate) high: u32,
-}
-
 /// What a console's `On` answers.
 pub(crate) const HAPPENING_PRESS: u32 = 0;
 pub(crate) const HAPPENING_RELEASE: u32 = 1;
@@ -555,16 +548,12 @@ pub(crate) struct ConsoleAction {
     /// The part of `0..1` a set's value maps through.
     pub(crate) low: f32,
     pub(crate) high: f32,
-    /// The played values of a play, start or toggle.
-    pub(crate) values: Range,
 }
 
 pub(crate) const PLAYED_VELOCITY: u32 = 0;
-pub(crate) const PLAYED_PITCH: u32 = 1;
-pub(crate) const PLAYED_PITCH_CLASS: u32 = 2;
-pub(crate) const PLAYED_FIFTHS: u32 = 3;
+pub(crate) const PLAYED_PITCH_CLASS: u32 = 1;
 
-/// A parameter a press sets on the copy it starts.
+/// A parameter a copy takes from the press that started it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct PlayedValue {
@@ -576,11 +565,12 @@ pub(crate) struct PlayedValue {
     pub(crate) automations: Range,
 }
 
-/// A console clip: its voices, in console indices.
+/// A console clip: its voices, in console indices, and its played values.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct ConsoleClip {
     pub(crate) voices: Range,
+    pub(crate) values: Range,
 }
 
 pub(crate) use donder_runtime_types::InstructionWord;
@@ -689,7 +679,6 @@ sections! {
     voices: u32,
     live_automations: LiveAutomation,
     live_targets: LiveTarget,
-    console_controls: ConsoleControl,
     console_ons: ConsoleOn,
     console_actions: ConsoleAction,
     played_values: PlayedValue,

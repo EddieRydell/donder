@@ -1,6 +1,6 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
-import type { ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, GuiControlInput, GuiEditUpdate, GuiWindow, SequenceAutomationTarget } from "../../../types";
+import type { ConsoleClip, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, ConsolePlayedValue, GuiControlInput, GuiEditUpdate, GuiWindow, SequenceAutomationTarget } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { automationTargetsEqual, type GuiFocus, type GuiItemEdit } from "../shared";
 
@@ -64,6 +64,21 @@ export function targetLabel(document: ConsoleGuiDocument, target: SequenceAutoma
 /** The event that `Set`s `target`: the control that controls it. */
 export function controllerOf(document: ConsoleGuiDocument, target: SequenceAutomationTarget): ConsoleOn | undefined {
   return document.events.find((on) => on.actions.some((action) => action.type === "set" && automationTargetsEqual(action.target, target)));
+}
+
+/** The value each copy of the effect takes for `param` from its press, if any. */
+export function playedOf(clip: ConsoleClip, param: string): ConsolePlayedValue | undefined {
+  return clip.played.find((value) => value.param === param);
+}
+
+/** Whether a knob, a button or, for an effect's parameter, its presses set `target` live. */
+export function isLinked(document: ConsoleGuiDocument, target: SequenceAutomationTarget, clip: ConsoleClip | null): boolean {
+  return controllerOf(document, target) !== undefined || (clip !== null && playedOf(clip, target.param) !== undefined);
+}
+
+/** The controls whose events start a copy of `clip`. */
+export function startersOf(document: ConsoleGuiDocument, clip: number): ConsoleOn[] {
+  return document.events.filter((on) => on.actions.some((action) => (action.type === "play" || action.type === "start" || action.type === "toggle") && action.clipId === clip));
 }
 
 /** A binding that uses the whole range of its parameter. */

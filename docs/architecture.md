@@ -240,7 +240,7 @@ indexes records without checking them. The header holds an `id`
 (`PreparedShow::id`), a hash of the show the builder writes, which a
 controller reports so a host can tell which show it holds; playback never reads
 it. A console is a show with voices, live mark
-collections, live automations and its routing: each control's notes, each
+collections, live automations and its routing: how many controls it reads, each
 `On`'s actions, each clip's voices and played values, and its `always` clips.
 `ShowPlayback` routes each input (`console.rs`), keeping the only
 performance state: the copy each voice last started and until when, each

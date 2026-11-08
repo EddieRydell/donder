@@ -23,6 +23,7 @@ Console jam {
         pulse_shape: curves.ease_down,
         decay_seconds: 0.01,
       },
+      played: [],
     },
     ConsoleClip {
       name: flash,
@@ -32,6 +33,7 @@ Console jam {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
+      played: [],
     },
     ConsoleClip {
       name: wash,
@@ -41,18 +43,16 @@ Console jam {
       scope: WholeTarget,
       effect: effects.Pulse,
       params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
+      played: [],
     },
   ],
   always: [background],
   events: [
     On {
       event: Press { control: devices.keyboard.kick },
-      actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s }, values: [] }],
+      actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s } }],
     },
-    On {
-      event: Press { control: devices.keyboard.swell },
-      actions: [Start { clip: wash, values: [] }],
-    },
+    On { event: Press { control: devices.keyboard.swell }, actions: [Start { clip: wash }] },
     On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
     On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
     On {

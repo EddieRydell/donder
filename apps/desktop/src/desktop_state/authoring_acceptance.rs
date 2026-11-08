@@ -2590,7 +2590,6 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
         length: ConsolePlayLength::Fixed {
             duration_seconds: 0.5,
         },
-        values: Vec::new(),
     };
     let before = state.project_session().unwrap();
     let document = console_edit(

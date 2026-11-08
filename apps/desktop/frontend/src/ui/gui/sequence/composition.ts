@@ -23,8 +23,8 @@ export type CompositionEditing = {
     automationClipChooser: AutomationClipChooser;
     setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
   } | null;
-  /** A console links operator parameters to its knobs instead. */
-  operatorParamControl: ((nodeId: number, param: string, range: SequenceParamRange | null) => ReactNode) | null;
+  /** A console links operator parameters to its knobs instead, and says which are linked. */
+  operatorParamControl: ((nodeId: number, param: string, range: SequenceParamRange | null) => { control: ReactNode; linked: boolean }) | null;
 };
 
 export function sequenceComposition(

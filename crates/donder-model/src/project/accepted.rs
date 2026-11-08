@@ -187,12 +187,6 @@ impl<'a> AcceptedConsoleClip<'a> {
     pub fn bindings(self) -> &'a [ConsoleBinding] {
         &self.inputs.bindings
     }
-
-    /// The parameters actions play on the copies they start, in the order
-    /// [`ConsoleBinding::Played`] numbers them.
-    pub fn played(self) -> &'a [donder_runtime_types::Identifier] {
-        &self.inputs.played
-    }
 }
 
 fn operator_inputs<'a>(

@@ -1,7 +1,6 @@
 import { Link2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ConsoleAction, ConsoleGuiDocument, ConsoleOn } from "../../../types";
-import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { Badge, Button, Field, Select, Tabs, Toggle } from "../../kit";
 import { InspectorScrollArea } from "../InspectorScrollArea";
 import { LayerList } from "../sequence/sequenceLayers";
@@ -68,8 +67,6 @@ function ActionPanel({ document, on, index, action, setSelected }: {
   action: ConsoleAction;
   setSelected: (focus: GuiFocus) => void;
 }) {
-  const device = document.inputDevices.find((candidate) => guiObjectKey(candidate.device) === guiObjectKey(on.input.control.device));
-  const notes = device?.buttons.find((button) => button.control === on.input.control.control)?.notes ?? false;
   const set = (next: ConsoleAction) => void applyConsoleEdit({ type: "setActions", id: on.id, actions: on.actions.map((other, i) => i === index ? next : other) });
   const clipId = action.type === "mark" ? undefined : action.type === "set" ? (action.target.type === "clipParam" ? action.target.clipId : undefined) : action.clipId;
   const clip = clipId === undefined ? undefined : document.clips.find((candidate) => candidate.id === clipId);
@@ -84,10 +81,10 @@ function ActionPanel({ document, on, index, action, setSelected }: {
       ]} />
       <MarksReadersBadge readers={marksReaders(document, action.into)} />
     </Field>}
-    {action.type === "set" && <Field label="Sets" tip={`Across its range. It keeps its own value until ${on.input.controlName} first ${on.event === "move" ? "moves" : "is pressed"}${clip === undefined ? "; until then it has its value in the layers and operators editor" : ""}.`}>
+    {action.type === "set" && <Field label="Sets" tip={`Across its range. It rests at the low end until ${on.input.controlName} first ${on.event === "move" ? "moves" : "is pressed"}.`}>
       <span>{targetLabel(document, action.target)}</span>
     </Field>}
-    <PlayFields document={document} action={action} press={on.event === "press"} notes={notes} onChange={set} />
+    <PlayFields document={document} action={action} onChange={set} />
     {clip !== undefined && <>
       <div className="inspector-section-divider" />
       <h2>Effect {uses > 1 && <Badge icon={Link2} tip={`Played by ${uses} actions; changes here apply to all of them`}>{uses}</Badge>}</h2>

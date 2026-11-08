@@ -51,7 +51,8 @@ export function TypedParamInput({
   gradientLibrary,
   markCollections,
   automation = null,
-  automationControl = null
+  automationControl = null,
+  linked = false
 }: {
   param: SequenceClipParam;
   commitParam: (name: string, value: SequenceParamValue) => Promise<void>;
@@ -61,12 +62,14 @@ export function TypedParamInput({
   automation?: ParamAutomationControls | null;
   /** Controls that link the parameter to its automation, in place of a sequence's. */
   automationControl?: ReactNode;
+  /** Whether `automationControl` has linked the parameter to what sets it. */
+  linked?: boolean;
 }) {
 
   const commit = (value: SequenceParamValue) => {
     return commitParam(param.name, value);
   };
-  const automated = param.automation !== null;
+  const automated = linked || param.automation !== null;
   const tip = paramTip(param);
 
   if (!param.editable && !automated) {

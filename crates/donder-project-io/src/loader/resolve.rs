@@ -1369,11 +1369,23 @@ impl DomainResolver<'_> {
                     &marks,
                     &clip.params,
                 )?,
+                played: clip
+                    .played
+                    .iter()
+                    .map(|value| {
+                        self.link_param(document, definition, &value.param);
+                        PlayedValue {
+                            param: name(&value.param),
+                            from: value.from.0,
+                            window: window(value.window),
+                        }
+                    })
+                    .collect(),
                 definition,
             });
         }
         let clip = |clip: &Name| {
-            let (id, span, definition) = clip_ids.get(&clip.0.value).copied().ok_or_else(|| {
+            let (id, span, _) = clip_ids.get(&clip.0.value).copied().ok_or_else(|| {
                 self.invalid(
                     document,
                     clip.0.span,
@@ -1381,28 +1393,11 @@ impl DomainResolver<'_> {
                 )
             })?;
             self.link_local(document, clip.0.span, span);
-            Ok::<_, LoadError>((id, definition))
+            Ok::<_, LoadError>(id)
         };
         let (composition_graph, node_ids) =
             self.graph(document, &layer_ids, &marks, &console.graph)?;
-        let always = console
-            .always
-            .iter()
-            .map(|name| clip(name).map(|(id, _)| id))
-            .collect::<Result<_, _>>()?;
-        let values = |definition: EffectDefinitionId, values: &[types::PlayedValue]| {
-            values
-                .iter()
-                .map(|value| {
-                    self.link_param(document, definition, &value.param);
-                    PlayedValue {
-                        param: name(&value.param),
-                        from: value.from.0,
-                        window: window(value.window),
-                    }
-                })
-                .collect()
-        };
+        let always = console.always.iter().map(clip).collect::<Result<_, _>>()?;
         let mut events = Vec::with_capacity(console.events.len());
         for (on, index) in console.events.iter().zip(1..) {
             let control = self.control_ref(document, on.event.control())?;
@@ -1415,59 +1410,38 @@ impl DomainResolver<'_> {
                             clip: played,
                             copies,
                             length,
-                            values: played_values,
-                        } => {
-                            let (clip, definition) = clip(played)?;
-                            Action::Play(Play {
-                                clip,
-                                copies: *copies,
-                                length: match length {
-                                    types::PlayLength::Fixed { duration } => {
-                                        PlayLength::Fixed(DonderDuration(*duration))
-                                    }
-                                    types::PlayLength::Scaled {
-                                        by,
-                                        shortest,
-                                        longest,
-                                    } => PlayLength::Scaled {
-                                        by: match by {
-                                            types::LengthSource::Velocity => LengthSource::Velocity,
-                                            types::LengthSource::Axis { control } => {
-                                                LengthSource::Axis(
-                                                    self.control_ref(document, control)?,
-                                                )
-                                            }
-                                        },
-                                        shortest: DonderDuration(*shortest),
-                                        longest: DonderDuration(*longest),
+                        } => Action::Play(Play {
+                            clip: clip(played)?,
+                            copies: *copies,
+                            length: match length {
+                                types::PlayLength::Fixed { duration } => {
+                                    PlayLength::Fixed(DonderDuration(*duration))
+                                }
+                                types::PlayLength::Scaled {
+                                    by,
+                                    shortest,
+                                    longest,
+                                } => PlayLength::Scaled {
+                                    by: match by {
+                                        types::LengthSource::Velocity => LengthSource::Velocity,
+                                        types::LengthSource::Axis { control } => {
+                                            LengthSource::Axis(self.control_ref(document, control)?)
+                                        }
                                     },
+                                    shortest: DonderDuration(*shortest),
+                                    longest: DonderDuration(*longest),
                                 },
-                                values: values(definition, played_values),
-                            })
-                        }
-                        types::Action::Start {
-                            clip: started,
-                            values: played_values,
-                        } => {
-                            let (clip, definition) = clip(started)?;
-                            Action::Start {
-                                clip,
-                                values: values(definition, played_values),
-                            }
-                        }
-                        types::Action::Stop { clip: stopped } => Action::Stop {
-                            clip: clip(stopped)?.0,
+                            },
+                        }),
+                        types::Action::Start { clip: started } => Action::Start {
+                            clip: clip(started)?,
                         },
-                        types::Action::Toggle {
-                            clip: toggled,
-                            values: played_values,
-                        } => {
-                            let (clip, definition) = clip(toggled)?;
-                            Action::Toggle {
-                                clip,
-                                values: values(definition, played_values),
-                            }
-                        }
+                        types::Action::Stop { clip: stopped } => Action::Stop {
+                            clip: clip(stopped)?,
+                        },
+                        types::Action::Toggle { clip: toggled } => Action::Toggle {
+                            clip: clip(toggled)?,
+                        },
                         types::Action::Mark { into } => {
                             if let Some(span) = mark_names.get(&into.0.value) {
                                 self.link_local(document, into.0.span, *span);
