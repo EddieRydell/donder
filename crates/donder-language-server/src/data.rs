@@ -4,7 +4,7 @@ use donder_language::analysis::{
     Completion, CompletionKind, DataToken, DataTokenKind, SymbolKind, contains,
 };
 use donder_language::compiler::TextSpan;
-use donder_language::data::{DESCRIPTION_FIELD, NAME_FIELD, ROOT_NODE};
+use donder_language::data::{DESCRIPTION_FIELD, LAYERS_SCOPE, NAME_FIELD, ROOT_NODE};
 use donder_language::data::{DataField, DataValue, Spanned, is_pascal_case};
 use donder_language::data::{Definition, Fields, Refers, Schema, Shape};
 use donder_project_io::{
@@ -479,17 +479,11 @@ fn object_types<'a>(schema: &'a Schema, ty: &str) -> Vec<(&'static str, &'a Fiel
     }
 }
 
-/// The field that names an object: its own name, or, for an object named by
-/// what it refers to, such as a layer's graph node, that reference.
+/// The field that names an object.
 fn name_field(fields: &Fields) -> Option<&'static str> {
     fields
         .iter()
         .find(|(name, shape)| *name == NAME_FIELD && *shape == Shape::Name)
-        .or_else(|| {
-            fields
-                .iter()
-                .find(|(_, shape)| matches!(shape, Shape::Reference(_)))
-        })
         .map(|(name, _)| *name)
 }
 
@@ -766,9 +760,15 @@ pub(crate) fn completions(
             Refers::Layer | Refers::Clip | Refers::Marks => {
                 local_names(&schema, document, &targets)
             }
+            // An operator node, the root, or a layer's node: `layers.layer`.
             Refers::Node => {
                 let mut names = local_names(&schema, document, &targets);
                 names.push(ROOT_NODE.into());
+                names.extend(
+                    local_names(&schema, document, &reference_targets(Refers::Layer))
+                        .into_iter()
+                        .map(|layer| format!("{LAYERS_SCOPE}.{layer}")),
+                );
                 names
             }
         }

@@ -194,3 +194,39 @@ operator Afterglow {
     max(input, previous * pow(decay, frames_elapsed))
   }
 }
+
+-- A channel clipped at full brightness and rounded to one of `levels` steps.
+fn crush(level: float, levels: int) -> float {
+  round(min(level, 1.0) * (levels - 1)) / (levels - 1)
+}
+
+operator Grit {
+  input input;
+  -- How dark a grain can go; 0 leaves the input smooth, 1 lets a grain go out.
+  param grain: float in 0.0..1.0 = 0.6;
+  -- Pixels that share one grain.
+  param grain_pixels: int in 1..64 = 1;
+  -- Frames each grain and tear holds before it changes.
+  param hold_frames: int in 1..60 = 3;
+  -- Gain before each channel clips at full brightness.
+  param drive: float in 1.0..16.0 = 1.0;
+  -- Brightness steps per channel; 256 is as fine as 8-bit color.
+  param levels: int in 2..256 = 256;
+  -- Chance that a band of pixels shifts along the fixture each hold.
+  param tear: float in 0.0..1.0 = 0.0;
+  -- Pixels per tearing band.
+  param tear_pixels: int in 1..256 = 16;
+  -- Farthest a torn band shifts, in pixels.
+  param tear_shift: int in 0..256 = 8;
+  param seed: float in 0.0..1000.0 = 0.0;
+
+  -- Grain and tears are drawn per frame bucket, so they repeat exactly after a seek.
+  sample {
+    let bucket = frame // hold_frames;
+    let band = (seed * 31.0 + pixel.index // tear_pixels) * 31.0 + bucket;
+    let shift = if rand(band + 0.25) < tear { int(round((rand(band + 0.5) * 2.0 - 1.0) * tear_shift)) } else { 0 };
+    let noise = rand((seed * 31.0 + pixel.index // grain_pixels) * 31.0 + bucket);
+    let light = input.at(pixel.index + shift) * (mix(1.0, noise, grain) * drive);
+    rgb(crush(red(light), levels), crush(green(light), levels), crush(blue(light), levels))
+  }
+}

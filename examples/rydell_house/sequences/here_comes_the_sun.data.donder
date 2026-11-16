@@ -89092,8 +89092,8 @@ Sequence here_comes_the_sun {
       RootNode { position: (600.0, 120.0) },
     ],
     edges: [
-      Edge { from: intensity_mask, to: intensity_mask_mix.dim },
-      Edge { from: default, to: intensity_mask_mix.source },
+      Edge { from: layers.intensity_mask, to: intensity_mask_mix.dim },
+      Edge { from: layers.default, to: intensity_mask_mix.source },
       Edge { from: intensity_mask_mix, to: root },
     ],
   },

@@ -80,10 +80,10 @@ impl<'a, 'w> Playback<'a, 'w> {
     }
 }
 
-/// The frame of `time` at the show's frame rate: the nearest, as frame times
-/// can land microseconds off a frame's start.
-fn frame_at(time: SampleTime, frame_rate: u32) -> u32 {
-    let Some((frame, rest)) = mul_div(time.as_ticks(), frame_rate, MICROS_PER_SECOND) else {
+/// The frame `ticks` after a start at `frame_rate`: the nearest, as frame
+/// times can land microseconds off a frame's start.
+pub(crate) fn frame_at(ticks: u32, frame_rate: u32) -> u32 {
+    let Some((frame, rest)) = mul_div(ticks, frame_rate, MICROS_PER_SECOND) else {
         unreachable!("frame rates are below a million")
     };
     frame + u32::from(rest >= MICROS_PER_SECOND - rest)
@@ -95,7 +95,7 @@ fn frame_at(time: SampleTime, frame_rate: u32) -> u32 {
 /// between them, the same frame after a command by none, and any other is a
 /// seek: one frame on from the state it has.
 fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize {
-    let frame = frame_at(time, show.frame_rate());
+    let frame = frame_at(time.as_ticks(), show.frame_rate());
     let [last, held] = *workspace.frame;
     if last == frame && held != 0 {
         return root_buffer(show);

@@ -66,8 +66,9 @@ pub(super) struct DomainResolver<'a> {
 /// Each layer of a sequence or console by name, with its declaring name's span.
 type LayerIds = IndexMap<Identifier, (SequenceLayerId, TextSpan)>;
 
-/// Each graph node by name: its identity, whether it is the root, the name
-/// it is declared by, and its operator.
+/// Each operator node and the root by name: its identity, whether it is the
+/// root, the name it is declared by, and its operator. Layer nodes are named
+/// by their layer, in edges only.
 type NodeIds = IndexMap<
     Identifier,
     (
@@ -1025,7 +1026,8 @@ impl DomainResolver<'_> {
         Ok((id, root, operator))
     }
 
-    /// The composition graph of a sequence or console, and its nodes by name.
+    /// The composition graph of a sequence or console, and its operator nodes
+    /// and root by name.
     fn graph(
         &self,
         document: &DocumentId,
@@ -1034,25 +1036,19 @@ impl DomainResolver<'_> {
         graph: &types::Graph,
     ) -> Result<(SequenceCompositionGraph, NodeIds), LoadError> {
         let mut node_ids = NodeIds::new();
+        let mut layer_nodes = IndexMap::new();
         let mut nodes = Vec::with_capacity(graph.nodes.len());
         for (index, node) in graph.nodes.iter().enumerate() {
             let id = CompositionGraphNodeId(index as u32 + 1);
-            let (node_name, root, position, kind, declared, operator) = match node {
+            let (position, kind, named) = match node {
                 types::Node::LayerNode {
                     layer: node_layer,
                     position,
-                } => (
-                    name(node_layer),
-                    false,
-                    position,
-                    CompositionGraphNodeKind::Layer {
-                        layer_id: self.layer(document, layer_ids, node_layer)?,
-                    },
-                    layer_ids
-                        .get(&node_layer.0.value)
-                        .map(|(_, layer_span)| *layer_span),
-                    None,
-                ),
+                } => {
+                    let layer_id = self.layer(document, layer_ids, node_layer)?;
+                    layer_nodes.entry(layer_id.clone()).or_insert(id.clone());
+                    (position, CompositionGraphNodeKind::Layer { layer_id }, None)
+                }
                 types::Node::OperatorNode {
                     name: node_name,
                     operator,
@@ -1078,30 +1074,36 @@ impl DomainResolver<'_> {
                     let params =
                         self.params(document, definition.into(), &declarations, marks, params)?;
                     (
-                        name(node_name),
-                        false,
                         position,
                         CompositionGraphNodeKind::Operator(GraphOperatorNode {
                             name: name(node_name),
                             operator: definition,
                             params,
                         }),
-                        Some(node_name.0.span),
-                        Some(definition),
+                        Some((
+                            name(node_name),
+                            false,
+                            Some(node_name.0.span),
+                            Some(definition),
+                        )),
                     )
                 }
                 types::Node::RootNode { position } => (
-                    donder_language::object_name(donder_language::data::ROOT_NODE),
-                    true,
                     position,
                     CompositionGraphNodeKind::Root,
-                    None,
-                    None,
+                    Some((
+                        donder_language::object_name(donder_language::data::ROOT_NODE),
+                        true,
+                        None,
+                        None,
+                    )),
                 ),
             };
-            node_ids
-                .entry(node_name)
-                .or_insert((id.clone(), root, declared, operator));
+            if let Some((node_name, root, declared, operator)) = named {
+                node_ids
+                    .entry(node_name)
+                    .or_insert((id.clone(), root, declared, operator));
+            }
             nodes.push(CompositionGraphNode {
                 id,
                 position: GraphNodePosition {
@@ -1115,7 +1117,22 @@ impl DomainResolver<'_> {
             .edges
             .iter()
             .map(|edge| {
-                let (from, ..) = self.node(document, &node_ids, &edge.from.0)?;
+                let from = match edge.from.segments.as_slice() {
+                    [scope, layer]
+                        if scope.value.as_str() == donder_language::data::LAYERS_SCOPE =>
+                    {
+                        let layer_id = self.layer(document, layer_ids, &Name(layer.clone()))?;
+                        layer_nodes.get(&layer_id).cloned().ok_or_else(|| {
+                            self.invalid(
+                                document,
+                                layer.span,
+                                format!("layer `{}` has no graph node", layer.value.as_str()),
+                            )
+                        })?
+                    }
+                    [node] => self.node(document, &node_ids, node)?.0,
+                    _ => return Err(self.loader.unresolved(document, &edge.from)),
+                };
                 let (to, input) = match edge.to.segments.as_slice() {
                     [to] => match self.node(document, &node_ids, to)? {
                         (to, true, _) => (to, None),

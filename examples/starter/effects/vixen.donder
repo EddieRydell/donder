@@ -399,8 +399,8 @@ effect VixenButterfly {
     let offset = if backward { state } else { -state };
     let value =
       if butterfly_type == Type2 || butterfly_type == Type3 {
-        let frame = (h * state) % h;
-        let f = 1.0 + min(frame, h - frame);
+        let fold = (h * state) % h;
+        let f = 1.0 + min(fold, h - fold);
         let f = if butterfly_type == Type3 { f * 0.1 + h / 60.0 } else { f };
         let xx = (x - w / 2.0) / f;
         let yy = (y - h / 2.0) / f;
@@ -772,7 +772,7 @@ effect VixenSpirograph {
   param frame_interval_ms: float in 1.0..1000.0 = 50.0;
 
   sample {
-    let frame = time * 1000.0 / frame_interval_ms;
+    let tick = time * 1000.0 / frame_interval_ms;
     let w = frame_w();
     let h = frame_h();
     let cx = w / 2.0;
@@ -782,7 +782,7 @@ effect VixenSpirograph {
     let outer = cx * outer_circle_radius / 100.0;
     let inner = min(outer, cx * inner_circle_radius / 100.0);
     guard inner > 0.0;
-    let state = frame * speed;
+    let state = tick * speed;
     let d = cx * (1.0 + distance * 0.99) / 100.0;
     let d = if animate { (d + state / 2.0) % 100.0 } else { d };
     guard sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) <= outer - inner + d + 0.75;
@@ -795,7 +795,7 @@ effect VixenSpirograph {
       let ry = (outer - inner) * sin(angle) + d * sin((outer - inner) / inner * angle) + cy;
       guard abs(rx - x) <= 0.5 && abs(ry - y) <= 0.5;
       let level = intensity / 100.0;
-      let pick = rand((random_seed * 31.0 + floor(frame)) * 31.0 + point);
+      let pick = rand((random_seed * 31.0 + floor(tick)) * 31.0 + point);
       if color_type == Rainbow { hsv(pick, 1.0, level) }
       else {
         let i = if color_type == Random { pick * len(colors) } else { sqrt((rx - cx) * (rx - cx) + (ry - cy) * (ry - cy)) / (1.0 + color_range * 1.99) * 100.0 / bin };
@@ -878,7 +878,7 @@ effect VixenFireworks {
   param frame_interval_ms: float in 1.0..1000.0 = 50.0;
 
   sample {
-    let frame = time * 1000.0 / frame_interval_ms;
+    let tick = time * 1000.0 / frame_interval_ms;
     let frames = duration * 1000.0 / frame_interval_ms;
     let w = frame_w();
     let h = frame_h();
@@ -890,10 +890,10 @@ effect VixenFireworks {
     guard count > 0;
     let lo =
       if source == MarkCollection { max(0, mark_last_index(explosion_marks, time - life * frame_interval_ms / 1000.0)) }
-      else { max(0, int((frame - life) * count / frames) - 1) };
+      else { max(0, int((tick - life) * count / frames) - 1) };
     let hi =
       if source == MarkCollection { mark_last_index(explosion_marks, time) }
-      else { min(count - 1, int(frame * count / frames)) };
+      else { min(count - 1, int(tick * count / frames)) };
     -- Later explosions draw over earlier ones.
     last for slot in 0..min(hi - lo + 1, 100) {
       let explosion = lo + slot;
@@ -901,7 +901,7 @@ effect VixenFireworks {
       let start =
         if source == MarkCollection { mark_at(explosion_marks, explosion) * 1000.0 / frame_interval_ms }
         else { (explosion + rand(seed + 1.0)) * frames / count };
-      let age = frame - start;
+      let age = tick - start;
       guard age >= 0.0 && age < life;
       let n = if random_particles { min_particles + floor(rand(seed + 4.0) * max(0, max_particles - min_particles)) } else { particles };
       let top_speed = if random_velocity { min_velocity + rand(seed + 5.0) * (max_velocity - min_velocity) } else { velocity };

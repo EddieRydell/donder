@@ -31446,7 +31446,7 @@ Sequence children_go {
       LayerNode { layer: default, position: (80.0, 60.0) },
       RootNode { position: (400.0, 120.0) },
     ],
-    edges: [Edge { from: default, to: root }],
+    edges: [Edge { from: layers.default, to: root }],
   },
   automation: [
     AutomationClip {

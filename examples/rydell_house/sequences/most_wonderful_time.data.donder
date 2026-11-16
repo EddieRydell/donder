@@ -183485,8 +183485,8 @@ Sequence most_wonderful_time {
       },
     ],
     edges: [
-      Edge { from: default, to: intensity_overlay_mix.source },
-      Edge { from: intensity_overlay, to: intensity_overlay_mix.dim },
+      Edge { from: layers.default, to: intensity_overlay_mix.source },
+      Edge { from: layers.intensity_overlay, to: intensity_overlay_mix.dim },
       Edge { from: intensity_overlay_mix, to: root },
     ],
   },

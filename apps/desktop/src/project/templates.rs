@@ -42,7 +42,7 @@ Project {project} {{
       clips: [],
       graph: Graph {{
         nodes: [LayerNode {{ layer: default, position: (80.0, 80.0) }}, RootNode {{ position: (420.0, 80.0) }}],
-        edges: [Edge {{ from: default, to: root }}],
+        edges: [Edge {{ from: layers.default, to: root }}],
       }},
       automation: [],
     }},
@@ -173,7 +173,7 @@ mod tests {
             "RootNode { position: (420.0, 80.0) }".to_string(),
         ];
         let mut edges = Vec::new();
-        let mut previous = "default".to_string();
+        let mut previous = "layers.default".to_string();
         for (index, (name, inputs)) in operators.iter().enumerate() {
             let node = format!("node_{index}");
             nodes.push(format!(

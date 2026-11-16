@@ -504,9 +504,10 @@ pub(crate) enum Node {
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Edge {
-    /// A node, whose single output the edge carries.
+    /// `layers.layer`, or an operator node, whose single output the edge
+    /// carries.
     #[refers(Node)]
-    pub from: Name,
+    pub from: Reference,
     /// `operator.input`, or the root.
     #[refers(Node)]
     pub to: Reference,

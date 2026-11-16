@@ -1781,6 +1781,9 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 ContextRead::PixelCount => {
                     Self::set_scalar(self.int_dst(dst), self.context.pixel_count);
                 }
+                ContextRead::Frame => {
+                    Self::set_scalar(self.int_dst(dst), self.context.frame as i32);
+                }
                 ContextRead::FramesElapsed => {
                     Self::set_scalar(self.int_dst(dst), self.context.frames_elapsed as i32);
                 }

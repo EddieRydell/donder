@@ -56,6 +56,8 @@ Sequence all_we_are {
     Layer { name: grayscale, description: none, color: #9b6dff, enabled: true },
     Layer { name: blur, description: none, color: #e86fb0, enabled: true },
     Layer { name: reverb, description: none, color: #50a0ff, enabled: true },
+    Layer { name: grit_layer, description: none, color: #f45b69, enabled: true },
+    Layer { name: grit_layer_2, description: none, color: #37a987, enabled: true },
   ],
   clips: [
     Clip {
@@ -103,7 +105,7 @@ Sequence all_we_are {
     Clip {
       name: chase_1,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 0.903934285s,
       target: layouts.main.arch_tunnel,
@@ -136,7 +138,7 @@ Sequence all_we_are {
     Clip {
       name: chase_2,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 0.903934285s,
       target: layouts.main.arch_tunnel,
@@ -169,7 +171,7 @@ Sequence all_we_are {
     Clip {
       name: chase_3,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 0.903934285s,
       target: layouts.main.arch_tunnel,
@@ -202,7 +204,7 @@ Sequence all_we_are {
     Clip {
       name: chase_4,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 0.903934285s,
       target: layouts.main.arch_tunnel,
@@ -235,7 +237,7 @@ Sequence all_we_are {
     Clip {
       name: chase_5,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.bushes,
@@ -268,7 +270,7 @@ Sequence all_we_are {
     Clip {
       name: chase_6,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.bushes,
@@ -301,7 +303,7 @@ Sequence all_we_are {
     Clip {
       name: chase_7,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.bushes,
@@ -334,7 +336,7 @@ Sequence all_we_are {
     Clip {
       name: chase_8,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.bushes,
@@ -367,7 +369,7 @@ Sequence all_we_are {
     Clip {
       name: chase_9,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.dads_mistake,
@@ -400,7 +402,7 @@ Sequence all_we_are {
     Clip {
       name: chase_10,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.dads_mistake,
@@ -433,7 +435,7 @@ Sequence all_we_are {
     Clip {
       name: chase_11,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.dads_mistake,
@@ -466,7 +468,7 @@ Sequence all_we_are {
     Clip {
       name: chase_12,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.dads_mistake,
@@ -499,7 +501,7 @@ Sequence all_we_are {
     Clip {
       name: chase_13,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.far_left_wall_top,
@@ -532,7 +534,7 @@ Sequence all_we_are {
     Clip {
       name: chase_14,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.far_left_wall_top,
@@ -565,7 +567,7 @@ Sequence all_we_are {
     Clip {
       name: chase_15,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.far_left_wall_top,
@@ -598,7 +600,7 @@ Sequence all_we_are {
     Clip {
       name: chase_16,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.far_left_wall_top,
@@ -631,7 +633,7 @@ Sequence all_we_are {
     Clip {
       name: chase_17,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.front_lines,
@@ -664,7 +666,7 @@ Sequence all_we_are {
     Clip {
       name: chase_18,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.front_lines,
@@ -697,7 +699,7 @@ Sequence all_we_are {
     Clip {
       name: chase_19,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.front_lines,
@@ -730,7 +732,7 @@ Sequence all_we_are {
     Clip {
       name: chase_20,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.front_lines,
@@ -763,7 +765,7 @@ Sequence all_we_are {
     Clip {
       name: chase_21,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.garage_matrix,
@@ -796,7 +798,7 @@ Sequence all_we_are {
     Clip {
       name: chase_22,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.garage_matrix,
@@ -829,7 +831,7 @@ Sequence all_we_are {
     Clip {
       name: chase_23,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.garage_matrix,
@@ -862,7 +864,7 @@ Sequence all_we_are {
     Clip {
       name: chase_24,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.garage_matrix,
@@ -895,7 +897,7 @@ Sequence all_we_are {
     Clip {
       name: chase_25,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.house,
@@ -928,7 +930,7 @@ Sequence all_we_are {
     Clip {
       name: chase_26,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.house,
@@ -961,7 +963,7 @@ Sequence all_we_are {
     Clip {
       name: chase_27,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.house,
@@ -994,7 +996,7 @@ Sequence all_we_are {
     Clip {
       name: chase_28,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.house,
@@ -1027,7 +1029,7 @@ Sequence all_we_are {
     Clip {
       name: chase_29,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.l_meteors,
@@ -1060,7 +1062,7 @@ Sequence all_we_are {
     Clip {
       name: chase_30,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.l_meteors,
@@ -1093,7 +1095,7 @@ Sequence all_we_are {
     Clip {
       name: chase_31,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.l_meteors,
@@ -1126,7 +1128,7 @@ Sequence all_we_are {
     Clip {
       name: chase_32,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.l_meteors,
@@ -1159,7 +1161,7 @@ Sequence all_we_are {
     Clip {
       name: chase_33,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_arches,
@@ -1192,7 +1194,7 @@ Sequence all_we_are {
     Clip {
       name: chase_34,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_arches,
@@ -1225,7 +1227,7 @@ Sequence all_we_are {
     Clip {
       name: chase_35,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_arches,
@@ -1258,7 +1260,7 @@ Sequence all_we_are {
     Clip {
       name: chase_36,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_arches,
@@ -1291,7 +1293,7 @@ Sequence all_we_are {
     Clip {
       name: chase_37,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_pot,
@@ -1324,7 +1326,7 @@ Sequence all_we_are {
     Clip {
       name: chase_38,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_pot,
@@ -1357,7 +1359,7 @@ Sequence all_we_are {
     Clip {
       name: chase_39,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_pot,
@@ -1390,7 +1392,7 @@ Sequence all_we_are {
     Clip {
       name: chase_40,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.left_pot,
@@ -1423,7 +1425,7 @@ Sequence all_we_are {
     Clip {
       name: chase_41,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.magnolia,
@@ -1456,7 +1458,7 @@ Sequence all_we_are {
     Clip {
       name: chase_42,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.magnolia,
@@ -1489,7 +1491,7 @@ Sequence all_we_are {
     Clip {
       name: chase_43,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.magnolia,
@@ -1522,7 +1524,7 @@ Sequence all_we_are {
     Clip {
       name: chase_44,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.magnolia,
@@ -1555,7 +1557,7 @@ Sequence all_we_are {
     Clip {
       name: chase_45,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.mega_tree,
@@ -1588,7 +1590,7 @@ Sequence all_we_are {
     Clip {
       name: chase_46,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.mega_tree,
@@ -1621,7 +1623,7 @@ Sequence all_we_are {
     Clip {
       name: chase_47,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.mega_tree,
@@ -1654,7 +1656,7 @@ Sequence all_we_are {
     Clip {
       name: chase_48,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.mega_tree,
@@ -1687,7 +1689,7 @@ Sequence all_we_are {
     Clip {
       name: chase_49,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.middle_arches,
@@ -1720,7 +1722,7 @@ Sequence all_we_are {
     Clip {
       name: chase_50,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.middle_arches,
@@ -1753,7 +1755,7 @@ Sequence all_we_are {
     Clip {
       name: chase_51,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.middle_arches,
@@ -1786,7 +1788,7 @@ Sequence all_we_are {
     Clip {
       name: chase_52,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.middle_arches,
@@ -1819,7 +1821,7 @@ Sequence all_we_are {
     Clip {
       name: chase_53,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.nativity,
@@ -1852,7 +1854,7 @@ Sequence all_we_are {
     Clip {
       name: chase_54,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.nativity,
@@ -1885,7 +1887,7 @@ Sequence all_we_are {
     Clip {
       name: chase_55,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.nativity,
@@ -1918,7 +1920,7 @@ Sequence all_we_are {
     Clip {
       name: chase_56,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.nativity,
@@ -1951,7 +1953,7 @@ Sequence all_we_are {
     Clip {
       name: chase_57,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.pilasters,
@@ -1984,7 +1986,7 @@ Sequence all_we_are {
     Clip {
       name: chase_58,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.pilasters,
@@ -2017,7 +2019,7 @@ Sequence all_we_are {
     Clip {
       name: chase_59,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.pilasters,
@@ -2050,7 +2052,7 @@ Sequence all_we_are {
     Clip {
       name: chase_60,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.pilasters,
@@ -2083,7 +2085,7 @@ Sequence all_we_are {
     Clip {
       name: chase_61,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.plums,
@@ -2116,7 +2118,7 @@ Sequence all_we_are {
     Clip {
       name: chase_62,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.plums,
@@ -2149,7 +2151,7 @@ Sequence all_we_are {
     Clip {
       name: chase_63,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.plums,
@@ -2182,7 +2184,7 @@ Sequence all_we_are {
     Clip {
       name: chase_64,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.plums,
@@ -2215,7 +2217,7 @@ Sequence all_we_are {
     Clip {
       name: chase_65,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.r_meteors,
@@ -2248,7 +2250,7 @@ Sequence all_we_are {
     Clip {
       name: chase_66,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.r_meteors,
@@ -2281,7 +2283,7 @@ Sequence all_we_are {
     Clip {
       name: chase_67,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.r_meteors,
@@ -2314,7 +2316,7 @@ Sequence all_we_are {
     Clip {
       name: chase_68,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.678589618s,
       target: layouts.main.r_meteors,
@@ -2375,7 +2377,7 @@ Sequence all_we_are {
     Clip {
       name: chase_69,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.radio_sign,
@@ -2408,7 +2410,7 @@ Sequence all_we_are {
     Clip {
       name: chase_70,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.radio_sign,
@@ -2441,7 +2443,7 @@ Sequence all_we_are {
     Clip {
       name: chase_71,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.radio_sign,
@@ -2474,7 +2476,7 @@ Sequence all_we_are {
     Clip {
       name: chase_72,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.radio_sign,
@@ -2507,7 +2509,7 @@ Sequence all_we_are {
     Clip {
       name: chase_73,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_arches,
@@ -2540,7 +2542,7 @@ Sequence all_we_are {
     Clip {
       name: chase_74,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_arches,
@@ -2573,7 +2575,7 @@ Sequence all_we_are {
     Clip {
       name: chase_75,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_arches,
@@ -2606,7 +2608,7 @@ Sequence all_we_are {
     Clip {
       name: chase_76,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_arches,
@@ -2639,7 +2641,7 @@ Sequence all_we_are {
     Clip {
       name: chase_77,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_pot,
@@ -2672,7 +2674,7 @@ Sequence all_we_are {
     Clip {
       name: chase_78,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_pot,
@@ -2705,7 +2707,7 @@ Sequence all_we_are {
     Clip {
       name: chase_79,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_pot,
@@ -2738,7 +2740,7 @@ Sequence all_we_are {
     Clip {
       name: chase_80,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_pot,
@@ -2771,7 +2773,7 @@ Sequence all_we_are {
     Clip {
       name: chase_81,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_wall_top,
@@ -2804,7 +2806,7 @@ Sequence all_we_are {
     Clip {
       name: chase_82,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_wall_top,
@@ -2837,7 +2839,7 @@ Sequence all_we_are {
     Clip {
       name: chase_83,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_wall_top,
@@ -2870,7 +2872,7 @@ Sequence all_we_are {
     Clip {
       name: chase_84,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.right_wall_top,
@@ -2903,7 +2905,7 @@ Sequence all_we_are {
     Clip {
       name: chase_85,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.spiral_trees,
@@ -2936,7 +2938,7 @@ Sequence all_we_are {
     Clip {
       name: chase_86,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.spiral_trees,
@@ -2969,7 +2971,7 @@ Sequence all_we_are {
     Clip {
       name: chase_87,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.spiral_trees,
@@ -3002,7 +3004,7 @@ Sequence all_we_are {
     Clip {
       name: chase_88,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.spiral_trees,
@@ -3035,7 +3037,7 @@ Sequence all_we_are {
     Clip {
       name: chase_89,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.stairs,
@@ -3068,7 +3070,7 @@ Sequence all_we_are {
     Clip {
       name: chase_90,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.stairs,
@@ -3101,7 +3103,7 @@ Sequence all_we_are {
     Clip {
       name: chase_91,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.stairs,
@@ -3134,7 +3136,7 @@ Sequence all_we_are {
     Clip {
       name: chase_92,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.stairs,
@@ -3167,7 +3169,7 @@ Sequence all_we_are {
     Clip {
       name: chase_93,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.star_rings,
@@ -3200,7 +3202,7 @@ Sequence all_we_are {
     Clip {
       name: chase_94,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.star_rings,
@@ -3233,7 +3235,7 @@ Sequence all_we_are {
     Clip {
       name: chase_95,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.star_rings,
@@ -3266,7 +3268,7 @@ Sequence all_we_are {
     Clip {
       name: chase_96,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.star_rings,
@@ -3299,7 +3301,7 @@ Sequence all_we_are {
     Clip {
       name: chase_97,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.trees_and_trunks,
@@ -3332,7 +3334,7 @@ Sequence all_we_are {
     Clip {
       name: chase_98,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.trees_and_trunks,
@@ -3365,7 +3367,7 @@ Sequence all_we_are {
     Clip {
       name: chase_99,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.trees_and_trunks,
@@ -3398,7 +3400,7 @@ Sequence all_we_are {
     Clip {
       name: chase_100,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 1.513613618s,
       target: layouts.main.trees_and_trunks,
@@ -12631,7 +12633,7 @@ Sequence all_we_are {
     Clip {
       name: spin_11,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.above_door,
@@ -12653,7 +12655,7 @@ Sequence all_we_are {
     Clip {
       name: spin_12,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.above_garage,
@@ -12698,7 +12700,7 @@ Sequence all_we_are {
     Clip {
       name: pin_wheel_16,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.689669737s,
       target: layouts.main.arch_tunnel,
@@ -12735,7 +12737,7 @@ Sequence all_we_are {
     Clip {
       name: spin_13,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.bathroom_wreath,
@@ -12757,7 +12759,7 @@ Sequence all_we_are {
     Clip {
       name: spin_14,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.dads_mistake,
@@ -12779,7 +12781,7 @@ Sequence all_we_are {
     Clip {
       name: spin_15,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.far_left_pilaster,
@@ -12801,7 +12803,7 @@ Sequence all_we_are {
     Clip {
       name: spin_16,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.far_left_wall_top,
@@ -12823,7 +12825,7 @@ Sequence all_we_are {
     Clip {
       name: spin_17,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.fletch_peak,
@@ -12845,7 +12847,7 @@ Sequence all_we_are {
     Clip {
       name: spin_18,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.fran_window,
@@ -12867,7 +12869,7 @@ Sequence all_we_are {
     Clip {
       name: spin_19,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.fran_wreath,
@@ -12889,7 +12891,7 @@ Sequence all_we_are {
     Clip {
       name: spin_20,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.front_door,
@@ -12911,7 +12913,7 @@ Sequence all_we_are {
     Clip {
       name: spin_21,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.front_door_wreath,
@@ -12933,7 +12935,7 @@ Sequence all_we_are {
     Clip {
       name: spin_22,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.front_lines,
@@ -12955,7 +12957,7 @@ Sequence all_we_are {
     Clip {
       name: spin_23,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.garage,
@@ -13000,7 +13002,7 @@ Sequence all_we_are {
     Clip {
       name: pin_wheel_17,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.689669737s,
       target: layouts.main.garage_matrix,
@@ -13060,7 +13062,7 @@ Sequence all_we_are {
     Clip {
       name: spin_24,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.inside_tree,
@@ -13082,7 +13084,7 @@ Sequence all_we_are {
     Clip {
       name: spin_25,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.l_meteors,
@@ -13104,7 +13106,7 @@ Sequence all_we_are {
     Clip {
       name: spin_26,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_arches,
@@ -13126,7 +13128,7 @@ Sequence all_we_are {
     Clip {
       name: spin_27,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_bushes,
@@ -13148,7 +13150,7 @@ Sequence all_we_are {
     Clip {
       name: spin_28,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_front_line,
@@ -13170,7 +13172,7 @@ Sequence all_we_are {
     Clip {
       name: spin_29,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_magnolia,
@@ -13192,7 +13194,7 @@ Sequence all_we_are {
     Clip {
       name: spin_30,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_magnolia_truck,
@@ -13214,7 +13216,7 @@ Sequence all_we_are {
     Clip {
       name: spin_31,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_pilaster,
@@ -13236,7 +13238,7 @@ Sequence all_we_are {
     Clip {
       name: spin_32,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_pot,
@@ -13258,7 +13260,7 @@ Sequence all_we_are {
     Clip {
       name: spin_33,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.left_roof,
@@ -13280,7 +13282,7 @@ Sequence all_we_are {
     Clip {
       name: spin_34,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.lower_right_front_line,
@@ -13325,7 +13327,7 @@ Sequence all_we_are {
     Clip {
       name: pin_wheel_18,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.689677367s,
       target: layouts.main.mega_tree,
@@ -13362,7 +13364,7 @@ Sequence all_we_are {
     Clip {
       name: spin_35,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.middle_arches,
@@ -13384,7 +13386,7 @@ Sequence all_we_are {
     Clip {
       name: spin_36,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.middle_bushes,
@@ -13406,7 +13408,7 @@ Sequence all_we_are {
     Clip {
       name: spin_37,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.middle_roof,
@@ -13428,7 +13430,7 @@ Sequence all_we_are {
     Clip {
       name: spin_38,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.nativity,
@@ -13450,7 +13452,7 @@ Sequence all_we_are {
     Clip {
       name: spin_39,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.peak_1,
@@ -13472,7 +13474,7 @@ Sequence all_we_are {
     Clip {
       name: spin_40,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.peak_2,
@@ -13494,7 +13496,7 @@ Sequence all_we_are {
     Clip {
       name: spin_41,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.peak_3,
@@ -13516,7 +13518,7 @@ Sequence all_we_are {
     Clip {
       name: spin_42,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.pilasters,
@@ -13538,7 +13540,7 @@ Sequence all_we_are {
     Clip {
       name: spin_43,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.plums,
@@ -13560,7 +13562,7 @@ Sequence all_we_are {
     Clip {
       name: spin_44,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.r_meteors,
@@ -13582,7 +13584,7 @@ Sequence all_we_are {
     Clip {
       name: spin_45,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.radio_sign,
@@ -13604,7 +13606,7 @@ Sequence all_we_are {
     Clip {
       name: spin_46,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_arches,
@@ -13626,7 +13628,7 @@ Sequence all_we_are {
     Clip {
       name: spin_47,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_back_bushes,
@@ -13648,7 +13650,7 @@ Sequence all_we_are {
     Clip {
       name: spin_48,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_bushes,
@@ -13670,7 +13672,7 @@ Sequence all_we_are {
     Clip {
       name: spin_49,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_magnolia,
@@ -13692,7 +13694,7 @@ Sequence all_we_are {
     Clip {
       name: spin_50,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_magnolia_truck,
@@ -13714,7 +13716,7 @@ Sequence all_we_are {
     Clip {
       name: spin_51,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_pilaster,
@@ -13736,7 +13738,7 @@ Sequence all_we_are {
     Clip {
       name: spin_52,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_pot,
@@ -13758,7 +13760,7 @@ Sequence all_we_are {
     Clip {
       name: spin_53,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_roof,
@@ -13780,7 +13782,7 @@ Sequence all_we_are {
     Clip {
       name: spin_54,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.right_wall_top,
@@ -13802,7 +13804,7 @@ Sequence all_we_are {
     Clip {
       name: spin_55,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.spiral_trees,
@@ -13824,7 +13826,7 @@ Sequence all_we_are {
     Clip {
       name: spin_56,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.stairs,
@@ -13846,7 +13848,7 @@ Sequence all_we_are {
     Clip {
       name: spin_57,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.stairs_01,
@@ -13868,7 +13870,7 @@ Sequence all_we_are {
     Clip {
       name: spin_58,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.stairs_02,
@@ -13890,7 +13892,7 @@ Sequence all_we_are {
     Clip {
       name: spin_59,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.stairs_03,
@@ -13912,7 +13914,7 @@ Sequence all_we_are {
     Clip {
       name: spin_60,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.stairs_04,
@@ -13934,7 +13936,7 @@ Sequence all_we_are {
     Clip {
       name: spin_61,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.stairs_05,
@@ -13979,7 +13981,7 @@ Sequence all_we_are {
     Clip {
       name: spin_62,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.trees,
@@ -14001,7 +14003,7 @@ Sequence all_we_are {
     Clip {
       name: spin_63,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.trees_and_trunks,
@@ -14023,7 +14025,7 @@ Sequence all_we_are {
     Clip {
       name: spin_64,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.trunk_bl,
@@ -14045,7 +14047,7 @@ Sequence all_we_are {
     Clip {
       name: spin_65,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.trunk_br,
@@ -14067,7 +14069,7 @@ Sequence all_we_are {
     Clip {
       name: spin_66,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.trunk_fl,
@@ -14089,7 +14091,7 @@ Sequence all_we_are {
     Clip {
       name: spin_67,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.trunk_fr,
@@ -14111,7 +14113,7 @@ Sequence all_we_are {
     Clip {
       name: spin_68,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.upper_right_front_line,
@@ -14133,7 +14135,7 @@ Sequence all_we_are {
     Clip {
       name: spin_69,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.upper_wall_bushes,
@@ -14155,7 +14157,7 @@ Sequence all_we_are {
     Clip {
       name: spin_70,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.window_1,
@@ -14177,7 +14179,7 @@ Sequence all_we_are {
     Clip {
       name: spin_71,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.window_2,
@@ -14199,7 +14201,7 @@ Sequence all_we_are {
     Clip {
       name: spin_72,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.window_3,
@@ -14221,7 +14223,7 @@ Sequence all_we_are {
     Clip {
       name: spin_73,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.wreath_1,
@@ -14243,7 +14245,7 @@ Sequence all_we_are {
     Clip {
       name: spin_74,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.wreath_2,
@@ -14265,7 +14267,7 @@ Sequence all_we_are {
     Clip {
       name: spin_75,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 8.092150375s,
       duration: 2.865421057s,
       target: layouts.main.wreath_3,
@@ -14325,7 +14327,7 @@ Sequence all_we_are {
     Clip {
       name: pin_wheel_19,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 10.237314865s,
       duration: 0.544507s,
       target: layouts.main.arch_tunnel,
@@ -14362,7 +14364,7 @@ Sequence all_we_are {
     Clip {
       name: pin_wheel_20,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 10.237314865s,
       duration: 0.544507s,
       target: layouts.main.garage_matrix,
@@ -14399,7 +14401,7 @@ Sequence all_we_are {
     Clip {
       name: pin_wheel_21,
       description: none,
-      layer: default,
+      layer: grit_layer_2,
       start: 10.237314865s,
       duration: 0.544512877s,
       target: layouts.main.mega_tree,
@@ -15569,7 +15571,7 @@ Sequence all_we_are {
     Clip {
       name: clip_41_2,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.771697111s,
       duration: 1.212710758s,
       target: layouts.main.everything,
@@ -15591,7 +15593,7 @@ Sequence all_we_are {
     Clip {
       name: clip_2,
       description: none,
-      layer: default,
+      layer: grit_layer,
       start: 2.780172989s,
       duration: 0.701514106s,
       target: layouts.main.everything,
@@ -27783,13 +27785,13 @@ Sequence all_we_are {
         name: above_intensity_overlay_mix,
         operator: operators.MaskFill,
         params: {},
-        position: (737.7612, 277.8955),
+        position: (841.3511, 197.15631),
       },
       OperatorNode {
         name: intensity_overlay_mix,
         operator: operators.Fade,
         params: {},
-        position: (579.5821, 572.49255),
+        position: (466.8519, 386.64008),
       },
       RootNode { position: (1120.806, 270.4776) },
       LayerNode { layer: grayscale, position: (475.7145, -204.60916) },
@@ -27813,21 +27815,46 @@ Sequence all_we_are {
         position: (945.16144, 1126.3682),
       },
       LayerNode { layer: reverb, position: (245.55449, 1308.7236) },
+      LayerNode { layer: grit_layer, position: (-476.92026, 608.5783) },
+      OperatorNode {
+        name: grit,
+        operator: operators.Grit,
+        params: {
+          grain: 1.0,
+          hold_frames: 1,
+          levels: 9,
+          tear: 0.0,
+          tear_pixels: 90,
+          tear_shift: 30,
+        },
+        position: (-205.95482, 899.42084),
+      },
+      LayerNode { layer: grit_layer_2, position: (-1046.939, 1274.4722) },
+      OperatorNode {
+        name: grit_2,
+        operator: operators.Grit,
+        params: { grain: 0.5, hold_frames: 1, tear: 0.5, tear_pixels: 189, tear_shift: 36 },
+        position: (-617.0615, 1031.052),
+      },
     ],
     edges: [
-      Edge { from: proportional_mix, to: proportional_mix_mix.high },
-      Edge { from: above_intensity_overlay, to: proportional_mix_mix.low },
+      Edge { from: layers.proportional_mix, to: proportional_mix_mix.high },
+      Edge { from: layers.above_intensity_overlay, to: proportional_mix_mix.low },
       Edge { from: proportional_mix_mix, to: above_intensity_overlay_mix.high },
       Edge { from: intensity_overlay_mix, to: above_intensity_overlay_mix.low },
-      Edge { from: intensity_overlay, to: intensity_overlay_mix.dim },
-      Edge { from: default, to: intensity_overlay_mix.source },
+      Edge { from: layers.intensity_overlay, to: intensity_overlay_mix.dim },
+      Edge { from: layers.default, to: intensity_overlay_mix.source },
       Edge { from: above_intensity_overlay_mix, to: root },
-      Edge { from: grayscale, to: grayscale_2.input },
+      Edge { from: layers.grayscale, to: grayscale_2.input },
       Edge { from: grayscale_2, to: root },
-      Edge { from: blur, to: blur_2.input },
+      Edge { from: layers.blur, to: blur_2.input },
       Edge { from: afterglow, to: root },
-      Edge { from: reverb, to: afterglow.input },
+      Edge { from: layers.reverb, to: afterglow.input },
       Edge { from: blur_2, to: root },
+      Edge { from: layers.grit_layer, to: grit.input },
+      Edge { from: grit, to: intensity_overlay_mix.source },
+      Edge { from: layers.grit_layer_2, to: grit_2.input },
+      Edge { from: grit_2, to: intensity_overlay_mix.source },
     ],
   },
   automation: [

@@ -1,6 +1,7 @@
 import operators from <operators/standard.donder>;
 import layouts from <layouts/main.data.donder>;
 import effects from <effects/standard.donder>;
+import effects_2 from <effects/vixen.donder>;
 
 Sequence take_you_down {
   description: none,
@@ -199,6 +200,26 @@ Sequence take_you_down {
         clusters_per_mark: 10,
       },
     },
+    Clip {
+      name: vixen_alternating,
+      description: none,
+      layer: default,
+      start: 44.153180949s,
+      duration: 5.92499999s,
+      target: layouts.main.desk_top,
+      scope: WholeTarget,
+      effect: effects_2.VixenAlternating,
+      params: {
+        colors: [
+          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+        ],
+        levels: [Curve { points: [(0.0, 0.0), (0.0, 100.0), (1.0, 100.0)] }],
+        interval_ms: 2.0,
+        enable_static: true,
+      },
+    },
   ],
   graph: Graph {
     nodes: [
@@ -226,12 +247,12 @@ Sequence take_you_down {
       LayerNode { layer: predrop_snares, position: (-369.75583, 296.38382) },
     ],
     edges: [
-      Edge { from: default, to: root },
-      Edge { from: predrop_16ths, to: saturate.source },
+      Edge { from: layers.default, to: root },
+      Edge { from: layers.predrop_16ths, to: saturate.source },
       Edge { from: saturate, to: dim.input },
       Edge { from: dim, to: hue_shift.source },
       Edge { from: hue_shift, to: root },
-      Edge { from: predrop_snares, to: dim.input },
+      Edge { from: layers.predrop_snares, to: dim.input },
     ],
   },
   automation: [

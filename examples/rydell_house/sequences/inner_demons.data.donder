@@ -76688,8 +76688,8 @@ Sequence inner_demons {
       RootNode { position: (600.0, 120.0) },
     ],
     edges: [
-      Edge { from: intensity_overlay, to: intensity_overlay_mix.dim },
-      Edge { from: default, to: intensity_overlay_mix.source },
+      Edge { from: layers.intensity_overlay, to: intensity_overlay_mix.dim },
+      Edge { from: layers.default, to: intensity_overlay_mix.source },
       Edge { from: intensity_overlay_mix, to: root },
     ],
   },

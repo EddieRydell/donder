@@ -82653,7 +82653,7 @@ Sequence ding_dong {
         position: (491.83456, 90.22718),
       },
     ],
-    edges: [Edge { from: default, to: hue_shift.source }, Edge { from: hue_shift, to: root }],
+    edges: [Edge { from: layers.default, to: hue_shift.source }, Edge { from: hue_shift, to: root }],
   },
   automation: [
     AutomationClip {

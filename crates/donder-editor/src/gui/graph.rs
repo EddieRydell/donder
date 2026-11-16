@@ -285,7 +285,7 @@ pub(super) fn edit_composition(
             let params = required_param_values(definition.params(), initial_color)?;
             let id = next_node_id(composition)?;
             let name = fresh_name(definition.name(), |candidate| {
-                name_taken(composition, candidate)
+                node_name_taken(composition, candidate)
             });
             composition.graph_mut().nodes.push(CompositionGraphNode {
                 id,
@@ -382,17 +382,20 @@ fn next_node_id(
     next_id(composition.graph().nodes.iter().map(|node| node.id.0)).map(CompositionGraphNodeId)
 }
 
-/// Whether a name is used by a layer, graph node or the root node: they
-/// share the graph's namespace.
-fn name_taken(composition: &impl Composition, name: &str) -> bool {
+/// Whether a name is used by an operator node or the root node: they share
+/// the graph's namespace.
+fn node_name_taken(composition: &impl Composition, name: &str) -> bool {
     name == donder_language::data::ROOT_NODE
-        || composition
-            .layers()
-            .iter()
-            .any(|layer| layer.name.as_str() == name)
         || composition.graph().nodes.iter().any(|node| {
             matches!(&node.kind, CompositionGraphNodeKind::Operator(operator) if operator.name.as_str() == name)
         })
+}
+
+fn layer_name_taken(composition: &impl Composition, name: &str) -> bool {
+    composition
+        .layers()
+        .iter()
+        .any(|layer| layer.name.as_str() == name)
 }
 
 fn create_layer(
@@ -414,7 +417,7 @@ fn create_layer(
         })?;
     let layer_node_id = next_node_id(composition)?;
     typed_name(&name)?;
-    let name = fresh_name(&name, |candidate| name_taken(composition, candidate));
+    let name = fresh_name(&name, |candidate| layer_name_taken(composition, candidate));
     let created = name.as_str().to_string();
     composition.layers_mut().push(SequenceLayer {
         id: SequenceLayerId(next_layer_id),

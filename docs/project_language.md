@@ -131,11 +131,11 @@ identities in document order.
 | Fixture shapes | their fixture definition |
 | Ports | their controller |
 | Controls | their input device |
-| Layers and graph nodes together; clips; mark collections | their sequence |
-| Layers and graph nodes together; clips; live mark collections | their console |
+| Layers; graph nodes and `root` together; clips; mark collections | their sequence |
+| Layers; graph nodes and `root` together; clips; live mark collections | their console |
 
-A layer node is named by its layer and the root node is named `root`, so a
-graph node's name never collides with a layer's. The GUI derives names from what
+An edge leaving a layer names it `layers.layer` and the root node is named
+`root`, so a layer and a graph node may share a name. The GUI derives names from what
 it creates (`pulse`, `pulse_2`, `afterglow`), and a name typed in the GUI is
 converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 
@@ -144,6 +144,7 @@ converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 - a bare name resolves in the enclosing scope: a declaration of the same
   document, a layer, clip, node or mark collection of the same sequence, or a
   layer, node, clip or live mark collection of the same console;
+- `layers.layer` in an edge's `from:` reaches a layer's graph node;
 - `alias.name` reaches a top-level declaration of an imported document;
 - `layout.fixture` reaches a fixture or group of a layout, whatever groups list
   it, so changing group membership changes no reference;
@@ -489,8 +490,8 @@ Sequence layer_test {
       },
     ],
     edges: [
-      Edge { from: default, to: root },
-      Edge { from: glow, to: afterglow.input },
+      Edge { from: layers.default, to: root },
+      Edge { from: layers.glow, to: afterglow.input },
       Edge { from: afterglow, to: root },
     ],
   },
@@ -684,7 +685,7 @@ Console jam {
       LayerNode { layer: default, position: (80.0, 120.0) },
       RootNode { position: (420.0, 120.0) },
     ],
-    edges: [Edge { from: default, to: root }],
+    edges: [Edge { from: layers.default, to: root }],
   },
 }
 ```

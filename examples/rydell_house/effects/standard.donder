@@ -88,7 +88,7 @@ effect Wipe {
 effect Spin {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
-  param pulse_overlap: float in 1.0..100.0 = 8.0;
+  param pulse_overlap: float in 1.0..200.0 = 8.0;
   param section_width_pixels: int in 1..1000 = 1;
   param chase_position: curve in 0.0..1.0;
   param revolutions: int in 1..100 = 2;
@@ -162,7 +162,7 @@ effect MarkChase {
   param gradients: array<gradient>;
   param offset_seconds: float in -1.0..1.0 = 0.0;
   param chase_seconds: float in 0.01..10.0 = 0.5;
-  param pulse_overlap: float in 1.0..100.0 = 8.0;
+  param pulse_overlap: float in 1.0..200.0 = 8.0;
   param section_width_pixels: int in 1..1000 = 5;
   param chase_position: curve in 0.0..1.0;
   param pulse_shape: curve in 0.0..1.0;

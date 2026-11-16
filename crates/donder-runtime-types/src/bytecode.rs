@@ -231,6 +231,8 @@ pub enum ContextRead {
     Duration,
     /// The sequence's frames per second.
     FrameRate,
+    /// Int of the query: frames since the start.
+    Frame,
     /// Int: frames since the frame before; one after a seek.
     FramesElapsed,
     /// Int of the target.
@@ -245,7 +247,7 @@ pub enum ContextRead {
 impl ContextRead {
     fn bank(self) -> Bank {
         match self {
-            Self::PixelCount | Self::FramesElapsed => Bank::Int,
+            Self::PixelCount | Self::Frame | Self::FramesElapsed => Bank::Int,
             _ => Bank::Float,
         }
     }
@@ -253,7 +255,12 @@ impl ContextRead {
     fn reads_target(self) -> bool {
         !matches!(
             self,
-            Self::Seconds | Self::Progress | Self::Duration | Self::FrameRate | Self::FramesElapsed
+            Self::Seconds
+                | Self::Progress
+                | Self::Duration
+                | Self::FrameRate
+                | Self::Frame
+                | Self::FramesElapsed
         )
     }
 

@@ -269,6 +269,10 @@ pub enum Refers {
 /// The name of a composition graph's root node, which edges reach as `to: root`.
 pub const ROOT_NODE: &str = "root";
 
+/// The scope an edge leaving a layer names it in, `from: layers.<layer>`, so
+/// layer names never collide with graph node names.
+pub const LAYERS_SCOPE: &str = "layers";
+
 /// The field that holds an object's own name. Other fields of the [`Name`]
 /// shape name what they refer to, such as a route's `port`.
 pub const NAME_FIELD: &str = "name";

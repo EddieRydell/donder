@@ -46,6 +46,6 @@ Console console {
       RootNode { position: (420.0, 80.0) },
       LayerNode { layer: layer, position: (80.0, 200.0) },
     ],
-    edges: [Edge { from: default, to: root }, Edge { from: layer, to: root }],
+    edges: [Edge { from: layers.default, to: root }, Edge { from: layers.layer, to: root }],
   },
 }

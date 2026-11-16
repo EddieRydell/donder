@@ -11,6 +11,7 @@ Every builtin function, context value and signal method of the [effect language]
 | `time` | float | Seconds since the effect's clip started; in an operator, since the sequence started. |
 | `duration` | float | The clip's duration in seconds; in an operator, the sequence's. |
 | `progress` | float | `time / duration`, in 0..1. |
+| `frame` | int | Frames since the effect's clip started, the nearest frame to `time`; in an operator, since the sequence started. |
 | `frame_rate` | float | The sequence's frames per second. |
 | `frames_elapsed` | int | Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a console command re-renders the same frame. |
 | `previous` | color | This pixel last frame: an operator's own output, or an effect's layer. `previous.at(i)` reads another pixel of the fixture and `around previous` its neighbors. Black until the first frame and for a clip previewed alone; kept as it was after a seek. |
@@ -305,7 +306,7 @@ The nearest whole number, halves away from zero, as a float.
 `round(2.5)` is 3 and `round(-2.5)` is -3. NaN gives NaN.
 
 ```text
-let frame = round(time * 40.0);
+let step = round(time * 40.0);
 ```
 
 ### `fract`

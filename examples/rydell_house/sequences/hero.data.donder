@@ -956,8 +956,8 @@ Sequence hero {
       },
     ],
     edges: [
-      Edge { from: default, to: root },
-      Edge { from: hue_shift, to: hue_shift_2.source },
+      Edge { from: layers.default, to: root },
+      Edge { from: layers.hue_shift, to: hue_shift_2.source },
       Edge { from: hue_shift_2, to: root },
     ],
   },

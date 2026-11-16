@@ -158074,8 +158074,8 @@ Sequence jing_jing_jing {
       RootNode { position: (600.0, 120.0) },
     ],
     edges: [
-      Edge { from: color_change, to: color_change_mix.high },
-      Edge { from: default, to: color_change_mix.low },
+      Edge { from: layers.color_change, to: color_change_mix.high },
+      Edge { from: layers.default, to: color_change_mix.low },
       Edge { from: color_change_mix, to: root },
     ],
   },

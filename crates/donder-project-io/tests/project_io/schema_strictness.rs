@@ -164,7 +164,7 @@ Sequence show {
   ],
   graph: Graph {
     nodes: [LayerNode { layer: main, position: (0.0, 0.0) }, RootNode { position: (1.0, 0.0) }],
-    edges: [Edge { from: main, to: root }],
+    edges: [Edge { from: layers.main, to: root }],
   },
   automation: [],
 }
@@ -260,8 +260,8 @@ fn graph_variants_cannot_carry_other_variants_fields() {
             "operator",
         ),
         (
-            "edges: [Edge { from: main, to: root }]",
-            "edges: [Edge { from: main, to: root.input }]",
+            "edges: [Edge { from: layers.main, to: root }]",
+            "edges: [Edge { from: layers.main, to: root.input }]",
             "root",
         ),
     ]);

@@ -586,8 +586,8 @@ Sequence layer_test {
       },
     ],
     edges: [
-      Edge { from: default, to: root },
-      Edge { from: afterglow, to: afterglow_2.input },
+      Edge { from: layers.default, to: root },
+      Edge { from: layers.afterglow, to: afterglow_2.input },
       Edge { from: afterglow_2, to: root },
     ],
   },

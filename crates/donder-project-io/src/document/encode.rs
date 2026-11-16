@@ -356,10 +356,10 @@ impl Encoder<'_> {
             .ok_or_else(|| self.error("", "a layer is missing"))
     }
 
-    /// A graph node's name: its operator's, its layer's, or `root`.
+    /// An operator node's name, or `root`: what edges reach and automation
+    /// binds.
     fn node_name(
         &self,
-        layers: &[SequenceLayer],
         graph: &SequenceCompositionGraph,
         id: &donder_model::CompositionGraphNodeId,
     ) -> Result<Name, ExportProjectError> {
@@ -369,12 +369,34 @@ impl Encoder<'_> {
             .find(|node| &node.id == id)
             .ok_or_else(|| self.error("", "a graph node is missing"))?;
         match &node.kind {
-            CompositionGraphNodeKind::Layer { layer_id } => self.layer_name(layers, layer_id),
+            CompositionGraphNodeKind::Layer { .. } => {
+                Err(self.error("", "a layer node has no inputs or params"))
+            }
             CompositionGraphNodeKind::Operator(operator) => Ok(name(&operator.name)),
             CompositionGraphNodeKind::Root => Ok(name(&donder_language::object_name(
                 donder_language::data::ROOT_NODE,
             ))),
         }
+    }
+
+    /// Where an edge leaves: `layers.layer` for a layer node, else its node name.
+    fn edge_source(
+        &self,
+        layers: &[SequenceLayer],
+        graph: &SequenceCompositionGraph,
+        id: &donder_model::CompositionGraphNodeId,
+    ) -> Result<Reference, ExportProjectError> {
+        let layer = graph.nodes.iter().find_map(|node| match &node.kind {
+            CompositionGraphNodeKind::Layer { layer_id } if &node.id == id => Some(layer_id),
+            _ => None,
+        });
+        Ok(Reference::new(match layer {
+            Some(layer) => vec![
+                donder_language::object_name(donder_language::data::LAYERS_SCOPE),
+                self.layer_name(layers, layer)?.0.value,
+            ],
+            None => vec![self.node_name(graph, id)?.0.value],
+        }))
     }
 
     /// The layers of a sequence or console.
@@ -434,10 +456,10 @@ impl Encoder<'_> {
                 .edges
                 .iter()
                 .map(|edge| {
-                    let mut segments = vec![self.node_name(layers, graph, &edge.to)?.0.value];
+                    let mut segments = vec![self.node_name(graph, &edge.to)?.0.value];
                     segments.extend(edge.input.clone());
                     Ok(types::Edge {
-                        from: self.node_name(layers, graph, &edge.from)?,
+                        from: self.edge_source(layers, graph, &edge.from)?,
                         to: Reference::new(segments),
                     })
                 })
@@ -584,7 +606,6 @@ impl Encoder<'_> {
                                     },
                                     Action::Set { target, window } => types::Action::Set {
                                         param: self.binding(
-                                            &console.layers,
                                             &console.composition_graph,
                                             target,
                                             |clip| console.clip(*clip).map(|clip| name(&clip.name)),
@@ -631,18 +652,13 @@ impl Encoder<'_> {
         sequence: &Sequence,
     ) -> Result<types::Sequence, ExportProjectError> {
         let binding = |target: &AutomationTarget| {
-            self.binding(
-                &sequence.layers,
-                &sequence.composition_graph,
-                target,
-                |clip_id| {
-                    sequence
-                        .clips
-                        .iter()
-                        .find(|clip| &clip.id == clip_id)
-                        .map(|clip| name(&clip.name))
-                },
-            )
+            self.binding(&sequence.composition_graph, target, |clip_id| {
+                sequence
+                    .clips
+                    .iter()
+                    .find(|clip| &clip.id == clip_id)
+                    .map(|clip| name(&clip.name))
+            })
         };
         Ok(types::Sequence {
             description: sequence.description.clone(),
@@ -719,7 +735,6 @@ impl Encoder<'_> {
     /// clip a clip binding sets.
     fn binding<Clip>(
         &self,
-        layers: &[donder_model::SequenceLayer],
         graph: &donder_model::SequenceCompositionGraph,
         target: &AutomationTarget<Clip>,
         clip_name: impl FnOnce(&Clip) -> Option<Name>,
@@ -732,7 +747,7 @@ impl Encoder<'_> {
             },
             AutomationTarget::CompositionNodeParam { node_id, param } => {
                 types::Binding::NodeParam {
-                    node: self.node_name(layers, graph, node_id)?,
+                    node: self.node_name(graph, node_id)?,
                     param: name(param),
                 }
             }

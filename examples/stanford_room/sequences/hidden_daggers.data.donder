@@ -75,9 +75,9 @@ Sequence hidden_daggers {
       },
     ],
     edges: [
-      Edge { from: default, to: root },
-      Edge { from: gradient, to: hue_map.gradient },
-      Edge { from: layer_1, to: hue_map.source },
+      Edge { from: layers.default, to: root },
+      Edge { from: layers.gradient, to: hue_map.gradient },
+      Edge { from: layers.layer_1, to: hue_map.source },
       Edge { from: hue_map, to: root },
     ],
   },

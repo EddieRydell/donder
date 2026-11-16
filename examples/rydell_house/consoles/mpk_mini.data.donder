@@ -114,6 +114,6 @@ Console mpk_mini {
         position: (538.9499, 85.887505),
       },
     ],
-    edges: [Edge { from: default, to: hue_shift.source }, Edge { from: hue_shift, to: root }],
+    edges: [Edge { from: layers.default, to: hue_shift.source }, Edge { from: hue_shift, to: root }],
   },
 }

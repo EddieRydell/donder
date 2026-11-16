@@ -9233,8 +9233,8 @@ Sequence frosty_the_snowman {
       RootNode { position: (800.0, 120.0) },
     ],
     edges: [
-      Edge { from: overlay, to: overlay_mix.high },
-      Edge { from: default, to: overlay_mix.low },
+      Edge { from: layers.overlay, to: overlay_mix.high },
+      Edge { from: layers.default, to: overlay_mix.low },
       Edge { from: overlay_mix, to: root },
     ],
   },

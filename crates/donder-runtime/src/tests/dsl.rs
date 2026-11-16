@@ -30,6 +30,7 @@ fn at(progress: f32) -> PixelContext {
             time: SampleDuration::from_ticks((progress * 1_000_000.0) as u32),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
+            frame: 0,
             frames_elapsed: 1,
             pixel_count: 1,
         },

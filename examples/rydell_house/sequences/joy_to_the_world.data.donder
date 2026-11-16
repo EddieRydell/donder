@@ -96328,10 +96328,10 @@ Sequence joy_to_the_world {
       RootNode { position: (800.0, 120.0) },
     ],
     edges: [
-      Edge { from: top, to: top_mix.high },
+      Edge { from: layers.top, to: top_mix.high },
       Edge { from: fade_on_mix, to: top_mix.low },
-      Edge { from: fade_on, to: fade_on_mix.dim },
-      Edge { from: default, to: fade_on_mix.source },
+      Edge { from: layers.fade_on, to: fade_on_mix.dim },
+      Edge { from: layers.default, to: fade_on_mix.source },
       Edge { from: top_mix, to: root },
     ],
   },

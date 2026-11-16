@@ -254,8 +254,8 @@ builtin function with its signatures, edge cases and an example. It is generated
 from the compiler's builtin table, so it always matches what the compiler
 accepts.
 
-The context names (`time`, `duration`, `progress`, `frames_elapsed`,
-`previous`, `pixel`, `target`, `PI`, `TAU`) are reserved, and a function cannot take a builtin's name. In an effect,
+The context names (`time`, `duration`, `progress`, `frame`, `frame_rate`,
+`frames_elapsed`, `previous`, `pixel`, `target`, `PI`, `TAU`) are reserved, and a function cannot take a builtin's name. In an effect,
 time is measured over the clip; in an
 operator, over the sequence. Spatial values use layout-space meters, after
 fixture transforms.
@@ -419,6 +419,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | Trail | `input` | Carries each pixel's light along each fixture's pixel order, keeping `decay = 0.8` of it per pixel, `Forward`, `Backward` or `Both` (the brighter) |
 | Bloom | `input` | Thresholds like Threshold (`threshold = 0.6`, `softness = 0.2`), spreads the passing light both ways along each fixture's pixel order with forward and backward scans, fading to a tenth over `radius = 6` pixels, scales it by `strength = 2.0` and `tint`, and combines it with the input by `blend` (Add, Screen, Lighten or GlowOnly). The glow fades off fixture ends, and its cost does not depend on the radius |
 | Afterglow | `input` | Holds light after it goes out, fading it to a tenth over `seconds = 0.5`: the brighter of the input and its `previous` frame faded by the frames since; steady light shows unchanged, and its cost does not depend on the tail's length |
+| Grit | `input` | Rough texture: scales each group of `grain_pixels` by a random amount down to `1 - grain` (`grain = 0.6`), redrawn every `hold_frames = 3` frames; multiplies by `drive = 1.0`, clips each channel at full brightness and rounds it to `levels = 256` steps; with chance `tear` per hold, shifts each band of `tear_pixels = 16` up to `tear_shift = 8` pixels along the fixture |
 
 The starter adds Gain as a separate operator document. `examples/stanford_room`
 carries its own copy of the library with HueMap added, and FreezeFrame, which

@@ -51961,10 +51961,10 @@ Sequence mr_grinch {
       RootNode { position: (800.0, 120.0) },
     ],
     edges: [
-      Edge { from: mask, to: mask_mix.high },
+      Edge { from: layers.mask, to: mask_mix.high },
       Edge { from: intensity_mix, to: mask_mix.low },
-      Edge { from: intensity, to: intensity_mix.dim },
-      Edge { from: default, to: intensity_mix.source },
+      Edge { from: layers.intensity, to: intensity_mix.dim },
+      Edge { from: layers.default, to: intensity_mix.source },
       Edge { from: mask_mix, to: root },
     ],
   },

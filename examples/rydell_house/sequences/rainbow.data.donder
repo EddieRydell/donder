@@ -27882,8 +27882,8 @@ Sequence rainbow {
       RootNode { position: (600.0, 120.0) },
     ],
     edges: [
-      Edge { from: default_2, to: default_2_mix.high },
-      Edge { from: default, to: default_2_mix.low },
+      Edge { from: layers.default_2, to: default_2_mix.high },
+      Edge { from: layers.default, to: default_2_mix.low },
       Edge { from: default_2_mix, to: root },
     ],
   },

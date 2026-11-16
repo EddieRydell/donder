@@ -67,6 +67,7 @@ fn run_context(ticks: u32, count: usize) -> RunContext {
         time: SampleDuration::from_ticks(ticks),
         duration: SampleDuration::from_ticks(DURATION),
         frame_rate: 40.0,
+        frame: 0,
         frames_elapsed: 1,
         pixel_count: count as i32,
     }

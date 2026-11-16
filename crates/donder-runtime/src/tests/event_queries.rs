@@ -22,6 +22,7 @@ fn sample(params: &[Param], body: &str) -> Color {
             time: SampleDuration::from_ticks(750_000),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
+            frame: 0,
             frames_elapsed: 1,
             pixel_count: 1,
         },

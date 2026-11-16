@@ -37,7 +37,7 @@ embassy-sync = { version = "0.8.0" }
 embassy-time = { version = "0.5.1" }
 embedded-io-async = { version = "0.7.0" }
 heapless = { version = "0.9.3" }
-picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "json"] }
+picoserve = { version = "0.20.1", default-features = false, features = ["embassy", "json"] }
 static_cell = { version = "2.1.1" }
 crc32fast = { version = "1.5.1", default-features = false }
 donder-runtime = { path = "../../crates/donder-runtime", default-features = false, features = ["atomic", "iram"] }
@@ -62,6 +62,10 @@ esp-alloc = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066
 esp-println = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
 esp-bootloader-esp-idf = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
 esp-storage = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
+# The fork branch header-flush: 0.20.1 without the flush between response headers
+# and body, which made every reply wait for the client's delayed ACK
+# (sammhicks/picoserve#127). Remove once a release includes the fix.
+picoserve = { git = "https://github.com/EddieRydell/picoserve", rev = "939d70ecf3e1cb17d8c466d89b1305ef46a21538" }
 
 [profile.release]
 opt-level = 3

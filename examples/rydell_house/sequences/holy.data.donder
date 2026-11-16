@@ -14208,8 +14208,8 @@ Sequence holy {
       RootNode { position: (600.0, 120.0) },
     ],
     edges: [
-      Edge { from: mask_and_fill, to: mask_and_fill_mix.high },
-      Edge { from: default, to: mask_and_fill_mix.low },
+      Edge { from: layers.mask_and_fill, to: mask_and_fill_mix.high },
+      Edge { from: layers.default, to: mask_and_fill_mix.low },
       Edge { from: mask_and_fill_mix, to: root },
     ],
   },

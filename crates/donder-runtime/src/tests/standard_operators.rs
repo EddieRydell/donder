@@ -59,6 +59,7 @@ fn sample(
                     time: SampleDuration::from_ticks(0),
                     duration: SampleDuration::from_ticks(10_000_000),
                     frame_rate: 40.0,
+                    frame: 0,
                     frames_elapsed,
                     pixel_count: 1,
                 },

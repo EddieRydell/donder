@@ -523,9 +523,9 @@ fn validate_sequence_names(
 }
 
 /// The layers and composition graph of a sequence or console: layers and graph
-/// nodes are referred to by name, so each name is valid and unique. A layer
-/// node is named by its layer and the root node is `root`, so operator
-/// nodes share that namespace with layers. Returns the layer ids.
+/// nodes are referred to by name, so each name is valid and unique. Edges name
+/// a layer node `layers.layer`, so layers have their own namespace; operator
+/// nodes share theirs with the root node `root`. Returns the layer ids.
 fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>>(
     project: &DonderProject,
     layers: &'a [SequenceLayer],
@@ -550,14 +550,14 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
     let node_names =
         || operators().map(|(id, operator)| (Member::Node(id.clone()), &operator.name));
     snake_case(layer_names.clone().chain(node_names()))?;
-    distinct(layer_names.clone())?;
+    distinct(layer_names)?;
     let root = donder_language::object_name(donder_language::data::ROOT_NODE);
     let root_node = graph
         .nodes
         .iter()
         .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
         .map(|node| (Member::Node(node.id.clone()), &root));
-    distinct(layer_names.chain(root_node).chain(node_names()))?;
+    distinct(root_node.into_iter().chain(node_names()))?;
     validate_composition_graph(graph, project.reusable::<crate::OperatorDefinition>())
         .map_err(CompositionProblem::Graph)?;
     for (node, operator) in operators() {

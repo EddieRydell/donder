@@ -194,6 +194,7 @@ fn run_context(
         time,
         duration,
         frame_rate: show.frame_rate() as f32,
+        frame: crate::playback::frame_at(time.as_ticks(), show.frame_rate()),
         frames_elapsed,
         pixel_count: 0,
     }

@@ -113,6 +113,8 @@ pub(crate) enum Context {
     Progress,
     Duration,
     FrameRate,
+    /// Frames since the start, as `time` counts seconds.
+    Frame,
     /// Frames since the frame before; one after a seek.
     FramesElapsed,
     PixelIndex,
@@ -133,7 +135,7 @@ impl Context {
 
     fn domain(self) -> Domain {
         match self {
-            Self::Time | Self::Progress | Self::FramesElapsed => Domain::TIME,
+            Self::Time | Self::Progress | Self::Frame | Self::FramesElapsed => Domain::TIME,
             Self::Duration | Self::FrameRate => Domain::PARAM,
             Self::PixelIndex | Self::PixelFraction | Self::PixelX | Self::PixelY => Domain::PIXEL,
             Self::TargetCount

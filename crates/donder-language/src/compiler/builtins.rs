@@ -392,7 +392,7 @@ pub const BUILTINS: &[Builtin] = &[
         signatures: &[sig(X, Type::Float, E(round))],
         summary: "The nearest whole number, halves away from zero, as a float.",
         details: "`round(2.5)` is 3 and `round(-2.5)` is -3. NaN gives NaN.",
-        example: "let frame = round(time * 40.0);",
+        example: "let step = round(time * 40.0);",
     },
     Builtin {
         name: "fract",
@@ -851,6 +851,12 @@ pub const CONTEXT: &[ContextValue] = &[
         ty: Type::Float,
         summary: "`time / duration`, in 0..1.",
         read: Read::Context(Context::Progress),
+    },
+    ContextValue {
+        name: "frame",
+        ty: Type::Int,
+        summary: "Frames since the effect's clip started, the nearest frame to `time`; in an operator, since the sequence started.",
+        read: Read::Context(Context::Frame),
     },
     ContextValue {
         name: "frame_rate",
