@@ -47,6 +47,7 @@ The `*_large_show*` cases in `render_bench` run Ding Dong from
 
 | Date | Workload and conditions | Result |
 | --- | --- | --- |
+| 2026-11-16 | Dig-Quad in access-point mode, Stanford `main` (22.9 KB show) after splitting a clip | 2.6 KB delta applied in 26 ms, against 117–147 ms for the whole show; frames match a fresh upload |
 | 2026-11-15 | Dig-Quad in access-point mode, one Windows 11 client, picoserve 0.21.0 (no flush between reply headers and body) | HTTP request round trip about 11 ms (60 ms with the flush, which waited for the client's delayed ACK); 22.9 KB show upload 85–100 ms; UDP clock exchange 3 ms |
 | 2026-11-12 | Dig-Quad heap (129,024 B) in access-point mode, esp-alloc heap statistics, repeated 64 KB uploads with polling and clock bursts | Boot and network 43.0 KB idle, 50.9 KB peak; Stanford `main` playback 53.8 KB (show 22.9 KB, workspace 30.9 KB) |
 | 2026-10-18 | Stanford `main` (150 pixels) on a QuinLED Dig-Quad, every frame from 64 s to 91 s through `POST /frame`, format 71 | 4.67 ms mean evaluation, matching checksums; `.rwtext` 74.4 KB |

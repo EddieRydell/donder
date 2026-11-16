@@ -10,6 +10,11 @@ license = "MIT"
 donder-runtime = { path = "../donder-runtime", default-features = false }
 donder-runtime-types = { path = "../donder-runtime-types" }
 serde.workspace = true
+similar = { workspace = true, optional = true }
 
 [lints]
 workspace = true
+
+[features]
+# Building deltas; the controller only applies them.
+diff = ["dep:similar"]

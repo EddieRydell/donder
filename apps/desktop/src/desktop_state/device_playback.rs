@@ -168,15 +168,14 @@ impl DesktopState {
         let Some(timeline) = lock_unpoisoned(&self.audio).timeline() else {
             return Ok(());
         };
-        let (action, playing) = match timeline {
-            Timeline::Playing { .. } => (Action::Play, true),
-            Timeline::Paused(_) => (Action::Pause, false),
-            Timeline::Stopped(_) => (Action::Stop, false),
+        let action = match timeline {
+            Timeline::Playing { .. } => Action::Play,
+            Timeline::Paused(_) => Action::Pause,
+            Timeline::Stopped(_) => Action::Stop,
             // Controllers end by themselves.
             Timeline::Ended => return Ok(()),
         };
-        // A playing show keeps the version it started with.
-        let duration = self.prepare_device_sequence(!playing)?;
+        let duration = self.prepare_device_sequence()?;
         let rate = lock_unpoisoned(&self.audio).playback_rate();
         let at = self.device_playback.deadline();
         let position = seconds_to_micros(timeline.position_at(at))?.min(duration);
@@ -228,7 +227,6 @@ impl DesktopState {
             self.snapshot().project_epoch,
             generation,
             &address,
-            true,
             |ports| {
                 donder_elaboration::arm(
                     &session.project,
@@ -458,9 +456,8 @@ impl DesktopState {
         }))
     }
 
-    /// Prepare the open sequence for the controllers, rebuilding a prepared
-    /// one for a later revision when `refresh`, and return its duration.
-    fn prepare_device_sequence(&self, refresh: bool) -> Result<u32, String> {
+    /// Prepare the open sequence for the controllers and return its duration.
+    fn prepare_device_sequence(&self) -> Result<u32, String> {
         let _authoring = lock_unpoisoned(&self.authoring);
         let snapshot = self.snapshot();
         let session = self
@@ -478,21 +475,23 @@ impl DesktopState {
         let duration = donder_language::sample_duration_from_donder_duration(&model.duration)
             .map_err(|error| format!("Invalid sequence duration: {error:?}"))?
             .as_ticks();
-        let failures = self.device_playback.prepare(
+        let mut cache = self.take_preparation();
+        let prepared = self.device_playback.prepare(
             snapshot.project_epoch,
             snapshot.project_revision,
             &target.sequence,
-            refresh,
             |ports| {
-                donder_elaboration::prepare(
+                donder_elaboration::prepare_cached(
                     &session.project,
                     &sequence,
                     donder_elaboration::Retain::Ports(ports),
+                    &mut cache,
                 )
                 .ok_or_else(|| "The sequence or a connected device output is unavailable.".into())
             },
-        )?;
-        self.record_device_failures(failures);
+        );
+        self.keep_preparation(cache);
+        self.record_device_failures(prepared?);
         Ok(duration)
     }
 

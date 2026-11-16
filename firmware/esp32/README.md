@@ -82,8 +82,6 @@ under `target/` and summarize durable results in
   so every storage access first pauses the rendering core: between frames it
   waits in a RAM loop, taking no interrupts, until the access ends
   (`src/storage.rs`).
-- Upload blackout waits between completed DMA transfers in an interrupt-free IRAM
-  loop.
 - Keep large buffers off the core-0 startup and network stack; it is shared
   with filesystem and SDK calls.
 - The runtime `atomic` feature lets the active show and its workspace cross

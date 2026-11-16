@@ -50,28 +50,39 @@ it holds no usable filesystem, and a damaged device record is replaced by
 defaults, so damaged storage never stops a controller from starting.
 
 Shows live only in RAM: a controller boots with none, and the editor sends the
-show it plays whenever the controller lacks it. Receiving a show:
-1. releases the current show, so its memory is free;
-2. receives the show into RAM, if it fits beside the network reserve;
+show it plays whenever the controller lacks it. A show and its playback buffer
+share the show region, the 64 KiB of RAM the bootloader used
+(`SHOW_REGION_WORDS`): the show's bytes first, then the buffer, whose size is
+exact, from the show's layout. Nothing else allocates there, so the heap's
+fragmentation never limits a show; the 62 KiB heap is the network's, plus a
+console's routing state. Receiving a show (`PUT /show`):
+1. stops the current show and takes back its region;
+2. receives the show into the region;
 3. opens it and checks it against the controller, and replies `LOADED`.
 
 A failed or interrupted show leaves none loaded. One show is received at a time.
 
-The loader plays the show from RAM, beside its playback buffer. The playback stays
-open while the show plays. The show is trusted: the editor built
-it, so the loader checks only its format version. It rejects a show
+A delta (`PUT /show/delta`, `donder_device_protocol::delta`) turns the show the
+controller holds into another in place, between two frames, and the show keeps
+its transport: it plays on from where it was. The delta names the show it
+applies to, which must be the one the controller holds (or the reply is 409
+Conflict), and the show it makes, whose identity is checked after it applies.
+Its operations keep, drop and insert runs of the show's 32-bit words, front to
+back; kept runs move in two passes, those moving toward the start first and
+then those moving toward the end, so no run is overwritten before it moves. A
+delta that fails after applying leaves no show loaded, and the editor sends
+the whole show instead.
+
+The show is trusted: the editor built it, so the loader checks only its
+format version and length. It rejects a show
 - of another format version ("prepared for another firmware format");
-- whose RAM copy, and then whose playback buffer, would leave less than
-  10 KiB of heap for the network (`NETWORK_HEAP_RESERVE`; the buffer's size is exact, from the show's
-  layout; Wi-Fi keeps four static receive buffers to leave heap for shows); the
-  reason names the memory the show needs and the memory free;
+- that, with its playback buffer, does not fit in the show region; the reason
+  names the memory the show needs and the region's size;
 - with more than 4 outputs, an output wider than 200 pixels (or not a whole
   number of pixels), or a higher frame rate than the outputs carry; the reason
   names those limits.
 
-With no show loaded, about 77 KiB of heap is free for a show and its playback
-buffer together. The
-editor does not check a show against the controller before sending it.
+The editor does not check a show against the controller before sending it.
 
 A panic prints `LOADER PANIC` and its message on the serial port (not on a
 Dig-Quad, whose UART pins drive LEDs) and restarts the controller. Playback allocates nothing after the show loads.
@@ -85,7 +96,7 @@ The protocol's messages, paths and clock packets are defined once in
 
 HTTP endpoints, none authenticated: anyone on the controller's network can
 control it, so the access point's password is the only access control.
-- `PUT /show` and `POST /frame`;
+- `PUT /show`, `PUT /show/delta` and `POST /frame`;
 - `PUT /name` with a 1-32 byte UTF-8 name, and `PUT /network` with
   `{"ssid": ..., "password": ...}` or an empty body for the access point;
 - `GET /transport` for the loaded show's playback, and `POST
@@ -113,9 +124,10 @@ then has the controllers follow the editor's transport on a background task
 that always takes the latest request:
 1. it connects any controller that is not yet connected, and prepares each
    connected controller's show;
-2. it uploads the show unless the controller holds it; a playing show keeps
-   the version it started with, and a held one is rebuilt for a later project
-   revision;
+2. it rebuilds the show for a later project revision and sends it unless the
+   controller holds it: as a delta of the show the controller holds when that
+   is less than half the show, so an edit applies while the show plays, or
+   whole otherwise, when the controller goes dark until it loads;
 3. it schedules every controller to take up the transport's place a lead time
    from now (see Scheduling below), so each joins in sync a few frames after
    the editor;
@@ -129,7 +141,7 @@ named with the reason in the live-output status and the controller's
 settings, and the next transport change tries it again.
 
 Each controller evaluates its own frames, and no per-frame pixels cross the
-network. Edits apply when playback next starts. Pause holds the position the
+network. Edits apply as you make them. Pause holds the position the
 editor paused at, seek pauses at the new position, Stop returns home and blacks
 out, and playback ends at the sequence duration. Each schedule carries the editor's
 playback speed (show microseconds per wall second) and frame timing. Scaled
@@ -193,9 +205,9 @@ multi-controller alignment and speaker latency have not been measured.
 
 Sequence evaluation, encoding and DMA run on core 1; Wi-Fi, HTTP, DHCP, mDNS and
 flash storage on core 0. Core 1 starts before the network, so joining a missing
-network never delays a restored show. The UDP buffers for DHCP and mDNS live in
+network never delays output. The UDP buffers for DHCP and mDNS live in
 the 8 KiB RTC fast memory, which only core 0 can address, leaving main DRAM to
-the core 0 stack and the show heap.
+the core 0 stack and the network heap.
 Four WS281x outputs of up to 200 RGB pixels each are driven by I2S1 in 8-bit
 parallel mode at 2.4 MHz. Each bit is three samples (`100` for zero, `110` for
 one), and two DMA buffers let the next frame be encoded while the current one

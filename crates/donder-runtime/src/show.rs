@@ -1,6 +1,7 @@
-//! A show in memory and its playback: a prepared show owns its bytes, a show
-//! playback owns its buffer. Each call re-borrows the bytes and buffer as the
-//! core [`Show`] and workspace.
+//! A show in memory and its playback. A prepared show owns its bytes and a
+//! show playback owns its buffer; a region playback keeps both in memory its
+//! caller owns. Each call re-borrows the bytes and buffer as the core
+//! [`Show`] and workspace.
 use crate::format;
 use alloc::{boxed::Box, vec, vec::Vec};
 use donder_runtime_types::{ConsoleEvent, SampleDuration, SampleTime, Shared};
@@ -9,41 +10,6 @@ use crate::console::Router;
 use crate::playback::{Playback, SequenceFrame};
 use crate::view::{LoadError, Show};
 use crate::workspace::Layout;
-
-/// An encoded show's bytes in memory, allocated once and filled in place by
-/// whatever reads them, then opened as a [`PreparedShow`].
-pub struct ShowBytes {
-    words: Shared<[u32]>,
-    len: usize,
-}
-
-impl ShowBytes {
-    /// Room for an encoded show of `len` bytes.
-    pub fn new(len: usize) -> Self {
-        Self {
-            words: core::iter::repeat_n(0, len.div_ceil(4)).collect(),
-            len,
-        }
-    }
-
-    /// The bytes to fill, in whole 4-byte words.
-    pub fn as_mut_bytes(&mut self) -> &mut [u8] {
-        let Some(words) = Shared::get_mut(&mut self.words) else {
-            unreachable!("the words have one owner until they open")
-        };
-        bytemuck::cast_slice_mut(words)
-    }
-
-    /// The show these bytes encode.
-    pub fn open(self) -> Result<PreparedShow, LoadError> {
-        let bytes: &[u8] = bytemuck::cast_slice(&self.words);
-        let layout = Layout::of(Show::open(&bytes[..self.len])?);
-        Ok(PreparedShow {
-            words: self.words,
-            layout,
-        })
-    }
-}
 
 /// A show in memory: a sequence's, or a console's, whose voices start and
 /// stop on commands rather than at authored times. Authoring, elaboration,
@@ -64,9 +30,13 @@ impl PreparedShow {
 
     /// Keep a copy of an encoded show of this format.
     pub fn decode(bytes: &[u8]) -> Result<Self, LoadError> {
-        let mut copy = ShowBytes::new(bytes.len());
-        copy.as_mut_bytes()[..bytes.len()].copy_from_slice(bytes);
-        copy.open()
+        let mut words = vec![0u32; bytes.len().div_ceil(4)];
+        bytemuck::cast_slice_mut::<u32, u8>(&mut words)[..bytes.len()].copy_from_slice(bytes);
+        let layout = Layout::of(Show::open(bytes_of(&words, bytes.len())?)?);
+        Ok(Self {
+            words: words.into(),
+            layout,
+        })
     }
 
     /// The show's bytes, as [`Self::decode`] and the firmware accept them.
@@ -138,14 +108,29 @@ impl PreparedShow {
     /// Play the show from its start; a console's session starts its
     /// `always` clips.
     pub fn into_playback(self) -> ShowPlayback {
-        let mut playback = ShowPlayback {
-            router: Router::new(self.show()),
-            buffer: vec![0u32; self.layout.words()].into_boxed_slice(),
+        let mut buffer = vec![0u32; self.layout.words()].into_boxed_slice();
+        let show = self.show();
+        let mut router = Router::new(show);
+        restart(show, &self.layout, &mut buffer, &mut router);
+        ShowPlayback {
             prepared: self,
-        };
-        playback.restart();
-        playback
+            buffer,
+            router,
+        }
     }
+}
+
+/// The first `len` bytes of `words` when they hold exactly one show's
+/// header, table and payload.
+fn bytes_of(words: &[u32], len: usize) -> Result<&[u8], LoadError> {
+    let bytes = bytemuck::cast_slice::<u32, u8>(words)
+        .get(..len)
+        .ok_or(LoadError::Version)?;
+    Show::open(bytes)?;
+    if format::show_len(bytes) != len {
+        return Err(LoadError::Version);
+    }
+    Ok(bytes)
 }
 
 /// Owns a show, its playback buffer and a console's routing state.
@@ -156,28 +141,16 @@ pub struct ShowPlayback {
 }
 
 impl ShowPlayback {
-    fn playback(&mut self) -> Playback<'_, '_> {
-        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
-        let Some(playback) = Playback::resume(show, &self.prepared.layout, &mut self.buffer) else {
-            unreachable!("the buffer holds the layout's words")
-        };
-        playback
-    }
-
     /// Play the show from its start again, as [`PreparedShow::into_playback`]
     /// does, in the buffer it has.
     pub fn restart(&mut self) {
         let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
-        self.buffer.fill(0);
-        let Some(mut playback) = Playback::new(show, &self.prepared.layout, &mut self.buffer)
-        else {
-            unreachable!("the buffer holds the layout's words")
-        };
-        self.router = Router::new(show);
-        self.router
-            .start(show, SampleTime::from_ticks(0), &mut |command| {
-                playback.apply(SampleTime::from_ticks(0), command);
-            });
+        restart(
+            show,
+            &self.prepared.layout,
+            &mut self.buffer,
+            &mut self.router,
+        );
     }
 
     pub fn prepared(&self) -> &PreparedShow {
@@ -185,33 +158,34 @@ impl ShowPlayback {
     }
 
     pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
-        self.playback().frame(time)
+        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        resume(show, &self.prepared.layout, &mut self.buffer).frame(time)
     }
 
     /// Route a console input at its time. Inputs arrive in time order; one of
     /// a control the console does not read is ignored.
     pub fn apply(&mut self, event: ConsoleEvent) {
         let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
-        let Some(mut playback) = Playback::resume(show, &self.prepared.layout, &mut self.buffer)
-        else {
-            unreachable!("the buffer holds the layout's words")
-        };
-        self.router.route(show, event, &mut |command| {
-            playback.apply(event.time, command);
-        });
+        route(
+            show,
+            &self.prepared.layout,
+            &mut self.buffer,
+            &mut self.router,
+            event,
+        );
     }
 
     /// Release every held control at `time`, as when the input that held them
     /// goes away.
     pub fn release_all(&mut self, time: SampleTime) {
         let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
-        let Some(mut playback) = Playback::resume(show, &self.prepared.layout, &mut self.buffer)
-        else {
-            unreachable!("the buffer holds the layout's words")
-        };
-        self.router.release_all(show, time, &mut |command| {
-            playback.apply(time, command);
-        });
+        release_all(
+            show,
+            &self.prepared.layout,
+            &mut self.buffer,
+            &mut self.router,
+            time,
+        );
     }
 
     /// Apply a console command at `time`, without routing.
@@ -220,6 +194,216 @@ impl ShowPlayback {
         &mut self,
         (time, command): (SampleTime, crate::playback::ConsoleCommand),
     ) {
-        self.playback().apply(time, command);
+        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        resume(show, &self.prepared.layout, &mut self.buffer).apply(time, command);
     }
+}
+
+/// Memory a caller owns for a show and its playback buffer: the show's words
+/// first, then the buffer. Playing from it allocates nothing but a console's
+/// routing state.
+pub struct ShowRegion<'r> {
+    words: &'r mut [u32],
+}
+
+impl<'r> ShowRegion<'r> {
+    pub fn new(words: &'r mut [u32]) -> Self {
+        Self { words }
+    }
+
+    /// Bytes the region holds.
+    pub fn capacity(&self) -> usize {
+        self.words.len() * 4
+    }
+
+    /// The region's bytes, to fill with a show from its start.
+    pub fn bytes_mut(&mut self) -> &mut [u8] {
+        bytemuck::cast_slice_mut(self.words)
+    }
+
+    /// The region's words, to rewrite the show they hold in place.
+    pub fn words_mut(&mut self) -> &mut [u32] {
+        self.words
+    }
+
+    /// Play the show the region's first `len` bytes hold, from its start.
+    /// The region comes back with the reason when they hold no show of this
+    /// format, or the show and its buffer do not fit.
+    pub fn open(self, len: usize) -> Result<RegionPlayback<'r>, (Self, LoadError)> {
+        let layout = match fit(self.words, len) {
+            Ok(layout) => layout,
+            Err(error) => return Err((self, error)),
+        };
+        let mut router = Router::new(Show::trusted(bytemuck::cast_slice(&self.words[..len / 4])));
+        let (show, buffer) = self.words.split_at_mut(len / 4);
+        restart(
+            Show::trusted(bytemuck::cast_slice(show)),
+            &layout,
+            buffer,
+            &mut router,
+        );
+        Ok(RegionPlayback {
+            words: self.words,
+            len,
+            layout,
+            router,
+        })
+    }
+}
+
+/// The layout of the show `words` hold in their first `len` bytes, when it
+/// and its buffer fit in them.
+fn fit(words: &[u32], len: usize) -> Result<Layout, LoadError> {
+    let capacity = words.len() * 4;
+    if len > capacity {
+        return Err(LoadError::Capacity {
+            needed: len,
+            capacity,
+        });
+    }
+    let layout = Layout::of(Show::open(bytes_of(words, len)?)?);
+    let needed = len + layout.words() * 4;
+    if needed > capacity {
+        return Err(LoadError::Capacity { needed, capacity });
+    }
+    Ok(layout)
+}
+
+/// A show playing from a [`ShowRegion`].
+pub struct RegionPlayback<'r> {
+    words: &'r mut [u32],
+    /// The show's bytes; its buffer follows them.
+    len: usize,
+    layout: Layout,
+    router: Router,
+}
+
+impl<'r> RegionPlayback<'r> {
+    fn show(&self) -> Show<'_> {
+        Show::trusted(bytemuck::cast_slice(&self.words[..self.len / 4]))
+    }
+
+    /// Stop playing and give the region back, still holding the show's bytes.
+    pub fn into_region(self) -> ShowRegion<'r> {
+        ShowRegion { words: self.words }
+    }
+
+    /// The show's length in bytes.
+    pub fn show_bytes(&self) -> usize {
+        self.len
+    }
+
+    /// Bytes the region holds.
+    pub fn capacity(&self) -> usize {
+        self.words.len() * 4
+    }
+
+    /// The show's identity, as a controller reports it.
+    pub fn id(&self) -> u32 {
+        format::show_id(bytemuck::cast_slice(&self.words[..self.len / 4]))
+    }
+
+    pub fn outputs(&self) -> &[format::Output] {
+        self.show().outputs()
+    }
+
+    pub fn frame_rate(&self) -> u32 {
+        self.show().frame_rate()
+    }
+
+    pub fn duration(&self) -> SampleDuration {
+        self.show().duration()
+    }
+
+    /// Play the show from its start again.
+    pub fn restart(&mut self) {
+        let (show, buffer) = self.words.split_at_mut(self.len / 4);
+        restart(
+            Show::trusted(bytemuck::cast_slice(show)),
+            &self.layout,
+            buffer,
+            &mut self.router,
+        );
+    }
+
+    pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
+        let (show, buffer) = self.words.split_at_mut(self.len / 4);
+        resume(
+            Show::trusted(bytemuck::cast_slice(show)),
+            &self.layout,
+            buffer,
+        )
+        .frame(time)
+    }
+
+    /// Route a console input at its time, as [`ShowPlayback::apply`] does.
+    pub fn apply(&mut self, event: ConsoleEvent) {
+        let (show, buffer) = self.words.split_at_mut(self.len / 4);
+        route(
+            Show::trusted(bytemuck::cast_slice(show)),
+            &self.layout,
+            buffer,
+            &mut self.router,
+            event,
+        );
+    }
+
+    /// Release every held control at `time`.
+    pub fn release_all(&mut self, time: SampleTime) {
+        let (show, buffer) = self.words.split_at_mut(self.len / 4);
+        release_all(
+            Show::trusted(bytemuck::cast_slice(show)),
+            &self.layout,
+            buffer,
+            &mut self.router,
+            time,
+        );
+    }
+}
+
+/// Continue `show` in the buffer an earlier call left.
+fn resume<'a, 'w>(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Playback<'a, 'w> {
+    let Some(playback) = Playback::resume(show, layout, buffer) else {
+        unreachable!("the buffer holds the layout's words")
+    };
+    playback
+}
+
+/// Start `show` in a fresh buffer; a console's session starts its `always`
+/// clips.
+fn restart(show: Show<'_>, layout: &Layout, buffer: &mut [u32], router: &mut Router) {
+    buffer.fill(0);
+    let Some(mut playback) = Playback::new(show, layout, buffer) else {
+        unreachable!("the buffer holds the layout's words")
+    };
+    *router = Router::new(show);
+    router.start(show, SampleTime::from_ticks(0), &mut |command| {
+        playback.apply(SampleTime::from_ticks(0), command);
+    });
+}
+
+fn route(
+    show: Show<'_>,
+    layout: &Layout,
+    buffer: &mut [u32],
+    router: &mut Router,
+    event: ConsoleEvent,
+) {
+    let mut playback = resume(show, layout, buffer);
+    router.route(show, event, &mut |command| {
+        playback.apply(event.time, command);
+    });
+}
+
+fn release_all(
+    show: Show<'_>,
+    layout: &Layout,
+    buffer: &mut [u32],
+    router: &mut Router,
+    time: SampleTime,
+) {
+    let mut playback = resume(show, layout, buffer);
+    router.release_all(show, time, &mut |command| {
+        playback.apply(time, command);
+    });
 }

@@ -116,6 +116,35 @@ impl DeviceClient {
             .map_err(|error| format!("Device returned invalid playback status: {error}"))
     }
 
+    /// Send a delta of the show the controller holds; `false` when it holds
+    /// another show and needs the whole one.
+    fn update(&self, delta: Vec<u8>) -> Result<bool, String> {
+        let response = self
+            .client
+            .put(self.url(path::SHOW_DELTA))
+            .header("content-type", "application/octet-stream")
+            .body(delta)
+            .send()
+            .map_err(|error| {
+                format!("Could not send the show change to the controller: {error}")
+            })?;
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            return Ok(false);
+        }
+        if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+            let reason = read_body(response)?;
+            return Err(format!(
+                "Controller {} rejected this show: {}",
+                self.address,
+                reason.trim()
+            ));
+        }
+        if !self.response(response)?.starts_with(LOADED) {
+            return Err("Controller did not acknowledge the show change.".into());
+        }
+        Ok(true)
+    }
+
     fn upload(&self, bytes: Vec<u8>) -> Result<(), String> {
         let response = self
             .client

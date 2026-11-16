@@ -13,8 +13,11 @@ pub const FORMAT_VERSION: u32 = 80;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
     /// Not a show of this format: a show prepared by another Donder
-    /// release, or bytes too short to hold its header.
+    /// release, or bytes whose length does not match their header.
     Version,
+    /// The show and its playback buffer need `needed` bytes of a region of
+    /// `capacity`.
+    Capacity { needed: usize, capacity: usize },
 }
 
 /// A show's playback bytes, borrowed in place.

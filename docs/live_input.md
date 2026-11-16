@@ -252,8 +252,8 @@ Edits to the console you are performing, or to an input device it reads, apply
 at once: Donder arms the console again on the same clock, replays your inputs
 into it, so held buttons, marks added and parameters set carry over, and keeps
 the MIDI and OSC ports it has open. `always` effects start again. Each Donder
-controller whose part changed takes the new console, and goes dark while it
-loads.
+controller whose part changed takes the new console, as a delta of the one it
+holds when that is small, or whole, going dark while it loads, otherwise.
 
 While you perform, the console's keys go to the console before any editor
 shortcut, both in the main window and in the Preview window. Keys typed into a

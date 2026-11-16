@@ -8,6 +8,7 @@ extern crate alloc;
 
 pub mod clock;
 pub mod console;
+pub mod delta;
 
 use alloc::string::String;
 use core::num::NonZeroU32;
@@ -90,6 +91,9 @@ pub mod path {
     pub const NAME: &str = "/name";
     pub const NETWORK: &str = "/network";
     pub const SHOW: &str = "/show";
+    /// A [`delta`](super::delta) of the show the controller holds, which
+    /// keeps playing. A delta for another show is refused with 409 Conflict.
+    pub const SHOW_DELTA: &str = "/show/delta";
     /// Evaluates one frame of the loaded show, for measuring.
     pub const FRAME: &str = "/frame";
     /// A [`Command`](super::Command), replied to with [`OK`](super::OK).

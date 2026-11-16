@@ -50,10 +50,7 @@ impl RequestHandlerService<LoaderState> for Control {
                     if clock.id.is_some_and(|id| id != clock_id)
                         && active.as_ref().is_some_and(|p| {
                             p.transport
-                                .sample(
-                                    clock.master_at(now),
-                                    p.show.prepared().duration().as_ticks(),
-                                )
+                                .sample(clock.master_at(now), p.show.duration().as_ticks())
                                 .0
                                 == transport::Mode::Playing
                                 || p.transport.pending.is_some()

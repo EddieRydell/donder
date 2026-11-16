@@ -21,13 +21,16 @@ use storage::SharedStorage;
 #[path = "../ws281x_parallel.rs"]
 mod ws281x_parallel;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use core::{
     fmt::Write as _,
     sync::atomic::{AtomicBool, Ordering::Relaxed},
 };
+use donder_device_protocol::delta::Delta;
 use donder_device_protocol::{LOADED, OK, PlaybackStatus, TransportStatus, clock, path};
-use donder_runtime::{FrameTiming, LoadError as ShowError, SequenceFrame, ShowBytes, ShowPlayback};
+use donder_runtime::{
+    FrameTiming, LoadError as ShowError, RegionPlayback, SequenceFrame, ShowRegion,
+};
 use donder_runtime_types::{SampleTime, sample_time_from_frame};
 use embassy_net::StackResources;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -82,7 +85,7 @@ fn local_micros() -> u64 {
 }
 
 struct Playback {
-    show: ShowPlayback,
+    show: RegionPlayback<'static>,
     transport: transport::Transport,
     show_id: u32,
     show_bytes: u32,
@@ -92,13 +95,13 @@ impl Playback {
     fn render(&mut self, display_time: u64) -> Option<SequenceFrame<'_>> {
         let (mode, position) = self
             .transport
-            .sample(display_time, self.show.prepared().duration().as_ticks());
+            .sample(display_time, self.show.duration().as_ticks());
         if matches!(mode, transport::Mode::Stopped | transport::Mode::Ended) {
             return None;
         }
         // Scaled timing holds each grid frame; constant timing samples every latch exactly.
         let rate = self.transport.rate(display_time);
-        let frame_rate = self.show.prepared().frame_rate();
+        let frame_rate = self.show.frame_rate();
         let time = match rate.frame_timing() {
             FrameTiming::Scaled => {
                 let frame = rate.frame_at(position, frame_rate);
@@ -110,7 +113,8 @@ impl Playback {
     }
 }
 type SharedPlayback = Mutex<CriticalSectionRawMutex, Option<Playback>>;
-type UploadGate = Mutex<CriticalSectionRawMutex, ()>;
+/// Serializes show changes, and holds the show region while no show plays.
+type UploadGate = Mutex<CriticalSectionRawMutex, Option<ShowRegion<'static>>>;
 
 const HTTP_PORT: u16 = 80;
 const HTTP_WORKERS: usize = 2;
@@ -131,8 +135,8 @@ type ParallelOutput = I2sParallel<'static, Blocking>;
 
 /// Why a show does not load.
 enum LoadError {
-    /// The show and its playback buffer need more heap than is free.
-    Memory { needed: usize, free: usize },
+    /// The show and its playback buffer need more than the show region.
+    Capacity { needed: usize, capacity: usize },
     /// Its outputs or frame rate exceed what this controller drives.
     Outputs,
     /// It was prepared for another format.
@@ -140,8 +144,11 @@ enum LoadError {
 }
 
 impl From<ShowError> for LoadError {
-    fn from(ShowError::Version: ShowError) -> Self {
-        Self::Version
+    fn from(error: ShowError) -> Self {
+        match error {
+            ShowError::Version => Self::Version,
+            ShowError::Capacity { needed, capacity } => Self::Capacity { needed, capacity },
+        }
     }
 }
 
@@ -151,51 +158,28 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     esp_hal::system::software_reset()
 }
 
-/// Heap left for the network after a show loads. Wi-Fi allocates buffers on
-/// demand, and an allocation failure there freezes the controller.
-const NETWORK_HEAP_RESERVE: usize = 10 * 1024;
+/// Words of the region a show and its playback buffer share: the RAM the
+/// bootloader used, which nothing else allocates from.
+const SHOW_REGION_WORDS: usize = 64 * 1024 / 4;
 
-/// Heap a show may use.
-fn available_heap() -> usize {
-    esp_alloc::HEAP.free().saturating_sub(NETWORK_HEAP_RESERVE)
-}
-
-/// Room in RAM for a show of `len` bytes. An allocation failure resets the
-/// controller, so the show's copy and then its playback buffer must fit.
-fn allocate(len: usize) -> Result<ShowBytes, LoadError> {
-    if len > available_heap() {
-        return Err(LoadError::Memory {
-            needed: len,
-            free: available_heap(),
-        });
-    }
-    Ok(ShowBytes::new(len))
-}
-
-/// Play `bytes`, a show of `len` bytes, when this controller can.
+/// Play `show` when this controller drives its outputs; the region comes
+/// back otherwise.
 #[inline(never)]
-fn admit(bytes: ShowBytes, len: usize) -> Result<Playback, LoadError> {
-    let prepared = bytes.open()?;
-    if prepared.outputs().is_empty()
-        || prepared.frame_rate() > MAX_FRAME_RATE
-        || prepared.outputs().len() > OUTPUT_LANES
-        || prepared
+fn admit(show: RegionPlayback<'static>) -> Result<Playback, (ShowRegion<'static>, LoadError)> {
+    if show.outputs().is_empty()
+        || show.frame_rate() > MAX_FRAME_RATE
+        || show.outputs().len() > OUTPUT_LANES
+        || show
             .outputs()
             .iter()
             .any(|output| output.width as usize > OUTPUT_PIXELS * 3 || output.width % 3 != 0)
     {
-        return Err(LoadError::Outputs);
-    }
-    if prepared.workspace_bytes() > available_heap() {
-        return Err(LoadError::Memory {
-            needed: len + prepared.workspace_bytes(),
-            free: len + available_heap(),
-        });
+        return Err((show.into_region(), LoadError::Outputs));
     }
     Ok(Playback {
-        show_id: prepared.id(),
-        show_bytes: len as u32,
-        show: prepared.into_playback(),
+        show_id: show.id(),
+        show_bytes: show.show_bytes() as u32,
+        show,
         transport: transport::Transport::new(),
     })
 }
@@ -357,45 +341,192 @@ impl RequestHandlerService<LoaderState> for UploadShow {
         mut request: picoserve::request::Request<'_, R>,
         response_writer: W,
     ) -> Result<picoserve::ResponseSent, W::Error> {
-        // One show replaces another at a time: each needs the free heap.
-        let _upload = state.upload.lock().await;
+        let mut idle = state.upload.lock().await;
         let length = request.body_connection.content_length();
-        // Replacement stops playback immediately, releasing the show and its
-        // buffer for the new one.
-        state.playback.lock().await.take();
-        let mut bytes = match allocate(length) {
-            Ok(bytes) => bytes,
+        // Replacement stops playback immediately; the new show takes its place.
+        let mut region = match idle.take() {
+            Some(region) => region,
+            None => match state.playback.lock().await.take() {
+                Some(playback) => playback.show.into_region(),
+                None => unreachable!("the show region is idle or playing"),
+            },
+        };
+        if length > region.capacity() {
+            let capacity = region.capacity();
+            *idle = Some(region);
+            return rejected(
+                LoadError::Capacity {
+                    needed: length,
+                    capacity,
+                },
+                request.body_connection.finalize().await?,
+                response_writer,
+            )
+            .await;
+        }
+        let read = request
+            .body_connection
+            .body()
+            .reader()
+            .with_different_timeout(Duration::from_secs(15))
+            .read_exact(&mut region.bytes_mut()[..length])
+            .await;
+        let show = match read {
+            Ok(()) => region.open(length),
             Err(error) => {
-                return rejected(
-                    error,
-                    request.body_connection.finalize().await?,
-                    response_writer,
-                )
-                .await;
+                *idle = Some(region);
+                return match error {
+                    embedded_io_async::ReadExactError::UnexpectedEof => {
+                        (
+                            StatusCode::BAD_REQUEST,
+                            "Incomplete show body
+",
+                        )
+                            .write_to(request.body_connection.finalize().await?, response_writer)
+                            .await
+                    }
+                    embedded_io_async::ReadExactError::Other(error) => Err(error),
+                };
             }
         };
+        let connection = request.body_connection.finalize().await?;
+        match show
+            .map_err(|(region, error)| (region, error.into()))
+            .and_then(admit)
+        {
+            Ok(playback) => *state.playback.lock().await = Some(playback),
+            Err((region, error)) => {
+                *idle = Some(region);
+                return rejected(error, connection, response_writer).await;
+            }
+        }
+        (StatusCode::OK, format_args!("{LOADED}\n"))
+            .write_to(connection, response_writer)
+            .await
+    }
+}
+
+/// Turn the playing show into another with a delta, in place, keeping its
+/// transport.
+struct UpdateShow;
+
+impl RequestHandlerService<LoaderState> for UpdateShow {
+    async fn call_request_handler_service<
+        R: picoserve::io::Read,
+        W: picoserve::response::ResponseWriter<Error = R::Error>,
+    >(
+        &self,
+        state: &LoaderState,
+        (): (),
+        mut request: picoserve::request::Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        let mut idle = state.upload.lock().await;
+        let length = request.body_connection.content_length();
+        if length % 4 != 0 || length > SHOW_REGION_WORDS * 4 {
+            return (StatusCode::BAD_REQUEST, "Malformed show delta\n")
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+        let mut bytes = alloc::vec![0; length];
         match request
             .body_connection
             .body()
             .reader()
             .with_different_timeout(Duration::from_secs(15))
-            .read_exact(&mut bytes.as_mut_bytes()[..length])
+            .read_exact(&mut bytes)
             .await
         {
             Ok(()) => {}
             Err(embedded_io_async::ReadExactError::UnexpectedEof) => {
-                return (StatusCode::BAD_REQUEST, "Incomplete show body\n")
+                return (StatusCode::BAD_REQUEST, "Incomplete show delta\n")
                     .write_to(request.body_connection.finalize().await?, response_writer)
                     .await;
             }
             Err(embedded_io_async::ReadExactError::Other(error)) => return Err(error),
         }
         let connection = request.body_connection.finalize().await?;
-        let playback = match admit(bytes, length) {
-            Ok(playback) => playback,
-            Err(error) => return rejected(error, connection, response_writer).await,
+        let words = bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| u32::from_le_bytes(*word))
+            .collect::<Vec<_>>();
+        drop(bytes);
+        let Some(delta) = Delta::decode(&words) else {
+            return (StatusCode::BAD_REQUEST, "Malformed show delta\n")
+                .write_to(connection, response_writer)
+                .await;
         };
-        *state.playback.lock().await = Some(playback);
+        let header = delta.header;
+        let mut active = state.playback.lock().await;
+        let held = active.as_ref().map(|playback| {
+            (
+                playback.show_id,
+                playback.show_bytes,
+                playback.show.capacity(),
+            )
+        });
+        let Some((show_id, show_bytes, capacity)) = held else {
+            drop(active);
+            return (StatusCode::CONFLICT, "No show is loaded\n")
+                .write_to(connection, response_writer)
+                .await;
+        };
+        if (show_id, show_bytes) != (header.base_id, header.base_bytes) {
+            drop(active);
+            return (StatusCode::CONFLICT, "The controller holds another show\n")
+                .write_to(connection, response_writer)
+                .await;
+        }
+        if delta.room_words() * 4 > capacity {
+            drop(active);
+            return rejected(
+                LoadError::Capacity {
+                    needed: delta.room_words() * 4,
+                    capacity,
+                },
+                connection,
+                response_writer,
+            )
+            .await;
+        }
+        let Some(Playback {
+            show, transport, ..
+        }) = active.take()
+        else {
+            unreachable!("the playing show was just read")
+        };
+        let mut region = show.into_region();
+        delta.apply(region.words_mut());
+        let updated = region
+            .open(header.target_bytes as usize)
+            .map_err(|(region, error)| (region, error.into()))
+            .and_then(admit);
+        match updated {
+            Ok(playback) if playback.show_id == header.target_id => {
+                *active = Some(Playback {
+                    transport,
+                    ..playback
+                });
+            }
+            Ok(playback) => {
+                drop(active);
+                *idle = Some(playback.show.into_region());
+                return (
+                    StatusCode::CONFLICT,
+                    "The show delta did not make its show\n",
+                )
+                    .write_to(connection, response_writer)
+                    .await;
+            }
+            Err((region, error)) => {
+                drop(active);
+                *idle = Some(region);
+                return rejected(error, connection, response_writer).await;
+            }
+        }
+        drop(active);
         (StatusCode::OK, format_args!("{LOADED}\n"))
             .write_to(connection, response_writer)
             .await
@@ -425,9 +556,9 @@ struct Rejection(LoadError);
 impl core::fmt::Display for Rejection {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.0 {
-            LoadError::Memory { needed, free } => write!(
+            LoadError::Capacity { needed, capacity } => write!(
                 formatter,
-                "The show needs {needed} bytes of memory and this controller has {free} free"
+                "The show needs {needed} bytes of memory and this controller has {capacity}"
             ),
             LoadError::Outputs => write!(
                 formatter,
@@ -522,7 +653,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             playback: active.as_ref().map(|playback| {
                 let (mode, position_micros) = playback
                     .transport
-                    .sample(now, playback.show.prepared().duration().as_ticks());
+                    .sample(now, playback.show.duration().as_ticks());
                 PlaybackStatus {
                     mode,
                     position_micros,
@@ -551,6 +682,7 @@ impl AppBuilder for WebApp {
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
         picoserve::Router::new()
             .route(path::SHOW, put_service(UploadShow))
+            .route(path::SHOW_DELTA, put_service(UpdateShow))
             .route(path::FRAME, post_service(EvaluateFrame))
             .route(path::NAME, put_service(Rename))
             .route(path::NETWORK, put_service(SetNetwork))
@@ -654,7 +786,7 @@ async fn console_server(
     let at = |playback: &Playback, master: u64, last: SampleTime| {
         let (_, position) = playback
             .transport
-            .sample(master, playback.show.prepared().duration().as_ticks());
+            .sample(master, playback.show.duration().as_ticks());
         SampleTime::from_ticks(position).max(last)
     };
     loop {
@@ -753,7 +885,7 @@ fn render_outputs(
         let mut current = spin_lock(playback);
         let frame_rate = current
             .as_ref()
-            .map_or(IDLE_FRAME_RATE, |p| p.show.prepared().frame_rate());
+            .map_or(IDLE_FRAME_RATE, |p| p.show.frame_rate());
         let signature = current
             .as_ref()
             .map(|p| (p.show_id, p.show_bytes, p.transport.generation));
@@ -784,7 +916,7 @@ fn render_outputs(
         let rendered = active.as_mut().and_then(|playback| {
             playback
                 .transport
-                .refresh(master_now, playback.show.prepared().duration().as_ticks());
+                .refresh(master_now, playback.show.duration().as_ticks());
             playback.render(next_latch)
         });
         encode_frame(rendered, spare_buffer.as_mut_slice());
@@ -805,12 +937,21 @@ fn render_outputs(
 #[esp_rtos::main]
 async fn main(spawner: embassy_executor::Spawner) -> ! {
     let p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
-    esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
-    // The heap holds the playing show's prepared sequence and playback
-    // buffer beside the network's buffers; the rest of DRAM is the network
-    // core's stack, which loading a show and
-    // serving requests use deeply. Total heap with output enabled is 126 KiB.
+    // The heap is the network's: its buffers and a console's routing state.
+    // The show and its playback buffer have their own region, so no heap
+    // allocation can fragment it. The rest of DRAM is the network core's
+    // stack, which serving requests uses deeply.
     esp_alloc::heap_allocator!(size: 62 * 1024);
+    #[esp_hal::ram(reclaimed)]
+    static mut SHOW_REGION: core::mem::MaybeUninit<[u32; SHOW_REGION_WORDS]> =
+        core::mem::MaybeUninit::uninit();
+    // SAFETY: `main` runs once and borrows the region only here; zeroing it
+    // initializes every word.
+    let show_region: &'static mut [u32] = unsafe {
+        let region = &mut *core::ptr::addr_of_mut!(SHOW_REGION);
+        region.as_mut_ptr().write_bytes(0, 1);
+        region.assume_init_mut()
+    };
     let timer = TimerGroup::new(p.TIMG0);
     esp_rtos::start(timer.timer0, p.FROM_CPU_INTR0);
 
@@ -831,7 +972,8 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         picoserve::make_static!(SharedStorage, Mutex::new(storage));
     let playback: &'static SharedPlayback =
         picoserve::make_static!(SharedPlayback, Mutex::new(None));
-    let upload = picoserve::make_static!(UploadGate, Mutex::new(()));
+    let upload =
+        picoserve::make_static!(UploadGate, Mutex::new(Some(ShowRegion::new(show_region))));
     let boot_id = rng.random();
     let clock: &'static SharedClock =
         picoserve::make_static!(SharedClock, Mutex::new(transport::Clock::new()));

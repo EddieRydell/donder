@@ -113,13 +113,20 @@ struct Prepared {
     /// The show's identity, which the controller reports for the show it holds.
     id: u32,
 }
+/// A show a controller holds.
+struct Held {
+    id: u32,
+    bytes: Vec<u8>,
+}
+
 struct Binding {
     id: DonderDeviceId,
     client: DeviceClient,
     clock_socket: UdpSocket,
     ports: DevicePorts,
     prepared: Option<Prepared>,
-    uploaded: Option<u32>,
+    /// The show the controller holds, which a delta changes.
+    held: Option<Held>,
     sample: Option<ClockSample>,
     rate_ppb: i32,
     uncertainty: Option<u32>,
@@ -159,19 +166,21 @@ impl Scheduled {
 }
 
 impl Binding {
-    /// Prepare the show for this controller's ports and send it unless the
-    /// controller holds it. A prepared show is rebuilt for another sequence,
-    /// or for a later revision when `refresh`.
+    /// Prepare the show for this controller's ports, for another sequence or
+    /// a later revision, and send it unless the controller holds it: as a
+    /// delta of the show it holds, which keeps playing, when that is less
+    /// than half the show.
     fn prepare(
         &mut self,
         revision: u32,
         sequence: &ObjectAddress,
-        refresh: bool,
         compile: &mut impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<(), String> {
-        if self.prepared.as_ref().is_none_or(|prepared| {
-            prepared.sequence != *sequence || (refresh && prepared.revision != revision)
-        }) {
+        if self
+            .prepared
+            .as_ref()
+            .is_none_or(|prepared| prepared.sequence != *sequence || prepared.revision != revision)
+        {
             let show = compile(&self.ports)?;
             self.prepared = Some(Prepared {
                 revision,
@@ -184,10 +193,29 @@ impl Binding {
             .prepared
             .as_ref()
             .ok_or("Prepared sequence is missing")?;
-        if self.uploaded != Some(prepared.id) {
-            self.client.upload(prepared.bytes.clone())?;
-            self.uploaded = Some(prepared.id);
+        if self
+            .held
+            .as_ref()
+            .is_some_and(|held| held.id == prepared.id)
+        {
+            return Ok(());
         }
+        let delta = self.held.as_ref().map(|held| {
+            donder_device_protocol::delta::diff(&held.bytes, held.id, &prepared.bytes, prepared.id)
+        });
+        // A failed send leaves the controller's show unknown.
+        self.held = None;
+        let updated = match delta {
+            Some(delta) if delta.len() <= prepared.bytes.len() / 2 => self.client.update(delta)?,
+            _ => false,
+        };
+        if !updated {
+            self.client.upload(prepared.bytes.clone())?;
+        }
+        self.held = Some(Held {
+            id: prepared.id,
+            bytes: prepared.bytes.clone(),
+        });
         Ok(())
     }
 
@@ -245,7 +273,7 @@ impl Binding {
             .sample
             .is_some_and(|previous| previous.boot_id != sample.boot_id)
         {
-            self.uploaded = None;
+            self.held = None;
         }
         // Reported, not enforced: a slow network loosens light-to-audio sync
         // but must not prevent playback.
@@ -447,7 +475,6 @@ impl DevicePlaybackService {
         epoch: u32,
         revision: u32,
         sequence: &ObjectAddress,
-        refresh: bool,
         mut compile: impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<DeviceFailures, String> {
         let mut core = lock_unpoisoned(&self.shared.core);
@@ -458,7 +485,7 @@ impl DevicePlaybackService {
         }
         let mut failures = DeviceFailures::new();
         for mut binding in std::mem::take(&mut core.bindings) {
-            match binding.prepare(revision, sequence, refresh, &mut compile) {
+            match binding.prepare(revision, sequence, &mut compile) {
                 Ok(()) => core.bindings.push(binding),
                 Err(error) => {
                     let _ = binding.client.stop_loaded();
@@ -563,7 +590,7 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
         clock_socket,
         ports: device.ports.clone(),
         prepared: None,
-        uploaded: None,
+        held: None,
         sample: None,
         rate_ppb: 0,
         uncertainty: None,
