@@ -9,33 +9,75 @@ use super::backend::{
     canonical_audio_path,
 };
 
-/// Devices follow one shared timeline, so the desktop reschedules them where local playback
-/// would wrap to the loop start or stop at the range end.
+/// Where the transport is, for Donder controllers that follow it.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum DeviceBoundary {
-    Wrap(f64),
-    Stop(f64),
+pub(crate) enum Timeline {
+    /// Playing from `position` at `at`.
+    Playing {
+        at: Instant,
+        position: f64,
+        rate: PlaybackRate,
+        end: Option<WindowEnd>,
+    },
+    Paused(f64),
+    Stopped(f64),
+    /// Played to the end of the sequence, where followers end by themselves.
+    Ended,
+}
+
+/// Where playback wraps to the loop start, or stops and returns Home, before
+/// the end of the sequence.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum WindowEnd {
+    Wrap { start: f64, end: f64 },
+    Stop { end: f64, home: f64 },
+}
+
+impl Timeline {
+    /// The position playing reaches at `now`, wrapped into the loop.
+    pub(crate) fn position_at(&self, now: Instant) -> f64 {
+        match *self {
+            Self::Playing {
+                at,
+                position,
+                rate,
+                end,
+            } => {
+                let reached = position + show_seconds_between(rate, at, now);
+                match end {
+                    Some(WindowEnd::Wrap { start, end }) if reached >= end => {
+                        start + (reached - start) % (end - start)
+                    }
+                    _ => reached,
+                }
+            }
+            Self::Paused(position) | Self::Stopped(position) => position,
+            Self::Ended => 0.0,
+        }
+    }
+
+    /// When playing next reaches its window end after `now`.
+    pub(crate) fn next_end(&self, now: Instant) -> Option<(Instant, WindowEnd)> {
+        let Self::Playing { rate, end, .. } = *self else {
+            return None;
+        };
+        let end = end?;
+        let edge = match end {
+            WindowEnd::Wrap { end, .. } | WindowEnd::Stop { end, .. } => end,
+        };
+        let remaining = micros(Duration::from_secs_f64(
+            (edge - self.position_at(now)).max(0.0),
+        ));
+        Some((
+            now + Duration::from_micros(u64::from(rate.wall_elapsed(remaining))),
+            end,
+        ))
+    }
 }
 
 enum TransportClock {
     Audio(LoadedAudio),
-    Silent {
-        duration_seconds: f64,
-        anchor: Option<(Instant, f64)>,
-    },
-}
-
-struct ScheduledTimeline {
-    start: Instant,
-    position: f64,
-    duration: f64,
-    rate: PlaybackRate,
-}
-struct ScheduledHold {
-    at: Instant,
-    state: AudioTransportState,
-    position: f64,
-    set_home: bool,
+    Silent { duration_seconds: f64 },
 }
 
 pub(crate) struct AudioEngine {
@@ -48,9 +90,8 @@ pub(crate) struct AudioEngine {
     generation: u32,
     last_error: Option<String>,
     can_resume_handle: bool,
-    scheduled_timeline: Option<ScheduledTimeline>,
-    scheduled_hold: Option<ScheduledHold>,
-    sequence_duration: Option<f64>,
+    /// When and where playing last started at the current rate.
+    anchor: Option<(Instant, f64)>,
     rate: PlaybackRate,
     range: Option<PlaybackRange>,
     looping: bool,
@@ -79,9 +120,7 @@ impl AudioEngine {
             generation: 0,
             last_error: error,
             can_resume_handle: false,
-            scheduled_timeline: None,
-            scheduled_hold: None,
-            sequence_duration: None,
+            anchor: None,
             rate: PlaybackRate::NORMAL,
             range: None,
             looping: false,
@@ -95,7 +134,6 @@ impl AudioEngine {
             generation: 0,
             position_seconds: 0.0,
             home_seconds: 0.0,
-            start_delay_seconds: 0.0,
             duration_seconds: 0.0,
             playback_speed: PlaybackRate::NORMAL.into(),
             range: None,
@@ -124,10 +162,7 @@ impl AudioEngine {
             self.state = AudioTransportState::Error;
             self.last_error = Some("Sequence duration must be positive and finite.".into());
         } else {
-            self.clock = Some(TransportClock::Silent {
-                duration_seconds,
-                anchor: None,
-            });
+            self.clock = Some(TransportClock::Silent { duration_seconds });
             self.state = AudioTransportState::Stopped;
             self.last_error = None;
         }
@@ -227,8 +262,8 @@ impl AudioEngine {
             self.position_seconds = position;
             self.can_resume_handle = false;
         }
-        if let Some(TransportClock::Silent { anchor, .. }) = &mut self.clock {
-            *anchor = Some((Instant::now(), self.position_seconds));
+        if let Some(TransportClock::Silent { .. }) = &self.clock {
+            self.anchor = Some((Instant::now(), self.position_seconds));
             self.state = AudioTransportState::Playing;
             self.last_error = None;
             self.bump_generation();
@@ -239,6 +274,7 @@ impl AudioEngine {
             && let Some(handle) = self.handle.as_mut()
         {
             handle.resume();
+            self.anchor = Some((Instant::now(), self.position_seconds));
             self.state = AudioTransportState::Playing;
             self.last_error = None;
             self.can_resume_handle = false;
@@ -250,99 +286,15 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub(crate) fn play_at(
-        &mut self,
-        deadline: Instant,
-        position: f64,
-        duration: f64,
-        rate: PlaybackRate,
-    ) -> Result<AudioTransportSnapshot, String> {
-        if self.clock.is_none()
-            || !position.is_finite()
-            || position < 0.0
-            || !duration.is_finite()
-            || duration <= 0.0
-            || position > duration
-        {
-            return Err("No valid sequence transport is loaded".into());
-        }
-        self.lifecycle_stop_handle();
-        self.state = AudioTransportState::Stopped;
-        self.sequence_duration = Some(duration);
-        self.rate = rate;
-        if let Some(TransportClock::Audio(loaded)) = &self.clock {
-            let result = self
-                .driver
-                .as_mut()
-                .ok_or_else(|| "Audio manager is not available".to_string())
-                .and_then(|driver| {
-                    driver.play(
-                        &loaded.audio.resolved_path,
-                        position,
-                        Some(deadline),
-                        rate,
-                        PlaybackBounds::default(),
-                    )
-                });
-            match result {
-                Ok(handle) => self.handle = Some(handle),
-                Err(error) => {
-                    self.state = AudioTransportState::Error;
-                    self.last_error = Some(error.clone());
-                    self.bump_generation();
-                    return Err(error);
-                }
-            }
-        }
-        if deadline <= Instant::now() {
-            self.lifecycle_stop_handle();
-            return Err("Shared start deadline passed while preparing audio".into());
-        }
-        self.position_seconds = position;
-        self.scheduled_timeline = Some(ScheduledTimeline {
-            start: deadline,
-            position,
-            duration,
-            rate,
-        });
-        self.state = AudioTransportState::Playing;
-        self.last_error = None;
-        self.can_resume_handle = false;
-        self.bump_generation();
-        Ok(self.current_snapshot())
-    }
-
-    pub(crate) fn hold_at(
-        &mut self,
-        deadline: Instant,
-        state: AudioTransportState,
-        position: f64,
-        set_home: bool,
-    ) -> AudioTransportSnapshot {
-        if let Some(handle) = &mut self.handle {
-            handle.pause(Some(deadline));
-        }
-        self.scheduled_hold = Some(ScheduledHold {
-            at: deadline,
-            state,
-            position,
-            set_home,
-        });
-        self.bump_generation();
-        self.current_snapshot()
-    }
-
     pub(crate) fn pause(&mut self) -> AudioTransportSnapshot {
         self.observe_backend();
         if !matches!(self.state, AudioTransportState::Playing) {
             return self.current_snapshot();
         }
-        if self.scheduled_timeline.take().is_none() {
-            self.sample_handle_position();
-        }
-        self.scheduled_hold = None;
+        self.sample_handle_position();
+        self.anchor = None;
         if let Some(handle) = self.handle.as_mut() {
-            handle.pause(None);
+            handle.pause();
         }
         self.state = AudioTransportState::Paused;
         self.can_resume_handle = true;
@@ -382,20 +334,9 @@ impl AudioEngine {
         if self.rate == rate {
             return self.current_snapshot();
         }
-        let now = Instant::now();
-        if let Some(TransportClock::Silent {
-            anchor: Some(anchor),
-            ..
-        }) = &mut self.clock
-        {
-            *anchor = (now, self.position_seconds);
-        }
-        if let Some(timeline) = &mut self.scheduled_timeline {
-            if now >= timeline.start {
-                timeline.start = now;
-                timeline.position = self.position_seconds;
-            }
-            timeline.rate = rate;
+        if let Some(timeline) = self.playing_timeline() {
+            let now = Instant::now();
+            self.anchor = Some((now, timeline.position_at(now)));
         }
         if let Some(handle) = self.handle.as_mut() {
             handle.set_playback_rate(rate);
@@ -450,15 +391,26 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
-    pub(crate) fn device_boundary(&mut self) -> Option<DeviceBoundary> {
+    /// Where the transport is, for controllers that follow it; nothing while
+    /// no sequence is loaded.
+    pub(crate) fn timeline(&mut self) -> Option<Timeline> {
         self.observe_backend();
-        let end = self.window_end()?;
-        let reached = self.scheduled_timeline.is_some()
-            && matches!(self.state, AudioTransportState::Playing)
-            && self.position_seconds >= end;
-        reached.then(|| match self.loop_region() {
-            Some((start, _)) => DeviceBoundary::Wrap(start),
-            None => DeviceBoundary::Stop(self.home_seconds),
+        match self.state {
+            AudioTransportState::Playing => self.playing_timeline(),
+            AudioTransportState::Paused => Some(Timeline::Paused(self.position_seconds)),
+            AudioTransportState::Stopped => Some(Timeline::Stopped(self.position_seconds)),
+            AudioTransportState::Ended => Some(Timeline::Ended),
+            AudioTransportState::Unloaded | AudioTransportState::Error => None,
+        }
+    }
+
+    fn playing_timeline(&self) -> Option<Timeline> {
+        let (at, position) = self.anchor?;
+        Some(Timeline::Playing {
+            at,
+            position,
+            rate: self.rate,
+            end: self.window_end(),
         })
     }
 
@@ -487,10 +439,15 @@ impl AudioEngine {
     }
 
     /// Where playback wraps or stops before the natural end of the sequence.
-    fn window_end(&self) -> Option<f64> {
-        self.range
-            .map(|range| range.end_seconds)
-            .or_else(|| self.looping.then(|| self.duration_seconds()))
+    fn window_end(&self) -> Option<WindowEnd> {
+        match (self.loop_region(), self.range) {
+            (Some((start, end)), _) => Some(WindowEnd::Wrap { start, end }),
+            (None, Some(range)) => Some(WindowEnd::Stop {
+                end: range.end_seconds,
+                home: self.home_seconds,
+            }),
+            (None, None) => None,
+        }
     }
 
     fn bounds(&self) -> PlaybackBounds {
@@ -500,18 +457,16 @@ impl AudioEngine {
         }
     }
 
-    /// Streams carry their bounds, so a local stream restarts under new ones. Shared timelines
-    /// keep running; the desktop reschedules devices at the window end.
+    /// Streams carry their bounds, so a local stream restarts under new ones.
     fn restart_bounded_stream(&mut self) {
         self.can_resume_handle = false;
-        if !matches!(self.state, AudioTransportState::Playing) || self.scheduled_timeline.is_some()
-        {
+        if !matches!(self.state, AudioTransportState::Playing) {
             return;
         }
         self.sample_handle_position();
         self.position_seconds = self.play_position();
-        if let Some(TransportClock::Silent { anchor, .. }) = &mut self.clock {
-            *anchor = Some((Instant::now(), self.position_seconds));
+        if let Some(TransportClock::Silent { .. }) = &self.clock {
+            self.anchor = Some((Instant::now(), self.position_seconds));
             return;
         }
         self.lifecycle_stop_handle();
@@ -530,10 +485,9 @@ impl AudioEngine {
         let position_seconds = self.clamp_position(position_seconds);
         self.home_seconds = position_seconds;
         self.position_seconds = position_seconds;
-        self.scheduled_timeline = None;
-        self.scheduled_hold = None;
+        self.anchor = None;
         if let Some(handle) = self.handle.as_mut() {
-            handle.pause(None);
+            handle.pause();
             handle.seek_to(position_seconds);
         }
         self.state = final_state;
@@ -557,12 +511,12 @@ impl AudioEngine {
         match driver.play(
             &loaded.audio.resolved_path,
             self.position_seconds,
-            None,
             self.rate,
             bounds,
         ) {
             Ok(handle) => {
                 self.handle = Some(handle);
+                self.anchor = Some((Instant::now(), self.position_seconds));
                 self.state = AudioTransportState::Playing;
                 self.last_error = None;
                 self.can_resume_handle = false;
@@ -579,64 +533,12 @@ impl AudioEngine {
     }
 
     fn observe_backend(&mut self) {
-        self.observe_backend_at(Instant::now());
-    }
-
-    fn observe_backend_at(&mut self, now: Instant) {
-        if let Some(hold) = self.scheduled_hold.take_if(|hold| now >= hold.at) {
-            self.scheduled_timeline = None;
-            self.position_seconds = hold.position;
-            self.state = hold.state;
-            if hold.set_home {
-                self.home_seconds = hold.position;
-            }
-            if let Some(handle) = &mut self.handle {
-                handle.seek_to(hold.position);
-            }
-            self.can_resume_handle = false;
-            self.bump_generation();
-        }
-        if let Some(timeline) = &self.scheduled_timeline {
-            self.position_seconds = (timeline.position
-                + show_seconds_between(timeline.rate, timeline.start, now))
-            .min(timeline.duration);
-            if let Some(handle) = &mut self.handle
-                && let Some(error) = handle.observe().error
-            {
-                self.last_error = Some(error);
-                self.state = AudioTransportState::Error;
-                self.scheduled_timeline = None;
-                self.bump_generation();
-                return;
-            }
-            let duration = timeline.duration;
-            // Devices keep playing past the window end until the desktop reschedules them.
-            if let Some(end) = self.window_end()
-                && self.position_seconds >= end
-            {
-                self.position_seconds = end;
-                return;
-            }
-            if self.position_seconds >= duration {
-                if let Some(handle) = &mut self.handle {
-                    handle.pause(None);
-                }
-                self.state = AudioTransportState::Ended;
-                self.scheduled_timeline = None;
-                self.bump_generation();
-            }
-            return;
-        }
-        if let Some(TransportClock::Silent {
-            duration_seconds,
-            anchor,
-        }) = &self.clock
-        {
+        if let Some(TransportClock::Silent { duration_seconds }) = &self.clock {
             if matches!(self.state, AudioTransportState::Playing)
-                && let Some((started, position)) = anchor
+                && let Some((started, position)) = self.anchor
             {
                 let duration_seconds = *duration_seconds;
-                let elapsed = position + show_seconds_between(self.rate, *started, now);
+                let elapsed = position + show_seconds_between(self.rate, started, Instant::now());
                 match (self.loop_region(), self.range) {
                     (Some((start, end)), _) if elapsed >= end => {
                         self.position_seconds = start + (elapsed - start) % (end - start);
@@ -644,12 +546,14 @@ impl AudioEngine {
                     (None, Some(range)) if elapsed >= range.end_seconds => {
                         self.position_seconds = self.home_seconds;
                         self.state = AudioTransportState::Stopped;
+                        self.anchor = None;
                         self.bump_generation();
                     }
                     _ => {
                         self.position_seconds = elapsed.min(duration_seconds);
                         if self.position_seconds >= duration_seconds {
                             self.state = AudioTransportState::Ended;
+                            self.anchor = None;
                             self.bump_generation();
                         }
                     }
@@ -679,6 +583,7 @@ impl AudioEngine {
             // A stream sliced to the range stops at its end and returns Home.
             BackendPlaybackState::Stopped if self.range.is_some() && !self.looping => {
                 self.position_seconds = self.home_seconds;
+                self.anchor = None;
                 self.handle = None;
                 self.state = AudioTransportState::Stopped;
                 self.can_resume_handle = false;
@@ -686,6 +591,7 @@ impl AudioEngine {
             }
             BackendPlaybackState::Stopped => {
                 self.position_seconds = self.duration_seconds();
+                self.anchor = None;
                 self.handle = None;
                 self.state = AudioTransportState::Ended;
                 self.can_resume_handle = false;
@@ -702,7 +608,6 @@ impl AudioEngine {
     }
 
     fn reset_loaded_audio(&mut self) {
-        self.sequence_duration = None;
         self.lifecycle_stop_handle();
         self.clock = None;
         self.home_seconds = 0.0;
@@ -713,8 +618,7 @@ impl AudioEngine {
     }
 
     fn lifecycle_stop_handle(&mut self) {
-        self.scheduled_timeline = None;
-        self.scheduled_hold = None;
+        self.anchor = None;
         if let Some(mut handle) = self.handle.take() {
             handle.stop();
         }
@@ -729,12 +633,6 @@ impl AudioEngine {
             },
             generation: self.generation,
             position_seconds: self.position_seconds,
-            start_delay_seconds: self.scheduled_timeline.as_ref().map_or(0.0, |timeline| {
-                timeline
-                    .start
-                    .saturating_duration_since(Instant::now())
-                    .as_secs_f64()
-            }),
             home_seconds: self.home_seconds,
             duration_seconds: self.duration_seconds(),
             playback_speed: self.rate.into(),
@@ -752,14 +650,9 @@ impl AudioEngine {
     }
 
     fn duration_seconds(&self) -> f64 {
-        if let Some(duration) = self.sequence_duration {
-            return duration;
-        }
         match &self.clock {
             Some(TransportClock::Audio(loaded)) => loaded.duration_seconds,
-            Some(TransportClock::Silent {
-                duration_seconds, ..
-            }) => *duration_seconds,
+            Some(TransportClock::Silent { duration_seconds }) => *duration_seconds,
             None => 0.0,
         }
     }
@@ -787,67 +680,11 @@ impl Drop for AudioEngine {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
 
     use super::super::backend::{
         AudioDriver, AudioHandle, AudioMetadata, BackendObservation, BackendPlaybackState,
     };
     use super::*;
-
-    #[test]
-    fn local_controls_release_the_shared_timeline_after_devices_disconnect() {
-        let fixture = AudioFixture::new(12.0);
-        let mut engine = loaded_engine(&fixture);
-        let start = Instant::now() + Duration::from_secs(1);
-        engine
-            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
-            .unwrap();
-        engine.pause();
-        engine.observe_backend_at(start + Duration::from_secs(2));
-        assert_eq!(engine.current_snapshot().position_seconds, 2.0);
-        engine
-            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
-            .unwrap();
-        engine.stop();
-        engine.observe_backend_at(start + Duration::from_secs(2));
-        assert_eq!(engine.current_snapshot().position_seconds, 0.0);
-        engine
-            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
-            .unwrap();
-        engine.seek(4.0);
-        engine.observe_backend_at(start + Duration::from_secs(2));
-        assert_eq!(engine.current_snapshot().position_seconds, 4.0);
-        assert_eq!(engine.current_snapshot().state, AudioTransportState::Paused);
-    }
-
-    #[test]
-    fn shared_timeline_waits_for_start_skips_elapsed_frames_and_holds_at_seek() {
-        let fixture = AudioFixture::new(12.0);
-        let mut engine = loaded_engine(&fixture);
-        let start = Instant::now() + Duration::from_secs(1);
-        engine
-            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
-            .unwrap();
-        engine.observe_backend_at(start - Duration::from_millis(1));
-        assert_eq!(engine.current_snapshot().position_seconds, 2.0);
-        engine.observe_backend_at(start + Duration::from_millis(350));
-        assert_eq!(engine.current_snapshot().position_seconds, 2.35);
-        let hold = start + Duration::from_secs(1);
-        engine.hold_at(hold, AudioTransportState::Paused, 4.0, true);
-        engine.observe_backend_at(hold - Duration::from_millis(1));
-        assert_eq!(
-            engine.current_snapshot().state,
-            AudioTransportState::Playing
-        );
-        engine.observe_backend_at(hold);
-        let snapshot = engine.current_snapshot();
-        assert_eq!(snapshot.state, AudioTransportState::Paused);
-        assert_eq!(snapshot.position_seconds, 4.0);
-        assert_eq!(snapshot.home_seconds, 4.0);
-        assert_eq!(snapshot.duration_seconds, 8.0);
-        engine.observe_backend_at(hold + Duration::from_secs(10));
-        assert_eq!(engine.current_snapshot().position_seconds, 4.0);
-    }
 
     #[test]
     fn load_valid_source_initializes_stopped_without_handle() {
@@ -1144,7 +981,6 @@ mod tests {
             &mut self,
             _path: &str,
             position_seconds: f64,
-            _deadline: Option<Instant>,
             _rate: PlaybackRate,
             _bounds: PlaybackBounds,
         ) -> Result<Box<dyn AudioHandle>, String> {
@@ -1174,7 +1010,7 @@ mod tests {
             }
         }
 
-        fn pause(&mut self, _deadline: Option<Instant>) {
+        fn pause(&mut self) {
             let mut shared = self.shared.lock().expect("fake shared");
             shared.handle_actions.push(HandleAction::Pause);
             shared.handle_state = BackendPlaybackState::Paused;

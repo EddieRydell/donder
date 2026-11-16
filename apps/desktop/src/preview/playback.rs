@@ -30,7 +30,6 @@ pub(crate) struct PreviewClockSnapshot {
     pub(crate) generation: u32,
     pub(crate) state: PreviewPlaybackState,
     pub(crate) position_seconds: f64,
-    pub(crate) start_delay_seconds: f64,
     pub(crate) rate: PlaybackRate,
 }
 
@@ -43,11 +42,9 @@ struct ClockAnchor {
 impl ClockAnchor {
     fn position_at(self, now: Instant) -> f64 {
         if self.snapshot.state == PreviewPlaybackState::Playing {
-            let wall = (now
+            let wall = now
                 .saturating_duration_since(self.received_at)
-                .as_secs_f64()
-                - self.snapshot.start_delay_seconds)
-                .max(0.0);
+                .as_secs_f64();
             self.snapshot.position_seconds
                 + self.snapshot.rate.show_elapsed((wall * 1_000_000.0) as u32) as f64 / 1_000_000.0
         } else {
@@ -83,7 +80,6 @@ impl PreviewPlayback {
                     generation: 0,
                     state: PreviewPlaybackState::Unavailable,
                     position_seconds: 0.0,
-                    start_delay_seconds: 0.0,
                     rate: PlaybackRate::NORMAL,
                 },
                 received_at: Instant::now(),

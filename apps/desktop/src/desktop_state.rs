@@ -71,6 +71,9 @@ pub(crate) struct DesktopServices {
     live_output_enabled: AtomicBool,
     device_reconcile: LatestScheduler<()>,
     device_failures: Mutex<crate::device::playback::DeviceFailures>,
+    /// When playing reaches the window end the controllers were scheduled to
+    /// wrap or stop at; the next reconcile schedules the one after.
+    device_window_end: Mutex<Option<std::time::Instant>>,
     transport_operation: Mutex<()>,
     sequence_clip_raster: Mutex<crate::sequence_clip_raster::SequenceClipRasterService>,
     sequence_clipboard: Mutex<Option<donder_editor::SequenceClipboard>>,
@@ -177,6 +180,7 @@ impl DesktopState {
                         }
                     }),
                     device_failures: Mutex::new(std::collections::BTreeMap::new()),
+                    device_window_end: Mutex::new(None),
                     transport_operation: Mutex::new(()),
                     sequence_clip_raster: Mutex::new(
                         crate::sequence_clip_raster::SequenceClipRasterService::new(),

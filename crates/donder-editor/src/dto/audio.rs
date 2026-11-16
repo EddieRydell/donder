@@ -22,7 +22,6 @@ pub struct AudioTransportSnapshot {
     pub audio: Option<SequenceAudio>,
     pub generation: u32,
     pub position_seconds: f64,
-    pub start_delay_seconds: f64,
     pub home_seconds: f64,
     pub duration_seconds: f64,
     pub playback_speed: PlaybackSpeed,

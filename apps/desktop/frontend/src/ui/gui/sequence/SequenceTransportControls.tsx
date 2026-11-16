@@ -138,7 +138,7 @@ type TransportAnchor = { transport: AppSnapshot["audioTransport"]; positionSecon
 /** The playhead now: the latest position, extrapolated from the snapshot's arrival while playing. */
 function playheadSeconds(latest: AppSnapshot["audioTransport"], anchor: TransportAnchor) {
   if (!shouldAnimateTransportPosition(latest) || !shouldAnimateTransportPosition(anchor.transport)) return latest.positionSeconds;
-  const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(anchor.anchoredAt) - anchor.transport.startDelaySeconds) * playbackSpeedRatio(anchor.transport.playbackSpeed);
+  const elapsedSeconds = transportExtrapolationSeconds(anchor.anchoredAt) * playbackSpeedRatio(anchor.transport.playbackSpeed);
   return clamp(anchor.positionSeconds + elapsedSeconds, 0, anchor.transport.durationSeconds);
 }
 

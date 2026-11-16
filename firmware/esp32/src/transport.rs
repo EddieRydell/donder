@@ -47,7 +47,6 @@ pub(crate) struct Scheduled {
     pub at: u64,
     pub mode: Mode,
     pub position: u32,
-    pub looping: bool,
     pub rate: PlaybackRate,
 }
 
@@ -56,7 +55,6 @@ pub(crate) struct Transport {
     pub mode: Mode,
     anchor_time: u64,
     anchor_position: u32,
-    looping: bool,
     rate: PlaybackRate,
     pub pending: Option<Scheduled>,
     pub command_id: u32,
@@ -69,26 +67,17 @@ impl Transport {
             mode: Mode::Stopped,
             anchor_time: 0,
             anchor_position: 0,
-            looping: false,
             rate: PlaybackRate::NORMAL,
             pending: None,
             command_id: 0,
             generation: 0,
         }
     }
-    pub(crate) fn apply(
-        &mut self,
-        mode: Mode,
-        position: u32,
-        now: u64,
-        looping: bool,
-        rate: PlaybackRate,
-    ) {
+    pub(crate) fn apply(&mut self, mode: Mode, position: u32, now: u64, rate: PlaybackRate) {
         self.generation = self.generation.wrapping_add(1);
         self.mode = mode;
         self.anchor_time = now;
         self.anchor_position = position;
-        self.looping = looping;
         self.rate = rate;
         self.pending = None;
     }
@@ -114,13 +103,7 @@ impl Transport {
         if let Some(pending) = self.pending
             && now >= pending.at
         {
-            self.apply(
-                pending.mode,
-                pending.position,
-                pending.at,
-                pending.looping,
-                pending.rate,
-            );
+            self.apply(pending.mode, pending.position, pending.at, pending.rate);
         }
     }
     pub(crate) fn sample(&self, now: u64, duration: u32) -> (Mode, u32) {
@@ -131,9 +114,7 @@ impl Transport {
         let wall = u32::try_from(now.saturating_sub(current.anchor_time)).unwrap_or(u32::MAX);
         let position =
             u64::from(current.anchor_position) + u64::from(current.rate.show_elapsed(wall));
-        if current.looping {
-            (Mode::Playing, (position % u64::from(duration)) as u32)
-        } else if position >= u64::from(duration) {
+        if position >= u64::from(duration) {
             (Mode::Ended, duration)
         } else {
             (Mode::Playing, position as u32)
@@ -143,19 +124,7 @@ impl Transport {
         self.apply_due(now);
         let (mode, position) = self.sample(now, duration);
         if mode == Mode::Ended && self.mode != Mode::Ended {
-            self.apply(mode, position, now, false, self.rate);
-        }
-    }
-    pub(crate) fn cancel(&mut self, id: u32, now: u64) -> bool {
-        if self
-            .pending
-            .is_some_and(|pending| pending.id == id && now < pending.at)
-        {
-            self.pending = None;
-            self.generation = self.generation.wrapping_add(1);
-            true
-        } else {
-            false
+            self.apply(mode, position, now, self.rate);
         }
     }
 }
@@ -164,40 +133,6 @@ impl Transport {
 mod tests {
     use super::*;
     #[test]
-    fn cancellation_invalidates_a_precomputed_future_frame() {
-        let mut transport = Transport::new();
-        transport.schedule(Scheduled {
-            id: 1,
-            at: 1_000_000,
-            mode: Mode::Playing,
-            position: 0,
-            looping: false,
-            rate: PlaybackRate::NORMAL,
-        });
-        let generation = transport.generation;
-        assert_eq!(
-            transport.sample(1_010_000, 8_000_000),
-            (Mode::Playing, 10_000)
-        );
-        assert!(!transport.cancel(2, 999_999));
-        assert!(transport.cancel(1, 999_999));
-        assert_ne!(transport.generation, generation);
-        assert_eq!(transport.sample(1_010_000, 8_000_000), (Mode::Stopped, 0));
-        transport.schedule(Scheduled {
-            id: 2,
-            at: 2_000_000,
-            mode: Mode::Playing,
-            position: 0,
-            looping: false,
-            rate: PlaybackRate::NORMAL,
-        });
-        assert!(!transport.cancel(2, 2_000_000));
-        assert_eq!(
-            transport.sample(2_010_000, 8_000_000),
-            (Mode::Playing, 10_000)
-        );
-    }
-    #[test]
     fn missed_frames_follow_elapsed_time_and_scheduled_start() {
         let mut transport = Transport::new();
         assert!(transport.schedule(Scheduled {
@@ -205,7 +140,6 @@ mod tests {
             at: 1_000_000,
             mode: Mode::Playing,
             position: 0,
-            looping: false,
             rate: PlaybackRate::NORMAL,
         }));
         assert_eq!(transport.sample(999_999, 8_000_000), (Mode::Stopped, 0));
@@ -225,13 +159,12 @@ mod tests {
             donder_runtime::FrameTiming::Constant,
         );
         let mut transport = Transport::new();
-        transport.apply(Mode::Playing, 0, 0, false, PlaybackRate::NORMAL);
+        transport.apply(Mode::Playing, 0, 0, PlaybackRate::NORMAL);
         transport.schedule(Scheduled {
             id: 1,
             at: 1_000_000,
             mode: Mode::Playing,
             position: 1_000_000,
-            looping: false,
             rate: half,
         });
         assert_eq!(transport.rate(999_999), PlaybackRate::NORMAL);
@@ -244,13 +177,12 @@ mod tests {
     #[test]
     fn pause_seek_stop_and_replaced_schedules() {
         let mut transport = Transport::new();
-        transport.apply(Mode::Playing, 0, 1_000_000, false, PlaybackRate::NORMAL);
+        transport.apply(Mode::Playing, 0, 1_000_000, PlaybackRate::NORMAL);
         transport.schedule(Scheduled {
             id: 2,
             at: 1_100_000,
             mode: Mode::Paused,
             position: 100_000,
-            looping: false,
             rate: PlaybackRate::NORMAL,
         });
         assert_eq!(
@@ -266,27 +198,15 @@ mod tests {
             at: 3_000_000,
             mode: Mode::Playing,
             position: 0,
-            looping: true,
             rate: PlaybackRate::NORMAL,
         }));
-        transport.apply(
-            Mode::Paused,
-            7_000_000,
-            2_000_000,
-            false,
-            PlaybackRate::NORMAL,
-        );
+        transport.apply(Mode::Paused, 7_000_000, 2_000_000, PlaybackRate::NORMAL);
         assert_eq!(
             transport.sample(3_000_000, 8_000_000),
             (Mode::Paused, 7_000_000)
         );
-        transport.apply(Mode::Stopped, 0, 3_000_000, false, PlaybackRate::NORMAL);
+        transport.apply(Mode::Stopped, 0, 3_000_000, PlaybackRate::NORMAL);
         assert_eq!(transport.sample(4_000_000, 8_000_000), (Mode::Stopped, 0));
-        transport.apply(Mode::Playing, 0, 0, true, PlaybackRate::NORMAL);
-        assert_eq!(
-            transport.sample(9_000_000, 8_000_000),
-            (Mode::Playing, 1_000_000)
-        );
     }
     #[test]
     fn clock_offset_drift_and_freshness() {
@@ -305,7 +225,7 @@ mod tests {
         assert!(!clock.usable(id(2), 100_000));
         assert!(!clock.usable(id(1), 10_100_000));
         let mut transport = Transport::new();
-        transport.apply(Mode::Playing, 0, 0, false, PlaybackRate::NORMAL);
+        transport.apply(Mode::Playing, 0, 0, PlaybackRate::NORMAL);
         transport.refresh(8_000_000, 8_000_000);
         assert_eq!(transport.mode, Mode::Ended);
     }

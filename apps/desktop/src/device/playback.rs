@@ -18,7 +18,6 @@ use std::{
 pub(crate) type DevicePorts = Vec<(ControllerId, ControllerPortId)>;
 /// Controllers released because they could not take part, and why.
 pub(crate) type DeviceFailures = BTreeMap<DonderDeviceId, String>;
-type ScheduleReady = (ClockSample, donder_device_protocol::PlaybackStatus);
 
 /// A controller in the open setup that should follow editor playback.
 pub(crate) struct WantedDevice {
@@ -111,7 +110,6 @@ struct Prepared {
     /// The prepared sequence's address, which outlives reloads.
     sequence: ObjectAddress,
     bytes: Vec<u8>,
-    frame_rate: u32,
     /// The show's identity, which the controller reports for the show it holds.
     id: u32,
 }
@@ -125,6 +123,10 @@ struct Binding {
     sample: Option<ClockSample>,
     rate_ppb: i32,
     uncertainty: Option<u32>,
+    /// The slowest recent command round trip, decaying toward the latest.
+    round_trip: Duration,
+    /// The last command sent; the controller accepts only later ones.
+    command_id: u32,
     error: Option<String>,
 }
 struct Core {
@@ -143,43 +145,38 @@ pub(crate) struct DevicePlaybackService {
     shared: Arc<Shared>,
     worker: Option<JoinHandle<()>>,
 }
-pub(crate) struct GroupSchedule {
-    pub deadline: Instant,
-    pub position: u32,
-    commands: Vec<(SocketAddr, u32)>,
+/// The controllers that took a schedule, and those released because they could not.
+pub(crate) struct Scheduled {
+    addresses: Vec<SocketAddr>,
     pub failures: DeviceFailures,
 }
 
-impl GroupSchedule {
-    /// The controllers that follow the schedule.
-    pub(crate) fn device_count(&self) -> usize {
-        self.commands.len()
-    }
-
+impl Scheduled {
     /// The addresses of the controllers that follow the schedule.
     pub(crate) fn addresses(&self) -> impl Iterator<Item = SocketAddr> + '_ {
-        self.commands.iter().map(|(address, _)| *address)
+        self.addresses.iter().copied()
     }
 }
 
 impl Binding {
+    /// Prepare the show for this controller's ports and send it unless the
+    /// controller holds it. A prepared show is rebuilt for another sequence,
+    /// or for a later revision when `refresh`.
     fn prepare(
         &mut self,
         revision: u32,
         sequence: &ObjectAddress,
+        refresh: bool,
         compile: &mut impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<(), String> {
-        if self
-            .prepared
-            .as_ref()
-            .is_none_or(|prepared| prepared.revision != revision || prepared.sequence != *sequence)
-        {
+        if self.prepared.as_ref().is_none_or(|prepared| {
+            prepared.sequence != *sequence || (refresh && prepared.revision != revision)
+        }) {
             let show = compile(&self.ports)?;
             self.prepared = Some(Prepared {
                 revision,
                 sequence: sequence.clone(),
                 bytes: show.encode(),
-                frame_rate: show.frame_rate(),
                 id: show.id(),
             });
         }
@@ -187,34 +184,44 @@ impl Binding {
             .prepared
             .as_ref()
             .ok_or("Prepared sequence is missing")?;
-        let status = self.client.transport(false)?;
-        let matches = status.playback.as_ref().is_some_and(|playback| {
-            playback.show_bytes as usize == prepared.bytes.len() && playback.show_id == prepared.id
-        });
-        if self.uploaded != Some(prepared.id) || !matches {
+        if self.uploaded != Some(prepared.id) {
             self.client.upload(prepared.bytes.clone())?;
             self.uploaded = Some(prepared.id);
         }
         Ok(())
     }
 
-    /// The controller's clock and loaded show, checked against the prepared one.
-    fn ready(&mut self, origin: Instant, clock_id: NonZeroU32) -> Result<ScheduleReady, String> {
-        self.synchronize(origin, clock_id)?;
-        let sample = self.sample_clock(origin)?;
-        let status = self
-            .client
-            .transport(false)?
-            .playback
-            .ok_or("Controller has no loaded sequence")?;
+    fn schedule(
+        &mut self,
+        clock_id: NonZeroU32,
+        at_micros: u64,
+        action: Action,
+        position_micros: u32,
+        rate: PlaybackRate,
+    ) -> Result<(), String> {
         let prepared = self
             .prepared
             .as_ref()
-            .ok_or("Prepare the current sequence before scheduling")?;
-        if status.show_id != prepared.id || status.show_bytes as usize != prepared.bytes.len() {
-            return Err("The controller's show changed before playback started".into());
-        }
-        Ok((sample, status))
+            .ok_or("Prepare the show before scheduling it")?;
+        let sample = self
+            .sample
+            .ok_or("The controller's clock is not synchronized")?;
+        // A lost reply may hide acceptance, so the next command counts past this one either way.
+        self.command_id = self
+            .command_id
+            .checked_add(1)
+            .ok_or("Controller command counter exhausted; restart the controller")?;
+        self.client.control(&Command::Schedule {
+            boot_id: sample.boot_id,
+            clock_id,
+            command_id: self.command_id,
+            at_micros,
+            action,
+            position_micros,
+            rate,
+            show_id: prepared.id,
+            show_bytes: u32::try_from(prepared.bytes.len()).map_err(|_| "Show is too large")?,
+        })
     }
 
     fn sample_clock(&self, origin: Instant) -> Result<ClockSample, String> {
@@ -233,6 +240,13 @@ impl Binding {
             }
         }
         let sample = best.ok_or("No clock samples")?;
+        // A restarted controller holds no show.
+        if self
+            .sample
+            .is_some_and(|previous| previous.boot_id != sample.boot_id)
+        {
+            self.uploaded = None;
+        }
         // Reported, not enforced: a slow network loosens light-to-audio sync
         // but must not prevent playback.
         let uncertainty = sample.delay / 2 + 100;
@@ -252,6 +266,7 @@ impl Binding {
                 rate = estimate as i32;
             }
         }
+        let sent = Instant::now();
         self.client.control(&Command::SyncClock {
             boot_id: sample.boot_id,
             clock_id,
@@ -260,6 +275,9 @@ impl Binding {
             rate_ppb: rate,
             valid_for_micros: 15_000_000,
         })?;
+        self.round_trip = sent
+            .elapsed()
+            .max(self.round_trip.saturating_sub(self.round_trip / 8));
         if self.sample.is_none_or(|previous| {
             previous.boot_id != sample.boot_id
                 || sample.local.saturating_sub(previous.local) >= 30_000_000
@@ -422,13 +440,14 @@ impl DevicePlaybackService {
             ))
         }
     }
-    /// Build and upload the sequence for every binding. A controller that
+    /// Build and upload the show for every binding. A controller that
     /// cannot take it is released and named in the result; the rest play.
     pub(crate) fn prepare(
         &self,
         epoch: u32,
         revision: u32,
         sequence: &ObjectAddress,
+        refresh: bool,
         mut compile: impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<DeviceFailures, String> {
         let mut core = lock_unpoisoned(&self.shared.core);
@@ -439,7 +458,7 @@ impl DevicePlaybackService {
         }
         let mut failures = DeviceFailures::new();
         for mut binding in std::mem::take(&mut core.bindings) {
-            match binding.prepare(revision, sequence, &mut compile) {
+            match binding.prepare(revision, sequence, refresh, &mut compile) {
                 Ok(()) => core.bindings.push(binding),
                 Err(error) => {
                     let _ = binding.client.stop_loaded();
@@ -449,154 +468,75 @@ impl DevicePlaybackService {
         }
         Ok(failures)
     }
-    /// `advancing` is the rate `position` is moving at as of `observed_at`;
-    /// `rate` is the playback rate the devices follow after the deadline.
-    /// A controller that cannot take the schedule is released and named in
-    /// the result; the rest follow it, and with none left the timeline is the
-    /// editor's alone.
-    pub(crate) fn schedule(
-        &self,
-        action: Action,
-        position: u32,
-        advancing: Option<PlaybackRate>,
-        rate: PlaybackRate,
-        duration: u32,
-        observed_at: Instant,
-    ) -> Result<GroupSchedule, String> {
-        let mut core = lock_unpoisoned(&self.shared.core);
-        let origin = core.origin;
-        let clock_id = core.clock_id;
-        let mut failures = DeviceFailures::new();
-        let mut ready = Vec::new();
-        for mut binding in std::mem::take(&mut core.bindings) {
-            match binding.ready(origin, clock_id) {
-                Ok(sample) => {
-                    ready.push(sample);
-                    core.bindings.push(binding);
-                }
-                Err(error) => {
-                    let _ = binding.client.stop_loaded();
-                    failures.insert(binding.id, error);
-                }
-            }
-        }
-        // Each schedule acknowledgment costs a few network round trips; slow
-        // links get a later start instead of a missed deadline.
+
+    /// The earliest moment a schedule sent now reaches every controller in
+    /// time: the controller's lead, plus the slowest round trip and clock
+    /// uncertainty.
+    pub(crate) fn deadline(&self) -> Instant {
+        let core = lock_unpoisoned(&self.shared.core);
         let slowest = core
             .bindings
             .iter()
-            .filter_map(|binding| binding.uncertainty)
+            .map(|binding| {
+                binding.round_trip
+                    + Duration::from_micros(u64::from(binding.uncertainty.unwrap_or(0)))
+            })
             .max()
-            .unwrap_or(0);
-        let lead = Duration::from_millis((core.bindings.len() as u64 * 50).clamp(250, 1_000))
-            + Duration::from_micros(u64::from(slowest) * 8 * core.bindings.len() as u64);
-        let earliest = origin.elapsed().as_micros() + lead.as_micros();
-        // Every controller plays the same sequence, so starts align to its frames.
-        let at = match core
-            .bindings
-            .first()
-            .and_then(|binding| binding.prepared.as_ref())
-        {
-            Some(prepared) => {
-                let frame_rate = u128::from(prepared.frame_rate);
-                let frame = (earliest * frame_rate).div_ceil(1_000_000);
-                (frame * 1_000_000).div_ceil(frame_rate)
-            }
-            None => earliest,
-        };
-        let at = u64::try_from(at).map_err(|_| "Playback clock overflow")?;
-        let deadline = origin + Duration::from_micros(at);
-        let position = match advancing {
-            Some(current) => position
-                .saturating_add(
-                    current.show_elapsed(
-                        u32::try_from(deadline.saturating_duration_since(observed_at).as_micros())
-                            .unwrap_or(u32::MAX),
-                    ),
-                )
-                .min(duration),
-            None => position.min(duration),
-        };
-        let mut commands = Vec::new();
-        for (binding, (sample, status)) in std::mem::take(&mut core.bindings).into_iter().zip(ready)
-        {
-            let result = status
-                .command_id
-                .checked_add(1)
-                .ok_or_else(|| {
-                    "Controller command counter exhausted; restart the controller".to_string()
+            .unwrap_or_default();
+        Instant::now()
+            + Duration::from_micros(u64::from(donder_device_protocol::SCHEDULE_LEAD_MICROS))
+            + slowest
+    }
+
+    /// Every controller takes `action` at `position` of its show when the
+    /// editor's clock reaches `at`. A controller that cannot is released and
+    /// named in the result.
+    pub(crate) fn schedule(
+        &self,
+        at: Instant,
+        action: Action,
+        position: u32,
+        rate: PlaybackRate,
+    ) -> Scheduled {
+        let mut core = lock_unpoisoned(&self.shared.core);
+        let clock_id = core.clock_id;
+        let at_micros = at.saturating_duration_since(core.origin).as_micros() as u64;
+        let results = thread::scope(|scope| {
+            core.bindings
+                .iter_mut()
+                .map(|binding| {
+                    scope.spawn(move || {
+                        binding.schedule(clock_id, at_micros, action, position, rate)
+                    })
                 })
-                .and_then(|command_id| {
-                    let sent = binding.client.control(&Command::Schedule {
-                        boot_id: sample.boot_id,
-                        clock_id,
-                        command_id,
-                        at_micros: at,
-                        action,
-                        position_micros: position,
-                        rate,
-                        looping: false,
-                        show_id: status.show_id,
-                        show_bytes: status.show_bytes,
-                    });
-                    if sent.is_err() {
-                        // A lost reply may hide acceptance.
-                        let _ = binding.client.control(&Command::Cancel { command_id });
-                    }
-                    sent.map(|()| command_id)
-                });
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|sent| {
+                    sent.join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+                .collect::<Vec<_>>()
+        });
+        let mut scheduled = Scheduled {
+            addresses: Vec::new(),
+            failures: DeviceFailures::new(),
+        };
+        for (binding, result) in std::mem::take(&mut core.bindings).into_iter().zip(results) {
             match result {
-                Ok(command_id) => {
-                    commands.push((binding.client.address, command_id));
+                Ok(()) => {
+                    scheduled.addresses.push(binding.client.address);
                     core.bindings.push(binding);
                 }
                 Err(error) => {
                     let _ = binding.client.stop_loaded();
-                    failures.insert(binding.id, error);
+                    scheduled.failures.insert(binding.id, error);
                 }
             }
         }
-        if deadline.saturating_duration_since(Instant::now()) < Duration::from_millis(40) {
-            let cancellation = cancel(&core, &commands);
-            return Err(format!(
-                "Scheduled deadline became too close. {cancellation}"
-            ));
-        }
-        Ok(GroupSchedule {
-            deadline,
-            position,
-            commands,
-            failures,
-        })
-    }
-    pub(crate) fn cancel(&self, schedule: &GroupSchedule) -> String {
-        cancel(&lock_unpoisoned(&self.shared.core), &schedule.commands)
+        scheduled
     }
 }
 
-fn cancel(core: &Core, commands: &[(SocketAddr, u32)]) -> String {
-    let mut failed = Vec::new();
-    for (address, command_id) in commands {
-        if let Some(binding) = core
-            .bindings
-            .iter()
-            .find(|binding| binding.client.address == *address)
-            && let Err(error) = binding.client.control(&Command::Cancel {
-                command_id: *command_id,
-            })
-        {
-            failed.push(format!("{address}: {error}"));
-        }
-    }
-    if failed.is_empty() {
-        "Pending starts cancelled.".into()
-    } else {
-        format!(
-            "Cancellation could not be confirmed: {}. Check device playback status.",
-            failed.join("; ")
-        )
-    }
-}
 fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
     let client = DeviceClient::new(device.address)?;
     let bind_address = if client.address.is_ipv4() {
@@ -616,7 +556,7 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
         .set_write_timeout(Some(Duration::from_secs(2)))
         .map_err(|error| error.to_string())?;
     // Changing clock masters while a show runs would move its time origin.
-    client.stop_loaded()?;
+    let stopped = client.transport(true)?;
     let mut binding = Binding {
         id: device.id.clone(),
         client,
@@ -627,6 +567,8 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
         sample: None,
         rate_ppb: 0,
         uncertainty: None,
+        round_trip: Duration::ZERO,
+        command_id: stopped.playback.map_or(0, |playback| playback.command_id),
         error: None,
     };
     binding.synchronize(core.origin, core.clock_id)?;

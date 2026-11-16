@@ -51,7 +51,6 @@ pub(crate) struct PreviewClock {
     pub(crate) generation: u32,
     pub(crate) state: AudioTransportState,
     pub(crate) position_seconds: f64,
-    pub(crate) start_delay_seconds: f64,
     pub(crate) playback_speed: PlaybackSpeed,
 }
 
@@ -61,7 +60,6 @@ impl From<AudioTransportSnapshot> for PreviewClock {
             generation: value.generation,
             state: value.state,
             position_seconds: value.position_seconds,
-            start_delay_seconds: value.start_delay_seconds,
             playback_speed: value.playback_speed,
         }
     }
@@ -467,7 +465,6 @@ fn send_clock(writer: &PreviewWriter, clock: PreviewClock) -> Result<(), String>
             generation: clock.generation,
             state: clock.state,
             position_seconds: clock.position_seconds,
-            start_delay_seconds: clock.start_delay_seconds,
             playback_speed: clock.playback_speed,
         },
     )

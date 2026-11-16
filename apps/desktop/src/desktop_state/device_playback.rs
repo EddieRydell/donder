@@ -1,6 +1,6 @@
 use super::perform::DevicePerformance;
 use super::{DesktopState, lock_unpoisoned};
-use crate::audio::DeviceBoundary;
+use crate::audio::{Timeline, WindowEnd};
 use crate::device::DeviceClient;
 use crate::device::discovery::{Advertised, Advertisements, DeviceDiscovery};
 use crate::device::playback::{DeviceFailures, DevicePorts, WantedDevice};
@@ -14,6 +14,7 @@ use donder_model::{ControllerId, ControllerPortAddress, ControllerProtocol, Dond
 use donder_runtime::PlaybackRate;
 use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 /// A Donder controller in the open setup.
 struct SetupDevice {
@@ -128,28 +129,78 @@ impl DesktopState {
             .unwrap_or_default()
     }
 
-    /// Connect live output to every Donder controller in the open setup that
-    /// is on the network, or release them all
-    /// while live output is off, then publish the device list. A performance
-    /// in progress plays on every connected controller. Performs network I/O
-    /// on the reconcile task.
+    /// Bring the Donder controllers in the open setup in line with the
+    /// editor: connect those on the network and have them follow the
+    /// performance in progress or the sequence transport, or release them all
+    /// while live output is off, then publish the device list. Performs
+    /// network I/O on the reconcile task.
     pub(super) fn reconcile_devices(&self) {
         let _operation = lock_unpoisoned(&self.transport_operation);
+        *lock_unpoisoned(&self.device_window_end) = None;
         if !self.devices_live() {
             self.console_feed.stop();
             // Releasing a binding stops the show it plays.
             self.device_playback
                 .sync(self.snapshot().project_epoch, Vec::new());
             lock_unpoisoned(&self.device_failures).clear();
-        } else if !matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
-            // New bindings stop the controller's show; never interrupt a running one.
+        } else {
             self.connect_setup_devices();
             match self.device_performance() {
                 Some(performance) => self.perform_on_devices(performance),
-                None => self.console_feed.stop(),
+                None => {
+                    self.console_feed.stop();
+                    if let Err(error) = self.follow_transport() {
+                        self.device_transport_error(error);
+                    }
+                }
             }
         }
         self.publish_devices();
+    }
+
+    /// Have the controllers follow the sequence transport: take up its place
+    /// a lead time from now, then wrap or stop where it next reaches its
+    /// window end. The caller holds the transport operation lock.
+    fn follow_transport(&self) -> Result<(), String> {
+        if !self.device_playback.has_devices() {
+            return Ok(());
+        }
+        let Some(timeline) = lock_unpoisoned(&self.audio).timeline() else {
+            return Ok(());
+        };
+        let (action, playing) = match timeline {
+            Timeline::Playing { .. } => (Action::Play, true),
+            Timeline::Paused(_) => (Action::Pause, false),
+            Timeline::Stopped(_) => (Action::Stop, false),
+            // Controllers end by themselves.
+            Timeline::Ended => return Ok(()),
+        };
+        // A playing show keeps the version it started with.
+        let duration = self.prepare_device_sequence(!playing)?;
+        let rate = lock_unpoisoned(&self.audio).playback_rate();
+        let at = self.device_playback.deadline();
+        let position = seconds_to_micros(timeline.position_at(at))?.min(duration);
+        let scheduled = self.device_playback.schedule(at, action, position, rate);
+        self.record_device_failures(scheduled.failures);
+        let Some((end_at, end)) = timeline.next_end(at) else {
+            return Ok(());
+        };
+        // Each controller holds one pending command, the start, until `at`.
+        std::thread::sleep(at.saturating_duration_since(Instant::now()));
+        // An end too close to schedule passes first; the reconcile after it
+        // takes up the transport from there.
+        if end_at >= self.device_playback.deadline() {
+            let (action, position) = match end {
+                WindowEnd::Wrap { start, .. } => (Action::Play, start),
+                WindowEnd::Stop { home, .. } => (Action::Stop, home),
+            };
+            let scheduled =
+                self.device_playback
+                    .schedule(end_at, action, seconds_to_micros(position)?, rate);
+            self.record_device_failures(scheduled.failures);
+        }
+        *lock_unpoisoned(&self.device_window_end) = Some(end_at);
+        Ok(())
     }
 
     /// Play the performance on each connected controller that has not joined
@@ -177,6 +228,7 @@ impl DesktopState {
             self.snapshot().project_epoch,
             generation,
             &address,
+            true,
             |ports| {
                 donder_elaboration::arm(
                     &session.project,
@@ -189,25 +241,28 @@ impl DesktopState {
             },
         );
         self.keep_preparation(cache);
-        let scheduled = prepared.and_then(|failures| {
-            self.record_device_failures(failures);
-            self.device_playback.schedule(
-                Action::Play,
-                performance.position,
-                Some(PlaybackRate::NORMAL),
-                PlaybackRate::NORMAL,
-                performance.duration,
-                performance.observed_at,
-            )
-        });
-        match scheduled {
-            Ok(schedule) => {
-                for address in schedule.addresses() {
+        match prepared {
+            Ok(failures) => {
+                self.record_device_failures(failures);
+                let at = self.device_playback.deadline();
+                let elapsed = u32::try_from(
+                    at.saturating_duration_since(performance.observed_at)
+                        .as_micros(),
+                )
+                .unwrap_or(u32::MAX);
+                let position = performance
+                    .position
+                    .saturating_add(PlaybackRate::NORMAL.show_elapsed(elapsed))
+                    .min(performance.duration);
+                let scheduled =
+                    self.device_playback
+                        .schedule(at, Action::Play, position, PlaybackRate::NORMAL);
+                for address in scheduled.addresses() {
                     if !self.console_feed.has_joined(generation, address) {
                         self.console_feed.join(generation, address);
                     }
                 }
-                self.record_device_failures(schedule.failures);
+                self.record_device_failures(scheduled.failures);
             }
             Err(error) => {
                 self.update_snapshot(|snapshot| snapshot.status = error);
@@ -403,7 +458,9 @@ impl DesktopState {
         }))
     }
 
-    fn prepare_device_sequence(&self) -> Result<u32, String> {
+    /// Prepare the open sequence for the controllers, rebuilding a prepared
+    /// one for a later revision when `refresh`, and return its duration.
+    fn prepare_device_sequence(&self, refresh: bool) -> Result<u32, String> {
         let _authoring = lock_unpoisoned(&self.authoring);
         let snapshot = self.snapshot();
         let session = self
@@ -425,6 +482,7 @@ impl DesktopState {
             snapshot.project_epoch,
             snapshot.project_revision,
             &target.sequence,
+            refresh,
             |ports| {
                 donder_elaboration::prepare(
                     &session.project,
@@ -438,165 +496,6 @@ impl DesktopState {
         Ok(duration)
     }
 
-    /// Play connects the setup's Donder controllers that are not yet
-    /// connected; the editor plays alone when none is reachable.
-    pub(super) fn device_audio_play(&self) -> Result<AppSnapshot, String> {
-        let _operation = lock_unpoisoned(&self.transport_operation);
-        if matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
-            return Ok(self.snapshot());
-        }
-        self.connect_setup_devices();
-        if !self.device_playback.has_devices() {
-            self.publish_devices();
-            return Ok(self.local_audio_play());
-        }
-        let duration = self.prepare_device_sequence()?;
-        let position = lock_unpoisoned(&self.audio).play_position();
-        let rate = lock_unpoisoned(&self.audio).playback_rate();
-        self.device_audio_schedule_playing(position, None, rate, duration)
-    }
-
-    /// Playing devices restart together from the position reached at the shared deadline.
-    pub(super) fn device_audio_set_rate(&self, rate: PlaybackRate) -> Result<AppSnapshot, String> {
-        let _operation = lock_unpoisoned(&self.transport_operation);
-        let audio = self.audio_snapshot();
-        if !matches!(audio.state, AudioTransportState::Playing) {
-            let transport = lock_unpoisoned(&self.audio).set_playback_rate(rate);
-            return Ok(self.update_snapshot(|snapshot| snapshot.audio_transport = transport));
-        }
-        let current = lock_unpoisoned(&self.audio).playback_rate();
-        self.device_audio_schedule_playing(
-            audio.position_seconds,
-            Some(current),
-            rate,
-            seconds_to_micros(audio.duration_seconds)?,
-        )
-    }
-
-    /// The caller holds the transport operation lock.
-    fn device_audio_schedule_playing(
-        &self,
-        position: f64,
-        advancing: Option<PlaybackRate>,
-        rate: PlaybackRate,
-        duration: u32,
-    ) -> Result<AppSnapshot, String> {
-        let mut schedule = self.device_playback.schedule(
-            Action::Play,
-            seconds_to_micros(position)?,
-            advancing,
-            rate,
-            duration,
-            std::time::Instant::now(),
-        )?;
-        self.record_device_failures(std::mem::take(&mut schedule.failures));
-        let result = lock_unpoisoned(&self.audio).play_at(
-            schedule.deadline,
-            f64::from(schedule.position) / 1_000_000.0,
-            f64::from(duration) / 1_000_000.0,
-            rate,
-        );
-        match result {
-            Ok(transport) => {
-                self.publish_devices();
-                let devices = schedule.device_count();
-                Ok(self.update_snapshot(|snapshot| {
-                    snapshot.audio_transport = transport;
-                    if devices > 0 {
-                        snapshot.status =
-                            format!("Sequence scheduled on {devices} Donder controllers.");
-                    }
-                }))
-            }
-            Err(error) => Err(format!(
-                "Could not schedule audio: {error}. {}",
-                self.device_playback.cancel(&schedule)
-            )),
-        }
-    }
-
-    /// Devices play straight through, so the shared timeline restarts at the loop start or holds
-    /// at Home where local playback would wrap or stop.
-    pub(super) fn device_audio_cross_boundary(&self) -> Result<(), String> {
-        let _operation = lock_unpoisoned(&self.transport_operation);
-        // A transport command may have moved the timeline since the poll saw the boundary.
-        let Some(boundary) = lock_unpoisoned(&self.audio).device_boundary() else {
-            return Ok(());
-        };
-        match boundary {
-            DeviceBoundary::Wrap(start) => {
-                let duration = seconds_to_micros(self.audio_snapshot().duration_seconds)?;
-                let rate = lock_unpoisoned(&self.audio).playback_rate();
-                self.device_audio_schedule_playing(start, None, rate, duration)?;
-            }
-            DeviceBoundary::Stop(home) => {
-                self.device_audio_hold_locked(Action::Stop, Some(home), false)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub(super) fn device_audio_hold(
-        &self,
-        action: Action,
-        position: Option<f64>,
-        set_home: bool,
-    ) -> Result<AppSnapshot, String> {
-        let _operation = lock_unpoisoned(&self.transport_operation);
-        self.device_audio_hold_locked(action, position, set_home)
-    }
-
-    /// The caller holds the transport operation lock.
-    fn device_audio_hold_locked(
-        &self,
-        action: Action,
-        position: Option<f64>,
-        set_home: bool,
-    ) -> Result<AppSnapshot, String> {
-        let audio = self.audio_snapshot();
-        let observed_at = std::time::Instant::now();
-        let duration = if matches!(audio.state, AudioTransportState::Playing) {
-            seconds_to_micros(audio.duration_seconds)?
-        } else {
-            self.prepare_device_sequence()?
-        };
-        let position = position.unwrap_or(audio.position_seconds);
-        let rate = lock_unpoisoned(&self.audio).playback_rate();
-        let mut schedule = self.device_playback.schedule(
-            action,
-            seconds_to_micros(position)?,
-            (position == audio.position_seconds
-                && matches!(audio.state, AudioTransportState::Playing)
-                && matches!(action, Action::Pause)
-                && !set_home)
-                .then_some(rate),
-            rate,
-            duration,
-            observed_at,
-        )?;
-        self.record_device_failures(std::mem::take(&mut schedule.failures));
-        let state = if matches!(action, Action::Stop) {
-            AudioTransportState::Stopped
-        } else {
-            AudioTransportState::Paused
-        };
-        lock_unpoisoned(&self.audio).hold_at(
-            schedule.deadline,
-            state,
-            f64::from(schedule.position) / 1_000_000.0,
-            set_home,
-        );
-        // The audio backend has its pause scheduled already. Publish the final seek/hold
-        // snapshot at T, including when the previous state was already paused.
-        std::thread::sleep(
-            schedule
-                .deadline
-                .saturating_duration_since(std::time::Instant::now()),
-        );
-        self.publish_devices();
-        let transport = self.audio_snapshot();
-        Ok(self.update_snapshot(|snapshot| snapshot.audio_transport = transport))
-    }
     pub(super) fn device_transport_error(&self, error: String) -> AppSnapshot {
         let transport = self.audio_snapshot();
         self.update_snapshot(|snapshot| {

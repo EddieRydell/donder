@@ -42,6 +42,8 @@ function checkInstructionRamPlacement(nm) {
 // The runtime is 32-bit: 64-bit integer and double-precision arithmetic are
 // software routines on the ESP32. Clippy bans the types in its source; this
 // catches what the compiler lowers to them anyway, in any runtime function.
+// A function ends at its symbol size: literal pools for later functions follow
+// some functions, and objdump decodes their addresses as instructions.
 const RUNTIME_MODULES = /^<?donder_runtime(_types)?(\[[0-9a-f]+\])?::/;
 const WIDE_ROUTINES = new RegExp(`<(__(?:${[
   'muldi3', 'divdi3', 'udivdi3', 'moddi3', 'umoddi3', 'ashldi3', 'ashrdi3', 'lshrdi3',
@@ -51,20 +53,36 @@ const WIDE_ROUTINES = new RegExp(`<(__(?:${[
   'eqdf2', 'nedf2', 'ltdf2', 'ledf2', 'gtdf2', 'gedf2', 'unorddf2',
 ].join('|')}))>`);
 
-function checkRuntimeWidth(objdump) {
+function checkRuntimeWidth(nm, objdump) {
   const elf = join(directory, 'target/xtensa-esp32-none-elf/release/loader');
+  const symbols = spawnSync(nm, ['--defined-only', '--print-size', elf], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (symbols.error) throw symbols.error;
+  if (symbols.status !== 0) throw new Error(`nm failed (${symbols.status}).`);
+  const sizes = new Map();
+  for (const line of symbols.stdout.split(/\r?\n/)) {
+    const match = line.match(/^([0-9a-f]+) ([0-9a-f]+) [tT] /);
+    if (match) sizes.set(Number.parseInt(match[1], 16), Number.parseInt(match[2], 16));
+  }
   const listed = spawnSync(objdump, ['--disassemble', '--demangle', '--no-show-raw-insn', elf], { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
   if (listed.error) throw listed.error;
   if (listed.status !== 0) throw new Error(`objdump failed (${listed.status}).`);
   let current = null;
+  let end = 0;
   const wide = new Set();
   for (const line of listed.stdout.split(/\r?\n/)) {
-    const header = line.match(/^[0-9a-f]+ <(.+)>:$/);
+    const header = line.match(/^([0-9a-f]+) <(.+)>:$/);
     if (header) {
-      current = RUNTIME_MODULES.test(header[1]) ? header[1] : null;
+      current = RUNTIME_MODULES.test(header[2]) ? header[2] : null;
+      if (current === null) continue;
+      const start = Number.parseInt(header[1], 16);
+      const size = sizes.get(start);
+      if (size === undefined) throw new Error(`No symbol size for runtime function ${current}.`);
+      end = start + size;
       continue;
     }
     if (current === null) continue;
+    const address = line.match(/^\s*([0-9a-f]+):/);
+    if (address === null || Number.parseInt(address[1], 16) >= end) continue;
     const call = line.match(WIDE_ROUTINES);
     if (call) wide.add(`${current} calls ${call[1]}`);
   }
@@ -104,8 +122,9 @@ function main() {
   // Check packaging tooling before starting a potentially lengthy build.
   run('espflash', ['--version']);
   run('cargo', ['+esp', 'build', '--release', '--bin', 'loader', ...(digQuad ? ['--features', 'dig-quad'] : []), '--locked']);
-  checkInstructionRamPlacement(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-nm.exe' : 'xtensa-esp32-elf-nm'));
-  checkRuntimeWidth(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-objdump.exe' : 'xtensa-esp32-elf-objdump'));
+  const nm = join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-nm.exe' : 'xtensa-esp32-elf-nm');
+  checkInstructionRamPlacement(nm);
+  checkRuntimeWidth(nm, join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-objdump.exe' : 'xtensa-esp32-elf-objdump'));
   const output = join(root, 'target/firmware');
   mkdirSync(output, { recursive: true });
   const image = join(output, 'donder-esp32.bin');

@@ -41,7 +41,6 @@ pub(crate) enum PreviewCommand {
         generation: u32,
         state: AudioTransportState,
         position_seconds: f64,
-        start_delay_seconds: f64,
         playback_speed: PlaybackSpeed,
     },
     SetAppearance {

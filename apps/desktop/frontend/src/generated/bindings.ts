@@ -182,7 +182,6 @@ export type AudioTransportSnapshot = {
 	audio: SequenceAudio | null,
 	generation: number,
 	positionSeconds: number,
-	startDelaySeconds: number,
 	homeSeconds: number,
 	durationSeconds: number,
 	playbackSpeed: PlaybackSpeed,

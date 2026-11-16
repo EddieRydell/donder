@@ -515,7 +515,6 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
                 transport::Mode::Stopped,
                 0,
                 now,
-                false,
                 donder_runtime::PlaybackRate::NORMAL,
             );
         }

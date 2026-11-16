@@ -101,6 +101,10 @@ pub mod path {
     pub const STOP: &str = "/transport/stop";
 }
 
+/// How long before its deadline a [`Command::Schedule`] must reach the
+/// controller, which renders frames ahead of their time.
+pub const SCHEDULE_LEAD_MICROS: u32 = 20_000;
+
 /// The reply to an accepted [`Command`].
 pub const OK: &str = "OK";
 /// How the reply to an admitted upload starts.
@@ -135,12 +139,8 @@ pub enum Command {
         position_micros: u32,
         #[serde(with = "WirePlaybackRate")]
         rate: PlaybackRate,
-        looping: bool,
         show_id: u32,
         show_bytes: u32,
-    },
-    Cancel {
-        command_id: u32,
     },
 }
 

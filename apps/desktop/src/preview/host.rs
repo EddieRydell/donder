@@ -196,7 +196,6 @@ impl PreviewHostApplication {
                 generation,
                 state,
                 position_seconds,
-                start_delay_seconds,
                 playback_speed,
             } => PlaybackRate::try_from(playback_speed).map(|rate| {
                 let update = self.playback.set_clock(
@@ -204,7 +203,6 @@ impl PreviewHostApplication {
                         generation,
                         state: playback_state(state),
                         position_seconds,
-                        start_delay_seconds,
                         rate,
                     },
                     Instant::now(),

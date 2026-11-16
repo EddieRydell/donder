@@ -80,7 +80,6 @@ impl RequestHandlerService<LoaderState> for Control {
                 action,
                 position_micros,
                 rate,
-                looping,
                 show_id,
                 show_bytes,
             } => {
@@ -95,7 +94,11 @@ impl RequestHandlerService<LoaderState> for Control {
                     Some(p) if p.show_id != show_id || p.show_bytes != show_bytes => {
                         Err("The show changed before scheduling")
                     }
-                    Some(_) if at_micros < master_now + 20_000 => {
+                    Some(_)
+                        if at_micros
+                            < master_now
+                                + u64::from(donder_device_protocol::SCHEDULE_LEAD_MICROS) =>
+                    {
                         Err("The start deadline is too late")
                     }
                     Some(p) => {
@@ -104,7 +107,6 @@ impl RequestHandlerService<LoaderState> for Control {
                             at: at_micros,
                             mode: action.into(),
                             position: position_micros,
-                            looping,
                             rate,
                         }) {
                             Ok(())
@@ -112,24 +114,6 @@ impl RequestHandlerService<LoaderState> for Control {
                             Err("Stale transport command")
                         }
                     }
-                }
-            }
-            Command::Cancel { command_id } => {
-                let master_now = state.clock.lock().await.master_at(now);
-                // A future frame may already be in the peripheral's DMA queue.
-                let cancellation_cutoff = master_now + DATA_MICROS + 1_000;
-                let mut active = state.playback.lock().await;
-                match active.as_mut() {
-                    Some(p) => {
-                        if p.transport.cancel(command_id, cancellation_cutoff) {
-                            Ok(())
-                        } else {
-                            Err(
-                                "Command is due or may already be transmitting; refresh playback status",
-                            )
-                        }
-                    }
-                    _ => Err("Scheduled command is no longer pending; refresh playback status"),
                 }
             }
         };

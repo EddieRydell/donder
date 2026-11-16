@@ -942,7 +942,6 @@ impl DesktopState {
                 generation: performance.generation,
                 state: AudioTransportState::Playing,
                 position_seconds: f64::from(sample_time_seconds_f32(performance.clock.now())),
-                start_delay_seconds: 0.0,
                 playback_speed: donder_runtime::PlaybackRate::NORMAL.into(),
             })
     }

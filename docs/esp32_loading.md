@@ -78,7 +78,7 @@ Dig-Quad, whose UART pins drive LEDs) and restarts the controller. Playback allo
 
 A rejected show is answered with HTTP 422 and the reason. The
 editor releases that controller and reports the reason in the live-output
-status; the next Play reconnects and sends the show again.
+status; the next transport change reconnects and sends the show again.
 
 The protocol's messages, paths and clock packets are defined once in
 `crates/donder-device-protocol`, which the editor and the firmware both use.
@@ -90,7 +90,7 @@ control it, so the access point's password is the only access control.
   `{"ssid": ..., "password": ...}` or an empty body for the access point;
 - `GET /transport` for the loaded show's playback, and `POST
   /transport/stop`, which stops it when the editor releases the controller;
-- JSON `POST /control` for clock sync, scheduling and cancellation.
+- JSON `POST /control` for clock sync and scheduling.
 
 TCP sockets disable Nagle.
 
@@ -101,37 +101,43 @@ A setup's Donder controller names its device ID and numbers its ports as outputs
 controllers follow live output, like E1.31 and Art-Net controllers: with live
 output off, Play only plays the Preview and the editor connects to no
 controller. Turning live output on starts discovery; the editor then connects
-to each controller as it appears on the network and whenever the open
-project changes, never during playback. Connecting stops whatever the
+to each controller as it appears on the network, whenever the open project
+changes and with every transport change. Connecting stops whatever the
 controller plays and synchronizes its clock. Turning live output off, opening
 another sequence or project, or stopping a performance stops and releases every
 controller; opening another sequence while performing does not.
 
-While live output is on, the editor's Play button:
-1. connects any controller that is not yet connected, and prepares each
-   connected controller's fragment;
-2. uploads it if its id or the device's loaded show changed (unchanged
-   project revisions reuse their compiled fragment);
-3. schedules a shared future start.
+Transport commands (play, pause, stop, seek, speed, range and loop) act on
+the editor's audio and Preview at once. While live output is on, each one
+then has the controllers follow the editor's transport on a background task
+that always takes the latest request:
+1. it connects any controller that is not yet connected, and prepares each
+   connected controller's show;
+2. it uploads the show unless the controller holds it; a playing show keeps
+   the version it started with, and a held one is rebuilt for a later project
+   revision;
+3. it schedules every controller to take up the transport's place a lead time
+   from now (see Scheduling below), so each joins in sync a few frames after
+   the editor;
+4. while playing, it schedules the wrap or stop at the next loop or range end
+   on the controllers' clock, and the playback poll schedules the one after
+   once it passes.
 
-A controller that is missing, on other firmware, or fails to connect,
-take its show or acknowledge a schedule never blocks Play: the editor releases
-it, names it with the reason in the live-output status and the controller's
-settings, and plays the Preview and every other controller. The next Play
-tries it again. With no controller connected, Play plays only the Preview.
+A controller that is missing, on other firmware, or fails to connect, take
+its show or accept a schedule never holds up the editor: it is released and
+named with the reason in the live-output status and the controller's
+settings, and the next transport change tries it again.
 
 Each controller evaluates its own frames, and no per-frame pixels cross the
-network. Edits apply on the next Play. Pause holds the position reached at its
-deadline, seek pauses at the new position, Stop returns home and blacks out, and
-playback ends at the sequence duration. Each schedule carries the editor's
+network. Edits apply when playback next starts. Pause holds the position the
+editor paused at, seek pauses at the new position, Stop returns home and blacks
+out, and playback ends at the sequence duration. Each schedule carries the editor's
 playback speed (show microseconds per wall second) and frame timing. Scaled
 timing holds each show-time frame for longer when slowed down; constant
 timing evaluates the exact show time at every output latch. Controllers send
 frames at the sequence's frame rate; a show faster than the outputs can carry
 (158 fps for 200 pixels a lane) is rejected at upload. With no show loaded the
-controller sends black at 30 fps. Changing
-speed during playback reschedules every controller and the audio from the
-position reached at a new shared deadline.
+controller sends black at 30 fps.
 
 ## Performing
 
@@ -160,20 +166,21 @@ Clock synchronization:
   carry `DCLK`, the nonce, a boot identity and receive/send timestamps (32
   bytes, little endian).
 - **Control commands.** JSON commands are externally tagged (`syncClock`,
-  `schedule`, `cancel`) with camel-case fields; unknown fields are rejected.
+  `schedule`) with camel-case fields; unknown fields are rejected.
 - **Freshness.** Sync refreshes every 5 s, and drift is estimated over at least
   30 s. The editor shows the estimated one-way uncertainty but never refuses to
   play over a slow network; a larger value only loosens light-to-audio sync. A
   sync older than 15 s blocks new commands, but a running show continues
   through a network outage.
-- **Scheduling.** Starts use 250–1000 ms of lead time depending on the number of
-  devices, plus eight times the slowest clock uncertainty per device, and round up to the sequence's frame grid. The desktop needs every
-  acknowledgment with at least 40 ms to spare, or it cancels every command
-  that may have been armed. A controller that fails to acknowledge has its
-  command cancelled and is released.
+- **Scheduling.** A schedule takes effect the controller's 20 ms lead
+  (`SCHEDULE_LEAD_MICROS`) after it is sent, plus the slowest controller's
+  recent command round trip and clock uncertainty. The editor sends it to every
+  controller at once, with the position the transport reaches at that moment.
+  Each controller holds one pending command, which a later one replaces. A
+  controller that does not accept a schedule is released.
 - **Command checks.** Boot identity, clock-master identity, command order and
   the show's id and size are checked before a scheduled command is accepted,
-  and its start must be at least 20 ms ahead. A clock estimate is accepted when
+  and its start must be at least `SCHEDULE_LEAD_MICROS` ahead. A clock estimate is accepted when
   its boot identity matches. The id is the hash the editor writes into the show
   header; the controller only reports and compares it.
 - **Playback timing.** Frames follow elapsed show time, so a late evaluation

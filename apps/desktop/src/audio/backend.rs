@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
@@ -33,7 +33,6 @@ pub(super) trait AudioDriver: Send {
         &mut self,
         path: &str,
         position_seconds: f64,
-        deadline: Option<Instant>,
         rate: PlaybackRate,
         bounds: PlaybackBounds,
     ) -> Result<Box<dyn AudioHandle>, String>;
@@ -41,7 +40,7 @@ pub(super) trait AudioDriver: Send {
 
 pub(super) trait AudioHandle: Send {
     fn observe(&mut self) -> BackendObservation;
-    fn pause(&mut self, deadline: Option<Instant>);
+    fn pause(&mut self);
     fn resume(&mut self);
     fn seek_to(&mut self, position_seconds: f64);
     fn set_playback_rate(&mut self, rate: PlaybackRate);
@@ -86,7 +85,6 @@ impl AudioDriver for KiraAudioDriver {
         &mut self,
         path: &str,
         position_seconds: f64,
-        deadline: Option<Instant>,
         rate: PlaybackRate,
         bounds: PlaybackBounds,
     ) -> Result<Box<dyn AudioHandle>, String> {
@@ -101,12 +99,6 @@ impl AudioDriver for KiraAudioDriver {
         if let Some((start, end)) = bounds.loop_region {
             sound = sound.loop_region(start..end);
         }
-        if deadline.is_some_and(|deadline| deadline <= Instant::now()) {
-            return Err("Audio start deadline passed while opening the source".into());
-        }
-        let sound = sound.start_time(deadline.map_or(kira::StartTime::Immediate, |deadline| {
-            kira::StartTime::Delayed(deadline.saturating_duration_since(Instant::now()))
-        }));
         self.manager
             .play(sound)
             .map(|handle| Box::new(KiraAudioHandle { handle }) as Box<dyn AudioHandle>)
@@ -136,13 +128,8 @@ impl AudioHandle for KiraAudioHandle {
         }
     }
 
-    fn pause(&mut self, deadline: Option<Instant>) {
-        self.handle.pause(Tween {
-            start_time: deadline.map_or(kira::StartTime::Immediate, |deadline| {
-                kira::StartTime::Delayed(deadline.saturating_duration_since(Instant::now()))
-            }),
-            ..instant_tween()
-        });
+    fn pause(&mut self) {
+        self.handle.pause(instant_tween());
     }
 
     fn resume(&mut self) {
