@@ -1,90 +1,91 @@
 import { guiObjectKey, sameGuiObject } from "../../workspace/guiIdentity";
-import { ExternalLink, Link2, MoreHorizontal, Package } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, FileCode, MoreHorizontal } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { commands } from "../../api";
 import { runGuiEditCommand, useAppStore } from "../../store";
-import type { GuiObjectRef, GuiOwnershipEdit, OwnershipMember, ReusableStorage } from "../../types";
-import { navigateToGuiObject } from "../../workspace/navigation";
-import { Badge, Button, Dialog, Field, IconButton, MenuButton, Select, TextField, type MenuEntry } from "../kit";
+import type { GuiEditCommand, GuiObjectRef, GuiOwnershipEdit, OwnershipMember, ReusableStorage } from "../../types";
+import { navigateToGuiObject, navigateToText } from "../../workspace/navigation";
+import { Button, Dialog, Field, IconButton, MenuButton, Select, TextField, type MenuEntry } from "../kit";
+import { DEFAULT_OBJECT_STORAGE, ObjectStorageField, REUSABLE_STORAGE } from "./objectStorage";
+import { DraftProblem, OBJECT, useDraftCheck, useFieldProblem } from "./problems";
 
-const STORAGE_OPTIONS = [
-  { value: "sameFile", label: "This file" },
-  { value: "newFile", label: "New file" }
-] as const;
+type Mode = "reusable" | "existing";
 
-/** Whether `source` is stored inside its parent or links a reusable declaration. */
-export function OwnershipBadge({ source }: { source: GuiObjectRef }) {
-  return source.ownedPath.length > 0
-    ? <Badge icon={Package} tip="Stored inside its parent" />
-    : <Badge icon={Link2} tip={`Linked to ${source.objectKey} in ${source.path}; edits there affect every use`} />;
-}
-
-/** Ownership of the member `source` of the open object, and a menu to change it; a layout fixture names its
- * `fixture` id, since fixtures may link one definition. `entries` add the member's own actions to the menu. */
+/** The "…" menu of the member `source` of the open object: open it, its own `entries`, then where it is stored. A
+ * layout fixture names its `fixture` id, since fixtures may link one definition. */
 export function OwnershipActions({ source, declarations, fixture, label, entries = [] }: {
   source: GuiObjectRef; declarations: GuiObjectRef[]; fixture?: number; label: string; entries?: MenuEntry[];
 }) {
   const member: OwnershipMember = fixture === undefined ? { type: "object", source } : { type: "fixture", id: fixture };
-  const [mode, setMode] = useState<"reusable" | "existing" | null>(null);
-  const [selectedDeclaration, setSelectedDeclaration] = useState("");
-  const [name, setName] = useState(label);
-  const [storage, setStorage] = useState<ReusableStorage>("sameFile");
-  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode | null>(null);
   const pending = useAppStore((state) => state.guiEditPending);
   const ready = useAppStore((state) => state.guiRequest !== null && state.guiDocumentRevision === state.guiRequest.projectRevision);
   const owned = source.ownedPath.length > 0;
   const choices = declarations.filter((candidate) => candidate.kind === source.kind && !sameGuiObject(candidate, source));
   const blocked = pending || !ready;
-  const apply = async (edit: GuiOwnershipEdit) => {
-    try {
-      await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "ownership", member, edit }));
-      setMode(null); setError(null);
-    } catch (error) { setError(String(error)); }
-  };
-  const declaration = choices.find((candidate) => guiObjectKey(candidate) === selectedDeclaration);
   const menu: MenuEntry[] = [
-    ...(owned ? [] : [{ type: "action", label: "Open declaration", icon: ExternalLink, onSelect: () => void navigateToGuiObject(source) } as const]),
+    { type: "action", label: "Open", icon: ExternalLink, onSelect: () => void navigateToGuiObject(source) },
+    { type: "action", label: "Open as text", icon: FileCode, onSelect: () => void navigateToText(source.path, null) },
+    ...entries,
+    { type: "separator" },
     owned
-      ? { type: "action", label: "Make reusable…", disabled: blocked, onSelect: () => { setName(label); setStorage("sameFile"); setError(null); setMode("reusable"); } }
-      : { type: "action", label: "Make independent", disabled: blocked, onSelect: () => void apply({ type: "makeIndependent" }) },
-    { type: "action", label: "Use existing…", disabled: blocked || choices.length === 0, onSelect: () => {
-      setSelectedDeclaration(choices[0] === undefined ? "" : guiObjectKey(choices[0])); setError(null); setMode("existing");
-    } },
-    ...(entries.length === 0 ? [] : [{ type: "separator" } as const, ...entries])
+      ? { type: "action", label: "Move to file…", disabled: blocked, onSelect: () => { setMode("reusable"); } }
+      : { type: "action", label: "Copy inside parent", disabled: blocked, onSelect: () => void runGuiEditCommand((request) =>
+        commands.applyGuiEdit(request, { type: "ownership", member, edit: { type: "makeIndependent" } })) },
+    { type: "action", label: "Use another…", disabled: blocked || choices.length === 0, onSelect: () => { setMode("existing"); } }
   ];
-  const submit = () => {
-    if (mode === "existing") {
-      if (declaration !== undefined) void apply({ type: "useExisting", declaration });
-    } else {
-      void apply({ type: "makeReusable", name: name.trim(), storage });
-    }
-  };
   return <>
-    <span className="ownership-actions">
-      <OwnershipBadge source={source} />
-      <MenuButton entries={menu} align="end"><IconButton icon={MoreHorizontal} label={`${label} ownership`} /></MenuButton>
-    </span>
-    <Dialog
-      open={mode !== null}
-      onOpenChange={(open) => { if (!open) setMode(null); }}
-      title={`${mode === "existing" ? "Use existing" : "Make reusable"}: ${label}`}
-      actions={<>
-        <Button onClick={() => { setMode(null); }}>Cancel</Button>
-        <Button variant="primary" disabled={blocked || (mode === "existing" ? declaration === undefined : name.trim() === "")} onClick={submit}>
-          {mode === "existing" ? "Use" : "Make reusable"}
-        </Button>
-      </>}
-    >
-      {mode === "existing"
-        ? <Field label="Declaration">
-          <Select name="Declaration" value={selectedDeclaration} disabled={blocked} onChange={setSelectedDeclaration}
-            options={choices.map((candidate) => ({ value: guiObjectKey(candidate), label: `${candidate.objectKey} (${candidate.path})` }))} />
-        </Field>
-        : <>
-          <Field label="Name"><TextField name="Name" value={name} disabled={blocked} invalid={name.trim() === ""} onCommit={setName} /></Field>
-          <Field label="Save in"><Select name="Save in" value={storage} disabled={blocked} options={STORAGE_OPTIONS} onChange={setStorage} /></Field>
-        </>}
-      {error !== null && <p role="alert" className="kit-status-error">{error}</p>}
-    </Dialog>
+    <MenuButton entries={menu} align="end"><IconButton icon={MoreHorizontal} label={`${label} actions`} /></MenuButton>
+    {mode !== null && <OwnershipDialog mode={mode} member={member} label={label} choices={choices} blocked={blocked} onClose={() => { setMode(null); }} />}
   </>;
+}
+
+/** Moving a member to a file, or using another declaration in its place: a draft checked as it changes. */
+function OwnershipDialog({ mode, member, label, choices, blocked, onClose }: {
+  mode: Mode; member: OwnershipMember; label: string; choices: GuiObjectRef[]; blocked: boolean; onClose: () => void;
+}) {
+  const [selectedDeclaration, setSelectedDeclaration] = useState(choices[0] === undefined ? "" : guiObjectKey(choices[0]));
+  const [name, setName] = useState(label);
+  const [storage, setStorage] = useState<ReusableStorage>(DEFAULT_OBJECT_STORAGE);
+  const request = useAppStore((state) => state.guiRequest);
+  const declaration = choices.find((candidate) => guiObjectKey(candidate) === selectedDeclaration);
+  const edit = useMemo<GuiEditCommand | null>(() => {
+    const ownership: GuiOwnershipEdit | null = mode === "existing"
+      ? declaration === undefined ? null : { type: "useExisting", declaration }
+      : name.trim() === "" ? null : { type: "makeReusable", name: name.trim(), storage };
+    return ownership === null ? null : { type: "ownership", member, edit: ownership };
+  }, [mode, declaration, name, storage, member]);
+  const { checking, problem } = useDraftCheck(request, edit);
+  const apply = () => {
+    if (edit !== null) void runGuiEditCommand((current) => commands.applyGuiEdit(current, edit)).then((result) => { if (result !== null) onClose(); });
+  };
+  return <Dialog
+    open
+    onOpenChange={(open) => { if (!open) onClose(); }}
+    title={mode === "existing" ? `Use another for ${label}` : `Move ${label} to a file`}
+    actions={<>
+      <Button onClick={onClose}>Cancel</Button>
+      <Button variant="primary" disabled={blocked || edit === null || checking || problem !== null} {...(problem === null ? {} : { tip: problem.message })} onClick={apply}>
+        {mode === "existing" ? "Use" : "Move"}
+      </Button>
+    </>}
+  ><DraftProblem problem={problem}>
+    {mode === "existing"
+      ? <DialogField label="Use" field="declaration">{(invalid) =>
+        <Select name="Use" value={selectedDeclaration} disabled={blocked} invalid={invalid} onChange={setSelectedDeclaration}
+          options={choices.map((candidate) => ({ value: guiObjectKey(candidate), label: candidate.objectKey }))} />}
+      </DialogField>
+      : <>
+        <DialogField label="Name" field="name" missing={name.trim() === ""}>{(invalid) =>
+          <TextField name="Name" value={name} disabled={blocked} invalid={invalid} onCommit={setName} />}
+        </DialogField>
+        <ObjectStorageField value={storage} choices={REUSABLE_STORAGE} disabled={blocked} onChange={setStorage} />
+      </>}
+  </DraftProblem></Dialog>;
+}
+
+/** A field of the dialog, marked when the draft breaks a rule there or lacks its value. */
+function DialogField({ label, field, missing = false, children }: { label: string; field: "name" | "declaration"; missing?: boolean; children: (invalid: boolean) => ReactNode }) {
+  const problem = useFieldProblem(OBJECT, { type: field });
+  return <Field label={label} error={problem}>{children(problem !== null || missing)}</Field>;
 }

@@ -4,16 +4,16 @@ use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
 use donder_editor::dto::{
     CompositionGuiEdit, ConsoleAction, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument,
-    ConsoleGuiEdit, ConsolePlayLength, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage,
-    FixtureTarget, GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand,
-    GuiFixtureElement, GuiFixtureShape, GuiInputControl, GuiInputControlKind, GuiInputDriver,
-    GuiItem, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture,
-    GuiOwnershipEdit, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument, LayoutGuiEdit,
-    NewSequenceRequest, NewSequenceStorage, ObjectKind, OwnedObjectSlot, OwnershipMember,
+    ConsoleGuiEdit, ConsolePlayLength, FixtureGuiDocument, FixtureGuiEdit, FixtureTarget,
+    GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiFixtureElement,
+    GuiFixtureShape, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiItem,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, GuiOwnershipEdit,
+    GuiPixelEncoding, GuiPixelRoute, GuiUniverses, LayoutGuiDocument, LayoutGuiEdit,
+    NewObjectStorage, NewSequenceRequest, ObjectKind, OwnedObjectSlot, OwnershipMember,
     Point3Meters, ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, Rotation3Degrees, Scale3,
     SequenceClipScope, SequenceEffectReference, SequenceGraphEdge, SequenceGraphNodeKind,
     SequenceGraphOperator, SequenceGuiEdit, SequenceParamValue, SetupControllerConfig,
-    SetupControllerPort, SetupGuiDocument, SetupGuiEdit, Transform,
+    SetupGuiDocument, SetupGuiEdit, Transform,
 };
 
 pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditResult {
@@ -335,7 +335,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
-                storage: FixtureStorage::NewFile,
+                storage: NewObjectStorage::NewFile,
                 name: "Strip".into(),
                 parent: None,
                 transform: transform(0.0),
@@ -412,18 +412,19 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     let setup = setup_edit(
         &state,
         SetupGuiEdit::AddController {
+            storage: NewObjectStorage::Inline,
             config: SetupControllerConfig::E131 {
                 sender_name: "Test".into(),
                 bind_address: "0.0.0.0".into(),
                 priority: 100,
                 destination: None,
+                universes: GuiUniverses {
+                    start: 1,
+                    count: 1,
+                    channels: 21,
+                },
             },
-            ports: vec![SetupControllerPort {
-                name: "port_1".into(),
-                id: 1,
-                address: 1,
-                slot_count: 21,
-            }],
+            ports: Vec::new(),
         },
     );
     let routes = vec![
@@ -433,8 +434,8 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             fixture: 1,
             pixels: None,
             controller: setup.controllers[0].source_ref.clone(),
-            port: 1,
-            start_slot: 0,
+            port: None,
+            start_channel: 0,
             encoding: GuiPixelEncoding::Rgbw {
                 order: [1, 0, 2, 3],
             },
@@ -448,8 +449,8 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             fixture: 2,
             pixels: None,
             controller: setup.controllers[0].source_ref.clone(),
-            port: 1,
-            start_slot: 12,
+            port: None,
+            start_channel: 12,
             encoding: GuiPixelEncoding::Rgb { order: [1, 0, 2] },
             gamma: 1.0,
             brightness: 1.0,
@@ -832,7 +833,7 @@ fn shape_handles_conversion_and_undo_preserve_output_order() {
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
-                storage: FixtureStorage::Inline,
+                storage: NewObjectStorage::Inline,
                 name: "Shapes".into(),
                 parent: None,
                 transform: transform(0.0),
@@ -933,9 +934,9 @@ fn shape_handles_conversion_and_undo_preserve_output_order() {
 #[test]
 fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
     for storage in [
-        FixtureStorage::Inline,
-        FixtureStorage::SameFile,
-        FixtureStorage::NewFile,
+        NewObjectStorage::Inline,
+        NewObjectStorage::SameFile,
+        NewObjectStorage::NewFile,
     ] {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
@@ -961,8 +962,8 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         assert_eq!(
             definition.path.replace('\\', "/"),
             match storage {
-                FixtureStorage::Inline | FixtureStorage::SameFile => "project.data.donder",
-                FixtureStorage::NewFile => "fixtures/my_strip.data.donder",
+                NewObjectStorage::Inline | NewObjectStorage::SameFile => "project.data.donder",
+                NewObjectStorage::NewFile => "fixtures/my_strip.data.donder",
             }
         );
         let mut second = layout.fixtures[0].clone();
@@ -1001,7 +1002,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
                 .project
                 .reusable::<donder_model::FixtureDefinition>()
                 .len(),
-            usize::from(!matches!(storage, FixtureStorage::Inline))
+            usize::from(!matches!(storage, NewObjectStorage::Inline))
         );
         let before = state.project_session().unwrap();
         let removed = layout_document(
@@ -1021,7 +1022,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
                 .project
                 .reusable::<donder_model::FixtureDefinition>()
                 .len(),
-            usize::from(!matches!(storage, FixtureStorage::Inline))
+            usize::from(!matches!(storage, NewObjectStorage::Inline))
         );
         state.undo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *before);
@@ -1031,7 +1032,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
         let text = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
         assert!(!text.contains("fixture_1"));
-        if matches!(storage, FixtureStorage::NewFile) {
+        if matches!(storage, NewObjectStorage::NewFile) {
             assert!(root.join("fixtures/my_strip.data.donder").exists());
         }
     }
@@ -1052,7 +1053,7 @@ fn inline_fixture_copies_have_independent_ownership() {
             &state,
             LayoutGuiEdit::AddDefinition {
                 name: "Shared".into(),
-                storage: FixtureStorage::Inline,
+                storage: NewObjectStorage::Inline,
                 parent: None,
                 transform: transform(0.0),
             },
@@ -1197,7 +1198,7 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
             &state,
             LayoutGuiEdit::AddDefinition {
                 name: "Owned strip".into(),
-                storage: FixtureStorage::Inline,
+                storage: NewObjectStorage::Inline,
                 parent: None,
                 transform: transform(0.0),
             },
@@ -1275,8 +1276,15 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
     controllers: [
       Controller main {
         description: none,
-        protocol: E131 { sender_name: \"Test\", bind_address: \"0.0.0.0\", priority: 100, mode: Multicast },
-        ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 512 }],
+        protocol: E131 {
+          sender_name: \"Test\",
+          bind_address: \"0.0.0.0\",
+          priority: 100,
+          mode: Multicast,
+          start_universe: 1,
+          universes: 1,
+          channels: 512,
+        },
       },
     ],
     input_devices: [],
@@ -1303,6 +1311,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         let setup = setup_edit(
             &state,
             SetupGuiEdit::AddInputDevice {
+                storage: NewObjectStorage::Inline,
                 driver: GuiInputDriver::Keyboard,
                 controls: vec![GuiInputControl {
                     id: 1,
@@ -1319,6 +1328,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         project_edit(
             &state,
             ProjectGuiEdit::AddConsole {
+                storage: NewObjectStorage::Inline,
                 initial_color: "#38bdf8".into(),
             },
         );
@@ -1475,16 +1485,17 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         .layers[0]
         .color
         .to_hex();
-    state
-        .create_sequence(NewSequenceRequest {
-            storage: NewSequenceStorage::NewFile {
-                name: "Imported operators".into(),
-            },
-            initial_color: color.clone(),
-            duration_seconds: 30.0,
-            frame_rate: 60,
-        })
-        .unwrap();
+    let created = state.create_sequence(NewSequenceRequest {
+        name: "Imported operators".into(),
+        storage: NewObjectStorage::NewFile,
+        initial_color: color.clone(),
+        duration_seconds: 30.0,
+        frame_rate: 60,
+    });
+    assert!(matches!(
+        created,
+        donder_editor::dto::NewSequenceResult::Created { .. }
+    ));
     let new_id = *state
         .project_session()
         .unwrap()
@@ -1632,13 +1643,9 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     for storage in [
-        NewSequenceStorage::Inline,
-        NewSequenceStorage::SameFile {
-            name: "Opening Cue".into(),
-        },
-        NewSequenceStorage::NewFile {
-            name: "Opening Cue".into(),
-        },
+        NewObjectStorage::Inline,
+        NewObjectStorage::SameFile,
+        NewObjectStorage::NewFile,
     ] {
         let before = state.project_session().unwrap();
         let color = before
@@ -1648,16 +1655,20 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
             .layers[0]
             .color
             .to_hex();
-        let inline = matches!(storage, NewSequenceStorage::Inline);
-        let new_file = matches!(storage, NewSequenceStorage::NewFile { .. });
-        let result = state
-            .create_sequence(NewSequenceRequest {
-                storage,
-                initial_color: color,
-                duration_seconds: 30.0,
-                frame_rate: 40,
-            })
-            .unwrap();
+        let inline = matches!(storage, NewObjectStorage::Inline);
+        let new_file = matches!(storage, NewObjectStorage::NewFile);
+        let donder_editor::dto::NewSequenceResult::Created {
+            source: created, ..
+        } = state.create_sequence(NewSequenceRequest {
+            name: "Opening Cue".into(),
+            storage,
+            initial_color: color,
+            duration_seconds: 30.0,
+            frame_rate: 40,
+        })
+        else {
+            panic!("the sequence was refused");
+        };
         let after = state.project_session().unwrap();
         assert_eq!(
             after.project.root().sequences.len(),
@@ -1668,8 +1679,8 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
             matches!(source, donder_model::OwnedMember::Inline { .. }),
             inline
         );
-        assert_eq!(result.source.owned_path.is_empty(), !inline);
-        assert_eq!(result.source.path != "project.data.donder", new_file);
+        assert_eq!(created.owned_path.is_empty(), !inline);
+        assert_eq!(created.path != "project.data.donder", new_file);
         let sequence = after
             .project
             .get::<donder_model::Sequence>(*source.id())
@@ -1691,16 +1702,16 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         .layers[0]
         .color
         .to_hex();
-    assert!(
-        state
-            .create_sequence(NewSequenceRequest {
-                storage: NewSequenceStorage::Inline,
-                initial_color: color,
-                duration_seconds: 0.0,
-                frame_rate: 40,
-            })
-            .is_err()
-    );
+    assert!(matches!(
+        state.create_sequence(NewSequenceRequest {
+            name: "Sequence".into(),
+            storage: NewObjectStorage::Inline,
+            initial_color: color,
+            duration_seconds: 0.0,
+            frame_rate: 40,
+        }),
+        donder_editor::dto::NewSequenceResult::Refused { .. }
+    ));
     assert!(std::sync::Arc::ptr_eq(
         &before,
         &state.project_session().unwrap()
@@ -1710,9 +1721,9 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
 #[test]
 fn duplicated_groups_own_geometry_and_preserve_original_sources() {
     for storage in [
-        FixtureStorage::Inline,
-        FixtureStorage::SameFile,
-        FixtureStorage::NewFile,
+        NewObjectStorage::Inline,
+        NewObjectStorage::SameFile,
+        NewObjectStorage::NewFile,
     ] {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
@@ -1875,7 +1886,7 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
             &state,
             LayoutGuiEdit::AddDefinition {
                 name: name.into(),
-                storage: FixtureStorage::Inline,
+                storage: NewObjectStorage::Inline,
                 parent: None,
                 transform: transform(x),
             },
@@ -2072,7 +2083,7 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
             &state,
             LayoutGuiEdit::AddDefinition {
                 name: "Strip".into(),
-                storage: FixtureStorage::SameFile,
+                storage: NewObjectStorage::SameFile,
                 parent: None,
                 transform: transform(2.0),
             },
@@ -2215,7 +2226,7 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
-                storage: FixtureStorage::Inline,
+                storage: NewObjectStorage::Inline,
                 name: "Line".into(),
                 parent: None,
                 transform: transform(0.0),
@@ -2470,6 +2481,7 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
     let added = setup_edit(
         &state,
         SetupGuiEdit::AddInputDevice {
+            storage: NewObjectStorage::Inline,
             driver: GuiInputDriver::Keyboard,
             controls: vec![GuiInputControl {
                 id: 1,
@@ -2512,6 +2524,7 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
     let project = project_edit(
         &state,
         ProjectGuiEdit::AddConsole {
+            storage: NewObjectStorage::Inline,
             initial_color: "#38bdf8".into(),
         },
     );
@@ -2625,7 +2638,8 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
         object_request(&state, console),
         GuiEditCommand::Console {
             edit: ConsoleGuiEdit::SetAlways {
-                clip_ids: vec![clip],
+                clip_id: clip,
+                length_seconds: Some(4.0),
             },
         },
     );

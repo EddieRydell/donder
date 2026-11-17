@@ -158,6 +158,8 @@ pub struct ConsoleGuiDocument {
     pub input_devices: Vec<ConsoleInputDevice>,
     /// The most copies of a clip `Play` actions play at once.
     pub(crate) max_copies: u32,
+    /// The length a clip newly played from the session's start repeats every.
+    pub(crate) held_length_seconds: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -187,6 +189,8 @@ pub struct ConsoleClip {
     pub(crate) params: Vec<SequenceClipParam>,
     /// Parameters each copy takes from the press that started it.
     pub(crate) played: Vec<ConsolePlayedValue>,
+    /// The length it repeats every when it plays from the session's start.
+    pub(crate) always_length_seconds: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -258,15 +262,18 @@ pub enum ConsoleAction {
         copies: u32,
         length: ConsolePlayLength,
     },
-    /// Play one copy of a clip until it is stopped.
+    /// Play one copy of a clip until it is stopped, repeating every
+    /// `length_seconds`.
     Start {
         clip_id: u32,
+        length_seconds: f64,
     },
     Stop {
         clip_id: u32,
     },
     Toggle {
         clip_id: u32,
+        length_seconds: f64,
     },
     /// Add a mark to the live mark collection `into`.
     Mark {
@@ -452,8 +459,11 @@ pub enum ConsoleGuiEdit {
         id: u32,
         edit: ConsoleClipEdit,
     },
+    /// Play a clip from the session's start, repeating every
+    /// `length_seconds`, or no longer when `None`.
     SetAlways {
-        clip_ids: Vec<u32>,
+        clip_id: u32,
+        length_seconds: Option<f64>,
     },
     /// A new event with no actions.
     AddEvent {
@@ -480,6 +490,10 @@ pub enum ConsoleGuiEdit {
     rename_all_fields = "camelCase"
 )]
 pub enum ProjectGuiEdit {
-    /// A new console stored in the project, with the default layer drawn to the output.
-    AddConsole { initial_color: String },
+    /// A new console of the project, stored where `storage` says, with the
+    /// default layer drawn to the output.
+    AddConsole {
+        initial_color: String,
+        storage: NewObjectStorage,
+    },
 }

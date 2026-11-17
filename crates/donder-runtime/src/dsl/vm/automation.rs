@@ -28,6 +28,13 @@ pub(crate) struct Override {
     area_offset: f32,
 }
 
+impl Override {
+    /// Hold no area from before its clip's start.
+    pub(crate) fn reset_area(&mut self) {
+        self.area_offset = 0.0;
+    }
+}
+
 /// The copy of the running invocation's parameters.
 pub(crate) struct Scratch<'w> {
     pub(crate) words: &'w mut [u32],

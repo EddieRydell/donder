@@ -1,7 +1,7 @@
 //! Compiling, invoking and lowering definitions, and small prepared shows
 //! over one fixture.
 use donder_language::compiler::{
-    CompiledDefinition, Instance, Invocation, ProgramConstants, compile_script,
+    CompiledDefinition, Instance, Invocation, ProgramConstants, compile_script, program_values,
 };
 use donder_runtime::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
 use donder_runtime_types::{
@@ -102,7 +102,10 @@ pub fn try_invoke(
                 )
         })
         .collect();
-    definition.invoke(values, Box::new([]))
+    definition.invoke(
+        program_values(definition.params(), values, &[]),
+        Box::new([]),
+    )
 }
 
 /// `instance` lowered and bound.

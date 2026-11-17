@@ -22,7 +22,46 @@ pub(crate) enum MarkOrigin<'a> {
     Live,
 }
 
-pub(crate) fn prepare_params(
+/// Every declared parameter's value, its override or its default, then the
+/// fields of each enum option, as the program reads them.
+pub(crate) fn prepare_program_values(
+    project: &DonderProject,
+    marks: MarkOrigin<'_>,
+    declarations: &[ParamDecl],
+    overrides: &IndexMap<Identifier, ParamValue>,
+    timing: ClipTiming,
+) -> Vec<Value> {
+    let values = prepare_params(project, marks, declarations, overrides, timing);
+    let declared = declarations
+        .iter()
+        .map(|param| {
+            values
+                .get(&param.name)
+                .cloned()
+                .unwrap_or_else(|| unreachable!("validation proves every parameter has a value"))
+        })
+        .collect();
+    // Field values are plain, so they need no collections or timing.
+    let chosen: Vec<(usize, Vec<Value>)> = declarations
+        .iter()
+        .enumerate()
+        .filter_map(|(index, param)| match overrides.get(&param.name) {
+            Some(ParamValue::Enum { fields, .. }) if !fields.is_empty() => Some((
+                index,
+                fields
+                    .values()
+                    .map(|value| {
+                        prepare_param_value(project, &IndexMap::new(), false, value, timing)
+                    })
+                    .collect(),
+            )),
+            _ => None,
+        })
+        .collect();
+    donder_language::compiler::program_values(declarations, declared, &chosen)
+}
+
+fn prepare_params(
     project: &DonderProject,
     marks: MarkOrigin<'_>,
     declarations: &[ParamDecl],
@@ -69,7 +108,7 @@ fn prepare_param_value(
         ParamValue::Float(value) => Value::Float(*value),
         ParamValue::Bool(value) => Value::Bool(*value),
         ParamValue::Color(value) => Value::Color(*value),
-        ParamValue::Enum(value) => Value::Enum(value.clone()),
+        ParamValue::Enum { option, .. } => Value::Enum(option.clone()),
         ParamValue::Marks(None) => Value::Marks(Arc::new(Marks::empty())),
         ParamValue::Marks(Some(_)) if live => Value::Marks(Arc::new(Marks::empty())),
         ParamValue::Marks(Some(key)) => {

@@ -32,15 +32,15 @@ fn main() {
         .get::<donder_model::Setup>(*project.root().setup.id())
         .unwrap();
     let controller = setup.controllers[0].id();
-    let ports = project
+    let outputs = project
         .get::<donder_model::Controller>(*controller)
         .unwrap()
-        .ports
-        .iter()
+        .outputs()
+        .into_iter()
         .take(4)
-        .map(|port| (*controller, port.id))
+        .map(|(output, _)| (*controller, output))
         .collect::<Vec<_>>();
-    let prepared = prepare(project, id, Retain::Ports(&ports)).unwrap();
+    let prepared = prepare(project, id, Retain::Outputs(&outputs)).unwrap();
     let bytes = prepared.encode();
     let decoded = donder_runtime::PreparedShow::decode(&bytes).unwrap();
     let mut checksums = String::new();
@@ -66,12 +66,12 @@ fn main() {
     std::fs::write(&args[1], &bytes).unwrap();
     std::fs::write(format!("{}.checksums", args[1]), checksums).unwrap();
     println!(
-        "sequence={} ports={} pixels={} effects={} payload_bytes={}",
+        "sequence={} outputs={} pixels={} effects={} payload_bytes={}",
         session
             .source
             .declared_name((*id).into())
             .map_or_else(|| "owned".to_string(), |name| name.as_str().to_string()),
-        ports.len(),
+        outputs.len(),
         source_playback.prepared().pixel_count(),
         source_playback.prepared().clip_count(),
         bytes.len()

@@ -305,7 +305,7 @@ fn layout_groups_share_members_and_reject_unknown_repeated_cyclic_or_orphaned_it
         (
             "root: [pixel],",
             "root: [pixel, pixel],",
-            "`pixel` is listed twice",
+            "layout item pixel is in one group twice",
         ),
         (
             "  root: [pixel],\n  items: [\n",
@@ -315,7 +315,7 @@ fn layout_groups_share_members_and_reject_unknown_repeated_cyclic_or_orphaned_it
         (
             "root: [pixel],",
             "root: [],",
-            "`pixel` is not in `root` or any group",
+            "layout item pixel is in no group",
         ),
     ]);
 }

@@ -17,6 +17,11 @@ export const commands = Object.fromEntries(
   ])
 ) as Commands;
 
+/** What a person reads about a thrown error: its message, without the "Error:" a string conversion adds. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function unwrapResult(value: unknown): unknown {
   if (!isCommandResult(value)) return value;
   if (value.status === "error") throw new Error(String(value.error));

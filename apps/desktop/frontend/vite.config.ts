@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   build: {
+    // The oldest webviews Donder supports: WKWebView on macOS 11 (Safari 14) and WebView2 on Windows.
+    target: ["safari14", "chrome105"],
     // Monaco is bundled with the app, which loads it from disk.
     chunkSizeWarningLimit: 5000
   },

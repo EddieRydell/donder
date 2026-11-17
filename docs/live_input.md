@@ -7,7 +7,8 @@ session clock, instead of from a timeline.
 
 A console is a sequence built as you play: every action is an edit at the
 current time. Playing a clip places it from now for its length, starting and
-stopping a clip places it between the two, a mark goes into a collection now,
+stopping a clip places it again and again for its length between the two, a
+mark goes into a collection now,
 and setting a parameter changes its value from now on. Its layers and operator
 graph are a sequence's.
 
@@ -131,7 +132,8 @@ live:
   name, a layer, a fixture or group, a scope, an effect and its parameters,
   and the parameters each copy takes from how it was played (see
   [Played values](#played-values)). Actions name the clip they play.
-- **`always`**: clips that play for the whole session.
+- **`always`** (`Always { clip, length }`): clips that play from the
+  session's start, starting again each time `length` ends.
 - **Events** (`On { event, actions }`): what a control does. The event is
   `Press { control }` or `Release { control }` of a button, or
   `Move { control }` of an axis, and its actions run in order. Any number of
@@ -148,11 +150,12 @@ An action is one of:
   `Axis { control }` (where an axis is now; one not yet moved reads 0), mapped
   from `shortest` at 0 to `longest` at 1. The length is read once when the copy
   starts; later changes do not affect copies already playing.
-- **`Start { clip }`** plays one copy until it is stopped. Pressing
-  again while the clip plays does nothing.
+- **`Start { clip, length }`** plays one copy until it is stopped, starting
+  it again from its beginning each time `length` ends. Pressing again while
+  the clip plays does nothing.
 - **`Stop { clip }`** stops every playing copy of the clip.
-- **`Toggle { clip }`** starts the clip if no copy plays, and otherwise
-  stops it.
+- **`Toggle { clip, length }`** starts the clip, as `Start` does, if no copy
+  plays, and otherwise stops it.
 - **`Mark { into }`** adds a mark to a live mark collection.
 - **`Set { param, window }`** writes the event's value into a parameter of a clip
   (`ClipParam { clip, param }`) or of an operator node of the console's graph
@@ -167,6 +170,11 @@ An action is one of:
 A clip is played either by `Play` actions or by `Start`, `Toggle` and `always`,
 not both; `Stop` stops either. A `Move` runs only `Set` actions.
 
+Every copy plays for a length, and its effect's `duration` and `progress`
+count over that length: a held or `always` clip's `progress` runs from 0 to 1
+in each pass and starts again, so a chase moves at its own speed however long
+the clip is held.
+
 The only state a console keeps is which copies of each clip play, its live
 marks and the values `Set` actions have written.
 
@@ -176,15 +184,17 @@ The GUI lists every button of the setup's input devices, edge to edge like a
 sequence's grid, with the actions it runs when pressed and when released. **+**
 in a cell adds an action. Playing an effect adds the effect and its action
 together, as one edit: for a moment (a `Play` of one second), while held
-(`Start` on the press and `Stop` on the release) or toggled. Selecting an
+(`Start` on the press and `Stop` on the release) or toggled. A new held,
+toggled or always-playing effect repeats every 4 seconds. Selecting an
 action opens it in the side panel, as a sequence's clips open, with its copies
-and length, and the effect it plays: layer, target, scope, effect type and
+and length, or how often it repeats, and the effect it plays: layer, target, scope, effect type and
 parameters. Knobs (axes) are not rows of the grid: a parameter of an effect, or
 of an operator in the layers and operators editor, picks what sets it live from
 its own row: a knob, by its position, or, for an effect, how the press that
 started each copy was played. Removing an action removes the
 effect it played when nothing else plays or holds it, with the stop that went with
-it. Effects that play for the whole session are listed above the controls. A mark
+it. Effects that play from the session's start are listed above the controls,
+and the side panel of one sets how often it repeats. A mark
 action's panel names the effects that read its collection.
 
 ### Played values
@@ -217,7 +227,7 @@ The starter project includes `consoles/jam.data.donder`, played from
 `input_devices/keyboard.data.donder`. Its `background` clip plays always: a
 MarkPulse on every output that pulses on each beat of the live `beat`
 collection. A plays a 0.4 s `flash` on top of up to four others, S starts the
-`wash` and releasing S stops it, Space taps a beat into `beat`, and D sets the
+`wash`, repeating every 4 s, and releasing S stops it, Space taps a beat into `beat`, and D sets the
 `decay_seconds` of the background to its highest on press and its lowest on
 release, lengthening the background's pulses while it is held.
 

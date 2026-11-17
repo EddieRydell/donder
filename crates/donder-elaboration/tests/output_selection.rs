@@ -5,7 +5,7 @@ use donder_elaboration::{Retain, prepare};
 use donder_model::FixtureInstanceId;
 use donder_model::PixelSpan;
 use donder_model::SequenceId;
-use donder_model::{ControllerId, ControllerPortId};
+use donder_model::{ControllerId, ControllerOutput, ControllerPortId};
 use donder_model::{DonderProject, ProjectEdit};
 use donder_project_io::check_project;
 use donder_runtime::PreparedShow;
@@ -14,18 +14,59 @@ use donder_runtime_types::sample_time_from_frame;
 
 fn starter() -> DonderProject {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    check_project(&root, &Default::default(), &mut Default::default())
+    let mut project = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap()
-        .project
+        .project;
+    port_per_universe(&mut project);
+    project
+}
+
+/// Replace the starter's E1.31 controller with a Donder controller with a
+/// port for each of its universes, one per fixture, so each fixture is an
+/// output of its own.
+fn port_per_universe(project: &mut DonderProject) {
+    use donder_model::{ControllerPort, ControllerProtocol, DonderConfig, DonderDeviceId};
+    let setup = &project.reusable::<donder_model::Setup>()[project.root().setup.id()];
+    let id = *setup.controllers[0].id();
+    let patch_id = *setup.patch.id();
+    let mut controller = project.reusable::<donder_model::Controller>()[&id].clone();
+    let universes = *controller.universes().unwrap();
+    let channels = u32::from(universes.channels);
+    controller.protocol = ControllerProtocol::Donder(DonderConfig {
+        device: DonderDeviceId::parse("000000000000").unwrap(),
+        ports: (1..=universes.count)
+            .map(|output| ControllerPort {
+                id: ControllerPortId(u32::from(output)),
+                name: donder_language::object_name(&format!("port_{output}")),
+                output: output as u8,
+                slot_count: universes.channels,
+            })
+            .collect(),
+    });
+    let mut patch = project
+        .get::<donder_model::Patch>(patch_id)
+        .unwrap()
+        .clone();
+    for route in &mut patch.routes {
+        route.output = ControllerOutput::Port(ControllerPortId(route.start_channel / channels + 1));
+        route.start_channel %= channels;
+    }
+    project
+        .apply_edits([
+            ProjectEdit::Put(controller.into()),
+            ProjectEdit::Put(patch.into()),
+        ])
+        .unwrap();
 }
 
 /// The starter and its `layer_test` sequence.
 fn starter_with_layer_test() -> (DonderProject, SequenceId) {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let session = check_project(&root, &Default::default(), &mut Default::default())
+    let mut session = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap();
+    port_per_universe(&mut session.project);
     let id = session
         .project
         .root()
@@ -42,16 +83,16 @@ fn starter_with_layer_test() -> (DonderProject, SequenceId) {
     (session.project, id)
 }
 
-fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerPortId)> {
+fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerOutput)> {
     project.reusable::<donder_model::Setup>()[project.root().setup.id()]
         .controllers
         .iter()
         .flat_map(|source| {
             let id = source.id();
             project.reusable::<donder_model::Controller>()[id]
-                .ports
-                .iter()
-                .map(|port| (*id, port.id))
+                .outputs()
+                .into_iter()
+                .map(|(output, _)| (*id, output))
         })
         .collect()
 }
@@ -98,18 +139,19 @@ fn compare(
     project: &DonderProject,
     id: &SequenceId,
     reference: &Reference,
-    selected: &[(ControllerId, ControllerPortId)],
+    selected: &[(ControllerId, ControllerOutput)],
 ) -> PreparedShow {
     let full = &reference.sequence;
-    let fragment = prepare(project, id, Retain::Ports(selected)).unwrap();
+    let fragment = prepare(project, id, Retain::Outputs(selected)).unwrap();
     let mut workspace = fragment.clone().into_playback();
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
         .unwrap();
     let identity = |output: &donder_runtime::Output| {
+        let controller = *setup.controllers[output.controller_index as usize].id();
         (
-            *setup.controllers[output.controller_index as usize].id(),
-            ControllerPortId(output.port),
+            controller,
+            project.reusable::<donder_model::Controller>()[&controller].runtime_output(output.port),
         )
     };
     let indices = selected
@@ -175,7 +217,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         let route = &mut patch.routes[index];
         route.target.fixture = FixtureInstanceId(2);
         route.pixels = Some(PixelSpan { start, count: 37 });
-        route.start_slot = 7;
+        route.start_channel = 7;
     }
     project.put(patch).unwrap();
     let ports = ports(&project);
@@ -375,7 +417,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
 fn empty_selection_prepares_an_empty_sequence() {
     let project = starter();
     let id = project.root().sequences[0].id();
-    let empty = prepare(&project, id, Retain::Ports(&[])).unwrap();
+    let empty = prepare(&project, id, Retain::Outputs(&[])).unwrap();
     assert!(empty.fixtures().is_empty());
     assert!(empty.clip_count() == 0);
     assert_eq!(empty.pixel_count(), 0);

@@ -1,4 +1,4 @@
-import { commands } from "../../../api";
+import { commands, errorMessage } from "../../../api";
 import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
 import { MIN_CLIP_DURATION_SECONDS, markIndexAfterMove } from "./sequenceSelection";
 import { hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
@@ -983,19 +983,20 @@ export function SequenceCanvas({
    * The collection a new mark goes into: the given one, else the active one, creating a collection
    * when the sequence has none. It reads the latest document, so queued taps see earlier taps' edits.
    */
-  const markCollectionForEdit = async (collectionKey: string | null) => {
+  const markCollectionForEdit = async (collectionKey: string | null): Promise<string | null> => {
     const guiDocument = useAppStore.getState().guiDocument;
     if (guiDocument?.type !== "sequence") throw new Error("Marks can only be added to an open sequence.");
     const collections = guiDocument.document.markCollections;
     let key = collectionKey ?? activeMarkCollection(collections, activeMarkCollectionKey)?.key ?? null;
     if (key === null) {
-      const { created } = await runGuiEditCommand((request) =>
+      const result = await runGuiEditCommand((request) =>
         commands.applyGuiEdit(request, { type: "sequence", edit: {
           type: "createMarkCollections",
           collections: [{ name: "Marks", color: defaultMarkColor(collections.length), marksSeconds: [] }]
         } })
       );
-      key = created[0] ?? null;
+      if (result === null) return null;
+      key = result.created[0] ?? null;
       if (key === null) throw new Error("Creating a mark collection reported no collection.");
       setActiveMarkCollectionKey(key);
     }
@@ -1019,6 +1020,7 @@ export function SequenceCanvas({
   };
   const addMark = async (collectionKey: string | null, timeSeconds: number) => {
     const key = await markCollectionForEdit(collectionKey);
+    if (key === null) return;
     await runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "addMarks",
@@ -1035,7 +1037,8 @@ export function SequenceCanvas({
     const timeSeconds = clock();
     tapQueue.current = tapQueue.current
       .then(() => addMark(null, timeSeconds))
-      .catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
+      // A tap on a document that is no longer a sequence is dropped; later taps still run.
+      .catch((error: unknown) => { console.error(error); });
   });
   useEffect(() => listenUiEvent("tapMark", () => { tapMark(); }), []);
   const addAutomationClipFromContextMenu = async (menu: LaneContextMenu) => {
@@ -1057,12 +1060,13 @@ export function SequenceCanvas({
         automationClipId,
         target: chooser.target
       } })
-    ).then(() => {
-      setAutomationClipChooser(null);
+    ).then((result) => {
+      if (result !== null) setAutomationClipChooser(null);
     });
   };
   const deleteItems = async (selection: NonNullable<SequenceSelection>) => {
     const result = await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection } }));
+    if (result === null) return;
     setSelected(null);
     updateSequenceSelection(result.selection);
   };
@@ -1196,15 +1200,14 @@ export function SequenceCanvas({
       if (!sameGuiDocument(useAppStore.getState().guiRequest, request)) return;
       updateSequenceSelection(selection);
       setSelected(singleSelectionFocus(selection));
-    }).catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
+    }).catch((error: unknown) => { useAppStore.getState().reportFailure("command", errorMessage(error)); });
   };
   const [cascadeOpen, setCascadeOpen] = useState(false);
   const arrangeClips = (arrangement: SequenceClipArrangement) => {
     const selection = sequenceSelectionRef.current;
     if (selection?.type !== "clips" || selectionCount(selection) === 0) return;
     void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "arrangeClips", clips: selection.clips, arrangement } })).then((result) => {
-      updateSequenceSelection(result.selection);
-      return result;
+      if (result !== null) updateSequenceSelection(result.selection);
     });
   };
   const saveClipMatch = (criteria: SequenceClipMatch) => {
@@ -1216,10 +1219,10 @@ export function SequenceCanvas({
     if (activeSelection === null) return;
     void runGuiEditCommand((request) => type === "copy"
       ? commands.copySequenceSelection(request, activeSelection)
-      : commands.applyGuiEdit(request, { type: "sequence", edit: { type: "cutSelection", selection: activeSelection } })).then((result) => {
+      : commands.cutSequenceSelection(request, activeSelection)).then((result) => {
+      if (result === null) return;
       updateSequenceSelection(result.selection);
       setSelected(singleSelectionFocus(result.selection));
-      return result;
     });
   };
   const paste = () => {
@@ -1229,13 +1232,11 @@ export function SequenceCanvas({
     const lane = selectedLaneIndex ?? (fallbackTarget === undefined ? -1 : nearestLane(document, fallbackTarget, 0));
     const markTime = selectedMark === null ? undefined : document.markCollections.find((collection) => collection.key === selectedMark.collectionKey)?.marksSeconds[selectedMark.index];
     const timeSeconds = selectedTimeSeconds ?? focused?.startSeconds ?? automation?.startSeconds ?? markTime ?? 0;
-    void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
-      type: "paste",
-      anchor: { lane: lane < 0 ? null : lane, timeSeconds }
-    } })).then((result) => {
+    void runGuiEditCommand((request) => commands.pasteSequence(request, { lane: lane < 0 ? null : lane, timeSeconds })).then((result) => {
+      // A paste that placed nothing keeps the selection.
+      if (result === null || result.selection === null) return;
       updateSequenceSelection(result.selection);
       setSelected(singleSelectionFocus(result.selection));
-      return result;
     });
   };
   const deleteSelection = () => {
@@ -1260,8 +1261,8 @@ export function SequenceCanvas({
         timeDeltaSeconds: nextTimeSeconds - timeSeconds
       } })
     ).then((result) => {
-      setSelected(singleSelectionFocus(result.selection));
       setMarkDrafts(new Map());
+      if (result !== null) setSelected(singleSelectionFocus(result.selection));
     });
   };
   const transportCommands = sequenceTransportCommands(document);
@@ -1901,10 +1902,10 @@ export function SequenceCanvas({
             marks,
             timeDeltaSeconds: constrainedDelta
           } }), gestureRequest.current).then((result) => {
+            setMarkDrafts(new Map());
+            if (result === null) return;
             updateSequenceSelection(result.selection);
             setSelected(singleSelectionFocus(result.selection));
-            setMarkDrafts(new Map());
-            return result;
           });
           return;
         }
@@ -1931,6 +1932,7 @@ export function SequenceCanvas({
         const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event, selection, destinationLane), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         if (!gesture.changed) { clearDrafts(); return; }
         void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: gesture.edit }), gestureRequest.current).then((result) => {
+          if (result === null) return;
           updateSequenceSelection(result.selection);
           setSelected(singleSelectionFocus(result.selection));
           const laneDelta = gesture.edit.type === "moveClips" ? gesture.edit.laneDelta : 0;
@@ -2261,8 +2263,7 @@ function scheduleSequenceViewportStateSave(reference: GuiObjectRef, state: Persi
   if (store.restoreState !== null) {
     store.setRestoreState({ ...store.restoreState, sequenceViewports: { ...store.restoreState.sequenceViewports, [objectViewKey(reference)]: state } });
   }
-  scheduleViewStateSave(JSON.stringify(["sequence", objectViewKey(reference)]), () => commands.saveViewState({ type: "sequenceViewport", state: { path, objectKey, ownedPath, state } }),
-    (error) => { useAppStore.getState().setError(String(error)); });
+  scheduleViewStateSave(JSON.stringify(["sequence", objectViewKey(reference)]), () => commands.saveViewState({ type: "sequenceViewport", state: { path, objectKey, ownedPath, state } }));
 }
 
 /** A lane label's disclosure triangle and text positions, indented by depth like a file tree. */

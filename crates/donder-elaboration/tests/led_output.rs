@@ -28,19 +28,19 @@ fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
     patch.routes[0].pixels = Some(PixelSpan { start: 0, count: 1 });
     let mut second = patch.routes[0].clone();
     second.id = PixelRouteId(1000);
-    second.start_slot = 2;
+    second.start_channel = 2;
     patch.routes.push(second);
     assert!(matches!(
         project.put(patch.clone()).unwrap_err(),
         donder_model::EditError::Invalid(donder_model::ProjectValidationError {
             problem: donder_model::ValidationProblem::Route {
-                problem: donder_model::RouteProblem::OutputsOverlap,
+                problem: donder_model::RouteProblem::OutputsOverlap { .. },
                 ..
             },
             ..
         })
     ));
-    patch.routes[1].start_slot = 3;
+    patch.routes[1].start_channel = 3;
     project.put(patch.clone()).unwrap();
     patch.routes[1].pixels = Some(PixelSpan {
         start: 113,
@@ -95,18 +95,17 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
         for (buffer, port) in buffers.iter_mut().zip(rendered.outputs()) {
             buffer.copy_from_slice(port.bytes);
         }
-        // The starter routes its fixtures to ports in order, one each.
-        for (fixture, buffer) in rendered.fixtures().zip(&buffers) {
-            let expected: Vec<_> = fixture
-                .pixels
-                .iter()
-                .flat_map(|color| {
-                    let [red, green, blue] = color.to_bytes();
-                    [green, red, blue]
-                })
-                .collect();
-            assert_eq!(*buffer, expected);
-        }
+        // The starter routes its fixtures in order across its controller's
+        // universes, one universe each, filling them.
+        let expected: Vec<_> = rendered
+            .fixtures()
+            .flat_map(|fixture| fixture.pixels.iter())
+            .flat_map(|color| {
+                let [red, green, blue] = color.to_bytes();
+                [green, red, blue]
+            })
+            .collect();
+        assert_eq!(buffers, [expected]);
     }
     assert_eq!(
         hashes,

@@ -1,10 +1,10 @@
-import { useAppStore } from "../../../store";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { OverlayPortal } from "../../OverlayPortal";
 import { Dialog } from "../../kit";
 import type { CompositionEditing } from "./composition";
 import { GraphCanvas, type SelectedGraphItem } from "./GraphCanvas";
 import { useGraphDeletion } from "./sequenceLayers";
+import { useUnplacedRefusal } from "../problems";
 
 export function GraphEditorModal({
   composition, description, setSelectedItem, onClose
@@ -20,7 +20,8 @@ export function GraphEditorModal({
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);
   const contentRef = useCallback((node: HTMLDivElement | null) => { content.current = node; setPortal(node); }, []);
   const [previousFocus] = useState(() => window.document.activeElement);
-  const error = useAppStore((state) => state.error);
+  // The graph covers the status bar, so it says a refused edit no field shows.
+  const error = useUnplacedRefusal();
   const clearSelection = useCallback(() => { setSelectedItem(null); }, [setSelectedItem]);
   // Choosing an automation clip happens on the timeline, behind the graph.
   const automation = composition.automation;

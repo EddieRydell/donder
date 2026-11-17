@@ -27,9 +27,7 @@ const PROJECT_TREE_MAX_WIDTH_PX = THEME_METRICS.projectPanelMaxWidth;
 
 export function App() {
   const snapshot = useStaticAppSnapshot();
-  const error = useAppStore((store) => store.error);
   const hydrate = useAppStore((store) => store.hydrate);
-  const compositionGraphEditing = useAppStore((store) => store.compositionGraphEditing);
 
   useEffect(() => {
     void hydrate();
@@ -78,15 +76,6 @@ export function App() {
   return (
     <TipProvider><div className="app-shell">
       <TitleBar />
-      <div className="alert-stack">
-        {error !== null && error !== "" && <div className="error-strip">{error}</div>}
-        {!compositionGraphEditing && snapshot.renderError !== null && snapshot.renderError !== "" && (
-          <div className="error-strip">{snapshot.renderError}</div>
-        )}
-        {snapshot.previewError !== null && snapshot.previewError !== "" && (
-          <div className="error-strip">{snapshot.previewError}</div>
-        )}
-      </div>
       <WorkspaceMain snapshot={snapshot} />
       <PerformBar projectEpoch={snapshot.projectEpoch} projectRevision={snapshot.projectRevision} />
       <StatusBar snapshot={snapshot} />
@@ -119,7 +108,7 @@ function WorkspaceMain({ snapshot }: { snapshot: AppStaticSnapshot }) {
     setWorkspaceLayout(next);
     scheduleViewStateSave("layout", async () => {
       useAppStore.getState().setSnapshot(await commands.saveViewState({ type: "workspaceLayout", state: next }));
-    }, (error) => { useAppStore.getState().setError(String(error)); }, immediate);
+    }, immediate);
   }, []);
 
   const layout = workspaceLayout;

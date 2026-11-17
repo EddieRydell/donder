@@ -199,7 +199,7 @@ pub enum LayoutGuiEdit {
     },
     AddDefinition {
         name: String,
-        storage: FixtureStorage,
+        storage: NewObjectStorage,
         parent: Option<u32>,
         transform: Transform,
     },
@@ -211,14 +211,6 @@ pub enum LayoutGuiEdit {
         id: u32,
         delta: Point3Meters,
     },
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum FixtureStorage {
-    Inline,
-    SameFile,
-    NewFile,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

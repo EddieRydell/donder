@@ -352,6 +352,7 @@
   --donder-interaction-drag-threshold: 2px;
   --donder-learn-pulse-duration: 1s;
   --donder-number-scrub-pixels-per-step: 4px;
+  --donder-number-range-shrink: 1000;
   --donder-z-kit-tip: 260;
   --donder-field-label-width: 88px;
   --donder-workspace-layout-save-delay: 250ms;
@@ -488,7 +489,6 @@
   --donder-canvas-label-top-inset: 14px;
   --donder-canvas-label-x-offset: 5px;
   --donder-canvas-label-y-offset: 3px;
-  --donder-spatial-point-radius: 6px;
   --donder-spatial-hit-radius: 12px;
   --donder-spatial-pan-threshold: 3px;
 
@@ -804,33 +804,40 @@ html.donder-app-shell body {
   color: var(--donder-white);
 }
 
+/* The tab strip, then any banners, the GUI's breadcrumb and toolbar at their own heights, then the editor. */
 .editor-shell {
-  display: grid;
-  grid-template-rows: var(--donder-panel-header-height) 1fr;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   flex: 1;
   background: var(--donder-bg);
 }
 
-.editor-shell.has-editor-toolbar {
-  grid-template-rows: var(--donder-panel-header-height) var(--donder-toolbar-height) 1fr;
-}
+.editor-shell > * { flex: none; }
+.editor-shell > .tab-strip { height: var(--donder-panel-header-height); }
+.editor-shell > .editor-toolbar { height: var(--donder-toolbar-height); }
+.editor-shell > .gui-breadcrumb { height: var(--donder-control-height-md); }
+.editor-shell > .conflict-banner { height: var(--donder-conflict-banner-height); }
+.editor-shell > :is(.gui-projection, .resource-editor-frame) { flex: 1; min-height: 0; }
 
-.editor-shell.has-conflict-banner {
-  grid-template-rows: var(--donder-panel-header-height) var(--donder-conflict-banner-height) 1fr;
+.gui-breadcrumb {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  gap: var(--donder-space-2);
+  border-bottom: var(--donder-border-width) solid var(--donder-border);
+  background: var(--donder-bg-panel);
+  padding: 0 var(--donder-space-8);
+  color: var(--donder-text-muted);
+  font-size: var(--donder-font-size-md);
 }
-
-.editor-shell.has-editor-toolbar.has-conflict-banner {
-  grid-template-rows: var(--donder-panel-header-height) var(--donder-toolbar-height) var(--donder-conflict-banner-height) 1fr;
-}
-
-.editor-shell:has(> .project-invalid-banner) {
-  grid-template-rows: var(--donder-panel-header-height) auto minmax(0, 1fr);
-}
-
-.editor-shell.has-conflict-banner:has(> .project-invalid-banner) {
-  grid-template-rows: var(--donder-panel-header-height) auto var(--donder-conflict-banner-height) minmax(0, 1fr);
-}
+.gui-breadcrumb-step { display: inline-flex; flex: 0 1 auto; align-items: center; gap: var(--donder-space-2); min-width: 0; }
+.gui-breadcrumb-step > svg { flex: none; }
+.gui-breadcrumb-step > .kit-button { min-width: 0; }
+.gui-breadcrumb-label,
+.gui-breadcrumb-current { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gui-breadcrumb-current { flex: 0 1 auto; color: var(--donder-text-strong); }
 
 .empty-editor {
   display: grid;
@@ -1683,6 +1690,14 @@ html.donder-app-shell body {
   margin-bottom: var(--donder-space-12);
 }
 
+/* The chosen enum option's fields, set in under the option. */
+.enum-param-fields {
+  display: grid;
+  gap: var(--donder-space-8);
+  padding-left: var(--donder-space-12);
+  border-left: var(--donder-border-width-strong) solid var(--donder-hover);
+}
+
 .effect-param-name {
   min-width: 0;
   overflow: hidden;
@@ -1691,8 +1706,6 @@ html.donder-app-shell body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* A number's range sits inside the right of its box, in place of the spin buttons. */
 
 .window-fields {
   display: inline-flex;
@@ -2029,29 +2042,6 @@ html.donder-app-shell body {
 .status-problem,
 .danger {
   color: var(--donder-danger);
-}
-
-.alert-stack {
-  position: absolute;
-  top: 44px;
-  right: 10px;
-  left: 10px;
-  z-index: var(--donder-z-notification);
-  display: flex;
-  flex-direction: column;
-  gap: var(--donder-space-4);
-  pointer-events: none;
-}
-
-.error-strip {
-  align-self: center;
-  width: min(720px, 100%);
-  padding: var(--donder-space-8) var(--donder-space-12);
-  border: var(--donder-border-width) solid var(--donder-danger-border);
-  border-radius: var(--donder-radius-md);
-  background: var(--donder-danger-bg);
-  color: var(--donder-danger-text);
-  font-size: var(--donder-font-size-md);
 }
 
 .perform-bar {
@@ -2786,8 +2776,7 @@ fieldset.sequence-layer-row {
   color: var(--donder-text-muted);
 }
 
-.object-overview-icon svg,
-.ownership-actions svg {
+.object-overview-icon svg {
   width: var(--donder-object-overview-icon-glyph-size);
   height: var(--donder-object-overview-icon-glyph-size);
 }
@@ -2855,9 +2844,7 @@ fieldset.sequence-layer-row {
 }
 
 .setup-section h3 { margin-bottom: var(--donder-space-12); }
-.controller-port-row input:not([class*="kit-"]) { min-width: 0; }
 .setup-summary, .controller-port-row { padding: var(--donder-space-8) 0; border-bottom: var(--donder-border-width) solid var(--donder-border-soft); }
-.controller-port-row label { display: flex; align-items: center; gap: var(--donder-space-4); }
 
 .setup-authoring-form {
   display: flex;
@@ -2918,8 +2905,6 @@ fieldset.sequence-layer-row {
   accent-color: var(--donder-accent);
 }
 .setup-authoring-form p { flex-basis: 100%; margin: 0; }
-.setup-authoring-form > label,
-.setup-authoring-form fieldset > label { display: grid; gap: var(--donder-space-4); }
 .setup-authoring-form fieldset {
   display: flex;
   flex-wrap: wrap;
@@ -2931,12 +2916,22 @@ fieldset.sequence-layer-row {
   min-width: 0;
   width: 100%;
 }
-.setup-authoring-form .controller-port-row { flex-basis: 100%; flex-wrap: wrap; }
+.setup-authoring-form .controller-port-row { flex-basis: 100%; flex-wrap: wrap; align-items: end; }
+/* A disclosure of less used settings takes its own row. */
+.setup-authoring-form .kit-section { flex-basis: 100%; }
+/* Fields side by side in a wrapping row stack each label over its own control, and fields sit
+   further apart than a label from its control, so no label reads as its neighbour's. */
+:is(.setup-authoring-form, .setup-authoring-form fieldset, .controller-port-row, .setup-patch-fields) { column-gap: var(--donder-space-20); }
+:is(.setup-authoring-form, .setup-authoring-form fieldset, .controller-port-row, .setup-patch-fields) > .kit-field {
+  grid-template-columns: minmax(0, max-content);
+  gap: var(--donder-space-2);
+  align-items: end;
+}
 
 /* Input device editor: controls as a grid of bordered cells. Borders belong to
    .control-cell alone; the controls inside are borderless, square and fill it. */
 .setup-editor .input-device-form :is(select, input, textarea, button) { border-radius: 0; }
-.setup-section:has(> .input-device-form) { border-radius: 0; }
+.setup-section.input-device-section { border-radius: 0; }
 .input-device-form fieldset { gap: var(--donder-space-12); }
 /* One grid for the header and every row, so their columns line up. A row only
    groups its cells for dragging; it has no box of its own. */
@@ -2975,13 +2970,14 @@ fieldset.sequence-layer-row {
 }
 /* The drag handle and remove button sit outside the bordered cells, and the header has nothing over them. */
 /* A cell holding a select and the numbers that go with it. */
-/* Its parts read as one phrase, each as wide as its content. */
+/* Its parts read as one phrase, each as wide as its content. Numbers size themselves; text is
+   sized from its committed length, so neither changes width while it is edited. */
 .setup-editor .control-grid .control-cell.compound :is(.kit-select, .kit-number, .kit-text) {
   flex: none;
   width: auto;
   min-width: var(--donder-control-height-md);
-  field-sizing: content;
 }
+.setup-editor .control-grid .control-cell.compound .kit-text { width: calc(var(--kit-value-chars) * 1ch + 2 * var(--donder-space-8)); }
 .control-cell.compound > span { align-self: center; color: var(--donder-text-muted); }
 .control-cell.learning { box-shadow: inset 0 0 0 var(--donder-border-width) var(--donder-accent); }
 .setup-editor .control-grid .control-icon.learn { flex: none; margin-left: auto; }
@@ -3073,9 +3069,6 @@ fieldset.sequence-layer-row {
 .object-overview-group-header { display: flex; align-items: center; justify-content: space-between; gap: var(--donder-space-8); }
 .object-overview-group-header h3 { margin: 0; }
 .setup-patch-fields { display: flex; flex-wrap: wrap; align-items: end; gap: var(--donder-space-8); padding: var(--donder-space-8) 0; }
-.setup-patch-fields label { display: grid; gap: var(--donder-space-4); }
-.setup-patch-fields input[type="number"] { width: 6rem; }
-.setup-patch-fields input:not([class*="kit-"]), .setup-patch-fields select:not([class*="kit-"]) { max-width: 100%; }
 .setup-patch-node { border: var(--donder-border-width) solid var(--donder-border-soft); border-radius: var(--donder-radius-md); padding: var(--donder-space-8); min-width: 0; }
 .setup-patch-node header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--donder-space-8); }
 
@@ -3548,6 +3541,10 @@ button.status-chip:hover {
 .fixture-tool-options, .fixture-shape-fields { padding-block: var(--donder-space-8); }
 .fixture-tool-options > label, .fixture-shape-fields > label { display: grid; gap: var(--donder-space-4); }
 .composition-title { margin: 0 0 var(--donder-space-8); font-weight: var(--donder-font-weight-bold); }
+.composition-header { display: flex; align-items: center; justify-content: space-between; gap: var(--donder-space-8); margin-bottom: var(--donder-space-8); }
+.composition-header:empty { display: none; }
+.composition-header > .composition-title { margin: 0; }
+.composition-header > :only-child:not(.composition-title) { margin-left: auto; }
 .fixture-shape-actions { display: flex; flex-wrap: wrap; gap: var(--donder-space-8); margin-bottom: var(--donder-space-12); }
 .fixture-shape-row { display: flex; align-items: center; justify-content: space-between; gap: var(--donder-space-12); flex-shrink: 0; padding: var(--donder-space-8); border: 0; border-radius: var(--donder-radius-md); background: transparent; text-align: left; font-size: var(--donder-font-size-xl); }
 .fixture-shape-row[aria-pressed="true"] { background: var(--donder-accent-subtle); color: var(--donder-text-strong); }
@@ -3568,8 +3565,6 @@ button.status-chip:hover {
 }
 .spatial-snap-panel { order: -1; flex-shrink: 0; margin: var(--donder-space-4); padding: var(--donder-space-8); border: var(--donder-border-width) solid var(--donder-border); border-radius: var(--donder-radius-md); background: var(--donder-bg-panel); }
 .spatial-snap-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--donder-space-8); margin: 0; padding: 0; border: 0; font-size: var(--donder-font-size-sm); }
-.spatial-snap-controls > label { display: grid; gap: var(--donder-space-4); }
-.spatial-snap-controls input[type="number"] { width: var(--donder-spatial-snap-field-width); }
 .spatial-snap-controls > span { align-self: center; color: var(--donder-text-muted); }
 
 :root {
@@ -3680,6 +3675,9 @@ button.status-chip:hover {
 .kit-icon-button[aria-pressed="true"] { color: var(--donder-text-accent-strong); }
 .kit-icon-button:disabled { color: var(--donder-text-disabled-subtle); }
 .kit-icon-button.kit-danger:hover:not(:disabled) { color: var(--donder-danger); }
+.kit-button.kit-failed,
+.kit-icon-button.kit-failed,
+.kit-icon-button.kit-failed[aria-pressed="true"] { color: var(--donder-danger); }
 
 .kit-tip {
   z-index: var(--donder-z-kit-tip);
@@ -3755,14 +3753,28 @@ button.status-chip:hover {
 .kit-number[aria-disabled="true"] { color: var(--donder-text-disabled); cursor: default; }
 .kit-number[aria-invalid="true"],
 .kit-text[aria-invalid="true"] { border-color: var(--donder-danger-border); }
-.kit-number-label { color: var(--donder-text-faint); font-size: var(--donder-font-size-sm); }
-.kit-number-value { flex: 1; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
-.kit-number-unit { margin-left: var(--donder-space-2); color: var(--donder-text-faint); }
+.kit-number-label { flex: none; color: var(--donder-text-faint); font-size: var(--donder-font-size-sm); }
+/* The range sits at the left of the box, in place of spin buttons, and gives up its room before the value does. */
+.kit-number-range {
+  flex: 0 var(--donder-number-range-shrink) auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--donder-text-faint);
+  font-size: var(--donder-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Shown and typed, the value is as wide as its widest value, so the field never changes size when clicked. */
+.kit-number-value,
+:where(html.donder-app-shell) .kit-number-input {
+  flex: 1 1 auto;
+  width: calc(var(--kit-value-chars) * 1ch + var(--donder-space-2));
+  min-width: 0;
+}
+.kit-number-value { overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.kit-number-unit { flex: none; color: var(--donder-text-faint); }
 
 :where(html.donder-app-shell) .kit-number-input {
-  flex: 1;
-  width: 100%;
-  min-width: 0;
   height: 100%;
   border: 0;
   background: transparent;
@@ -3827,7 +3839,10 @@ button.status-chip:hover {
 }
 
 .kit-field-label { overflow: hidden; color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
+.kit-field[data-invalid="true"] > .kit-field-label { color: var(--donder-danger); }
 .kit-field-control { display: flex; align-items: center; gap: var(--donder-space-4); min-width: 0; }
+.kit-problem { display: flex; flex: 1; min-width: 0; }
+.effect-param-name[data-invalid="true"] { color: var(--donder-danger); }
 .kit-field-control > :is(.kit-number, .kit-text, .kit-select) { flex: 1; }
 .kit-field-group { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; gap: var(--donder-space-4); width: 100%; }
 
@@ -3950,7 +3965,6 @@ button.status-chip:hover {
 .kit-badge { display: inline-flex; align-items: center; gap: var(--donder-space-2); color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); }
 .kit-select[aria-invalid="true"] { border-color: var(--donder-danger-border); }
 .gui-object-description { field-sizing: content; min-height: var(--donder-control-height-sm); }
-.ownership-actions { display: inline-flex; align-items: center; gap: var(--donder-space-4); }
 .learn-on-focus { display: contents; }
 
 .tab .tab-close.kit-icon-button { width: var(--donder-tab-close-size); height: var(--donder-tab-close-size); }

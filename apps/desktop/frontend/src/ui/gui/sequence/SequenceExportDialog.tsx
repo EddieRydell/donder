@@ -1,7 +1,7 @@
 import { Channel } from "@tauri-apps/api/core";
 import { Download } from "lucide-react";
 import { useState } from "react";
-import { commands } from "../../../api";
+import { commands, errorMessage } from "../../../api";
 import { PREVIEW_APPEARANCE } from "../../../previewAppearance";
 import { useAppStore } from "../../../store";
 import type { GuiDocumentRequest, SequenceExportOptions, VideoExportProgress } from "../../../types";
@@ -54,7 +54,7 @@ export function SequenceExportDialog() {
       setOptions(result);
       setSelected(result.ports.map((port) => port.index));
       setStepMillis(result.fseqStepMillis);
-    } catch (error: unknown) { setError(String(error)); }
+    } catch (error: unknown) { setError(errorMessage(error)); }
     finally { setPending(null); }
   };
   const save = async (format: "dondershow" | "fseq" | "mp4") => {
@@ -66,7 +66,7 @@ export function SequenceExportDialog() {
         : format === "mp4"
           ? await exportVideo(origin)
           : await commands.exportShowFile(origin, selected));
-    } catch (error: unknown) { setError(String(error)); }
+    } catch (error: unknown) { setError(errorMessage(error)); }
     finally { setPending(null); setVideoProgress(null); }
   };
   const exportVideo = (target: GuiDocumentRequest) => {

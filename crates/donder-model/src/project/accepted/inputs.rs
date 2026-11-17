@@ -1,6 +1,6 @@
 //! Playback invocations derived during the same admission transaction as
 //! authored state; they cannot be edited independently afterwards.
-use super::parameters::{ClipTiming, MarkOrigin, prepare_params};
+use super::parameters::{ClipTiming, MarkOrigin, prepare_program_values};
 use super::*;
 use crate::effect::ParamValue;
 use crate::sequence::AutomationTarget;
@@ -160,7 +160,8 @@ fn resolve(
     )
 }
 
-/// Every declared parameter's value: its override, or its default.
+/// The program's values: every declared parameter's override or default,
+/// then the enum options' fields.
 pub(super) fn resolve_values(
     project: &DonderProject,
     marks: MarkOrigin<'_>,
@@ -168,16 +169,7 @@ pub(super) fn resolve_values(
     overrides: &IndexMap<donder_runtime_types::Identifier, ParamValue>,
     timing: ClipTiming,
 ) -> Result<Box<[Value]>, ValidationProblem> {
-    let values = prepare_params(project, marks, declarations, overrides, timing);
-    declarations
-        .iter()
-        .map(|param| {
-            values
-                .get(&param.name)
-                .cloned()
-                .ok_or_else(|| unreachable!("validation proves every parameter has a value"))
-        })
-        .collect()
+    Ok(prepare_program_values(project, marks, declarations, overrides, timing).into())
 }
 
 /// The previous admission's invocations of `sequence`'s clips, when every

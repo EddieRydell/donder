@@ -1,84 +1,82 @@
+/// `selection` of a sequence as clipboard text: the sequence with only the
+/// selected clips, automation clips and marks, automation keeping the
+/// bindings of the copied clips and of the graph's nodes. None when nothing
+/// was copied, with the counts of items copied and of selected items missing.
 pub(super) fn copy_sequence_selection(
     session: &ProjectSession,
     sequence_id: &SequenceId,
     selection: &SequenceSelection,
-) -> Result<(Option<SequenceClipboard>, u32, u32), GuiMutationError> {
-    match selection {
+) -> Result<(Option<String>, u32, u32), GuiMutationError> {
+    let sequence = session
+        .project
+        .get::<donder_model::Sequence>(*sequence_id)
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
+    let mut copied = sequence.clone();
+    copied.description = None;
+    copied.audio = donder_model::SequenceAudio::None;
+    let (copied_count, skipped) = match selection {
         SequenceSelection::Clips { clips } => {
             let (ids, automation_ids) = &split_clips(clips);
-            let sequence = session
-                .project
-                .get::<donder_model::Sequence>(*sequence_id)
-                .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-            let mut copied = Vec::new();
-            let mut skipped = 0u32;
-            for id in ids {
-                let Some(clip) = sequence.clips.iter().find(|clip| clip.id.0 == *id) else {
-                    skipped = skipped.saturating_add(1);
-                    continue;
-                };
-                copied.push(ClipboardClip {
-                    clip: (**clip).clone(),
-                    start_seconds: clip.start.as_seconds_f64(),
-                    lane_index: target_lane_index(session, &clip.target)
-                        .ok_or_else(|| GuiMutationError::Invalid("Clip row is missing.".into()))?,
-                });
-            }
-            let mut automation = Vec::new();
-            for id in automation_ids {
-                let clip = sequence
+            let skipped = ids
+                .iter()
+                .filter(|id| !sequence.clips.iter().any(|clip| clip.id.0 == **id))
+                .count();
+            if automation_ids.iter().any(|id| {
+                !sequence
                     .automation_clips
                     .iter()
-                    .find(|clip| clip.id.0 == *id)
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid("Selected automation clip is missing.".into())
-                    })?;
-                let lane_index = target_lane_index(session, &clip.row_target).ok_or_else(|| {
-                    GuiMutationError::Invalid("Automation row is missing.".into())
-                })?;
-                automation.push(ClipboardAutomation {
-                    clip: clip.clone(),
-                    lane_index,
+                    .any(|clip| clip.id.0 == *id)
+            }) {
+                return Err(GuiMutationError::Invalid(
+                    "Selected automation clip is missing.".into(),
+                ));
+            }
+            copied.clips.retain(|clip| ids.contains(&clip.id.0));
+            copied
+                .automation_clips
+                .retain(|clip| automation_ids.contains(&clip.id.0));
+            for clip in &mut copied.automation_clips {
+                clip.remove_bindings(|target| {
+                    matches!(target, AutomationTarget::ClipParam { clip_id, .. } if !ids.contains(&clip_id.0))
                 });
             }
-            let copied_count = (copied.len() + automation.len()) as u32;
-            Ok((
-                (copied_count > 0).then_some(SequenceClipboard::Clips {
-                    clips: copied,
-                    automation,
-                    sequence: *sequence_id,
-                    cut: false,
-                }),
-                copied_count,
-                skipped,
-            ))
+            for collection in &mut copied.mark_collections {
+                collection.marks.clear();
+            }
+            (copied.clips.len() + copied.automation_clips.len(), skipped)
         }
         SequenceSelection::Marks { marks } => {
-            let sequence = session
-                .project
-                .get::<donder_model::Sequence>(*sequence_id)
-                .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-            let mut copied = Vec::new();
-            let mut skipped = 0u32;
-            for mark in marks {
-                let Some(authored) = sequence_mark(sequence, mark) else {
-                    skipped = skipped.saturating_add(1);
-                    continue;
-                };
-                copied.push(ClipboardMark {
-                    collection_key: mark.collection_key.clone(),
-                    time_seconds: authored.time.as_seconds_f64(),
-                    label: authored.label.clone(),
-                });
+            copied.clips.clear();
+            copied.automation_clips.clear();
+            let skipped = marks
+                .iter()
+                .filter(|mark| sequence_mark(sequence, mark).is_none())
+                .count();
+            for collection in &mut copied.mark_collections {
+                let key = collection.key.name.as_str().to_string();
+                collection.marks = std::mem::take(&mut collection.marks)
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(index, _)| {
+                        marks
+                            .iter()
+                            .any(|mark| mark.collection_key == key && mark.index as usize == *index)
+                    })
+                    .map(|(_, mark)| mark)
+                    .collect();
             }
-            let copied_count = copied.len() as u32;
-            Ok((
-                (!copied.is_empty()).then_some(SequenceClipboard::Marks(copied)),
-                copied_count,
-                skipped,
-            ))
+            (marks.len() - skipped, skipped)
         }
-    }
+    };
+    let text = if copied_count == 0 {
+        None
+    } else {
+        Some(
+            donder_project_io::write_sequence_clipboard(session, copied)
+                .map_err(GuiMutationError::Invalid)?,
+        )
+    };
+    Ok((text, copied_count as u32, skipped as u32))
 }
 
 pub(super) fn delete_sequence_selection(
@@ -120,187 +118,250 @@ pub(super) fn delete_sequence_selection(
     Ok(())
 }
 
+/// Paste the clipboard's `text` at `anchor`: its clips and automation clips
+/// from the anchor's lane and time, each on this sequence's layer of its
+/// layer's name, or else its marks into this sequence's collections of the
+/// same names. An automation clip keeps the bindings of the clips pasted with
+/// it, and of this sequence's graph nodes that no automation clip it overlaps
+/// binds.
 pub(super) fn paste_sequence_clipboard(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
     anchor: SequencePasteAnchor,
-    clipboard: Option<&SequenceClipboard>,
+    text: &str,
+    texts: &mut donder_project_io::DocumentTextCache,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
+    let pasted = donder_project_io::read_sequence_clipboard(session, text, texts)
+        .map_err(GuiMutationError::Invalid)?;
     let mut draft = session
         .project
         .get::<donder_model::Sequence>(*sequence_id)
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-    let result: Result<GuiEditOutcome, GuiMutationError> = {
-        let clipboard = clipboard.ok_or_else(|| {
-            GuiMutationError::Invalid("Copy clips or marks before pasting.".into())
-        })?;
-        super::checked_gui_time(anchor.time_seconds)?;
-        match clipboard {
-            SequenceClipboard::Clips {
-                clips,
-                automation,
-                sequence: copied_from,
-                cut,
-            } => {
-                let targets = lane_targets(session)
-                    .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
-                let anchor_lane = anchor.lane.ok_or_else(|| {
-                    GuiMutationError::Invalid("Select a target row before pasting clips.".into())
-                })? as usize;
-                if anchor_lane >= targets.len() {
-                    return Err(GuiMutationError::Invalid("Paste target is missing.".into()));
-                }
-                let min_start = clips
-                    .iter()
-                    .map(|clip| clip.start_seconds)
-                    .chain(
-                        automation
-                            .iter()
-                            .map(|entry| entry.clip.start.as_seconds_f64()),
-                    )
-                    .fold(f64::INFINITY, f64::min);
-                let min_lane = clips
-                    .iter()
-                    .map(|clip| clip.lane_index)
-                    .chain(automation.iter().map(|entry| entry.lane_index))
-                    .min()
-                    .ok_or_else(|| GuiMutationError::Invalid("Clipboard is empty.".into()))?;
-                let destination = |lane: usize| {
-                    targets
-                        .get(anchor_lane + lane - min_lane)
-                        .cloned()
-                        .ok_or_else(|| {
-                            GuiMutationError::Invalid(
-                                "The copied clips do not fit below this target.".into(),
-                            )
-                        })
-                };
-                // Resolve every destination before mutation; never collapse distinct rows at the boundary.
-                let clip_targets = clips
-                    .iter()
-                    .map(|entry| destination(entry.lane_index))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let automation_targets = automation
-                    .iter()
-                    .map(|entry| destination(entry.lane_index))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let sequence = &mut draft;
-                let mut clip_ids_after =
-                    IdAllocator::after(sequence.clips.iter().map(|clip| clip.id.0));
-                let mut clip_ids = Vec::new();
-                let mut id_map = BTreeMap::new();
-                for (entry, target) in clips.iter().zip(clip_targets) {
-                    let id = clip_ids_after.next()?;
-                    let mut clip = entry.clip.clone();
-                    id_map.insert(clip.id.0, id);
-                    clip.id = ClipId(id);
-                    clip.name = donder_language::unique_name(clip.name.as_str(), |name| {
-                        sequence
-                            .clips
-                            .iter()
-                            .any(|other| other.name.as_str() == name)
-                    });
-                    clip.start = super::checked_gui_time(
-                        anchor.time_seconds + entry.start_seconds - min_start,
-                    )?;
-                    clip.target = target;
-                    sequence.clips.push(std::sync::Arc::new(clip));
-                    clip_ids.push(id);
-                }
-                let mut automation_ids_after =
-                    IdAllocator::after(sequence.automation_clips.iter().map(|clip| clip.id.0));
-                let mut automation_ids = Vec::new();
-                for (entry, target) in automation.iter().zip(automation_targets) {
-                    let id = automation_ids_after.next()?;
-                    let mut clip = entry.clip.clone();
-                    clip.id = donder_model::AutomationClipId(id);
-                    clip.row_target = target;
-                    clip.start = super::checked_gui_time(
-                        anchor.time_seconds + entry.clip.start.as_seconds_f64() - min_start,
-                    )?;
-                    // Copy bindings only within the copied selection. Cut may retain existing bindings
-                    // in the same sequence when no overlapping clip has claimed them since the cut.
-                    let placed = clip.clone();
-                    let remap = |target: &mut AutomationTarget| {
-                        if let AutomationTarget::ClipParam { clip_id, .. } = target
-                            && let Some(id) = id_map.get(&clip_id.0)
-                        {
-                            clip_id.0 = *id;
-                            return true;
-                        }
-                        *cut && copied_from == sequence_id
-                            && !sequence.automation_clips.iter().any(|other| {
-                                other.overlaps(&placed)
-                                    && other.targets().any(|claimed| claimed == target)
-                            })
-                    };
-                    clip.bindings
-                        .retain_mut(|binding| remap(&mut binding.target));
-                    clip.detached_bindings
-                        .retain_mut(|binding| remap(&mut binding.target));
-                    sequence.automation_clips.push(clip);
-                    automation_ids.push(id);
-                }
-                Ok(GuiEditOutcome {
-                    selection: Some(SequenceSelection::Clips {
-                        clips: clip_refs(&clip_ids, &automation_ids),
-                    }),
-                    copied_count: (clips.len() + automation.len()) as u32,
-                    skipped_count: 0,
-                    created: Vec::new(),
-                })
-            }
-            SequenceClipboard::Marks(marks) => {
-                let min_time = marks
-                    .iter()
-                    .map(|mark| mark.time_seconds)
-                    .fold(f64::INFINITY, f64::min);
-                let mut pasted = Vec::new();
-                let mut skipped = 0u32;
-                let sequence = &mut draft;
-                for mark in marks {
-                    let collection = match mark_collection_mut(sequence, &mark.collection_key) {
-                        Ok(collection) => collection,
-                        Err(_) => {
-                            skipped = skipped.saturating_add(1);
-                            continue;
-                        }
-                    };
-                    let time = super::checked_gui_time(
-                        anchor.time_seconds + mark.time_seconds - min_time,
-                    )?;
-                    collection.marks.push(donder_model::Mark {
-                        time: time.clone(),
-                        label: mark.label.clone(),
-                    });
-                    collection.marks.sort_by_key(|mark| mark.time.0);
-                    let index = collection
-                        .marks
-                        .iter()
-                        .position(|value| value.time == time)
-                        .ok_or_else(|| {
-                            GuiMutationError::Invalid("Pasted mark is missing.".into())
-                        })?;
-                    pasted.push(SequenceMarkRef {
-                        collection_key: mark.collection_key.clone(),
-                        index: index as u32,
-                    });
-                }
-                Ok(GuiEditOutcome {
-                    selection: Some(SequenceSelection::Marks { marks: pasted }),
-                    copied_count: marks.len() as u32,
-                    skipped_count: skipped,
-                    created: Vec::new(),
-                })
-            }
-        }
+    super::checked_gui_time(anchor.time_seconds)?;
+    let outcome = if pasted.clips.is_empty() && pasted.automation_clips.is_empty() {
+        paste_marks(&mut draft, &pasted, &anchor)?
+    } else {
+        paste_clips(session, &mut draft, &pasted, &anchor)?
     };
-    let result = result?;
     session.project.put(draft).map_err(GuiMutationError::from)?;
     donder_project_io::maintain_ownership_sources(session)
         .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-    Ok(result)
+    Ok(outcome)
+}
+
+fn paste_clips(
+    session: &ProjectSession,
+    sequence: &mut donder_model::Sequence,
+    pasted: &donder_model::Sequence,
+    anchor: &SequencePasteAnchor,
+) -> Result<GuiEditOutcome, GuiMutationError> {
+    let targets = lane_targets(session)
+        .ok_or_else(|| GuiMutationError::Invalid("This sequence has no rows.".into()))?;
+    let anchor_lane = anchor
+        .lane
+        .ok_or_else(|| GuiMutationError::Invalid("Select a row to paste into.".into()))?
+        as usize;
+    if anchor_lane >= targets.len() {
+        return Err(GuiMutationError::Invalid(
+            "Select a row to paste into.".into(),
+        ));
+    }
+    let lane = |target: &FixtureTarget| {
+        target_lane_index(session, target).ok_or_else(|| {
+            GuiMutationError::Invalid("A copied clip's row isn't in this sequence.".into())
+        })
+    };
+    let clip_lanes = pasted
+        .clips
+        .iter()
+        .map(|clip| lane(&clip.target))
+        .collect::<Result<Vec<_>, _>>()?;
+    let automation_lanes = pasted
+        .automation_clips
+        .iter()
+        .map(|clip| lane(&clip.row_target))
+        .collect::<Result<Vec<_>, _>>()?;
+    let min_start = pasted
+        .clips
+        .iter()
+        .map(|clip| clip.start.as_seconds_f64())
+        .chain(
+            pasted
+                .automation_clips
+                .iter()
+                .map(|clip| clip.start.as_seconds_f64()),
+        )
+        .fold(f64::INFINITY, f64::min);
+    let min_lane = clip_lanes
+        .iter()
+        .chain(&automation_lanes)
+        .copied()
+        .min()
+        .ok_or_else(|| GuiMutationError::Invalid("Nothing to paste.".into()))?;
+    let destination = |lane: usize| {
+        targets
+            .get(anchor_lane + lane - min_lane)
+            .cloned()
+            .ok_or_else(|| GuiMutationError::Invalid("The clips don't fit below this row.".into()))
+    };
+    // Resolve every destination before mutation; never collapse distinct rows at the boundary.
+    let clip_targets = clip_lanes
+        .iter()
+        .map(|&lane| destination(lane))
+        .collect::<Result<Vec<_>, _>>()?;
+    let automation_targets = automation_lanes
+        .iter()
+        .map(|&lane| destination(lane))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut clip_ids_after = IdAllocator::after(sequence.clips.iter().map(|clip| clip.id.0));
+    let mut clip_ids = Vec::new();
+    let mut id_map = BTreeMap::new();
+    for (pasted_clip, target) in pasted.clips.iter().zip(clip_targets) {
+        let id = clip_ids_after.next()?;
+        let mut clip = (**pasted_clip).clone();
+        id_map.insert(clip.id.0, id);
+        clip.id = ClipId(id);
+        clip.name = donder_language::unique_name(clip.name.as_str(), |name| {
+            sequence
+                .clips
+                .iter()
+                .any(|other| other.name.as_str() == name)
+        });
+        clip.layer_id = pasted_layer(sequence, pasted, clip.layer_id)?;
+        clip.start = super::checked_gui_time(
+            anchor.time_seconds + pasted_clip.start.as_seconds_f64() - min_start,
+        )?;
+        clip.target = target;
+        sequence.clips.push(std::sync::Arc::new(clip));
+        clip_ids.push(id);
+    }
+    let mut automation_ids_after =
+        IdAllocator::after(sequence.automation_clips.iter().map(|clip| clip.id.0));
+    let mut automation_ids = Vec::new();
+    for (pasted_clip, target) in pasted.automation_clips.iter().zip(automation_targets) {
+        let id = automation_ids_after.next()?;
+        let mut clip = pasted_clip.clone();
+        clip.id = donder_model::AutomationClipId(id);
+        clip.row_target = target;
+        clip.start = super::checked_gui_time(
+            anchor.time_seconds + pasted_clip.start.as_seconds_f64() - min_start,
+        )?;
+        let placed = clip.clone();
+        let remap = |target: &mut AutomationTarget| match target {
+            AutomationTarget::ClipParam { clip_id, .. } => match id_map.get(&clip_id.0) {
+                Some(id) => {
+                    clip_id.0 = *id;
+                    true
+                }
+                None => false,
+            },
+            AutomationTarget::CompositionNodeParam { node_id, .. } => {
+                sequence
+                    .composition_graph
+                    .nodes
+                    .iter()
+                    .any(|node| node.id == *node_id)
+                    && !sequence.automation_clips.iter().any(|other| {
+                        other.overlaps(&placed) && other.targets().any(|claimed| claimed == target)
+                    })
+            }
+        };
+        clip.bindings
+            .retain_mut(|binding| remap(&mut binding.target));
+        clip.detached_bindings
+            .retain_mut(|binding| remap(&mut binding.target));
+        sequence.automation_clips.push(clip);
+        automation_ids.push(id);
+    }
+    Ok(GuiEditOutcome {
+        selection: Some(SequenceSelection::Clips {
+            clips: clip_refs(&clip_ids, &automation_ids),
+        }),
+        copied_count: (clip_ids.len() + automation_ids.len()) as u32,
+        skipped_count: 0,
+        created: Vec::new(),
+    })
+}
+
+/// This sequence's layer of the name `layer` has in `pasted`.
+fn pasted_layer(
+    sequence: &donder_model::Sequence,
+    pasted: &donder_model::Sequence,
+    layer: SequenceLayerId,
+) -> Result<SequenceLayerId, GuiMutationError> {
+    let name = &pasted
+        .layers
+        .iter()
+        .find(|candidate| candidate.id == layer)
+        .unwrap_or_else(|| unreachable!("loading resolves a clip's layer"))
+        .name;
+    sequence
+        .layers
+        .iter()
+        .find(|candidate| candidate.name == *name)
+        .map(|candidate| candidate.id.clone())
+        .ok_or_else(|| {
+            GuiMutationError::Invalid(format!(
+                "This sequence has no layer named {}.",
+                name.as_str()
+            ))
+        })
+}
+
+fn paste_marks(
+    sequence: &mut donder_model::Sequence,
+    pasted: &donder_model::Sequence,
+    anchor: &SequencePasteAnchor,
+) -> Result<GuiEditOutcome, GuiMutationError> {
+    let marks = pasted
+        .mark_collections
+        .iter()
+        .flat_map(|collection| {
+            collection
+                .marks
+                .iter()
+                .map(move |mark| (&collection.key, mark))
+        })
+        .collect::<Vec<_>>();
+    if marks.is_empty() {
+        return Err(GuiMutationError::Invalid("Nothing to paste.".into()));
+    }
+    let min_time = marks
+        .iter()
+        .map(|(_, mark)| mark.time.as_seconds_f64())
+        .fold(f64::INFINITY, f64::min);
+    let mut selection = Vec::new();
+    let mut skipped = 0u32;
+    for (key, mark) in &marks {
+        let collection_key = key.name.as_str().to_string();
+        let Ok(collection) = mark_collection_mut(sequence, &collection_key) else {
+            skipped = skipped.saturating_add(1);
+            continue;
+        };
+        let time =
+            super::checked_gui_time(anchor.time_seconds + mark.time.as_seconds_f64() - min_time)?;
+        collection.marks.push(donder_model::Mark {
+            time: time.clone(),
+            label: mark.label.clone(),
+        });
+        collection.marks.sort_by_key(|mark| mark.time.0);
+        let index = collection
+            .marks
+            .iter()
+            .position(|value| value.time == time)
+            .ok_or_else(|| GuiMutationError::Invalid("Pasted mark is missing.".into()))?;
+        selection.push(SequenceMarkRef {
+            collection_key,
+            index: index as u32,
+        });
+    }
+    Ok(GuiEditOutcome {
+        selection: Some(SequenceSelection::Marks { marks: selection }),
+        copied_count: marks.len() as u32,
+        skipped_count: skipped,
+        created: Vec::new(),
+    })
 }
 
 pub(super) fn edit_clip_selection(
@@ -341,7 +402,7 @@ pub(super) fn edit_clip_selection(
                 })?;
             if !definition.params().iter().any(|param| param.name == name) {
                 return Err(GuiMutationError::Invalid(format!(
-                    "Clip {id} does not declare parameter `{}`.",
+                    "The clip's effect has no parameter {}.",
                     name.as_str()
                 )));
             }
@@ -353,7 +414,7 @@ pub(super) fn edit_clip_selection(
                 })
             }) {
                 return Err(GuiMutationError::Invalid(format!(
-                    "Clip {id} parameter `{}` is automated.",
+                    "An envelope drives {}; edit the envelope instead.",
                     name.as_str()
                 )));
             }
@@ -622,10 +683,7 @@ use donder_project_io::ProjectSession;
 
 use super::model::{clip_mut, clip_scope, identifier, mark_collection_mut, param_value_from_gui};
 use super::projection::active_layout;
-use super::{
-    ClipboardAutomation, ClipboardClip, ClipboardMark, GuiEditOutcome, GuiMutationError,
-    IdAllocator, SequenceClipboard,
-};
+use super::{GuiEditOutcome, GuiMutationError, IdAllocator};
 use crate::dto::{
     SequenceAutomationResize, SequenceClipCommonEdit, SequenceClipRef, SequenceMarkRef,
     SequencePasteAnchor, SequenceResizeEdge, SequenceSelection,

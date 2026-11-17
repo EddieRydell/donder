@@ -74,7 +74,6 @@ export function NewProjectDialog() {
     if (createDisabled) return;
     setCreating(true);
     setError(null);
-    useAppStore.getState().setError(null);
     try {
       const applied = await runWorkspaceTransition(mode === "createProject"
         ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor }
@@ -82,10 +81,9 @@ export function NewProjectDialog() {
           ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor, profilePath }
           : { type: mode, parentPath, directoryName });
       if (!applied) {
-        setError(useAppStore.getState().error);
+        setError(useAppStore.getState().failures.command ?? null);
         return;
       }
-      useAppStore.getState().setError(null);
       setOpen(false);
       setProfilePath("");
     } catch (caught) {

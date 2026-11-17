@@ -1,11 +1,8 @@
-use std::collections::HashMap;
 use std::net::UdpSocket;
 
 use crate::OutputFrame;
 use artnet_protocol::{ArtCommand, Output, PaddedData, PortAddress};
-use donder_model::{
-    ArtNetConfig, ArtNetMode, ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId,
-};
+use donder_model::{ArtNetConfig, ArtNetMode, ControllerId};
 
 use crate::OutputError;
 
@@ -13,36 +10,20 @@ pub struct ArtNetSender {
     id: ControllerId,
     socket: UdpSocket,
     config: ArtNetConfig,
-    ports: HashMap<ControllerPortId, (u16, usize)>,
     sequence: u8,
 }
 
 impl ArtNetSender {
-    pub(crate) fn open(
-        id: ControllerId,
-        config: &ArtNetConfig,
-        ports: &[ControllerPort],
-    ) -> Result<Self, OutputError> {
+    pub(crate) fn open(id: ControllerId, config: &ArtNetConfig) -> Result<Self, OutputError> {
         let socket =
             UdpSocket::bind(config.bind_address).map_err(|error| socket_error(&id, error))?;
         socket
             .set_broadcast(config.mode == ArtNetMode::Broadcast)
             .map_err(|error| socket_error(&id, error))?;
-        let mut mapped = HashMap::new();
-        for port in ports {
-            let ControllerPortAddress::ArtNetPort(address) = port.address else {
-                return Err(OutputError::Socket {
-                    controller: id,
-                    message: "Art-Net controller has a non-Art-Net port".to_string(),
-                });
-            };
-            mapped.insert(port.id, (address, usize::from(port.slot_count)));
-        }
         Ok(Self {
             id,
             socket,
             config: config.clone(),
-            ports: mapped,
             sequence: 1,
         })
     }
@@ -51,15 +32,8 @@ impl ArtNetSender {
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
+        let expected = self.config.universes.channel_count() as usize;
         for frame in frames {
-            let (address, expected) =
-                self.ports
-                    .get(&frame.port)
-                    .copied()
-                    .ok_or(OutputError::MissingPort {
-                        controller: self.id,
-                        port: frame.port,
-                    })?;
             if frame.slots.len() != expected {
                 return Err(OutputError::InvalidFrameLength {
                     controller: self.id,
@@ -67,20 +41,24 @@ impl ArtNetSender {
                     actual: frame.slots.len(),
                 });
             }
-            let command = ArtCommand::Output(Output {
-                sequence: self.sequence,
-                physical: 0,
-                port_address: PortAddress::try_from(address)
-                    .map_err(|error| codec_error(&self.id, error))?,
-                data: PaddedData::from(frame.slots.clone()),
-                ..Output::default()
-            });
-            let bytes = command
-                .write_to_buffer()
-                .map_err(|error| codec_error(&self.id, error))?;
-            self.socket
-                .send_to(&bytes, self.config.destination)
-                .map_err(|error| socket_error(&self.id, error))?;
+            for (address, channels) in self.config.universes.iter() {
+                let command = ArtCommand::Output(Output {
+                    sequence: self.sequence,
+                    physical: 0,
+                    port_address: PortAddress::try_from(address)
+                        .map_err(|error| codec_error(&self.id, error))?,
+                    data: PaddedData::from(
+                        frame.slots[channels.start as usize..channels.end as usize].to_vec(),
+                    ),
+                    ..Output::default()
+                });
+                let bytes = command
+                    .write_to_buffer()
+                    .map_err(|error| codec_error(&self.id, error))?;
+                self.socket
+                    .send_to(&bytes, self.config.destination)
+                    .map_err(|error| socket_error(&self.id, error))?;
+            }
         }
         self.sequence = if self.sequence == u8::MAX {
             1
@@ -91,16 +69,10 @@ impl ArtNetSender {
     }
 
     pub(crate) fn blackout(&mut self) -> Result<(), OutputError> {
-        let frames = self
-            .ports
-            .iter()
-            .map(|(port, (_, slots))| OutputFrame {
-                controller: self.id,
-                port: *port,
-                slots: vec![0; *slots],
-            })
-            .collect::<Vec<_>>();
-        self.send(&frames)
+        self.send(&[OutputFrame {
+            controller: self.id,
+            slots: vec![0; self.config.universes.channel_count() as usize],
+        }])
     }
 }
 
@@ -123,7 +95,7 @@ mod tests {
     use std::time::Duration;
 
     use artnet_protocol::ArtCommand;
-    use donder_model::{ArtNetMode, ControllerPort, ControllerPortAddress};
+    use donder_model::{ArtNetMode, Universes};
 
     use super::*;
 
@@ -139,17 +111,15 @@ mod tests {
             bind_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             destination,
             mode: ArtNetMode::Unicast,
+            universes: Universes {
+                start: 0x1234,
+                count: 1,
+                channels: 3,
+            },
         };
-        let port = ControllerPort {
-            name: donder_language::object_name("port"),
-            id: ControllerPortId(1),
-            address: ControllerPortAddress::ArtNetPort(0x1234),
-            slot_count: 3,
-        };
-        let mut sender = ArtNetSender::open(id, &config, &[port]).unwrap();
+        let mut sender = ArtNetSender::open(id, &config).unwrap();
         let frame = OutputFrame {
             controller: id,
-            port: ControllerPortId(1),
             slots: vec![1, 2, 3],
         };
         sender.send(std::slice::from_ref(&frame)).unwrap();

@@ -41,7 +41,8 @@ fn starter_keyboard_and_jam_console_load_typed() {
     assert_eq!(console.live_marks.len(), 1);
     assert_eq!(console.set_targets().len(), 1);
     assert_eq!(console.clips.len(), 3);
-    assert_eq!(console.always, [console.clips[0].id]);
+    assert_eq!(console.always.len(), 1);
+    assert_eq!(console.always[0].clip, console.clips[0].id);
     assert!(console.inputs().all(|input| input.device == device.id));
     let events = console
         .events
@@ -116,13 +117,13 @@ fn invalid_input_devices_are_rejected_at_the_control() {
             "Button { name: tap,",
             "Button { name: kick, description: none, input: Key { code: KeyQ } },
     Button { name: tap,",
-            "control `kick` is declared twice",
+            "two controls are named kick",
         ),
         (
             KEYBOARD,
             "code: KeyS",
             "code: KeyA",
-            "control `swell` reads `KeyA`, which control `kick` already reads",
+            "controls swell and kick both read key KeyA",
         ),
         (
             KEYBOARD,
@@ -158,9 +159,9 @@ fn invalid_consoles_are_rejected_at_the_reference() {
             JAM,
             "copies: 4",
             "copies: 17",
-            "plays 17 copies; `Play` plays 1 to 16 at once",
+            "17 copies is outside 1 to 16",
         ),
-        (JAM, "copies: 4", "copies: 0", "plays 0 copies"),
+        (JAM, "copies: 4", "copies: 0", "0 copies is outside"),
         (
             JAM,
             "duration: 0.4s",
@@ -171,13 +172,13 @@ fn invalid_consoles_are_rejected_at_the_reference() {
             JAM,
             "param: decay_seconds",
             "param: accent",
-            "`accent` cannot be set",
+            "parameter accent can't be set",
         ),
         (
             JAM,
             "param: decay_seconds",
             "param: speed",
-            "no parameter `speed`",
+            "no parameter speed",
         ),
         (
             JAM,
@@ -195,25 +196,25 @@ fn invalid_consoles_are_rejected_at_the_reference() {
             JAM,
             "Mark { into: beat }",
             "Mark { into: downbeat }",
-            "no live mark collection `downbeat`",
+            "no live marks named downbeat",
         ),
         (
             JAM,
             "marks: [LiveMarks { name: beat,",
             "marks: [LiveMarks { name: beat, description: none, color: #22c55e }, LiveMarks { name: beat,",
-            "live mark collection `beat` is declared twice",
+            "two live mark collections are named beat",
         ),
         (
             JAM,
-            "always: [background],",
-            "always: [flash],",
-            "clip `flash` is played by `Play` and also held",
+            "always: [Always { clip: background, length: 4s }],",
+            "always: [Always { clip: flash, length: 4s }],",
+            "clip flash is played by Play and held",
         ),
         (
             SETUP,
             "input_devices: [devices.keyboard],",
             "input_devices: [],",
-            "the input device is not in the project's setup",
+            "the input device isn't in the setup",
         ),
     ]);
 }

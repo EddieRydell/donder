@@ -8,6 +8,7 @@ import type { AppStaticSnapshot } from "../store";
 import { sameWorkspacePath } from "./helpers";
 import { navigateToText } from "./navigation";
 import { Badge, Button } from "../ui/kit";
+import { countOf } from "../ui/count";
 
 export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const groups = useMemo(() => {
@@ -44,8 +45,8 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
       <header className="sidebar-view-header">
         <h2>Problems</h2>
         <div className="sidebar-toolbar">
-          <Badge icon={CircleX} tip={`${errors} errors`}>{errors}</Badge>
-          <Badge icon={AlertTriangle} tip={`${warnings} warnings`}>{warnings}</Badge>
+          <Badge icon={CircleX} tip={countOf(errors, "error")}>{errors}</Badge>
+          <Badge icon={AlertTriangle} tip={countOf(warnings, "warning")}>{warnings}</Badge>
         </div>
       </header>
       <div className="sidebar-scroll">

@@ -18634,8 +18634,7 @@ Sequence ding_dong {
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #000000), (1.0, #ffffff)] },
         butterfly_type: Type1,
         color_scheme: Gradient,
-        direction: Forward,
-        iterations: 1,
+        motion: Iterations { iterations: 1, direction: Forward },
         repeat: 1,
         background_chunks: 1,
         background_skips: 2,
@@ -36245,8 +36244,7 @@ Sequence ding_dong {
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #000000), (1.0, #ffffff)] },
         butterfly_type: Type2,
         color_scheme: Gradient,
-        direction: Forward,
-        iterations: 4,
+        motion: Iterations { iterations: 4, direction: Forward },
         repeat: 1,
         background_chunks: 2,
         background_skips: 2,
@@ -82653,7 +82651,10 @@ Sequence ding_dong {
         position: (491.83456, 90.22718),
       },
     ],
-    edges: [Edge { from: layers.default, to: hue_shift.source }, Edge { from: hue_shift, to: root }],
+    edges: [
+      Edge { from: layers.default, to: hue_shift.source },
+      Edge { from: hue_shift, to: root },
+    ],
   },
   automation: [
     AutomationClip {

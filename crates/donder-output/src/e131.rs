@@ -1,10 +1,7 @@
-use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 
 use crate::OutputFrame;
-use donder_model::{
-    ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId, E131Config, E131Mode,
-};
+use donder_model::{ControllerId, E131Config, E131Mode};
 use sacn::packet::{
     ACN_SDT_MULTICAST_PORT, AcnRootLayerProtocol, DataPacketDmpLayer, DataPacketFramingLayer,
     E131RootLayer, E131RootLayerData,
@@ -18,57 +15,38 @@ pub struct E131Sender {
     source: SacnSource,
     termination_socket: UdpSocket,
     config: E131Config,
-    universes: HashMap<ControllerPortId, (u16, usize)>,
-    universe_data: HashMap<ControllerPortId, Vec<u8>>,
+    /// One universe's data: the start code, then its channels.
+    universe_data: Vec<u8>,
 }
 
 impl E131Sender {
-    pub(crate) fn open(
-        id: ControllerId,
-        config: &E131Config,
-        ports: &[ControllerPort],
-    ) -> Result<Self, OutputError> {
+    pub(crate) fn open(id: ControllerId, config: &E131Config) -> Result<Self, OutputError> {
         let bind = SocketAddr::new(config.bind_address, 0);
         let mut source = SacnSource::with_ip(&config.sender_name, bind)
             .map_err(|error| socket_error(&id, error))?;
         let termination_socket = UdpSocket::bind(bind).map_err(|error| socket_error(&id, error))?;
-        let mut universes = HashMap::new();
-        let mut universe_data = HashMap::new();
-        for port in ports {
-            let ControllerPortAddress::E131Universe(universe) = port.address else {
-                return Err(OutputError::Socket {
-                    controller: id,
-                    message: "E1.31 controller has a non-E1.31 port".to_string(),
-                });
-            };
+        for (universe, _) in config.universes.iter() {
             source
                 .register_universe(universe)
                 .map_err(|error| socket_error(&id, error))?;
-            universes.insert(port.id, (universe, usize::from(port.slot_count)));
-            universe_data.insert(port.id, vec![0; usize::from(port.slot_count) + 1]);
         }
         Ok(Self {
             id,
             source,
             termination_socket,
             config: config.clone(),
-            universes,
-            universe_data,
+            universe_data: vec![0; usize::from(config.universes.channels) + 1],
         })
     }
 
+    /// Send each frame's channels, a universe at a time.
     pub(crate) fn send<'a>(
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
         let destination = self.destination();
+        let expected = self.config.universes.channel_count() as usize;
         for frame in frames {
-            let (universe, expected) = self.universes.get(&frame.port).copied().ok_or({
-                OutputError::MissingPort {
-                    controller: self.id,
-                    port: frame.port,
-                }
-            })?;
             if frame.slots.len() != expected {
                 return Err(OutputError::InvalidFrameLength {
                     controller: self.id,
@@ -76,46 +54,32 @@ impl E131Sender {
                     actual: frame.slots.len(),
                 });
             }
-            let data = self.universe_data.get_mut(&frame.port).ok_or({
-                OutputError::MissingPort {
-                    controller: self.id,
-                    port: frame.port,
-                }
-            })?;
-            data[1..].copy_from_slice(&frame.slots);
-            self.source
-                .send(
-                    &[universe],
-                    data,
-                    Some(self.config.priority),
-                    destination,
-                    None,
-                )
-                .map_err(|error| socket_error(&self.id, error))?;
+            for (universe, channels) in self.config.universes.iter() {
+                self.universe_data[1..]
+                    .copy_from_slice(&frame.slots[channels.start as usize..channels.end as usize]);
+                self.source
+                    .send(
+                        &[universe],
+                        &self.universe_data,
+                        Some(self.config.priority),
+                        destination,
+                        None,
+                    )
+                    .map_err(|error| socket_error(&self.id, error))?;
+            }
         }
         Ok(())
     }
 
     pub(crate) fn blackout(&mut self) -> Result<(), OutputError> {
-        let frames = self
-            .universes
-            .iter()
-            .map(|(port, (_, slots))| OutputFrame {
-                controller: self.id,
-                port: *port,
-                slots: vec![0; *slots],
-            })
-            .collect::<Vec<_>>();
-        self.send(&frames)
+        self.send(&[OutputFrame {
+            controller: self.id,
+            slots: vec![0; self.config.universes.channel_count() as usize],
+        }])
     }
 
     pub(crate) fn terminate(&mut self) -> Result<(), OutputError> {
-        let universes = self
-            .universes
-            .values()
-            .map(|(universe, _)| *universe)
-            .collect::<Vec<_>>();
-        for universe in universes {
+        for (universe, _) in self.config.universes.iter() {
             match self.config.mode {
                 E131Mode::Unicast { destination } => {
                     let destination = SocketAddr::new(destination, ACN_SDT_MULTICAST_PORT);
@@ -180,7 +144,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, UdpSocket};
     use std::time::Duration;
 
-    use donder_model::{ControllerPort, ControllerPortAddress};
+    use donder_model::Universes;
     use sacn::packet::{AcnRootLayerProtocol, E131RootLayerData};
 
     use super::*;
@@ -199,17 +163,15 @@ mod tests {
             mode: E131Mode::Unicast {
                 destination: IpAddr::V4(Ipv4Addr::LOCALHOST),
             },
+            universes: Universes {
+                start: 42,
+                count: 1,
+                channels: 3,
+            },
         };
-        let port = ControllerPort {
-            name: donder_language::object_name("port"),
-            id: ControllerPortId(1),
-            address: ControllerPortAddress::E131Universe(42),
-            slot_count: 3,
-        };
-        let mut sender = E131Sender::open(id, &config, &[port]).unwrap();
+        let mut sender = E131Sender::open(id, &config).unwrap();
         let frame = OutputFrame {
             controller: id,
-            port: ControllerPortId(1),
             slots: vec![5, 6, 7],
         };
         sender.send(std::slice::from_ref(&frame)).unwrap();

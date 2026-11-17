@@ -2,7 +2,7 @@
 use crate::project::EditRejection;
 use donder_runtime_types::PixelEncoding;
 
-use crate::controller::{ControllerId, ControllerPortId};
+use crate::controller::{ControllerId, ControllerOutput};
 pub(crate) use crate::identity::PatchId;
 use crate::layout::FixtureTarget;
 
@@ -29,9 +29,11 @@ pub struct PixelRoute {
     /// None routes the complete target, including future pixel-count edits.
     pub pixels: Option<PixelSpan>,
     pub controller: ControllerId,
-    pub port: ControllerPortId,
-    /// Zero-based byte offset in the controller port.
-    pub start_slot: u16,
+    /// The controller's universes, or one of a Donder controller's ports.
+    pub output: ControllerOutput,
+    /// The route's first channel in `output`, from 0: across all of an
+    /// E1.31 or Art-Net controller's universes, or in a Donder port.
+    pub start_channel: u32,
     pub encoding: PixelEncoding,
     pub gamma: f32,
     pub brightness: f32,

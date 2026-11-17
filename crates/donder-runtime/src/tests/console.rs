@@ -76,7 +76,7 @@ fn fixed_voice_plays_its_length_from_each_start() {
         1.0,
         ConsoleCommand::Start {
             voice: 0,
-            duration: Some(SampleDuration::from_ticks(500_000)),
+            duration: SampleDuration::from_ticks(500_000),
         },
     ));
     assert_eq!(color(&mut console, 1.2), WHITE);
@@ -89,7 +89,7 @@ fn fixed_voice_plays_its_length_from_each_start() {
         2.0,
         ConsoleCommand::Start {
             voice: 0,
-            duration: Some(SampleDuration::from_ticks(500_000)),
+            duration: SampleDuration::from_ticks(500_000),
         },
     ));
     assert_eq!(color(&mut console, 2.4), WHITE, "a later start replays it");
@@ -126,14 +126,14 @@ fn archived_console_plays_like_the_prepared_one() {
         1.0,
         ConsoleCommand::Start {
             voice: 0,
-            duration: None,
+            duration: SampleDuration::from_ticks(10_000_000),
         },
     ));
     assert_eq!(color(&mut console, 2.0), WHITE);
 }
 
 #[test]
-fn open_voice_plays_until_stopped() {
+fn voice_plays_until_stopped() {
     let mut console = console(&[white()], |builder, effects| {
         builder.voice(effects[0]);
     });
@@ -141,7 +141,7 @@ fn open_voice_plays_until_stopped() {
         1.0,
         ConsoleCommand::Start {
             voice: 0,
-            duration: None,
+            duration: SampleDuration::from_ticks(10_000_000),
         },
     ));
     assert_eq!(color(&mut console, 4.0), WHITE);

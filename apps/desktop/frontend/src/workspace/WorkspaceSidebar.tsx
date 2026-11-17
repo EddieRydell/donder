@@ -1,6 +1,6 @@
 import { AlertTriangle, Files, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { commands } from "../api";
+import { commands, errorMessage } from "../api";
 import { listenUiEvent } from "../ui/uiEvents";
 import { runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import type {
@@ -35,7 +35,7 @@ export function WorkspaceSidebar({
   onLayoutChange: (layout: WorkspaceLayoutState, immediate?: boolean) => void;
 }) {
   const [pendingPlan, setPendingPlan] = useState<WorkspacePathChangePlan | null>(null);
-  const setError = useAppStore((state) => state.setError);
+  const reportFailure = useAppStore((state) => state.reportFailure);
   const focus = useCallback((view: SidebarView) => {
     onLayoutChange({ ...layout, activeSidebarView: view, sidebarCollapsed: false }, true);
   }, [layout, onLayoutChange]);
@@ -46,11 +46,11 @@ export function WorkspaceSidebar({
     try {
       const request = { source, destination, projectRevision: snapshot.projectRevision };
       const plan = await commands.planWorkspacePathChange(request);
-      setError(null);
+      reportFailure("command", null);
       if (plan.structural) setPendingPlan(plan);
       else await runSnapshotCommand(() => commands.applyWorkspacePathChange(request));
     } catch (error) {
-      setError(String(error));
+      reportFailure("command", errorMessage(error));
       throw error;
     }
   };

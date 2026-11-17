@@ -27,7 +27,7 @@ pub(crate) struct SourceTexts {
 }
 
 impl SourceTexts {
-    fn new(root: &Utf8Path, overrides: &SourceOverrides) -> Self {
+    pub(crate) fn new(root: &Utf8Path, overrides: &SourceOverrides) -> Self {
         Self {
             root: root.to_path_buf(),
             texts: overrides

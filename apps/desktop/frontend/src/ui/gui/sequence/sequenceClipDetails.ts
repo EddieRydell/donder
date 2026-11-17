@@ -1,4 +1,4 @@
-import { commands } from "../../../api";
+import { commands, errorMessage } from "../../../api";
 import { useAppStore } from "../../../store";
 import { useEffect, useState } from "react";
 import type { SequenceGuiDocument, SequenceClipDetails } from "../../../types";
@@ -12,7 +12,7 @@ type LoadedDetails = { key: string; details: Map<number, SequenceClipDetails> };
  *  edit the previous details stay until the new ones replace them. */
 export function useSequenceClipDetails(document: SequenceGuiDocument, clipIds: number[]): Map<number, SequenceClipDetails> | null {
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
-  const setError = useAppStore((store) => store.setError);
+  const reportFailure = useAppStore((store) => store.reportFailure);
   const key = clipIds.join(",");
   const [loaded, setLoaded] = useState<LoadedDetails | null>(null);
   const { ownedPath, path, objectKey } = document.sourceRef;
@@ -25,14 +25,15 @@ export function useSequenceClipDetails(document: SequenceGuiDocument, clipIds: n
       .getSequenceClipDetails({ ownedPath, projectRevision, path, objectKey }, ids)
       .then((result) => {
         if (!cancelled) setLoaded({ key, details: new Map(result.details.map((details) => [details.id, details])) });
+        reportFailure("command", null);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setError(String(error));
+        if (!cancelled) reportFailure("command", errorMessage(error));
       });
     return () => {
       cancelled = true;
     };
-  }, [key, objectKey, ownedPath, path, projectRevision, setError]);
+  }, [key, objectKey, ownedPath, path, projectRevision, reportFailure]);
 
   if (key === "") return new Map();
   return loaded?.key === key ? loaded.details : null;

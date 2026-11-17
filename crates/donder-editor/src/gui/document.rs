@@ -4,6 +4,9 @@ use super::*;
 pub enum GuiMutationError {
     /// The edit cannot be made, for the reason the message gives.
     Invalid(String),
+    /// A value the edit sets at a field of the open editor cannot be made,
+    /// for the reason the message gives.
+    At(crate::dto::GuiProblemSite, String),
     /// The model refused the edit.
     Rejected(donder_model::EditRejection),
     /// The edited project breaks a project rule.
@@ -11,21 +14,11 @@ pub enum GuiMutationError {
 }
 
 impl GuiMutationError {
-    pub fn message(&self) -> String {
+    /// This error at `site`, unless it already names where it lies.
+    pub(crate) fn at(self, site: crate::dto::GuiProblemSite) -> Self {
         match self {
-            Self::Invalid(message) => message.clone(),
-            Self::Rejected(rejection) => rejection.to_string(),
-            Self::Project(error) => error.to_string(),
-        }
-    }
-
-    /// This error with a broken project rule named by the object it concerns in
-    /// `session`, the session the edit was made in.
-    pub fn named(self, session: &ProjectSession) -> Self {
-        match self {
-            Self::Project(error) => {
-                Self::Invalid(donder_project_io::validation_message(session, &error))
-            }
+            Self::Invalid(message) => Self::At(site, message),
+            Self::Rejected(rejection) => Self::At(site, rejection.to_string()),
             error => error,
         }
     }

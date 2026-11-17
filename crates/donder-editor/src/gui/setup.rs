@@ -140,7 +140,11 @@ pub(super) fn edit_setup(
             donder_model::detach_input_device(&mut session.project, &setup.id, &id)
                 .map_err(GuiMutationError::from)?;
         }
-        SetupGuiEdit::AddInputDevice { driver, controls } => {
+        SetupGuiEdit::AddInputDevice {
+            driver,
+            controls,
+            storage,
+        } => {
             let name = super::model::fresh_name("input_device", |name| {
                 setup
                     .input_devices
@@ -150,12 +154,25 @@ pub(super) fn edit_setup(
             let id = InputDeviceId(session.project.new_id());
             let device = super::input_device::domain_input_device(id, None, driver, controls)?;
             setup.input_devices.push(donder_model::OwnedMember::Inline {
-                name,
+                name: name.clone(),
                 value: Box::new(device),
             });
+            let owner = setup.id.into();
             session.project.put(setup).map_err(GuiMutationError::from)?;
+            super::ownership::store_new_member(
+                session,
+                resolved,
+                owner,
+                id.into(),
+                name.as_str(),
+                storage,
+            )?;
         }
-        SetupGuiEdit::AddController { config, ports } => {
+        SetupGuiEdit::AddController {
+            config,
+            ports,
+            storage,
+        } => {
             let name = super::model::fresh_name("controller", |name| {
                 setup
                     .controllers
@@ -165,10 +182,19 @@ pub(super) fn edit_setup(
             let id = ControllerId(session.project.new_id());
             let controller = super::controller::domain_controller(id, None, config, ports)?;
             setup.controllers.push(donder_model::OwnedMember::Inline {
-                name,
+                name: name.clone(),
                 value: Box::new(controller),
             });
+            let owner = setup.id.into();
             session.project.put(setup).map_err(GuiMutationError::from)?;
+            super::ownership::store_new_member(
+                session,
+                resolved,
+                owner,
+                id.into(),
+                name.as_str(),
+                storage,
+            )?;
         }
     }
     Ok(())

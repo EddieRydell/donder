@@ -37,7 +37,7 @@ pub(crate) fn declared_from_gui<I: TryFrom<ObjectId>>(
     session
         .declared_id(&source_identity_from_gui(path, object))
         .and_then(|id| I::try_from(id).ok())
-        .ok_or_else(|| GuiMutationError::Invalid(format!("`{object}` was not found.")))
+        .ok_or_else(|| GuiMutationError::Invalid(format!("{object} was not found.")))
 }
 
 /// The object a GUI reference addresses, as the id its kind takes.
@@ -94,7 +94,7 @@ pub(super) fn fresh_name(text: &str, taken: impl Fn(&str) -> bool) -> Identifier
 
 pub(super) fn identifier(value: &str) -> Result<Identifier, GuiMutationError> {
     Identifier::new(value.to_string())
-        .map_err(|_| GuiMutationError::Invalid(format!("Invalid identifier `{value}`.")))
+        .map_err(|_| GuiMutationError::Invalid(format!("{value} is not a valid name.")))
 }
 
 pub(super) fn clip_scope(scope: SequenceClipScope) -> ClipScope {
@@ -135,7 +135,7 @@ pub(super) fn required_param_values(
                 .map(|value| (param.name.clone(), value))
                 .ok_or_else(|| {
                     GuiMutationError::Invalid(format!(
-                        "Parameter `{}` requires an explicit value.",
+                        "Parameter {} needs a value.",
                         param.name.as_str()
                     ))
                 })
@@ -203,7 +203,18 @@ pub(crate) fn param_value_from_gui(
         SequenceParamValue::Float { value } => ParamValue::Float(value),
         SequenceParamValue::Bool { value } => ParamValue::Bool(value),
         SequenceParamValue::Color { value } => ParamValue::Color(parse_color(&value)?),
-        SequenceParamValue::Enum { value } => ParamValue::Enum(identifier(&value)?),
+        SequenceParamValue::Enum { value, fields } => ParamValue::Enum {
+            option: identifier(&value)?,
+            fields: fields
+                .into_iter()
+                .map(|field| {
+                    Ok((
+                        identifier(&field.name)?,
+                        param_value_from_gui(session, owner, field.value)?,
+                    ))
+                })
+                .collect::<Result<_, GuiMutationError>>()?,
+        },
         SequenceParamValue::Marks { key } => ParamValue::Marks(
             key.map(|key| identifier(&key).map(|name| MarkCollectionKey { name }))
                 .transpose()?,
@@ -277,7 +288,7 @@ fn library_identity(
     let id = session
         .declared_id(&source_identity_from_gui(&path, &object_key))
         .filter(|id| id.kind() == kind)
-        .ok_or_else(|| GuiMutationError::Invalid(format!("`{object_key}` was not found.")))?;
+        .ok_or_else(|| GuiMutationError::Invalid(format!("{object_key} was not found.")))?;
     donder_project_io::link_declaration(session, owner, id)
         .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(Some(id))
@@ -298,7 +309,11 @@ pub(super) fn automation_binding_value_at(
             AutomationValue::Int(value) => ParamValue::Int(value),
             AutomationValue::Float(value) => ParamValue::Float(value),
             AutomationValue::Bool(value) => ParamValue::Bool(value),
-            AutomationValue::Enum(value) => ParamValue::Enum(value.clone()),
+            // An enum whose options carry fields is never automated.
+            AutomationValue::Enum(value) => ParamValue::Enum {
+                option: value.clone(),
+                fields: indexmap::IndexMap::new(),
+            },
             AutomationValue::Curve(value) => ParamValue::Curve(OwnedCurve::Inline(value)),
         })
         .ok_or_else(|| {
@@ -384,7 +399,7 @@ pub(super) fn gradient_from_dto(gradient: SequenceGradient) -> Result<Gradient, 
 
 pub(super) fn parse_color(value: &str) -> Result<Color, GuiMutationError> {
     Color::from_hex(value)
-        .ok_or_else(|| GuiMutationError::Invalid(format!("Invalid color `{value}`.")))
+        .ok_or_else(|| GuiMutationError::Invalid(format!("{value} is not a color.")))
 }
 
 pub(super) fn domain_point3_meters(point: Point3Meters) -> Point3 {

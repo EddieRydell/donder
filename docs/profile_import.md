@@ -45,9 +45,12 @@ importer does not know refuses the model.
   a submodel (`Model/Submodel`) find it. A submodel defined by a buffer
   rectangle, rather than node ranges, is left out, and so is a Keep XY
   submodel naming nodes the model does not have.
-- E1.31 and Art-Net controllers become controllers with one port per
-  universe.
-- Each model's channels become one route per universe.
+- E1.31 and Art-Net controllers become a controller for each run of
+  consecutive universes of one width; a shorter last universe sends its
+  unused channels as zero. Universes that do not follow on, or follow a
+  shorter one, start another controller.
+- Each model's channels become one route for each run of consecutive
+  channels on one controller, across universe boundaries.
 - A model's dimming curve that is one brightness and gamma for all its
   colors (`ModelBrightness`, or a `dimmingCurve` with an `all` entry) sets
   its routes' brightness and gamma. xLights truncates the curve to whole
@@ -134,7 +137,8 @@ Controllers that are not created still have their outputs numbered:
 
 A model whose channels an earlier model in the file already uses is left
 out, since Donder routes do not overlap, and a model's routes are left out
-when a pixel would continue from one universe into the next.
+when a pixel would continue past its universe into one that is not the next
+universe of the same controller.
 
 ## Vixen
 
@@ -163,8 +167,9 @@ each piece of the code names the Vixen code it follows.
 - A pixel is its element's channel through a color breakdown that mixes
   red, green and blue, whose three outputs are patched to consecutive
   channels of one universe; their order is the pixel's color order.
-- E1.31 controllers become controllers with a port for each active universe.
-  A universe sends the controller's outputs from its start, as Vixen does.
+- E1.31 controllers become controllers of consecutive active universes, as
+  for xLights. A universe sends the controller's outputs from its start, as
+  Vixen does.
 - An element group becomes a group when its elements are exactly a set of
   whole fixtures. It holds its imported child groups and the fixtures of its
   other elements.

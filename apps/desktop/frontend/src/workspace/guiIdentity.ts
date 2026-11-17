@@ -29,3 +29,11 @@ export function guiRequestKind(request: GuiDocumentRequest | null, descriptor: D
   if (slot !== undefined) return slot.type;
   return descriptor?.guiObjects.find((object) => object.key === request.objectKey)?.kind ?? null;
 }
+
+/** The name an object is shown by: its owned slot's name, else its declaration's. A setup, layout, patch or
+ * fixture slot names its object by kind or by the owner's record, so it has none here. */
+export function guiObjectName(reference: Address): string | null {
+  const slot = reference.ownedPath[reference.ownedPath.length - 1];
+  if (slot === undefined) return reference.objectKey;
+  return "name" in slot ? slot.name : null;
+}

@@ -1,6 +1,6 @@
 //! Consoles: sequences built live from input devices.
 use donder_model::{
-    Action, AutomationTarget, ClipScope, Console, ConsoleClipId, ConsoleId, ControlRef,
+    Action, Always, AutomationTarget, ClipScope, Console, ConsoleClipId, ConsoleId, ControlRef,
     FixtureInstanceId, FixtureTarget as DomainFixtureTarget, InputDevice, InputDeviceId,
     InputEvent, LengthSource, LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId, Play, PlayLength,
     PlayedQuantity, PlayedValue, SequenceLayerId, Window,
@@ -27,6 +27,10 @@ use crate::dto::{
     ConsolePlayedQuantity, ConsolePlayedValue, FixtureTarget, GuiDocument, SequenceClipScope,
     SequenceEffectReference,
 };
+
+/// The length a clip newly started from the session's start, or by a new
+/// `Start` or `Toggle`, repeats every.
+const HELD_LENGTH_SECONDS: f64 = 4.0;
 
 pub(super) fn project_console(
     session: &ProjectSession,
@@ -71,9 +75,9 @@ pub(super) fn project_console(
             clips: console
                 .clips
                 .iter()
-                .map(|clip| project_clip(session, clip))
+                .map(|clip| project_clip(session, console, clip))
                 .collect(),
-            always: console.always.iter().map(|clip| clip.0).collect(),
+            always: console.always.iter().map(|always| always.clip.0).collect(),
             events: console
                 .events
                 .iter()
@@ -85,12 +89,14 @@ pub(super) fn project_console(
             gradient_library: gradient_library(session),
             input_devices: input_devices(session),
             max_copies: u32::from(MAX_COPIES),
+            held_length_seconds: HELD_LENGTH_SECONDS,
         },
     }
 }
 
 fn project_clip(
     session: &ProjectSession,
+    console: &Console,
     clip: &donder_model::ConsoleClip,
 ) -> crate::dto::ConsoleClip {
     crate::dto::ConsoleClip {
@@ -125,6 +131,11 @@ fn project_clip(
                 window: value.window.into(),
             })
             .collect(),
+        always_length_seconds: console
+            .always
+            .iter()
+            .find(|always| always.clip == clip.id)
+            .map(|always| always.length.as_seconds_f64()),
     }
 }
 
@@ -170,9 +181,15 @@ fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
                 },
             },
         },
-        Action::Start { clip } => ConsoleAction::Start { clip_id: clip.0 },
+        Action::Start { clip, length } => ConsoleAction::Start {
+            clip_id: clip.0,
+            length_seconds: length.as_seconds_f64(),
+        },
         Action::Stop { clip } => ConsoleAction::Stop { clip_id: clip.0 },
-        Action::Toggle { clip } => ConsoleAction::Toggle { clip_id: clip.0 },
+        Action::Toggle { clip, length } => ConsoleAction::Toggle {
+            clip_id: clip.0,
+            length_seconds: length.as_seconds_f64(),
+        },
         Action::Mark(key) => ConsoleAction::Mark {
             into: key.name.as_str().to_string(),
         },
@@ -218,14 +235,22 @@ fn action_from_gui(
                 },
             },
         }),
-        ConsoleAction::Start { clip_id } => Action::Start {
+        ConsoleAction::Start {
+            clip_id,
+            length_seconds,
+        } => Action::Start {
             clip: ConsoleClipId(clip_id),
+            length: checked_gui_duration(length_seconds)?,
         },
         ConsoleAction::Stop { clip_id } => Action::Stop {
             clip: ConsoleClipId(clip_id),
         },
-        ConsoleAction::Toggle { clip_id } => Action::Toggle {
+        ConsoleAction::Toggle {
+            clip_id,
+            length_seconds,
+        } => Action::Toggle {
             clip: ConsoleClipId(clip_id),
+            length: checked_gui_duration(length_seconds)?,
         },
         ConsoleAction::Mark { into } => Action::Mark(MarkCollectionKey {
             name: identifier(&into)?,
@@ -336,7 +361,10 @@ pub(super) fn edit_console(
         } => {
             let (id, name) = add_clip(session, owner, &mut draft, &initial_color, effect, target)?;
             created.push(name);
-            draft.always.push(id);
+            draft.always.push(Always {
+                clip: id,
+                length: checked_gui_duration(HELD_LENGTH_SECONDS)?,
+            });
         }
         ConsoleGuiEdit::AddClip {
             initial_color,
@@ -369,15 +397,24 @@ pub(super) fn edit_console(
                         length: PlayLength::Fixed(checked_gui_duration(1.0)?),
                     }),
                 )?,
-                ConsolePlayMode::Toggle => {
-                    push_action(&mut draft, event, control, Action::Toggle { clip })?
-                }
+                ConsolePlayMode::Toggle => push_action(
+                    &mut draft,
+                    event,
+                    control,
+                    Action::Toggle {
+                        clip,
+                        length: checked_gui_duration(HELD_LENGTH_SECONDS)?,
+                    },
+                )?,
                 ConsolePlayMode::Held => {
                     push_action(
                         &mut draft,
                         ConsoleEventKind::Press,
                         control.clone(),
-                        Action::Start { clip },
+                        Action::Start {
+                            clip,
+                            length: checked_gui_duration(HELD_LENGTH_SECONDS)?,
+                        },
                     )?;
                     push_action(
                         &mut draft,
@@ -412,7 +449,7 @@ pub(super) fn edit_console(
             }
             // An effect nothing plays or holds goes, with the stops that were left for it.
             if let Some(clip) = removed.clip() {
-                let started = draft.always.contains(&clip)
+                let started = draft.is_always(clip)
                     || draft
                         .events
                         .iter()
@@ -497,8 +534,21 @@ pub(super) fn edit_console(
         ConsoleGuiEdit::EditClip { id, edit } => {
             edit_clip(session, owner, &mut draft, ConsoleClipId(id), edit)?;
         }
-        ConsoleGuiEdit::SetAlways { clip_ids } => {
-            draft.always = clip_ids.into_iter().map(ConsoleClipId).collect();
+        ConsoleGuiEdit::SetAlways {
+            clip_id,
+            length_seconds,
+        } => {
+            let clip = ConsoleClipId(clip_id);
+            match length_seconds {
+                Some(seconds) => {
+                    let length = checked_gui_duration(seconds)?;
+                    match draft.always.iter_mut().find(|always| always.clip == clip) {
+                        Some(always) => always.length = length,
+                        None => draft.always.push(Always { clip, length }),
+                    }
+                }
+                None => draft.always.retain(|always| always.clip != clip),
+            }
         }
         ConsoleGuiEdit::AddEvent { event, input } => {
             let input = control_from_gui(session, owner, &input)?;
@@ -603,7 +653,7 @@ fn push_action(
 /// Remove a clip, the actions that play it and the bindings to it.
 pub(super) fn delete_clip(console: &mut Console, id: ConsoleClipId) {
     console.clips.retain(|clip| clip.id != id);
-    console.always.retain(|clip| *clip != id);
+    console.always.retain(|always| always.clip != id);
     for on in &mut console.events {
         on.actions.retain(|action| action.clip() != Some(id));
     }

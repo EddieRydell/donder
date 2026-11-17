@@ -40,29 +40,12 @@ pub(in crate::gui) fn invocation_params(
         .params()
         .iter()
         .filter_map(|param| {
-            let kind = param_kind(&param.ty)?;
-            let override_value = overrides.get(&param.name);
-            let mut value = override_value
-                .map(|value| param_value_to_gui(session, value, &param.ty))
-                .or_else(|| {
-                    param
-                        .default
-                        .as_ref()
-                        .and_then(|value| default_param_value(value, &param.ty))
-                })
-                .or_else(|| default_value_for_type(&param.ty))?;
+            let mut value = match overrides.get(&param.name) {
+                Some(value) => param_value_to_gui(session, value, &param.ty, &param.option_fields),
+                None => declared_value(session, param)?,
+            };
             let automation = automation(&param.name, &mut value);
-            Some(SequenceClipParam {
-                supports_automation: param.supports_automation(),
-                name: param.name.as_str().to_string(),
-                description: param.description.clone(),
-                kind,
-                options: param_options(&param.ty),
-                range: param_range(param),
-                editable: automation.is_none(),
-                automation,
-                value,
-            })
+            param_to_gui(session, param, value, automation)
         })
         .collect()
 }
@@ -174,28 +157,14 @@ fn graph_operator_params(
         .params()
         .iter()
         .filter_map(|declaration| {
-            let kind = param_kind(&declaration.ty)?;
-            let override_value = operator.params.get(&declaration.name);
-            let mut value = override_value
-                .map(|value| param_value_to_gui(session, value, &declaration.ty))
-                .or_else(|| {
-                    declaration
-                        .default
-                        .as_ref()
-                        .and_then(|value| default_param_value(value, &declaration.ty))
-                })?;
+            let mut value = match operator.params.get(&declaration.name) {
+                Some(value) => {
+                    param_value_to_gui(session, value, &declaration.ty, &declaration.option_fields)
+                }
+                None => declared_value(session, declaration)?,
+            };
             let automation = automation(node_id, &declaration.name, &mut value);
-            Some(SequenceClipParam {
-                supports_automation: declaration.supports_automation(),
-                name: declaration.name.as_str().to_string(),
-                description: declaration.description.clone(),
-                kind,
-                options: param_options(&declaration.ty),
-                range: param_range(declaration),
-                editable: automation.is_none(),
-                value,
-                automation,
-            })
+            param_to_gui(session, declaration, value, automation)
         })
         .collect()
 }
@@ -372,20 +341,86 @@ fn param_range(param: &ParamDecl) -> Option<SequenceParamRange> {
     })
 }
 
-fn param_options(ty: &Type) -> Vec<String> {
-    match ty {
+/// A declared parameter, valued at `value`, as the inspector shows it.
+fn param_to_gui(
+    session: &ProjectSession,
+    param: &ParamDecl,
+    value: SequenceParamValue,
+    automation: Option<SequenceParamAutomation>,
+) -> Option<SequenceClipParam> {
+    let new_item = match (
+        &param.ty,
+        ParamValue::initial_for_param(param, NEW_ITEM_COLOR),
+    ) {
+        (Type::Array(item), Some(ParamValue::Array(items))) => items
+            .first()
+            .map(|value| param_value_to_gui(session, value, item, &[])),
+        _ => None,
+    };
+    Some(SequenceClipParam {
+        supports_automation: param.supports_automation(),
+        name: param.name.as_str().to_string(),
+        description: param.description.clone(),
+        kind: param_kind(&param.ty)?,
+        options: param_options(session, param),
+        range: param_range(param),
+        editable: automation.is_none(),
+        automation,
+        value,
+        new_item,
+    })
+}
+
+/// The color a new item of a color or gradient array starts with.
+const NEW_ITEM_COLOR: donder_runtime_types::Color = donder_runtime_types::Color {
+    red: 1.0,
+    green: 1.0,
+    blue: 1.0,
+};
+
+/// A parameter's value when nothing overrides it: its default, else its
+/// type's. An enum option starts with its fields' defaults.
+fn declared_value(session: &ProjectSession, param: &ParamDecl) -> Option<SequenceParamValue> {
+    match param
+        .default
+        .clone()
+        .unwrap_or_else(|| param.ty.default_value())
+    {
+        EffectValue::Enum(option) => Some(param_value_to_gui(
+            session,
+            &ParamValue::option(param, option),
+            &param.ty,
+            &param.option_fields,
+        )),
+        value => default_param_value(&value, &param.ty),
+    }
+}
+
+fn param_options(session: &ProjectSession, param: &ParamDecl) -> Vec<SequenceParamOption> {
+    match &param.ty {
         Type::Enum(options) => options
             .iter()
-            .map(|option| option.as_str().to_string())
+            .map(|option| SequenceParamOption {
+                name: option.as_str().to_string(),
+                fields: param
+                    .fields_of(option)
+                    .iter()
+                    .filter_map(|field| {
+                        param_to_gui(session, field, declared_value(session, field)?, None)
+                    })
+                    .collect(),
+            })
             .collect(),
         _ => Vec::new(),
     }
 }
 
+/// `value` of type `ty`, whose enum options carry `option_fields`.
 fn param_value_to_gui(
     session: &ProjectSession,
     value: &ParamValue,
     ty: &Type,
+    option_fields: &[Vec<ParamDecl>],
 ) -> SequenceParamValue {
     match value {
         ParamValue::Int(value) => SequenceParamValue::Int {
@@ -396,9 +431,27 @@ fn param_value_to_gui(
         ParamValue::Color(value) => SequenceParamValue::Color {
             value: value.to_hex(),
         },
-        ParamValue::Enum(value) => SequenceParamValue::Enum {
-            value: value.as_str().to_string(),
-        },
+        ParamValue::Enum { option, fields } => {
+            let declared = match ty {
+                Type::Enum(options) => options
+                    .iter()
+                    .position(|candidate| candidate == option)
+                    .and_then(|index| option_fields.get(index))
+                    .map_or(&[][..], Vec::as_slice),
+                _ => &[],
+            };
+            SequenceParamValue::Enum {
+                value: option.as_str().to_string(),
+                fields: fields
+                    .iter()
+                    .zip(declared)
+                    .map(|((name, value), field)| SequenceParamField {
+                        name: name.as_str().to_string(),
+                        value: param_value_to_gui(session, value, &field.ty, &field.option_fields),
+                    })
+                    .collect(),
+            }
+        }
         ParamValue::Marks(value) => SequenceParamValue::Marks {
             key: value
                 .as_ref()
@@ -455,6 +508,7 @@ fn default_param_value(value: &EffectValue, ty: &Type) -> Option<SequenceParamVa
         },
         EffectValue::Enum(value) => SequenceParamValue::Enum {
             value: value.as_str().to_string(),
+            fields: Vec::new(),
         },
         EffectValue::Marks(_) => SequenceParamValue::Marks { key: None },
         EffectValue::Curve(curve) => SequenceParamValue::Curve {
@@ -483,10 +537,6 @@ fn default_param_value(value: &EffectValue, ty: &Type) -> Option<SequenceParamVa
     })
 }
 
-fn default_value_for_type(ty: &Type) -> Option<SequenceParamValue> {
-    default_param_value(&ty.default_value(), ty)
-}
-
 fn library_link(id: &donder_project_io::SourceIdentity) -> SequenceLibraryLink {
     SequenceLibraryLink::Library {
         path: id.document().to_string(),
@@ -507,7 +557,7 @@ fn array_param_value(
     };
     let converted = values
         .iter()
-        .map(|value| param_value_to_gui(session, value, inner))
+        .map(|value| param_value_to_gui(session, value, inner, &[]))
         .collect::<Vec<_>>();
     array_param_from_sequence_values(&converted, inner)
 }
@@ -586,6 +636,6 @@ use crate::dto::{
     SequenceClipParam, SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceCurveValue,
     SequenceGradientLibraryItem, SequenceGradientValue, SequenceGraphEdge, SequenceGraphNode,
     SequenceGraphNodeKind, SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceLayer,
-    SequenceLibraryLink, SequenceParamAutomation, SequenceParamKind, SequenceParamRange,
-    SequenceParamValue,
+    SequenceLibraryLink, SequenceParamAutomation, SequenceParamField, SequenceParamKind,
+    SequenceParamOption, SequenceParamRange, SequenceParamValue,
 };

@@ -25,10 +25,17 @@ pub struct Console {
     pub live_marks: Vec<LiveMarks>,
     pub layers: Vec<SequenceLayer>,
     pub clips: Vec<ConsoleClip>,
-    /// Clips that play for the whole session.
-    pub always: Vec<ConsoleClipId>,
+    /// Clips that play from the session's start until it ends.
+    pub always: Vec<Always>,
     pub events: Vec<On>,
     pub composition_graph: SequenceCompositionGraph,
+}
+
+/// A clip that plays from the session's start, repeating every `length`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Always {
+    pub clip: ConsoleClipId,
+    pub length: DonderDuration,
 }
 
 /// A mark collection that starts empty each session and gains a mark each
@@ -103,12 +110,19 @@ impl InputEvent {
 pub enum Action {
     /// Play a copy of a clip for its length, on top of the copies playing.
     Play(Play),
-    /// Play one copy of a clip until it is stopped; nothing while it plays.
-    Start { clip: ConsoleClipId },
+    /// Play one copy of a clip until it is stopped, repeating every
+    /// `length`; nothing while it plays.
+    Start {
+        clip: ConsoleClipId,
+        length: DonderDuration,
+    },
     /// Stop every playing copy of a clip.
     Stop { clip: ConsoleClipId },
     /// `Start` while no copy of the clip plays, else `Stop`.
-    Toggle { clip: ConsoleClipId },
+    Toggle {
+        clip: ConsoleClipId,
+        length: DonderDuration,
+    },
     /// Add a mark to a live collection.
     Mark(MarkCollectionKey),
     /// Write the event's value into a parameter: an axis's position, a
@@ -124,7 +138,9 @@ impl Action {
     pub fn clip(&self) -> Option<ConsoleClipId> {
         match self {
             Self::Play(play) => Some(play.clip),
-            Self::Start { clip } | Self::Stop { clip } | Self::Toggle { clip } => Some(*clip),
+            Self::Start { clip, .. } | Self::Stop { clip } | Self::Toggle { clip, .. } => {
+                Some(*clip)
+            }
             Self::Mark(_) | Self::Set { .. } => None,
         }
     }
@@ -132,9 +148,9 @@ impl Action {
     /// The clip the action starts a copy of, from the event's press.
     pub fn started(&self) -> Option<ConsoleClipId> {
         match self {
-            Self::Play(Play { clip, .. }) | Self::Start { clip } | Self::Toggle { clip } => {
-                Some(*clip)
-            }
+            Self::Play(Play { clip, .. })
+            | Self::Start { clip, .. }
+            | Self::Toggle { clip, .. } => Some(*clip),
             Self::Stop { .. } | Self::Mark(_) | Self::Set { .. } => None,
         }
     }
@@ -218,6 +234,11 @@ pub enum ClipUse {
 impl Console {
     pub fn clip(&self, id: ConsoleClipId) -> Option<&ConsoleClip> {
         self.clips.iter().find(|clip| clip.id == id)
+    }
+
+    /// Whether `clip` plays from the session's start.
+    pub fn is_always(&self, clip: ConsoleClipId) -> bool {
+        self.always.iter().any(|always| always.clip == clip)
     }
 
     /// The parameters `Set` actions write, each once, in the order the

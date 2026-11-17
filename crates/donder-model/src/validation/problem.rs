@@ -4,8 +4,8 @@ use std::fmt;
 
 use crate::console::{ConsoleClipId, MAX_COPIES, OnId};
 use crate::controller::{
-    ARTNET_PORT_ADDRESS_MAX, ControllerPortId, ControllerValidationError, DMX_SLOT_LIMIT,
-    E131_UNIVERSE_MAX, E131_UNIVERSE_MIN,
+    ARTNET_PORT_ADDRESS_MAX, ChannelPlace, ControllerOutput, ControllerPortId,
+    ControllerValidationError, DMX_SLOT_LIMIT, E131_UNIVERSE_MAX, E131_UNIVERSE_MIN,
 };
 use crate::effect::ClipId;
 use crate::fixture::{FixtureDefinitionError, FixtureElementId, FixtureGeometryError};
@@ -14,6 +14,7 @@ use crate::input_device::{InputControlId, InputDeviceValidationError};
 use crate::layout::{FixtureInstanceId, LayoutError};
 use crate::operator::GraphValidationError;
 use crate::patch::PixelRouteId;
+use crate::patch::PixelSpan;
 use crate::sequence::{AutomationClipId, CompositionGraphNodeId, SequenceLayerId};
 use crate::validation::{MAX_SEQUENCE_FRAME_COUNT, MAX_SEQUENCE_FRAME_RATE};
 use donder_runtime_types::{
@@ -52,6 +53,8 @@ pub enum ValidationProblem {
     InputDevice(InputDeviceValidationError),
     Route {
         route: PixelRouteId,
+        /// The fixture it drives, when its layout has it.
+        fixture: Option<Identifier>,
         problem: RouteProblem,
     },
     Setup(SetupProblem),
@@ -76,24 +79,55 @@ pub enum OwnershipProblem {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RouteProblem {
     DuplicateId,
-    InvalidEncoding,
+    InvalidColorOrder,
+    InvalidGamma,
+    InvalidBrightness,
     MissingLayout,
     TargetNotFixture,
     Target(LayoutError),
-    SpanExceedsTarget,
+    EmptySpan,
+    SpanExceedsTarget {
+        span: PixelSpan,
+        /// The fixture's pixels.
+        pixels: u32,
+    },
     MissingController,
+    /// The route names a port of an E1.31 or Art-Net controller.
+    PortOnUniverses,
+    /// The route on a Donder controller names none of its ports.
+    NeedsPort,
     MissingPort,
     ChannelOverflow,
-    OutputExceedsPort,
-    OutputsOverlap,
+    /// Zero-based `channels` end past the `available` channels of `output`.
+    PastLastChannel {
+        channels: std::ops::Range<u32>,
+        available: u32,
+        output: ControllerOutput,
+    },
+    /// The route's zero-based `pixels` share the channels at `place` with
+    /// an earlier route, of the fixture `other`.
+    OutputsOverlap {
+        pixels: std::ops::Range<u32>,
+        other: Identifier,
+        place: ChannelPlace,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SetupProblem {
     TooManyControllers,
     SharedOscPort(u16),
-    RouteOnOtherLayout(PixelRouteId),
-    RouteControllerInactive(PixelRouteId),
+    /// A route, of the fixture when its layout has it, targets another layout.
+    RouteOnOtherLayout {
+        route: PixelRouteId,
+        fixture: Option<Identifier>,
+    },
+    /// A route, of the fixture when its layout has it, plays through a
+    /// controller the setup does not have.
+    RouteControllerInactive {
+        route: PixelRouteId,
+        fixture: Option<Identifier>,
+    },
 }
 
 /// A sequence that cannot be played as written.
@@ -142,6 +176,13 @@ pub enum ConsoleValidationError {
     RepeatedAlwaysClip {
         clip: ConsoleClipId,
         name: Identifier,
+    },
+    /// The length `always` repeats a clip every is not positive or leaves
+    /// the playback clock.
+    AlwaysLength {
+        clip: ConsoleClipId,
+        name: Identifier,
+        problem: EventProblem,
     },
     Event {
         event: OnId,
@@ -428,9 +469,8 @@ impl ConsoleValidationError {
             Self::Composition(problem) => problem.site(),
             Self::DuplicateClipId(clip)
             | Self::PlayedAndHeld { clip, .. }
-            | Self::RepeatedAlwaysClip { clip, .. } => {
-                Some(ProblemSite::of(Member::ConsoleClip(*clip)))
-            }
+            | Self::RepeatedAlwaysClip { clip, .. }
+            | Self::AlwaysLength { clip, .. } => Some(ProblemSite::of(Member::ConsoleClip(*clip))),
             Self::DuplicateEventId(event) => Some(ProblemSite::of(Member::Event(*event))),
             Self::Clip { clip, problem, .. } => Some(problem.site(Member::ConsoleClip(*clip))),
             Self::Event { event, problem } => {
@@ -522,16 +562,19 @@ impl fmt::Display for ValidationProblem {
             Self::MissingController => f.write_str("a referenced controller is missing"),
             Self::MissingInputDevice => f.write_str("a referenced input device is missing"),
             Self::Ownership(problem) => problem.fmt(f),
-            Self::DefinitionMismatch => {
-                f.write_str("the definition does not match its compiled declaration")
-            }
+            Self::DefinitionMismatch => f.write_str("the definition doesn't match its script"),
             Self::Curve(error) => write!(f, "invalid curve: {}", curve_error(error)),
             Self::Gradient(error) => write!(f, "invalid gradient: {}", gradient_error(error)),
             Self::Fixture(error) => error.fmt(f),
             Self::Layout(error) => error.fmt(f),
             Self::Controller(error) => error.fmt(f),
             Self::InputDevice(error) => error.fmt(f),
-            Self::Route { route, problem } => write!(f, "output {}: {problem}", route.0),
+            Self::Route {
+                fixture: Some(fixture),
+                problem,
+                ..
+            } => write!(f, "the output of {}: {problem}", fixture.as_str()),
+            Self::Route { problem, .. } => write!(f, "an output: {problem}"),
             Self::Setup(problem) => problem.fmt(f),
             Self::Sequence(error) => error.fmt(f),
             Self::Console(error) => error.fmt(f),
@@ -558,19 +601,94 @@ impl fmt::Display for OwnershipProblem {
 
 impl fmt::Display for RouteProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::DuplicateId => "another output has the same id",
-            Self::InvalidEncoding => "invalid LED encoding, gamma, or brightness",
-            Self::MissingLayout => "the target layout is missing",
-            Self::TargetNotFixture => "an output targets a fixture, not a group",
-            Self::Target(error) => return write!(f, "{error}"),
-            Self::SpanExceedsTarget => "the pixel span exceeds its target",
-            Self::MissingController => "the controller is missing",
-            Self::MissingPort => "the controller has no such port",
-            Self::ChannelOverflow => "the channel count overflows",
-            Self::OutputExceedsPort => "the output exceeds its controller port",
-            Self::OutputsOverlap => "the output overlaps another on its controller port",
-        })
+        match self {
+            Self::DuplicateId => f.write_str("another output has the same id"),
+            Self::InvalidColorOrder => f.write_str("its color order repeats a color"),
+            Self::InvalidGamma => f.write_str("its gamma is not above 0"),
+            Self::InvalidBrightness => f.write_str("its brightness is not from 0 to 1"),
+            Self::MissingLayout => f.write_str("its layout is missing"),
+            Self::TargetNotFixture => f.write_str("it targets a group, not a fixture"),
+            Self::Target(error) => error.fmt(f),
+            Self::EmptySpan => f.write_str("it routes no pixels"),
+            Self::SpanExceedsTarget { span, pixels } => write!(
+                f,
+                "pixels {} run past the fixture's {pixels}",
+                Span(span.start..span.start.saturating_add(span.count))
+            ),
+            Self::MissingController => f.write_str("its controller is missing"),
+            Self::PortOnUniverses => f.write_str("E1.31 and Art-Net controllers have no ports"),
+            Self::NeedsPort => f.write_str("it needs a port"),
+            Self::MissingPort => f.write_str("its port is missing"),
+            Self::ChannelOverflow => {
+                f.write_str("it has more channels than a controller can address")
+            }
+            Self::PastLastChannel {
+                channels,
+                available,
+                output,
+            } => write!(
+                f,
+                "channels {} run past the {available} channels of its {}",
+                Span(channels.clone()),
+                match output {
+                    ControllerOutput::Universes => "controller",
+                    ControllerOutput::Port(_) => "output",
+                }
+            ),
+            Self::OutputsOverlap {
+                pixels,
+                other,
+                place,
+            } => write!(
+                f,
+                "pixels {} overlap {} on {place}",
+                Span(pixels.clone()),
+                other.as_str()
+            ),
+        }
+    }
+}
+
+/// A nonempty zero-based range, as people count: `1–170`, or `4` alone.
+struct Span(std::ops::Range<u32>);
+
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(range) = self;
+        if range.end <= range.start + 1 {
+            write!(f, "{}", range.start + 1)
+        } else {
+            write!(f, "{}–{}", range.start + 1, range.end)
+        }
+    }
+}
+
+impl fmt::Display for ChannelPlace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Universes { first, last } if first.universe == last.universe => {
+                if first.channel == last.channel {
+                    write!(f, "universe {} channel {}", first.universe, first.channel)
+                } else {
+                    write!(
+                        f,
+                        "universe {} channels {}–{}",
+                        first.universe, first.channel, last.channel
+                    )
+                }
+            }
+            Self::Universes { first, last } => write!(
+                f,
+                "universe {} channel {} to universe {} channel {}",
+                first.universe, first.channel, last.universe, last.channel
+            ),
+            Self::Port { port, first, last } if first == last => {
+                write!(f, "{} channel {first}", port.as_str())
+            }
+            Self::Port { port, first, last } => {
+                write!(f, "{} channels {first}–{last}", port.as_str())
+            }
+        }
     }
 }
 
@@ -581,22 +699,17 @@ impl fmt::Display for SetupProblem {
                 f.write_str("the setup has more controllers than outputs can address")
             }
             Self::SharedOscPort(port) => {
-                write!(
-                    f,
-                    "two OSC input devices of the setup listen on port {port}"
-                )
+                write!(f, "two OSC input devices listen on port {port}")
             }
-            Self::RouteOnOtherLayout(route) => {
-                write!(
-                    f,
-                    "output {} targets a layout other than the setup's",
-                    route.0
-                )
-            }
-            Self::RouteControllerInactive(route) => write!(
+            Self::RouteOnOtherLayout { fixture, .. } => write!(
                 f,
-                "output {} plays through a controller that is not in the setup",
-                route.0
+                "the patch sends {} on another layout",
+                Fixture(fixture.as_ref())
+            ),
+            Self::RouteControllerInactive { fixture, .. } => write!(
+                f,
+                "the patch sends {} to a controller outside the setup",
+                Fixture(fixture.as_ref())
             ),
         }
     }
@@ -606,20 +719,15 @@ impl fmt::Display for TimingProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroFrameRate => f.write_str("the frame rate must be greater than zero"),
-            Self::FrameRateAboveLimit => write!(
-                f,
-                "the frame rate exceeds the limit of {MAX_SEQUENCE_FRAME_RATE} frames per second"
-            ),
+            Self::FrameRateAboveLimit => {
+                write!(f, "the frame rate is above {MAX_SEQUENCE_FRAME_RATE} fps")
+            }
             Self::ZeroDuration => f.write_str("the duration must be positive"),
-            Self::DurationBeyondClock => {
-                f.write_str("the duration exceeds the runtime clock range")
-            }
-            Self::DurationRoundsToZero => {
-                f.write_str("the duration rounds to zero on the runtime clock")
-            }
+            Self::DurationBeyondClock => f.write_str("the duration is too long"),
+            Self::DurationRoundsToZero => f.write_str("the duration is shorter than a frame"),
             Self::TooManyFrames => write!(
                 f,
-                "the sequence exceeds the frame budget of {MAX_SEQUENCE_FRAME_COUNT} frames"
+                "the sequence is longer than {MAX_SEQUENCE_FRAME_COUNT} frames"
             ),
         }
     }
@@ -628,11 +736,9 @@ impl fmt::Display for TimingProblem {
 impl fmt::Display for NameProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotSnakeCase(_, name) => {
-                write!(f, "`{}` is not a snake_case name", name.as_str())
-            }
+            Self::NotSnakeCase(_, name) => write!(f, "{} is not a valid name", name.as_str()),
             Self::Duplicate(member, name) => {
-                write!(f, "{} `{}` is declared twice", member.noun(), name.as_str())
+                write!(f, "two {}s are named {}", member.noun(), name.as_str())
             }
         }
     }
@@ -662,7 +768,7 @@ impl Member {
 impl fmt::Display for SequenceValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingActiveSetup => f.write_str("the active setup is missing"),
+            Self::MissingActiveSetup => f.write_str("the project's setup is missing"),
             Self::Timing(problem) => problem.fmt(f),
             Self::Name(problem) => problem.fmt(f),
             Self::Composition(problem) => problem.fmt(f),
@@ -670,17 +776,15 @@ impl fmt::Display for SequenceValidationError {
             Self::DuplicateAutomationClipId(clip) => {
                 write!(f, "automation clip id {} is used twice", clip.0)
             }
-            Self::MarkOutsideDuration(name) => write!(
-                f,
-                "a mark of `{}` lies outside the sequence duration",
-                name.as_str()
-            ),
+            Self::MarkOutsideDuration(name) => {
+                write!(f, "a mark of {} is past the sequence's end", name.as_str())
+            }
             Self::InvalidMarkLabel(name) => write!(
                 f,
-                "a mark label of `{}` must be one non-empty line without surrounding whitespace",
+                "a mark label of {} is empty, spans lines or has outer spaces",
                 name.as_str()
             ),
-            Self::Clip { name, problem, .. } => write!(f, "clip `{}`: {problem}", name.as_str()),
+            Self::Clip { name, problem, .. } => write!(f, "clip {}: {problem}", name.as_str()),
             Self::Automation { problem, .. } => problem.fmt(f),
         }
     }
@@ -689,21 +793,24 @@ impl fmt::Display for SequenceValidationError {
 impl fmt::Display for ConsoleValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingActiveSetup => f.write_str("the active setup is missing"),
+            Self::MissingActiveSetup => f.write_str("the project's setup is missing"),
             Self::Timing(problem) => problem.fmt(f),
             Self::Name(problem) => problem.fmt(f),
             Self::Composition(problem) => problem.fmt(f),
             Self::DuplicateClipId(clip) => write!(f, "clip id {} is used twice", clip.0),
             Self::DuplicateEventId(event) => write!(f, "event id {} is used twice", event.0),
-            Self::Clip { name, problem, .. } => write!(f, "clip `{}`: {problem}", name.as_str()),
+            Self::Clip { name, problem, .. } => write!(f, "clip {}: {problem}", name.as_str()),
             Self::PlayedAndHeld { name, .. } => write!(
                 f,
-                "clip `{}` is played by `Play` and also held by `Start`, `Toggle` or `always`",
+                "clip {} is played by Play and held by Start, Toggle or Always",
                 name.as_str()
             ),
-            Self::MissingAlwaysClip => f.write_str("`always` names a missing clip"),
+            Self::MissingAlwaysClip => f.write_str("an Always clip is missing"),
             Self::RepeatedAlwaysClip { name, .. } => {
-                write!(f, "`always` lists clip `{}` twice", name.as_str())
+                write!(f, "clip {} is set to Always twice", name.as_str())
+            }
+            Self::AlwaysLength { name, problem, .. } => {
+                write!(f, "Always clip {}: {problem}", name.as_str())
             }
             Self::Event { problem, .. } => problem.fmt(f),
             Self::Played {
@@ -714,33 +821,24 @@ impl fmt::Display for ConsoleValidationError {
             } => {
                 let (clip, param) = (name.as_str(), param.as_str());
                 match problem {
-                    PlayedProblem::Twice => write!(f, "clip `{clip}` plays `{param}` twice"),
+                    PlayedProblem::Twice => write!(f, "clip {clip} plays {param} twice"),
                     PlayedProblem::UnknownParam => {
-                        write!(
-                            f,
-                            "clip `{clip}` plays `{param}`, which its effect does not have"
-                        )
+                        write!(f, "clip {clip}'s effect has no parameter {param}")
                     }
-                    PlayedProblem::NotAutomatable => write!(
-                        f,
-                        "clip `{clip}` cannot play `{param}`; a played value sets a float, int, bool, enum or curve parameter"
-                    ),
+                    PlayedProblem::NotAutomatable => {
+                        write!(f, "clip {clip} can't play parameter {param}")
+                    }
                     PlayedProblem::WindowOutOfRange => {
-                        write!(f, "clip `{clip}`: `{param}`'s window must lie in 0..1")
+                        write!(f, "clip {clip}: the range of {param} leaves 0 to 1")
                     }
-                    PlayedProblem::WithoutPress => write!(
-                        f,
-                        "clip `{clip}` plays `{param}`, but `always` or an event other than a `Press` starts it"
-                    ),
-                    PlayedProblem::WithoutNotes => write!(
-                        f,
-                        "clip `{clip}` plays `{param}` from a note, but a control that starts it plays no notes"
-                    ),
+                    PlayedProblem::WithoutPress => {
+                        write!(f, "clip {clip} plays {param} but no press starts it")
+                    }
+                    PlayedProblem::WithoutNotes => {
+                        write!(f, "clip {clip} plays {param} from a note no control sends")
+                    }
                     PlayedProblem::AlsoSet => {
-                        write!(
-                            f,
-                            "clip `{clip}` plays `{param}`, which a `Set` also writes"
-                        )
+                        write!(f, "clip {clip} plays {param}, which a Set also writes")
                     }
                 }
             }
@@ -754,10 +852,8 @@ impl fmt::Display for CompositionProblem {
             Self::NoLayers => f.write_str("there must be at least one layer"),
             Self::DuplicateLayerId(layer) => write!(f, "layer id {} is used twice", layer.0),
             Self::Graph(error) => error.fmt(f),
-            Self::MissingLayer(_) => f.write_str("a layer node names a missing layer"),
-            Self::RepeatedLayer(_) => {
-                f.write_str("the composition graph contains this layer more than once")
-            }
+            Self::MissingLayer(_) => f.write_str("a layer in the graph is missing"),
+            Self::RepeatedLayer(_) => f.write_str("the layer is in the graph twice"),
             Self::Param { problem, .. } => problem.fmt(f),
         }
     }
@@ -768,13 +864,11 @@ impl fmt::Display for ClipProblem {
         match self {
             Self::MissingLayer => f.write_str("the clip's layer is missing"),
             Self::Region(problem) => problem.fmt(f),
-            Self::NotInActiveLayout => {
-                f.write_str("the clip target is not present in the active layout")
-            }
-            Self::MixedLayouts => f.write_str("all clip targets must use the same layout"),
-            Self::MissingTargetLayout => f.write_str("the clip target layout is missing"),
-            Self::MissingTarget => f.write_str("the clip target is not in its layout"),
-            Self::MissingDefinition => f.write_str("the effect definition is missing"),
+            Self::NotInActiveLayout => f.write_str("the clip's target isn't in the setup's layout"),
+            Self::MixedLayouts => f.write_str("clip targets are in different layouts"),
+            Self::MissingTargetLayout => f.write_str("the clip's layout is missing"),
+            Self::MissingTarget => f.write_str("the clip's target isn't in its layout"),
+            Self::MissingDefinition => f.write_str("the effect is missing"),
             Self::Param(problem) => problem.fmt(f),
         }
     }
@@ -784,32 +878,30 @@ impl fmt::Display for ParamProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::WrongType(param) => {
-                write!(f, "parameter `{}` has the wrong type", param.as_str())
+                write!(f, "parameter {} has the wrong type", param.as_str())
             }
             Self::MissingRequired(param) => {
-                write!(f, "required parameter `{}` is missing", param.as_str())
+                write!(f, "parameter {} needs a value", param.as_str())
             }
-            Self::Undeclared(param) => write!(f, "no parameter `{}`", param.as_str()),
-            Self::MissingMarks(param) => write!(
-                f,
-                "parameter `{}` names a missing mark collection",
-                param.as_str()
-            ),
+            Self::Undeclared(param) => write!(f, "no parameter {}", param.as_str()),
+            Self::MissingMarks(param) => {
+                write!(f, "parameter {}'s marks are missing", param.as_str())
+            }
             Self::MissingCurve(param) => {
-                write!(f, "parameter `{}` names a missing curve", param.as_str())
+                write!(f, "parameter {}'s curve is missing", param.as_str())
             }
             Self::MissingGradient(param) => {
-                write!(f, "parameter `{}` names a missing gradient", param.as_str())
+                write!(f, "parameter {}'s gradient is missing", param.as_str())
             }
             Self::InvalidCurve(param, error) => write!(
                 f,
-                "parameter `{}` has an invalid curve: {}",
+                "parameter {} has an invalid curve: {}",
                 param.as_str(),
                 curve_error(error)
             ),
             Self::InvalidGradient(param, error) => write!(
                 f,
-                "parameter `{}` has an invalid gradient: {}",
+                "parameter {} has an invalid gradient: {}",
                 param.as_str(),
                 gradient_error(error)
             ),
@@ -822,13 +914,11 @@ impl fmt::Display for RegionProblem {
         f.write_str(match self {
             Self::ZeroDuration => "the duration must be positive",
             Self::Overflow => "the timing overflows",
-            Self::BeyondSequence => "it extends beyond the sequence duration",
-            Self::StartBeyondClock => "the start exceeds the runtime clock range",
-            Self::DurationBeyondClock => "the duration exceeds the runtime clock range",
-            Self::RoundsToZero => "the duration rounds to zero on the runtime clock",
-            Self::EndBeyondAfterRounding => {
-                "the end exceeds the runtime clock range or sequence duration after rounding"
-            }
+            Self::BeyondSequence => "it runs past the sequence's end",
+            Self::StartBeyondClock => "it starts too late",
+            Self::DurationBeyondClock => "it is too long",
+            Self::RoundsToZero => "it is shorter than a frame",
+            Self::EndBeyondAfterRounding => "it runs past the end",
         })
     }
 }
@@ -836,31 +926,27 @@ impl fmt::Display for RegionProblem {
 impl fmt::Display for AutomationProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MixedLayouts => {
-                f.write_str("all timeline row targets in a sequence must use the same layout")
-            }
+            Self::MixedLayouts => f.write_str("the sequence's rows are in different layouts"),
             Self::NotInActiveLayout => {
-                f.write_str("the automation row is not in the active layout")
+                f.write_str("the envelope's row isn't in the setup's layout")
             }
-            Self::MissingRow => f.write_str("the automation row target is missing"),
+            Self::MissingRow => f.write_str("the envelope's row is missing"),
             Self::Region(problem) => problem.fmt(f),
             Self::InvalidCurve(error) => {
-                write!(f, "invalid automation curve: {}", curve_error(error))
+                write!(f, "invalid envelope: {}", curve_error(error))
             }
-            Self::CurveOutOfRange => f.write_str("automation curve values must lie in 0..1"),
-            Self::WindowOutOfRange => f.write_str("a binding's window must lie in 0..1"),
-            Self::BindsTwice => f.write_str("the automation clip binds one parameter twice"),
+            Self::CurveOutOfRange => f.write_str("envelope values leave 0 to 1"),
+            Self::WindowOutOfRange => f.write_str("a parameter's range leaves 0 to 1"),
+            Self::BindsTwice => f.write_str("the envelope drives one parameter twice"),
             Self::NotAutomatable(param) => {
-                write!(f, "parameter `{}` cannot be automated", param.as_str())
+                write!(f, "parameter {} can't follow an envelope", param.as_str())
             }
-            Self::MissingClip => f.write_str("the automated clip is missing"),
-            Self::MissingNode => f.write_str("the automated graph node is missing"),
+            Self::MissingClip => f.write_str("the envelope's clip is missing"),
+            Self::MissingNode => f.write_str("the envelope's operator is missing"),
             Self::MissingParam(param) => {
-                write!(f, "the automated parameter `{}` is missing", param.as_str())
+                write!(f, "the envelope's parameter {} is missing", param.as_str())
             }
-            Self::Overlap => {
-                f.write_str("automation clips that bind the same parameter must not overlap")
-            }
+            Self::Overlap => f.write_str("two envelopes drive one parameter at once"),
         }
     }
 }
@@ -869,10 +955,10 @@ impl fmt::Display for InputProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::MissingDevice => "the input device is missing",
-            Self::NotAControl => "the input is not a control of its device",
-            Self::NotInSetup => "the input device is not in the project's setup",
-            Self::NotAButton => "`Press` and `Release` read a button, not an axis",
-            Self::NotAnAxis => "`Move` reads an axis, not a button",
+            Self::NotAControl => "the control isn't on its device",
+            Self::NotInSetup => "the input device isn't in the setup",
+            Self::NotAButton => "an axis can't be pressed or released",
+            Self::NotAnAxis => "a button can't move",
         })
     }
 }
@@ -881,34 +967,21 @@ impl fmt::Display for EventProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Input(problem) => problem.fmt(f),
-            Self::AxisPlays => f.write_str("a `Move` can only `Set` parameters"),
-            Self::MissingClip => f.write_str("an action names a missing clip"),
-            Self::MissingNode => f.write_str("`Set` names a missing operator node"),
-            Self::UnknownParam(param) => write!(f, "no parameter `{}`", param.as_str()),
-            Self::NotAutomatable(param) => write!(
-                f,
-                "`{}` cannot be set; `Set` writes a float, int, bool, enum or curve parameter",
-                param.as_str()
-            ),
-            Self::SetByOtherControl(param) => write!(
-                f,
-                "parameter `{}` is set by another control",
-                param.as_str()
-            ),
-            Self::MissingLiveMarks(name) => {
-                write!(f, "no live mark collection `{}`", name.as_str())
+            Self::AxisPlays => f.write_str("moving an axis can only set parameters"),
+            Self::MissingClip => f.write_str("an action's clip is missing"),
+            Self::MissingNode => f.write_str("a Set's operator is missing"),
+            Self::UnknownParam(param) => write!(f, "no parameter {}", param.as_str()),
+            Self::NotAutomatable(param) => write!(f, "parameter {} can't be set", param.as_str()),
+            Self::SetByOtherControl(param) => {
+                write!(f, "another control sets parameter {}", param.as_str())
             }
-            Self::Copies(count) => write!(
-                f,
-                "plays {count} copies; `Play` plays 1 to {MAX_COPIES} at once"
-            ),
-            Self::DurationBeyondClock => f.write_str("a length exceeds the runtime clock range"),
+            Self::MissingLiveMarks(name) => write!(f, "no live marks named {}", name.as_str()),
+            Self::Copies(count) => write!(f, "{count} copies is outside 1 to {MAX_COPIES}"),
+            Self::DurationBeyondClock => f.write_str("a length is too long"),
             Self::NonPositiveDuration => f.write_str("a length must be positive"),
-            Self::ShortestAboveLongest => {
-                f.write_str("a `Scaled` length's `shortest` is longer than its `longest`")
-            }
+            Self::ShortestAboveLongest => f.write_str("Shortest is longer than Longest"),
             Self::WindowOutOfRange(param) => {
-                write!(f, "`{}`'s window must lie in 0..1", param.as_str())
+                write!(f, "the range of {} leaves 0 to 1", param.as_str())
             }
         }
     }
@@ -917,15 +990,11 @@ impl fmt::Display for EventProblem {
 impl fmt::Display for AdmissionProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::GeometryOutOfRange => {
-                f.write_str("transformed fixture geometry is outside the playback coordinate range")
-            }
-            Self::InvalidEncoding(route) => {
-                write!(f, "output {} has an invalid output encoding", route.0)
-            }
+            Self::GeometryOutOfRange => f.write_str("a fixture is placed too far out"),
+            Self::InvalidEncoding(_) => f.write_str("an output's encoding is invalid"),
             Self::Binding(_, error) => f.write_str(&error.message),
             Self::LiveMarksInOperator(_) => {
-                f.write_str("operators in a console cannot read live mark collections")
+                f.write_str("operators in a console can't read live marks")
             }
             Self::TooManyParams => f.write_str("the definition has too many parameters"),
         }
@@ -986,9 +1055,7 @@ impl fmt::Display for FixtureGeometryError {
         f.write_str(match self {
             Self::TooManyPixels => "the fixture has too many pixels",
             Self::DuplicateElement(_) => "the shape's id or name is used twice",
-            Self::InvalidElement(_) => {
-                "invalid shape: a snake_case name, a finite transform with nonzero scale, a diameter of 1µm to 100m, and a geometry of 1 or more pixels"
-            }
+            Self::InvalidElement(_) => "the shape's name, placement, size or pixels are invalid",
         })
     }
 }
@@ -998,34 +1065,22 @@ impl fmt::Display for LayoutError {
         match self {
             Self::TooManyPixels(_) => f.write_str("the target has too many pixels"),
             Self::DuplicateId(item) => write!(f, "layout item id {} is used twice", item.0),
-            Self::InvalidName(_, name) => {
-                write!(f, "`{}` is not a snake_case name", name.as_str())
-            }
+            Self::InvalidName(_, name) => write!(f, "{} is not a valid name", name.as_str()),
             Self::DuplicateName(_, name) => {
-                write!(f, "duplicate layout item name `{}`", name.as_str())
+                write!(f, "two layout items are named {}", name.as_str())
             }
             Self::MissingDefinition(_) => f.write_str("a fixture definition is missing"),
             Self::InvalidFixture { error, .. } => error.fmt(f),
-            Self::InvalidTransform(_) => {
-                f.write_str("invalid transform: rotations are finite, scales finite and nonzero")
-            }
+            Self::InvalidTransform(_) => f.write_str("the item's placement is invalid"),
             Self::MissingFixture(item) => write!(f, "layout item {} is missing", item.0),
             Self::WrongLayout(_) => f.write_str("the target is in another layout"),
-            Self::DuplicateMember(_, name) => write!(
-                f,
-                "layout item `{}` is listed twice in one group",
-                name.as_str()
-            ),
-            Self::Cycle(_, name) => write!(
-                f,
-                "layout item `{}` contains itself through its members",
-                name.as_str()
-            ),
-            Self::Unreachable(_, name) => write!(
-                f,
-                "layout item `{}` is not in `root` or any group",
-                name.as_str()
-            ),
+            Self::DuplicateMember(_, name) => {
+                write!(f, "layout item {} is in one group twice", name.as_str())
+            }
+            Self::Cycle(_, name) => write!(f, "layout item {} contains itself", name.as_str()),
+            Self::Unreachable(_, name) => {
+                write!(f, "layout item {} is in no group", name.as_str())
+            }
         }
     }
 }
@@ -1048,48 +1103,52 @@ impl LayoutError {
     }
 }
 
+/// A route's fixture by name, when its layout has it.
+struct Fixture<'a>(Option<&'a Identifier>);
+
+impl fmt::Display for Fixture<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(fixture) => f.write_str(fixture.as_str()),
+            None => f.write_str("a fixture"),
+        }
+    }
+}
+
 impl fmt::Display for ControllerValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use crate::controller::ControllerPortAddress as Address;
         match self {
-            Self::EmptySenderName => f.write_str("an E1.31 sender name is not empty"),
+            Self::EmptySenderName => f.write_str("the E1.31 sender name is empty"),
             Self::InvalidPriority(priority) => {
-                write!(f, "E1.31 priority {priority} is outside 1..200")
+                write!(f, "E1.31 priority {priority} is outside 1–200")
             }
-            Self::DuplicatePort(port) => write!(f, "port id {} is used twice", port.0),
-            Self::InvalidPortName(_) => {
-                f.write_str("port names are snake_case and unique within their controller")
-            }
-            Self::EmptyPort(_) => f.write_str("a port carries at least one slot"),
-            Self::TooManySlots { slots, .. } => {
-                write!(f, "{slots} slots exceed the {DMX_SLOT_LIMIT} a DMX universe carries")
-            }
-            Self::ProtocolAddressMismatch(_) => f.write_str(
-                "this controller's port addresses are `Universe { ... }` for E1.31, `ArtNetPort { ... }` for Art-Net, and `Output { ... }` for Donder",
-            ),
-            Self::InvalidE131Universe { universe, .. } => {
-                write!(
-                    f,
-                    "E1.31 universe {universe} is outside {E131_UNIVERSE_MIN}..{E131_UNIVERSE_MAX}"
-                )
-            }
-            Self::InvalidArtNetPort { address, .. } => {
-                write!(
-                    f,
-                    "Art-Net port address {address} is above {ARTNET_PORT_ADDRESS_MAX}"
-                )
-            }
-            Self::InvalidDonderOutput { output, .. } => write!(
+            Self::NoUniverses => f.write_str("the controller sends no universes"),
+            Self::InvalidUniverseChannels(channels) => write!(
                 f,
-                "Donder output {output} is outside 1 to the controller's port count"
+                "{channels} channels per universe is outside 1–{DMX_SLOT_LIMIT}"
             ),
-            Self::DuplicateProtocolAddress(address) => match address {
-                Address::E131Universe(universe) => {
-                    write!(f, "two ports send universe {universe}")
-                }
-                Address::ArtNetPort(port) => write!(f, "two ports send Art-Net port {port}"),
-                Address::DonderOutput(output) => write!(f, "two ports drive output {output}"),
-            },
+            Self::E131UniversesOutOfRange(universes) => write!(
+                f,
+                "E1.31 universes {}–{} are outside {E131_UNIVERSE_MIN}–{E131_UNIVERSE_MAX}",
+                universes.start,
+                u32::from(universes.start) + u32::from(universes.count) - 1
+            ),
+            Self::ArtNetUniversesOutOfRange(universes) => write!(
+                f,
+                "Art-Net universes {}–{} run past port-address {ARTNET_PORT_ADDRESS_MAX}",
+                universes.start,
+                u32::from(universes.start) + u32::from(universes.count) - 1
+            ),
+            Self::DuplicatePort(port) => write!(f, "port id {} is used twice", port.0),
+            Self::InvalidPortName(_) => f.write_str("names use lowercase letters, digits and _"),
+            Self::DuplicatePortName(_) => f.write_str("two outputs have the same name"),
+            Self::EmptyPort(_) => f.write_str("an output has no channels"),
+            Self::InvalidDonderOutput { output, .. } => {
+                write!(f, "the controller has no output {output}")
+            }
+            Self::DuplicateDonderOutput(output) => {
+                write!(f, "two ports drive output {output}")
+            }
         }
     }
 }
@@ -1100,15 +1159,16 @@ impl ControllerValidationError {
         match self {
             Self::DuplicatePort(port)
             | Self::InvalidPortName(port)
+            | Self::DuplicatePortName(port)
             | Self::EmptyPort(port)
-            | Self::ProtocolAddressMismatch(port)
-            | Self::TooManySlots { port, .. }
-            | Self::InvalidE131Universe { port, .. }
-            | Self::InvalidArtNetPort { port, .. }
             | Self::InvalidDonderOutput { port, .. } => Some(*port),
             Self::EmptySenderName
             | Self::InvalidPriority(_)
-            | Self::DuplicateProtocolAddress(_) => None,
+            | Self::NoUniverses
+            | Self::InvalidUniverseChannels(_)
+            | Self::E131UniversesOutOfRange(_)
+            | Self::ArtNetUniversesOutOfRange(_)
+            | Self::DuplicateDonderOutput(_) => None,
         }
     }
 }

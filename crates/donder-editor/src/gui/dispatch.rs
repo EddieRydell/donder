@@ -33,7 +33,6 @@ pub fn apply_edit(
     session: &mut ProjectSession,
     request: &GuiDocumentRequest,
     edit: GuiEditCommand,
-    clipboard: &mut Option<SequenceClipboard>,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
     use super::item::Verb;
     use donder_model::ObjectKind as Kind;
@@ -59,7 +58,7 @@ pub fn apply_edit(
             super::item::edit(session, &resolved, item, Verb::Delete).map(GuiEditOutcome::created)
         }
         (Kind::Sequence, GuiEditCommand::Sequence { edit }) => {
-            edit_sequence_selection(session, &resolved, edit, clipboard)
+            edit_sequence_selection(session, &resolved, edit)
         }
         (Kind::Setup, GuiEditCommand::Setup { edit }) => {
             edit_setup(session, &resolved, edit).map(none)
@@ -98,52 +97,29 @@ pub fn apply_edit(
     }
 }
 
-#[derive(Clone)]
-pub enum SequenceClipboard {
-    Clips {
-        clips: Vec<ClipboardClip>,
-        automation: Vec<ClipboardAutomation>,
-        sequence: SequenceId,
-        cut: bool,
-    },
-    Marks(Vec<ClipboardMark>),
+/// The sequence `request` opens.
+fn opened_sequence(
+    session: &ProjectSession,
+    request: &GuiDocumentRequest,
+) -> Result<SequenceId, GuiMutationError> {
+    let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
+    SequenceId::try_from(resolved.object).map_err(|_| {
+        GuiMutationError::Invalid("Open a sequence to copy or paste clips.".to_string())
+    })
 }
 
-#[derive(Clone)]
-pub struct ClipboardClip {
-    pub(crate) clip: Clip,
-    pub(crate) start_seconds: f64,
-    pub(crate) lane_index: usize,
-}
-
-#[derive(Clone)]
-pub struct ClipboardAutomation {
-    pub(crate) clip: donder_model::AutomationClip,
-    pub(crate) lane_index: usize,
-}
-
-#[derive(Clone)]
-pub struct ClipboardMark {
-    pub(crate) collection_key: String,
-    pub(crate) time_seconds: f64,
-    pub(crate) label: Option<String>,
-}
-
-/// Copy `selection` of the sequence `request` opens; the project does not
-/// change.
+/// `selection` of the sequence `request` opens as clipboard text, none when
+/// nothing was copied; the project does not change.
 pub fn copy_selection(
     session: &ProjectSession,
     request: &GuiDocumentRequest,
     selection: &SequenceSelection,
-) -> Result<(Option<SequenceClipboard>, GuiEditOutcome), GuiMutationError> {
-    let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
-    let sequence_id = SequenceId::try_from(resolved.object).map_err(|_| {
-        GuiMutationError::Invalid("Copy requires a sequence GUI document.".to_string())
-    })?;
-    let (clipboard, copied_count, skipped_count) =
+) -> Result<(Option<String>, GuiEditOutcome), GuiMutationError> {
+    let sequence_id = opened_sequence(session, request)?;
+    let (text, copied_count, skipped_count) =
         copy_sequence_selection(session, &sequence_id, selection)?;
     Ok((
-        clipboard,
+        text,
         GuiEditOutcome {
             copied_count,
             skipped_count,
@@ -152,36 +128,43 @@ pub fn copy_selection(
     ))
 }
 
+/// Copy `selection`, as [`copy_selection`] does, and remove it.
+pub fn cut_selection(
+    session: &mut ProjectSession,
+    request: &GuiDocumentRequest,
+    selection: &SequenceSelection,
+) -> Result<(Option<String>, GuiEditOutcome), GuiMutationError> {
+    let copied = copy_selection(session, request, selection)?;
+    delete_sequence_selection(session, &opened_sequence(session, request)?, selection)?;
+    Ok(copied)
+}
+
+/// Paste the clipboard's `text` into the sequence `request` opens; the
+/// pasted items become the selection. `texts` keeps printed clips between
+/// calls.
+pub fn paste(
+    session: &mut ProjectSession,
+    request: &GuiDocumentRequest,
+    anchor: crate::dto::SequencePasteAnchor,
+    text: &str,
+    texts: &mut donder_project_io::DocumentTextCache,
+) -> Result<GuiEditOutcome, GuiMutationError> {
+    let sequence_id = opened_sequence(session, request)?;
+    paste_sequence_clipboard(session, &sequence_id, anchor, text, texts)
+}
+
 /// A sequence edit: selection edits change the clips and marks they name,
 /// other edits the sequence as a whole.
 fn edit_sequence_selection(
     session: &mut ProjectSession,
     resolved: &ResolvedGuiObject,
     edit: SequenceGuiEdit,
-    clipboard: &mut Option<SequenceClipboard>,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
     let sequence_id = resolved.id::<SequenceId>();
     match edit {
-        SequenceGuiEdit::CutSelection { selection } => {
-            let (next_clipboard, copied_count, skipped_count) =
-                copy_sequence_selection(session, &sequence_id, &selection)?;
-            *clipboard = next_clipboard;
-            if let Some(SequenceClipboard::Clips { cut, .. }) = clipboard {
-                *cut = true;
-            }
-            delete_sequence_selection(session, &sequence_id, &selection)?;
-            Ok(GuiEditOutcome {
-                copied_count,
-                skipped_count,
-                ..GuiEditOutcome::default()
-            })
-        }
         SequenceGuiEdit::DeleteSelection { selection } => {
             delete_sequence_selection(session, &sequence_id, &selection)?;
             Ok(GuiEditOutcome::default())
-        }
-        SequenceGuiEdit::Paste { anchor } => {
-            paste_sequence_clipboard(session, &sequence_id, anchor, clipboard.as_ref())
         }
         SequenceGuiEdit::MoveClips {
             clips,

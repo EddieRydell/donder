@@ -37,8 +37,9 @@ pub struct ConsoleRouting {
     pub controls: u16,
     pub clips: Vec<RoutedClip>,
     pub ons: Vec<RoutedOn>,
-    /// The clips that play for the whole session.
-    pub always: Vec<u16>,
+    /// The clips that play from the session's start, each with the length it
+    /// repeats every.
+    pub always: Vec<(u16, SampleDuration)>,
 }
 
 /// A console clip: its voices, and the parameters each copy takes from the
@@ -61,14 +62,17 @@ pub enum RoutedAction {
         copies: u16,
         length: RoutedLength,
     },
+    /// Play one copy until stopped, repeating every `length`.
     Start {
         clip: u16,
+        length: SampleDuration,
     },
     Stop {
         clip: u16,
     },
     Toggle {
         clip: u16,
+        length: SampleDuration,
     },
     Mark {
         collection: u16,
@@ -788,7 +792,12 @@ impl<'id> ShowBuilder<'id> {
                 values: played_values(w, clip.values),
             })
             .collect();
-        w.console_always = routing.always.into_iter().map(u32::from).collect();
+        // The session starts each `always` clip as a `Start` would.
+        w.console_always = routing
+            .always
+            .into_iter()
+            .map(|(clip, length)| console_action(RoutedAction::Start { clip, length }))
+            .collect();
         for on in routing.ons {
             let actions = on
                 .actions
@@ -1187,6 +1196,14 @@ fn console_action(action: RoutedAction) -> format::ConsoleAction {
         target: u32::from(target),
         ..format::ConsoleAction::default()
     };
+    // A held copy repeats every fixed length.
+    let held = |kind: u32, clip: u16, length: SampleDuration| format::ConsoleAction {
+        length: format::LENGTH_FIXED,
+        axis: NONE,
+        shortest: length.as_ticks(),
+        longest: length.as_ticks(),
+        ..record(kind, clip)
+    };
     match action {
         RoutedAction::Play {
             clip,
@@ -1215,9 +1232,9 @@ fn console_action(action: RoutedAction) -> format::ConsoleAction {
                 ..record(format::ACTION_PLAY, clip)
             }
         }
-        RoutedAction::Start { clip } => record(format::ACTION_START, clip),
+        RoutedAction::Start { clip, length } => held(format::ACTION_START, clip, length),
         RoutedAction::Stop { clip } => record(format::ACTION_STOP, clip),
-        RoutedAction::Toggle { clip } => record(format::ACTION_TOGGLE, clip),
+        RoutedAction::Toggle { clip, length } => held(format::ACTION_TOGGLE, clip, length),
         RoutedAction::Mark { collection } => record(format::ACTION_MARK, collection),
         RoutedAction::Set { automation, window } => format::ConsoleAction {
             low: window.0,

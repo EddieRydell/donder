@@ -14,6 +14,8 @@ struct Timeline {
     effect: u32,
     automation: u32,
     root: camino::Utf8PathBuf,
+    /// The system clipboard's text, as the commands would leave it.
+    clipboard: std::cell::RefCell<String>,
     _temporary: tempfile::TempDir,
 }
 
@@ -109,6 +111,7 @@ impl Timeline {
             effect: sequence.clips[0].id.0,
             automation: 0,
             root,
+            clipboard: std::cell::RefCell::default(),
             _temporary: temporary,
         };
         timeline.edit(SequenceGuiEdit::ChangeEffectDefinition {
@@ -176,8 +179,26 @@ impl Timeline {
     }
 
     fn copy(&self, selection: SequenceSelection) {
-        self.state
+        let (_, text) = self
+            .state
             .copy_sequence_selection(self.request(), selection);
+        *self.clipboard.borrow_mut() = text.unwrap();
+    }
+
+    fn cut(&self, selection: SequenceSelection) {
+        let (_, text) = self.state.cut_sequence_selection(self.request(), selection);
+        *self.clipboard.borrow_mut() = text.unwrap();
+    }
+
+    fn paste_at(&self, lane: u32) -> GuiEditUpdate {
+        self.state.paste_sequence(
+            self.request(),
+            SequencePasteAnchor {
+                lane: Some(lane),
+                time_seconds: 0.0,
+            },
+            &self.clipboard.borrow(),
+        )
     }
 
     fn sequence(&self) -> Sequence {
@@ -205,14 +226,19 @@ impl Timeline {
     }
 
     fn paste(&self, lane: u32) -> SequenceSelection {
-        self.selection_edit(SequenceGuiEdit::Paste {
-            anchor: SequencePasteAnchor {
-                lane: Some(lane),
-                time_seconds: 0.0,
-            },
-        })
-        .selection
-        .unwrap()
+        let result = self.paste_at(lane);
+        assert!(
+            matches!(
+                result.change,
+                GuiDocumentChange::SequenceClips { .. }
+                    | GuiDocumentChange::Document {
+                        document: GuiDocument::Sequence { .. }
+                    }
+            ),
+            "{:?}",
+            result.change
+        );
+        result.selection.unwrap()
     }
 }
 
@@ -270,23 +296,11 @@ fn out_of_bounds_paste_is_atomic_and_does_not_consume_history() {
     let (clip_ids, _) = ids(timeline.paste(1));
     timeline.copy(clips(vec![timeline.effect, clip_ids[0]], vec![]));
     let session = timeline.state.project_session().unwrap();
-    let rejected = timeline.state.edit_gui_document(
-        timeline.request(),
-        GuiEditCommand::Sequence {
-            edit: SequenceGuiEdit::Paste {
-                anchor: SequencePasteAnchor {
-                    lane: Some(timeline.targets().len() as u32 - 1),
-                    time_seconds: 0.0,
-                },
-            },
-        },
+    let rejected = timeline.paste_at(timeline.targets().len() as u32 - 1);
+    assert_eq!(
+        rejected.snapshot.status,
+        "The clips don't fit below this row."
     );
-    assert!(matches!(
-        rejected.change,
-        GuiDocumentChange::Document {
-            document: GuiDocument::Blocked { .. }
-        }
-    ));
     assert!(Arc::ptr_eq(
         &session,
         &timeline.state.project_session().unwrap()
@@ -296,7 +310,7 @@ fn out_of_bounds_paste_is_atomic_and_does_not_consume_history() {
 }
 
 #[test]
-fn copying_an_envelope_is_unbound_but_cutting_preserves_available_bindings() {
+fn an_envelope_copied_or_cut_without_its_clip_pastes_unbound() {
     let timeline = Timeline::new();
     let selection = || clips(vec![], vec![timeline.automation]);
     timeline.copy(selection());
@@ -316,9 +330,7 @@ fn copying_an_envelope_is_unbound_but_cutting_preserves_available_bindings() {
         .iter()
         .find(|clip| clip.id.0 == timeline.automation)
         .unwrap();
-    timeline.selection_edit(SequenceGuiEdit::CutSelection {
-        selection: selection(),
-    });
+    timeline.cut(selection());
     let (_, automation_ids) = ids(timeline.paste(2));
     let pasted = timeline.sequence();
     let moved = pasted
@@ -326,7 +338,7 @@ fn copying_an_envelope_is_unbound_but_cutting_preserves_available_bindings() {
         .iter()
         .find(|clip| clip.id.0 == automation_ids[0])
         .unwrap();
-    assert_eq!(moved.bindings, original.bindings);
+    assert!(moved.bindings.is_empty());
     assert_eq!(moved.curve, original.curve);
 }
 

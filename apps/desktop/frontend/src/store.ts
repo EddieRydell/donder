@@ -1,17 +1,20 @@
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { commands, events } from "./api";
+import { commands, events, errorMessage } from "./api";
 import { effectiveEditorViewMode } from "./editorViewMode";
 import { DocumentSync } from "./documentSync";
 import { PREVIEW_APPEARANCE } from "./previewAppearance";
 import { applyGuiDocumentChange, isNewerSnapshot, reconcileGuiRequest, sameGuiDocument } from "./snapshotState";
-import type { AppSnapshot, AudioTransportSnapshot, GuiDocument, GuiDocumentRequest, GuiEditUpdate, LiveOutputSnapshot, ProjectRestoreState } from "./types";
+import type { AppSnapshot, AudioTransportSnapshot, GuiDocument, GuiDocumentRequest, GuiEditUpdate, GuiProblem, LiveOutputSnapshot, ProjectRestoreState } from "./types";
 
 type SnapshotApplySource = "event" | "command" | "hydrate";
 
 type GuiParent = { request: GuiDocumentRequest; document: GuiDocument; revision: number };
 
 export type AppStaticSnapshot = Omit<AppSnapshot, "audioTransport" | "liveOutput">;
+
+/** What can fail outside an edit; each shows in the status bar's failure icon until it next succeeds. */
+export type SystemFailure = "command" | "documentSync" | "viewState" | "menu" | "languageServer";
 
 type AppStore = {
   snapshot: AppSnapshot | null;
@@ -23,7 +26,12 @@ type AppStore = {
   guiParents: GuiParent[];
   guiResetRevision: number;
   compositionGraphEditing: boolean;
-  error: string | null;
+  /** The failures that have not succeeded since, by what failed. */
+  failures: Partial<Record<SystemFailure, string>>;
+  /** Why the last GUI edit was refused, until the project or the open object changes. */
+  refusedEdit: GuiProblem | null;
+  /** How many fields show the refused edit; the status bar shows it when none does. */
+  refusedEditClaims: number;
   failedDocumentSync: { epoch: number; path: string } | null;
   /** Whether a text editor has edits the backend has not acknowledged. */
   documentEditsPending: boolean;
@@ -38,7 +46,8 @@ type AppStore = {
   resetGuiLocalState: () => void;
   setCompositionGraphEditing: (editing: boolean) => void;
   applyGuiEditResult: (request: GuiDocumentRequest, result: GuiEditUpdate) => boolean;
-  setError: (error: string | null) => void;
+  /** Report that `source` failed with `message`, or succeeded with null. */
+  reportFailure: (source: SystemFailure, message: string | null) => void;
   hydrate: () => Promise<void>;
 };
 
@@ -52,7 +61,9 @@ export const useAppStore = create<AppStore>((set) => ({
   guiParents: [],
   guiResetRevision: 0,
   compositionGraphEditing: false,
-  error: null,
+  failures: {},
+  refusedEdit: null,
+  refusedEditClaims: 0,
   failedDocumentSync: null,
   documentEditsPending: false,
   textReload: 0,
@@ -122,8 +133,12 @@ export const useAppStore = create<AppStore>((set) => ({
     });
     return applied;
   },
-  setError: (error) => {
-    set({ error });
+  reportFailure: (source, message) => {
+    set((current) => {
+      if ((current.failures[source] ?? null) === message) return current;
+      const failures = Object.fromEntries(Object.entries(current.failures).filter(([key]) => key !== source));
+      return { failures: message === null ? failures : { ...failures, [source]: message } };
+    });
   },
   hydrate: async () => {
     await commands.setPreviewAppearance(PREVIEW_APPEARANCE);
@@ -131,7 +146,6 @@ export const useAppStore = create<AppStore>((set) => ({
     useAppStore.getState().setSnapshot(snapshot, "hydrate");
     const restoreState = await commands.getRestoredViewState();
     useAppStore.getState().setRestoreState(restoreState);
-    set({ error: null });
   }
 }));
 
@@ -139,7 +153,8 @@ export const documentSync = new DocumentSync(
   commands.updateDocument,
   (snapshot) => { useAppStore.getState().setSnapshot(snapshot); },
   (error, epoch, path) => {
-    useAppStore.setState({ error: String(error), failedDocumentSync: { epoch, path } });
+    useAppStore.setState({ failedDocumentSync: { epoch, path } });
+    useAppStore.getState().reportFailure("documentSync", errorMessage(error));
   },
   (pending) => { useAppStore.setState({ documentEditsPending: pending }); }
 );
@@ -161,11 +176,12 @@ export async function resolveDocumentSyncFailure(keepText: boolean) {
     const revision = snapshot.tabs.find((tab) => tab.path === failed.path)?.documentRevision ?? null;
     documentSync.resolveFailure(failed.epoch, failed.path, keepText ? revision : null);
     useAppStore.getState().setSnapshot(snapshot);
-    useAppStore.setState({ failedDocumentSync: null, error: null });
+    useAppStore.setState({ failedDocumentSync: null });
+    useAppStore.getState().reportFailure("documentSync", null);
     if (keepText) await flushDocumentSync();
     else useAppStore.setState((store) => ({ textReload: store.textReload + 1 }));
   } catch (error) {
-    useAppStore.getState().setError(String(error));
+    useAppStore.getState().reportFailure("documentSync", errorMessage(error));
   }
 }
 
@@ -208,35 +224,52 @@ export async function runSnapshotCommand(command: () => Promise<AppSnapshot>) {
       const restoreState = await commands.getRestoredViewState();
       useAppStore.getState().setRestoreState(restoreState);
     }
-    useAppStore.getState().setError(null);
+    useAppStore.getState().reportFailure("command", null);
     return snapshot;
   } catch (error) {
-    useAppStore.getState().setError(String(error));
+    useAppStore.getState().reportFailure("command", errorMessage(error));
     throw error;
   }
 }
 
-export async function runGuiEditCommand(command: (request: GuiDocumentRequest) => Promise<GuiEditUpdate>, origin?: GuiDocumentRequest | null): Promise<GuiEditUpdate> {
+/** An edit that was not applied because it raced the open document; nothing for a person to read. */
+function editNotApplied(reason: string): null {
+  console.error(`GUI edit not applied: ${reason}`);
+  return null;
+}
+
+/**
+ * Apply one edit of the open GUI document, as `origin` showed it when one is given. Resolves to the
+ * update, or null when the edit was not applied: refused, with its problem in `refusedEdit`, or
+ * racing another edit or a newer document.
+ */
+export async function runGuiEditCommand(command: (request: GuiDocumentRequest) => Promise<GuiEditUpdate>, origin?: GuiDocumentRequest | null): Promise<GuiEditUpdate | null> {
   const { guiRequest: request, guiDocumentRevision, guiEditPending } = useAppStore.getState();
-  if (request === null) throw new Error("GUI edit attempted without an active GUI document request.");
-  if (guiDocumentRevision !== request.projectRevision) throw new Error("The current GUI document is still loading.");
-  if (guiEditPending) throw new Error("A GUI edit is already pending.");
-  if (origin !== undefined && origin !== request) throw new Error("The GUI document changed during the gesture.");
-  useAppStore.setState({ guiEditPending: true });
+  if (request === null) return editNotApplied("no GUI document is open");
+  if (guiDocumentRevision !== request.projectRevision) return editNotApplied("the GUI document is still loading");
+  if (guiEditPending) return editNotApplied("another GUI edit is pending");
+  if (origin !== undefined && origin !== request) return editNotApplied("the GUI document changed during the gesture");
+  useAppStore.setState({ guiEditPending: true, refusedEdit: null });
   try {
     const result = await command(request);
-    if (result.change.type === "document" && result.change.document.type === "blocked") throw new Error(result.change.document.reason);
-    if (!useAppStore.getState().applyGuiEditResult(request, result)) {
-      throw new Error("The GUI document changed before the edit completed.");
+    if (result.change.type === "refused") {
+      if (useAppStore.getState().guiRequest === request) showRefusedEdit(result.change.problem);
+      return null;
     }
-    useAppStore.getState().setError(null);
+    if (!useAppStore.getState().applyGuiEditResult(request, result)) return editNotApplied("the GUI document changed before the edit completed");
+    useAppStore.getState().reportFailure("command", null);
     return result;
   } catch (error) {
-    if (useAppStore.getState().guiRequest === request) useAppStore.getState().setError(String(error));
-    throw error;
+    useAppStore.getState().reportFailure("command", errorMessage(error));
+    return null;
   } finally {
     useAppStore.setState({ guiEditPending: false });
   }
+}
+
+/** Show why an edit was refused, at its field or in the status bar; null clears it. */
+export function showRefusedEdit(problem: GuiProblem | null) {
+  useAppStore.setState({ refusedEdit: problem });
 }
 
 function mergeTransport<T extends { generation: number }>(
@@ -265,6 +298,10 @@ function snapshotUpdate(current: AppStore, incoming: AppSnapshot, source: Snapsh
     snapshot,
     guiRequest: request
   };
+  // A refused edit's problem belongs to the project revision and object it was refused in.
+  if (previous?.projectRevision !== snapshot.projectRevision || !sameGuiDocument(current.guiRequest, request)) {
+    update.refusedEdit = null;
+  }
   if (request === null || previous?.projectEpoch !== snapshot.projectEpoch || previous.projectRoot !== snapshot.projectRoot || previous.activeFile !== snapshot.activeFile) {
     update.guiParents = [];
   }
@@ -301,7 +338,9 @@ function guiRequestForSnapshot(
   return { ownedPath: [], path: activePath, objectKey: defaultObject.key, projectRevision: snapshot.projectRevision };
 }
 
-export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey" | "ownedPath">, presentation: "tab" | "modal" = "tab"): void {
+/** Opens `request`, an object of the active document, full size in the editor. A `nested` open keeps the open
+ * object as a parent the breadcrumb returns to; opening one of those parents returns to it. */
+export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey" | "ownedPath">, placement: "root" | "nested" = "root"): void {
   const current = useAppStore.getState();
   const snapshot = current.snapshot;
   if (snapshot === null || snapshot.activeFile !== request.path) {
@@ -311,9 +350,15 @@ export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "obje
     (item) => item.key === request.objectKey
   );
   if (target === undefined) throw new Error("The requested GUI object is unavailable.");
-  if (current.guiRequest !== null && sameGuiDocument(current.guiRequest, { ...request, projectRevision: snapshot.projectRevision })) return;
-  const parents = presentation === "modal" ? current.guiParents.slice() : [];
-  if (presentation === "modal") {
+  const requested = { ...request, projectRevision: snapshot.projectRevision };
+  if (current.guiRequest !== null && sameGuiDocument(current.guiRequest, requested)) return;
+  const ancestor = placement === "nested" ? current.guiParents.findIndex((parent) => sameGuiDocument(parent.request, requested)) : -1;
+  if (ancestor >= 0) {
+    openGuiParent(ancestor);
+    return;
+  }
+  const parents = placement === "nested" ? current.guiParents.slice() : [];
+  if (placement === "nested") {
     if (current.guiRequest === null || current.guiDocument === null || current.guiDocumentRevision !== current.guiRequest.projectRevision || current.guiEditPending) {
       throw new Error("The current resource is still loading or saving.");
     }
@@ -321,22 +366,25 @@ export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "obje
   }
   useAppStore.setState({
     guiParents: parents,
-    guiRequest: { ...request, projectRevision: snapshot.projectRevision },
+    guiRequest: requested,
     guiDocument: null,
-    guiDocumentRevision: null
+    guiDocumentRevision: null,
+    refusedEdit: null
   });
 }
 
-export function closeInlineEditor(): void {
+/** Returns to the open object's parent at `depth`, dropping the parents after it. */
+export function openGuiParent(depth: number): void {
   const current = useAppStore.getState();
-  const parent = current.guiParents[current.guiParents.length - 1];
+  const parent = current.guiParents[depth];
   if (parent === undefined || current.snapshot === null || current.guiEditPending) return;
   useAppStore.setState({
-    guiParents: current.guiParents.slice(0, -1),
+    guiParents: current.guiParents.slice(0, depth),
     guiRequest: parent.request.projectRevision === current.snapshot.projectRevision
       ? parent.request
       : { ...parent.request, projectRevision: current.snapshot.projectRevision },
     guiDocument: parent.document,
-    guiDocumentRevision: parent.revision
+    guiDocumentRevision: parent.revision,
+    refusedEdit: null
   });
 }

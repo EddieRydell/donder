@@ -21,8 +21,18 @@ copies its Vixen settings across:
   extent, so a feature Vixen sizes in cells (a meteor's width, a garland's sag,
   a flake) is that many hundredths of the target. `scale_x` and `scale_y`
   (default 1) stretch the pattern around the target's center. Meteors and Snowflakes can
-  instead use Vixen's Strings layout: `string_count` strings of
-  `string_length` consecutive pixels.
+  instead use Vixen's Strings layout: `positioning: Strings { ... }` has
+  `string_count` strings of `string_length` consecutive pixels.
+- A Vixen setting that matters only in one mode is a field of that mode's
+  option, under Vixen's name, so the inspector shows it only there: Spin's
+  `speed_format` (`revolutions`, `frequency_hz`, `revolution_time_ms`) and
+  `pulse_length_format` (`pulse_percentage`, `pulse_time_ms`), the
+  `static_color` of Chase, Spin and Twinkle's `SingleColor`, Butterfly's
+  `motion` (`iterations` and `direction`, or `speed`), Border's `border_mode`
+  (`simple_border_width`, or the `Advanced` border's type, thicknesses, size
+  and offsets), the directions of Meteors' `meteor_effect` and Snowflakes'
+  `snowflake_effect`, and the Strings layout's `orientation`, `string_count`
+  and `string_length`.
 - Pinwheel, Fireworks and Spirograph move a fixed amount per Vixen frame, so
   they take the source show's `frame_interval_ms`. The other ports run on
   continuous time.

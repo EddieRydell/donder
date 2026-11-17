@@ -2,12 +2,16 @@ use super::{DesktopState, lock_unpoisoned};
 use donder_editor::dto::{
     GuiDocumentRequest, PreviewAppearance, SequenceExportOptions, SequenceExportPort,
 };
-use donder_model::{ControllerId, ControllerPortId, SequenceId};
+use donder_model::{ControllerId, ControllerOutput, SequenceId};
 use donder_project_io::ProjectSession;
 use donder_runtime::PreparedShow;
 use std::sync::Arc;
 
-fn outputs(session: &ProjectSession) -> Result<Vec<(ControllerId, ControllerPortId, u16)>, String> {
+/// Each output of the setup's controllers, with its label and width: an
+/// E1.31 or Art-Net controller's universes, or one Donder port.
+fn outputs(
+    session: &ProjectSession,
+) -> Result<Vec<(ControllerId, ControllerOutput, String, u32)>, String> {
     let project = &session.project;
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
@@ -18,12 +22,24 @@ fn outputs(session: &ProjectSession) -> Result<Vec<(ControllerId, ControllerPort
         let controller = project
             .get::<donder_model::Controller>(*id)
             .ok_or("Setup controller is missing.")?;
-        outputs.extend(
-            controller
-                .ports
-                .iter()
-                .map(|port| (*id, port.id, port.slot_count)),
-        );
+        let address = session
+            .address_of((*id).into())
+            .ok_or("An output's controller is missing from the source inventory.")?;
+        for (output, width) in controller.outputs() {
+            let label = controller
+                .output_label(output)
+                .ok_or("A controller output is missing.")?;
+            outputs.push((
+                *id,
+                output,
+                format!(
+                    "{}#{} / {label}",
+                    address.document(),
+                    address.declared_name()
+                ),
+                width,
+            ));
+        }
     }
     Ok(outputs)
 }
@@ -63,20 +79,10 @@ impl DesktopState {
         let ports = outputs(&session)?
             .into_iter()
             .enumerate()
-            .map(|(index, (controller, port, channels))| {
+            .map(|(index, (_, _, label, channels))| {
                 Ok(SequenceExportPort {
                     index: u32::try_from(index).map_err(|_| "Too many outputs to export.")?,
-                    label: {
-                        let address = session.address_of(controller.into()).ok_or(
-                            "An output's controller is missing from the source inventory.",
-                        )?;
-                        format!(
-                            "{}#{} / port {}",
-                            address.document(),
-                            address.declared_name(),
-                            port.0
-                        )
-                    },
+                    label,
                     channels,
                 })
             })
@@ -105,15 +111,15 @@ impl DesktopState {
             if !indices.insert(*index) {
                 continue;
             }
-            let (controller, port, _) = available
+            let (controller, output, _, _) = available
                 .get(*index as usize)
                 .ok_or("Selected output is unavailable.")?;
-            ports.push((*controller, *port));
+            ports.push((*controller, *output));
         }
         let prepared = donder_elaboration::prepare(
             &session.project,
             &id,
-            donder_elaboration::Retain::Ports(&ports),
+            donder_elaboration::Retain::Outputs(&ports),
         )
         .ok_or("The sequence or selected output is unavailable.")?;
         Ok((session, id, prepared))

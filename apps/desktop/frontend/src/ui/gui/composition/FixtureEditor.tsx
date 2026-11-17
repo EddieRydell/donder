@@ -2,16 +2,20 @@ import { SpatialSelectionControls } from "./SpatialSelectionControls";
 import { isSecondaryClick } from "../../../platform";
 import { fixtureItems, selectedItems, selectionClick, plus, type SpatialMove } from "./spatialSelection";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Grip, X } from "lucide-react";
 import { commands } from "../../../api";
-import { runGuiEditCommand, useAppStore } from "../../../store";
+import { runGuiEditCommand, showRefusedEdit, useAppStore } from "../../../store";
+import { useFieldProblem } from "../problems";
 import type { FixtureGuiDocument, FixtureGuiEdit, GuiFixtureElement, GuiFixtureShape, Point3Meters } from "../../../types";
 import { fixtureMenuEntries, fixtureTools, type FixtureTool } from "./FixtureContextMenu";
 import { Placement } from "./FixtureFields";
 import { AddRow, Button, ContextMenuArea, Field, FieldGroup, IconButton, NumberField, TextField, Toggle } from "../../kit";
 import { FixtureShapeFields } from "./FixtureShapeFields";
 import { SpatialCanvas } from "./SpatialCanvas";
+import { spatialUnits } from "./spatialSnapping";
+
+const millimeters = spatialUnits.millimeters;
 
 export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   const [selection, setSelection] = useState<number[]>([]);
@@ -25,7 +29,6 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   const [columns, setColumns] = useState(8);
   const [showOrder, setShowOrder] = useState(true);
   const [dragged, setDragged] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const request = useAppStore((state) => state.guiRequest);
   const revision = useAppStore((state) => state.guiDocumentRevision);
   const pending = useAppStore((state) => state.guiEditPending);
@@ -35,12 +38,9 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   const chosen = selectedItems(items, selection);
   const index = elements.findIndex((element) => element.id === selected);
   const element = elements[index];
-  const report = (error: unknown) => { setError(String(error)); };
-  const edit = async (edit: FixtureGuiEdit) => {
-    await runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "fixture", edit: edit }), request);
-    setError(null);
-  };
-  const change = (elements: GuiFixtureElement[]) => { void edit({ type: "setElements", elements }).catch(report); };
+  /** Whether the edit was applied. */
+  const edit = async (edit: FixtureGuiEdit) => await runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "fixture", edit: edit }), request) !== null;
+  const change = (elements: GuiFixtureElement[]) => { void edit({ type: "setElements", elements }); };
   const update = (element: GuiFixtureElement) => { change(elements.map((item) => item.id === element.id ? element : item)); };
   const move = (from: number, to: number) => {
     if (from < 0 || to < 0 || to >= elements.length || from === to) return;
@@ -50,16 +50,14 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   };
   const nextId = () => elements.reduce((highest, element) => Math.max(highest, element.id), 0) + 1;
   const remove = () => { change(elements.filter((item) => !selection.includes(item.id))); setSelection([]); };
-  const moveSelection = async (moves: SpatialMove[]) => {
-    await edit({ type: "setElements", elements: elements.map((element) => {
-      const delta = moves.find((move) => move.id === element.id)?.delta;
-      return delta === undefined ? element : { ...element, transform: { ...element.transform, position: plus(element.transform.position, delta) } };
-    }) });
-  };
+  const moveSelection = (moves: SpatialMove[]) => edit({ type: "setElements", elements: elements.map((element) => {
+    const delta = moves.find((move) => move.id === element.id)?.delta;
+    return delta === undefined ? element : { ...element, transform: { ...element.transform, position: plus(element.transform.position, delta) } };
+  }) });
   const repeat = (offsets: Point3Meters[]) => {
     let id = nextId();
     const copies = offsets.flatMap((offset) => elements.filter((element) => selection.includes(element.id)).map((element) => ({ ...element, id: id++, name: `${element.name} copy`, transform: { ...element.transform, position: plus(element.transform.position, offset) } })));
-    void edit({ type: "setElements", elements: [...elements, ...copies] }).then(() => { setSelection(copies.map((copy) => copy.id)); }).catch(report);
+    void edit({ type: "setElements", elements: [...elements, ...copies] }).then((applied) => { if (applied) setSelection(copies.map((copy) => copy.id)); });
   };
   const duplicate = () => { repeat([{ xMeters: 0, yMeters: 0, zMeters: 0 }]); };
   const draw = async (tool: FixtureTool, points: Point3Meters[]) => {
@@ -67,7 +65,7 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
     if (start === undefined || end === undefined) return;
     const dx = end.xMeters - start.xMeters; const dy = end.yMeters - start.yMeters;
     const length = Math.hypot(dx, dy);
-    if (tool !== "pixel" && tool !== "polyline" && length === 0) { setError("Drag to give the shape a size."); return; }
+    if (tool !== "pixel" && tool !== "polyline" && length === 0) { showRefusedEdit({ message: "Drag to give the shape a size.", site: null }); return; }
     let position = start;
     let rotation = 0;
     let shape: GuiFixtureShape;
@@ -82,7 +80,7 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
     }
     const id = nextId();
     const added: GuiFixtureElement = { id, name: `${tool.charAt(0).toUpperCase() + tool.slice(1)} ${id}`, shape, diameterMeters: 0.01, reverse: false, transform: { position, rotation: { xDegrees: 0, yDegrees: 0, zDegrees: rotation }, scale: { x: 1, y: 1, z: 1 } } };
-    await edit({ type: "setElements", elements: [...elements, added] });
+    if (!await edit({ type: "setElements", elements: [...elements, added] })) return;
     setSelected(id); setTool(null);
   };
   const ranges = new Map<number, { count: number; start: number; end: number }>();
@@ -115,34 +113,41 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
             <span>{item.name}</span><span className="composition-tree-meta">{ranges.get(item.id)?.count} px · {ranges.get(item.id)?.start}–{ranges.get(item.id)?.end}</span>
           </button>)}
         </div>
-        <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(report); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
+        <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
         {element !== undefined && <div className="fixture-shape-fields" key={element.id}>
-          <Field label="Name">
-            <TextField name="Shape name" value={element.name} onCommit={(value) => { const name = value.trim(); if (name !== "" && name !== element.name) update({ ...element, name }); }} />
+          <ShapeName name={element.name} id={element.id} onCommit={(name) => { update({ ...element, name }); }}>
             <IconButton icon={ArrowUp} label="Move shape earlier" disabled={index <= 0} onClick={() => { move(index, index - 1); }} />
             <IconButton icon={ArrowDown} label="Move shape later" disabled={index === elements.length - 1} onClick={() => { move(index, index + 1); }} />
-          </Field>
+          </ShapeName>
           <FixtureShapeFields shape={element.shape} disabled={!editable} onChange={(shape) => { update({ ...element, shape }); }} />
-          <Field label="Diameter" tip="Pixel diameter">
-            <NumberField name="Pixel diameter" unit="m" step={0.001} min={0.000001} max={100} disabled={!editable} value={element.diameterMeters} onCommit={(diameterMeters) => { update({ ...element, diameterMeters }); }} />
+          <Field label="Pixel size" tip="Diameter of each pixel, as the layout and preview draw it">
+            <NumberField name="Pixel size" unit={millimeters.label} step={1} min={0.001} max={100000} disabled={!editable} value={element.diameterMeters / millimeters.meters} onCommit={(size) => { update({ ...element, diameterMeters: size * millimeters.meters }); }} />
           </Field>
           {element.shape.type !== "pixel" && <Field label="Reverse" tip="Reverse pixel order">
             <Toggle name="Reverse pixel order" checked={element.reverse} onChange={(reverse) => { update({ ...element, reverse }); }} />
           </Field>}
-          <Placement value={element.transform} disabled={!editable} onChange={(transform) => { update({ ...element, transform }); }} />
-          {element.shape.type !== "pixel" && <Button icon={Grip} tip="Replace the shape with its individual pixels" onClick={() => { void edit({ type: "convertToPixels", id: element.id }).then(() => { setSelected(null); }).catch(report); }}>To pixels</Button>}
+          <Placement value={element.transform} disabled={!editable} problem={null} onChange={(transform) => { update({ ...element, transform }); }} />
+          {element.shape.type !== "pixel" && <Button icon={Grip} tip="Replace the shape with its individual pixels" onClick={() => { void edit({ type: "convertToPixels", id: element.id }).then((applied) => { if (applied) setSelected(null); }); }}>To pixels</Button>}
         </div>}
       </fieldset>
       <Toggle name="Show pixel order" label="Pixel order" checked={showOrder} onChange={setShowOrder} />
-      {error !== null && <p role="alert">{error}</p>}
     </aside></ContextMenuArea>
     <SpatialCanvas reference={document.sourceRef} plan={document.renderPlan} documentKey={guiObjectKey(document.sourceRef)} selection={selection} items={items} onSelect={setSelection} onDelete={remove} onDuplicate={duplicate}
       onMoveStart={(ids, anchor) => {
         const chosen = selectedItems(items, ids);
         const origin = items.find((item) => item.id === anchor)?.origin;
-        return editable && origin !== undefined ? { origin, owners: chosen.flatMap((item) => item.owners), commit: async (delta) => { try { await moveSelection(chosen.map((item) => ({ id: item.id, delta }))); return true; } catch (error) { report(error); return false; } } } : null;
+        return editable && origin !== undefined ? { origin, owners: chosen.flatMap((item) => item.owners), commit: (delta) => moveSelection(chosen.map((item) => ({ id: item.id, delta }))) } : null;
       }}
-      fixtureTools={{ enabled: editable, tool, session: toolSession, handles: document.handles, elements, showOrder, onTool: beginTool, onDuplicate: duplicate, onDelete: remove, onCancel: () => { setTool(null); }, onDraw: (tool, points) => { void draw(tool, points).catch(report); }, onHandleStart: (id, index) => editable ? async (position) => { try { await edit({ type: "moveHandle", id, index, position }); return true; } catch (error) { report(error); return false; } } : null }}
+      fixtureTools={{ enabled: editable, tool, session: toolSession, handles: document.handles, elements, showOrder, onTool: beginTool, onDuplicate: duplicate, onDelete: remove, onCancel: () => { setTool(null); }, onDraw: (tool, points) => { void draw(tool, points); }, onHandleStart: (id, index) => editable ? (position) => edit({ type: "moveHandle", id, index, position }) : null }}
     />
   </div>;
+}
+
+/** A shape's name with its order buttons; a refused edit of the shape marks it. */
+function ShapeName({ name, id, onCommit, children }: { name: string; id: number; onCommit: (name: string) => void; children: ReactNode }) {
+  const problem = useFieldProblem({ type: "shape", id }, null);
+  return <Field label="Name" error={problem}>
+    <TextField name="Shape name" value={name} invalid={problem !== null} onCommit={(value) => { const next = value.trim(); if (next !== "" && next !== name) onCommit(next); }} />
+    {children}
+  </Field>;
 }

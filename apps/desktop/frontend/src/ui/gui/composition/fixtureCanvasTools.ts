@@ -47,7 +47,8 @@ export function useFixtureCanvasTools(tools: FixtureCanvasTools | undefined, sel
     active: draft !== null || handleDrag !== null,
     cancel: clear,
     key: (key: string) => {
-      if (key === "Escape") { clear(); tools?.onCancel(); return true; }
+      // Escape backs out one level: the shape being drawn, then the tool.
+      if (key === "Escape") { if (draft !== null || handleDrag !== null) clear(); else tools?.onCancel(); return true; }
       if (key === "Backspace" && draft?.tool === "polyline") {
         if (draft.points.length <= 1) clear(); else setDraft({ ...draft, points: draft.points.slice(0, -1) });
         return true;

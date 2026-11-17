@@ -16,10 +16,9 @@ pub(crate) fn targets<S>(
         .routes
         .iter()
         .filter(|route| {
-            selected
-                .ports
-                .iter()
-                .any(|port| &route.controller == port.controller && route.port == port.port.id)
+            selected.outputs.iter().any(|output| {
+                &route.controller == output.controller && route.output == output.output
+            })
         })
         .map(|route| {
             let target = TargetGeometry::new(
@@ -39,22 +38,31 @@ pub(crate) fn targets<S>(
         .collect()
 }
 
-/// Each selected port's routes, in slot order, with their gamma and
-/// brightness as a lookup table in 1/256 of a byte.
+/// Each selected output's routes, in channel order, with their gamma and
+/// brightness as a lookup table in 1/256 of a byte. An E1.31 or Art-Net
+/// controller is one output of all its channels, so a route, and a pixel,
+/// runs on across universe boundaries; the transport splits the bytes into
+/// universes.
 pub(crate) fn prepare<S>(
     builder: &mut ShowBuilder<'_>,
     selected: &Selection<'_, S>,
     stage: &Stage,
 ) {
-    for port in &selected.ports {
-        let output = builder.port(port.controller_index, port.port.id.0);
+    for selected_output in &selected.outputs {
+        let output = builder.port(
+            selected_output.controller_index,
+            selected_output.output.runtime_port(),
+        );
         let mut routes = selected
             .patch
             .routes
             .iter()
-            .filter(|route| &route.controller == port.controller && route.port == port.port.id)
+            .filter(|route| {
+                &route.controller == selected_output.controller
+                    && route.output == selected_output.output
+            })
             .collect::<Vec<_>>();
-        routes.sort_by_key(|route| route.start_slot);
+        routes.sort_by_key(|route| route.start_channel);
         let mut cursor = 0;
         for route in routes {
             let target = builder.target(&stage.routes[&route.id]);
@@ -66,12 +74,12 @@ pub(crate) fn prepare<S>(
                         .clamp(0.0, 255.0 * 256.0) as u16
                 })
             });
-            // Admission checked non-overlap and the complete port width.
-            let start = usize::from(route.start_slot);
+            // Admission checked non-overlap and the complete output width.
+            let start = route.start_channel as usize;
             builder.padding(output, start - cursor);
             let count = builder.route(output, target, encoding, lookup, route.dither);
             cursor = start + count * encoding.channel_count();
         }
-        builder.padding(output, usize::from(port.port.slot_count) - cursor);
+        builder.padding(output, selected_output.width as usize - cursor);
     }
 }

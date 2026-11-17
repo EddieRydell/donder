@@ -187,7 +187,7 @@ macro_rules! walks {
                 | ParamValue::Float(_)
                 | ParamValue::Bool(_)
                 | ParamValue::Color(_)
-                | ParamValue::Enum(_)
+                | ParamValue::Enum { .. }
                 | ParamValue::Marks(_)
                 | ParamValue::Curve(Owned::Inline(_))
                 | ParamValue::Gradient(Owned::Inline(_)) => {}

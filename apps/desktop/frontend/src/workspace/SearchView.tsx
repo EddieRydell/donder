@@ -1,6 +1,6 @@
 import { CaseSensitive } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { commands } from "../api";
+import { commands, errorMessage } from "../api";
 import { THEME_METRICS } from "../theme";
 import type { ProjectSearchResponse } from "../types";
 import type { AppStaticSnapshot } from "../store";
@@ -30,7 +30,7 @@ export function SearchView({ snapshot }: { snapshot: AppStaticSnapshot }) {
           }
         })
         .catch((reason: unknown) => {
-          if (current === requestId.current) setError(String(reason));
+          if (current === requestId.current) setError(errorMessage(reason));
         });
     }, THEME_METRICS.searchDebounceMs);
     return () => { window.clearTimeout(timer); };

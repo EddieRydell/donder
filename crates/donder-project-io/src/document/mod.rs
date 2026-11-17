@@ -8,7 +8,9 @@ pub(crate) mod types;
 
 use donder_language::compiler::{Diagnostic, TextSpan};
 use donder_language::data::{Choice, Data, Decoder, Record, Refers, Schema, declaration};
-use donder_language::data::{DataDeclaration, DataDocument, DataField, DataImport, Spanned};
+use donder_language::data::{
+    DataDeclaration, DataDocument, DataField, DataImport, DataValue, Spanned,
+};
 use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
 
@@ -155,6 +157,26 @@ pub(crate) fn read(source: &str) -> (ParsedDocument, Vec<Diagnostic>) {
     diagnostics.sort_by_key(|diagnostic| (diagnostic.span.start, diagnostic.span.end));
     (document, diagnostics)
 }
+
+/// The `format` a root document's `Project` declares, read from the syntax
+/// alone: a project saved in another format is named as such before any of
+/// it is decoded. `None` when the text holds no integer `format`, which
+/// decoding then reports.
+pub(crate) fn project_format(source: &str) -> Option<Spanned<i64>> {
+    let (tree, _) = donder_language::data::parse(source);
+    tree.declarations
+        .iter()
+        .filter(|declaration| declaration.ty.value.as_str() == types::Project::TYPE)
+        .flat_map(|declaration| &declaration.fields.value)
+        .find(|field| field.name.value.as_str() == PROJECT_FORMAT_FIELD)
+        .and_then(|field| match field.value.value {
+            DataValue::Integer(format) => Some(Spanned::new(format, field.value.span)),
+            _ => None,
+        })
+}
+
+/// The `Project` field that holds `PROJECT_FORMAT_VERSION`.
+const PROJECT_FORMAT_FIELD: &str = "format";
 
 /// The canonical text of a data document; each splice prints a declaration's
 /// list field from items rendered beforehand.

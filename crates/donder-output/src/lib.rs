@@ -16,17 +16,17 @@ mod fseq;
 
 use std::collections::HashMap;
 
-use donder_model::{Controller, ControllerId, ControllerPortId, ControllerProtocol};
+use donder_model::{Controller, ControllerId, ControllerProtocol};
 
 pub use artnet::ArtNetSender;
 pub use e131::E131Sender;
 pub use fseq::{FseqError, FseqStep, encode_fseq};
 
-/// Bytes for one authored controller port, ready for network transport.
+/// An E1.31 or Art-Net controller's channels across all its universes,
+/// ready for network transport, which sends each universe's share.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OutputFrame {
     pub controller: ControllerId,
-    pub port: ControllerPortId,
     pub slots: Vec<u8>,
 }
 
@@ -39,10 +39,6 @@ impl AsMut<[u8]> for OutputFrame {
 #[derive(Debug)]
 pub enum OutputError {
     MissingController(ControllerId),
-    MissingPort {
-        controller: ControllerId,
-        port: donder_model::ControllerPortId,
-    },
     InvalidFrameLength {
         controller: ControllerId,
         expected: usize,
@@ -68,12 +64,8 @@ pub enum ControllerSender {
 impl ControllerSender {
     fn open(id: ControllerId, controller: &Controller) -> Result<Self, OutputError> {
         match &controller.protocol {
-            ControllerProtocol::E131(config) => {
-                E131Sender::open(id, config, &controller.ports).map(Self::E131)
-            }
-            ControllerProtocol::ArtNet(config) => {
-                ArtNetSender::open(id, config, &controller.ports).map(Self::ArtNet)
-            }
+            ControllerProtocol::E131(config) => E131Sender::open(id, config).map(Self::E131),
+            ControllerProtocol::ArtNet(config) => ArtNetSender::open(id, config).map(Self::ArtNet),
             ControllerProtocol::Donder(_) => Err(OutputError::NotStreamed(id)),
         }
     }

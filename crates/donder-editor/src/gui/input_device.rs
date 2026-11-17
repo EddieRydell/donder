@@ -106,7 +106,7 @@ fn domain_control_kind(
         (GuiInputControlKind::Button, GuiControlInput::Key { code }) => {
             InputControlKind::Button(ButtonInput::Key(
                 KeyCode::from_name(code)
-                    .ok_or_else(|| GuiMutationError::Invalid(format!("`{code}` is not a key.")))?,
+                    .ok_or_else(|| GuiMutationError::Invalid(format!("{code} is not a key.")))?,
             ))
         }
         (GuiInputControlKind::Button, GuiControlInput::Notes { low, high, channel }) => {
@@ -214,10 +214,14 @@ pub(super) fn domain_input_device(
     let controls = controls
         .into_iter()
         .map(|control| {
-            let kind = domain_control_kind(control.kind, &control.input)?;
+            let member = crate::dto::GuiMember::Control { id: control.id };
+            let at = |field| crate::dto::GuiProblemSite::of(member.clone(), Some(field));
+            let kind = domain_control_kind(control.kind, &control.input)
+                .map_err(|error| error.at(at(crate::dto::GuiField::Input)))?;
             Ok(InputControl {
                 id: InputControlId(control.id),
-                name: super::model::typed_name(&control.name)?,
+                name: super::model::typed_name(&control.name)
+                    .map_err(|error| error.at(at(crate::dto::GuiField::Name)))?,
                 description: super::description::normalized(control.description),
                 kind,
             })

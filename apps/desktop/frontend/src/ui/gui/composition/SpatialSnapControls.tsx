@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { SeparatorHorizontal, SeparatorVertical, Trash2 } from "lucide-react";
-import { commands } from "../../../api";
+import { commands, errorMessage } from "../../../api";
 import { runSnapshotCommand, useAppStore } from "../../../store";
 import type { SpatialSnapSettings, SpatialUnit, SpatialGuide } from "../../../types";
 import { spatialUnits } from "./spatialSnapping";
@@ -16,7 +16,7 @@ export function SpatialSnapControls({ settings, disabled, guides, onGuides }: { 
     if (current === undefined) return;
     setSaving(true);
     try { await runSnapshotCommand(() => commands.updateAppSettings({ ...current, spatialSnap: snap })); setError(null); }
-    catch (error) { setError(String(error)); }
+    catch (error) { setError(errorMessage(error)); }
     finally { setSaving(false); }
   };
   const unit = spatialUnits[settings.unit];

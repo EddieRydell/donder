@@ -2,7 +2,7 @@ import { commands } from "../../../api";
 import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { EditorCommands } from "../../../shortcuts";
-import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Magnet, Monitor, Music, Pause, Play, RadioTower, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
+import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Magnet, Monitor, Music, Pause, Play, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
 import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
@@ -14,6 +14,7 @@ import type { AppSnapshot, AudioTransportState, SequenceGuiDocument, SequenceFol
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph, requestTapMark } from "../../uiEvents";
 import { IconButton, Tip } from "../../kit";
+import { LiveOutputButton } from "../../LiveOutputButton";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
 import { SequenceExportDialog } from "./SequenceExportDialog";
 
@@ -33,9 +34,6 @@ export function SequenceTransportControls({
   if (transport === null || liveOutput === null || followMode === null || snapping === null) return null;
   const unsupported = isSequenceTransportUnsupported(document, transport);
   const activePlayback = isActiveAudioPlayback(transport.state);
-  const liveActive = liveOutput.enabled;
-  // Each failing controller, Donder or streamed, once.
-  const liveFailures = [...new Set(liveOutput.controllers.flatMap((controller) => controller.lastError === null ? [] : [controller.lastError]))];
   const stepFrame = (direction: -1 | 1) => {
     stepSequenceFrame(document, transport.positionSeconds, transport.durationSeconds, direction);
   };
@@ -51,12 +49,7 @@ export function SequenceTransportControls({
       <IconButton icon={SkipBack} label="Rewind to start" command="transport.rewind" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioRewindToZero)} />
       <IconButton icon={ChevronLeft} label="Step backward" command="edit.moveLeft" disabled={unsupported} onClick={() => { stepFrame(-1); }} />
       <IconButton icon={ChevronRight} label="Step forward" command="edit.moveRight" disabled={unsupported} onClick={() => { stepFrame(1); }} />
-      <IconButton
-        icon={RadioTower}
-        label={liveFailures.length > 0 ? liveFailures.join("; ") : liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
-        pressed={liveActive}
-        onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
-      />
+      <LiveOutputButton liveOutput={liveOutput} />
       <IconButton icon={Monitor} label="Preview" pressed={previewOpen} onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))} />
       <IconButton icon={Workflow} label="Layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph} />
       <IconButton icon={Scissors} label="Slice clips" command="sequence.toggleSliceTool" pressed={sliceTool} onClick={toggleSliceTool} />
@@ -96,9 +89,9 @@ function toggleSequenceSnap() {
 async function chooseAudio(document: SequenceGuiDocument) {
 
   const result = await runGuiEditCommand(commands.chooseSequenceAudio);
-  const edited = result.change.type === "sequenceClips"
-    ? result.change.document
-    : result.change.document.type === "sequence" ? result.change.document.document : null;
+  if (result === null) return;
+  const edited = result.change.type === "sequenceClips" ? result.change.document
+    : result.change.type === "document" && result.change.document.type === "sequence" ? result.change.document.document : null;
   const audio = edited?.audio ?? null;
   if (audio === null) return;
   const durationSeconds = await loadAudioDurationSeconds(audio.resolvedPath);

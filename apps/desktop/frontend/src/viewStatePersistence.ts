@@ -1,19 +1,23 @@
+import { errorMessage } from "./api";
+import { useAppStore } from "./store";
 import { THEME_METRICS } from "./theme";
 
 const pending = new Map<string, () => Promise<unknown>>();
 let timer: number | undefined;
 let saving: Promise<unknown> = Promise.resolve();
 
-export function scheduleViewStateSave(key: string, save: () => Promise<unknown>, onError: (error: unknown) => void, immediate = false) {
+/** Save view state under `key` soon, or at once; a failed save shows in the status bar until a save succeeds. */
+export function scheduleViewStateSave(key: string, save: () => Promise<unknown>, immediate = false) {
   pending.set(key, save);
   window.clearTimeout(timer);
-  if (immediate) {
-    void flushViewStateSaves().catch(onError);
-  } else {
-    timer = window.setTimeout(() => {
-      void flushViewStateSaves().catch(onError);
-    }, THEME_METRICS.workspaceLayoutSaveDelay);
-  }
+  const flush = () => {
+    void flushViewStateSaves().then(
+      () => { useAppStore.getState().reportFailure("viewState", null); },
+      (error: unknown) => { useAppStore.getState().reportFailure("viewState", errorMessage(error)); }
+    );
+  };
+  if (immediate) flush();
+  else timer = window.setTimeout(flush, THEME_METRICS.workspaceLayoutSaveDelay);
 }
 
 export async function flushViewStateSaves(): Promise<void> {

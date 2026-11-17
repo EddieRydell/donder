@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { commands } from "../api";
+import { commands, errorMessage } from "../api";
 import { runCommand } from "../commandRegistry";
 import { desktopLanguageClient } from "../editor/desktopLanguage";
 import { documentSync, useAppStore } from "../store";
@@ -105,7 +105,7 @@ export function TextEditor({
         replaceText(model, document.text, applying);
         documentSync.loaded(epoch, path, document.documentRevision);
         show(model);
-      }).catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
+      }).catch((error: unknown) => { useAppStore.getState().reportFailure("command", errorMessage(error)); });
     }
     return () => {
       cancelled = true;
@@ -130,7 +130,7 @@ export function TextEditor({
       if (model === null || documentSync.pending(epoch, path) || documentSync.revision(epoch, path) !== known) return;
       replaceText(model, document.text, applying);
       documentSync.loaded(epoch, path, document.documentRevision);
-    }).catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
+    }).catch((error: unknown) => { useAppStore.getState().reportFailure("command", errorMessage(error)); });
   }, [epoch, path, revision, root, textReload]);
 
   useEffect(() => { editor.current?.updateOptions({ readOnly }); }, [readOnly]);

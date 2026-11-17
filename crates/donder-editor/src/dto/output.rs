@@ -6,7 +6,7 @@ use specta::Type;
 pub struct SequenceExportPort {
     pub index: u32,
     pub label: String,
-    pub channels: u16,
+    pub channels: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -120,10 +120,11 @@ pub struct DonderDeviceNetworkRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+/// Channels of an E1.31 or Art-Net controller, from 0 across all its
+/// universes, to send at one value.
 pub struct ControllerOutputTest {
-    pub port: u32,
-    pub start_slot: u16,
-    pub slot_count: u16,
+    pub start_channel: u32,
+    pub channel_count: u32,
     pub value: u8,
 }
 

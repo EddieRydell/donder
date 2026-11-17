@@ -18,10 +18,32 @@ pub(super) fn edit_project(
         ));
     }
     match edit {
-        ProjectGuiEdit::AddConsole { initial_color } => {
+        ProjectGuiEdit::AddConsole {
+            initial_color,
+            storage,
+        } => {
             let color = super::model::parse_color(&initial_color)?;
-            donder_model::add_console(&mut session.project, NEW_CONSOLE_FRAME_RATE, color)
+            let id = donder_model::add_console(&mut session.project, NEW_CONSOLE_FRAME_RATE, color)
                 .map_err(super::GuiMutationError::from)?;
+            // `add_console` appends the console inline under a fresh name.
+            let name = session
+                .project
+                .root()
+                .consoles
+                .last()
+                .and_then(donder_model::OwnedMember::name)
+                .map(|name| name.as_str().to_string())
+                .ok_or_else(|| {
+                    super::GuiMutationError::Invalid("The new console is missing.".into())
+                })?;
+            super::ownership::store_new_member(
+                session,
+                resolved,
+                resolved.object,
+                id.into(),
+                &name,
+                storage,
+            )?;
         }
     }
     Ok(())
@@ -70,26 +92,21 @@ pub fn create_sequence(
     request: crate::dto::NewSequenceRequest,
 ) -> Result<crate::dto::GuiObjectRef, super::GuiMutationError> {
     use super::GuiMutationError;
-    use crate::dto::{GuiOwnershipEdit, NewSequenceStorage, ReusableStorage};
-    let duration = super::checked_gui_duration(request.duration_seconds)?;
+    use crate::dto::{GuiField, GuiProblemSite};
+    let duration = super::checked_gui_duration(request.duration_seconds)
+        .map_err(|error| error.at(GuiProblemSite::object(GuiField::Duration)))?;
     let color = super::model::parse_color(&request.initial_color)?;
     let id = donder_model::add_sequence(&mut session.project, duration, request.frame_rate, color)
         .map_err(GuiMutationError::from)?;
-    let reusable = match request.storage {
-        NewSequenceStorage::Inline => None,
-        NewSequenceStorage::SameFile { name } => Some((name, ReusableStorage::SameFile)),
-        NewSequenceStorage::NewFile { name } => Some((name, ReusableStorage::NewFile)),
-    };
-    if let Some((name, storage)) = reusable {
-        super::ownership::edit_site(
-            session,
-            owner,
-            donder_model::OwnershipSite::Member {
-                owner: session.project.root().id.into(),
-                member: id.into(),
-            },
-            GuiOwnershipEdit::MakeReusable { name, storage },
-        )?;
-    }
+    let project = session.project.root().id.into();
+    super::ownership::store_new_member(
+        session,
+        owner,
+        project,
+        id.into(),
+        &request.name,
+        request.storage,
+    )
+    .map_err(|error| error.at(GuiProblemSite::object(GuiField::Name)))?;
     Ok(object_ref(session, id))
 }

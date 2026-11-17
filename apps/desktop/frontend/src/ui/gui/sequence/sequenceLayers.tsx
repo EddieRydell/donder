@@ -1,17 +1,14 @@
 import { useAppStore } from "../../../store";
 import { Plus, Trash2, Workflow } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
+import { useFieldProblem } from "../problems";
 import { THEME_COLORS } from "../../../theme";
 import type { GuiDocumentRequest, SequenceGraphEdge, SequenceLayer } from "../../../types";
 import type { CompositionDocument, CompositionEditing } from "./composition";
 import { ColorPicker } from "../../ColorPicker";
-import { Button, Dialog, Field, IconButton, Select, TextField, Toggle } from "../../kit";
+import { Button, Dialog, Field, IconButton, Problem, Select, TextField, Toggle } from "../../kit";
 import { requestOpenLayerGraph } from "../../uiEvents";
 import { graphEdgeId } from "./graphEdge";
-
-export function useSequenceEditErrorReporter() {
- return useCallback((error: unknown) => { useAppStore.getState().setError(String(error)); }, []);
-}
 
 export function useSequenceEditable() {
 
@@ -36,21 +33,23 @@ export function deletableGraphNodes(document: CompositionDocument, nodeIds: numb
 }
 
 export function LayerProperties({ layer, composition, onDelete }: { layer: SequenceLayer; composition: CompositionEditing; onDelete?: () => void }) {
-  const reportSequenceEditError = useSequenceEditErrorReporter();
-
   const editable = useSequenceEditable();
+  const member = { type: "layer", id: layer.id } as const;
+  const nameProblem = useFieldProblem(member, { type: "name" });
   return <fieldset className="sequence-layer-row" disabled={!editable}>
     <Toggle name={`${layer.name} enabled`} checked={layer.enabled} disabled={!editable} onChange={(enabled) => {
-      void composition.apply({ type: "setLayerEnabled", id: layer.id, enabled }).catch(reportSequenceEditError);
+      void composition.apply({ type: "setLayerEnabled", id: layer.id, enabled });
     }} />
     <ColorPicker value={layer.color} label={`${layer.name} color`} commit={(color) =>
-      composition.applyItem({ type: "setColor", item: { type: "layer", id: layer.id }, color }).then(() => undefined).catch(reportSequenceEditError)
+      composition.applyItem({ type: "setColor", item: { type: "layer", id: layer.id }, color }).then(() => undefined)
     } />
-    <TextField name="Layer name" value={layer.name} disabled={!editable} onCommit={(value) => {
-      const name = value.trim();
-      if (name === "" || name === layer.name) return;
-      void composition.applyItem({ type: "rename", item: { type: "layer", id: layer.id }, name }).catch(reportSequenceEditError);
-    }} />
+    <Problem error={nameProblem}>
+      <TextField name="Layer name" value={layer.name} disabled={!editable} invalid={nameProblem !== null} onCommit={(value) => {
+        const name = value.trim();
+        if (name === "" || name === layer.name) return;
+        void composition.applyItem({ type: "rename", item: { type: "layer", id: layer.id }, name });
+      }} />
+    </Problem>
     {onDelete !== undefined && <IconButton icon={Trash2} label={`Delete ${layer.name}`} danger disabled={!editable} onClick={onDelete} />}
   </fieldset>;
 }
@@ -69,27 +68,19 @@ type Deletion = {
  */
 export function useGraphDeletion(composition: CompositionEditing, onDeleted?: () => void) {
   const { document } = composition;
-  const reportSequenceEditError = useSequenceEditErrorReporter();
-
   const returnFocus = useRef<HTMLElement | null>(null);
   const [pending, setPending] = useState<Deletion | null>(null);
   const [destination, setDestination] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const editable = useSequenceEditable();
   const busy = useAppStore((state) => state.guiEditPending);
   const commit = useCallback(async (deletion: Deletion, migrateToLayerId: number | null) => {
-    try {
-      await composition.apply({
-        type: "deleteGraphItems", nodeIds: deletion.nodeIds, layerIds: deletion.layerIds, edges: deletion.edges, migrateToLayerId
-      }, deletion.origin);
-      setPending(null);
-      setError(null);
-      onDeleted?.();
-    } catch (error: unknown) {
-      setError(String(error));
-      reportSequenceEditError(error);
-    }
-  }, [composition, reportSequenceEditError, onDeleted]);
+    const result = await composition.apply({
+      type: "deleteGraphItems", nodeIds: deletion.nodeIds, layerIds: deletion.layerIds, edges: deletion.edges, migrateToLayerId
+    }, deletion.origin);
+    if (result === null) return;
+    setPending(null);
+    onDeleted?.();
+  }, [composition, onDeleted]);
   const requestDelete = useCallback((nodeIds: number[], edgeIds: string[] = [], explicitLayerIds: number[] = []) => {
     if (!editable) return;
     const origin = useAppStore.getState().guiRequest;
@@ -106,7 +97,6 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
       nodeIds: nodes.map((node) => node.id), edges, layerIds, origin,
       clipCount: layerIds.reduce((count, layerId) => count + composition.layerUses(layerId), 0)
     };
-    setError(null);
     if (deletion.clipCount === 0) {
       void commit(deletion, layerIds.length === 0 ? null : survivor?.id ?? null);
     } else {
@@ -142,7 +132,6 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
       <Select name="Move clips to" disabled={!editable} value={destination === null ? "" : String(destination)} options={destinations}
         onChange={(value) => { setDestination(Number(value)); }} />
     </Field>
-    {error !== null && <p role="alert">{error}</p>}
   </Dialog>;
   return { requestDelete, dialog };
 }
@@ -150,7 +139,6 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
 /** A sequence's or console's layers, with adding, editing and deleting, and its layer graph. */
 export function LayerList({ composition }: { composition: CompositionEditing }) {
   const { document } = composition;
-  const reportSequenceEditError = useSequenceEditErrorReporter();
   const editable = useSequenceEditable();
   const { requestDelete, dialog } = useGraphDeletion(composition);
   return <>
@@ -159,7 +147,7 @@ export function LayerList({ composition }: { composition: CompositionEditing }) 
     <Button icon={Plus} disabled={!editable} onClick={() => {
       void composition.apply({
         type: "createLayer", name: "Layer", color: defaultLayerColor(document.layers.length)
-      }).catch(reportSequenceEditError);
+      });
     }}>Add layer</Button>
     <div className="sequence-layer-list">
       {document.layers.map((layer) => <LayerProperties key={layer.id} layer={layer} composition={composition} onDelete={() => {

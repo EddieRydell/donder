@@ -250,11 +250,11 @@ impl ControlInput {
 impl std::fmt::Display for ControlInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Key(code) => write!(f, "`{}`", code.name()),
+            Self::Key(code) => write!(f, "key {}", code.name()),
             Self::Note(note) => write!(f, "note {note}"),
             Self::ControlChange(number) => write!(f, "control change {number}"),
             Self::PitchBend => f.write_str("pitch bend"),
-            Self::Address(address) => write!(f, "OSC address `{}`", address.0),
+            Self::Address(address) => write!(f, "OSC address {}", address.0),
         }
     }
 }
@@ -445,10 +445,10 @@ impl std::fmt::Display for InputDeviceValidationError {
         match self {
             Self::DuplicateControl(id) => write!(f, "control {} appears twice", id.0),
             Self::InvalidControlName(_, name) => {
-                write!(f, "`{}` is not a snake_case name", name.as_str())
+                write!(f, "{} is not a valid name", name.as_str())
             }
             Self::DuplicateControlName(_, name) => {
-                write!(f, "control `{}` is declared twice", name.as_str())
+                write!(f, "two controls are named {}", name.as_str())
             }
             Self::DuplicateInput {
                 name,
@@ -457,31 +457,33 @@ impl std::fmt::Display for InputDeviceValidationError {
                 ..
             } => write!(
                 f,
-                "control `{}` reads {source}, which control `{}` already reads",
+                "controls {} and {} both read {source}",
                 name.as_str(),
                 other.as_str()
             ),
-            Self::ForeignInput(_, name) => write!(
-                f,
-                "control `{}` reads an input its device's driver does not have",
-                name.as_str()
-            ),
+            Self::ForeignInput(_, name) => {
+                write!(
+                    f,
+                    "control {} reads an input its device doesn't have",
+                    name.as_str()
+                )
+            }
             Self::InputOutOfRange(_, name) => write!(
                 f,
-                "control `{}` reads a note above {MAX_MIDI_NOTE}, a control change above {MAX_MIDI_CONTROL_CHANGE}, a channel other than 1 to {MAX_MIDI_CHANNEL}, or notes from a higher one to a lower one",
+                "control {}'s note, control change or channel is out of range",
                 name.as_str()
             ),
-            Self::InvalidAddress(_, name) => write!(
-                f,
-                "control `{}` reads an OSC address that is not `/` followed by printable characters other than spaces and `*?[]{{}}#,`",
-                name.as_str()
-            ),
-            Self::InvalidAxisRange(_, name) => write!(
-                f,
-                "axis `{}` must run from a lower to a higher finite value",
-                name.as_str()
-            ),
-            Self::InvalidOscPort => f.write_str("an OSC device listens on a port from 1 to 65535"),
+            Self::InvalidAddress(_, name) => {
+                write!(f, "control {}'s OSC address is invalid", name.as_str())
+            }
+            Self::InvalidAxisRange(_, name) => {
+                write!(
+                    f,
+                    "axis {}'s low end isn't below its high end",
+                    name.as_str()
+                )
+            }
+            Self::InvalidOscPort => f.write_str("the OSC port is outside 1 to 65535"),
         }
     }
 }

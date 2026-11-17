@@ -6,11 +6,12 @@ use crate::console::{
     Action, Console, ConsoleClip, ConsoleClipId, InputEvent, LengthSource, MAX_COPIES, On,
     PlayLength,
 };
+use crate::controller::ControllerOutput;
 use crate::effect::{OwnedCurve, OwnedGradient, ParamValue};
 use crate::fixture::FixtureDefinitionId;
 use crate::identity::ObjectId;
 use crate::input_device::{ControlRef, InputControlKind};
-use crate::operator::{param_matches_type, validate_composition_graph};
+use crate::operator::{param_matches, validate_composition_graph};
 use crate::project::DonderProject;
 use crate::sequence::{
     AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
@@ -138,80 +139,138 @@ fn validate_patch(
     patch: &crate::patch::Patch,
     counts: &IndexMap<FixtureDefinitionId, u32>,
 ) -> Result<(), ValidationProblem> {
+    struct Claim<'a> {
+        channels: std::ops::Range<u32>,
+        fixture: &'a Identifier,
+    }
     let mut ids = HashSet::new();
-    let mut occupied = std::collections::HashMap::<_, Vec<std::ops::Range<u32>>>::new();
+    let mut occupied = HashMap::<_, Vec<Claim<'_>>>::new();
     for route in &patch.routes {
-        let fail = |problem| ValidationProblem::Route {
+        let mut fixture = None;
+        let fail = |fixture: Option<&Identifier>, problem| ValidationProblem::Route {
             route: route.id,
+            fixture: fixture.cloned(),
             problem,
         };
         if !ids.insert(route.id) {
-            return Err(fail(RouteProblem::DuplicateId));
-        }
-        if !route.encoding.is_valid()
-            || !route.gamma.is_finite()
-            || route.gamma <= 0.0
-            || !route.brightness.is_finite()
-            || !(0.0..=1.0).contains(&route.brightness)
-        {
-            return Err(fail(RouteProblem::InvalidEncoding));
+            return Err(fail(None, RouteProblem::DuplicateId));
         }
         let layout = project
             .get::<crate::Layout>(route.target.layout)
-            .ok_or_else(|| fail(RouteProblem::MissingLayout))?;
+            .ok_or_else(|| fail(None, RouteProblem::MissingLayout))?;
+        let target = layout.fixture(route.target.fixture);
+        if let Some(target) = target {
+            fixture = Some(&target.name);
+        }
         if !matches!(
-            layout
-                .fixture(route.target.fixture)
-                .map(|fixture| &fixture.kind),
+            target.map(|target| &target.kind),
             Some(crate::layout::LayoutFixtureKind::Fixture { .. })
         ) {
-            return Err(fail(RouteProblem::TargetNotFixture));
+            return Err(fail(fixture, RouteProblem::TargetNotFixture));
+        }
+        if !route.encoding.is_valid() {
+            return Err(fail(fixture, RouteProblem::InvalidColorOrder));
+        }
+        if !route.gamma.is_finite() || route.gamma <= 0.0 {
+            return Err(fail(fixture, RouteProblem::InvalidGamma));
+        }
+        if !route.brightness.is_finite() || !(0.0..=1.0).contains(&route.brightness) {
+            return Err(fail(fixture, RouteProblem::InvalidBrightness));
         }
         let target_count = layout
             .target_pixel_count(&route.target, counts)
-            .map_err(|error| fail(RouteProblem::Target(error)))?;
-        let count = if let Some(span) = route.pixels {
-            if span.count == 0
-                || span
+            .map_err(|error| fail(fixture, RouteProblem::Target(error)))?;
+        let pixels = match route.pixels {
+            Some(span) if span.count == 0 => return Err(fail(fixture, RouteProblem::EmptySpan)),
+            Some(span) => {
+                if span
                     .start
                     .checked_add(span.count)
                     .is_none_or(|end| end > target_count)
-            {
-                return Err(fail(RouteProblem::SpanExceedsTarget));
+                {
+                    return Err(fail(
+                        fixture,
+                        RouteProblem::SpanExceedsTarget {
+                            span,
+                            pixels: target_count,
+                        },
+                    ));
+                }
+                span.start..span.start + span.count
             }
-            span.count
-        } else {
-            target_count
+            None => 0..target_count,
         };
         let controller = project
             .get::<crate::Controller>(route.controller)
-            .ok_or_else(|| fail(RouteProblem::MissingController))?;
-        let port = controller
-            .ports
-            .iter()
-            .find(|port| port.id == route.port)
-            .ok_or_else(|| fail(RouteProblem::MissingPort))?;
-        let width = count
-            .checked_mul(route.encoding.channel_order().len() as u32)
-            .ok_or_else(|| fail(RouteProblem::ChannelOverflow))?;
-        let start = u32::from(route.start_slot);
+            .ok_or_else(|| fail(fixture, RouteProblem::MissingController))?;
+        let available = controller.output_width(route.output).ok_or_else(|| {
+            fail(
+                fixture,
+                match (controller.universes(), route.output) {
+                    (Some(_), _) => RouteProblem::PortOnUniverses,
+                    (None, ControllerOutput::Universes) => RouteProblem::NeedsPort,
+                    (None, ControllerOutput::Port(_)) => RouteProblem::MissingPort,
+                },
+            )
+        })?;
+        let width = pixels
+            .len()
+            .try_into()
+            .ok()
+            .and_then(|count: u32| count.checked_mul(route.encoding.channel_order().len() as u32))
+            .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
+        let start = route.start_channel;
         let end = start
             .checked_add(width)
-            .filter(|&end| end <= u32::from(port.slot_count))
-            .ok_or_else(|| fail(RouteProblem::OutputExceedsPort))?;
-        let ranges = occupied.entry((&route.controller, route.port)).or_default();
-        if width != 0
-            && ranges
-                .iter()
-                .any(|range| start < range.end && range.start < end)
-        {
-            return Err(fail(RouteProblem::OutputsOverlap));
+            .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
+        if end > available {
+            return Err(fail(
+                fixture,
+                RouteProblem::PastLastChannel {
+                    channels: start..end,
+                    available,
+                    output: route.output,
+                },
+            ));
         }
-        if width != 0 {
-            ranges.push(start..end);
+        if width == 0 {
+            continue;
+        }
+        let claims = occupied
+            .entry((route.controller, route.output))
+            .or_default();
+        if let Some(other) = claims
+            .iter()
+            .find(|claim| start < claim.channels.end && claim.channels.start < end)
+        {
+            let shared = start.max(other.channels.start)..end.min(other.channels.end);
+            return Err(fail(
+                fixture,
+                RouteProblem::OutputsOverlap {
+                    pixels,
+                    other: other.fixture.clone(),
+                    place: controller
+                        .place(route.output, shared)
+                        .ok_or_else(|| fail(fixture, RouteProblem::MissingPort))?,
+                },
+            ));
+        }
+        if let Some(fixture) = fixture {
+            claims.push(Claim {
+                channels: start..end,
+                fixture,
+            });
         }
     }
     Ok(())
+}
+
+/// The name of the fixture a route drives, when its layout has it.
+fn route_fixture(project: &DonderProject, route: &crate::patch::PixelRoute) -> Option<Identifier> {
+    project
+        .get::<crate::Layout>(route.target.layout)?
+        .fixture(route.target.fixture)
+        .map(|fixture| fixture.name.clone())
 }
 
 /// The setup's members exist and are distinct by ownership validation.
@@ -248,13 +307,17 @@ fn validate_setup(
     }
     for route in &patch.routes {
         if &route.target.layout != setup.layout.id() {
-            return Err(ValidationProblem::Setup(SetupProblem::RouteOnOtherLayout(
-                route.id,
-            )));
+            return Err(ValidationProblem::Setup(SetupProblem::RouteOnOtherLayout {
+                route: route.id,
+                fixture: route_fixture(project, route),
+            }));
         }
         if !controllers.contains(&route.controller) {
             return Err(ValidationProblem::Setup(
-                SetupProblem::RouteControllerInactive(route.id),
+                SetupProblem::RouteControllerInactive {
+                    route: route.id,
+                    fixture: route_fixture(project, route),
+                },
             ));
         }
     }
@@ -634,7 +697,7 @@ fn validate_overrides(
     }
     for declaration in declarations {
         match overrides.get(&declaration.name) {
-            Some(value) if !param_matches_type(value, &declaration.ty) => {
+            Some(value) if !param_matches(value, declaration) => {
                 return Err(ParamProblem::WrongType(declaration.name.clone()));
             }
             None if declaration.default.is_none() => {
@@ -751,14 +814,19 @@ pub fn validate_console(
         })?;
     }
     let mut always = HashSet::new();
-    for id in &console.always {
-        let clip = console.clip(*id).ok_or(Error::MissingAlwaysClip)?;
-        if !always.insert(id) {
+    for entry in &console.always {
+        let clip = console.clip(entry.clip).ok_or(Error::MissingAlwaysClip)?;
+        if !always.insert(entry.clip) {
             return Err(Error::RepeatedAlwaysClip {
                 clip: clip.id,
                 name: clip.name.clone(),
             });
         }
+        length(&entry.length).map_err(|problem| Error::AlwaysLength {
+            clip: clip.id,
+            name: clip.name.clone(),
+            problem,
+        })?;
     }
     for clip in &console.clips {
         let played = console
@@ -838,14 +906,6 @@ fn validate_event<'a>(
         }
         _ => {}
     }
-    let duration = |duration: &DonderDuration| {
-        let sampled = sample_duration_from_donder_duration(duration)
-            .map_err(|_| EventProblem::DurationBeyondClock)?;
-        if duration.0.is_zero() || sampled.as_ticks() == 0 {
-            return Err(EventProblem::NonPositiveDuration);
-        }
-        Ok(())
-    };
     for action in &on.actions {
         if let Some(id) = action.clip()
             && console.clip(id).is_none()
@@ -858,14 +918,14 @@ fn validate_event<'a>(
                     return Err(EventProblem::Copies(play.copies));
                 }
                 match &play.length {
-                    PlayLength::Fixed(length) => duration(length)?,
+                    PlayLength::Fixed(fixed) => length(fixed)?,
                     PlayLength::Scaled {
                         by,
                         shortest,
                         longest,
                     } => {
-                        duration(shortest)?;
-                        duration(longest)?;
+                        length(shortest)?;
+                        length(longest)?;
                         if shortest.0 > longest.0 {
                             return Err(EventProblem::ShortestAboveLongest);
                         }
@@ -913,8 +973,21 @@ fn validate_event<'a>(
                     return Err(EventProblem::SetByOtherControl(param.clone()));
                 }
             }
-            Action::Start { .. } | Action::Stop { .. } | Action::Toggle { .. } => {}
+            Action::Start { length: held, .. } | Action::Toggle { length: held, .. } => {
+                length(held)?;
+            }
+            Action::Stop { .. } => {}
         }
+    }
+    Ok(())
+}
+
+/// A length a clip plays or repeats every: positive on the playback clock.
+fn length(length: &DonderDuration) -> Result<(), EventProblem> {
+    let sampled = sample_duration_from_donder_duration(length)
+        .map_err(|_| EventProblem::DurationBeyondClock)?;
+    if length.0.is_zero() || sampled.as_ticks() == 0 {
+        return Err(EventProblem::NonPositiveDuration);
     }
     Ok(())
 }
@@ -937,7 +1010,7 @@ fn validate_played<'a>(
                 .any(|action| action.started() == Some(clip.id))
         })
         .collect::<Vec<_>>();
-    let pressed = !console.always.contains(&clip.id)
+    let pressed = !console.is_always(clip.id)
         && starts
             .iter()
             .all(|on| matches!(on.event, InputEvent::Press(_)));

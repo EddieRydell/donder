@@ -9,7 +9,9 @@ use crate::dsl::{Bound, NoSignals, RunContext, STRIP, Strip, StripSignals, Strip
 use crate::dsl::{NeighborWeights, ScanQuery};
 use crate::resources::ParamsView;
 use crate::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
-use donder_language::compiler::{CompiledDefinition, Instance, ParamDecl, ParamRange};
+use donder_language::compiler::{
+    CompiledDefinition, Instance, ParamDecl, ParamRange, program_values,
+};
 use donder_runtime_types::{BoundProgram, Type, Value};
 use donder_runtime_types::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
 use donder_runtime_types::{
@@ -468,6 +470,7 @@ pub(super) fn runtime_instance(
         runtime.iter().chain(fixed).all(|(name, _)| declared(name)),
         "values name parameters"
     );
+    let values = program_values(definition.params(), values, &[]);
     let invocation = definition.invoke(values, automation.into()).unwrap();
     (invocation.instance(Default::default()), slots)
 }

@@ -573,29 +573,35 @@ impl DesktopState {
     pub(crate) fn create_sequence(
         &self,
         request: NewSequenceRequest,
-    ) -> Result<donder_editor::dto::NewSequenceResult, String> {
+    ) -> donder_editor::dto::NewSequenceResult {
+        use donder_editor::dto::{GuiProblem, NewSequenceResult};
         let _authoring = self.settled_authoring();
-        let project = self.project_session().ok_or("No project is loaded.")?;
-        let owner = project
-            .source_identity(project.project.root().id.into())
-            .ok_or("The project is missing from the source inventory.")?;
+        let refused = |message: &str| NewSequenceResult::Refused {
+            problem: GuiProblem::without_site(message),
+        };
+        let Some(project) = self.project_session() else {
+            return refused("No project is loaded.");
+        };
+        let Some(owner) = project.source_identity(project.project.root().id.into()) else {
+            return refused("The project is missing from its files.");
+        };
         let target = donder_editor::dto::GuiDocumentRequest {
             owned_path: Vec::new(),
             project_revision: self.snapshot().project_revision,
             path: owner.document().to_string(),
             object_key: owner.object().to_string(),
         };
-        let (result, source) = self
-            .mutate_gui_project_locked(&target, |session| {
-                let owner = donder_editor::resolve_request(session, &target)
-                    .map_err(donder_editor::GuiMutationError::Invalid)?;
-                donder_editor::create_sequence(session, &owner, request)
-            })
-            .map_err(|error| error.message())?;
-        Ok(donder_editor::dto::NewSequenceResult {
-            snapshot: result.snapshot,
-            source,
-        })
+        match self.mutate_gui_project_locked(&target, None, |session| {
+            let owner = donder_editor::resolve_request(session, &target)
+                .map_err(donder_editor::GuiMutationError::Invalid)?;
+            donder_editor::create_sequence(session, &owner, request)
+        }) {
+            Ok((result, source)) => NewSequenceResult::Created {
+                snapshot: Box::new(result.snapshot),
+                source,
+            },
+            Err(problem) => NewSequenceResult::Refused { problem },
+        }
     }
 
     pub(crate) fn delete_path(&self, path: &str) -> AppSnapshot {

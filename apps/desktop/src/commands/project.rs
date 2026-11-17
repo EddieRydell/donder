@@ -33,6 +33,6 @@ pub(crate) fn choose_profile_directory() -> Option<String> {
 pub(crate) fn create_sequence(
     request: NewSequenceRequest,
     state: State<'_, DesktopState>,
-) -> Result<donder_editor::dto::NewSequenceResult, String> {
+) -> donder_editor::dto::NewSequenceResult {
     state.create_sequence(request)
 }

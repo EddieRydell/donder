@@ -2,6 +2,7 @@ import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tau
 import { EDIT_MENU, FILE_MENU, VIEW_MENU, type AppMenuEntry } from "./appMenus";
 import { commandRegistry, commandShortcuts, runCommand } from "./commandRegistry";
 import { editTarget, isMac, shortcut, shortcutAccelerator, type EditTarget } from "./platform";
+import { errorMessage } from "./api";
 import { useAppStore } from "./store";
 import type { AppCommandId, CommandId, EditorCommandId, KeyBinding, Shortcut } from "./types";
 import { runFocusedEditorAction } from "./ui/source/monaco";
@@ -166,7 +167,7 @@ export async function installNativeMenu(): Promise<() => void> {
     if (checked !== undefined && previous.checked !== checked && item instanceof CheckMenuItem) void item.setChecked(checked);
   };
   let pending = Promise.resolve();
-  const reportMenuError = (error: unknown) => { useAppStore.getState().setError(`The app menu could not update: ${String(error)}`); };
+  const reportMenuError = (error: unknown) => { useAppStore.getState().reportFailure("menu", `The app menu couldn't update: ${errorMessage(error)}`); };
   const sync = () => {
     const keybindings = keybindingsOf(useAppStore.getState().snapshot?.settings.keybindings);
     if (keybindings !== builtKeybindings) {

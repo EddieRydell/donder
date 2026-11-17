@@ -45,21 +45,6 @@ fn frame_h() -> float { (target.max_y - target.min_y) / frame_unit() + 1.0 }
 fn frame_x(scale: float) -> float { (frame_w() - 1.0) / 2.0 + (pixel.x - (target.min_x + target.max_x) / 2.0) / (frame_unit() * scale) }
 fn frame_y(scale: float) -> float { (frame_h() - 1.0) / 2.0 + (pixel.y - (target.min_y + target.max_y) / 2.0) / (frame_unit() * scale) }
 
--- Vixen's Strings layout: string_count strings of string_length consecutive
--- pixels, x the string and y the pixel along it (Horizontal swaps them).
--- Locations uses the frame.
-fn string_w(strings: bool, across: bool, count: float, length: float) -> float {
-  if !strings { frame_w() } else if across { length } else { count }
-}
-fn string_h(strings: bool, across: bool, count: float, length: float) -> float {
-  if !strings { frame_h() } else if across { count } else { length }
-}
-fn string_x(strings: bool, across: bool, length: int, scale: float) -> float {
-  if !strings { frame_x(scale) } else if across { pixel.index % length } else { pixel.index // length }
-}
-fn string_y(strings: bool, across: bool, length: int, scale: float) -> float {
-  if !strings { frame_y(scale) } else if across { pixel.index // length } else { pixel.index % length }
-}
 
 -- BASIC: Set Level.
 effect VixenSetLevel {
@@ -131,8 +116,12 @@ effect VixenCandle {
 effect VixenChase {
   param color_gradient: gradient;
   param pulse_curve: curve in 0.0..100.0;
-  param static_color: color = #ffffff;
-  param color_handling: enum { SingleColor, GradientPerPulse, GradientThroughEffect, GradientAcrossItems } = SingleColor;
+  param color_handling: enum {
+    SingleColor { static_color: color = #ffffff },
+    GradientPerPulse,
+    GradientThroughEffect,
+    GradientAcrossItems,
+  } = SingleColor;
   param pulse_overlap_ms: float in 0.0..600000.0 = 0.0;
   param enable_default_level: bool = false;
   param default_level: float in 0.0..100.0 = 0.0;
@@ -144,11 +133,12 @@ effect VixenChase {
     let chase_time = max(1.0, duration * 1000.0 - pulse_overlap_ms);
     let start = pixel.index / count * chase_time;
     let local = (time * 1000.0 - start) / (chase_time / count + pulse_overlap_ms);
-    let position =
-      if color_handling == GradientAcrossItems { pixel.index / count }
-      else if color_handling == GradientThroughEffect { progress }
-      else { local };
-    let base = if color_handling == SingleColor { static_color } else { color_gradient[position] };
+    let base = match color_handling {
+      SingleColor { static_color } => static_color,
+      GradientPerPulse => color_gradient[local],
+      GradientThroughEffect => color_gradient[progress],
+      GradientAcrossItems => color_gradient[pixel.index / count],
+    };
     let baseline = if enable_default_level { base * (default_level / 100.0) } else { rgb(0.0, 0.0, 0.0) };
     let active = (local >= 0.0 || extend_pulse_to_start) && (local <= 1.0 || extend_pulse_to_end);
     if active { max(baseline, base * (value_or(pulse_curve[local], 100.0) / 100.0)) } else { baseline }
@@ -159,32 +149,44 @@ effect VixenChase {
 effect VixenSpin {
   param color_gradient: gradient;
   param pulse_curve: curve in 0.0..100.0;
-  param static_color: color = #ffffff;
-  param color_handling: enum { SingleColor, GradientPerPulse, GradientThroughEffect, GradientAcrossItems } = SingleColor;
-  param speed_format: enum { RevolutionCount, RevolutionFrequency, FixedTime } = RevolutionCount;
-  param pulse_length_format: enum { DistributeEvenly, PercentRevolution, PulseTime } = DistributeEvenly;
-  param revolutions: float in 0.01..1000.0 = 3.0;
-  param frequency_hz: float in 0.01..1000.0 = 2.0;
-  param revolution_time_ms: float in 1.0..600000.0 = 500.0;
-  param pulse_time_ms: float in 0.0..600000.0 = 100.0;
-  param pulse_percentage: float in 0.0..100.0 = 10.0;
+  param color_handling: enum {
+    SingleColor { static_color: color = #ffffff },
+    GradientPerPulse,
+    GradientThroughEffect,
+    GradientAcrossItems,
+  } = SingleColor;
+  param speed_format: enum {
+    RevolutionCount { revolutions: float in 0.01..1000.0 = 3.0 },
+    RevolutionFrequency { frequency_hz: float in 0.01..1000.0 = 2.0 },
+    FixedTime { revolution_time_ms: float in 1.0..600000.0 = 500.0 },
+  } = RevolutionCount;
+  param pulse_length_format: enum {
+    DistributeEvenly,
+    PercentRevolution { pulse_percentage: float in 0.0..100.0 = 10.0 },
+    PulseTime { pulse_time_ms: float in 0.0..600000.0 = 100.0 },
+  } = DistributeEvenly;
   param reverse_spin: bool = false;
   param enable_default_level: bool = false;
   param default_level: float in 0.0..100.0 = 0.0;
 
   sample {
     let count: float = target.count;
-    let revolution_ms =
-      if speed_format == FixedTime { revolution_time_ms }
-      else if speed_format == RevolutionFrequency { 1000.0 / frequency_hz }
-      else { duration * 1000.0 / revolutions };
-    let pulse_ms =
-      if pulse_length_format == PulseTime { pulse_time_ms }
-      else if pulse_length_format == PercentRevolution { revolution_ms * pulse_percentage / 100.0 }
-      else { revolution_ms / count };
+    let revolution_ms = match speed_format {
+      RevolutionCount { revolutions } => duration * 1000.0 / revolutions,
+      RevolutionFrequency { frequency_hz } => 1000.0 / frequency_hz,
+      FixedTime { revolution_time_ms } => revolution_time_ms,
+    };
+    let pulse_ms = match pulse_length_format {
+      DistributeEvenly => revolution_ms / count,
+      PercentRevolution { pulse_percentage } => revolution_ms * pulse_percentage / 100.0,
+      PulseTime { pulse_time_ms } => pulse_time_ms,
+    };
     guard pulse_ms > 0.0;
     let item = if reverse_spin { count - pixel.index - 1.0 } else { pixel.index };
-    let base = if color_handling == SingleColor { static_color } else { color_gradient[pixel.index / count] };
+    let base = match color_handling {
+      SingleColor { static_color } => static_color,
+      _ => color_gradient[pixel.index / count],
+    };
     let baseline = if enable_default_level { base * (default_level / 100.0) } else { rgb(0.0, 0.0, 0.0) };
     -- The latest pulse to reach this pixel, and the ones before it a long pulse still covers.
     let now = time * 1000.0;
@@ -192,11 +194,12 @@ effect VixenSpin {
     let pulses = max for back in 0..int(min(100.0, ceil(pulse_ms / revolution_ms))) {
       let local = (now - (latest - back + item / count) * revolution_ms) / pulse_ms;
       guard latest - back >= 0.0 && local <= 1.0;
-      let position =
-        if color_handling == GradientPerPulse { local }
-        else if color_handling == GradientThroughEffect { progress }
-        else { pixel.index / count };
-      let c = if color_handling == SingleColor { static_color } else { color_gradient[position] };
+      let c = match color_handling {
+        SingleColor { static_color } => static_color,
+        GradientPerPulse => color_gradient[local],
+        GradientThroughEffect => color_gradient[progress],
+        GradientAcrossItems => color_gradient[pixel.index / count],
+      };
       c * (value_or(pulse_curve[local], 100.0) / 100.0)
     };
     max(baseline, pulses)
@@ -235,8 +238,12 @@ effect VixenWipe {
 -- BASIC: Twinkle. Each element's time is cut into slots of the mean gap,
 -- and each slot holds one triangular twinkle at a random offset.
 effect VixenTwinkle {
-  param color_handling: enum { SingleColor, GradientThroughEffect, GradientPerPulse, GradientAcrossItems } = GradientPerPulse;
-  param static_color: color = #ffffff;
+  param color_handling: enum {
+    SingleColor { static_color: color = #ffffff },
+    GradientThroughEffect,
+    GradientPerPulse,
+    GradientAcrossItems,
+  } = GradientPerPulse;
   param color_gradient: gradient;
   param minimum_level: float in 0.0..100.0 = 0.0;
   param maximum_level: float in 0.0..100.0 = 100.0;
@@ -255,12 +262,12 @@ effect VixenTwinkle {
     let slot = floor(now / slot_ms);
     let length = min(slot_ms, average_pulse_time_ms * (1.0 + (rand(key + slot) * 2.0 - 1.0) * pulse_time_variation / 100.0));
     let x = (now - slot * slot_ms - rand(key + slot + 0.5) * (slot_ms - length)) / length;
-    let across = color_gradient[pixel.index / target.count];
-    let c =
-      if color_handling == SingleColor { static_color }
-      else if color_handling == GradientPerPulse { color_gradient[clamp(x, 0.0, 1.0)] }
-      else if color_handling == GradientThroughEffect { color_gradient[progress] }
-      else { across };
+    let c = match color_handling {
+      SingleColor { static_color } => static_color,
+      GradientThroughEffect => color_gradient[progress],
+      GradientPerPulse => color_gradient[clamp(x, 0.0, 1.0)],
+      GradientAcrossItems => color_gradient[pixel.index / target.count],
+    };
     let lit = x >= 0.0 && x <= 1.0;
     let triangle = if lit { 1.0 - abs(2.0 * x - 1.0) } else { 0.0 };
     c * ((minimum_level + (maximum_level - minimum_level) * triangle) / 100.0)
@@ -372,10 +379,10 @@ effect VixenButterfly {
   param color_gradient: gradient;
   param butterfly_type: enum { Type1, Type2, Type3, Type4, Type5 } = Type1;
   param color_scheme: enum { Gradient, Rainbow } = Gradient;
-  param motion: enum { Iterations, Speed } = Iterations;
-  param direction: enum { Forward, Backward } = Forward;
-  param iterations: int in 1..100 = 2;
-  param speed: float in 0.0..100.0 = 60.0;
+  param motion: enum {
+    Iterations { iterations: int in 1..100 = 2, direction: enum { Forward, Backward } = Forward },
+    Speed { speed: float in 0.0..100.0 = 60.0 },
+  } = Iterations;
   param repeat: int in 1..100 = 1;
   param background_chunks: int in 1..100 = 1;
   param background_skips: int in 1..100 = 2;
@@ -394,13 +401,16 @@ effect VixenButterfly {
       if butterfly_type == Type4 { repeat * 6.0 }
       else if butterfly_type == Type1 || butterfly_type == Type5 { repeat * 3.0 }
       else { repeat };
-    -- Speed maps 0..100 to -80..80; a negative speed runs backward.
-    let travel = time * (speed * 1.6 - 80.0) / 10.0;
-    -- Vixen wraps the position every iteration, which jumps the pattern back by
-    -- `repetitions` radians; this one keeps running at the same rate.
-    let position = if motion == Speed { abs(travel) } else { progress * iterations };
-    let state = position * repetitions;
-    let backward = if motion == Speed { travel < 0.0 } else { direction == Backward };
+    -- How far the pattern has run, negative backward. Speed maps 0..100 to
+    -- -80..80. Vixen wraps the position every iteration, which jumps the
+    -- pattern back by `repetitions` radians; this one keeps running at the same
+    -- rate.
+    let travel = match motion {
+      Iterations { iterations, direction } => if direction == Backward { -progress * iterations } else { progress * iterations },
+      Speed { speed } => time * (speed * 1.6 - 80.0) / 10.0,
+    };
+    let state = abs(travel) * repetitions;
+    let backward = travel < 0.0;
     let offset = if backward { state } else { -state };
     let value =
       if butterfly_type == Type2 || butterfly_type == Type3 {
@@ -541,19 +551,23 @@ effect VixenBars {
 -- PIXEL: Border, simple or advanced with shared or independent edges.
 effect VixenBorder {
   param color_gradient: gradient;
-  param border_mode: enum { Simple, Advanced } = Simple;
-  param border_type: enum { Single, Independent } = Single;
+  param border_mode: enum {
+    Simple { simple_border_width: int in 0..1000 = 1 },
+    -- A Single border is `thickness` all round; an Independent one sets each side.
+    Advanced {
+      border_type: enum { Single, Independent } = Single,
+      thickness: float in 0.0..100.0 = 20.0,
+      top_thickness: float in 0.0..100.0 = 10.0,
+      bottom_thickness: float in 0.0..100.0 = 10.0,
+      left_thickness: float in 0.0..100.0 = 10.0,
+      right_thickness: float in 0.0..100.0 = 10.0,
+      border_size: float in 0.0..100.0 = 100.0,
+      border_height: float in 0.0..100.0 = 100.0,
+      x_offset: float in 0.0..100.0 = 50.0,
+      y_offset: float in 0.0..100.0 = 50.0,
+    },
+  } = Simple;
   param gradient_mode: enum { OverTime, Across, Vertical, DiagonalTopBottom, DiagonalBottomTop } = OverTime;
-  param simple_border_width: int in 0..1000 = 1;
-  param thickness: float in 0.0..100.0 = 20.0;
-  param top_thickness: float in 0.0..100.0 = 10.0;
-  param bottom_thickness: float in 0.0..100.0 = 10.0;
-  param left_thickness: float in 0.0..100.0 = 10.0;
-  param right_thickness: float in 0.0..100.0 = 10.0;
-  param border_size: float in 0.0..100.0 = 100.0;
-  param border_height: float in 0.0..100.0 = 100.0;
-  param x_offset: float in 0.0..100.0 = 50.0;
-  param y_offset: float in 0.0..100.0 = 50.0;
   param intensity: float in 0.0..100.0 = 100.0;
   param scale_x: float in 0.01..100.0 = 1.0;
   param scale_y: float in 0.01..100.0 = 1.0;
@@ -561,20 +575,34 @@ effect VixenBorder {
   sample {
     let w = frame_w();
     let h = frame_h();
-    let simple = border_mode == Simple;
-    let inset_x = if simple { 0.0 } else { (100.0 - border_size) * w / 200.0 };
-    let inset_y = if simple { 0.0 } else { (100.0 - border_height) * h / 200.0 };
-    let shift_x = if simple { 0.0 } else { (x_offset * 2.0 - 100.0) * (w - inset_x) / 100.0 };
-    let shift_y = if simple { 0.0 } else { (y_offset * 2.0 - 100.0) * (h - inset_y) / 100.0 };
+    let inset_x = match border_mode { Advanced { border_size } => (100.0 - border_size) * w / 200.0, Simple => 0.0 };
+    let inset_y = match border_mode { Advanced { border_height } => (100.0 - border_height) * h / 200.0, Simple => 0.0 };
+    let shift_x = match border_mode { Advanced { x_offset } => (x_offset * 2.0 - 100.0) * (w - inset_x) / 100.0, Simple => 0.0 };
+    let shift_y = match border_mode { Advanced { y_offset } => (y_offset * 2.0 - 100.0) * (h - inset_y) / 100.0, Simple => 0.0 };
     let x = frame_x(scale_x) - shift_x;
     let y = h - 1.0 - frame_y(scale_y) - shift_y;
     guard x >= inset_x && x < w - inset_x && y >= inset_y && y < h - inset_y;
-    let shared: float = if simple { simple_border_width } else { (2.0 + thickness * (min(w, h) - 2.0) / 100.0) / 2.0 };
-    let independent = !simple && border_type == Independent;
-    let top = if independent { top_thickness * h / 100.0 } else { shared };
-    let bottom = if independent { bottom_thickness * h / 100.0 } else { shared };
-    let left = if independent { left_thickness * w / 100.0 } else { shared };
-    let right = if independent { right_thickness * w / 100.0 } else { shared };
+    let shared: float = match border_mode {
+      Simple { simple_border_width } => simple_border_width,
+      Advanced { thickness } => (2.0 + thickness * (min(w, h) - 2.0) / 100.0) / 2.0,
+    };
+    -- Each side, as wide as the others unless an Advanced border sets it alone.
+    let top = match border_mode {
+      Advanced { border_type, top_thickness } => if border_type == Independent { top_thickness * h / 100.0 } else { shared },
+      Simple => shared,
+    };
+    let bottom = match border_mode {
+      Advanced { border_type, bottom_thickness } => if border_type == Independent { bottom_thickness * h / 100.0 } else { shared },
+      Simple => shared,
+    };
+    let left = match border_mode {
+      Advanced { border_type, left_thickness } => if border_type == Independent { left_thickness * w / 100.0 } else { shared },
+      Simple => shared,
+    };
+    let right = match border_mode {
+      Advanced { border_type, right_thickness } => if border_type == Independent { right_thickness * w / 100.0 } else { shared },
+      Simple => shared,
+    };
     guard x < inset_x + left || x >= w - inset_x - right || y < inset_y + bottom || y >= h - inset_y - top;
     let position =
       if gradient_mode == Across { x / w }
@@ -952,20 +980,37 @@ effect VixenMeteors {
   param random_brightness: bool = false;
   param intensity: float in 0.0..100.0 = 100.0;
   param random_seed: float in 0.0..1000000.0 = 0.0;
-  param positioning: enum { Locations, Strings } = Locations;
-  param orientation: enum { Vertical, Horizontal } = Vertical;
-  param string_count: int in 1..10000 = 1;
-  param string_length: int in 1..10000 = 1;
+  param positioning: enum {
+    Locations,
+    -- Vixen's Strings layout: string_count strings of string_length consecutive
+    -- pixels, x the string and y the pixel along it (Horizontal swaps them).
+    Strings {
+      orientation: enum { Vertical, Horizontal } = Vertical,
+      string_count: int in 1..10000 = 1,
+      string_length: int in 1..10000 = 1,
+    },
+  } = Locations;
   param scale_x: float in 0.01..100.0 = 1.0;
   param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let strings = positioning == Strings;
-    let across = orientation == Horizontal;
-    let w = string_w(strings, across, string_count, string_length);
-    let h = string_h(strings, across, string_count, string_length);
-    let x = string_x(strings, across, string_length, scale_x) + 0.5;
-    let y = string_y(strings, across, string_length, scale_y) + 0.5;
+    -- Locations uses the frame.
+    let w = match positioning {
+      Strings { orientation, string_count, string_length } => if orientation == Horizontal { string_length } else { string_count },
+      Locations => frame_w(),
+    };
+    let h = match positioning {
+      Strings { orientation, string_count, string_length } => if orientation == Horizontal { string_count } else { string_length },
+      Locations => frame_h(),
+    };
+    let x = match positioning {
+      Strings { orientation, string_length } => if orientation == Horizontal { pixel.index % string_length } else { pixel.index // string_length },
+      Locations => frame_x(scale_x),
+    } + 0.5;
+    let y = match positioning {
+      Strings { orientation, string_length } => if orientation == Horizontal { pixel.index // string_length } else { pixel.index % string_length },
+      Locations => frame_y(scale_y),
+    } + 0.5;
     let length = 1.0 + tail_length * 0.99;
     let tail = max(1.0, if h < 10.0 { length / 10.0 } else { h * length / 100.0 });
     let base = rand(random_seed);
@@ -1052,9 +1097,11 @@ effect VixenSnowflakes {
   param inner_colors: array<gradient>;
   param flake_type: enum { Random, Single, Three, Five, Nine, Thirteen, ThirteenV2, Seventeen, TwentyNine, FortyFive } = Random;
   param color_type: enum { Range, Palette, Rainbow } = Palette;
-  param snowflake_effect: enum { Falling, RandomDirection, Explode } = Falling;
-  param min_direction: int in 0..360 = 145;
-  param max_direction: int in 0..360 = 215;
+  param snowflake_effect: enum {
+    Falling,
+    RandomDirection { min_direction: int in 0..360 = 145, max_direction: int in 0..360 = 215 },
+    Explode,
+  } = Falling;
   param speed: float in 0.0..100.0 = 11.0;
   param speed_variation: float in 0.0..100.0 = 8.0;
   param count: float in 0.0..100.0 = 10.0;
@@ -1064,20 +1111,37 @@ effect VixenSnowflakes {
   param build_up_speed: float in 0.0..100.0 = 15.0;
   param intensity: float in 0.0..100.0 = 100.0;
   param random_seed: float in 0.0..1000000.0 = 0.0;
-  param positioning: enum { Locations, Strings } = Locations;
-  param orientation: enum { Vertical, Horizontal } = Vertical;
-  param string_count: int in 1..10000 = 1;
-  param string_length: int in 1..10000 = 1;
+  param positioning: enum {
+    Locations,
+    -- Vixen's Strings layout: string_count strings of string_length consecutive
+    -- pixels, x the string and y the pixel along it (Horizontal swaps them).
+    Strings {
+      orientation: enum { Vertical, Horizontal } = Vertical,
+      string_count: int in 1..10000 = 1,
+      string_length: int in 1..10000 = 1,
+    },
+  } = Locations;
   param scale_x: float in 0.01..100.0 = 1.0;
   param scale_y: float in 0.01..100.0 = 1.0;
 
   sample {
-    let strings = positioning == Strings;
-    let across = orientation == Horizontal;
-    let w = string_w(strings, across, string_count, string_length);
-    let h = string_h(strings, across, string_count, string_length);
-    let x = string_x(strings, across, string_length, scale_x);
-    let y = string_y(strings, across, string_length, scale_y);
+    -- Locations uses the frame.
+    let w = match positioning {
+      Strings { orientation, string_count, string_length } => if orientation == Horizontal { string_length } else { string_count },
+      Locations => frame_w(),
+    };
+    let h = match positioning {
+      Strings { orientation, string_count, string_length } => if orientation == Horizontal { string_count } else { string_length },
+      Locations => frame_h(),
+    };
+    let x = match positioning {
+      Strings { orientation, string_length } => if orientation == Horizontal { pixel.index % string_length } else { pixel.index // string_length },
+      Locations => frame_x(scale_x),
+    };
+    let y = match positioning {
+      Strings { orientation, string_length } => if orientation == Horizontal { pixel.index // string_length } else { pixel.index % string_length },
+      Locations => frame_y(scale_y),
+    };
     let level = intensity / 100.0;
     let explode = snowflake_effect == Explode;
     let fixed_kind: float =
@@ -1098,11 +1162,13 @@ effect VixenSnowflakes {
       let trip = floor(along / span);
       let along = along - trip * span;
       let trip_key = rand(key + trip);
-      let degrees =
-        if snowflake_effect == Falling { 145.0 + trip_key * 70.0 }
-        else if explode { trip_key * 360.0 }
-        else if max_direction > min_direction { min_direction + trip_key * (max_direction - min_direction) }
-        else { min_direction + trip_key * (max_direction + 360 - min_direction) };
+      let degrees = match snowflake_effect {
+        Falling => 145.0 + trip_key * 70.0,
+        RandomDirection { min_direction, max_direction } =>
+          if max_direction > min_direction { min_direction + trip_key * (max_direction - min_direction) }
+          else { min_direction + trip_key * (max_direction + 360 - min_direction) },
+        Explode => trip_key * 360.0,
+      };
       let ux = sin(degrees * 0.017453292519943295);
       let uy = cos(degrees * 0.017453292519943295);
       let offset = (rand(trip_key + 0.3) - 0.5) * (abs(uy) * w + abs(ux) * h);

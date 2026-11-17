@@ -1,6 +1,6 @@
 use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject, next_id};
-use crate::dto::{FixtureStorage, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
+use crate::dto::{GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit, NewObjectStorage};
 use donder_model::{FixtureDefinition, OwnedFixture};
 use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::ProjectSession;
@@ -121,13 +121,13 @@ pub(super) fn edit_layout(
         } => {
             let declared = super::model::typed_name(&name)?;
             let definition = match storage {
-                FixtureStorage::Inline => OwnedFixture::Inline(FixtureDefinition {
+                NewObjectStorage::Inline => OwnedFixture::Inline(FixtureDefinition {
                     description: None,
                     elements: Vec::new(),
                 }),
-                FixtureStorage::SameFile | FixtureStorage::NewFile => {
+                NewObjectStorage::SameFile | NewObjectStorage::NewFile => {
                     let definition = donder_model::FixtureDefinitionId(session.project.new_id());
-                    if matches!(storage, FixtureStorage::SameFile) {
+                    if matches!(storage, NewObjectStorage::SameFile) {
                         session
                             .source
                             .add_object(

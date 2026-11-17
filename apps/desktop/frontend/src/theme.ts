@@ -289,7 +289,6 @@ export const THEME_METRICS = {
   spatialRulerTick: cssNumber("--donder-spatial-ruler-tick"),
   spatialSelectionDash: cssNumber("--donder-spatial-selection-dash"),
   spatialGridMinimumPixels: cssNumber("--donder-spatial-grid-minimum-pixels"),
-  spatialPointRadius: cssNumber("--donder-spatial-point-radius"),
   spatialHitRadius: cssNumber("--donder-spatial-hit-radius"),
   spatialPanThreshold: cssNumber("--donder-spatial-pan-threshold")
 } as const;

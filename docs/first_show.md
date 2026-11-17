@@ -23,17 +23,22 @@ targeting. See [fixture authoring](fixture_authoring.md).
 
 ## Route the output
 
-From Setup, add an E1.31 controller. For a local practice receiver, use interface
-0.0.0.0, priority 100, and destination 127.0.0.1. Give output 1 universe 1
-and six channels.
+From Setup, add an E1.31 controller. For a local practice receiver, set its
+destination to 127.0.0.1, start universe 1, one universe and six channels.
+Interface, sender and priority are under Advanced.
 
-Open Patch and edit its routes. Add a route from Pixel A to output 1, first
-channel 1, RGB encoding. Add Pixel B at channel 4. Each pixel uses three channels.
-Apply the routes. Overlap or insufficient port capacity rejects the edit.
+Open Patch and edit its outputs. Add an output from Pixel A to the controller
+at first channel 1, RGB encoding. Add Pixel B at channel 4. Each pixel uses three
+channels. Apply the outputs. Outputs that overlap or run past the controller's
+channels are rejected, with the fixtures and channels named.
 
-RGBW uses four output channels per pixel. Change encoding and channel order on
-the route; fixture geometry does not depend on that encoding. Explicit wiring
-ranges can route sections of an instance to different ports.
+A controller's channels are counted across all its universes: with 510
+channels per universe, channel 511 is the first channel of the second
+universe, and an output may run on from one universe into the next.
+
+RGBW uses four channels per pixel. Change encoding and color order on the
+output; fixture geometry does not depend on that encoding. Partial outputs can
+route sections of an instance to different channels or controllers.
 
 ## Add an effect
 

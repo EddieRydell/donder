@@ -1,9 +1,9 @@
 use donder_elaboration::{PreparationCache, Retain, prepare_cached};
 use donder_language::sample_time_from_seconds_f64;
+use donder_model::ControllerId;
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::SetupId;
-use donder_model::{ControllerId, ControllerPortId};
 use donder_output::OutputFrame;
 use donder_runtime::{PlaybackRate, SequenceFrame, ShowPlayback};
 use donder_runtime_types::{Color, SampleTime, SampleTimeError};
@@ -239,7 +239,10 @@ pub(crate) fn prepare_render_session_cached(
 }
 
 /// A frame's controller output: each output's controller index names a
-/// controller of the setup it was prepared on, in the setup's order.
+/// controller of the setup it was prepared on, in the setup's order. Only
+/// E1.31 and Art-Net controllers stream, each as one output of all its
+/// universes; Donder controllers' outputs have no transport and are dropped
+/// there.
 pub(crate) fn controller_frames(
     frame: &SequenceFrame<'_>,
     controllers: &[ControllerId],
@@ -248,7 +251,6 @@ pub(crate) fn controller_frames(
         .outputs()
         .map(|output| OutputFrame {
             controller: controllers[output.output.controller_index as usize],
-            port: ControllerPortId(output.output.port),
             slots: output.bytes.to_vec(),
         })
         .collect()

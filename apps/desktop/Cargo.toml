@@ -42,6 +42,7 @@ rosc.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true
 tauri.workspace = true
+tauri-plugin-clipboard-manager.workspace = true
 tauri-specta.workspace = true
 wgpu.workspace = true
 winit.workspace = true

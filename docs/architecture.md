@@ -90,7 +90,12 @@ Every edit returns one `GuiEditUpdate`: the changed document, the selection a
 selection edit leaves, what a cut or paste took, and the names it created.
 
 A rejected edit leaves the previous snapshot untouched. GUI edits never touch
-document text, never run project checks, and never reload from disk. Saving and
+document text, never run project checks, and never reload from disk. The
+sequence clipboard is the one exchange with text: copy prints the selection as
+a document of its own (`write_sequence_clipboard`), and paste reads one with the
+loader beside the session's printed documents, interning each address to the
+id the session gives it (`read_sequence_clipboard`); the desktop reads and
+writes the system clipboard from Rust. Saving and
 render refresh are scheduled from the accepted revision through the single
 latest-request scheduler in `state_tasks/`.
 
@@ -155,7 +160,10 @@ working copies.
 
 `donder_elaboration::prepare(&project, &sequence_id, retain)` returns
 `Option<PreparedShow>`, with `None` meaning the selection cannot be
-resolved; `donder_elaboration::arm` prepares a console the same way. `retain` (which hardware outputs the show keeps) is `Retain::All`, `Controllers` or `Ports`.
+resolved; `donder_elaboration::arm` prepares a console the same way. `retain` (which hardware outputs the show keeps) is `Retain::All`, `Controllers` or `Outputs`. An output is one byte stream: an
+E1.31 or Art-Net controller's channels across all its universes, which the
+transport splits into universe packets, so a route or a pixel can straddle a
+universe boundary; or one Donder port.
 Preparation resolves everything symbolic (imports, names, layouts, groups,
 device selection) so that playback never does.
 
@@ -241,13 +249,14 @@ indexes records without checking them. The header holds an `id`
 controller reports so a host can tell which show it holds; playback never reads
 it. A console is a show with voices, live mark
 collections, live automations and its routing: how many controls it reads, each
-`On`'s actions, each clip's voices and played values, and its `always` clips.
-`ShowPlayback` routes each input (`console.rs`), keeping the only
-performance state: the copy each voice last started and until when, each
-axis's position, each live automation's last value and the held presses. A
-new playback starts the `always` clips. Routing issues commands (`Start`,
-with a duration or until stopped, `Stop`, `Mark` and `Set`), which change
-only the playback buffer.
+`On`'s actions, each clip's voices and played values, and the `Start` it runs
+for each `always` clip. `ShowPlayback` routes each input (`console.rs`),
+keeping the only performance state: the copy each voice last started, when
+and for how long, and whether it is held, each axis's position, each live
+automation's last value and the held presses. A new playback starts the
+`always` clips. Routing issues commands (`Start` with a duration, `Stop`,
+`Mark` and `Set`), which change only the playback buffer; before each frame,
+a held copy whose length ended starts again where its next pass begins.
 Every console clip, `always` clips included, is a voice, with as many voices
 as its largest `Play` `copies`. A live automation sets automation bindings of
 clips' and operator nodes' plans (an operator's fused into its consumer's

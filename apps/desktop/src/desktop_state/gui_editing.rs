@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use donder_editor::GuiMutationError;
+use donder_editor::dto::{GuiProblem, GuiProblemSite};
 use donder_project_io::ProjectSession;
 
 use super::{DesktopState, generated_source_texts, lock_unpoisoned};
@@ -122,24 +123,108 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_clip_raster).pixels_rgba_for_token(token)
     }
 
-    /// Apply one GUI edit. The sequence clipboard changes only when the edit is
-    /// accepted.
+    /// Apply one GUI edit.
     pub(crate) fn edit_gui_document(
         &self,
         request: GuiDocumentRequest,
         edit: GuiEditCommand,
     ) -> GuiEditUpdate {
         let _authoring = lock_unpoisoned(&self.authoring);
-        let mut clipboard = lock_unpoisoned(&self.sequence_clipboard);
-        let mut candidate = clipboard.clone();
-        match self.mutate_gui_project_locked(&request, |session| {
-            donder_editor::apply_edit(session, &request, edit, &mut candidate)
+        let site = donder_editor::edit_site(&edit);
+        match self.mutate_gui_project_locked(&request, site, |session| {
+            donder_editor::apply_edit(session, &request, edit)
         }) {
-            Ok((update, outcome)) => {
-                *clipboard = candidate;
-                with_outcome(update, outcome)
-            }
+            Ok((update, outcome)) => with_outcome(update, outcome),
             Err(error) => self.gui_edit_error(error),
+        }
+    }
+
+    /// Remove a sequence selection as one edit, with its clipboard text: none
+    /// when nothing was copied.
+    pub(crate) fn cut_sequence_selection(
+        &self,
+        request: GuiDocumentRequest,
+        selection: donder_editor::dto::SequenceSelection,
+    ) -> (GuiEditUpdate, Option<String>) {
+        let _authoring = lock_unpoisoned(&self.authoring);
+        match self.mutate_gui_project_locked(&request, None, |session| {
+            donder_editor::cut_selection(session, &request, &selection)
+        }) {
+            Ok((update, (text, outcome))) => (with_outcome(update, outcome), text),
+            Err(problem) => (
+                self.clipboard_failed(&request, Some(selection), problem.message()),
+                None,
+            ),
+        }
+    }
+
+    /// Paste the clipboard's `text` into the sequence `request` opens, as one
+    /// edit.
+    pub(crate) fn paste_sequence(
+        &self,
+        request: GuiDocumentRequest,
+        anchor: donder_editor::dto::SequencePasteAnchor,
+        text: &str,
+    ) -> GuiEditUpdate {
+        let _authoring = lock_unpoisoned(&self.authoring);
+        match self.mutate_gui_project_locked(&request, None, |session| {
+            donder_editor::paste(
+                session,
+                &request,
+                anchor,
+                text,
+                &mut lock_unpoisoned(&self.document_texts),
+            )
+        }) {
+            Ok((update, outcome)) => with_outcome(update, outcome),
+            Err(problem) => self.clipboard_failed(&request, None, problem.message()),
+        }
+    }
+
+    /// What would refuse `edit` of the object `request` opens; none when it
+    /// would be accepted. A draft form checks its edit before applying it.
+    pub(crate) fn check_gui_edit(
+        &self,
+        request: &GuiDocumentRequest,
+        edit: GuiEditCommand,
+    ) -> Option<GuiProblem> {
+        let project = self.project_session()?;
+        donder_editor::check_edit(&project, request, edit)
+    }
+
+    /// `request`'s document as it is, after a clipboard action that changed
+    /// nothing.
+    pub(crate) fn unchanged_gui_update(&self, request: &GuiDocumentRequest) -> GuiEditUpdate {
+        self.unchanged_gui_update_with(self.snapshot(), request)
+    }
+
+    /// `request`'s document as it is, with `message` in the status bar: a
+    /// clipboard action that failed, which keeps `selection`. Clipboard
+    /// failures are not document errors, so the document stays open.
+    fn clipboard_failed(
+        &self,
+        request: &GuiDocumentRequest,
+        selection: Option<donder_editor::dto::SequenceSelection>,
+        message: &str,
+    ) -> GuiEditUpdate {
+        let snapshot = self.update_snapshot(|snapshot| snapshot.status = message.to_string());
+        GuiEditUpdate {
+            selection,
+            ..self.unchanged_gui_update_with(snapshot, request)
+        }
+    }
+
+    fn unchanged_gui_update_with(
+        &self,
+        snapshot: AppSnapshot,
+        request: &GuiDocumentRequest,
+    ) -> GuiEditUpdate {
+        match self.project_session() {
+            Some(project) => gui_update(
+                snapshot,
+                donder_editor::project_gui_document_change(&project, &project, request),
+            ),
+            None => self.gui_edit_error(GuiProblem::without_site("No project is loaded.")),
         }
     }
 
@@ -160,37 +245,51 @@ impl DesktopState {
                 };
                 self.get_gui_document(request).document
             }
+            GuiDocumentChange::Refused { problem } => {
+                donder_editor::blocked(problem.message(), Vec::new())
+            }
         };
         GuiEditResult { document }
     }
 
+    /// Apply `mutate`, an edit of the object `request` opens that sets the
+    /// field `edit_site` when it names one, as one undo step; a refused edit
+    /// changes nothing.
     pub(super) fn mutate_gui_project_locked<T>(
         &self,
         request: &GuiDocumentRequest,
+        edit_site: Option<GuiProblemSite>,
         mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
-    ) -> Result<(GuiEditUpdate, T), GuiMutationError> {
+    ) -> Result<(GuiEditUpdate, T), GuiProblem> {
         if self.snapshot().project_revision != request.project_revision {
-            return Err(GuiMutationError::Invalid(
-                "The project changed before the GUI edit arrived.".into(),
+            return Err(GuiProblem::without_site(
+                "The project changed before the edit arrived.",
             ));
         }
         let before = self
             .project_session()
-            .ok_or_else(|| GuiMutationError::Invalid("No project is loaded.".to_string()))?;
-        let mut affected_paths = donder_editor::affected_paths(&before, request)?;
+            .ok_or_else(|| GuiProblem::without_site("No project is loaded."))?;
         let mut edited = (*before).clone();
-        let value = mutate(&mut edited).map_err(|error| error.named(&edited))?;
-        affected_paths.extend(donder_editor::affected_paths(&edited, request)?);
+        let refused = |edited: &ProjectSession, error| {
+            donder_editor::refusal(&before, edited, request, edit_site.clone(), error)
+        };
+        let mut affected_paths = donder_editor::affected_paths(&before, request)
+            .map_err(|error| refused(&edited, error))?;
+        let value = mutate(&mut edited).map_err(|error| refused(&edited, error))?;
+        affected_paths.extend(
+            donder_editor::affected_paths(&edited, request)
+                .map_err(|error| refused(&edited, error))?,
+        );
         let generated_text = generated_source_texts(
             &edited,
             &affected_paths,
             &mut lock_unpoisoned(&self.document_texts),
         )
-        .map_err(GuiMutationError::Invalid)?;
+        .map_err(GuiProblem::without_site)?;
         let edited = Arc::new(edited);
         let snapshot = self
             .accept_gui_sources(Arc::clone(&edited), generated_text, "GUI edit applied")
-            .map_err(GuiMutationError::Invalid)?;
+            .map_err(GuiProblem::without_site)?;
         let change = donder_editor::project_gui_document_change(&before, &edited, request);
         lock_unpoisoned(&self.gui_history).push_undo(GuiHistoryEntry {
             before,
@@ -200,13 +299,8 @@ impl DesktopState {
         Ok((gui_update(snapshot, change), value))
     }
 
-    fn gui_edit_error(&self, error: GuiMutationError) -> GuiEditUpdate {
-        gui_update(
-            self.snapshot(),
-            GuiDocumentChange::Document {
-                document: donder_editor::blocked(error.message(), Vec::new()),
-            },
-        )
+    fn gui_edit_error(&self, problem: GuiProblem) -> GuiEditUpdate {
+        gui_update(self.snapshot(), GuiDocumentChange::Refused { problem })
     }
 
     pub(crate) fn finish_composition_graph_editing(&self) -> AppSnapshot {
@@ -217,38 +311,48 @@ impl DesktopState {
         self.snapshot()
     }
 
-    /// Copy a sequence selection to the clipboard; the project does not change.
+    /// A sequence selection's clipboard text, none when nothing was copied;
+    /// the project does not change.
     pub(crate) fn copy_sequence_selection(
         &self,
         request: GuiDocumentRequest,
         selection: donder_editor::dto::SequenceSelection,
-    ) -> GuiEditUpdate {
+    ) -> (GuiEditUpdate, Option<String>) {
         let _authoring = lock_unpoisoned(&self.authoring);
         let copied = (|| {
             if self.snapshot().project_revision != request.project_revision {
-                return Err(GuiMutationError::Invalid(
-                    "The project changed before copying".into(),
+                return Err(GuiProblem::without_site(
+                    "The project changed before copying.",
                 ));
             }
             let project = self
                 .project_session()
-                .ok_or_else(|| GuiMutationError::Invalid("No project is loaded.".to_string()))?;
-            let (clipboard, outcome) =
-                donder_editor::copy_selection(&project, &request, &selection)?;
-            *lock_unpoisoned(&self.sequence_clipboard) = clipboard;
+                .ok_or_else(|| GuiProblem::without_site("No project is loaded."))?;
+            let (text, outcome) = donder_editor::copy_selection(&project, &request, &selection)
+                .map_err(|error| {
+                    donder_editor::refusal(&project, &project, &request, None, error)
+                })?;
             let update = gui_update(
                 self.snapshot(),
                 donder_editor::project_gui_document_change(&project, &project, &request),
             );
-            Ok(with_outcome(
-                update,
-                donder_editor::GuiEditOutcome {
-                    selection: Some(selection),
-                    ..outcome
-                },
+            Ok((
+                with_outcome(
+                    update,
+                    donder_editor::GuiEditOutcome {
+                        selection: Some(selection.clone()),
+                        ..outcome
+                    },
+                ),
+                text,
             ))
         })();
-        copied.unwrap_or_else(|error| self.gui_edit_error(error))
+        copied.unwrap_or_else(|problem| {
+            (
+                self.clipboard_failed(&request, Some(selection), problem.message()),
+                None,
+            )
+        })
     }
 
     pub(crate) fn undo_active_edit(&self) -> AppSnapshot {

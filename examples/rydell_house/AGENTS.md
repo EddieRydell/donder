@@ -18,7 +18,7 @@ plays the show, is not part of this folder and is not yours to change.
   standard libraries.
 
 Fixtures define pixel geometry, layouts place fixtures and groups, and patches
-route pixels to controller ports. A layout lists every fixture and group once in
+route pixels to controller channels. A layout lists every fixture and group once in
 `items`; `root` and each group's `members` name them by display order, and a
 fixture may belong to several groups (`roofs` and `left_side` can both list
 `left_roof`). Every item must be in `root` or some group. A setup connects a layout, a patch,

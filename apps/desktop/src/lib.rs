@@ -42,6 +42,7 @@ fn run_desktop() -> Result<(), tauri::Error> {
     let invoke_handler = bindings.invoke_handler();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .register_uri_scheme_protocol("donder-raster", |context, request| {
             raster_protocol_response(
                 context.app_handle().state::<desktop_state::DesktopState>().inner(),

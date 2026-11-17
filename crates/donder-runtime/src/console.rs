@@ -1,8 +1,9 @@
 //! Routing a console's inputs to the commands that start and stop its voices,
 //! add live marks and set live automations. The routing is the show's; the
-//! state is the playback's: which copy each voice last started and until when,
-//! each set parameter's last value, each axis's position, and which presses
-//! are held.
+//! state is the playback's: which copy each voice last started and for how
+//! long, each set parameter's last value, each axis's position, and which
+//! presses are held. Every copy plays for a length; a held copy starts again
+//! each time its length ends, until it is stopped.
 use alloc::vec;
 use alloc::vec::Vec;
 use donder_runtime_types::{ConsoleEvent, InputEvent, InputHappening, SampleDuration, SampleTime};
@@ -14,14 +15,17 @@ use crate::view::Show;
 /// A copy of a clip that started playing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Copy {
+    /// When its current pass started.
     started: SampleTime,
-    /// `None` plays until stopped.
-    ends: Option<SampleTime>,
+    length: SampleDuration,
+    /// Whether it starts again when its length ends, until stopped.
+    held: bool,
 }
 
 impl Copy {
     fn plays_at(self, time: SampleTime) -> bool {
-        self.ends.is_none_or(|end| time < end)
+        self.held
+            || time.as_ticks().saturating_sub(self.started.as_ticks()) < self.length.as_ticks()
     }
 }
 
@@ -51,16 +55,43 @@ impl Router {
         }
     }
 
-    /// Start the session at `time`: each `always` clip starts and plays until
-    /// the session ends.
+    /// Start the session at `time`: each `always` clip starts as a `Start`
+    /// would.
     pub(crate) fn start(
         &mut self,
         show: Show<'_>,
         time: SampleTime,
         apply: &mut impl FnMut(ConsoleCommand),
     ) {
-        for &clip in show.s.console_always {
-            self.start_copy(show, clip, 0, None, 1.0, None, time, apply);
+        for action in show.s.console_always {
+            self.act(show, action, None, 1.0, time, apply);
+        }
+    }
+
+    /// Start again each held copy whose length ended by `time`, from the
+    /// start of the pass `time` falls in.
+    pub(crate) fn advance(
+        &mut self,
+        time: SampleTime,
+        apply: &mut impl FnMut(SampleTime, ConsoleCommand),
+    ) {
+        for (voice, copy) in self.copies.iter_mut().enumerate() {
+            let Some(copy) = copy.as_mut().filter(|copy| copy.held) else {
+                continue;
+            };
+            let length = copy.length.as_ticks();
+            let elapsed = time.as_ticks().saturating_sub(copy.started.as_ticks());
+            if elapsed < length {
+                continue;
+            }
+            copy.started = SampleTime::from_ticks(time.as_ticks() - elapsed % length);
+            apply(
+                copy.started,
+                ConsoleCommand::Start {
+                    voice: voice as u16,
+                    duration: copy.length,
+                },
+            );
         }
     }
 
@@ -139,15 +170,15 @@ impl Router {
         apply: &mut impl FnMut(ConsoleCommand),
     ) {
         let clip = action.target;
+        let scale = match action.length {
+            format::LENGTH_VELOCITY => value,
+            format::LENGTH_AXIS => self.axes[action.axis as usize],
+            _ => 0.0,
+        };
+        let span = (action.longest - action.shortest) as f32 * scale;
+        let duration = SampleDuration::from_ticks(action.shortest + (span + 0.5) as u32);
         match action.kind {
             format::ACTION_PLAY => {
-                let scale = match action.length {
-                    format::LENGTH_VELOCITY => value,
-                    format::LENGTH_AXIS => self.axes[action.axis as usize],
-                    _ => 0.0,
-                };
-                let span = (action.longest - action.shortest) as f32 * scale;
-                let duration = SampleDuration::from_ticks(action.shortest + (span + 0.5) as u32);
                 // A free copy, or else the oldest of the action's copies.
                 let voices = Self::voices(show, clip);
                 let copies = voices[..(action.copies as usize).min(voices.len())]
@@ -163,19 +194,12 @@ impl Router {
                             .map_or(0, |(position, _)| position)
                     });
                 self.start_copy(
-                    show,
-                    clip,
-                    position,
-                    Some(duration),
-                    value,
-                    note,
-                    time,
-                    apply,
+                    show, clip, position, duration, false, value, note, time, apply,
                 );
             }
             format::ACTION_START => {
                 if !self.plays(show, clip, time) {
-                    self.start_copy(show, clip, 0, None, value, note, time, apply);
+                    self.start_copy(show, clip, 0, duration, true, value, note, time, apply);
                 }
             }
             format::ACTION_STOP => self.stop(show, clip, time, apply),
@@ -183,7 +207,7 @@ impl Router {
                 if self.plays(show, clip, time) {
                     self.stop(show, clip, time, apply);
                 } else {
-                    self.start_copy(show, clip, 0, None, value, note, time, apply);
+                    self.start_copy(show, clip, 0, duration, true, value, note, time, apply);
                 }
             }
             format::ACTION_MARK => apply(ConsoleCommand::Mark {
@@ -216,15 +240,16 @@ impl Router {
             .any(|&voice| self.copies[voice as usize].is_some_and(|copy| copy.plays_at(time)))
     }
 
-    /// Start the copy at `position` of `clip`, for `duration` or until
-    /// stopped, with the values its press played.
+    /// Start the copy at `position` of `clip` for `duration`, repeating
+    /// until stopped when `held`, with the values its press played.
     #[allow(clippy::too_many_arguments)]
     fn start_copy(
         &mut self,
         show: Show<'_>,
         clip: u32,
         position: usize,
-        duration: Option<SampleDuration>,
+        duration: SampleDuration,
+        held: bool,
         velocity: f32,
         note: Option<u8>,
         time: SampleTime,
@@ -233,7 +258,8 @@ impl Router {
         let voice = Self::voices(show, clip)[position];
         self.copies[voice as usize] = Some(Copy {
             started: time,
-            ends: duration.and_then(|duration| time.checked_add_duration(duration)),
+            length: duration,
+            held,
         });
         apply(ConsoleCommand::Start {
             voice: voice as u16,

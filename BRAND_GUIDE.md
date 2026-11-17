@@ -99,7 +99,7 @@ There is no persistent accent. Color is reserved for data the user authored (cli
 
 ## 7. Components
 
-Every common pattern has exactly one component in `apps/desktop/frontend/src/ui/kit`: button and icon button, number field, text field, select and menu select (a choice from a menu tree, such as definitions in their folders), tabs (equal-width tabs that pick which view a panel shows), toggle, labelled field, section, badge, tooltip, menu and context menu, dialog, and empty-list "+" row. Screens compose them and never restyle raw `<button>`, `<input>`, `<select>` or `<label>`. A new pattern goes into the kit and this guide before it is used twice.
+Every common pattern has exactly one component in `apps/desktop/frontend/src/ui/kit`: button and icon button, number field, text field, select and menu select (a choice from a menu tree, such as definitions in their folders), tabs (equal-width tabs that pick which view a panel shows), toggle, labelled field, problem mark (a control outside a field that breaks a rule), section, badge, tooltip, menu and context menu, dialog, and empty-list "+" row. Screens compose them and never restyle raw `<button>`, `<input>`, `<select>` or `<label>`. A new pattern goes into the kit and this guide before it is used twice.
 
 ### 7.1 Surfaces
 - Flat. Prefer borders over shadows.
@@ -130,6 +130,13 @@ Every common pattern has exactly one component in `apps/desktop/frontend/src/ui/
 - Labels are one or two words. Descriptions and shortcuts live in tooltips, not under controls.
 - An empty list shows a single "+" affordance.
 - No toasts. Changes show where they happen: on the control, in the status bar, or on the undo button.
+
+### 7.7 Problems
+- A refused edit marks the field it concerns: the kit `Field` `error` (or the control's invalid state inside `Problem`), with the message in its tooltip. A draft form checks its draft as it changes and disables Apply with the message in its tooltip.
+- A refused edit no field shows says so in the status bar, in plain words.
+- A system failure (a command, save, render or preview that failed) is a subtle red icon in the status bar, its messages in the tooltip, gone once it succeeds again. Races between edits are not shown.
+- Messages are short sentences that name objects as the GUI does: no ids, paths, backticks or language keywords.
+- No error strips, banners or alert boxes.
 
 ## 8. Interaction Rules
 

@@ -6,7 +6,7 @@ import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.
 import consoles from <consoles/jam.data.donder>;
 
 Project starter {
-  format: 1,
+  format: 2,
   description: none,
   setup: setups.main,
   sequences: [sequences.empty, sequences.layer_test],

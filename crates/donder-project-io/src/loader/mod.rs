@@ -39,10 +39,26 @@ use resolve::DomainResolver;
 #[derive(Default)]
 pub(crate) struct Interner {
     ids: std::collections::HashMap<ObjectAddress, u32>,
-    addresses: Vec<ObjectAddress>,
+    /// `None` for an id of [`Interner::of`]'s session that no object has.
+    addresses: Vec<Option<ObjectAddress>>,
 }
 
 impl Interner {
+    /// The ids `session` gives its objects, so each address interns to its
+    /// object's id there.
+    fn of(session: &ProjectSession) -> Self {
+        let mut interner = Self::default();
+        for (id, address) in session.addresses() {
+            let index = id.raw() as usize;
+            if interner.addresses.len() <= index {
+                interner.addresses.resize(index + 1, None);
+            }
+            interner.ids.insert(address.clone(), id.raw());
+            interner.addresses[index] = Some(address);
+        }
+        interner
+    }
+
     fn intern(&mut self, address: ObjectAddress) -> u32 {
         if let Some(&id) = self.ids.get(&address) {
             return id;
@@ -50,7 +66,7 @@ impl Interner {
         let id = u32::try_from(self.addresses.len())
             .unwrap_or_else(|_| unreachable!("a project has fewer than 2^32 objects"));
         self.ids.insert(address.clone(), id);
-        self.addresses.push(address);
+        self.addresses.push(Some(address));
         id
     }
 }
@@ -149,6 +165,7 @@ impl Loader {
 
     pub(crate) fn load(&mut self) -> Result<ProjectSession, LoadError> {
         let entrypoint = self.entrypoint.clone();
+        self.check_format(&entrypoint)?;
         self.load_document(&entrypoint)?;
         self.build_document_scopes()?;
         let mut project = self.resolve_project(&entrypoint)?;
@@ -166,6 +183,77 @@ impl Loader {
                 referenced_assets: std::mem::take(&mut self.referenced_assets),
             },
         })
+    }
+
+    /// The one sequence `document` declares, read beside `session`'s
+    /// documents: every object it names takes its id in `session`.
+    pub(crate) fn detached_sequence(
+        &mut self,
+        session: &ProjectSession,
+        document: &DocumentId,
+    ) -> Result<donder_model::Sequence, LoadError> {
+        *self.interner.borrow_mut() = Interner::of(session);
+        self.load_document(document)?;
+        self.build_document_scopes()?;
+        let Some(&ObjectId::Sequence(id)) = self.visible_objects[document].values().next() else {
+            unreachable!("the caller read one sequence declaration")
+        };
+        let mut project = self.project_data(ProjectRoot {
+            id: ProjectId(u32::MAX),
+            description: None,
+            setup: Owned::Reference(SetupId(u32::MAX)),
+            sequences: Vec::new(),
+            consoles: Vec::new(),
+        });
+        DomainResolver {
+            loader: self,
+            project: &mut project,
+        }
+        .resolve::<donder_model::Sequence>(id)?;
+        let mut sequence = project
+            .sequences
+            .shift_remove(&id)
+            .unwrap_or_else(|| unreachable!("the sequence was just resolved"));
+        // The text numbers a layout's items in order; `session` may not.
+        let fixture = |target: &mut donder_model::FixtureTarget| {
+            let item = session
+                .project
+                .get::<donder_model::Layout>(target.layout)
+                .and_then(|layout| layout.fixtures.get(target.fixture.0 as usize - 1))
+                .unwrap_or_else(|| unreachable!("the text printed the session's layout"));
+            target.fixture = item.id;
+        };
+        for clip in &mut sequence.clips {
+            fixture(&mut std::sync::Arc::make_mut(clip).target);
+        }
+        for clip in &mut sequence.automation_clips {
+            fixture(&mut clip.row_target);
+        }
+        Ok(sequence)
+    }
+
+    /// Refuse a project saved in another format before reading any of it, so
+    /// one message says so instead of its documents failing to decode.
+    fn check_format(&mut self, entrypoint: &DocumentId) -> Result<(), LoadError> {
+        let absolute = self.absolute_document_path(entrypoint)?;
+        let text = self.read_source(entrypoint, &absolute)?;
+        let Some(format) = crate::document::project_format(&text) else {
+            return Ok(());
+        };
+        let current = i64::from(crate::PROJECT_FORMAT_VERSION);
+        if format.value == current {
+            return Ok(());
+        }
+        let message = if format.value > current {
+            "This project was saved by a newer version of Donder."
+        } else {
+            "This project was saved by an older version of Donder."
+        };
+        Err(crate::diagnostics::invalid_document(
+            entrypoint.path().to_path_buf(),
+            Some(byte_range(&text, format.span.start, format.span.end)),
+            message.to_string(),
+        ))
     }
 
     /// A broken project rule, at the text of the object or member it concerns.
@@ -204,7 +292,9 @@ impl Loader {
 
     /// The address an id was interned under.
     pub(crate) fn address(&self, id: impl Into<ObjectId>) -> ObjectAddress {
-        self.interner.borrow().addresses[id.into().raw() as usize].clone()
+        self.interner.borrow().addresses[id.into().raw() as usize]
+            .clone()
+            .unwrap_or_else(|| unreachable!("every id the loader hands out has an address"))
     }
 
     /// The declared object `identity` names, as a `kind`.
@@ -570,6 +660,27 @@ impl Loader {
             })
     }
 
+    /// A project of `root` and the definitions read so far, before any other
+    /// object resolves.
+    fn project_data(&self, root: ProjectRoot) -> ProjectData {
+        ProjectData {
+            root,
+            setups: IndexMap::new(),
+            layouts: IndexMap::new(),
+            patches: IndexMap::new(),
+            controllers: IndexMap::new(),
+            input_devices: IndexMap::new(),
+            sequences: IndexMap::new(),
+            consoles: IndexMap::new(),
+            fixtures: IndexMap::new(),
+            curves: self.definitions.curves.clone(),
+            gradients: self.definitions.gradients.clone(),
+            effects: self.definitions.effects.clone(),
+            operators: self.definitions.operators.clone(),
+            next_id: 0,
+        }
+    }
+
     fn resolve_project(&mut self, entrypoint: &DocumentId) -> Result<ProjectData, LoadError> {
         let data = self.data.get(entrypoint).cloned().ok_or_else(|| {
             crate::diagnostics::invalid_document(
@@ -584,7 +695,7 @@ impl Loader {
                     Declaration::Project(project) => Some((name, span, project)),
                     _ => None,
                 });
-        let (name, span, root) = projects.next().ok_or_else(|| {
+        let (name, _, root) = projects.next().ok_or_else(|| {
             crate::diagnostics::invalid_document(
                 entrypoint.path().to_path_buf(),
                 None,
@@ -594,41 +705,15 @@ impl Loader {
         if let Some((_, span, _)) = projects.next() {
             return Err(self.invalid(entrypoint, span, "the root document declares one `Project`"));
         }
-        if root.format != crate::PROJECT_FORMAT_VERSION {
-            return Err(self.invalid(
-                entrypoint,
-                span,
-                format!(
-                    "unsupported project format {}; expected {}",
-                    root.format,
-                    crate::PROJECT_FORMAT_VERSION
-                ),
-            ));
-        }
         let root_identity = SourceIdentity::from_document(entrypoint.clone(), name.to_string());
         let root_id = ProjectId(self.intern(root_identity.clone().into()));
-        let mut project = ProjectData {
-            root: ProjectRoot {
-                id: root_id,
-                description: root.description.clone(),
-                setup: Owned::Reference(SetupId(u32::MAX)),
-                sequences: Vec::new(),
-                consoles: Vec::new(),
-            },
-            setups: IndexMap::new(),
-            layouts: IndexMap::new(),
-            patches: IndexMap::new(),
-            controllers: IndexMap::new(),
-            input_devices: IndexMap::new(),
-            sequences: IndexMap::new(),
-            consoles: IndexMap::new(),
-            fixtures: IndexMap::new(),
-            curves: self.definitions.curves.clone(),
-            gradients: self.definitions.gradients.clone(),
-            effects: self.definitions.effects.clone(),
-            operators: self.definitions.operators.clone(),
-            next_id: 0,
-        };
+        let mut project = self.project_data(ProjectRoot {
+            id: root_id,
+            description: root.description.clone(),
+            setup: Owned::Reference(SetupId(u32::MAX)),
+            sequences: Vec::new(),
+            consoles: Vec::new(),
+        });
         let owner = ObjectAddress::from(root_identity);
         let mut resolver = DomainResolver {
             loader: self,

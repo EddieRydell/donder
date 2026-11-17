@@ -252,11 +252,9 @@ fn export_fseq(
             .get(prepared_output.controller_index as usize)
             .and_then(|source| project.get::<donder_model::Controller>(*source.id()))
             .ok_or("Setup controller is missing.")?;
-        let port = controller
-            .ports
-            .iter()
-            .find(|port| port.id.0 == prepared_output.port)
-            .ok_or("Controller port is missing.")?;
+        let output = controller
+            .output_label(controller.runtime_output(prepared_output.port))
+            .ok_or("Controller output is missing.")?;
         let last = first + prepared_output.width - 1;
         let address = session
             .address_of(controller.id.into())
@@ -265,7 +263,7 @@ fn export_fseq(
             "  channels {first}-{last}: {}#{} / {}",
             address.document(),
             address.declared_name(),
-            port.name.as_str()
+            output
         ));
         first = last + 1;
     }

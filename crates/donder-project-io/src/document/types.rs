@@ -119,7 +119,6 @@ pub(crate) struct Setup {
 pub(crate) struct Controller {
     pub description: Option<String>,
     pub protocol: Protocol,
-    pub ports: Vec<Port>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -129,14 +128,22 @@ pub(crate) enum Protocol {
         bind_address: Spelled<IpAddr>,
         priority: u8,
         mode: E131Mode,
+        start_universe: u16,
+        universes: u16,
+        channels: u16,
     },
     ArtNet {
         bind_address: Spelled<SocketAddr>,
         destination: Spelled<SocketAddr>,
         mode: ArtNetMode,
+        /// The 15-bit port-address of the first universe.
+        start_universe: u16,
+        universes: u16,
+        channels: u16,
     },
     Donder {
         device: String,
+        ports: Vec<Port>,
     },
 }
 
@@ -151,15 +158,8 @@ model_choice!(ArtNetMode(donder_model::ArtNetMode) { Unicast, Broadcast });
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Port {
     pub name: Name,
-    pub address: PortAddress,
+    pub output: u8,
     pub slots: u16,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum PortAddress {
-    Universe { universe: u16 },
-    ArtNetPort { port_address: u16 },
-    Output { output: u8 },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -366,9 +366,11 @@ pub(crate) struct Route {
     pub pixels: Option<PixelSpan>,
     #[refers(Declaration("Controller"))]
     pub controller: Reference,
-    /// A port of `controller`.
-    pub port: Name,
-    pub start_slot: u16,
+    /// A port of a Donder `controller`; none for an E1.31 or Art-Net one.
+    pub port: Option<Name>,
+    /// From 0: across an E1.31 or Art-Net controller's universes, or in the
+    /// Donder port.
+    pub start_channel: u32,
     pub encoding: Encoding,
     pub gamma: f32,
     pub brightness: f32,
@@ -558,10 +560,18 @@ pub(crate) struct Console {
     pub marks: Vec<LiveMarks>,
     pub layers: Vec<Layer>,
     pub clips: Vec<ConsoleClip>,
-    /// Clips that play for the whole session, by name.
-    pub always: Vec<Name>,
+    /// Clips that play from the session's start.
+    pub always: Vec<Always>,
     pub events: Vec<On>,
     pub graph: Graph,
+}
+
+/// A clip that plays from the session's start, repeating every `length`.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) struct Always {
+    #[refers(Clip)]
+    pub clip: Name,
+    pub length: Duration,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -627,9 +637,11 @@ pub(crate) enum Action {
         copies: u8,
         length: PlayLength,
     },
+    /// Plays one copy until stopped, repeating every `length`.
     Start {
         #[refers(Clip)]
         clip: Name,
+        length: Duration,
     },
     Stop {
         #[refers(Clip)]
@@ -638,6 +650,7 @@ pub(crate) enum Action {
     Toggle {
         #[refers(Clip)]
         clip: Name,
+        length: Duration,
     },
     Mark {
         #[refers(Marks)]

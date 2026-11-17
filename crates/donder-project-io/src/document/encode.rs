@@ -18,7 +18,7 @@ use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver,
     SequenceCompositionGraph, SequenceLayer,
 };
-use donder_model::{Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
+use donder_model::{Controller, ControllerOutput, ControllerProtocol, E131Mode};
 use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform, OwnedFixture};
 use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
 use donder_model::{ObjectId, OwnedMember};
@@ -312,11 +312,16 @@ impl Encoder<'_> {
                         .project
                         .get::<donder_model::Controller>(route.controller)
                         .ok_or_else(|| self.error("", "a route's controller is missing"))?;
-                    let port = controller
-                        .ports
-                        .iter()
-                        .find(|port| port.id == route.port)
-                        .ok_or_else(|| self.error("", "a route's port is missing"))?;
+                    let port = match route.output {
+                        ControllerOutput::Universes => None,
+                        ControllerOutput::Port(id) => Some(
+                            controller
+                                .ports()
+                                .iter()
+                                .find(|port| port.id == id)
+                                .ok_or_else(|| self.error("", "a route's port is missing"))?,
+                        ),
+                    };
                     Ok(types::Route {
                         target: self.fixture_target(&route.target)?,
                         pixels: route.pixels.map(|span| types::PixelSpan {
@@ -325,8 +330,8 @@ impl Encoder<'_> {
                         }),
                         controller: self
                             .object_reference(ObjectKind::Controller, route.controller)?,
-                        port: name(&port.name),
-                        start_slot: route.start_slot,
+                        port: port.map(|port| name(&port.name)),
+                        start_channel: route.start_channel,
                         encoding: match route.encoding {
                             PixelEncoding::Rgb { order } => types::Encoding::Rgb {
                                 order: (order[0], order[1], order[2]),
@@ -545,7 +550,12 @@ impl Encoder<'_> {
             always: console
                 .always
                 .iter()
-                .map(clip_name)
+                .map(|always| {
+                    Ok(types::Always {
+                        clip: clip_name(&always.clip)?,
+                        length: always.length.0,
+                    })
+                })
                 .collect::<Result<_, ExportProjectError>>()?,
             events: console
                 .events
@@ -592,14 +602,16 @@ impl Encoder<'_> {
                                             },
                                         },
                                     },
-                                    Action::Start { clip } => types::Action::Start {
+                                    Action::Start { clip, length } => types::Action::Start {
                                         clip: clip_name(clip)?,
+                                        length: length.0,
                                     },
                                     Action::Stop { clip } => types::Action::Stop {
                                         clip: clip_name(clip)?,
                                     },
-                                    Action::Toggle { clip } => types::Action::Toggle {
+                                    Action::Toggle { clip, length } => types::Action::Toggle {
                                         clip: clip_name(clip)?,
+                                        length: length.0,
                                     },
                                     Action::Mark(key) => types::Action::Mark {
                                         into: name(&key.name),
@@ -792,7 +804,21 @@ impl Encoder<'_> {
             ParamValue::Float(value) => DataValue::Float(*value),
             ParamValue::Bool(value) => DataValue::Bool(*value),
             ParamValue::Color(value) => DataValue::Color(*value),
-            ParamValue::Enum(option) => donder_language::data::variant(option.as_str()),
+            ParamValue::Enum { option, fields } if fields.is_empty() => {
+                donder_language::data::variant(option.as_str())
+            }
+            ParamValue::Enum { option, fields } => donder_language::data::record(
+                option.as_str(),
+                fields
+                    .iter()
+                    .map(|(name, value)| {
+                        Ok(donder_language::data::field(
+                            name.as_str(),
+                            self.param_value(value)?,
+                        ))
+                    })
+                    .collect::<Result<_, ExportProjectError>>()?,
+            ),
             ParamValue::Marks(Some(key)) => Reference::new(vec![key.name.clone()]).encode(),
             ParamValue::Marks(None) => DataValue::None,
             ParamValue::Curve(OwnedCurve::Reference(id)) => {
@@ -895,35 +921,31 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
                         destination: types::Spelled(destination),
                     },
                 },
+                start_universe: config.universes.start,
+                universes: config.universes.count,
+                channels: config.universes.channels,
             },
             ControllerProtocol::ArtNet(config) => types::Protocol::ArtNet {
                 bind_address: types::Spelled(config.bind_address),
                 destination: types::Spelled(config.destination),
                 mode: types::ArtNetMode(config.mode),
+                start_universe: config.universes.start,
+                universes: config.universes.count,
+                channels: config.universes.channels,
             },
             ControllerProtocol::Donder(config) => types::Protocol::Donder {
                 device: config.device.as_str().to_string(),
+                ports: config
+                    .ports
+                    .iter()
+                    .map(|port| types::Port {
+                        name: name(&port.name),
+                        output: port.output,
+                        slots: port.slot_count,
+                    })
+                    .collect(),
             },
         },
-        ports: controller
-            .ports
-            .iter()
-            .map(|port| types::Port {
-                name: name(&port.name),
-                address: match port.address {
-                    ControllerPortAddress::E131Universe(universe) => {
-                        types::PortAddress::Universe { universe }
-                    }
-                    ControllerPortAddress::ArtNetPort(port_address) => {
-                        types::PortAddress::ArtNetPort { port_address }
-                    }
-                    ControllerPortAddress::DonderOutput(output) => {
-                        types::PortAddress::Output { output }
-                    }
-                },
-                slots: port.slot_count,
-            })
-            .collect(),
     }
 }
 

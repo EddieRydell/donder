@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use donder_language::compiler::{
     CompiledDefinition, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
-    compile_script,
+    compile_script, program_values,
 };
 use donder_runtime::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
 use donder_runtime_types::{BoundProgram, Type, Value};
@@ -690,7 +690,7 @@ fn authored_value(ty: &Type, range: Option<ParamRange>) -> Value {
 }
 
 fn authored_values(params: &[ParamDecl]) -> Vec<Value> {
-    params
+    let declared = params
         .iter()
         .map(|param| {
             param
@@ -698,7 +698,8 @@ fn authored_values(params: &[ParamDecl]) -> Vec<Value> {
                 .clone()
                 .unwrap_or_else(|| authored_value(&param.ty, param.range))
         })
-        .collect()
+        .collect();
+    program_values(params, declared, &[])
 }
 
 /// Every automatable parameter follows one ramp through the sequence.

@@ -17,6 +17,7 @@ import { SequenceEditor } from "./sequence/SequenceEditor";
 import { runGuiEditCommand, useAppStore } from "../../store";
 import { commands } from "../../api";
 import { DescriptionText } from "./DescriptionField";
+import { OBJECT } from "./problems";
 import { THEME_METRICS } from "../../theme";
 
 
@@ -44,7 +45,7 @@ export function GuiEditor(props: Parameters<typeof ResourceEditor>[0]) {
 
 /** The open object's description, edited in place above its editor. */
 function ObjectDescription({ description }: { description: string | null }) {
-  return <DescriptionText className="gui-object-description" description={description} onCommit={(next) =>
+  return <DescriptionText className="gui-object-description" description={description} member={OBJECT} onCommit={(next) =>
     runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setDescription", item: { type: "object" }, description: next }))} />;
 }
 

@@ -193,7 +193,7 @@ impl std::fmt::Display for EditRejection {
             Self::NotInSetup(kind) => write!(f, "Choose a {kind} in this setup."),
             Self::ControllerHasOutputs(count) => write!(
                 f,
-                "This controller has {count} output assignments. Remove them first or choose Remove controller and outputs."
+                "This controller has {count} outputs. Remove them first, or choose Remove with outputs."
             ),
             Self::SharedPatch => f.write_str(
                 "Another setup uses this patch. Make the patch independent first so output changes stay in this setup.",

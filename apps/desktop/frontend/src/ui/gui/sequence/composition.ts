@@ -1,7 +1,7 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import type { ReactNode } from "react";
-import type { CompositionGuiEdit, GuiDocumentRequest, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection, SequenceParamRange } from "../../../types";
+import type { CompositionGuiEdit, GuiDocumentRequest, GuiEditUpdate, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection, SequenceParamRange } from "../../../types";
 import type { AutomationClipChooser, GuiItemEdit } from "../shared";
 
 /** What the layer and graph editors show of a sequence or console. */
@@ -14,9 +14,10 @@ export type CompositionEditing = {
   document: CompositionDocument;
   /** How many clips play on the layer. */
   layerUses: (layerId: number) => number;
-  apply: (edit: CompositionGuiEdit, origin?: GuiDocumentRequest | null) => Promise<unknown>;
+  /** Resolves to null when the edit was not applied. */
+  apply: (edit: CompositionGuiEdit, origin?: GuiDocumentRequest | null) => Promise<GuiEditUpdate | null>;
   /** Rename, describe, color or delete a layer or graph node. */
-  applyItem: (edit: GuiItemEdit) => Promise<unknown>;
+  applyItem: (edit: GuiItemEdit) => Promise<GuiEditUpdate | null>;
   /** Sequences automate operator parameters with automation clips; consoles have no timeline. */
   automation: {
     automationClips: SequenceAutomationClip[];

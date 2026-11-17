@@ -4,15 +4,16 @@ import { navigateToGuiObject } from "../../../../workspace/navigation";
 import { isSecondaryClick } from "../../../../platform";
 import { matchesCommand } from "../../../../commandRegistry";
 import { normalizeHexColor } from "../../../../color";
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, SquareArrowOutUpRight, Trash2, X } from "lucide-react";
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
-import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../types";
+import type { GuiMember, SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../types";
 
 import { ColorPicker } from "../../../ColorPicker";
-import { AddRow, Field, IconButton, NumberField, Section, Select, Toggle } from "../../../kit";
+import { AddRow, Field, IconButton, NumberField, Problem, Section, Select, Toggle } from "../../../kit";
+import { useFieldProblem } from "../../problems";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
 import { WindowFields } from "../../WindowFields";
 
@@ -31,6 +32,25 @@ const CURVE_EDITOR = {
   emptyGradient: THEME_COLORS.emptyGradient,
   defaultColor: THEME_COLORS.white
 } as const;
+
+/** The problem a parameter's value breaks, shown on its labelled field. */
+const ParamProblemContext = createContext<string | null>(null);
+
+/** Values inside, such as a library curve's points, show `problem`. */
+export function ParamProblem({ problem, children }: { problem: string | null; children: ReactNode }) {
+  return <ParamProblemContext.Provider value={problem}>{children}</ParamProblemContext.Provider>;
+}
+
+/** A curve's or gradient's name over its editor, marked when its points break a rule. */
+function ParamName({ name }: { name: string }) {
+  const problem = useContext(ParamProblemContext);
+  return <Problem error={problem}><div className="effect-param-name" data-invalid={problem !== null}>{name}</div></Problem>;
+}
+
+/** A parameter's labelled field, marked when its value breaks a rule. */
+function ParamField({ label, tip, children }: { label: string; tip: string | undefined; children: ReactNode }) {
+  return <Field label={label} tip={tip} error={useContext(ParamProblemContext)}>{children}</Field>;
+}
 
 export type EditedSequenceCurvePoint = { time: number; value: number };
 
@@ -52,7 +72,8 @@ export function TypedParamInput({
   markCollections,
   automation = null,
   automationControl = null,
-  linked = false
+  linked = false,
+  member = null
 }: {
   param: SequenceClipParam;
   commitParam: (name: string, value: SequenceParamValue) => Promise<void>;
@@ -64,6 +85,33 @@ export function TypedParamInput({
   automationControl?: ReactNode;
   /** Whether `automationControl` has linked the parameter to what sets it. */
   linked?: boolean;
+  /** The clips or graph node whose parameter it is, where a refused edit of it shows. */
+  member?: GuiMember | GuiMember[] | null;
+}) {
+  const problem = useFieldProblem(member ?? [], { type: "param", name: param.name });
+  const input = <TypedParamValue param={param} commitParam={commitParam} curveLibrary={curveLibrary} gradientLibrary={gradientLibrary}
+    markCollections={markCollections} automation={automation} automationControl={automationControl} linked={linked} />;
+  return member === null ? input : <ParamProblem problem={problem}>{input}</ParamProblem>;
+}
+
+function TypedParamValue({
+  param,
+  commitParam,
+  curveLibrary,
+  gradientLibrary,
+  markCollections,
+  automation,
+  automationControl,
+  linked
+}: {
+  param: SequenceClipParam;
+  commitParam: (name: string, value: SequenceParamValue) => Promise<void>;
+  curveLibrary: SequenceCurveLibraryItem[];
+  gradientLibrary: SequenceGradientLibraryItem[];
+  markCollections: Pick<SequenceMarkCollection, "key">[];
+  automation: ParamAutomationControls | null;
+  automationControl: ReactNode;
+  linked: boolean;
 }) {
 
   const commit = (value: SequenceParamValue) => {
@@ -73,7 +121,7 @@ export function TypedParamInput({
   const tip = paramTip(param);
 
   if (!param.editable && !automated) {
-    return <Field label={param.name} tip={tip}><span className="effect-param-unavailable">Unavailable</span></Field>;
+    return <ParamField label={param.name} tip={tip}><span className="effect-param-unavailable">Unavailable</span></ParamField>;
   }
 
   const automationActions = automationControl !== null ? automationControl :
@@ -89,10 +137,10 @@ export function TypedParamInput({
         );
   // An automated parameter shows no value of its own: automation sets it, so only its controls remain.
   const valueField = (control: ReactNode) => (
-    <Field label={param.name} tip={tip}>
+    <ParamField label={param.name} tip={tip}>
       {automated ? null : control}
       {automationActions}
-    </Field>
+    </ParamField>
   );
   switch (param.value.type) {
     case "int":
@@ -103,23 +151,41 @@ export function TypedParamInput({
       return valueField(<Toggle name={param.name} checked={param.value.value} onChange={(value) => void commit({ type: "bool", value })} />);
     case "color":
       return (
-        <Field label={param.name} tip={tip}>
+        <ParamField label={param.name} tip={tip}>
           <ColorPicker
             value={param.value.value}
             label={param.name}
             commit={(value) => commit({ type: "color", value })}
           />
-        </Field>
+        </ParamField>
       );
-    case "enum":
-      return valueField(
+    case "enum": {
+      const { value: chosen, fields } = param.value;
+      const option = param.options.find((candidate) => candidate.name === chosen);
+      const select = valueField(
         <Select
           name={param.name}
-          value={param.value.value}
-          options={param.options.map((option) => ({ value: option, label: option }))}
-          onChange={(value) => void commit({ type: "enum", value })}
+          value={chosen}
+          options={param.options.map((candidate) => ({ value: candidate.name, label: candidate.name }))}
+          onChange={(next) => void commit(optionValue(param, next))}
         />
       );
+      if (option === undefined || option.fields.length === 0) return select;
+      // The chosen option's fields, each with its own input; another option starts from its fields' defaults.
+      return (
+        <div className="effect-param-group">
+          {select}
+          <div className="enum-param-fields">
+            {option.fields.map((field) => {
+              const value = fields.find((candidate) => candidate.name === field.name)?.value;
+              if (value === undefined) throw new Error(`Option \`${chosen}\` has no value for \`${field.name}\`.`);
+              return <TypedParamInput key={field.name} param={{ ...field, value }} curveLibrary={curveLibrary} gradientLibrary={gradientLibrary} markCollections={markCollections}
+                commitParam={(name, next) => commit({ type: "enum", value: chosen, fields: fields.map((candidate) => candidate.name === name ? { name, value: next } : candidate) })} />;
+            })}
+          </div>
+        </div>
+      );
+    }
     case "curve":
       return (
         <CurveValueEditor name={param.name} tip={tip} value={param.value.value} declarations={curveLibrary} range={param.range}
@@ -132,20 +198,20 @@ export function TypedParamInput({
           commit={(value) => commit({ type: "gradient", value })} />
       );
     case "intArray":
-      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} step={1} integer commit={(values) => commit({ type: "intArray", values })} />;
+      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "int").value} step={1} integer commit={(values) => commit({ type: "intArray", values })} />;
     case "floatArray":
-      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} step={0.05} integer={false} commit={(values) => commit({ type: "floatArray", values })} />;
+      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "float").value} step={0.05} integer={false} commit={(values) => commit({ type: "floatArray", values })} />;
     case "boolArray":
-      return <BoolArrayParam name={param.name} tip={tip} values={param.value.values} commit={(values) => commit({ type: "boolArray", values })} />;
+      return <BoolArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "bool").value} commit={(values) => commit({ type: "boolArray", values })} />;
     case "colorArray":
-      return <ColorArrayParam name={param.name} tip={tip} values={param.value.values} commit={(values) => commit({ type: "colorArray", values })} />;
+      return <ColorArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "color").value} commit={(values) => commit({ type: "colorArray", values })} />;
     case "curveArray":
-      return <CurveArrayParam declarations={curveLibrary} name={param.name} tip={tip} values={param.value.values} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
+      return <CurveArrayParam declarations={curveLibrary} name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "curve").value} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
     case "gradientArray":
-      return <GradientArrayParam declarations={gradientLibrary} name={param.name} tip={tip} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
+      return <GradientArrayParam declarations={gradientLibrary} name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "gradient").value} commit={(values) => commit({ type: "gradientArray", values })} />;
     case "marks":
       return (
-        <Field label={param.name} tip={tip}>
+        <ParamField label={param.name} tip={tip}>
           <Select
             name={param.name}
             value={param.value.key ?? NO_MARK_COLLECTION}
@@ -155,9 +221,22 @@ export function TypedParamInput({
             ]}
             onChange={(key) => void commit({ type: "marks", key: key === NO_MARK_COLLECTION ? null : key })}
           />
-        </Field>
+        </ParamField>
       );
   }
+}
+
+/** Option `name` of an enum parameter, its fields at their defaults. */
+function optionValue(param: SequenceClipParam, name: string): SequenceParamValue {
+  const option = param.options.find((candidate) => candidate.name === name);
+  return { type: "enum", value: name, fields: (option?.fields ?? []).map((field) => ({ name: field.name, value: field.value })) };
+}
+
+/** The value a new item of an array parameter starts with, which the backend gives every array parameter. */
+function newItem<T extends SequenceParamValue["type"]>(param: SequenceClipParam, type: T): Extract<SequenceParamValue, { type: T }> {
+  const item = param.newItem;
+  if (item === null || item.type !== type) throw new Error(`Parameter \`${param.name}\` has no new ${type} item.`);
+  return item as Extract<SequenceParamValue, { type: T }>;
 }
 
 function formatRange(range: SequenceParamRange) {
@@ -189,13 +268,13 @@ function NumberParam({ name, value, step, integer, range, commit }: {
   />;
 }
 
-function NumberArrayParam({ name, tip, values, step, integer, commit }: { name: string; tip: string | undefined; values: number[]; step: number; integer: boolean; commit: (values: number[]) => Promise<void> }) {
+function NumberArrayParam({ name, tip, values, initial, step, integer, commit }: { name: string; tip: string | undefined; values: number[]; initial: number; step: number; integer: boolean; commit: (values: number[]) => Promise<void> }) {
   return (
     <ArrayShell
       name={name}
       tip={tip}
       values={values}
-      newValue={() => values[values.length - 1] ?? 0}
+      newValue={() => values[values.length - 1] ?? initial}
       commit={commit}
       render={(value, index) => (
         <NumberField name={`${name} ${index + 1}`} value={value} step={step} integer={integer} onCommit={(next) => void commit(replaceAt(values, index, next))} />
@@ -275,13 +354,13 @@ function automationBindingControl(target: SequenceAutomationTarget,
   );
 }
 
-function BoolArrayParam({ name, tip, values, commit }: { name: string; tip: string | undefined; values: boolean[]; commit: (values: boolean[]) => Promise<void> }) {
+function BoolArrayParam({ name, tip, values, initial, commit }: { name: string; tip: string | undefined; values: boolean[]; initial: boolean; commit: (values: boolean[]) => Promise<void> }) {
   return (
     <ArrayShell
       name={name}
       tip={tip}
       values={values}
-      newValue={() => false}
+      newValue={() => initial}
       commit={commit}
       render={(value, index) => (
         <Toggle name={`${name} ${index + 1}`} checked={value} onChange={(checked) => void commit(replaceAt(values, index, checked))} />
@@ -290,13 +369,13 @@ function BoolArrayParam({ name, tip, values, commit }: { name: string; tip: stri
   );
 }
 
-function ColorArrayParam({ name, tip, values, commit }: { name: string; tip: string | undefined; values: string[]; commit: (values: string[]) => Promise<void> }) {
+function ColorArrayParam({ name, tip, values, initial, commit }: { name: string; tip: string | undefined; values: string[]; initial: string; commit: (values: string[]) => Promise<void> }) {
   return (
     <ArrayShell
       name={name}
       tip={tip}
       values={values}
-      newValue={() => values[values.length - 1] ?? CURVE_EDITOR.defaultColor}
+      newValue={() => values[values.length - 1] ?? initial}
       commit={commit}
       render={(value, index) => (
         <ColorPicker label={`${name} ${index + 1}`} value={value} commit={(next) => commit(replaceAt(values, index, next))} />
@@ -305,20 +384,16 @@ function ColorArrayParam({ name, tip, values, commit }: { name: string; tip: str
   );
 }
 
-function CurveArrayParam({ name, tip, values, declarations, range, commit }: { name: string; tip: string | undefined; values: SequenceCurveValue[]; declarations: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
-  const newValue = (): SequenceCurveValue => {
-    const axis = curveAxis([], range);
-    return values[values.length - 1] ?? { points: [{ time: 0, value: axis.min }, { time: 1, value: axis.max }], link: { type: "inline" } };
-  };
+function CurveArrayParam({ name, tip, values, initial, declarations, range, commit }: { name: string; tip: string | undefined; values: SequenceCurveValue[]; initial: SequenceCurveValue; declarations: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
   return <ArrayShell name={name} tip={tip} values={values}
-    newValue={newValue}
+    newValue={() => values[values.length - 1] ?? initial}
     commit={commit}
     render={(value, index) => <CurveValueEditor name={`#${index + 1}`} tip={undefined} value={value} declarations={declarations} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
 
-function GradientArrayParam({ name, tip, values, declarations, commit }: { name: string; tip: string | undefined; values: SequenceGradientValue[]; declarations: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
+function GradientArrayParam({ name, tip, values, initial, declarations, commit }: { name: string; tip: string | undefined; values: SequenceGradientValue[]; initial: SequenceGradientValue; declarations: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
   return <ArrayShell name={name} tip={tip} values={values}
-    newValue={(): SequenceGradientValue => values[values.length - 1] ?? { gradient: { space: "linearRgb", stops: [{ time: 0, value: CURVE_EDITOR.defaultColor }] }, link: { type: "inline" } }}
+    newValue={() => values[values.length - 1] ?? initial}
     commit={commit}
     render={(value, index) => <GradientValueEditor name={`#${index + 1}`} tip={undefined} value={value} declarations={declarations} commit={(next) => commit(replaceAt(values, index, next))} />} />;
 }
@@ -341,9 +416,9 @@ function ArrayShell<T>({
   const add = () => void commit([...values, newValue()]);
   return (
     <div className="effect-param-group array-param-editor">
-      <Field label={name} tip={tip}>
+      <ParamField label={name} tip={tip}>
         {values.length === 0 ? <AddRow label="Add item" onAdd={add} /> : <IconButton icon={Plus} label="Add item" onClick={add} />}
-      </Field>
+      </ParamField>
       {values.map((value, index) => (
         <div key={index} className="array-param-row">
           <div className="array-param-row-main">{render(value, index)}</div>
@@ -452,7 +527,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   ];
   return (
     <div className={`effect-param-group param-source-shell ${linkedDeclaration !== null ? "linked" : ""}`}>
-      <Field label={name} tip={tip}>
+      <ParamField label={name} tip={tip}>
         <Select
           name={`${name} ${label}`}
           disabled={disabled}
@@ -481,7 +556,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
             onClick={() => void navigateToGuiObject({ ownedPath: [], path: linkedDeclaration.path, objectKey: linkedDeclaration.objectKey })}
           />
         </>}
-      </Field>
+      </ParamField>
       {(!disabled || actions !== null) && (
         <div className="param-source-actions">
           {!disabled && <>
@@ -543,7 +618,7 @@ export function CurveParam({
   };
   return (
     <div className="effect-param-group float-curve-editor">
-      {showName && <div className="effect-param-name">{name}</div>}
+      {showName && <ParamName name={name} />}
       <svg
         ref={svgRef}
         className="float-curve-graph"
@@ -719,7 +794,7 @@ export function GradientParam({
   const gradient = gradientCss(drafts, space);
   return (
     <div className="effect-param-group color-curve-editor">
-      {showName && <div className="effect-param-name">{name}</div>}
+      {showName && <ParamName name={name} />}
       <Select
         name={`${name} interpolation`}
         value={space}

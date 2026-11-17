@@ -90,21 +90,18 @@ impl std::fmt::Display for GraphValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DuplicateNode(node) => write!(f, "graph node id {} is used twice", node.0),
-            Self::MissingOperator(_) => f.write_str("the operator definition is missing"),
-            Self::RootCount(count) => write!(
-                f,
-                "a composition graph has exactly one root node, not {count}"
-            ),
-            Self::MissingEdgeNode(_) => f.write_str("an edge names a missing graph node"),
+            Self::MissingOperator(_) => f.write_str("the operator is missing"),
+            Self::RootCount(count) => write!(f, "the graph has {count} outputs instead of one"),
+            Self::MissingEdgeNode(_) => f.write_str("a connection's node is missing"),
             Self::EdgeFromRoot(_) => f.write_str("the root has no output"),
             Self::UnknownInput {
                 input: Some(input), ..
-            } => write!(f, "no input `{}`", input.as_str()),
+            } => write!(f, "no input {}", input.as_str()),
             Self::UnknownInput { input: None, .. } => {
-                f.write_str("an edge to an operator names its input")
+                f.write_str("a connection to an operator names no input")
             }
-            Self::DuplicateEdge(_) => f.write_str("an edge appears twice"),
-            Self::Cycle => f.write_str("the composition graph contains a cycle"),
+            Self::DuplicateEdge(_) => f.write_str("a connection appears twice"),
+            Self::Cycle => f.write_str("the graph loops back on itself"),
         }
     }
 }
@@ -249,7 +246,26 @@ fn validate_acyclic(graph: &SequenceCompositionGraph) -> Result<(), GraphValidat
     }
 }
 
-pub fn param_matches_type(value: &ParamValue, ty: &Type) -> bool {
+/// Whether `value` is a value of `declaration`: of its type, and for an
+/// enum option with fields, every field of the option in order.
+pub fn param_matches(
+    value: &ParamValue,
+    declaration: &donder_language::compiler::ParamDecl,
+) -> bool {
+    match value {
+        ParamValue::Enum { option, fields } => {
+            let declared = declaration.fields_of(option);
+            matches!(&declaration.ty, Type::Enum(options) if options.contains(option))
+                && fields.len() == declared.len()
+                && fields.iter().zip(declared).all(|((name, value), field)| {
+                    name == &field.name && param_matches(value, field)
+                })
+        }
+        value => param_matches_type(value, &declaration.ty),
+    }
+}
+
+fn param_matches_type(value: &ParamValue, ty: &Type) -> bool {
     match (value, ty) {
         (ParamValue::Int(_), Type::Int)
         | (ParamValue::Float(_), Type::Float)
@@ -258,7 +274,9 @@ pub fn param_matches_type(value: &ParamValue, ty: &Type) -> bool {
         | (ParamValue::Marks(_), Type::Marks)
         | (ParamValue::Curve(_), Type::Curve)
         | (ParamValue::Gradient(_), Type::Gradient) => true,
-        (ParamValue::Enum(value), Type::Enum(options)) => options.contains(value),
+        (ParamValue::Enum { option, fields }, Type::Enum(options)) => {
+            fields.is_empty() && options.contains(option)
+        }
         (ParamValue::Array(values), Type::Array(item_type)) => values
             .iter()
             .all(|value| param_matches_type(value, item_type)),

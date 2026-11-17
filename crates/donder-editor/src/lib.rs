@@ -16,9 +16,9 @@ mod source_documents;
 
 pub use gui::model::source_identity_from_gui;
 pub use gui::{
-    ClipboardAutomation, ClipboardClip, ClipboardMark, GuiEditOutcome, GuiMutationError,
-    ResolvedGuiObject, SequenceClipboard, affected_paths, apply_edit, blocked, copy_selection,
-    create_sequence, gui_editor_order, matching_sequence_clips, project_gui_document,
-    project_gui_document_change, resolve_request, sequence_clip_details,
+    GuiEditOutcome, GuiMutationError, ResolvedGuiObject, affected_paths, apply_edit, blocked,
+    check_edit, copy_selection, create_sequence, cut_selection, edit_site, gui_editor_order,
+    matching_sequence_clips, paste, project_gui_document, project_gui_document_change, refusal,
+    resolve_request, sequence_clip_details,
 };
 pub use source_documents::document_for_editor_path;

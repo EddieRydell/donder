@@ -1,5 +1,5 @@
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::{GuiOwnershipEdit, OwnershipMember, ReusableStorage};
+use crate::dto::{GuiOwnershipEdit, NewObjectStorage, OwnershipMember, ReusableStorage};
 use donder_model::{
     FixtureInstanceId, ObjectId, ObjectKind, OwnershipSite, make_independent, make_reusable,
     use_existing,
@@ -37,6 +37,35 @@ pub(super) fn edit(
         },
     };
     edit_site(session, owner, site, edit)
+}
+
+/// Stores `member`, just added inside `owner`'s object `owner_id`, where
+/// `storage` says: kept there, or moved to a declaration named `name`.
+pub(super) fn store_new_member(
+    session: &mut ProjectSession,
+    owner: &ResolvedGuiObject,
+    owner_id: ObjectId,
+    member: ObjectId,
+    name: &str,
+    storage: NewObjectStorage,
+) -> Result<(), GuiMutationError> {
+    let storage = match storage {
+        NewObjectStorage::Inline => return Ok(()),
+        NewObjectStorage::SameFile => ReusableStorage::SameFile,
+        NewObjectStorage::NewFile => ReusableStorage::NewFile,
+    };
+    edit_site(
+        session,
+        owner,
+        OwnershipSite::Member {
+            owner: owner_id,
+            member,
+        },
+        GuiOwnershipEdit::MakeReusable {
+            name: name.to_string(),
+            storage,
+        },
+    )
 }
 
 pub(super) fn edit_site(

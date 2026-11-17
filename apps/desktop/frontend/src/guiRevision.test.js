@@ -40,7 +40,7 @@ test("event before edit response retains the editor and accepts the current proj
   useAppStore.getState().setSnapshot(snapshot(3, 2), "event");
   assert.equal(useAppStore.getState().guiDocument, document);
   assert.equal(useAppStore.getState().guiDocumentRevision, 1);
-  await assert.rejects(runGuiEditCommand(() => assert.fail("stale GUI must not edit")), /still loading/);
+  assert.equal(await runGuiEditCommand(() => assert.fail("stale GUI must not edit")), null);
   assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), change: { type: "document", document: edited } }), true);
   assert.equal(useAppStore.getState().snapshot.stateRevision, 3);
   assert.equal(useAppStore.getState().guiDocument, edited);
@@ -75,7 +75,7 @@ test("a delayed edit keeps its displayed content and blocks a second mutation", 
   const pending = runGuiEditCommand(() => new Promise((resolve) => { finish = resolve; }), origin);
   assert.equal(useAppStore.getState().guiEditPending, true);
   assert.equal(useAppStore.getState().guiDocument, document);
-  await assert.rejects(runGuiEditCommand(() => assert.fail("second mutation dispatched")), /already pending/);
+  assert.equal(await runGuiEditCommand(() => assert.fail("second mutation dispatched")), null);
   finish({ snapshot: snapshot(2, 2), change: { type: "document", document: { ...document } } });
   await pending;
   assert.equal(useAppStore.getState().guiEditPending, false);
@@ -85,11 +85,12 @@ test("a gesture cannot be rebased onto a projection received after pointer-down"
   const origin = useAppStore.getState().guiRequest;
   useAppStore.getState().setSnapshot(snapshot(2, 2));
   useAppStore.getState().setGuiDocument({ ...document });
-  await assert.rejects(runGuiEditCommand(() => assert.fail("rebased gesture dispatched"), origin), /changed during the gesture/);
+  assert.equal(await runGuiEditCommand(() => assert.fail("rebased gesture dispatched"), origin), null);
 });
 
 test("a failed mutation releases the interaction guard without clearing the frame", async () => {
-  await assert.rejects(runGuiEditCommand(() => Promise.reject(new Error("write failed"))), /write failed/);
+  assert.equal(await runGuiEditCommand(() => Promise.reject(new Error("write failed"))), null);
+  assert.equal(useAppStore.getState().failures.command, "write failed");
   assert.equal(useAppStore.getState().guiEditPending, false);
   assert.equal(useAppStore.getState().guiDocument, document);
 });
@@ -126,7 +127,7 @@ test("owned fixtures in one source object have distinct edit identities", () => 
   const descriptor = { objects: [{ key: "main", kind: "layout" }], guiObjects: [{ key: "main", kind: "layout" }] };
   useAppStore.getState().setSnapshot(snapshot(2, 1, { activeDocumentDescriptor: descriptor }));
   useAppStore.getState().setGuiDocument({ type: "layout", document: { path: "main.donder" } });
-  selectGuiObject({ path: "main.donder", objectKey: "main", ownedPath: [{ type: "fixture", id: 1 }] }, "modal");
+  selectGuiObject({ path: "main.donder", objectKey: "main", ownedPath: [{ type: "fixture", id: 1 }] }, "nested");
   const first = useAppStore.getState().guiRequest;
   const firstDocument = { type: "fixture", document: { name: "First" } };
   useAppStore.getState().setGuiDocument(firstDocument);

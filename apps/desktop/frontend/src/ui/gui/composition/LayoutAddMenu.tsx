@@ -13,7 +13,7 @@ type LayoutAdd = {
 export function layoutAddEntries({ availableFixtures, enabled, onAddFixture, onCreateFixture, onAddGroup }: LayoutAdd): MenuEntry[] {
   return [
     { type: "submenu", label: "Add fixture", icon: Lightbulb, disabled: !enabled, entries: [
-      ...availableFixtures.map((fixture): MenuEntry => ({ type: "action", label: `${fixture.objectKey} (${fixture.path})`, disabled: !enabled, onSelect: () => { onAddFixture(fixture); } })),
+      ...availableFixtures.map((fixture): MenuEntry => ({ type: "action", label: fixture.objectKey, disabled: !enabled, onSelect: () => { onAddFixture(fixture); } })),
       ...(availableFixtures.length > 0 ? [{ type: "separator" } as const] : []),
       { type: "action", label: "New fixture", icon: Plus, disabled: !enabled, onSelect: onCreateFixture }
     ] },

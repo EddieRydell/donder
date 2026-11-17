@@ -386,12 +386,14 @@ fn starter_effects_compute_each_pixel_of_a_strip_as_alone() {
                 let what = format!("{name} {}={alternative:?}", param.name.as_str());
                 let mut values = values.clone();
                 values[index].1 = alternative.clone();
-                let mut slots = slots.clone();
-                slots[slot.unwrap()] = alternative;
-                for (how, invocation) in [
-                    ("prepared", playback::lower(&bind(&effect, &values))),
-                    ("runtime", lower_runtime(&instance, slots)),
-                ] {
+                let mut invocations = vec![("prepared", playback::lower(&bind(&effect, &values)))];
+                // An enum whose options carry fields is fixed, not automated.
+                if let Some(slot) = slot {
+                    let mut slots = slots.clone();
+                    slots[slot] = alternative;
+                    invocations.push(("runtime", lower_runtime(&instance, slots)));
+                }
+                for (how, invocation) in invocations {
                     let bound = Bound::new(format!("{what} {how}"), invocation);
                     for ticks in [TICKS[1], TICKS[2]] {
                         bound.assert_strips(ticks, &variant_target, &SPLITS[..2], &mut workspaces);

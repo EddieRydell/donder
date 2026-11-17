@@ -5,7 +5,7 @@ import { Badge, Button, Field, Select, Tabs, Toggle } from "../../kit";
 import { InspectorScrollArea } from "../InspectorScrollArea";
 import { LayerList } from "../sequence/sequenceLayers";
 import type { GuiFocus } from "../shared";
-import { PlayFields } from "./ConsoleActionFields";
+import { PlayFields, RepeatField } from "./ConsoleActionFields";
 import { MarksReadersBadge } from "./ConsoleEditor";
 import { EffectFields } from "./ConsoleEffectFields";
 import { consoleComposition } from "./consoleComposition";
@@ -42,15 +42,16 @@ function Selection({ document, selected, setSelected }: { document: ConsoleGuiDo
   if (selected?.type === "consoleEffect") {
     const clip = document.clips.find((candidate) => candidate.id === selected.id);
     if (clip !== undefined) {
-      const always = document.always.includes(clip.id);
+      const always = clip.alwaysLengthSeconds;
       return <>
         <h2>Effect</h2>
-        <Field label="Always" tip="Plays for the whole session">
-          <Toggle name="Plays for the whole session" checked={always} disabled={!always && document.events.some((on) => on.actions.some((action) => action.type === "play" && action.clipId === clip.id))}
-            onChange={() => void applyConsoleEdit({ type: "setAlways", clipIds: always ? document.always.filter((id) => id !== clip.id) : [...document.always, clip.id] })} />
+        <Field label="Always" tip="Plays from the moment you perform">
+          <Toggle name="Plays from the moment you perform" checked={always !== null} disabled={always === null && document.events.some((on) => on.actions.some((action) => action.type === "play" && action.clipId === clip.id))}
+            onChange={() => void applyConsoleEdit({ type: "setAlways", clipId: clip.id, lengthSeconds: always === null ? document.heldLengthSeconds : null })} />
         </Field>
+        <RepeatField member={{ type: "clip", id: clip.id }} seconds={always ?? document.heldLengthSeconds} disabled={always === null} onChange={(lengthSeconds) => void applyConsoleEdit({ type: "setAlways", clipId: clip.id, lengthSeconds })} />
         <EffectFields document={document} clip={clip} />
-        <Button variant="danger" icon={Trash2} onClick={() => { void applyConsoleItemEdit({ type: "delete", item: { type: "clip", id: clip.id } }).then(() => { setSelected(null); }); }}>Delete effect</Button>
+        <Button variant="danger" icon={Trash2} onClick={() => { void applyConsoleItemEdit({ type: "delete", item: { type: "clip", id: clip.id } }).then((update) => { if (update !== null) setSelected(null); }); }}>Delete effect</Button>
       </>;
     }
   }
@@ -84,13 +85,13 @@ function ActionPanel({ document, on, index, action, setSelected }: {
     {action.type === "set" && <Field label="Sets" tip={`Across its range. It rests at the low end until ${on.input.controlName} first ${on.event === "move" ? "moves" : "is pressed"}.`}>
       <span>{targetLabel(document, action.target)}</span>
     </Field>}
-    <PlayFields document={document} action={action} onChange={set} />
+    <PlayFields document={document} on={on.id} action={action} onChange={set} />
     {clip !== undefined && <>
       <div className="inspector-section-divider" />
       <h2>Effect {uses > 1 && <Badge icon={Link2} tip={`Played by ${uses} actions; changes here apply to all of them`}>{uses}</Badge>}</h2>
       <EffectFields document={document} clip={clip} />
     </>}
     <div className="inspector-section-divider" />
-    <Button variant="danger" icon={Trash2} tip={`Remove from ${on.input.controlName}`} onClick={() => { void applyConsoleEdit({ type: "removeAction", on: on.id, index }).then(() => { setSelected(null); }); }}>Remove action</Button>
+    <Button variant="danger" icon={Trash2} tip={`Remove from ${on.input.controlName}`} onClick={() => { void applyConsoleEdit({ type: "removeAction", on: on.id, index }).then((update) => { if (update !== null) setSelected(null); }); }}>Remove action</Button>
   </>;
 }

@@ -126,23 +126,21 @@ impl ObjectAddress {
 }
 
 impl std::fmt::Display for ObjectAddress {
-    /// `` `main` `` for a declared object, then each owned slot:
-    /// `` `main` › layout ``, `` `main` › controller `front` ``.
+    /// `main` for a declared object, then each owned slot:
+    /// `main › layout`, `main › controller front`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "`{}`", self.root.object())?;
+        f.write_str(self.root.object())?;
         for slot in &self.owned_path {
             match slot {
                 OwnedObjectSlot::Setup => write!(f, " › setup")?,
                 OwnedObjectSlot::Layout => write!(f, " › layout")?,
                 OwnedObjectSlot::Patch => write!(f, " › patch")?,
-                OwnedObjectSlot::Controller(name) => {
-                    write!(f, " › controller `{}`", name.as_str())?
-                }
+                OwnedObjectSlot::Controller(name) => write!(f, " › controller {}", name.as_str())?,
                 OwnedObjectSlot::InputDevice(name) => {
-                    write!(f, " › input device `{}`", name.as_str())?
+                    write!(f, " › input device {}", name.as_str())?
                 }
-                OwnedObjectSlot::Sequence(name) => write!(f, " › sequence `{}`", name.as_str())?,
-                OwnedObjectSlot::Console(name) => write!(f, " › console `{}`", name.as_str())?,
+                OwnedObjectSlot::Sequence(name) => write!(f, " › sequence {}", name.as_str())?,
+                OwnedObjectSlot::Console(name) => write!(f, " › console {}", name.as_str())?,
                 OwnedObjectSlot::Fixture(id) => write!(f, " › fixture {id}")?,
             }
         }

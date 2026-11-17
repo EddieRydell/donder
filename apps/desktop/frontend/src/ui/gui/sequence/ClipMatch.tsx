@@ -3,6 +3,7 @@ import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatc
 import { Button, ContextMenuEntries, Dialog, Field, NumberField, Section, Toggle, type MenuEntry } from "../../kit";
 import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { clipIdsOfKind } from "./sequenceSelection";
+import { errorMessage } from "../../../api";
 
 export type ClipMatchSeed = Pick<SequenceClipMatchRequest, "clips">;
 export type MatchClips = (seed: ClipMatchSeed, criteria: SequenceClipMatch, params: SequenceClipParamMatch[]) => Promise<SequenceSelection>;
@@ -106,7 +107,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
         setResult({ criteria, params, count: selection.type === "clips" ? selection.clips.length : 0 });
         setError(null);
       })
-      .catch((matchError: unknown) => { if (!cancelled) setError(String(matchError)); });
+      .catch((matchError: unknown) => { if (!cancelled) setError(errorMessage(matchError)); });
     return () => { cancelled = true; };
   }, [match, seed, criteria, params]);
 

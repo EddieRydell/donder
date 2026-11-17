@@ -29,6 +29,7 @@ mod library;
 pub(crate) mod model;
 mod ownership;
 mod patch;
+mod problem;
 mod project;
 mod projection;
 mod selection;
@@ -39,6 +40,7 @@ pub use clip_match::matching_sequence_clips;
 use edit::edit_sequence;
 use fixture::edit_fixture;
 use layout::edit_layout;
+pub use problem::{check_edit, edit_site, refusal};
 pub use project::create_sequence;
 use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};
@@ -49,10 +51,7 @@ use selection::{
 };
 use setup::{edit_setup, project_setup};
 
-pub use dispatch::{
-    ClipboardAutomation, ClipboardClip, ClipboardMark, GuiEditOutcome, SequenceClipboard,
-    apply_edit, copy_selection,
-};
+pub use dispatch::{GuiEditOutcome, apply_edit, copy_selection, cut_selection, paste};
 pub use document::{
     GuiMutationError, blocked, project_gui_document, project_gui_document_change,
     sequence_clip_details,

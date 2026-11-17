@@ -117,8 +117,8 @@ fn edit_geometry(
             let element = &fixture.elements[index];
             let mut ids = IdAllocator::after(fixture.elements.iter().map(|element| element.id.0));
             let pixels = donder_model::element_pixels(element)
-                .map_err(|error| {
-                    GuiMutationError::Invalid(format!("Cannot expand shape: {error:?}"))
+                .map_err(|_| {
+                    GuiMutationError::Invalid("The shape's size or pixels are invalid.".into())
                 })?
                 .into_iter()
                 .enumerate()

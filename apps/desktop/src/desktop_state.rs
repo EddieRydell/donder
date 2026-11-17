@@ -76,7 +76,6 @@ pub(crate) struct DesktopServices {
     device_window_end: Mutex<Option<std::time::Instant>>,
     transport_operation: Mutex<()>,
     sequence_clip_raster: Mutex<crate::sequence_clip_raster::SequenceClipRasterService>,
-    sequence_clipboard: Mutex<Option<donder_editor::SequenceClipboard>>,
     filesystem: Arc<Mutex<()>>,
     persistence: PersistenceService,
     preview_wake: crate::preview::PreviewWake,
@@ -185,7 +184,6 @@ impl DesktopState {
                     sequence_clip_raster: Mutex::new(
                         crate::sequence_clip_raster::SequenceClipRasterService::new(),
                     ),
-                    sequence_clipboard: Mutex::new(None),
                     filesystem: Arc::new(Mutex::new(())),
                     persistence: PersistenceService::new(),
                     preview_wake,

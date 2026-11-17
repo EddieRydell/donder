@@ -15,8 +15,5 @@ indexmap.workspace = true
 sacn.workspace = true
 zstd.workspace = true
 
-[dev-dependencies]
-donder-language.workspace = true
-
 [lints]
 workspace = true

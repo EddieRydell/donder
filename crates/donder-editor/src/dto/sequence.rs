@@ -249,11 +249,22 @@ pub struct SequenceClipParam {
     /// The script's description of the parameter.
     pub(crate) description: Option<String>,
     pub(crate) kind: SequenceParamKind,
-    pub(crate) options: Vec<String>,
+    /// An enum parameter's options, in order.
+    pub(crate) options: Vec<SequenceParamOption>,
     pub(crate) range: Option<SequenceParamRange>,
     pub editable: bool,
     pub value: SequenceParamValue,
     pub(crate) automation: Option<SequenceParamAutomation>,
+    /// The value a new item of an array parameter starts with.
+    pub(crate) new_item: Option<SequenceParamValue>,
+}
+
+/// An enum option and the fields it carries, each valued at its default.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceParamOption {
+    pub(crate) name: String,
+    pub(crate) fields: Vec<SequenceClipParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

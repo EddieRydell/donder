@@ -12,18 +12,20 @@ type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "title"> & {
   /** Tooltip text; the command's binding is appended. */
   tip?: string;
   command?: CommandId;
+  /** What the button ran has failed: the label rests red and `tip` says why. */
+  failed?: boolean;
   children?: ReactNode;
 };
 
 /** A labelled command button. */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "default", icon: Icon, tip, command, className, children, type = "button", ...rest },
+  { variant = "default", icon: Icon, tip, command, failed = false, className, children, type = "button", ...rest },
   ref
 ) {
   const button = <button
     ref={ref}
     type={type}
-    className={["kit-button", `kit-button-${variant}`, className].filter(Boolean).join(" ")}
+    className={["kit-button", `kit-button-${variant}`, failed ? "kit-failed" : null, className].filter(Boolean).join(" ")}
     {...rest}
   >
     {Icon !== undefined && <Icon size={THEME_METRICS.iconSizeSmall} aria-hidden />}
@@ -40,13 +42,15 @@ type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "title" | "
   /** Present on toggles: whether the option is on. */
   pressed?: boolean;
   danger?: boolean;
+  /** Whatever the button controls has failed: the icon rests red and the tooltip says why. */
+  failed?: boolean;
   /** A count or marker drawn over the icon, such as a problem count. */
   badge?: ReactNode;
 };
 
 /** An icon-only button whose tooltip names it and shows its shortcut. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon: Icon, label, command, pressed, danger = false, badge, className, type = "button", ...rest },
+  { icon: Icon, label, command, pressed, danger = false, failed = false, badge, className, type = "button", ...rest },
   ref
 ) {
   return <Tip label={label} command={command}>
@@ -55,7 +59,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       type={type}
       aria-label={label}
       aria-pressed={pressed}
-      className={["kit-icon-button", danger ? "kit-danger" : null, className].filter(Boolean).join(" ")}
+      className={["kit-icon-button", danger ? "kit-danger" : null, failed ? "kit-failed" : null, className].filter(Boolean).join(" ")}
       {...rest}
     >
       <Icon size={THEME_METRICS.iconSizeSmall} aria-hidden />

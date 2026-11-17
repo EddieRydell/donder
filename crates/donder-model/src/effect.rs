@@ -38,7 +38,12 @@ pub enum ParamValue {
     Float(f32),
     Bool(bool),
     Color(donder_runtime_types::Color),
-    Enum(Identifier),
+    /// An enum option and its fields' values, every field of the option in
+    /// declaration order; a plain option has none.
+    Enum {
+        option: Identifier,
+        fields: IndexMap<Identifier, ParamValue>,
+    },
     /// `None` is no collection: an empty set of marks, which never triggers.
     Marks(Option<MarkCollectionKey>),
     Curve(OwnedCurve),
@@ -49,13 +54,51 @@ pub enum ParamValue {
 impl ParamValue {
     /// Initial authored values must be valid resources inside the declared
     /// range, unlike the VM's empty storage defaults. Numbers start at zero
-    /// held inside the range, and a curve rises across it. The caller supplies
-    /// the user-facing initial color.
+    /// held inside the range, a curve falls across it, and an enum starts at
+    /// its first option. The caller supplies the user-facing initial color.
     pub fn initial_for_param(
         param: &ParamDecl,
         color: donder_runtime_types::Color,
     ) -> Option<Self> {
-        Self::initial_for_type(&param.ty, param.range, color)
+        match &param.ty {
+            Type::Enum(options) => Some(Self::option(param, options.first()?.clone())),
+            ty => Self::initial_for_type(ty, param.range, color),
+        }
+    }
+
+    /// Option `option` of the enum parameter `param`, its fields at their
+    /// defaults.
+    pub fn option(param: &ParamDecl, option: Identifier) -> Self {
+        let fields = param
+            .fields_of(&option)
+            .iter()
+            .map(|field| {
+                let value = field
+                    .default
+                    .as_ref()
+                    .and_then(Self::from_default)
+                    .unwrap_or_else(|| unreachable!("every field has a plain default"));
+                (field.name.clone(), value)
+            })
+            .collect();
+        Self::Enum { option, fields }
+    }
+
+    /// A declared default as an authored value: an int, float, bool, color
+    /// or plain enum option, the defaults a field may have.
+    pub fn from_default(value: &donder_runtime_types::Value) -> Option<Self> {
+        use donder_runtime_types::Value;
+        Some(match value {
+            Value::Int(value) => Self::Int(*value),
+            Value::Float(value) => Self::Float(*value),
+            Value::Bool(value) => Self::Bool(*value),
+            Value::Color(value) => Self::Color(*value),
+            Value::Enum(option) => Self::Enum {
+                option: option.clone(),
+                fields: IndexMap::new(),
+            },
+            _ => return None,
+        })
     }
 
     fn initial_for_type(
@@ -79,11 +122,11 @@ impl ParamValue {
                 points: vec![
                     donder_runtime_types::CurvePoint {
                         position: 0.0,
-                        value: min,
+                        value: max,
                     },
                     donder_runtime_types::CurvePoint {
                         position: 1.0,
-                        value: max,
+                        value: min,
                     },
                 ],
             }))),
@@ -97,7 +140,10 @@ impl ParamValue {
             Type::Array(element) => Some(Self::Array(vec![Self::initial_for_type(
                 element, range, color,
             )?])),
-            Type::Enum(options) => options.first().cloned().map(Self::Enum),
+            Type::Enum(options) => options.first().map(|option| Self::Enum {
+                option: option.clone(),
+                fields: IndexMap::new(),
+            }),
             Type::Marks => Some(Self::Marks(None)),
             Type::Void => None,
         }

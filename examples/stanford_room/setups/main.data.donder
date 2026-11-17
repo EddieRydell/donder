@@ -24,6 +24,8 @@ Setup main {
 
 Controller dig_quad {
   description: none,
-  protocol: Donder { device: "b0cbd8030790" },
-  ports: [Port { name: port_1, address: Output { output: 1 }, slots: 450 }],
+  protocol: Donder {
+    device: "b0cbd8030790",
+    ports: [Port { name: port_1, output: 1, slots: 450 }],
+  },
 }

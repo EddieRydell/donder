@@ -21,7 +21,7 @@ import { graphOperatorDefinition } from "./graphOperator";
 import { useGraphViewState } from "./graphViewState";
 import { GraphFlowEdge } from "./GraphFlowEdge";
 import { GraphNodeControls } from "./GraphNodeControls";
-import { defaultLayerColor, deletableGraphNodes, useSequenceEditErrorReporter, useSequenceEditable } from "./sequenceLayers";
+import { defaultLayerColor, deletableGraphNodes, useSequenceEditable } from "./sequenceLayers";
 
 export type SelectedGraphItem = { type: "node"; id: number } | { type: "edge"; id: string } | null;
 /** A port's handle; `input` is the operator input it feeds, or null for the root's one input. */
@@ -53,7 +53,6 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
 }) {
   const overlayContainer = useContext(OverlayPortal);
   const { document } = composition;
-  const reportSequenceEditError = useSequenceEditErrorReporter();
 
   const editable = useSequenceEditable();
   const request = useAppStore((state) => state.guiRequest);
@@ -153,8 +152,6 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
     }).map((node) => ({ nodeId: Number(node.id), ...node.position }));
     try {
       if (positions.length > 0) await composition.apply({ type: "moveGraphNodes", positions }, active.origin);
-    } catch (error: unknown) {
-      reportSequenceEditError(error);
     } finally {
       gesture.current = null;
       // A failed/stale gesture must restore the document, even when no new projection arrived.
@@ -174,7 +171,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
   const add = (operator: SequenceGraphOperator | null, position: { x: number; y: number }) => {
     void composition.apply(operator === null ? {
       type: "createLayerAt", name: "Layer", color: defaultLayerColor(document.layers.length), ...position
-    } : { type: "addGraphOperatorNode", operator, initialColor: THEME_COLORS.white, ...position }).catch(reportSequenceEditError);
+    } : { type: "addGraphOperatorNode", operator, initialColor: THEME_COLORS.white, ...position });
   };
   const removable = (items: Selection) => items.edges.length > 0 || deletableGraphNodes(document, items.nodes.map(Number)).length > 0;
   const deleteSelection = (items: Selection) => { requestDelete(items.nodes.map(Number), items.edges); };
@@ -238,20 +235,17 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
               if (!editable) return;
               const previous = graph.edges.find((item) => graphEdgeId(item) === edge.id);
               if (previous === undefined) return;
-              void composition.apply({ type: "reconnectGraphEdge", previous, connection: graphEdge(connection) }, connectionOrigin.current)
-                .catch(reportSequenceEditError);
+              void composition.apply({ type: "reconnectGraphEdge", previous, connection: graphEdge(connection) }, connectionOrigin.current);
             }}
             onReconnectEnd={(_, edge, __, state) => {
               if (!editable || state.toHandle !== null) return;
               const previous = graph.edges.find((item) => graphEdgeId(item) === edge.id);
               if (previous === undefined) return;
-              void composition.apply({ type: "deleteGraphItems", nodeIds: [], layerIds: [], edges: [previous], migrateToLayerId: null }, connectionOrigin.current)
-                .catch(reportSequenceEditError);
+              void composition.apply({ type: "deleteGraphItems", nodeIds: [], layerIds: [], edges: [previous], migrateToLayerId: null }, connectionOrigin.current);
             }}
             onConnect={(connection) => {
               if (!editable) return;
-              void composition.apply({ type: "connectGraphNodes", connection: graphEdge(connection) }, connectionOrigin.current)
-                .catch(reportSequenceEditError);
+              void composition.apply({ type: "connectGraphNodes", connection: graphEdge(connection) }, connectionOrigin.current);
             }}>
             <Background color={THEME_COLORS.graphGrid} gap={THEME_METRICS.graphGridGap} />
             <MiniMap className="graph-flow-minimap" nodeStrokeWidth={THEME_METRICS.graphNodeStrokeWidth} pannable zoomable />

@@ -803,26 +803,27 @@ mod tests {
     fn new_gui_documents_remain_unsaved_and_are_available_to_text_analysis() {
         let (_temporary, root, state) = project();
         let path = "sequences/new_sequence.data.donder";
-        state
-            .create_sequence(NewSequenceRequest {
-                storage: donder_editor::dto::NewSequenceStorage::NewFile {
-                    name: "New Sequence".into(),
-                },
-                initial_color: state
-                    .project_session()
-                    .unwrap()
-                    .project
-                    .reusable::<donder_model::Sequence>()
-                    .values()
-                    .next()
-                    .unwrap()
-                    .layers[0]
-                    .color
-                    .to_hex(),
-                duration_seconds: 60.0,
-                frame_rate: 60,
-            })
-            .unwrap();
+        let created = state.create_sequence(NewSequenceRequest {
+            name: "New Sequence".into(),
+            storage: donder_editor::dto::NewObjectStorage::NewFile,
+            initial_color: state
+                .project_session()
+                .unwrap()
+                .project
+                .reusable::<donder_model::Sequence>()
+                .values()
+                .next()
+                .unwrap()
+                .layers[0]
+                .color
+                .to_hex(),
+            duration_seconds: 60.0,
+            frame_rate: 60,
+        });
+        assert!(matches!(
+            created,
+            donder_editor::dto::NewSequenceResult::Created { .. }
+        ));
         state.open_file_path(path);
         state.working_copy.finish_pending();
         let snapshot = state.snapshot();

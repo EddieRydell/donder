@@ -190,6 +190,18 @@ pub(crate) fn apply_gui_edit(
     state.edit_gui_document(request, edit)
 }
 
+/// What would refuse `edit` of the open object, a draft form's edit; none
+/// when it would be accepted. Nothing changes.
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn check_gui_edit(
+    request: GuiDocumentRequest,
+    edit: GuiEditCommand,
+    state: State<'_, DesktopState>,
+) -> Option<donder_editor::dto::GuiProblem> {
+    state.check_gui_edit(&request, edit)
+}
+
 #[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn finish_composition_graph_editing(state: State<'_, DesktopState>) -> AppSnapshot {
@@ -201,9 +213,63 @@ pub(crate) fn finish_composition_graph_editing(state: State<'_, DesktopState>) -
 pub(crate) fn copy_sequence_selection(
     request: GuiDocumentRequest,
     selection: SequenceSelection,
+    app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> GuiEditUpdate {
-    state.copy_sequence_selection(request, selection)
+    let (update, text) = state.copy_sequence_selection(request, selection);
+    write_clipboard(&app, &state, update, text)
+}
+
+/// Copy a sequence selection to the system clipboard and remove it.
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn cut_sequence_selection(
+    request: GuiDocumentRequest,
+    selection: SequenceSelection,
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> GuiEditUpdate {
+    let (update, text) = state.cut_sequence_selection(request, selection);
+    write_clipboard(&app, &state, update, text)
+}
+
+/// Paste the system clipboard into the open sequence; the pasted items become
+/// the selection. A clipboard without Donder clips or marks pastes nothing.
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn paste_sequence(
+    request: GuiDocumentRequest,
+    anchor: donder_editor::dto::SequencePasteAnchor,
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> GuiEditUpdate {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    match app.clipboard().read_text() {
+        Ok(text) if donder_project_io::holds_sequence_clipboard(&text) => {
+            state.paste_sequence(request, anchor, &text)
+        }
+        _ => state.unchanged_gui_update(&request),
+    }
+}
+
+/// `update`, once `text` is on the system clipboard; the status bar says
+/// when the clipboard refused it.
+fn write_clipboard(
+    app: &AppHandle,
+    state: &DesktopState,
+    update: GuiEditUpdate,
+    text: Option<String>,
+) -> GuiEditUpdate {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    match text.map(|text| app.clipboard().write_text(text)) {
+        Some(Err(_)) => GuiEditUpdate {
+            snapshot: state.update_snapshot(|snapshot| {
+                snapshot.status = "Couldn't copy to the clipboard.".to_string();
+            }),
+            ..update
+        },
+        _ => update,
+    }
 }
 
 #[tauri::command]

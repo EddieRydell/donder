@@ -13,9 +13,9 @@ fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
     let project = &session.project;
     let setup = &project.reusable::<donder_model::Setup>()[project.root().setup.id()];
     let controller = setup.controllers[0].id();
-    let port = project.reusable::<donder_model::Controller>()[controller].ports[0].id;
+    let output = project.reusable::<donder_model::Controller>()[controller].outputs()[0].0;
     for id in project.root().sequences.iter().map(|source| source.id()) {
-        let prepared = prepare(project, id, Retain::Ports(&[(*controller, port)])).unwrap();
+        let prepared = prepare(project, id, Retain::Outputs(&[(*controller, output)])).unwrap();
         let original = prepared;
         let bytes = original.encode();
         let decoded = donder_runtime::PreparedShow::decode(&bytes).unwrap();

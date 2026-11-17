@@ -2,7 +2,7 @@
 export { Badge } from "./Badge";
 export { Button, IconButton } from "./Button";
 export { Dialog } from "./Dialog";
-export { AddRow, Field, FieldGroup, Section } from "./Layout";
+export { AddRow, Field, FieldGroup, Problem, Section } from "./Layout";
 export { ContextMenuArea, ContextMenuEntries, MenuButton, type MenuEntry } from "./Menu";
 export { NumberField } from "./NumberField";
 export { MenuSelect, Select, type SelectOption } from "./Select";

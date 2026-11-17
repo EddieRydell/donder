@@ -1,15 +1,17 @@
 import { OwnershipActions } from "../OwnershipActions";
-import { guiObjectKey } from "../../../workspace/guiIdentity";
+import { guiObjectKey, guiObjectName } from "../../../workspace/guiIdentity";
 import { Boxes, ListVideo, Play, Plus, Radio } from "lucide-react";
 import type { ReactNode } from "react";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
 import { THEME_COLORS } from "../../../theme";
-import { startPerforming, usePerformStore } from "../../../perform";
-import { AddRow, Button, IconButton } from "../../kit";
+import { AddRow, IconButton } from "../../kit";
+import { PerformButton } from "../../PerformBar";
+import { DEFAULT_OBJECT_STORAGE } from "../objectStorage";
 
 import type { ProjectGuiDocument } from "../../../types";
-import { navigateToGuiObject } from "../../../workspace/navigation";
+import { navigateToGuiObject, playSequence } from "../../../workspace/navigation";
+import { countOf } from "../../count";
 
 export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
   return (
@@ -19,7 +21,7 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
           <span className="object-overview-eyebrow">Project</span>
           <h2>{document.objectKey}</h2>
         </div>
-        <span>{document.sequences.length} {document.sequences.length === 1 ? "sequence" : "sequences"} · {document.consoles.length} {document.consoles.length === 1 ? "console" : "consoles"}</span>
+        <span>{countOf(document.sequences.length, "sequence")} · {countOf(document.consoles.length, "console")}</span>
       </header>
 
       <section className="object-overview-group">
@@ -36,13 +38,16 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
           <h3>Sequences</h3>
           <span>{document.sequences.length}</span>
         </div>
-        {document.sequences.map((sequence, index) => (
-          <div className="object-overview-row-with-actions" key={guiObjectKey(sequence)}><ObjectRow
+        {document.sequences.map((sequence) => {
+          const name = guiObjectName(sequence) ?? sequence.objectKey;
+          return <div className="object-overview-row-with-actions" key={guiObjectKey(sequence)}><ObjectRow
             icon={<ListVideo aria-hidden="true" />}
-            title={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey}
+            title={name}
             onOpen={() => void navigateToGuiObject(sequence)}
-          /><OwnershipActions declarations={document.availableDeclarations} source={sequence} label={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey} /></div>
-        ))}
+          /><IconButton icon={Play} label={`Play ${name}`} onClick={() => void playSequence(sequence)} />
+            <OwnershipActions declarations={document.availableDeclarations} source={sequence} label={name}
+              entries={[{ type: "action", label: "Play", icon: Play, onSelect: () => void playSequence(sequence) }]} /></div>;
+        })}
       </section>
 
       <ConsoleList document={document} />
@@ -53,9 +58,8 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
 /** The project's consoles, which Perform plays live. */
 function ConsoleList({ document }: { document: ProjectGuiDocument }) {
   const pending = useAppStore((state) => state.guiEditPending);
-  const performing = usePerformStore((state) => state.perform?.session !== null && state.perform?.session !== undefined);
   const addConsole = () => void runGuiEditCommand((request) =>
-    commands.applyGuiEdit(request, { type: "project", edit: { type: "addConsole", initialColor: THEME_COLORS.defaultSequenceColor } }));
+    commands.applyGuiEdit(request, { type: "project", edit: { type: "addConsole", initialColor: THEME_COLORS.defaultSequenceColor, storage: DEFAULT_OBJECT_STORAGE } }));
   return <section className="object-overview-group">
     <div className="object-overview-group-header">
       <h3>Consoles</h3>
@@ -63,13 +67,12 @@ function ConsoleList({ document }: { document: ProjectGuiDocument }) {
     </div>
     {document.consoles.length === 0 ? <AddRow label="Add console" disabled={pending} onAdd={addConsole} />
       : document.consoles.map((entry, index) => {
-        const step = entry.ownedPath[entry.ownedPath.length - 1];
-        const name = step?.type === "console" ? step.name : entry.objectKey;
+        const name = guiObjectName(entry) ?? entry.objectKey;
         return <div className="object-overview-row-with-actions" key={guiObjectKey(entry)}><ObjectRow
           icon={<Radio aria-hidden="true" />}
           title={name}
           onOpen={() => void navigateToGuiObject(entry)}
-        /><Button icon={Play} disabled={performing} onClick={() => { startPerforming(index); }}>Perform</Button>
+        /><PerformButton index={index} />
           <OwnershipActions declarations={document.availableDeclarations} source={entry} label={name} /></div>;
       })}
   </section>;

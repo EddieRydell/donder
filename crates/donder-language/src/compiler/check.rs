@@ -7,7 +7,7 @@ use super::builtins::{
     self, AT, Fit, Lowering, NAMED_TYPES, Read, builtin, context_field, context_value, describe,
     is_context_scope, type_text,
 };
-use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange};
+use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange, program_params};
 use super::ir::interval::{Bounds, interval};
 use super::ir::{
     Binary, Context, Domain, Graph, LoopSet, Node, Op, Param, Reducer, STATE, Unary, reads,
@@ -249,6 +249,7 @@ fn check_functions(
             parent: function_symbols[index],
             function_symbols: function_symbols.clone(),
             options: Vec::new(),
+            fields: Vec::new(),
         };
         for (position, (arg, _)) in function.args.iter().enumerate() {
             let node = checker.graph.add(Op::Param(position as u32));
@@ -333,6 +334,16 @@ pub(crate) struct Checker {
     parent: Option<usize>,
     /// The enum options of the declaration's parameters, with their symbols.
     options: Vec<(Identifier, usize)>,
+    /// The symbol of each option field: its parameter, option and name.
+    fields: Vec<(FieldName, usize)>,
+}
+
+/// A field by its parameter's, its option's and its own name.
+#[derive(PartialEq)]
+struct FieldName {
+    param: Identifier,
+    option: Identifier,
+    field: Identifier,
 }
 
 type Checked<T> = Option<T>;
@@ -351,6 +362,7 @@ impl Checker {
         let mut diagnostics = Vec::new();
         let mut params = Vec::new();
         let mut options = Vec::new();
+        let mut fields = Vec::new();
         let (kind, keyword) = match declaration.kind {
             DeclarationKind::Effect => (SymbolKind::Effect, Keyword::Effect),
             DeclarationKind::Operator => (SymbolKind::Operator, Keyword::Operator),
@@ -417,7 +429,7 @@ impl Checker {
                             })
                         ),
                         description: param.description.clone(),
-                        ty: resolve_type(&param.ty).ok(),
+                        ty: resolve_param_type(&param.ty).ok(),
                         parent: symbol,
                     }
                     .symbol(),
@@ -428,12 +440,12 @@ impl Checker {
                 for option in choices {
                     let option_symbol = names.define(
                         Declared {
-                            name: option,
+                            name: &option.name,
                             kind: SymbolKind::EnumOption,
-                            extent: option.span,
+                            extent: option.name.span,
                             detail: format!(
                                 "{} (an option of `{}`)",
-                                option.name.as_str(),
+                                option.name.name.as_str(),
                                 param.name.name.as_str()
                             ),
                             description: None,
@@ -442,7 +454,61 @@ impl Checker {
                         }
                         .symbol(),
                     );
-                    options.push((option.name.clone(), option_symbol));
+                    options.push((option.name.name.clone(), option_symbol));
+                    for field in &option.fields {
+                        let end = field
+                            .default
+                            .as_ref()
+                            .map_or(field.ty.span, |literal| literal.span);
+                        let field_symbol = names.define(
+                            Declared {
+                                name: &field.name,
+                                kind: SymbolKind::Param,
+                                extent: field.name.span.to(end),
+                                detail: format!(
+                                    "{} (a field of `{}`)",
+                                    text(TextSpan {
+                                        start: field.name.span.start,
+                                        end: end.end,
+                                    }),
+                                    option.name.name.as_str()
+                                ),
+                                description: field.description.clone(),
+                                ty: resolve_type(&field.ty).ok(),
+                                parent: Some(option_symbol),
+                            }
+                            .symbol(),
+                        );
+                        fields.push((
+                            FieldName {
+                                param: param.name.name.clone(),
+                                option: option.name.name.clone(),
+                                field: field.name.name.clone(),
+                            },
+                            field_symbol,
+                        ));
+                        if let TypeKind::Enum(field_options) = &field.ty.kind {
+                            for field_option in field_options {
+                                let symbol = names.define(
+                                    Declared {
+                                        name: &field_option.name,
+                                        kind: SymbolKind::EnumOption,
+                                        extent: field_option.name.span,
+                                        detail: format!(
+                                            "{} (an option of `{}`)",
+                                            field_option.name.name.as_str(),
+                                            field.name.name.as_str()
+                                        ),
+                                        description: None,
+                                        ty: None,
+                                        parent: Some(field_symbol),
+                                    }
+                                    .symbol(),
+                                );
+                                options.push((field_option.name.name.clone(), symbol));
+                            }
+                        }
+                    }
                 }
                 if let Some(Literal {
                     kind: LiteralKind::Name(name),
@@ -506,10 +572,9 @@ impl Checker {
             return Err(diagnostics);
         }
         let graph = Graph::new(
-            params
-                .iter()
+            program_params(params.iter().map(|param: &Member<ParamDecl>| &param.value))
                 .map(|param| Param {
-                    ty: param.value.ty.clone(),
+                    ty: param.ty.clone(),
                     domain: super::ir::Domain::PARAM,
                 })
                 .collect(),
@@ -530,6 +595,7 @@ impl Checker {
             names: std::mem::take(names),
             parent: symbol,
             options,
+            fields,
         };
         let declared = checker.diagnostics.len();
         let root = checker.tail_block(sample, Mode::Tail).and_then(|outcome| {
@@ -769,6 +835,7 @@ impl Checker {
                 let (condition, yes, no) = (condition?, yes?, no?);
                 self.choose(condition, yes, no, expr.span)
             }
+            ExprKind::Match(matched) => self.match_arms(matched, expr.span, mode),
             _ => {
                 let value = self.value(expr)?;
                 let valid = self.graph.bool(true);
@@ -845,7 +912,7 @@ impl Checker {
             }
             ExprKind::Binary(op, left, right) => self.binary(*op, left, right, expr.span)?,
             ExprKind::Array(items) => self.array(items, expr.span)?,
-            ExprKind::If(..) | ExprKind::Block(_) => {
+            ExprKind::If(..) | ExprKind::Block(_) | ExprKind::Match(_) => {
                 let outcome = self.tail(expr, Mode::Value)?;
                 outcome.value?
             }
@@ -1267,6 +1334,182 @@ impl Checker {
         Some(self.graph.binary(op, a, b))
     }
 
+    /// `match`: each arm's value where the matched value is its option. An
+    /// arm binds its option's fields only when the match names an enum
+    /// parameter itself, whose fields are parameters too.
+    fn match_arms(&mut self, matched: &Match, span: TextSpan, mode: Mode) -> Checked<Outcome> {
+        let param = match &matched.value.kind {
+            ExprKind::Name(name)
+                if self.frames.is_empty()
+                    && !self.scopes.iter().any(|(bound, ..)| bound == name) =>
+            {
+                self.params
+                    .iter()
+                    .position(|param| &param.value.name == name)
+            }
+            _ => None,
+        };
+        let value = self.value(&matched.value)?;
+        let Type::Enum(options) = self.ty(value).clone() else {
+            let message = format!("`match` needs an enum, found {}", describe(self.ty(value)));
+            self.error(matched.value.span, message);
+            return None;
+        };
+        let mut arms = vec![None; options.len()];
+        let mut wildcard = None;
+        let mut failed = false;
+        for arm in &matched.arms {
+            let Some(option) = &arm.option else {
+                if wildcard.is_some() {
+                    self.error(arm.pattern, "a match has one `_` arm");
+                    failed = true;
+                }
+                wildcard = Some(arm);
+                continue;
+            };
+            let name = option.name.as_str();
+            match options
+                .iter()
+                .position(|candidate| candidate == &option.name)
+            {
+                None => {
+                    self.error(
+                        option.span,
+                        format!("`{name}` is not an option of this enum"),
+                    );
+                    failed = true;
+                }
+                Some(index) if arms[index].is_some() => {
+                    self.error(option.span, format!("`{name}` has two arms"));
+                    failed = true;
+                }
+                Some(index) => {
+                    let symbol = self
+                        .options
+                        .iter()
+                        .find(|(candidate, _)| candidate == &option.name)
+                        .map(|(_, symbol)| *symbol);
+                    self.refer_symbol(option.span, symbol);
+                    arms[index] = Some(arm);
+                }
+            }
+        }
+        let missing = options
+            .iter()
+            .zip(&arms)
+            .filter(|(_, arm)| arm.is_none())
+            .map(|(option, _)| format!("`{}`", option.as_str()))
+            .collect::<Vec<_>>();
+        match wildcard {
+            None if !missing.is_empty() => {
+                self.error(
+                    span,
+                    format!("the match has no arm for {}", missing.join(", ")),
+                );
+                failed = true;
+            }
+            Some(arm) if missing.is_empty() => {
+                self.error(
+                    arm.pattern,
+                    "every option has an arm, so `_` matches nothing",
+                );
+                failed = true;
+            }
+            _ => {}
+        }
+        if failed {
+            return None;
+        }
+        // The explicit arms in option order, then `_`, which is the last
+        // choice's other branch.
+        let mut chosen: Vec<(Option<usize>, &Arm)> = arms
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, arm)| Some((Some(index), arm?)))
+            .collect();
+        chosen.extend(wildcard.map(|arm| (None, arm)));
+        let mut outcomes = Vec::new();
+        for &(index, arm) in &chosen {
+            let depth = self.scopes.len();
+            let bound = arm
+                .fields
+                .iter()
+                .map(|field| {
+                    let index = index.unwrap_or_else(|| unreachable!("`_` binds no fields"));
+                    self.bind_field(param, &options[index], index, field)
+                })
+                .collect::<Vec<_>>();
+            let outcome = if bound.iter().all(|bound| *bound) {
+                self.tail(&arm.result, mode)
+            } else {
+                None
+            };
+            self.scopes.truncate(depth);
+            outcomes.push(outcome);
+        }
+        let mut outcomes = outcomes.into_iter().collect::<Option<Vec<_>>>()?;
+        let mut result = outcomes.pop()?;
+        chosen.pop();
+        for ((index, _), outcome) in chosen.into_iter().zip(outcomes).rev() {
+            let index = index.unwrap_or_else(|| unreachable!("`_` is the last arm"));
+            let option = self.graph.typed_constant(
+                Value::Enum(options[index].clone()),
+                Type::Enum(options.clone()),
+            );
+            let condition = self.graph.binary(Binary::Equal, value, option);
+            result = self.choose(condition, outcome, result, span)?;
+        }
+        Some(result)
+    }
+
+    /// Bring field `field` of option `option` (the `index`th) of the matched
+    /// parameter, if the match names one, into scope.
+    fn bind_field(
+        &mut self,
+        param: Option<usize>,
+        option: &Identifier,
+        index: usize,
+        field: &Name,
+    ) -> bool {
+        let Some(param) = param else {
+            self.error(
+                field.span,
+                "only a match on an enum parameter itself binds its fields",
+            );
+            return false;
+        };
+        let declared = &self.params[param].value;
+        let Some(declaration) = declared.option_fields[index]
+            .iter()
+            .find(|declaration| declaration.name == field.name)
+        else {
+            let message = format!(
+                "`{}` has no field `{}`",
+                option.as_str(),
+                field.name.as_str()
+            );
+            self.error(field.span, message);
+            return false;
+        };
+        let slot = program_params(self.params.iter().map(|param| &param.value))
+            .position(|candidate| std::ptr::eq(candidate, declaration))
+            .unwrap_or_else(|| unreachable!("every field is a program parameter"));
+        let name = FieldName {
+            param: declared.name.clone(),
+            option: option.clone(),
+            field: field.name.clone(),
+        };
+        let symbol = self
+            .fields
+            .iter()
+            .find(|(candidate, _)| *candidate == name)
+            .map(|(_, symbol)| *symbol);
+        self.refer_symbol(field.span, symbol);
+        let node = self.graph.add(Op::Param(slot as u32));
+        self.scopes.push((field.name.clone(), node, symbol));
+        true
+    }
+
     /// An enum option named in a comparison with a value of that enum.
     fn option(&mut self, node: Node, name: Identifier, span: TextSpan) -> Checked<Node> {
         match self.ty(node).clone() {
@@ -1453,8 +1696,8 @@ impl Checker {
         if self.standalone {
             return Some(());
         }
-        let ranges = param_ranges(self.params.iter().map(|param| &param.value));
-        let lengths = vec![None; self.params.len()];
+        let ranges = param_ranges(program_params(self.params.iter().map(|param| &param.value)));
+        let lengths = vec![None; ranges.len()];
         let bounds = Bounds {
             ranges: &ranges,
             lengths: &lengths,
@@ -1595,8 +1838,8 @@ impl Checker {
         if self.standalone {
             return Some(());
         }
-        let ranges = param_ranges(self.params.iter().map(|param| &param.value));
-        let lengths = vec![None; self.params.len()];
+        let ranges = param_ranges(program_params(self.params.iter().map(|param| &param.value)));
+        let lengths = vec![None; ranges.len()];
         let range = interval(
             &self.graph,
             count,
@@ -1768,8 +2011,8 @@ impl Checker {
         if self.standalone {
             return false;
         }
-        let ranges = param_ranges(self.params.iter().map(|param| &param.value));
-        let lengths = vec![None; self.params.len()];
+        let ranges = param_ranges(program_params(self.params.iter().map(|param| &param.value)));
+        let lengths = vec![None; ranges.len()];
         let range = interval(
             &self.graph,
             node,
@@ -1866,7 +2109,7 @@ fn depends_on_length(graph: &Graph, node: Node) -> bool {
 
 /// Check one parameter declaration: its type, range and default.
 fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnostic> {
-    let ty = resolve_type(&param.ty)?;
+    let ty = resolve_param_type(&param.ty)?;
     let span = param.name.span;
     let name = param.name.name.as_str();
     let ranged = match &ty {
@@ -1940,12 +2183,17 @@ fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnosti
             Some(value)
         }
     };
+    let option_fields = match &param.ty.kind {
+        TypeKind::Enum(options) => options.iter().map(check_fields).collect::<Result<_, _>>()?,
+        _ => Vec::new(),
+    };
     let declaration = ParamDecl {
         name: param.name.name.clone(),
         ty,
         range,
         default,
         description: param.description.clone(),
+        option_fields,
     };
     if let Some(default) = &declaration.default
         && !declaration.accepts_value(default)
@@ -1958,6 +2206,45 @@ fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnosti
     Ok(declaration)
 }
 
+/// Check an enum option's fields: each a plain value with a default, so an
+/// option chosen anew starts from its fields' defaults.
+fn check_fields(option: &EnumOption) -> Result<Vec<ParamDecl>, Diagnostic> {
+    let mut fields: Vec<ParamDecl> = Vec::new();
+    for field in &option.fields {
+        if let Some(diagnostic) = name_diagnostic(NameKind::Member, &field.name) {
+            return Err(diagnostic);
+        }
+        let name = field.name.name.as_str();
+        if fields.iter().any(|other| other.name == field.name.name) {
+            return Err(Diagnostic::new(
+                field.name.span,
+                format!("`{name}` is declared twice"),
+            ));
+        }
+        let declaration = check_param(field)?;
+        if !matches!(
+            declaration.ty,
+            Type::Int | Type::Float | Type::Bool | Type::Color | Type::Enum(_)
+        ) || declaration.has_fields()
+        {
+            return Err(Diagnostic::new(
+                field.ty.span,
+                "a field is an int, float, bool, color or enum without fields",
+            ));
+        }
+        if declaration.default.is_none() {
+            return Err(Diagnostic::new(
+                field.name.span,
+                format!(
+                    "the field `{name}` needs a default, like `{name}: float in 0.0..1.0 = 0.5`"
+                ),
+            ));
+        }
+        fields.push(declaration);
+    }
+    Ok(fields)
+}
+
 fn number(kind: &LiteralKind) -> Option<f32> {
     match *kind {
         LiteralKind::Int(value) => i32::try_from(value).ok().map(|value| value as f32),
@@ -1967,6 +2254,19 @@ fn number(kind: &LiteralKind) -> Option<f32> {
 }
 
 fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
+    if let TypeKind::Enum(options) = &ty.kind
+        && let Some(option) = options.iter().find(|option| !option.fields.is_empty())
+    {
+        return Err(Diagnostic::new(
+            option.name.span,
+            "only the options of a parameter's enum carry fields",
+        ));
+    }
+    resolve_param_type(ty)
+}
+
+/// A parameter's type, whose enum options may carry fields.
+fn resolve_param_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
     Ok(match &ty.kind {
         TypeKind::Named(name) => match NAMED_TYPES
             .iter()
@@ -1982,7 +2282,7 @@ fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
         },
         TypeKind::Enum(options) => {
             let mut names = Vec::new();
-            for option in options {
+            for EnumOption { name: option, .. } in options {
                 if let Some(diagnostic) = name_diagnostic(NameKind::EnumOption, option) {
                     return Err(diagnostic);
                 }

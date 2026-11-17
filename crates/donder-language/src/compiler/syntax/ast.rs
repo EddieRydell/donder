@@ -71,8 +71,16 @@ pub(crate) struct TypeExpr {
 #[derive(Clone, Debug)]
 pub(crate) enum TypeKind {
     Named(Identifier),
-    Enum(Vec<Name>),
+    Enum(Vec<EnumOption>),
     Array(Box<TypeExpr>),
+}
+
+/// An enum option and, for a parameter's enum, the fields it carries:
+/// `FixedTime { revolution_time_ms: float in 1.0..600000.0 = 500.0 }`.
+#[derive(Clone, Debug)]
+pub(crate) struct EnumOption {
+    pub(crate) name: Name,
+    pub(crate) fields: Vec<Param>,
 }
 
 #[derive(Clone, Debug)]
@@ -181,7 +189,26 @@ pub(crate) enum ExprKind {
     /// Boxed to keep expressions, and the parser's frames, small.
     Reduce(Box<Reduction>),
     Scan(Box<Scan>),
+    Match(Box<Match>),
     Block(Block),
+}
+
+/// `match value { Option { field, .. } => result, ... }`: one arm per option of
+/// an enum, in any order, or `_` for every option no other arm names.
+#[derive(Clone, Debug)]
+pub(crate) struct Match {
+    pub(crate) value: Expr,
+    pub(crate) arms: Vec<Arm>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Arm {
+    /// `None` for `_`.
+    pub(crate) option: Option<Name>,
+    pub(crate) pattern: TextSpan,
+    /// The option's fields the arm binds, each by its own name.
+    pub(crate) fields: Vec<Name>,
+    pub(crate) result: Expr,
 }
 
 #[derive(Clone, Debug)]

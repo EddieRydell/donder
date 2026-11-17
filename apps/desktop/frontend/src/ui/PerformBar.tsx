@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { Monitor, RadioTower, Square } from "lucide-react";
+import { Monitor, Play, Square } from "lucide-react";
 import { commands } from "../api";
-import { installPerformKeys, refreshPerform, stopPerforming, usePerformStore } from "../perform";
+import { installPerformKeys, refreshPerform, startPerforming, stopPerforming, usePerformStore } from "../perform";
 import { runSnapshotCommand, useAppStore } from "../store";
 import { Button, IconButton, Tip } from "./kit";
+import { LiveOutputButton } from "./LiveOutputButton";
 
 /** The performance in progress: its console, clock and held buttons. */
 export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: number; projectRevision: number }) {
@@ -15,7 +16,6 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
   useEffect(() => { refreshPerform(); }, [projectEpoch, projectRevision]);
 
   if (session === null || liveOutput === null) return null;
-  const liveActive = liveOutput.enabled;
   return (
     <section className="perform-bar" aria-label="Performing">
       <span className="perform-bar-console">Performing {session.console.name}</span>
@@ -31,12 +31,7 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
       <Tip label="Held buttons"><span className="perform-bar-held">
         {session.held.length === 0 ? "—" : session.held.map((button) => `${button.device}.${button.control}`).join(" ")}
       </span></Tip>
-      <IconButton
-        icon={RadioTower}
-        label={liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
-        pressed={liveActive}
-        onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
-      />
+      <LiveOutputButton liveOutput={liveOutput} />
       <IconButton
         icon={Monitor}
         label="Preview"
@@ -46,6 +41,14 @@ export function PerformBar({ projectEpoch, projectRevision }: { projectEpoch: nu
       <Button variant="ghost" icon={Square} tip="Stop performing" command="perform.stop" onClick={stopPerforming}>Stop</Button>
     </section>
   );
+}
+
+/** Performs the project's console at `index`, or stops it while it performs. */
+export function PerformButton({ index }: { index: number }) {
+  const performing = usePerformStore((store) => store.perform?.session?.console.index ?? null);
+  return performing === index
+    ? <Button icon={Square} tip="Stop performing" command="perform.stop" onClick={stopPerforming}>Stop</Button>
+    : <Button icon={Play} disabled={performing !== null} onClick={() => { startPerforming(index); }}>Perform</Button>;
 }
 
 /** How an input driver is connected, and why it failed when it did. */

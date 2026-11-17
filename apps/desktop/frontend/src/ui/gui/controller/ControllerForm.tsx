@@ -1,12 +1,15 @@
 import { X } from "lucide-react";
-import { useState } from "react";
-import { useAppStore } from "../../../store";
-import type { SetupGuiDocument, SetupGuiEdit } from "../../../types";
-import { AddRow, Button, Field, IconButton, NumberField, Select, TextField, Toggle } from "../../kit";
+import { useMemo, useState, type ReactNode } from "react";
+import { commands } from "../../../api";
+import { runGuiEditCommand, useAppStore } from "../../../store";
+import type { GuiEditCommand, GuiField, GuiMember, SetupGuiDocument, SetupGuiEdit } from "../../../types";
+import { AddRow, Button, Field, IconButton, NumberField, Section, Select, TextField, Toggle } from "../../kit";
+import { DraftProblem, OBJECT, useDraftCheck, useFieldProblem } from "../problems";
 import { useDeviceWatch } from "./DonderDevicePanel";
 
 type ControllerConfig = Extract<SetupGuiEdit, { type: "addController" }>["config"];
 type ControllerPorts = SetupGuiDocument["controllers"][number]["ports"];
+type Universes = Extract<ControllerConfig, { type: "e131" }>["universes"];
 
 const PROTOCOLS = [
   { value: "e131", label: "E1.31 / sACN" },
@@ -14,12 +17,17 @@ const PROTOCOLS = [
   { value: "donder", label: "Donder" }
 ] as const;
 
-const MAX_UNIVERSE_SLOTS = 512;
+const MAX_UNIVERSE_CHANNELS = 512;
+/** 170 RGB pixels, the usual pixel controller universe. */
+const DEFAULT_UNIVERSE_CHANNELS = 510;
+const E131_UNIVERSES = { min: 1, max: 63999 };
+const ARTNET_PORT_ADDRESSES = { min: 0, max: 32767 };
+const DONDER_OUTPUT_CHANNELS = 600;
 
 function defaultConfig(type: ControllerConfig["type"], device: string): ControllerConfig {
   switch (type) {
-    case "e131": return { type, senderName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null };
-    case "artNet": return { type, bindAddress: "0.0.0.0:6454", destination: "255.255.255.255:6454", broadcast: true };
+    case "e131": return { type, senderName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null, universes: { start: E131_UNIVERSES.min, count: 1, channels: DEFAULT_UNIVERSE_CHANNELS } };
+    case "artNet": return { type, bindAddress: "0.0.0.0:6454", destination: "255.255.255.255:6454", broadcast: true, universes: { start: ARTNET_PORT_ADDRESSES.min, count: 1, channels: DEFAULT_UNIVERSE_CHANNELS } };
     case "donder": return { type, device };
   }
 }
@@ -33,12 +41,41 @@ function freshPortName(ports: ControllerPorts): string {
   }
 }
 
-export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDocument["controllers"][number]; onSave: (config: ControllerConfig, ports: ControllerPorts) => Promise<void> }) {
+function newPort(ports: ControllerPorts): ControllerPorts[number] {
+  return { id: Math.max(0, ...ports.map((port) => port.id)) + 1, name: freshPortName(ports), output: ports.length + 1, slotCount: DONDER_OUTPUT_CHANNELS };
+}
+
+/** A labelled field of the controller or one of its ports, marked when its value breaks a rule. */
+function ConfigField({ label, tip, member = OBJECT, field, children }: { label: string; tip?: string; member?: GuiMember; field: GuiField; children: (invalid: boolean) => ReactNode }) {
+  const problem = useFieldProblem(member, field);
+  return <Field label={label} tip={tip} error={problem}>{children(problem !== null)}</Field>;
+}
+
+function UniverseFields({ universes, addresses, onChange }: { universes: Universes; addresses: { min: number; max: number }; onChange: (universes: Universes) => void }) {
+  return <>
+    <ConfigField label="Start universe" field={{ type: "universeStart" }}>{(invalid) => <NumberField name="Start universe" value={universes.start} step={1} min={addresses.min} max={addresses.max} defaultValue={addresses.min} integer invalid={invalid} onCommit={(start) => { onChange({ ...universes, start }); }} />}</ConfigField>
+    <ConfigField label="Universes" field={{ type: "universeCount" }}>{(invalid) => <NumberField name="Universes" value={universes.count} step={1} min={1} max={addresses.max - universes.start + 1} defaultValue={1} integer invalid={invalid} onCommit={(count) => { onChange({ ...universes, count }); }} />}</ConfigField>
+    <ConfigField label="Channels" tip="Channels per universe; 510 carries 170 RGB pixels" field={{ type: "universeChannels" }}>{(invalid) =>
+      <NumberField name="Channels per universe" value={universes.channels} step={1} min={1} max={MAX_UNIVERSE_CHANNELS} defaultValue={DEFAULT_UNIVERSE_CHANNELS} integer invalid={invalid} onCommit={(channels) => { onChange({ ...universes, channels }); }} />}
+    </ConfigField>
+  </>;
+}
+
+/** A controller's protocol, addresses and outputs: a draft checked after each change and applied together.
+ * `edit` makes the edit that applies it: a new controller of the setup, or the open controller's settings. */
+export function ControllerForm({ controller, edit, onApplied }: {
+  controller?: SetupGuiDocument["controllers"][number];
+  edit: (config: ControllerConfig, ports: ControllerPorts) => GuiEditCommand;
+  onApplied?: () => void;
+}) {
   const devices = useAppStore((state) => state.snapshot?.devices ?? []);
+  const request = useAppStore((state) => state.guiRequest);
   const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? defaultConfig("e131", ""));
-  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [{ id: 1, name: "port_1", address: 1, slotCount: MAX_UNIVERSE_SLOTS }]);
+  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? []);
   useDeviceWatch(config.type === "donder");
-  const firstAddress = config.type === "artNet" ? 0 : 1;
+  // E1.31 and Art-Net controllers send universes; only Donder controllers have outputs.
+  const draft = useMemo(() => edit(config, config.type === "donder" ? ports : []), [edit, config, ports]);
+  const { checking, problem } = useDraftCheck(request, draft);
   const changePort = (index: number, change: Partial<ControllerPorts[number]>) => {
     setPorts(ports.map((candidate, i) => i === index ? { ...candidate, ...change } : candidate));
   };
@@ -49,50 +86,50 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupGuiDo
   ];
   return <form className="setup-authoring-form" onSubmit={(event) => {
     event.preventDefault();
-    void onSave(config, ports);
-  }}>
+    void runGuiEditCommand((current) => commands.applyGuiEdit(current, draft)).then((result) => { if (result !== null) onApplied?.(); });
+  }}><DraftProblem problem={problem}>
     <fieldset>
       <Field label="Protocol">
         <Select name="Protocol" value={config.type} options={PROTOCOLS} onChange={(type) => {
           setConfig(defaultConfig(type, devices[0]?.id ?? ""));
-          // Donder outputs are numbered 1..n to match the controller's physical outputs.
-          if (type === "donder") setPorts(ports.map((port, index) => ({ ...port, address: index + 1 })));
+          if (type === "donder" && ports.length === 0) setPorts([newPort(ports)]);
         }} />
       </Field>
       {config.type === "e131" && <>
-        <Field label="Interface"><TextField name="Local interface" value={config.bindAddress} invalid={config.bindAddress.trim() === ""} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} /></Field>
-        <Field label="Sender"><TextField name="Sender name" value={config.senderName} invalid={config.senderName.trim() === ""} onCommit={(senderName) => { setConfig({ ...config, senderName }); }} /></Field>
-        <Field label="Priority"><NumberField name="Priority" value={config.priority} step={1} min={1} max={200} defaultValue={100} integer onCommit={(priority) => { setConfig({ ...config, priority }); }} /></Field>
-        <Field label="Destination" tip="Empty for multicast"><TextField name="Destination" placeholder="Multicast" value={config.destination ?? ""} onCommit={(destination) => { setConfig({ ...config, destination: destination.trim() === "" ? null : destination }); }} /></Field>
+        <ConfigField label="Destination" tip="Empty for multicast" field={{ type: "destination" }}>{(invalid) => <TextField name="Destination" placeholder="Multicast" value={config.destination ?? ""} invalid={invalid} onCommit={(destination) => { setConfig({ ...config, destination: destination.trim() === "" ? null : destination }); }} />}</ConfigField>
+        <UniverseFields universes={config.universes} addresses={E131_UNIVERSES} onChange={(universes) => { setConfig({ ...config, universes }); }} />
+        <Section title="Advanced" defaultOpen={false}>
+          <ConfigField label="Interface" tip="The local address to send from; 0.0.0.0 picks one" field={{ type: "interface" }}>{(invalid) => <TextField name="Local interface" value={config.bindAddress} invalid={invalid} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} />}</ConfigField>
+          <ConfigField label="Sender" tip="The source name receivers show" field={{ type: "senderName" }}>{(invalid) => <TextField name="Sender name" value={config.senderName} invalid={invalid} onCommit={(senderName) => { setConfig({ ...config, senderName }); }} />}</ConfigField>
+          <ConfigField label="Priority" tip="Receivers follow the highest-priority source" field={{ type: "priority" }}>{(invalid) => <NumberField name="Priority" value={config.priority} step={1} min={1} max={200} defaultValue={100} integer invalid={invalid} onCommit={(priority) => { setConfig({ ...config, priority }); }} />}</ConfigField>
+        </Section>
       </>}
       {config.type === "artNet" && <>
-        <Field label="Interface"><TextField name="Local interface" value={config.bindAddress} invalid={config.bindAddress.trim() === ""} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} /></Field>
-        <Field label="Destination"><TextField name="Destination socket" value={config.destination} invalid={config.destination.trim() === ""} onCommit={(destination) => { setConfig({ ...config, destination }); }} /></Field>
+        <ConfigField label="Destination" field={{ type: "destination" }}>{(invalid) => <TextField name="Destination socket" value={config.destination} invalid={invalid} onCommit={(destination) => { setConfig({ ...config, destination }); }} />}</ConfigField>
         <Field label="Broadcast"><Toggle name="Broadcast" checked={config.broadcast} onChange={(broadcast) => { setConfig({ ...config, broadcast }); }} /></Field>
+        <UniverseFields universes={config.universes} addresses={ARTNET_PORT_ADDRESSES} onChange={(universes) => { setConfig({ ...config, universes }); }} />
+        <Section title="Advanced" defaultOpen={false}>
+          <ConfigField label="Interface" tip="The local address and port to send from" field={{ type: "interface" }}>{(invalid) => <TextField name="Local interface" value={config.bindAddress} invalid={invalid} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} />}</ConfigField>
+        </Section>
       </>}
-      {config.type === "donder" && <Field label="Device">
-        <Select name="Device" value={config.device} options={deviceOptions} onChange={(device) => { setConfig({ ...config, device }); }} />
-      </Field>}
-      {ports.map((port, index) => <div className="controller-port-row" key={port.id}>
-        <Field label="Name"><TextField name="Output name" value={port.name} onCommit={(name) => { changePort(index, { name }); }} /></Field>
-        {config.type === "donder" ? <span>Output {port.address}</span>
-          : <Field label={config.type === "e131" ? "Universe" : "Port address"}>
-            <NumberField name={config.type === "e131" ? "Universe" : "Port address"} value={port.address} step={1} min={firstAddress} integer onCommit={(address) => { changePort(index, { address }); }} />
-          </Field>}
-        <Field label="Channels">
-          <NumberField name="Channels" value={port.slotCount} step={1} min={1} {...(config.type === "donder" ? {} : { max: MAX_UNIVERSE_SLOTS })} integer onCommit={(slotCount) => { changePort(index, { slotCount }); }} />
-        </Field>
-        <IconButton icon={X} label="Remove output" danger onClick={() => {
-          const remaining = ports.filter((_, i) => i !== index);
-          setPorts(config.type === "donder" ? remaining.map((candidate, i) => ({ ...candidate, address: i + 1 })) : remaining);
-        }} />
-      </div>)}
-      <AddRow label="Add output" onAdd={() => {
-        const address = config.type === "donder" ? ports.length + 1 : Math.max(firstAddress - 1, ...ports.map((port) => port.address)) + 1;
-        const id = Math.max(0, ...ports.map((port) => port.id)) + 1;
-        setPorts([...ports, { id, name: freshPortName(ports), address, slotCount: config.type === "donder" ? 600 : MAX_UNIVERSE_SLOTS }]);
-      }} />
-      <Button type="submit" variant="primary">{controller === undefined ? "Add controller" : "Apply"}</Button>
+      {config.type === "donder" && <>
+        <ConfigField label="Device" field={{ type: "device" }}>{(invalid) =>
+          <Select name="Device" value={config.device} options={deviceOptions} invalid={invalid} onChange={(device) => { setConfig({ ...config, device }); }} />}
+        </ConfigField>
+        {ports.map((port, index) => <div className="controller-port-row" key={port.id}>
+          <ConfigField label="Name" member={{ type: "port", id: port.id }} field={{ type: "name" }}>{(invalid) => <TextField name="Output name" value={port.name} invalid={invalid} onCommit={(name) => { changePort(index, { name }); }} />}</ConfigField>
+          <span>Output {port.output}</span>
+          <ConfigField label="Channels" member={{ type: "port", id: port.id }} field={{ type: "channels" }}>{(invalid) =>
+            <NumberField name="Channels" value={port.slotCount} step={1} min={1} integer invalid={invalid} onCommit={(slotCount) => { changePort(index, { slotCount }); }} />}
+          </ConfigField>
+          <IconButton icon={X} label="Remove output" danger onClick={() => {
+            // Donder outputs are numbered 1..n to match the controller's physical outputs.
+            setPorts(ports.filter((_, i) => i !== index).map((candidate, i) => ({ ...candidate, output: i + 1 })));
+          }} />
+        </div>)}
+        <AddRow label="Add output" onAdd={() => { setPorts([...ports, newPort(ports)]); }} />
+      </>}
+      <Button type="submit" variant="primary" disabled={checking || problem !== null} {...(problem === null ? {} : { tip: problem.message })}>{controller === undefined ? "Add controller" : "Apply"}</Button>
     </fieldset>
-  </form>;
+  </DraftProblem></form>;
 }

@@ -46,13 +46,16 @@ Console jam {
       played: [],
     },
   ],
-  always: [background],
+  always: [Always { clip: background, length: 4s }],
   events: [
     On {
       event: Press { control: devices.keyboard.kick },
       actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s } }],
     },
-    On { event: Press { control: devices.keyboard.swell }, actions: [Start { clip: wash }] },
+    On {
+      event: Press { control: devices.keyboard.swell },
+      actions: [Start { clip: wash, length: 4s }],
+    },
     On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
     On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
     On {

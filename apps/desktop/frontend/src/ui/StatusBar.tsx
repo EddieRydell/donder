@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { Tip } from "./kit";
-import { AlertTriangle, CheckCircle2, CircleX, FolderOpen, Save } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleAlert, CircleX, FolderOpen, Save } from "lucide-react";
 import { focusSidebar } from "./uiEvents";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { THEME_METRICS } from "../theme";
 import { useAppStore, type AppStaticSnapshot } from "../store";
 import { displayedProjectHealth } from "../workspace/helpers";
+import { countOf } from "./count";
+import { useUnplacedRefusal } from "./gui/problems";
 
 export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const editsPending = useAppStore((store) => store.documentEditsPending);
+  const failures = useSystemFailures(snapshot);
+  const refusal = useUnplacedRefusal();
   const buffer = snapshot.activeBuffer;
   const pending = snapshot.pendingSaves;
   const localDirty = effectiveEditorViewMode(snapshot) === "text" && buffer !== null && editsPending;
@@ -27,7 +31,9 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const projectParts = snapshot.projectRoot?.replace(/\\/g, "/").split("/") ?? [];
   const projectName = projectParts[projectParts.length - 1] ?? "No project";
   const health = displayedProjectHealth(snapshot);
-  const status = useSteadyLabel(snapshot.status, snapshot.projectHealth === "checking");
+  const steadyStatus = useSteadyLabel(snapshot.status, snapshot.projectHealth === "checking");
+  // A refused edit no field shows is the latest thing to say.
+  const status = refusal ?? steadyStatus;
   return (
     <footer className="status-bar">
       <StatusChip
@@ -44,9 +50,11 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
         <StatusChip label={shownSaveLabel} tooltip={saveTooltip}
           icon={<Save size={THEME_METRICS.iconSizeSmall} />} />
       )}
+      {failures.length > 0 && <StatusChip label="" tooltip={failures.join(" · ")}
+        icon={<CircleAlert size={THEME_METRICS.iconSizeSmall} aria-label="Failure" />} tone="status-problem" />}
       <StatusChip
         label={String(errors)}
-        tooltip={`${errors} errors`}
+        tooltip={countOf(errors, "error")}
         icon={errors > 0
           ? <CircleX size={THEME_METRICS.iconSizeSmall} />
           : <CheckCircle2 size={THEME_METRICS.iconSizeSmall} />}
@@ -55,13 +63,25 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
       />
       <StatusChip
         label={String(warnings)}
-        tooltip={`${warnings} warnings`}
+        tooltip={countOf(warnings, "warning")}
         icon={<AlertTriangle size={THEME_METRICS.iconSizeSmall} />}
         tone={warnings > 0 ? "status-warning" : ""}
         onClick={() => { focusSidebar("problems"); }}
       />
     </footer>
   );
+}
+
+/** What failed outside an edit and has not succeeded since: commands, saves, rendering and the preview. */
+function useSystemFailures(snapshot: AppStaticSnapshot): string[] {
+  const failures = useAppStore((store) => store.failures);
+  // The layer graph editor shows its own graph while it edits; the render follows once it closes.
+  const graphEditing = useAppStore((store) => store.compositionGraphEditing);
+  return [
+    ...Object.values(failures),
+    ...(!graphEditing && snapshot.renderError !== null && snapshot.renderError !== "" ? [snapshot.renderError] : []),
+    ...(snapshot.previewError !== null && snapshot.previewError !== "" ? [snapshot.previewError] : [])
+  ];
 }
 
 function projectHealthTooltip(health: AppStaticSnapshot["projectHealth"], projectRoot: string | null): string {

@@ -22,17 +22,19 @@ mod stage;
 pub use console::{ArmedConsole, arm};
 use donder_model::DonderProject;
 use donder_model::SequenceId;
-use donder_model::{ControllerId, ControllerPortId};
+use donder_model::{ControllerId, ControllerOutput};
 pub use donder_runtime::PreparedShow;
 pub use sequence::PreparationCache;
 
 /// Which hardware outputs a show keeps. Explicit lists preserve first-occurrence
 /// order and treat repeated entries as a set. An empty list selects no outputs.
+/// Each output is one record of the prepared show: an E1.31 or Art-Net
+/// controller's channels across all its universes, or one Donder port.
 #[derive(Clone, Copy, Debug)]
 pub enum Retain<'a> {
     All,
     Controllers(&'a [ControllerId]),
-    Ports(&'a [(ControllerId, ControllerPortId)]),
+    Outputs(&'a [(ControllerId, ControllerOutput)]),
 }
 
 /// Prepare a sequence against the project's active setup.

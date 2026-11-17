@@ -237,7 +237,15 @@ impl Parser<'_> {
     }
 
     fn param(&mut self) -> Parsed<Param> {
-        let name = self.name("a parameter name")?;
+        let param = self.member("a parameter name")?;
+        self.expect(TokenKind::Semicolon, "`;`")?;
+        Ok(param)
+    }
+
+    /// A parameter or an enum option's field, without its terminator: a name,
+    /// type, optional range, default and description.
+    fn member(&mut self, what: &str) -> Parsed<Param> {
+        let name = self.name(what)?;
         self.expect(TokenKind::Colon, "`:` and a type")?;
         let ty = self.type_expr()?;
         let range = if self.eat(TokenKind::Keyword(Keyword::In)) {
@@ -253,7 +261,6 @@ impl Parser<'_> {
             None
         };
         let description = self.description()?;
-        self.expect(TokenKind::Semicolon, "`;`")?;
         Ok(Param {
             name,
             ty,
@@ -279,12 +286,12 @@ impl Parser<'_> {
         let kind = match name.name.as_str() {
             crate::compiler::builtins::ENUM_WORD => {
                 self.expect(TokenKind::LeftBrace, "`{`")?;
-                let mut options = vec![self.name("an enum option")?];
+                let mut options = vec![self.enum_option()?];
                 while self.eat(TokenKind::Comma) {
                     if self.at(TokenKind::RightBrace) {
                         break;
                     }
-                    options.push(self.name("an enum option")?);
+                    options.push(self.enum_option()?);
                 }
                 self.expect(TokenKind::RightBrace, "`}`")?;
                 TypeKind::Enum(options)
@@ -303,6 +310,28 @@ impl Parser<'_> {
             kind,
             span: name.span.to(self.previous_span()),
         })
+    }
+
+    /// An enum option and its fields, if it has any: `Name` or
+    /// `Name { field: type [in min..max] = default, ... }`.
+    fn enum_option(&mut self) -> Parsed<EnumOption> {
+        let name = self.name("an enum option")?;
+        let mut fields = Vec::new();
+        if self.eat(TokenKind::LeftBrace) {
+            self.nest()?;
+            loop {
+                if self.at(TokenKind::RightBrace) {
+                    break;
+                }
+                fields.push(self.member("a field name")?);
+                if !self.eat(TokenKind::Comma) {
+                    break;
+                }
+            }
+            self.depth -= 1;
+            self.expect(TokenKind::RightBrace, "`}`")?;
+        }
+        Ok(EnumOption { name, fields })
     }
 
     /// A declaration literal: a number, possibly negative, a bool, a color or
@@ -573,6 +602,7 @@ impl Parser<'_> {
                 })
             }
             TokenKind::Keyword(Keyword::If) => self.if_expression(),
+            TokenKind::Keyword(Keyword::Match) => self.match_expression(),
             TokenKind::Identifier if self.peek_at(1).kind == TokenKind::Keyword(Keyword::For) => {
                 self.reduction()
             }
@@ -624,6 +654,55 @@ impl Parser<'_> {
         Ok(Expr {
             kind: ExprKind::If(Box::new(condition), then, Box::new(otherwise)),
             span,
+        })
+    }
+
+    /// `match value { Option { field, ... } => result, ... }`.
+    fn match_expression(&mut self) -> Parsed<Expr> {
+        let start = self.advance().span;
+        let value = self.expression()?;
+        self.expect(TokenKind::LeftBrace, "`{` and the match's arms")?;
+        self.nest()?;
+        let mut arms = Vec::new();
+        loop {
+            if self.at(TokenKind::RightBrace) {
+                break;
+            }
+            let option = self.name("an enum option or `_`")?;
+            let pattern = option.span;
+            let option = (option.name.as_str() != WILDCARD).then_some(option);
+            let mut fields = Vec::new();
+            if option.is_some() && self.eat(TokenKind::LeftBrace) {
+                loop {
+                    if self.at(TokenKind::RightBrace) {
+                        break;
+                    }
+                    fields.push(self.name("a field name")?);
+                    if !self.eat(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect(TokenKind::RightBrace, "`}`")?;
+            }
+            self.expect(TokenKind::FatArrow, "`=>` and the arm's value")?;
+            let result = self.expression()?;
+            arms.push(Arm {
+                option,
+                pattern,
+                fields,
+                result,
+            });
+            if !self.eat(TokenKind::Comma) {
+                break;
+            }
+        }
+        self.depth -= 1;
+        let end = self
+            .expect(TokenKind::RightBrace, "`}` after the match's arms")?
+            .span;
+        Ok(Expr {
+            kind: ExprKind::Match(Box::new(Match { value, arms })),
+            span: start.to(end),
         })
     }
 
@@ -778,6 +857,9 @@ impl Parser<'_> {
         })
     }
 }
+
+/// The `match` arm for every option no other arm names.
+const WILDCARD: &str = "_";
 
 const OR: u8 = 1;
 const COMPARISON: u8 = 3;

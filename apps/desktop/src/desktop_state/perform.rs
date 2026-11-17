@@ -1054,15 +1054,20 @@ mod tests {
             .replace("\r\n", "\n");
         let start = text.find("  protocol: E131 {").unwrap();
         let end = start + text[start..].find("\n  },\n").unwrap() + "\n  },\n".len();
+        let universes = text[start..end]
+            .lines()
+            .filter(|line| {
+                ["start_universe:", "universes:", "channels:"]
+                    .iter()
+                    .any(|field| line.trim_start().starts_with(field))
+            })
+            .map(|line| format!("{line}\n"))
+            .collect::<String>();
         let text = format!(
-            "{}  protocol: ArtNet {{\n    bind_address: \"127.0.0.1:0\",\n    destination: \"{}\",\n    mode: Unicast,\n  }},\n{}",
+            "{}  protocol: ArtNet {{\n    bind_address: \"127.0.0.1:0\",\n    destination: \"{}\",\n    mode: Unicast,\n{universes}  }},\n{}",
             &text[..start],
             receiver.local_addr().unwrap(),
             &text[end..],
-        )
-        .replace(
-            "address: Universe { universe: ",
-            "address: ArtNetPort { port_address: ",
         );
         std::fs::write(&path, text).unwrap();
         let state = DesktopState::new(|_| {});

@@ -16,11 +16,11 @@ use crate::workspace::{LIVE_MARK_CAPACITY, Layout, Timing, Workspace, carve};
 /// prepared console's voices, live mark collections and live automations.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum ConsoleCommand {
-    /// Start a voice from its beginning, restarting it if it is playing. It
-    /// plays for `duration`, or until stopped when `None`.
+    /// Start a voice from its beginning for `duration`, restarting it if it
+    /// is playing.
     Start {
         voice: u16,
-        duration: Option<SampleDuration>,
+        duration: SampleDuration,
     },
     /// End a voice; a voice that is not playing is unchanged.
     Stop { voice: u16 },
@@ -207,11 +207,15 @@ fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime, comman
             let clip = s.voices[usize::from(voice)];
             console.timing[clip as usize] = Timing {
                 start: ticks,
-                duration: duration.map_or_else(
-                    || show.duration().as_ticks().saturating_sub(ticks),
-                    |duration| duration.as_ticks(),
-                ),
+                duration: duration.as_ticks(),
             };
+            // Its integrals count from the new start, where no value set
+            // before has yet held.
+            for target in s.live_targets.iter().filter(|target| target.clip == clip) {
+                if let Some(plan) = show.plan(target.plan) {
+                    console.overrides[(plan.bindings.start + target.binding) as usize].reset_area();
+                }
+            }
             if let Some(layer) = s
                 .layers
                 .iter()

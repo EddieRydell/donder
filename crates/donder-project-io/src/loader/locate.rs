@@ -179,9 +179,12 @@ pub(super) fn site_span(
         (Located::InputDevice(device), Member::Control(id)) => {
             nth(&device.controls, id.0).map(|control| name_span(control.name()))
         }
-        (Located::Controller(controller), Member::Port(id)) => {
-            nth(&controller.ports, id.0).map(|port| name_span(&port.name))
-        }
+        (Located::Controller(controller), Member::Port(id)) => match &controller.protocol {
+            types::Protocol::Donder { ports, .. } => {
+                nth(ports, id.0).map(|port| name_span(&port.name))
+            }
+            types::Protocol::E131 { .. } | types::Protocol::ArtNet { .. } => None,
+        },
         (Located::Layout(layout), Member::LayoutItem(id)) => {
             let item = nth(&layout.items, id.0)?;
             match (item, part) {

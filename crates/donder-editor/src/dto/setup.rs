@@ -182,6 +182,8 @@ pub enum GuiDocumentChange {
         document: SequenceGuiDocument,
         clip_ids: Vec<u32>,
     },
+    /// The edit was refused and the document did not change.
+    Refused { problem: GuiProblem },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -282,8 +284,20 @@ pub struct SetupControllerPort {
     pub id: u32,
     /// Unique within the controller; patch routes refer to it.
     pub name: String,
-    pub address: u16,
+    /// The Donder controller's physical output, from 1.
+    pub output: u8,
     pub slot_count: u16,
+}
+
+/// An E1.31 or Art-Net controller's consecutive universes.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiUniverses {
+    /// An E1.31 universe, or an Art-Net 15-bit port-address.
+    pub start: u16,
+    pub count: u16,
+    /// Channels per universe.
+    pub channels: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -296,6 +310,7 @@ pub enum SetupGuiEdit {
     AddController {
         config: SetupControllerConfig,
         ports: Vec<SetupControllerPort>,
+        storage: NewObjectStorage,
     },
     AttachController {
         controller: GuiObjectRef,
@@ -307,6 +322,7 @@ pub enum SetupGuiEdit {
     AddInputDevice {
         driver: GuiInputDriver,
         controls: Vec<GuiInputControl>,
+        storage: NewObjectStorage,
     },
     AttachInputDevice {
         device: GuiObjectRef,
@@ -328,15 +344,37 @@ pub enum SetupControllerConfig {
         bind_address: String,
         priority: u8,
         destination: Option<String>,
+        universes: GuiUniverses,
     },
     ArtNet {
         bind_address: String,
         destination: String,
         broadcast: bool,
+        universes: GuiUniverses,
     },
     Donder {
         device: String,
     },
+}
+
+impl From<donder_model::Universes> for GuiUniverses {
+    fn from(universes: donder_model::Universes) -> Self {
+        Self {
+            start: universes.start,
+            count: universes.count,
+            channels: universes.channels,
+        }
+    }
+}
+
+impl From<GuiUniverses> for donder_model::Universes {
+    fn from(universes: GuiUniverses) -> Self {
+        Self {
+            start: universes.start,
+            count: universes.count,
+            channels: universes.channels,
+        }
+    }
 }
 
 impl From<&donder_model::ControllerProtocol> for SetupControllerConfig {
@@ -351,11 +389,13 @@ impl From<&donder_model::ControllerProtocol> for SetupControllerConfig {
                     E131Mode::Multicast => None,
                     E131Mode::Unicast { destination } => Some(destination.to_string()),
                 },
+                universes: config.universes.into(),
             },
             ControllerProtocol::ArtNet(config) => Self::ArtNet {
                 bind_address: config.bind_address.to_string(),
                 destination: config.destination.to_string(),
                 broadcast: matches!(config.mode, ArtNetMode::Broadcast),
+                universes: config.universes.into(),
             },
             ControllerProtocol::Donder(config) => Self::Donder {
                 device: config.device.as_str().to_string(),
@@ -467,6 +507,16 @@ pub enum GuiOwnershipEdit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ReusableStorage {
+    SameFile,
+    NewFile,
+}
+
+/// Where a new object is stored: inside the object it is added to, or as a
+/// declaration of its own that other objects can use.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum NewObjectStorage {
+    Inline,
     SameFile,
     NewFile,
 }

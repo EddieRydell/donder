@@ -7,7 +7,7 @@ use donder_model::{FixtureShape, Layout, LayoutFixtureKind, Owned, Patch};
 use donder_project_io::ProjectSession;
 
 const EMPTY_PROJECT: &str = "Project house {
-  format: 1,
+  format: 2,
   description: none,
   setup: Setup {
     description: none,
@@ -77,7 +77,7 @@ fn imports_the_house() {
             report.controllers,
             report.routes
         ),
-        (262, 27053, 63, 31, 427)
+        (262, 27053, 63, 31, 291)
     );
     assert_eq!(report.scale, Some(Scale::PixelSpacing(0.075)));
     let reasons = |model: &str| {
@@ -105,7 +105,7 @@ fn imports_the_house() {
     let layout = layout(&session);
     assert_eq!(layout.fixtures.len(), 262 + 63);
     let patch = session.project.reusable::<Patch>().values().next().unwrap();
-    assert_eq!(patch.routes.len(), 427);
+    assert_eq!(patch.routes.len(), 291);
 }
 
 #[test]
@@ -153,19 +153,26 @@ fn routes_follow_the_channels() {
         .unwrap()
         .id;
     // The penguin's 1190 pixels run from the start of universe 232 across
-    // seven universes of 170 pixels.
+    // seven universes of 170 pixels, one route on its controller's channels.
     let routes: Vec<_> = patch
         .routes
         .iter()
         .filter(|route| route.target.fixture == penguin)
         .collect();
-    assert_eq!(routes.len(), 7);
-    let mut next = 0;
-    for route in routes {
-        let span = route.pixels.unwrap();
-        assert_eq!((span.start, span.count, route.start_slot), (next, 170, 0));
-        next += 170;
-    }
+    let [route] = routes[..] else {
+        panic!("the penguin has {} routes", routes.len());
+    };
+    assert_eq!(route.pixels, None);
+    let universes = *session.project.reusable::<donder_model::Controller>()[&route.controller]
+        .universes()
+        .unwrap();
+    assert_eq!(
+        universes.locate(route.start_channel),
+        donder_model::UniverseChannel {
+            universe: 232,
+            channel: 1
+        }
+    );
 }
 
 #[test]

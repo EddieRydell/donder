@@ -21,27 +21,24 @@ impl DesktopState {
         let resolved = donder_editor::resolve_request(&session, request)?;
         let id = ControllerId::try_from(resolved.object)
             .map_err(|_| "Open a controller to test its outputs.")?;
-        let mut controller = session
+        let controller = session
             .project
             .get::<donder_model::Controller>(id)
             .ok_or("Controller is missing.")?
             .clone();
-        let port = controller
-            .ports
-            .iter()
-            .find(|port| port.id.0 == test.port)
-            .ok_or("Choose an output port.")?
-            .clone();
-        let end = usize::from(test.start_slot) + usize::from(test.slot_count);
-        if test.slot_count == 0 || end > usize::from(port.slot_count) {
-            return Err("Choose a nonempty channel range within this output.".into());
-        }
-        let mut slots = vec![0; usize::from(port.slot_count)];
-        slots[usize::from(test.start_slot)..end].fill(test.value);
-        controller.ports = vec![port.clone()];
+        let channels = controller
+            .universes()
+            .ok_or("Only E1.31 and Art-Net controllers stream test values.")?
+            .channel_count();
+        let end = test
+            .start_channel
+            .checked_add(test.channel_count)
+            .filter(|&end| test.channel_count > 0 && end <= channels)
+            .ok_or("Choose channels within this controller's universes.")?;
+        let mut slots = vec![0; channels as usize];
+        slots[test.start_channel as usize..end as usize].fill(test.value);
         let frame = OutputFrame {
             controller: id,
-            port: port.id,
             slots,
         };
         let output = {
@@ -61,7 +58,7 @@ mod tests {
     use crate::project::{new_test_project_files, write_new_project_files};
     use camino::Utf8PathBuf;
     use donder_editor::dto::{
-        GuiDocument, GuiEditCommand, LiveOutputState, SetupControllerConfig, SetupControllerPort,
+        GuiDocument, GuiEditCommand, GuiUniverses, LiveOutputState, SetupControllerConfig,
         SetupGuiEdit,
     };
     use std::net::UdpSocket;
@@ -95,25 +92,18 @@ mod tests {
             setup_request(),
             GuiEditCommand::Setup {
                 edit: SetupGuiEdit::AddController {
+                    storage: donder_editor::dto::NewObjectStorage::Inline,
                     config: SetupControllerConfig::ArtNet {
                         bind_address: "127.0.0.1:0".into(),
                         destination: receiver.local_addr().unwrap().to_string(),
                         broadcast: false,
+                        universes: GuiUniverses {
+                            start: 8,
+                            count: 2,
+                            channels: 6,
+                        },
                     },
-                    ports: vec![
-                        SetupControllerPort {
-                            name: "port_1".into(),
-                            id: 1,
-                            address: 4,
-                            slot_count: 6,
-                        },
-                        SetupControllerPort {
-                            name: "port_2".into(),
-                            id: 2,
-                            address: 9,
-                            slot_count: 6,
-                        },
-                    ],
+                    ports: Vec::new(),
                 },
             },
         );
@@ -146,19 +136,27 @@ mod tests {
             object_key: controller_address.root_source().object().into(),
         };
         let original = state.project_session().unwrap();
+        // Universe 9's second to fourth channels.
         let test = ControllerOutputTest {
-            port: 2,
-            start_slot: 1,
-            slot_count: 3,
+            start_channel: 7,
+            channel_count: 3,
             value: 47,
         };
+        // Universe 9's channels; universe 8 is all zero.
         let receive = || {
-            let mut bytes = [0; 1024];
-            let size = receiver.recv(&mut bytes).unwrap();
-            assert_eq!(&bytes[..8], b"Art-Net\0");
-            assert_eq!(u16::from_le_bytes([bytes[14], bytes[15]]), 9);
-            assert_eq!(size, 24);
-            bytes[18..24].to_vec()
+            loop {
+                let mut bytes = [0; 1024];
+                let size = receiver.recv(&mut bytes).unwrap();
+                assert_eq!(&bytes[..8], b"Art-Net\0");
+                assert_eq!(size, 24);
+                match u16::from_le_bytes([bytes[14], bytes[15]]) {
+                    8 => assert_eq!(bytes[18..24], [0; 6]),
+                    universe => {
+                        assert_eq!(universe, 9);
+                        return bytes[18..24].to_vec();
+                    }
+                }
+            }
         };
         let mut stale = request();
         stale.project_revision += 1;
@@ -168,7 +166,7 @@ mod tests {
                 .start_output_test(
                     &request(),
                     ControllerOutputTest {
-                        slot_count: 6,
+                        channel_count: 6,
                         ..test.clone()
                     }
                 )
@@ -177,7 +175,7 @@ mod tests {
         for suspend in [false, true] {
             let started = state.start_output_test(&request(), test.clone()).unwrap();
             assert_eq!(started.live_output.state, LiveOutputState::Testing);
-            assert_eq!(started.live_output.active_universe_count, 1);
+            assert_eq!(started.live_output.active_universe_count, 2);
             let deadline = Instant::now() + Duration::from_secs(2);
             loop {
                 assert!(

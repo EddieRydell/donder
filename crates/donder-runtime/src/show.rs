@@ -157,9 +157,18 @@ impl ShowPlayback {
         &self.prepared
     }
 
+    /// The frame at `time`, after a console's held copies whose length ended
+    /// start again.
     pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
         let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
-        resume(show, &self.prepared.layout, &mut self.buffer).frame(time)
+        advance(
+            show,
+            &self.prepared.layout,
+            &mut self.buffer,
+            &mut self.router,
+            time,
+        )
+        .frame(time)
     }
 
     /// Route a console input at its time. Inputs arrive in time order; one of
@@ -326,12 +335,15 @@ impl<'r> RegionPlayback<'r> {
         );
     }
 
+    /// The frame at `time`, as [`ShowPlayback::evaluate`] gives it.
     pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
         let (show, buffer) = self.words.split_at_mut(self.len / 4);
-        resume(
+        advance(
             Show::trusted(bytemuck::cast_slice(show)),
             &self.layout,
             buffer,
+            &mut self.router,
+            time,
         )
         .frame(time)
     }
@@ -380,6 +392,19 @@ fn restart(show: Show<'_>, layout: &Layout, buffer: &mut [u32], router: &mut Rou
     router.start(show, SampleTime::from_ticks(0), &mut |command| {
         playback.apply(SampleTime::from_ticks(0), command);
     });
+}
+
+/// Continue `show` with its held copies started again up to `time`.
+fn advance<'a, 'w>(
+    show: Show<'a>,
+    layout: &Layout,
+    buffer: &'w mut [u32],
+    router: &mut Router,
+    time: SampleTime,
+) -> Playback<'a, 'w> {
+    let mut playback = resume(show, layout, buffer);
+    router.advance(time, &mut |at, command| playback.apply(at, command));
+    playback
 }
 
 fn route(

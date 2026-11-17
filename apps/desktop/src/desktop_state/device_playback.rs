@@ -10,7 +10,7 @@ use donder_editor::dto::{
     DonderDeviceStatus, LiveOutputControllerSnapshot, LiveOutputControllerState,
     LiveOutputSnapshot, LiveOutputState,
 };
-use donder_model::{ControllerId, ControllerPortAddress, ControllerProtocol, DonderDeviceId};
+use donder_model::{ControllerId, ControllerOutput, ControllerProtocol, DonderDeviceId};
 use donder_runtime::PlaybackRate;
 use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
@@ -59,9 +59,9 @@ impl DeviceLinks {
         match self.advertised.get(id) {
             None if self.live => failed("Not on the network."),
             None => DonderDeviceConnection::Unused,
-            Some(Advertised { format, .. }) if *format != donder_runtime::FORMAT_VERSION => failed(
-                "Controller firmware does not match this editor. Flash the current firmware (see firmware/esp32/README.md).",
-            ),
+            Some(Advertised { format, .. }) if *format != donder_runtime::FORMAT_VERSION => {
+                failed("Firmware doesn't match this version of Donder.")
+            }
             Some(_) if self.live => DonderDeviceConnection::Connecting,
             Some(_) => DonderDeviceConnection::Unused,
         }
@@ -231,7 +231,7 @@ impl DesktopState {
                 donder_elaboration::arm(
                     &session.project,
                     &performance.console,
-                    donder_elaboration::Retain::Ports(ports),
+                    donder_elaboration::Retain::Outputs(ports),
                     &mut cache,
                 )
                 .map(|armed| armed.prepared)
@@ -404,13 +404,10 @@ impl DesktopState {
                 let ControllerProtocol::Donder(config) = &controller.protocol else {
                     return None;
                 };
-                let mut ports = controller
+                let mut ports = config
                     .ports
                     .iter()
-                    .filter_map(|port| match port.address {
-                        ControllerPortAddress::DonderOutput(output) => Some((output, port.id)),
-                        _ => None,
-                    })
+                    .map(|port| (port.output, port.id))
                     .collect::<Vec<_>>();
                 ports.sort();
                 Some(SetupDevice {
@@ -418,7 +415,7 @@ impl DesktopState {
                     device: config.device.clone(),
                     ports: ports
                         .into_iter()
-                        .map(|(_, port)| (controller.id, port))
+                        .map(|(_, port)| (controller.id, ControllerOutput::Port(port)))
                         .collect(),
                 })
             })
@@ -484,7 +481,7 @@ impl DesktopState {
                 donder_elaboration::prepare_cached(
                     &session.project,
                     &sequence,
-                    donder_elaboration::Retain::Ports(ports),
+                    donder_elaboration::Retain::Outputs(ports),
                     &mut cache,
                 )
                 .ok_or_else(|| "The sequence or a connected device output is unavailable.".into())

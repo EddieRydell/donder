@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 type TextFieldProps = {
   value: string;
@@ -19,7 +19,10 @@ type TextFieldProps = {
   className?: string;
 };
 
-/** The app's text control: edits locally, commits on Enter or blur, Escape reverts. */
+/**
+ * The app's text control: edits locally, commits on Enter or blur, Escape reverts. It carries the
+ * committed text's length, so a layout that sizes it to its content keeps one width while typing.
+ */
 export function TextField({ value, onCommit, name, placeholder, multiline = false, disabled = false, invalid = false, live = false, autoFocus = false, secret = false, onCancel, className }: TextFieldProps) {
   const [draft, setDraft] = useState<string | null>(null);
   // Escape blurs the field before its reset renders, so the blur must know not to commit.
@@ -45,6 +48,7 @@ export function TextField({ value, onCommit, name, placeholder, multiline = fals
   };
   const props = {
     className: ["kit-text", className].filter(Boolean).join(" "),
+    style: { "--kit-value-chars": Math.max(value.length, placeholder?.length ?? 0) } as CSSProperties,
     value: shown,
     placeholder,
     disabled,

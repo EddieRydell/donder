@@ -8,11 +8,11 @@ use crate::report::{
 };
 use camino::Utf8PathBuf;
 use donder_model::{
-    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
-    ControllerPortId, ControllerProtocol, ControllerValidationError, E131Config, E131Mode,
-    FixtureDefinition, FixtureInstanceId, FixtureTarget, FixtureTransform, Layout, LayoutFixture,
-    LayoutFixtureKind, LayoutId, ObjectId, Owned, OwnedMember, OwnershipSite, Patch, PatchId,
-    PixelRoute, PixelRouteId, PixelSpan, ProjectEdit, Setup,
+    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerOutput, ControllerProtocol,
+    ControllerValidationError, E131Config, E131Mode, FixtureDefinition, FixtureInstanceId,
+    FixtureTarget, FixtureTransform, Layout, LayoutFixture, LayoutFixtureKind, LayoutId, ObjectId,
+    Owned, OwnedMember, OwnershipSite, Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan,
+    ProjectEdit, Setup, Universes,
 };
 use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::{Identifier, PixelEncoding};
@@ -238,34 +238,42 @@ pub(crate) fn typical_scale(
     (spacing / typical, Scale::PixelSpacing(spacing))
 }
 
-/// The Donder controllers, with each profile output's port.
+/// The Donder controllers, and where each profile output's channels are in
+/// them.
 struct Controllers {
     controllers: Vec<(Identifier, Controller)>,
     /// By profile controller and output.
-    ports: HashMap<(usize, usize), (ControllerId, ControllerPortId, u32)>,
+    outputs: HashMap<(usize, usize), OutputChannels>,
 }
 
-/// How Donder sends to a controller and addresses its outputs.
-fn protocol(protocol: &ProfileProtocol) -> (ControllerProtocol, fn(u16) -> ControllerPortAddress) {
+/// Where a profile output's channels are in a Donder controller.
+#[derive(Clone, Copy)]
+struct OutputChannels {
+    controller: ControllerId,
+    /// The output's first channel in the controller, from 0.
+    first: u32,
+    /// The channels from `first` that follow on without a gap: to the end
+    /// of the output's run of universes.
+    room: u32,
+}
+
+/// How Donder sends to a controller's universes.
+fn protocol(protocol: &ProfileProtocol, universes: Universes) -> ControllerProtocol {
     let unspecified = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
     match protocol {
-        ProfileProtocol::E131 { priority, mode } => (
-            ControllerProtocol::E131(E131Config {
-                sender_name: "Donder".to_string(),
-                bind_address: unspecified,
-                priority: *priority,
-                mode: mode.clone(),
-            }),
-            ControllerPortAddress::E131Universe,
-        ),
-        ProfileProtocol::ArtNet(destination) => (
-            ControllerProtocol::ArtNet(ArtNetConfig {
-                bind_address: SocketAddr::new(unspecified, ARTNET_PORT),
-                destination: SocketAddr::new(*destination, ARTNET_PORT),
-                mode: ArtNetMode::Unicast,
-            }),
-            ControllerPortAddress::ArtNetPort,
-        ),
+        ProfileProtocol::E131 { priority, mode } => ControllerProtocol::E131(E131Config {
+            sender_name: "Donder".to_string(),
+            bind_address: unspecified,
+            priority: *priority,
+            mode: mode.clone(),
+            universes,
+        }),
+        ProfileProtocol::ArtNet(destination) => ControllerProtocol::ArtNet(ArtNetConfig {
+            bind_address: SocketAddr::new(unspecified, ARTNET_PORT),
+            destination: SocketAddr::new(*destination, ARTNET_PORT),
+            mode: ArtNetMode::Unicast,
+            universes,
+        }),
     }
 }
 
@@ -275,23 +283,70 @@ fn refusal(error: ControllerValidationError) -> Result<ControllerSkip, ImportErr
     use ControllerValidationError as Invalid;
     Ok(match error {
         Invalid::InvalidPriority(priority) => ControllerSkip::Priority(priority.into()),
-        Invalid::EmptyPort(_) => ControllerSkip::EmptyOutput,
-        Invalid::TooManySlots { slots, .. } => ControllerSkip::LargeOutput(slots.into()),
-        Invalid::InvalidE131Universe { universe, .. } => ControllerSkip::Universe(universe.into()),
-        Invalid::InvalidArtNetPort { address, .. } => ControllerSkip::Universe(address.into()),
-        Invalid::DuplicateProtocolAddress(
-            ControllerPortAddress::E131Universe(universe)
-            | ControllerPortAddress::ArtNetPort(universe),
-        ) => ControllerSkip::RepeatedUniverse(universe.into()),
+        Invalid::E131UniversesOutOfRange(universes)
+        | Invalid::ArtNetUniversesOutOfRange(universes) => {
+            ControllerSkip::Universe(if universes.start == 0 {
+                0
+            } else {
+                i32::from(universes.start) + i32::from(universes.count) - 1
+            })
+        }
         Invalid::EmptySenderName
+        | Invalid::NoUniverses
+        | Invalid::InvalidUniverseChannels(_)
         | Invalid::DuplicatePort(_)
         | Invalid::InvalidPortName(_)
-        | Invalid::ProtocolAddressMismatch(_)
+        | Invalid::DuplicatePortName(_)
+        | Invalid::EmptyPort(_)
         | Invalid::InvalidDonderOutput { .. }
-        | Invalid::DuplicateProtocolAddress(ControllerPortAddress::DonderOutput(_)) => {
+        | Invalid::DuplicateDonderOutput(_) => {
             return Err(ImportError::Project(error.to_string()));
         }
     })
+}
+
+/// A profile controller's outputs as runs of consecutive universes, each a
+/// Donder controller: the outputs' indices and the universes. An output
+/// continues a run when its universe follows the last one's, which carries
+/// the run's channels per universe, and it carries no more; a shorter last
+/// universe sends its unused channels as zero.
+fn universe_runs(
+    outputs: &[ProfileOutput],
+) -> Result<Vec<(Vec<usize>, Universes)>, ControllerSkip> {
+    let mut seen = HashSet::new();
+    let mut runs: Vec<(Vec<usize>, Universes)> = Vec::new();
+    for (index, output) in outputs.iter().enumerate() {
+        if output.channels == 0 {
+            return Err(ControllerSkip::EmptyOutput);
+        }
+        if output.channels > 512 {
+            return Err(ControllerSkip::LargeOutput(output.channels.into()));
+        }
+        if !seen.insert(output.universe) {
+            return Err(ControllerSkip::RepeatedUniverse(output.universe.into()));
+        }
+        let continues = runs.last().is_some_and(|(members, universes)| {
+            let last = &outputs[members[members.len() - 1]];
+            u32::from(last.universe) + 1 == u32::from(output.universe)
+                && last.channels == universes.channels
+                && output.channels <= universes.channels
+        });
+        match runs.last_mut() {
+            Some((members, universes)) if continues => {
+                members.push(index);
+                universes.count += 1;
+            }
+            _ => runs.push((
+                vec![index],
+                Universes {
+                    start: output.universe,
+                    count: 1,
+                    channels: output.channels,
+                },
+            )),
+        }
+    }
+    Ok(runs)
 }
 
 fn controllers(
@@ -301,7 +356,7 @@ fn controllers(
 ) -> Result<Controllers, ImportError> {
     let mut result = Controllers {
         controllers: Vec::new(),
-        ports: HashMap::new(),
+        outputs: HashMap::new(),
     };
     let mut taken = HashSet::new();
     for (index, controller) in profile.iter().enumerate() {
@@ -309,91 +364,119 @@ fn controllers(
             controller: controller.name.clone(),
             reason,
         };
-        let (protocol, address) = match &controller.protocol {
-            Ok(read) => protocol(read),
+        let read = match &controller.protocol {
+            Ok(read) => read,
             Err(reason) => {
                 report.skipped_controllers.push(skip(reason.clone()));
                 continue;
             }
         };
-        let mut ports: Vec<ControllerPort> = Vec::new();
-        for output in &controller.outputs {
-            // A repeated universe takes another name, so the model reports
-            // it as a repeated address.
-            let name =
-                donder_language::unique_name(&format!("universe_{}", output.universe), |name| {
-                    ports.iter().any(|port| port.name.as_str() == name)
-                });
-            ports.push(ControllerPort {
-                id: ControllerPortId(ports.len() as u32 + 1),
-                name,
-                address: address(output.universe),
-                slot_count: output.channels,
-            });
-        }
-        let built = Controller {
-            id: ControllerId(new_id()),
-            description: controller.description.clone(),
-            protocol,
-            ports,
+        let runs = match universe_runs(&controller.outputs) {
+            Ok(runs) if runs.is_empty() => {
+                report
+                    .skipped_controllers
+                    .push(skip(ControllerSkip::NoOutputs));
+                continue;
+            }
+            Ok(runs) => runs,
+            Err(reason) => {
+                report.skipped_controllers.push(skip(reason));
+                continue;
+            }
         };
-        if let Err(error) = built.validate() {
-            report.skipped_controllers.push(skip(refusal(error)?));
+        let mut built = Vec::new();
+        let mut refused = None;
+        for (members, universes) in runs {
+            let candidate = Controller {
+                id: ControllerId(new_id()),
+                description: controller.description.clone(),
+                protocol: protocol(read, universes),
+            };
+            if let Err(error) = candidate.validate() {
+                refused = Some(refusal(error)?);
+                break;
+            }
+            built.push((candidate, members, universes));
+        }
+        if let Some(reason) = refused {
+            report.skipped_controllers.push(skip(reason));
             continue;
         }
-        for (output, port) in built.ports.iter().enumerate() {
-            result.ports.insert(
-                (index, output),
-                (built.id, port.id, u32::from(port.slot_count)),
+        for (candidate, members, universes) in built {
+            let width = u32::from(universes.channels);
+            let last = members.len() as u32 - 1;
+            let end =
+                last * width + u32::from(controller.outputs[members[members.len() - 1]].channels);
+            for (position, &output) in (0..).zip(&members) {
+                let first = position * width;
+                result.outputs.insert(
+                    (index, output),
+                    OutputChannels {
+                        controller: candidate.id,
+                        first,
+                        room: end - first,
+                    },
+                );
+            }
+            let name = donder_language::unique_name(
+                donder_language::object_name(&controller.name).as_str(),
+                |name| taken.contains(name),
             );
+            taken.insert(name.as_str().to_string());
+            result.controllers.push((name, candidate));
         }
-        let name = donder_language::unique_name(
-            donder_language::object_name(&controller.name).as_str(),
-            |name| taken.contains(name),
-        );
-        taken.insert(name.as_str().to_string());
-        result.controllers.push((name, built));
     }
     Ok(result)
 }
 
-/// A fixture's routes as runs of pixels: the slot of the first, its index,
+/// A pixel run's place: the Donder controller and the run's first channel
+/// in it, from 0.
+#[derive(Clone, Copy)]
+struct Place {
+    controller: ControllerId,
+    channel: u32,
+}
+
+/// A fixture's routes as runs of pixels: the place of the first, its index,
 /// and how many; or why some of its pixels have none.
 fn runs(
     fixture: &ProfileFixture,
     profile: &[ProfileController],
     controllers: &Controllers,
-) -> Result<Vec<(Slot, u32, u32)>, UnroutedReason> {
+) -> Result<Vec<(Place, u32, u32)>, UnroutedReason> {
     let Some(slots) = &fixture.slots else {
         return Ok(Vec::new());
     };
     let per_pixel = fixture.encoding.channel_order().len() as u32;
-    let mut runs: Vec<(Slot, u32, u32)> = Vec::new();
+    let mut runs: Vec<(Place, u32, u32)> = Vec::new();
     for (pixel, &slot) in slots.iter().enumerate() {
-        let Some(&(_, _, channels)) = controllers.ports.get(&(slot.controller, slot.output)) else {
+        let Some(&channels) = controllers.outputs.get(&(slot.controller, slot.output)) else {
             return Err(UnroutedReason::UnsupportedController(
                 profile[slot.controller].name.clone(),
             ));
         };
-        if slot.offset + per_pixel > channels {
+        if slot.offset + per_pixel > channels.room {
             return Err(UnroutedReason::SplitPixel);
         }
+        let place = Place {
+            controller: channels.controller,
+            channel: channels.first + slot.offset,
+        };
         match runs.last_mut() {
             Some((first, start, count))
-                if first.controller == slot.controller
-                    && first.output == slot.output
-                    && first.offset + *count * per_pixel == slot.offset
+                if first.controller == place.controller
+                    && first.channel + *count * per_pixel == place.channel
                     && *start + *count == pixel as u32 =>
             {
                 *count += 1
             }
-            _ => runs.push((slot, pixel as u32, 1)),
+            _ => runs.push((place, pixel as u32, 1)),
         }
     }
     Ok(runs)
 }
 
-/// Slots from `0` up to `1` of an output, patched to the fixture named `2`.
+/// Channels from `0` up to `1` of a controller, patched to the fixture named `2`.
 type Claim = (u32, u32, String);
 
 /// Put the profile in the project's setup, whose layout, patch and controllers
@@ -415,7 +498,7 @@ pub(crate) fn build(
     // Patch each fixture whose channels no earlier fixture has.
     let layout_id = LayoutId(session.project.new_id());
     let patch_id = PatchId(session.project.new_id());
-    let mut claimed: HashMap<(usize, usize), Vec<Claim>> = HashMap::new();
+    let mut claimed: HashMap<ControllerId, Vec<Claim>> = HashMap::new();
     let mut fixtures = Vec::new();
     let mut route_list = Vec::new();
     let mut by_name: HashMap<String, FixtureInstanceId> = HashMap::new();
@@ -432,10 +515,10 @@ pub(crate) fn build(
             }
         };
         let per_pixel = fixture.encoding.channel_order().len() as u32;
-        let overlap = runs.iter().find_map(|(slot, _, count)| {
-            let (from, to) = (slot.offset, slot.offset + count * per_pixel);
+        let overlap = runs.iter().find_map(|(place, _, count)| {
+            let (from, to) = (place.channel, place.channel + count * per_pixel);
             claimed
-                .get(&(slot.controller, slot.output))?
+                .get(&place.controller)?
                 .iter()
                 .find(|(start, end, _)| from < *end && *start < to)
                 .map(|(_, _, owner)| owner.clone())
@@ -447,15 +530,12 @@ pub(crate) fn build(
             });
             continue;
         }
-        for (slot, _, count) in &runs {
-            claimed
-                .entry((slot.controller, slot.output))
-                .or_default()
-                .push((
-                    slot.offset,
-                    slot.offset + count * per_pixel,
-                    fixture.name.clone(),
-                ));
+        for (place, _, count) in &runs {
+            claimed.entry(place.controller).or_default().push((
+                place.channel,
+                place.channel + count * per_pixel,
+                fixture.name.clone(),
+            ));
         }
         let id = FixtureInstanceId(fixtures.len() as u32 + 1);
         let origin = fixture.pixels[0].position;
@@ -470,8 +550,7 @@ pub(crate) fn build(
         let (brightness, gamma) = fixture
             .dimming
             .map_or((1.0, 1.0), |dimming| (dimming.brightness, dimming.gamma));
-        for (slot, start, count) in runs {
-            let (controller, port, _) = controllers.ports[&(slot.controller, slot.output)];
+        for (place, start, count) in runs {
             route_list.push(PixelRoute {
                 id: PixelRouteId(route_list.len() as u32 + 1),
                 target: FixtureTarget {
@@ -479,9 +558,9 @@ pub(crate) fn build(
                     fixture: id,
                 },
                 pixels: (count != pixel_count).then_some(PixelSpan { start, count }),
-                controller,
-                port,
-                start_slot: slot.offset as u16,
+                controller: place.controller,
+                output: ControllerOutput::Universes,
+                start_channel: place.channel,
                 encoding: fixture.encoding,
                 gamma,
                 brightness,

@@ -35,7 +35,7 @@ fn starter_prepares_and_produces_exact_controller_widths() {
                 .project
                 .get::<donder_model::Controller>(*id.id())
                 .unwrap()
-                .ports
+                .outputs()
                 .len()
         })
         .sum::<usize>();
@@ -48,12 +48,10 @@ fn starter_prepares_and_produces_exact_controller_widths() {
             .reusable::<donder_model::Controller>()
             .get(setup.controllers[output.controller_index as usize].id())
             .unwrap();
-        let port = controller
-            .ports
-            .iter()
-            .find(|port| port.id.0 == output.port)
+        let width = controller
+            .output_width(controller.runtime_output(output.port))
             .unwrap();
-        assert_eq!(slots.len(), usize::from(port.slot_count));
+        assert_eq!(slots.len(), width as usize);
     }
 }
 

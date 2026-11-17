@@ -17,7 +17,7 @@ mod ir;
 mod lower;
 pub(crate) mod syntax;
 
-pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange};
+pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange, program_values};
 pub use definition::{CompiledDefinition, Invocation, compile_script};
 pub use diagnostic::Diagnostic;
 pub use instance::{Instance, ProgramConstants};

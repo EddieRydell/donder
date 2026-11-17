@@ -6,12 +6,17 @@ import { InputDeviceForm } from "../inputDevice/InputDeviceForm";
 import { AvailableInputDevices, inputDeviceEntries } from "./InputDeviceMembership";
 import { useState, type ReactNode } from "react";
 
-import { commands } from "../../../api";
-import { runGuiEditCommand } from "../../../store";
-import type { SetupGuiDocument } from "../../../types";
+import type { GuiEditCommand, GuiInputControl, GuiInputDriver, SetupControllerConfig, SetupControllerPort, SetupGuiDocument } from "../../../types";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import { AddRow, Dialog, IconButton } from "../../kit";
 import { AvailableControllers, controllerEntries } from "./ControllerMembership";
+import { DEFAULT_OBJECT_STORAGE } from "../objectStorage";
+import { countOf } from "../../count";
+
+const addController = (config: SetupControllerConfig, ports: SetupControllerPort[]): GuiEditCommand =>
+  ({ type: "setup", edit: { type: "addController", config, ports, storage: DEFAULT_OBJECT_STORAGE } });
+const addInputDevice = (driver: GuiInputDriver, controls: GuiInputControl[]): GuiEditCommand =>
+  ({ type: "setup", edit: { type: "addInputDevice", driver, controls, storage: DEFAULT_OBJECT_STORAGE } });
 
 export function SetupEditor({ document }: { document: SetupGuiDocument }) {
   return (
@@ -26,20 +31,20 @@ export function SetupEditor({ document }: { document: SetupGuiDocument }) {
         <div className="object-overview-row-with-actions"><SetupRow icon={<Cable aria-hidden="true" />} title="Patch" onOpen={() => void navigateToGuiObject(document.patchRef)} /><OwnershipActions declarations={document.availableDeclarations} source={document.patchRef} label="Patch" /></div>
       </section>
       <CreationGroup title="Controllers" addLabel="Add controller" empty={document.controllers.length === 0} form={(close) => <>
-        <ControllerForm onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "addController", config, ports } })); close(); }} />
+        <ControllerForm edit={addController} onApplied={close} />
         <AvailableControllers document={document} />
       </>}>
         {document.controllers.map((controller) => <div className="object-overview-row-with-actions" key={guiObjectKey(controller.sourceRef)}>
-          <SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} detail={`${controller.ports.length} outputs`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} />
+          <SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} detail={controller.config.type === "donder" ? countOf(controller.ports.length, "output") : countOf(controller.config.universes.count, "universe")} onOpen={() => void navigateToGuiObject(controller.sourceRef)} />
           <OwnershipActions declarations={document.availableDeclarations} source={controller.sourceRef} label={controller.label} entries={controllerEntries(controller)} />
         </div>)}
       </CreationGroup>
       <CreationGroup title="Input devices" addLabel="Add input device" empty={document.inputDevices.length === 0} form={(close) => <>
-        <InputDeviceForm keyCodes={document.keyCodes} limits={document.inputLimits} onSave={async (driver, controls) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "addInputDevice", driver, controls } })); close(); }} />
+        <InputDeviceForm keyCodes={document.keyCodes} limits={document.inputLimits} edit={addInputDevice} onApplied={close} />
         <AvailableInputDevices document={document} />
       </>}>
         {document.inputDevices.map((device) => <div className="object-overview-row-with-actions" key={guiObjectKey(device.sourceRef)}>
-          <SetupRow icon={<Keyboard aria-hidden="true" />} title={device.name} detail={`${device.controls.length} controls`} onOpen={() => void navigateToGuiObject(device.sourceRef)} />
+          <SetupRow icon={<Keyboard aria-hidden="true" />} title={device.name} detail={countOf(device.controls.length, "control")} onOpen={() => void navigateToGuiObject(device.sourceRef)} />
           <OwnershipActions declarations={document.availableDeclarations} source={device.sourceRef} label={device.name} entries={inputDeviceEntries(device)} />
         </div>)}
       </CreationGroup>

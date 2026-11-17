@@ -18,12 +18,12 @@ use donder_model::GraphOperatorNode;
 use donder_model::ObjectId;
 use donder_model::ProjectData;
 use donder_model::{
-    Action, Console, ConsoleClip, ConsoleClipId, ConsoleId, InputEvent, LengthSource, LiveMarks,
-    On, OnId, Play, PlayLength,
+    Action, Always, Console, ConsoleClip, ConsoleClipId, ConsoleId, InputEvent, LengthSource,
+    LiveMarks, On, OnId, Play, PlayLength,
 };
 use donder_model::{
-    ArtNetConfig, Controller, ControllerId, ControllerPort, ControllerPortAddress,
-    ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
+    ArtNetConfig, Controller, ControllerId, ControllerOutput, ControllerPort, ControllerPortId,
+    ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode, Universes,
 };
 use donder_model::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
@@ -389,11 +389,13 @@ impl DomainResolver<'_> {
     ) -> Result<ControllerPortId, LoadError> {
         let address = self.loader.address(*controller);
         self.with_owned(&address, |owned| match owned {
-            Located::Controller(controller) => controller
-                .ports
+            Located::Controller(types::Controller {
+                protocol: types::Protocol::Donder { ports, .. },
+                ..
+            }) => ports
                 .iter()
                 .position(|candidate| candidate.name == *port)
-                .map(|index| (index, controller.ports[index].name.0.span)),
+                .map(|index| (index, ports[index].name.0.span)),
             _ => None,
         })
         .map(|(index, span)| {
@@ -617,6 +619,9 @@ impl DomainResolver<'_> {
                 bind_address,
                 priority,
                 mode,
+                start_universe,
+                universes,
+                channels,
             } => ControllerProtocol::E131(E131Config {
                 sender_name: sender_name.clone(),
                 bind_address: bind_address.0,
@@ -627,48 +632,49 @@ impl DomainResolver<'_> {
                         destination: destination.0,
                     },
                 },
+                universes: Universes {
+                    start: *start_universe,
+                    count: *universes,
+                    channels: *channels,
+                },
             }),
             types::Protocol::ArtNet {
                 bind_address,
                 destination,
                 mode,
+                start_universe,
+                universes,
+                channels,
             } => ControllerProtocol::ArtNet(ArtNetConfig {
                 bind_address: bind_address.0,
                 destination: destination.0,
                 mode: mode.0,
+                universes: Universes {
+                    start: *start_universe,
+                    count: *universes,
+                    channels: *channels,
+                },
             }),
-            types::Protocol::Donder { device } => ControllerProtocol::Donder(DonderConfig {
+            types::Protocol::Donder { device, ports } => ControllerProtocol::Donder(DonderConfig {
                 device: DonderDeviceId::parse(device).ok_or_else(|| {
                     self.invalid(document, span, "a Donder device is 12 lowercase hex digits")
                 })?,
+                ports: ports
+                    .iter()
+                    .zip(1..)
+                    .map(|(port, index)| ControllerPort {
+                        id: ControllerPortId(index),
+                        name: name(&port.name),
+                        output: port.output,
+                        slot_count: port.slots,
+                    })
+                    .collect(),
             }),
         };
-        let ports = controller
-            .ports
-            .iter()
-            .zip(1..)
-            .map(|(port, index)| ControllerPort {
-                id: ControllerPortId(index),
-                name: name(&port.name),
-                address: match port.address {
-                    types::PortAddress::Universe { universe } => {
-                        ControllerPortAddress::E131Universe(universe)
-                    }
-                    types::PortAddress::ArtNetPort { port_address } => {
-                        ControllerPortAddress::ArtNetPort(port_address)
-                    }
-                    types::PortAddress::Output { output } => {
-                        ControllerPortAddress::DonderOutput(output)
-                    }
-                },
-                slot_count: port.slots,
-            })
-            .collect();
         Ok(Controller {
             id: *id,
             description: controller.description.clone(),
             protocol,
-            ports,
         })
     }
 
@@ -918,9 +924,14 @@ impl DomainResolver<'_> {
                         start: span.start,
                         count: span.count,
                     }),
-                    port: self.port(document, &controller, &route.port)?,
+                    output: match &route.port {
+                        Some(port) => {
+                            ControllerOutput::Port(self.port(document, &controller, port)?)
+                        }
+                        None => ControllerOutput::Universes,
+                    },
                     controller,
-                    start_slot: route.start_slot,
+                    start_channel: route.start_channel,
                     encoding: match route.encoding {
                         types::Encoding::Rgb { order: (r, g, b) } => {
                             PixelEncoding::Rgb { order: [r, g, b] }
@@ -1414,7 +1425,16 @@ impl DomainResolver<'_> {
         };
         let (composition_graph, node_ids) =
             self.graph(document, &layer_ids, &marks, &console.graph)?;
-        let always = console.always.iter().map(clip).collect::<Result<_, _>>()?;
+        let always = console
+            .always
+            .iter()
+            .map(|always| {
+                Ok::<_, LoadError>(Always {
+                    clip: clip(&always.clip)?,
+                    length: DonderDuration(always.length),
+                })
+            })
+            .collect::<Result<_, _>>()?;
         let mut events = Vec::with_capacity(console.events.len());
         for (on, index) in console.events.iter().zip(1..) {
             let control = self.control_ref(document, on.event.control())?;
@@ -1450,14 +1470,22 @@ impl DomainResolver<'_> {
                                 },
                             },
                         }),
-                        types::Action::Start { clip: started } => Action::Start {
+                        types::Action::Start {
+                            clip: started,
+                            length,
+                        } => Action::Start {
                             clip: clip(started)?,
+                            length: DonderDuration(*length),
                         },
                         types::Action::Stop { clip: stopped } => Action::Stop {
                             clip: clip(stopped)?,
                         },
-                        types::Action::Toggle { clip: toggled } => Action::Toggle {
+                        types::Action::Toggle {
+                            clip: toggled,
+                            length,
+                        } => Action::Toggle {
                             clip: clip(toggled)?,
+                            length: DonderDuration(*length),
                         },
                         types::Action::Mark { into } => {
                             if let Some(span) = mark_names.get(&into.0.value) {
@@ -1589,8 +1617,9 @@ impl DomainResolver<'_> {
             );
             let value = self.param_value(
                 document,
-                (definition, &param.value),
+                Some((definition, &param.value)),
                 &declarations[index].ty,
+                &declarations[index].option_fields,
                 marks,
                 value,
             )?;
@@ -1599,14 +1628,40 @@ impl DomainResolver<'_> {
         Ok(values)
     }
 
+    /// A value of type `ty`, whose enum options carry `option_fields`. The
+    /// options of a declared parameter, `param`, link to their declarations;
+    /// a field's do not.
     fn param_value(
         &self,
         document: &DocumentId,
-        param: (ObjectId, &Identifier),
+        param: Option<(ObjectId, &Identifier)>,
         ty: &Type,
+        option_fields: &[Vec<ParamDecl>],
         marks: &[(Identifier, TextSpan)],
         value: &Spanned<DataValue>,
     ) -> Result<ParamValue, LoadError> {
+        let fields_of = |option: &Identifier| {
+            let Type::Enum(options) = ty else {
+                return None;
+            };
+            let index = options.iter().position(|candidate| candidate == option)?;
+            Some(option_fields.get(index).map_or(&[][..], Vec::as_slice))
+        };
+        let link_option = |option: &Spanned<Identifier>| {
+            if let Some((definition, param)) = param {
+                self.loader.link(
+                    document,
+                    option.span,
+                    self.script(
+                        definition,
+                        ScriptMember::Option {
+                            param: param.as_str().to_string(),
+                            option: option.value.as_str().to_string(),
+                        },
+                    ),
+                );
+            }
+        };
         let reference = |segments: &[Spanned<Identifier>]| Reference {
             segments: segments.to_vec(),
             span: value.span,
@@ -1619,21 +1674,60 @@ impl DomainResolver<'_> {
             (Type::Float, DataValue::Float(float)) => ParamValue::Float(*float),
             (Type::Bool, DataValue::Bool(bool)) => ParamValue::Bool(*bool),
             (Type::Color, DataValue::Color(color)) => ParamValue::Color(*color),
-            (Type::Enum(options), DataValue::Variant(option))
-                if options.contains(&option.value) =>
+            (Type::Enum(_), DataValue::Variant(option))
+                if fields_of(&option.value).is_some_and(<[_]>::is_empty) =>
             {
-                self.loader.link(
-                    document,
-                    option.span,
-                    self.script(
-                        param.0,
-                        ScriptMember::Option {
-                            param: param.1.as_str().to_string(),
-                            option: option.value.as_str().to_string(),
-                        },
-                    ),
-                );
-                ParamValue::Enum(option.value.clone())
+                link_option(option);
+                ParamValue::Enum {
+                    option: option.value.clone(),
+                    fields: IndexMap::new(),
+                }
+            }
+            (Type::Enum(_), DataValue::Record(option, fields))
+                if let Some(declared) = fields_of(&option.value)
+                    && !declared.is_empty() =>
+            {
+                link_option(option);
+                let names = declared
+                    .iter()
+                    .map(|field| format!("`{}`", field.name.as_str()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if fields.value.len() != declared.len()
+                    || fields
+                        .value
+                        .iter()
+                        .zip(declared)
+                        .any(|(field, declared)| field.name.value != declared.name)
+                {
+                    return Err(self.invalid(
+                        document,
+                        fields.span,
+                        format!(
+                            "`{}` has the fields {names}, each once, in that order",
+                            option.value.as_str()
+                        ),
+                    ));
+                }
+                ParamValue::Enum {
+                    option: option.value.clone(),
+                    fields: fields
+                        .value
+                        .iter()
+                        .zip(declared)
+                        .map(|(field, declared)| {
+                            self.param_value(
+                                document,
+                                None,
+                                &declared.ty,
+                                &declared.option_fields,
+                                marks,
+                                &field.value,
+                            )
+                            .map(|value| (declared.name.clone(), value))
+                        })
+                        .collect::<Result<_, _>>()?,
+                }
             }
             (Type::Marks, DataValue::Reference(segments))
                 if let [segment] = segments.as_slice()
@@ -1688,14 +1782,14 @@ impl DomainResolver<'_> {
             (Type::Array(item), DataValue::List(items)) => ParamValue::Array(
                 items
                     .iter()
-                    .map(|value| self.param_value(document, param, item, marks, value))
+                    .map(|value| self.param_value(document, param, item, &[], marks, value))
                     .collect::<Result<_, _>>()?,
             ),
             _ => {
                 return Err(self.invalid(
                     document,
                     value.span,
-                    format!("expected {}", describe(ty, marks)),
+                    format!("expected {}", describe(ty, option_fields, marks)),
                 ));
             }
         })
@@ -1719,7 +1813,11 @@ impl DomainResolver<'_> {
 }
 
 /// The values a parameter type takes, as a diagnostic names them.
-fn describe(ty: &Type, marks: &[(Identifier, TextSpan)]) -> String {
+fn describe(
+    ty: &Type,
+    option_fields: &[Vec<ParamDecl>],
+    marks: &[(Identifier, TextSpan)],
+) -> String {
     match ty {
         Type::Int => "an int like `3`".into(),
         Type::Float => "a float like `1.0`".into(),
@@ -1729,7 +1827,19 @@ fn describe(ty: &Type, marks: &[(Identifier, TextSpan)]) -> String {
             "one of {}",
             options
                 .iter()
-                .map(|option| format!("`{}`", option.as_str()))
+                .enumerate()
+                .map(|(index, option)| match option_fields.get(index) {
+                    Some(fields) if !fields.is_empty() => format!(
+                        "`{} {{ {} }}`",
+                        option.as_str(),
+                        fields
+                            .iter()
+                            .map(|field| format!("{}: ...", field.name.as_str()))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                    _ => format!("`{}`", option.as_str()),
+                })
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
@@ -1748,7 +1858,7 @@ fn describe(ty: &Type, marks: &[(Identifier, TextSpan)]) -> String {
         Type::Gradient => "a gradient: a reference or \
             `Gradient { space: LinearRgb, stops: [(position, #color), ...] }`"
             .into(),
-        Type::Array(item) => format!("a list of {}", describe(item, marks)),
+        Type::Array(item) => format!("a list of {}", describe(item, &[], marks)),
         Type::Void => "no value".into(),
     }
 }

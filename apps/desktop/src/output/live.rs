@@ -510,7 +510,11 @@ fn preparing_snapshot(
     let active_universe_count = active
         .iter()
         .filter_map(|id| controllers.get(id))
-        .map(|controller| controller.ports.len() as u32)
+        .map(|controller| {
+            controller
+                .universes()
+                .map_or(0, |universes| u32::from(universes.count))
+        })
         .sum();
     LiveOutputSnapshot {
         enabled: false,
@@ -548,10 +552,7 @@ mod tests {
 
     #[test]
     fn failed_blackout_retains_original_failure_and_drops_transports() {
-        use donder_model::{
-            ArtNetConfig, ArtNetMode, ControllerPort, ControllerPortAddress, ControllerPortId,
-            ControllerProtocol,
-        };
+        use donder_model::{ArtNetConfig, ArtNetMode, ControllerProtocol, Universes};
         let id = ControllerId(0);
         // Invalid protocol address forces a codec failure before any network send.
         let controller = Controller {
@@ -561,13 +562,12 @@ mod tests {
                 bind_address: "127.0.0.1:0".parse().unwrap(),
                 destination: "127.0.0.1:6454".parse().unwrap(),
                 mode: ArtNetMode::Unicast,
+                universes: Universes {
+                    start: u16::MAX,
+                    count: 1,
+                    channels: 6,
+                },
             }),
-            ports: vec![ControllerPort {
-                name: donder_language::object_name("port"),
-                id: ControllerPortId(1),
-                address: ControllerPortAddress::ArtNetPort(u16::MAX),
-                slot_count: 6,
-            }],
         };
         let controllers = IndexMap::from([(id, controller)]);
         let ids = vec![id];

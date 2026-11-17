@@ -4,14 +4,14 @@ import type { ConsoleClip, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind,
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { automationTargetsEqual, type GuiFocus, type GuiItemEdit } from "../shared";
 
-/** Apply an edit to the open console; a rejected edit's error is shown and rethrown. */
-export async function applyConsoleEdit(edit: ConsoleGuiEdit): Promise<GuiEditUpdate> {
+/** Apply an edit to the open console; resolves to null when it was not applied. */
+export async function applyConsoleEdit(edit: ConsoleGuiEdit): Promise<GuiEditUpdate | null> {
   return runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "console", edit }));
 }
 
-/** Rename, describe, color or delete one of the open console's items. */
-export async function applyConsoleItemEdit(edit: GuiItemEdit): Promise<void> {
-  await runGuiEditCommand((request) => commands.applyGuiEdit(request, edit));
+/** Rename, describe, color or delete one of the open console's items; resolves to null when it was not applied. */
+export function applyConsoleItemEdit(edit: GuiItemEdit): Promise<GuiEditUpdate | null> {
+  return runGuiEditCommand((request) => commands.applyGuiEdit(request, edit));
 }
 
 export function editConsoleEffect(id: number, edit: ConsoleClipEdit) {

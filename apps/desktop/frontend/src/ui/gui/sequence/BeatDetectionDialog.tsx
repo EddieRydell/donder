@@ -1,4 +1,4 @@
-import { commands } from "../../../api";
+import { commands, errorMessage } from "../../../api";
 import { useAppStore, runGuiEditCommand } from "../../../store";
 import { AudioWaveform } from "lucide-react";
 import { useState } from "react";
@@ -54,14 +54,16 @@ export function BeatDetectionDialog({
       if (bars) wanted.push([barsName, detection.downbeatsSeconds]);
       const collections: NewMarkCollection[] = wanted.map(([name, marksSeconds], index) =>
         ({ name, color: defaultMarkColor(document.markCollections.length + index), marksSeconds }));
-      const { created: keys } = await runGuiEditCommand((current) =>
+      const result = await runGuiEditCommand((current) =>
         commands.applyGuiEdit(current, { type: "sequence", edit: { type: "createMarkCollections", collections } })
       );
+      if (result === null) return;
+      const keys = result.created;
       setActiveMarkCollectionKey(keys[0] ?? null);
       setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...keys]));
       setOpen(false);
     } catch (detectError: unknown) {
-      setError(String(detectError));
+      setError(errorMessage(detectError));
     } finally {
       setPending(false);
     }

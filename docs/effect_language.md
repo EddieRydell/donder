@@ -62,14 +62,45 @@ expected: as a parameter's default and in comparisons with a value of that
 enum, such as `direction == Backward`. In data documents a clip's value for an
 enum parameter is the same bare option.
 
+### Options with fields
+
+A parameter's enum options may carry fields: the settings that matter only
+while that option is chosen.
+
+```text
+param speed_format: enum {
+  RevolutionCount { revolutions: float in 0.01..1000.0 = 3.0 },
+  RevolutionFrequency { frequency_hz: float in 0.01..1000.0 = 2.0 },
+  FixedTime { revolution_time_ms: float in 1.0..600000.0 = 500.0 },
+} = RevolutionCount;
+```
+
+- A field is written like a parameter, `name: type [in min..max] = default
+  ["description"]`, and fields are separated by commas. A field is an `int`,
+  `float`, `bool`, `color` or an `enum` without fields, and it always has a
+  default, so an option chosen anew starts from its fields' defaults. Fields
+  are `snake_case`; options of one enum may reuse a field name.
+- A parameter's default names only the option: its fields take their defaults.
+- In data documents a clip's value is the option with every one of its fields,
+  in order, as in `speed_format: FixedTime { revolution_time_ms: 250.0 }`; an
+  option without fields stays bare. The inspector shows the option and then
+  only that option's fields.
+- Only a parameter's own enum has fields: not a function argument, an
+  annotated `let` or an array's items. An enum whose options carry fields
+  cannot be automated or set live.
+- `speed_format == FixedTime` still compares the option. Fields are read with
+  [`match`](#match).
+- Playback reads the option as an int and each field as a parameter of its
+  own, so fields cost what plain parameters do.
+
 `int`, `float`, `curve` and `array<curve>` parameters declare an inclusive range
 with `in min..max`; a curve's range bounds its point values, and an
 `array<curve>`'s range bounds every item's. The editor's curve axis spans the
-range, and a new curve rises from its minimum to its maximum. Defaults, authored values and edits
+range, and a new curve falls from its maximum to its minimum. Defaults, authored values and edits
 outside the range are rejected, never clamped, so code can rely on it instead of
 re-validating its inputs.
 
-Parameters of type float, int, bool, enum and curve can be automated. Automation
+Parameters of type float, int, bool, enum (without fields) and curve can be automated. Automation
 maps its normalized curve (values in 0..1) onto the declared range, an enum's
 options in order, or a bool's false and true halves. `integral(speed)` integrates
 a float parameter over time, so a speed or rate used as `integral(speed)` rather
@@ -97,6 +128,29 @@ expression it produces.
   ```
 - Array literals such as `[a, b, c]` may be indexed (`[a, b, c][i]`, clamped)
   or measured with `len()`; they hold numbers, bools or colors.
+- `match` chooses by an enum's option; see [Match](#match).
+
+### Match
+
+```text
+let revolution_ms = match speed_format {
+  RevolutionCount { revolutions } => duration * 1000.0 / revolutions,
+  RevolutionFrequency { frequency_hz } => 1000.0 / frequency_hz,
+  FixedTime { revolution_time_ms } => revolution_time_ms,
+};
+```
+
+- `match value { arms }` is an expression with one arm per option, `Option =>
+  value`, in any order and separated by commas. `_ => value` covers every
+  option no other arm names; an arm for an option that is not there, a second
+  arm for one, a missing one or a `_` that covers nothing is an error.
+- `Option { field, ... } =>` brings the option's named fields into scope in
+  its arm, each under its own name. Only a match on the enum parameter itself
+  binds fields; a `let` copy or a function argument has only the option.
+- Arms are values like `if` branches: they produce one type, an int widening
+  to a float, and a `guard` in an arm's block skips as it would in an `if`.
+- A match is a chain of comparisons with the option, so it costs what the
+  same `if` chain does.
 
 Curves and gradients are indexed by a normalized position: `level[0.5]`,
 `colors[t]`. `curve_integral(rate, progress) * duration` accumulates a curve

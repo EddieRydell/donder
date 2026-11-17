@@ -1672,7 +1672,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1694,7 +1693,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1736,7 +1734,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1778,7 +1775,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1820,7 +1816,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1862,7 +1857,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1904,7 +1898,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1946,7 +1939,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -1988,7 +1980,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3470,7 +3461,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3512,7 +3502,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3534,7 +3523,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3596,7 +3584,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3638,7 +3625,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3680,7 +3666,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3722,7 +3707,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3764,7 +3748,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -3786,7 +3769,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -7183,7 +7165,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7205,7 +7186,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7227,7 +7207,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7249,7 +7228,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7271,7 +7249,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7293,7 +7270,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7315,7 +7291,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7533,7 +7508,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7555,7 +7529,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7577,7 +7550,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7599,7 +7571,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7621,7 +7592,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7643,7 +7613,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7665,7 +7634,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7687,7 +7655,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7709,7 +7676,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7731,7 +7697,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7963,7 +7928,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -7985,7 +7949,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8007,7 +7970,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8029,7 +7991,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8051,7 +8012,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8073,7 +8033,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8095,7 +8054,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8299,7 +8257,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8321,7 +8278,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8343,7 +8299,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8365,7 +8320,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8387,7 +8341,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8409,7 +8362,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8431,7 +8383,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8453,7 +8404,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8475,7 +8425,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8497,7 +8446,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8687,7 +8635,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8709,7 +8656,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8731,7 +8677,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8753,7 +8698,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8775,7 +8719,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8797,7 +8740,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -8819,7 +8761,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9037,7 +8978,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9059,7 +8999,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9081,7 +9020,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9103,7 +9041,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9125,7 +9062,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9147,7 +9083,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9169,7 +9104,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9191,7 +9125,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9213,7 +9146,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9235,7 +9167,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 83.0,
@@ -9747,7 +9678,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9769,7 +9699,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9812,7 +9741,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9834,7 +9762,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9856,7 +9783,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9878,7 +9804,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9900,7 +9825,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9943,7 +9867,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -9986,7 +9909,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10029,7 +9951,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10072,7 +9993,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10094,7 +10014,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10116,7 +10035,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10138,7 +10056,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10160,7 +10077,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10182,7 +10098,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10204,7 +10119,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -10247,7 +10161,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 20.0,
         maximum_level: 60.0,
@@ -15067,7 +14980,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15103,7 +15015,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15139,7 +15050,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15175,7 +15085,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15211,7 +15120,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15247,7 +15155,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15283,7 +15190,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15319,7 +15225,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15341,7 +15246,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15363,7 +15267,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15399,7 +15302,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15435,7 +15337,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -15471,7 +15372,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -16935,7 +16835,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -16971,7 +16870,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -16993,7 +16891,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17029,7 +16926,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17065,7 +16961,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17101,7 +16996,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17123,7 +17017,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17173,7 +17066,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17209,7 +17101,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17245,7 +17136,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17281,7 +17171,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17317,7 +17206,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17353,7 +17241,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17389,7 +17276,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17425,7 +17311,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -17507,7 +17392,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -24659,7 +24543,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -24695,7 +24578,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -24731,7 +24613,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -24767,7 +24648,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -24803,7 +24683,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -24839,7 +24718,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -24875,7 +24753,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -25151,7 +25028,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -25173,7 +25049,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -25223,7 +25098,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -25279,7 +25153,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -25395,7 +25268,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -25431,7 +25303,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -26982,7 +26853,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -27004,7 +26874,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -27040,7 +26909,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -27076,7 +26944,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -27112,7 +26979,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -27148,7 +27014,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -27184,7 +27049,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -27220,7 +27084,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #5e14ff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28682,7 +28545,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28704,7 +28566,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28726,7 +28587,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28748,7 +28608,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28770,7 +28629,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28792,7 +28650,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28814,7 +28671,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -28836,7 +28692,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
         minimum_level: 35.0,
         maximum_level: 100.0,
@@ -32020,7 +31875,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -32042,7 +31896,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -32092,7 +31945,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -32128,7 +31980,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33526,7 +33377,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33562,7 +33412,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33598,7 +33447,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33634,7 +33482,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33670,7 +33517,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33706,7 +33552,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33742,7 +33587,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33778,7 +33622,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33814,7 +33657,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33850,7 +33692,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33886,7 +33727,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -33922,7 +33762,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 28.0,
         maximum_level: 100.0,
@@ -48456,7 +48295,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -48478,7 +48316,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -48500,7 +48337,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -48522,7 +48358,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -48558,7 +48393,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -48580,7 +48414,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -48616,7 +48449,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -48638,7 +48470,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -48737,7 +48568,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -49121,7 +48951,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,
@@ -50537,7 +50366,6 @@ Sequence mr_grinch {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         minimum_level: 50.0,
         maximum_level: 100.0,

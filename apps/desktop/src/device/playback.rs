@@ -2,7 +2,7 @@
 use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
 use donder_device_protocol::{Action, Command, clock};
-use donder_model::{ControllerId, ControllerPortId, DonderDeviceId};
+use donder_model::{ControllerId, ControllerOutput, DonderDeviceId};
 use donder_project_io::ObjectAddress;
 use donder_runtime::{PlaybackRate, PreparedShow};
 use std::{
@@ -15,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub(crate) type DevicePorts = Vec<(ControllerId, ControllerPortId)>;
+pub(crate) type DevicePorts = Vec<(ControllerId, ControllerOutput)>;
 /// Controllers released because they could not take part, and why.
 pub(crate) type DeviceFailures = BTreeMap<DonderDeviceId, String>;
 

@@ -137,7 +137,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -159,7 +158,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -181,7 +179,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -79177,7 +79174,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -79199,7 +79195,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -79221,7 +79216,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -83472,7 +83466,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -83494,7 +83487,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -83516,7 +83508,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -107723,7 +107714,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -107745,7 +107735,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -107767,7 +107756,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -107789,7 +107777,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -107811,7 +107798,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -107833,7 +107819,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -127814,7 +127799,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -127836,7 +127820,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -127858,7 +127841,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -127880,7 +127862,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -143149,7 +143130,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -143171,7 +143151,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -143193,7 +143172,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -143215,7 +143193,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -146303,7 +146280,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -146325,7 +146301,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -146347,7 +146322,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -146369,7 +146343,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,
@@ -154308,7 +154281,6 @@ Sequence jing_jing_jing {
       effect: vixen.VixenTwinkle,
       params: {
         color_handling: GradientPerPulse,
-        static_color: #ffffff,
         color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         minimum_level: 0.0,
         maximum_level: 100.0,

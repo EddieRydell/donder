@@ -2,8 +2,9 @@ use camino::{Utf8Path, Utf8PathBuf};
 use std::{fs, io, io::Write};
 
 pub const PROJECT_ROOT_FILE: &str = "project.data.donder";
-/// The root `Project` declaration's `format`.
-pub const PROJECT_FORMAT_VERSION: u8 = 1;
+/// The root `Project` declaration's `format`. Any change to a document
+/// format bumps it; a project in another format is refused, never migrated.
+pub const PROJECT_FORMAT_VERSION: u8 = 2;
 
 /// The one editable source root of a local project.
 #[derive(Clone, Debug, Eq, PartialEq)]

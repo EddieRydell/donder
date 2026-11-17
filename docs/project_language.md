@@ -51,7 +51,7 @@ Shared by both kinds unless noted.
 - **Keywords** in data documents: `import`, `from`, `true`, `false` and `none`.
   `import` and `from` are field names where a field name is expected, as in an
   edge's `from:`. Scripts reserve their declaration and statement words
-  (`effect`, `operator`, `fn`, `let`, `guard`, `if`, `else`, `for`, `in`) and
+  (`effect`, `operator`, `fn`, `let`, `guard`, `if`, `else`, `for`, `in`, `match`) and
   their member words where a member starts (`param`, `input`, `sample`).
 - **Integers**: `0`, `42`, `-7`. No leading zeros, no `+`, no separators.
 - **Floats**: always contain a `.` with digits on both sides: `1.0`, `0.35`,
@@ -97,8 +97,10 @@ variants both start with their type name: a field of type `Port` holds
 `Port { ... }`, and a field whose type has several variants holds whichever one
 it is, such as `E131 { ... }` or `Donder { ... }`. A variant without fields is
 its bare name, `Multicast`, never `Multicast {}`; a record always has its
-braces. A `map` appears only for effect and operator parameter values, whose
-keys are the definition's parameter names.
+braces. An effect parameter's enum option is written the same way: `Forward`,
+or `FixedTime { revolution_time_ms: 250.0 }` for an option with fields. A `map`
+appears only for effect and operator parameter values, whose keys are the
+definition's parameter names.
 
 **Everything is explicit.** Every field of a record is written, in schema order.
 An optional value is the value or `none`. Because nothing is implied, an explicit
@@ -172,16 +174,17 @@ owned.
 
 The editor's ownership actions move values between the two forms:
 
-- **Make reusable** promotes an owned value to a declaration, in this document or
-  a new one, and rebases references to its descendants.
-- **Make independent** copies a shared value into its owner, leaving the
+- **Move to file** promotes an owned value to a declaration, in a new
+  document or this one, and rebases references to its descendants.
+- **Copy inside parent** copies a shared value into its owner, leaving the
   declaration unchanged.
-- **Use existing declaration** links a field to a declaration.
+- **Use another** links a field to a declaration.
 
 Linked curves and gradients follow their declaration; making one independent
-keeps its current value in the parameter. New sequences, fixtures and other
-values are owned by default; their creation dialogs offer a reusable declaration
-in this document or a new one under Advanced settings. Routing follows these
+keeps its current value in the parameter. New sequences, fixtures, consoles,
+controllers and input devices are declarations in a new document of their own by
+default; creation dialogs offer this document, or storing the value inside its
+owner, under Advanced settings. Routing follows these
 changes: making a layout or controller independent also makes its patch
 independent when routes must change, and for the active setup, sequences that
 target a copied layout become independent before their targets change. Imports
@@ -232,7 +235,7 @@ import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.
 import consoles from <consoles/jam.data.donder>;
 
 Project starter {
-  format: 1,
+  format: 2,
   description: none,
   setup: setups.main,
   sequences: [sequences.empty, sequences.layer_test],
@@ -250,7 +253,9 @@ Project starter {
 
 The root document `project.data.donder` holds exactly one `Project`, which no
 other document may declare. Its `format` marks the current
-project format. The root document cannot be moved, renamed or
+project format, `PROJECT_FORMAT_VERSION` in `donder-project-io`: any change to
+any document format bumps it. The loader reads it before decoding anything else
+and refuses a project in another format; there are no migrations. The root document cannot be moved, renamed or
 deleted, and there is no other manifest, lockfile or asset inventory.
 
 New projects start as a single `project.data.donder` with an owned setup, an
@@ -259,7 +264,7 @@ and no consoles. The root document imports the
 bundled standard effect and operator libraries, so the initial sequence can use
 them; other sequence documents need their own imports.
 
-### Setup, controllers and ports
+### Setup and controllers
 
 ```text
 Setup main {
@@ -277,23 +282,41 @@ Controller output_controller {
     bind_address: "0.0.0.0",
     priority: 100,
     mode: Unicast { destination: "192.168.7.2" },
+    start_universe: 1,
+    universes: 30,
+    channels: 339,
   },
-  ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 339 }],
+}
+
+Controller dig_quad {
+  description: none,
+  protocol: Donder {
+    device: "b0cbd8030790",
+    ports: [Port { name: port_1, output: 1, slots: 450 }],
+  },
 }
 ```
 
 - `Setup`: `description`, `layout`, `patch`, `controllers: [controller]`,
   `input_devices: [input device]`.
-- `Controller`: `description`, `protocol`, `ports: [Port]`.
+- `Controller`: `description`, `protocol`.
 - `protocol` is one of:
-  - `E131 { sender_name, bind_address, priority, mode }` with `mode` either
-    `Multicast` or `Unicast { destination }`;
-  - `ArtNet { bind_address, destination, mode }` with socket addresses such as
-    `"0.0.0.0:6454"` and `mode` either `Unicast` or `Broadcast`;
-  - `Donder { device }`, the controller's twelve lowercase hexadecimal digits.
-- `Port`: `name`, `address`, `slots`, where `address` matches the protocol:
-  `Universe { universe }`, `ArtNetPort { port_address }` or
-  `Output { output }` (a Donder controller's physical output, from 1).
+  - `E131 { sender_name, bind_address, priority, mode, start_universe,
+    universes, channels }` with `mode` either `Multicast` or
+    `Unicast { destination }`;
+  - `ArtNet { bind_address, destination, mode, start_universe, universes,
+    channels }` with socket addresses such as `"0.0.0.0:6454"`, `mode` either
+    `Unicast` or `Broadcast`, and `start_universe` the 15-bit port-address of
+    the first universe;
+  - `Donder { device, ports: [Port] }`, `device` the controller's twelve
+    lowercase hexadecimal digits.
+- An E1.31 or Art-Net controller sends `universes` consecutive universes from
+  `start_universe`, each of `channels` channels (at most 512; 510 carries 170
+  RGB pixels). Its channels are numbered across all of them: with 510 channels
+  per universe, channel 510 from 0 is the first channel of the second universe.
+  A route, and one pixel, may run on from one universe into the next.
+- `Port`: `name`, `output` (the Donder controller's physical output, from 1)
+  and `slots`.
 
 ### Input devices
 
@@ -427,8 +450,8 @@ Patch outputs {
       target: layouts.outputs_layout.output_01,
       pixels: none,
       controller: setups.output_controller,
-      port: port_1,
-      start_slot: 0,
+      port: none,
+      start_channel: 0,
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
@@ -439,15 +462,19 @@ Patch outputs {
 ```
 
 - `Route`: `target` (a fixture; groups are not routed), `pixels`, `controller`,
-  `port` (a port of that controller), `start_slot`, `encoding`, `gamma`,
-  `brightness`, `dither`.
+  `port`, `start_channel`, `encoding`, `gamma`, `brightness`, `dither`.
+- On an E1.31 or Art-Net controller `port` is `none` and `start_channel`, from
+  0, counts across all its universes. On a Donder controller `port` names one
+  of its ports and `start_channel`, from 0, counts in that port.
 - `dither: true` varies each byte over an eight-frame cycle so it averages to
   the exact level, keeping dim colors' hue. It suits outputs that receive every
   frame at a high rate; at a long FSEQ step the cycle shows as flicker.
 - `pixels` is `PixelSpan { start, count }`, or `none` to route the whole target,
   including later pixel-count edits.
-- `encoding` is `Rgb { order: (r, g, b) }` or `Rgbw { order: (r, g, b, w) }`,
-  the byte position of each channel.
+- `encoding` is `Rgb { order: (a, b, c) }` or `Rgbw { order: (a, b, c, d) }`:
+  the color each of a pixel's channels carries, in channel order, with 0 red,
+  1 green, 2 blue and 3 white. `(1, 0, 2)` is GRB, the order of WS2811 and
+  WS2812 pixels.
 
 ### Sequences
 
@@ -523,7 +550,8 @@ Sequence layer_test {
   definition's declared default, including when that default changes later; a
   parameter present keeps its value, even if it equals the default. Values are
   typed by the definition and written in its parameter order: ints, floats,
-  bools, colors, enum options (`Forward`), mark collections by name, curves and
+  bools, colors, enum options (`Forward`, or with every one of its fields in
+  order, `FixedTime { revolution_time_ms: 250.0 }`), mark collections by name, curves and
   gradients by reference or as literals, and arrays as lists. A literal is a
   declaration's fields without its `description` and name, in the same form:
   `Curve { points: [(position, value), ...] }` and
@@ -575,10 +603,18 @@ replaces its definition so a parameter no longer fits, the binding moves to
 
 In the editor:
 
+- Copy and cut put the selection on the system clipboard as a data document:
+  one `Sequence clipboard`, the copied sequence with only the selected clips,
+  automation clips or marks, and the imports its references need. Paste reads
+  that document against the open project, so any text in this format pastes,
+  and other text is refused.
 - Copy and paste of clips and automation together keeps relative timing and
-  target offsets, names pasted clips afresh, and remaps bindings to the copies.
-  Bindings to objects outside the copied selection are dropped; a lone clip
-  pastes unbound.
+  target offsets, names pasted clips afresh, places each clip on the layer of
+  its layer's name, and remaps bindings to the copies. Bindings to clips outside
+  the copied selection are dropped, and a binding to an operator node is kept
+  when the sequence pasted into has the node and no overlapping automation clip
+  binds it; a lone automation clip pastes without clip bindings. Marks paste
+  into the collections of their names.
 - A paste that does not fit is rejected as a whole. Moving, resizing, cutting or
   pasting a selection is one history entry.
 - Resizing an automation clip crops it: the edge moves over fixed content,
@@ -658,13 +694,16 @@ Console jam {
       played: [],
     },
   ],
-  always: [background],
+  always: [Always { clip: background, length: 4s }],
   events: [
     On {
       event: Press { control: devices.keyboard.kick },
       actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s } }],
     },
-    On { event: Press { control: devices.keyboard.swell }, actions: [Start { clip: wash }] },
+    On {
+      event: Press { control: devices.keyboard.swell },
+      actions: [Start { clip: wash, length: 4s }],
+    },
     On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
     On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
     On {
@@ -705,7 +744,8 @@ Console jam {
   each copy takes that parameter from the press that started it, `from`
   `Velocity` or `PitchClass`, through `window`, mapped onto
   the parameter's range as automation is.
-- `always` names clips that play for the whole session.
+- `always` are `Always { clip, length }`: clips that play from the session's
+  start, each starting again from its beginning every `length`.
 - `On`: `event`, `actions`. `event` is `Press { control }` or
   `Release { control }` of a button, or `Move { control }` of an axis, each
   `device.control`. `actions` run in order, and are each one of:
@@ -715,10 +755,13 @@ Console jam {
     `by` being `Velocity` or `Axis { control }` (a `device.control` axis; one
     not yet moved reads 0), a value from 0 to 1 read when the copy starts and
     mapped from `shortest` to `longest`.
-  - `Start { clip }` plays one copy until stopped; it does nothing
-    while the clip plays.
+  - `Start { clip, length }` plays one copy until stopped, starting it again
+    from its beginning every `length`; it does nothing while the clip plays.
   - `Stop { clip }` stops every copy of the clip.
-  - `Toggle { clip }` is `Start` while no copy plays, else `Stop`.
+  - `Toggle { clip, length }` is `Start` while no copy plays, else `Stop`.
+
+  A copy's effect sees its length as its `duration`; a held copy's `time`
+  and `progress` start again at zero with each pass.
   - `Mark { into }` adds a mark to that live mark collection.
   - `Set { param, window }` writes the event's value into a parameter: an axis's
     position, a press's velocity, or 0 for a release. `param` is
@@ -785,7 +828,10 @@ with data:
 
 - Enum options are `PascalCase`:
   `param direction: enum { Forward, Backward } = Forward;`, compared as
-  `direction == Forward`. A `snake_case` option is an error with a fix.
+  `direction == Forward`. A `snake_case` option is an error with a fix. A
+  parameter's options may carry fields,
+  `Speed { speed: float in 0.0..100.0 = 60.0 }`, which a `match` arm binds;
+  see [options with fields](effect_language.md#options-with-fields).
 - Effects, operators, parameters and functions may carry a description string
   after their name, or for a parameter after its default. The inspector shows
   effect and parameter descriptions.
@@ -833,7 +879,7 @@ preparation does not repeat them.
   `Toggle` and `always`, not both. Actions name existing clips and live mark
   collections; `Set` names an automatable parameter of a console clip or operator
   node, which one control sets and no played value also sets; `copies` is 1 to
-  16; lengths are positive, fit the playback clock and have `shortest` at most
+  16; lengths, `always`'s too, are positive, fit the playback clock and have `shortest` at most
   `longest`, and a length scaled by an axis names an axis.
 - Events read controls of input devices in the project's setup: `Press` and
   `Release` a button, and `Move` an axis, which runs only `Set`. A clip's

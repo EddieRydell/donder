@@ -1,10 +1,11 @@
 import { CircleDot, GripVertical, X } from "lucide-react";
-import { type FocusEvent, type ReactNode, useEffect, useRef, useState } from "react";
-import { commands } from "../../../api";
-import { useAppStore } from "../../../store";
-import type { GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits, LearnedInput, SetupInputDevice } from "../../../types";
+import { type FocusEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { commands, errorMessage } from "../../../api";
+import { runGuiEditCommand, useAppStore } from "../../../store";
+import type { GuiControlInput, GuiEditCommand, GuiField, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits, LearnedInput, SetupInputDevice } from "../../../types";
 import { AddRow, Button, Field, IconButton, NumberField, Select, TextField, Tip } from "../../kit";
 import { DescriptionText } from "../DescriptionField";
+import { DraftProblem, OBJECT, useDraftCheck, useFieldProblem } from "../problems";
 
 const MIDDLE_C = 60;
 /** The UDP port a new OSC device listens on, and the highest there is. */
@@ -180,16 +181,23 @@ function convertControls(controls: GuiInputControl[], driver: GuiInputDriver, ke
   return converted;
 }
 
-/** A device's driver and controls. A new device is applied together; an existing one saves each change as it is made, so each is its own undo step. */
-export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
+/** A device's driver and controls. A new device is a draft, checked after each change and applied together; an
+ * existing one saves each change as it is made, so each is its own undo step. `edit` makes the edit that applies
+ * them: a new device of the setup, or the open device's driver and controls. */
+export function InputDeviceForm({ device, keyCodes, limits, edit, onApplied }: {
   device?: SetupInputDevice;
   /** Every key a control can read, in the language's order. */
   keyCodes: string[];
   limits: GuiInputLimits;
-  onSave: (driver: GuiInputDriver, controls: GuiInputControl[]) => Promise<void>;
+  edit: (driver: GuiInputDriver, controls: GuiInputControl[]) => GuiEditCommand;
+  onApplied?: () => void;
 }) {
   const [driver, setDriver] = useState<GuiInputDriver>(device?.driver ?? { type: "keyboard" });
   const [controls, setControls] = useState<GuiInputControl[]>(device?.controls ?? []);
+  const request = useAppStore((state) => state.guiRequest);
+  const draft = useMemo(() => device === undefined ? edit(driver, controls) : null, [device, edit, driver, controls]);
+  const { checking, problem } = useDraftCheck(request, draft);
+  const apply = (command: GuiEditCommand) => runGuiEditCommand((current) => commands.applyGuiEdit(current, command));
   // Follow the saved device when it changes elsewhere, as an undo does.
   const saved = device === undefined ? null : JSON.stringify([device.driver, device.controls]);
   const [seen, setSeen] = useState(saved);
@@ -206,7 +214,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
     if (!saveAfterRender.current) return;
     saveAfterRender.current = false;
     if (device === undefined || JSON.stringify([driver, controls]) === saved) return;
-    void onSave(driver, controls);
+    void apply(edit(driver, controls));
   });
   const commitControls = (next: GuiInputControl[]) => {
     setControls(next);
@@ -261,7 +269,7 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
             }
           }
         } catch (error) {
-          useAppStore.getState().setError(String(error));
+          useAppStore.getState().reportFailure("command", errorMessage(error));
           finish(null);
         }
       })();
@@ -306,8 +314,8 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
   return <form className="setup-authoring-form input-device-form"
     onSubmit={(event) => {
       event.preventDefault();
-      if (device === undefined) void onSave(driver, controls);
-    }}>
+      if (draft !== null) void apply(draft).then((result) => { if (result !== null) onApplied?.(); });
+    }}><DraftProblem problem={device === undefined ? problem : null}>
     <fieldset>
       <Field label="Driver">
         <Select name="Driver" value={driver.type} options={driverOptions} onChange={(type) => {
@@ -318,12 +326,12 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
           setControls(convertControls(controls, next, keyCodes, limits));
         }} />
       </Field>
-      {driver.type === "midi" && <Field label="Port" tip="The MIDI port to read; empty reads every port">
-        <TextField name="MIDI port" placeholder="Any" value={driver.port ?? ""} onCommit={(port) => { commitDriver({ type: "midi", port: port === "" ? null : port }); }} />
-      </Field>}
-      {driver.type === "osc" && <Field label="UDP port">
-        <NumberField name="UDP port" value={driver.port} step={1} min={1} max={MAX_UDP_PORT} defaultValue={DEFAULT_OSC_PORT} integer onCommit={(port) => { commitDriver({ type: "osc", port }); }} />
-      </Field>}
+      {driver.type === "midi" && <PortField label="Port" tip="The MIDI port to read; empty reads every port">{(invalid) =>
+        <TextField name="MIDI port" placeholder="Any" value={driver.port ?? ""} invalid={invalid} onCommit={(port) => { commitDriver({ type: "midi", port: port === "" ? null : port }); }} />}
+      </PortField>}
+      {driver.type === "osc" && <PortField label="UDP port">{(invalid) =>
+        <NumberField name="UDP port" value={driver.port} step={1} min={1} max={MAX_UDP_PORT} defaultValue={DEFAULT_OSC_PORT} integer invalid={invalid} onCommit={(port) => { commitDriver({ type: "osc", port }); }} />}
+      </PortField>}
       {controls.length > 0 && <div className={`control-grid ${driver.type}`}>
         <div className="control-grid-row">
           <Cell className="gutter" />
@@ -352,10 +360,10 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
               setDrag({ from: index, over: null });
             }}
             onDragEnd={() => { setDrag(null); }}><GripVertical size={14} /></span></Cell>
-          <Cell className="name"><TextField name="Name" value={control.name} onCommit={(name) => { update(index, { name }); }} /></Cell>
+          <ControlCell id={control.id} field={{ type: "name" }} className="name">{(invalid) => <TextField name="Name" value={control.name} invalid={invalid} onCommit={(name) => { update(index, { name }); }} />}</ControlCell>
           {driver.type === "midi" && <MidiInputFields control={control} used={used} limits={limits} {...learnProps(control)} onChange={(change) => { update(index, change); }} />}
           {driver.type === "osc" && <OscInputFields control={control} taken={!isFree(control.input, readByOthers(index), limits)} {...learnProps(control)} onChange={(change) => { update(index, change); }} />}
-          {driver.type === "keyboard" && control.input.type === "key" && <KeyInputCell code={control.input.code} codes={keyCodes} taken={!isFree(control.input, readByOthers(index), limits)} used={used} limits={limits} {...learnProps(control)}
+          {driver.type === "keyboard" && control.input.type === "key" && <KeyInputCell id={control.id} code={control.input.code} codes={keyCodes} taken={!isFree(control.input, readByOthers(index), limits)} used={used} limits={limits} {...learnProps(control)}
             onChange={(code) => { update(index, { input: { type: "key", code } }); }} />}
           <Cell><DescriptionText description={control.description} onCommit={(description) => { update(index, { description }); return Promise.resolve(); }} /></Cell>
           <Cell className="gutter"><IconButton icon={X} label="Remove control" danger className="control-icon remove" onClick={() => { commitControls(controls.filter((_, i) => i !== index)); }} /></Cell>
@@ -363,10 +371,22 @@ export function InputDeviceForm({ device, keyCodes, limits, onSave }: {
       </div>}
       <AddRow label="Add control" disabled={nextInput === null} onAdd={addControl} />
       {device === undefined && <div className="control-grid-actions">
-        <Button type="submit" variant="primary" className="control-grid-submit">Add input device</Button>
+        <Button type="submit" variant="primary" className="control-grid-submit" disabled={checking || problem !== null} {...(problem === null ? {} : { tip: problem.message })}>Add input device</Button>
       </div>}
     </fieldset>
-  </form>;
+  </DraftProblem></form>;
+}
+
+/** The port the device reads, marked when it is refused. */
+function PortField({ label, tip, children }: { label: string; tip?: string; children: (invalid: boolean) => ReactNode }) {
+  const problem = useFieldProblem(OBJECT, { type: "port" });
+  return <Field label={label} tip={tip} error={problem}>{children(problem !== null)}</Field>;
+}
+
+/** A grid cell of control `id`, marked when `field` of it breaks a rule. */
+function ControlCell({ id, field, className, children }: { id: number; field: GuiField; className?: string; children: (invalid: boolean) => ReactNode }) {
+  const problem = useFieldProblem({ type: "control", id }, field);
+  return <Cell {...(className === undefined ? {} : { className })} problem={problem}>{children(problem !== null)}</Cell>;
 }
 
 /** Learns part of a control's input while its field has focus: the note or number the device sends next. */
@@ -392,17 +412,18 @@ function MidiInputFields({ control, used, limits, learning, onLearn, onChange }:
   onChange: (change: Partial<GuiInputControl>) => void;
 }) {
   const { input } = control;
+  const problem = useFieldProblem({ type: "control", id: control.id }, { type: "input" });
   if (input.type !== "notes" && input.type !== "controlChange" && input.type !== "pitchBend") return null;
   const { channel } = input;
   const own = new Set(inputKeys(input, limits));
-  const taken = (candidate: GuiControlInput) => inputKeys(candidate, limits).some((key) => !own.has(key) && used.has(key));
+  const taken = (candidate: GuiControlInput) => problem !== null || inputKeys(candidate, limits).some((key) => !own.has(key) && used.has(key));
   return <>
     <Cell><Select name="Kind" value={control.kind} options={KINDS} onChange={(kind) => {
       // An axis reads no notes, and a button no pitch bend.
       const fits = kind === "axis" ? input.type === "controlChange" || input.type === "pitchBend" : input.type === "notes" || input.type === "controlChange";
       onChange({ kind, input: fits ? input : { type: "controlChange", number: 1, channel } });
     }} /></Cell>
-    <Cell className={learning === "input" ? "compound learning" : "compound"}>
+    <Cell className={learning === "input" ? "compound learning" : "compound"} problem={problem}>
       <Select name="Reads" value={input.type} onChange={(type) => {
         onChange({ input: type === "notes" ? { type: "notes", low: MIDDLE_C, high: MIDDLE_C, channel } : type === "pitchBend" ? { type: "pitchBend", channel } : { type: "controlChange", number: 1, channel } });
       }} options={[
@@ -445,14 +466,15 @@ function OscInputFields({ control, taken, learning, onLearn, onChange }: {
   onChange: (change: Partial<GuiInputControl>) => void;
 }) {
   const { input } = control;
+  const problem = useFieldProblem({ type: "control", id: control.id }, { type: "input" });
   if (input.type !== "address" && input.type !== "addressRange") return null;
   const { path } = input;
   return <>
     <Cell><Select name="Kind" value={control.kind} options={KINDS} onChange={(kind) => {
       onChange({ kind, input: kind === "axis" ? { type: "addressRange", path, low: 0, high: 1 } : { type: "address", path } });
     }} /></Cell>
-    <Cell className={learning === "input" ? "compound learning" : "compound"}>
-      <TextField name="Address" value={path} placeholder="/chord/change" invalid={taken}
+    <Cell className={learning === "input" ? "compound learning" : "compound"} problem={problem}>
+      <TextField name="Address" value={path} placeholder="/chord/change" invalid={taken || problem !== null}
         onCommit={(next) => { onChange({ input: { ...input, path: next } }); }} />
       {input.type === "addressRange" && <>
         <NumberField name="Value at 0" value={input.low} step={AXIS_VALUE_STEP} defaultValue={0} onCommit={(low) => { onChange({ input: { ...input, low } }); }} />
@@ -465,7 +487,9 @@ function OscInputFields({ control, taken, learning, onLearn, onChange }: {
 }
 
 /** A keyboard control's key, chosen from a list or learned by pressing it. */
-function KeyInputCell({ code, codes, taken, used, limits, learning, onLearn, onChange }: {
+function KeyInputCell({ id, code, codes, taken, used, limits, learning, onLearn, onChange }: {
+  /** The control's id. */
+  id: number;
   code: string;
   codes: string[];
   /** Whether another control of the device reads the key. */
@@ -476,8 +500,9 @@ function KeyInputCell({ code, codes, taken, used, limits, learning, onLearn, onC
   onLearn: (part: LearnPart | null) => void;
   onChange: (code: string) => void;
 }) {
-  return <Cell className={learning === "input" ? "compound learning" : "compound"}>
-    <Select name="Key" value={code} invalid={taken} onChange={onChange}
+  const problem = useFieldProblem({ type: "control", id }, { type: "input" });
+  return <Cell className={learning === "input" ? "compound learning" : "compound"} problem={problem}>
+    <Select name="Key" value={code} invalid={taken || problem !== null} onChange={onChange}
       options={codes.map((candidate) => ({ value: candidate, label: candidate, disabled: candidate !== code && !isFree({ type: "key", code: candidate }, used, limits) }))} />
     <LearnButton learning={learning === "input"} onLearn={onLearn} />
   </Cell>;
@@ -489,7 +514,9 @@ function LearnButton({ learning, onLearn }: { learning: boolean; onLearn: (part:
     onClick={() => { onLearn(learning ? null : "input"); }} />;
 }
 
-/** One bordered cell of the control grid. Borders belong to cells alone, never to the controls inside them. */
-function Cell({ children, className }: { children?: ReactNode; className?: string }) {
-  return <div className={className === undefined ? "control-cell" : `control-cell ${className}`}>{children}</div>;
+/** One bordered cell of the control grid. Borders belong to cells alone, never to the controls inside them. A
+ * `problem` its controls break is its tooltip. */
+function Cell({ children, className, problem = null }: { children?: ReactNode; className?: string; problem?: string | null }) {
+  const cell = <div className={className === undefined ? "control-cell" : `control-cell ${className}`}>{children}</div>;
+  return problem === null ? cell : <Tip label={problem}>{cell}</Tip>;
 }

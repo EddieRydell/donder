@@ -68,6 +68,8 @@ specta-typescript = "0.0.12"
 syn = "3.0.6"
 tauri = { version = "2.11.5", features = ["protocol-asset", "unstable"] }
 tauri-build = "2.6.3"
+# 3.0 is an alpha for Tauri 3.
+tauri-plugin-clipboard-manager = "2.5.0"
 tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "typescript"] }
 tempfile = "3.27.0"
 tract-onnx = "0.23.8"

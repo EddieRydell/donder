@@ -1,7 +1,7 @@
 import { Flag, Play, Plus, Repeat, SlidersHorizontal, Square, X } from "lucide-react";
 import { useMemo } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
-import type { ConsoleAction, ConsoleEventKind, ConsoleGuiDocument, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, ConsolePlayMode, GuiEditUpdate, SequenceEffectDefinition } from "../../../types";
+import type { ConsoleAction, ConsoleEventKind, ConsoleGuiDocument, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, ConsolePlayMode, SequenceEffectDefinition } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { Badge, Button, IconButton, MenuButton, type MenuEntry } from "../../kit";
 import { definitionTree, type DefinitionFolder } from "../sequence/definitionMenu";
@@ -58,8 +58,8 @@ function ActionChip({ document, entry, selected, setSelected }: {
       {detail !== null && <span className="action-chip-detail">{detail}</span>}
     </Button>
     <IconButton icon={X} label="Remove action" danger className="action-chip-remove" onClick={() => {
-      void applyConsoleEdit({ type: "removeAction", on: on.id, index }).then(() => {
-        if (isSelected) setSelected(null);
+      void applyConsoleEdit({ type: "removeAction", on: on.id, index }).then((update) => {
+        if (update !== null && isSelected) setSelected(null);
       });
     }} />
   </span>;
@@ -114,7 +114,7 @@ function AddActionMenu({ document, device, control, event, setSelected }: {
   const addEffect = (mode: ConsolePlayMode, definition: SequenceEffectDefinition) => {
     if (target === undefined) return;
     void applyConsoleEdit({ type: "addEffectAction", control: ref, event, mode, initialColor: THEME_COLORS.white, effect: definition.effect, target: target.target })
-      .then((update: GuiEditUpdate) => { setSelected(focusOnEffect(update, update.created[0])); });
+      .then((update) => { if (update !== null) setSelected(focusOnEffect(update, update.created[0])); });
   };
   const entries: MenuEntry[] = [
     ...PLAY_MODES.filter((choice) => event === "press" || choice.releaseToo).map((choice): MenuEntry => ({

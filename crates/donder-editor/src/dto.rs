@@ -11,6 +11,7 @@ mod output;
 mod patch;
 mod perform;
 mod preview;
+mod problem;
 mod sequence;
 mod setup;
 mod synchronization;
@@ -37,18 +38,19 @@ pub use output::{
     VideoExportProgress,
 };
 pub use patch::{
-    GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,
-    PatchLayout,
+    GuiChannelPlace, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,
+    PatchFixtureTarget, PatchGuiDocument, PatchLayout,
 };
 pub use perform::{
     PerformButton, PerformConsole, PerformMidi, PerformOsc, PerformSession, PerformSnapshot,
 };
 pub use preview::{
-    FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,
-    GuiFixtureHandle, GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiLayoutFixture,
-    GuiLayoutFixtureKind, GuiOwnedFixture, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance,
-    SpatialRenderPixel, SpatialRenderPlan,
+    FixtureGuiDocument, FixtureGuiEdit, GeometryRenderBounds, GuiFixtureElement, GuiFixtureHandle,
+    GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiLayoutFixture, GuiLayoutFixtureKind,
+    GuiOwnedFixture, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance, SpatialRenderPixel,
+    SpatialRenderPlan,
 };
+pub use problem::{GuiField, GuiMember, GuiProblem, GuiProblemSite};
 pub use sequence::{
     SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip, SequenceClip,
     SequenceClipDetails, SequenceClipDetailsResult, SequenceClipMatchRequest, SequenceClipParam,
@@ -58,13 +60,14 @@ pub use sequence::{
     SequenceEffectDefinitionParam, SequenceGradientLibraryItem, SequenceGraphNode,
     SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGuiDocument, SequenceLane,
     SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
-    SequenceParamRange,
+    SequenceParamOption, SequenceParamRange,
 };
 pub use setup::{
     BufferExternalState, ControllerGuiDocument, CurveGuiDocument, GradientGuiDocument, GuiDocument,
     GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, GuiItem, GuiObjectRef,
-    GuiOwnershipEdit, OwnedObjectSlot, OwnershipMember, ProjectGuiDocument, ReusableStorage,
-    SetupController, SetupControllerConfig, SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
+    GuiOwnershipEdit, GuiUniverses, NewObjectStorage, OwnedObjectSlot, OwnershipMember,
+    ProjectGuiDocument, ReusableStorage, SetupController, SetupControllerConfig,
+    SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
 };
 pub use synchronization::{
     DocumentSaveState, DocumentSaveStatus, DocumentText, DocumentTextEdit, DocumentTextEdits,
@@ -82,12 +85,12 @@ pub use view_state::{
 pub use workspace::{
     AppCommandId, AppSettings, ClipRasterSettings, CommandId, DocumentDescriptor,
     DocumentObjectDescriptor, EditorBuffer, EditorCommandId, EditorTab, EditorViewMode, KeyBinding,
-    NewSequenceRequest, NewSequenceResult, NewSequenceStorage, ObjectKind, ProjectSearchMatch,
-    ProjectSearchMatchKind, ProjectSearchRequest, ProjectSearchResponse, SequenceClipMatch,
-    SequenceClipTimeMatch, SequenceFollowMode, SequenceInitialZoomMode, Shortcut, SidebarView,
-    SpatialSnapSettings, SpatialUnit, TextDocumentSyntax, Transform, WorkspaceEntry,
-    WorkspaceEntryKind, WorkspaceEntryPlainRole, WorkspaceEntryRole, WorkspaceExplorerState,
-    WorkspaceLayoutState, WorkspaceOperation, WorkspacePathChangeImpact, WorkspacePathChangePlan,
+    NewSequenceRequest, NewSequenceResult, ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind,
+    ProjectSearchRequest, ProjectSearchResponse, SequenceClipMatch, SequenceClipTimeMatch,
+    SequenceFollowMode, SequenceInitialZoomMode, Shortcut, SidebarView, SpatialSnapSettings,
+    SpatialUnit, TextDocumentSyntax, Transform, WorkspaceEntry, WorkspaceEntryKind,
+    WorkspaceEntryPlainRole, WorkspaceEntryRole, WorkspaceExplorerState, WorkspaceLayoutState,
+    WorkspaceOperation, WorkspacePathChangeImpact, WorkspacePathChangePlan,
     WorkspacePathChangeRequest,
 };
 
@@ -230,16 +233,8 @@ pub enum SequenceGuiEdit {
         index: u32,
         label: Option<String>,
     },
-    /// Remove the selection after copying it to the clipboard.
-    CutSelection {
-        selection: SequenceSelection,
-    },
     DeleteSelection {
         selection: SequenceSelection,
-    },
-    /// Paste the clipboard; the pasted items become the selection.
-    Paste {
-        anchor: SequencePasteAnchor,
     },
     MoveClips {
         clips: Vec<SequenceClipRef>,
@@ -461,8 +456,10 @@ pub enum SequenceParamValue {
     Color {
         value: String,
     },
+    /// An option and, in order, every field it carries.
     Enum {
         value: String,
+        fields: Vec<SequenceParamField>,
     },
     Curve {
         value: SequenceCurveValue,
@@ -492,6 +489,14 @@ pub enum SequenceParamValue {
     Marks {
         key: Option<String>,
     },
+}
+
+/// An enum option's field and its value.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceParamField {
+    pub name: String,
+    pub value: SequenceParamValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]

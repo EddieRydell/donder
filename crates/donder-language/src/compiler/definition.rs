@@ -3,7 +3,7 @@
 //! one place in the global signal graph, where preparation may substitute
 //! constant inputs and fuse sources before lowering it to a program.
 use super::check::{self, Definition};
-use super::declarations::check_ranges;
+use super::declarations::{check_ranges, program_params};
 use super::instance::{Instance, ProgramConstants};
 use super::ir::Op;
 use super::ir::interval::{Bounds, interval};
@@ -96,7 +96,8 @@ impl CompiledDefinition {
         self.0.description.as_deref()
     }
 
-    /// Positional `values` respect every declared range and the
+    /// Positional `values`, as [`super::program_values`] orders them,
+    /// respect every declared range and the
     /// iteration limit of reductions bounded by parameter lengths.
     pub fn check_values(&self, values: &[Value]) -> Result<(), BindingError> {
         check_values(&self.0, values, &[])
@@ -119,12 +120,17 @@ fn check_values(
     values: &[Value],
     automation: &[PreparedAutomation],
 ) -> Result<(), BindingError> {
-    check_ranges(&definition.params, values)?;
+    let params: Vec<&ParamDecl> = program_params(definition.params.iter()).collect();
+    if params.len() != values.len() {
+        return Err(BindingError {
+            message: format!("expected {} values, found {}", params.len(), values.len()),
+        });
+    }
+    check_ranges(params.iter().copied(), values)?;
     if definition.length_bounds.is_empty() {
         return Ok(());
     }
-    let ranges: Vec<_> = definition
-        .params
+    let ranges: Vec<_> = params
         .iter()
         .map(|param| match (&param.ty, param.range) {
             (Type::Int, Some(ParamRange::Int { min, max })) => {
@@ -180,9 +186,7 @@ fn invoke(
     automation: Box<[PreparedAutomation]>,
 ) -> Result<Invocation, BindingError> {
     check_values(definition, &values, &automation)?;
-    let types: Vec<_> = definition
-        .params
-        .iter()
+    let types: Vec<_> = program_params(definition.params.iter())
         .map(|param| param.ty.clone())
         .collect();
     let params = BoundParams::bind_values(&types, values)?;

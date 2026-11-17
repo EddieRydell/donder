@@ -5,7 +5,7 @@ import { SequenceAudioSync, sequenceAudioKey } from "../sequenceAudioSync";
 import type { PersistedEditorViewState, SequenceSelection, WorkspaceLayoutState } from "../types";
 import { runCommand } from "../commandRegistry";
 import { effectiveEditorViewMode } from "../editorViewMode";
-import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
+import { runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import { GuiEditor } from "./gui/GuiEditor";
 import { TextEditor } from "./TextEditor";
 import { reconcileSequenceSelection } from "./gui/sequence/sequenceSelection";
@@ -15,12 +15,12 @@ import { scheduleViewStateSave } from "../viewStatePersistence";
 import { sameGuiDocument } from "../snapshotState";
 import { guiRequestKind } from "../workspace/guiIdentity";
 import { resolveDocumentSyncFailure } from "../store";
-import { navigateToText, type TextNavigation } from "../workspace/navigation";
+import { navigateToText, takePendingPlayback, type TextNavigation } from "../workspace/navigation";
 import { listenUiEvent } from "./uiEvents";
 import { displayedProjectHealth, sameWorkspacePath } from "../workspace/helpers";
-import { Button, Dialog, Tip } from "./kit";
-import { OverlayPortal } from "./OverlayPortal";
+import { Button, Tip } from "./kit";
 import { EditorTabStrip } from "./EditorTabStrip";
+import { GuiBreadcrumb } from "./GuiBreadcrumb";
 
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
@@ -39,22 +39,6 @@ export function EditorPane({
   onWorkspaceLayoutChange: (layout: WorkspaceLayoutState) => void;
 }) {
   const guiDocument = useAppStore((store) => store.guiDocument);
-  const guiParents = useAppStore((store) => store.guiParents);
-  const inlineEditorOpen = guiParents.length > 0;
-  const [savingInline, setSavingInline] = useState(false);
-  const [inlinePortal, setInlinePortal] = useState<HTMLDivElement | null>(null);
-  const saveAndCloseFixture = async () => {
-    const origin = useAppStore.getState();
-    setSavingInline(true);
-    try {
-      await runSnapshotCommand(commands.saveAll);
-      const current = useAppStore.getState();
-      if (current.snapshot?.projectEpoch === origin.snapshot?.projectEpoch && sameGuiDocument(current.guiRequest, origin.guiRequest)) closeInlineEditor();
-    }
-    catch (error) { useAppStore.getState().setError(String(error)); }
-    finally { setSavingInline(false); }
-  };
-  const parentDocument = inlineEditorOpen ? guiParents[0]?.document ?? null : guiDocument;
   const guiResetRevision = useAppStore((store) => store.guiResetRevision);
   const failedDocumentSync = useAppStore((store) => store.failedDocumentSync);
   const restoreState = useAppStore((store) => store.restoreState);
@@ -74,11 +58,10 @@ export function EditorPane({
   const activeExternalState = activeBuffer?.externalState ?? "current";
   const activeConflicted = activeExternalState !== "current";
   const nextGuiPath = activeGuiRequest?.path ?? null;
-    const nextGuiView = guiRequestKind(activeGuiRequest, snapshot.activeDocumentDescriptor);
+  const nextGuiView = guiRequestKind(activeGuiRequest, snapshot.activeDocumentDescriptor);
   const nextGuiObjectKey = activeGuiRequest?.objectKey ?? null;
   const activeSequenceDocument =
-    viewMode === "gui" && parentDocument?.type === "sequence" ? parentDocument.document : null;
-  const editableSequenceDocument = activeSequenceDocument;
+    viewMode === "gui" && guiDocument?.type === "sequence" ? guiDocument.document : null;
   const activeSequenceAudio = activeSequenceDocument?.audio ?? null;
   const activeSequenceAudioKey =
     nextGuiPath !== null && nextGuiView === "sequence" && activeSequenceDocument !== null
@@ -127,14 +110,15 @@ export function EditorPane({
   ]);
 
   useEffect(() => {
-    if (inlineEditorOpen) return;
     if (viewMode === "gui" && nextGuiView === "sequence" && projectionPending) return;
     if (activeGuiRequest === null || activeSequenceAudioKey === null || nextGuiPath === null || nextGuiView !== "sequence") {
       void sequenceAudioSync.synchronize(null).catch(() => {});
       return;
     }
-    void sequenceAudioSync.synchronize({ key: activeSequenceAudioKey, request: activeGuiRequest }).catch(() => {});
-  }, [activeGuiRequest, activeSequenceAudioKey, inlineEditorOpen, nextGuiObjectKey, nextGuiPath, nextGuiView, projectionPending, viewMode]);
+    void sequenceAudioSync.synchronize({ key: activeSequenceAudioKey, request: activeGuiRequest }).then(() => {
+      if (takePendingPlayback(activeGuiRequest)) void runSnapshotCommand(commands.audioPlay);
+    }).catch(() => {});
+  }, [activeGuiRequest, activeSequenceAudioKey, nextGuiObjectKey, nextGuiPath, nextGuiView, projectionPending, viewMode]);
 
   useEffect(() => {
     return () => {
@@ -153,7 +137,7 @@ export function EditorPane({
   }
 
   return (
-    <section className={`editor-shell ${editableSequenceDocument !== null ? "has-editor-toolbar" : ""} ${activeConflicted || failedDocumentSync !== null ? "has-conflict-banner" : ""}`}>
+    <section className="editor-shell">
       <EditorTabStrip tabs={snapshot.tabs} activePath={activeTabPath} />
       {displayedProjectHealth(snapshot) === "invalid" && (
         <div className="project-invalid-banner">
@@ -174,10 +158,11 @@ export function EditorPane({
           )}
         </div>
       )}
-      {editableSequenceDocument !== null && (
-        <div className="editor-toolbar" inert={interactionPending || inlineEditorOpen}>
+      {viewMode === "gui" && <GuiBreadcrumb request={activeGuiRequest} />}
+      {activeSequenceDocument !== null && (
+        <div className="editor-toolbar" inert={interactionPending}>
           <SequenceTransportControls
-            document={editableSequenceDocument}
+            document={activeSequenceDocument}
             previewOpen={snapshot.previewOpen}
           />
         </div>
@@ -197,9 +182,9 @@ export function EditorPane({
         </div>
       )}
       {viewMode === "gui" ? (
-        <><div className="gui-projection" inert={interactionPending || inlineEditorOpen} aria-busy={interactionPending}>
+        <div className="gui-projection" inert={interactionPending} aria-busy={interactionPending}>
           <GuiEditor
-            guiDocument={parentDocument}
+            guiDocument={guiDocument}
             snapshot={snapshot}
             workspaceLayout={workspaceLayout}
             onWorkspaceLayoutChange={onWorkspaceLayoutChange}
@@ -208,26 +193,6 @@ export function EditorPane({
             resetRevision={guiResetRevision}
           />
         </div>
-        <Dialog
-          ref={setInlinePortal}
-          open={inlineEditorOpen}
-          onOpenChange={(open) => { if (!open && !savingInline && !guiEditPending) closeInlineEditor(); }}
-          title={activeGuiRequest?.objectKey ?? ""}
-          size="full"
-          {...(guiDocument?.type === "fixture" ? { actions: <Button variant="primary" icon={Save} disabled={interactionPending || savingInline} onClick={() => { void saveAndCloseFixture(); }}>{savingInline ? "Saving" : "Save and close"}</Button> } : {})}
-        >
-          <OverlayPortal value={inlinePortal}><div className="gui-projection" inert={interactionPending || savingInline} aria-busy={interactionPending || savingInline}>
-              <GuiEditor
-                guiDocument={guiDocument}
-                snapshot={snapshot}
-                workspaceLayout={workspaceLayout}
-                onWorkspaceLayoutChange={onWorkspaceLayoutChange}
-                sequenceSelection={sequenceSelection}
-                setSequenceSelection={setSequenceSelection}
-                resetRevision={guiResetRevision}
-              />
-            </div></OverlayPortal>
-        </Dialog></>
       ) : (
         <div className={`resource-editor-frame ${activeConflicted ? "conflicted" : ""}`}>
           {activePath !== null && snapshot.projectRoot !== null && (
@@ -251,6 +216,5 @@ export function EditorPane({
 }
 
 function scheduleEditorViewStateSave(path: string, state: PersistedEditorViewState) {
-  scheduleViewStateSave(JSON.stringify(["editor", path]), () => commands.saveViewState({ type: "editor", state: { path, state } }),
-    (error) => { useAppStore.getState().setError(String(error)); });
+  scheduleViewStateSave(JSON.stringify(["editor", path]), () => commands.saveViewState({ type: "editor", state: { path, state } }));
 }

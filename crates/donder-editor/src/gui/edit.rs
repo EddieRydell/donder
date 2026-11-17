@@ -28,9 +28,7 @@ pub(super) fn edit_sequence(
         .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     }
     match edit {
-        SequenceGuiEdit::CutSelection { .. }
-        | SequenceGuiEdit::DeleteSelection { .. }
-        | SequenceGuiEdit::Paste { .. }
+        SequenceGuiEdit::DeleteSelection { .. }
         | SequenceGuiEdit::MoveClips { .. }
         | SequenceGuiEdit::ResizeClips { .. }
         | SequenceGuiEdit::EditClips { .. }

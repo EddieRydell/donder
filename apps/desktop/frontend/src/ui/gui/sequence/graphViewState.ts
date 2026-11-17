@@ -4,11 +4,8 @@ import { objectViewKey } from "../../../workspace/guiIdentity";
 import { useCallback, useState } from "react";
 import type { PersistedGraphViewState, GuiObjectRef } from "../../../types";
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
-import { useSequenceEditErrorReporter } from "./sequenceLayers";
 
 export function useGraphViewState(reference: GuiObjectRef) {
-  const reportSequenceEditError = useSequenceEditErrorReporter();
-
   const { path, objectKey, ownedPath } = reference;
   const key = objectViewKey(reference);
   const [initial] = useState<PersistedGraphViewState>(() =>
@@ -26,8 +23,8 @@ export function useGraphViewState(reference: GuiObjectRef) {
     scheduleViewStateSave(JSON.stringify(["graph", key]), async () => {
       const snapshot = await commands.saveViewState({ type: "graph", state: { path, objectKey, ownedPath, state } });
       useAppStore.getState().setSnapshot(snapshot, "command");
-    }, reportSequenceEditError);
-  }, [reportSequenceEditError, initial, key, objectKey, path, ownedPath]);
+    });
+  }, [initial, key, objectKey, path, ownedPath]);
   const saveSize = useCallback((id: string, width: number, height: number) => {
     const current = useAppStore.getState().restoreState?.graphViews[key] ?? initial;
     save({ nodeSizes: { ...current.nodeSizes, [id]: { width, height } } });

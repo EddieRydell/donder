@@ -6,12 +6,12 @@ import { runGuiEditCommand } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
 import type { GuiDocumentRequest, GuiLayoutFixture } from "../../../types";
 import { descendants, layoutIndex, memberFixtures, membersOf, membershipCount, type LayoutItems } from "./layoutGraph";
-import { AddRow, Badge } from "../../kit";
+import { AddRow, Badge, type MenuEntry } from "../../kit";
 
 type Location = { parent: number | null; before: number | null; row: number | null; position: "before" | "after" | "inside" | "root" };
 /** A dragged row: the item and the group it was dragged out of. */
 type Drag = { id: number; from: number | null; origin: GuiDocumentRequest; subtree: Set<number> };
-type TreeProps = { selected: number[]; onSelect: (id: number, additive?: boolean) => void };
+type TreeProps = { selected: number[]; onSelect: (id: number, additive?: boolean) => void; onOpen: (id: number) => void };
 type DragControls = {
   enabled: boolean;
   hover: Location | null;
@@ -27,8 +27,8 @@ type TreeContext = { items: LayoutItems; pixelCounts: ReadonlyMap<number, number
  * each; every row is the same item. Dragging moves a row out of its group;
  * Alt-dragging adds the item to another group as well.
  */
-export function LayoutTree({ fixtures, root, pixels, selected, onSelect, enabled, request, onError, onAddGroup }: TreeProps & {
-  fixtures: GuiLayoutFixture[]; root: number[]; pixels: { owner: number }[]; enabled: boolean; request: GuiDocumentRequest | null; onError: (error: unknown) => void; onAddGroup: () => void;
+export function LayoutTree({ fixtures, root, pixels, selected, onSelect, onOpen, enabled, request, addEntries }: TreeProps & {
+  fixtures: GuiLayoutFixture[]; root: number[]; pixels: { owner: number }[]; enabled: boolean; request: GuiDocumentRequest | null; addEntries: MenuEntry[];
 }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<Location | null>(null);
@@ -66,7 +66,7 @@ export function LayoutTree({ fixtures, root, pixels, selected, onSelect, enabled
       if (valid(location, event.altKey) && drag !== null) {
         void runGuiEditCommand((current) => commands.applyGuiEdit(current, { type: "layout", edit: event.altKey
           ? { type: "addMember", id: drag.id, to: location.parent, before: location.before }
-          : { type: "moveMember", id: drag.id, from: drag.from, to: location.parent, before: location.before } }), drag.origin).catch(onError);
+          : { type: "moveMember", id: drag.id, from: drag.from, to: location.parent, before: location.before } }), drag.origin);
       }
       end();
     },
@@ -79,8 +79,8 @@ export function LayoutTree({ fixtures, root, pixels, selected, onSelect, enabled
   return <div className="composition-tree" data-dragging={drag !== null}
     onDragOver={(event) => { controls.over(top, event); }} onDrop={(event) => { controls.drop(top, event); }}
     onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setHover(null); }}>
-    {root.length === 0 && <AddRow label="Add group" disabled={!enabled} onAdd={onAddGroup} />}
-    <LayoutTreeRows members={root} parent={null} context={context} selected={selected} onSelect={onSelect} />
+    {root.length === 0 && <AddRow label="Add" disabled={!enabled} entries={addEntries} />}
+    <LayoutTreeRows members={root} parent={null} context={context} selected={selected} onSelect={onSelect} onOpen={onOpen} />
     {drag !== null && <div className="layout-tree-root-drop" data-drop={hover?.position === "root"}>Top level</div>}
   </div>;
 }
@@ -92,7 +92,7 @@ function LayoutTreeRows({ members, parent, context, ...props }: TreeProps & { me
   });
 }
 
-function LayoutTreeItem({ item, parent, next, context, selected, onSelect }: TreeProps & {
+function LayoutTreeItem({ item, parent, next, context, selected, onSelect, onOpen }: TreeProps & {
   item: GuiLayoutFixture; parent: number | null; next: number | null; context: TreeContext;
 }) {
   const { controls } = context;
@@ -119,7 +119,8 @@ function LayoutTreeItem({ item, parent, next, context, selected, onSelect }: Tre
       onDragStart={(event) => { controls.start(item, parent, event); }} onDragEnd={controls.end}
       onDragOver={(event) => { const target = location(event); if (controls.over(target, event) && target.position === "inside") setOpen(true); }}
       onDrop={(event) => { controls.drop(location(event), event); }}
-      onClick={(event) => { if (isSecondaryClick(event)) { event.preventDefault(); return; } if (!isGroup || event.shiftKey || event.ctrlKey || event.metaKey) event.preventDefault(); onSelect(item.id, event.shiftKey || event.ctrlKey || event.metaKey); }}>
+      onClick={(event) => { if (isSecondaryClick(event)) { event.preventDefault(); return; } if (!isGroup || event.shiftKey || event.ctrlKey || event.metaKey) event.preventDefault(); onSelect(item.id, event.shiftKey || event.ctrlKey || event.metaKey); }}
+      onDoubleClick={() => { if (!isGroup) onOpen(item.id); }}>
       <span className="composition-tree-icon" aria-hidden="true">{isGroup
         ? open ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} /> : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />
         : null}</span>
@@ -127,6 +128,6 @@ function LayoutTreeItem({ item, parent, next, context, selected, onSelect }: Tre
       {linked && <Badge icon={Link2} tip="Linked to a reusable fixture" />}
       {shared > 1 && <Badge tip={`In ${shared} groups`}>{`×${shared}`}</Badge>}
     </summary>
-    {item.kind.type === "group" && <div className="composition-tree-children"><LayoutTreeRows members={item.kind.members} parent={item.id} context={context} selected={selected} onSelect={onSelect} /></div>}
+    {item.kind.type === "group" && <div className="composition-tree-children"><LayoutTreeRows members={item.kind.members} parent={item.id} context={context} selected={selected} onSelect={onSelect} onOpen={onOpen} /></div>}
   </details>;
 }

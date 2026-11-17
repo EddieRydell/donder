@@ -61,7 +61,10 @@ Console mpk_mini {
   events: [
     On { event: Press { control: devices.mpk_mini.pad_1 }, actions: [Mark { into: beat1 }] },
     On { event: Press { control: devices.mpk_mini.pad_2 }, actions: [Mark { into: beat2 }] },
-    On { event: Press { control: devices.mpk_mini.pad_8 }, actions: [Toggle { clip: mark_pulse }] },
+    On {
+      event: Press { control: devices.mpk_mini.pad_8 },
+      actions: [Toggle { clip: mark_pulse, length: 4s }],
+    },
     On { event: Press { control: devices.mpk_mini.pad_3 }, actions: [Mark { into: beat3 }] },
     On {
       event: Move { control: devices.mpk_mini.knob_1 },
@@ -82,7 +85,7 @@ Console mpk_mini {
     },
     On {
       event: Press { control: devices.mpk_mini.pad_7 },
-      actions: [Toggle { clip: mark_field_wipe }],
+      actions: [Toggle { clip: mark_field_wipe, length: 4s }],
     },
     On {
       event: Move { control: devices.mpk_mini.knob_3 },

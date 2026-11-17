@@ -83,12 +83,11 @@ or its undo history.
 
 The layout sidebar contains groups and fixture instances. Each instance has a
 name and position/rotation/scale. Effects target instances or whole layout groups.
-The list and canvas share Add fixture and Add group actions. New fixtures are
-owned directly by their placement and opened for editing by default. Advanced settings,
-below Name, can instead create a reusable declaration in this file or a uniquely named
-file in the fixtures folder. Existing reusable fixtures can be added from the
-Add fixture submenu. A selected fixture's ownership actions offer **Make reusable**
-for owned geometry and **Make independent** for a link. Making a link independent
+The list and canvas share Add fixture and Add group actions. New fixtures get
+a uniquely named file in the fixtures folder and open for editing. Advanced settings,
+below Name, can instead declare it in this file or store it inside its placement. Existing reusable fixtures can be added from the
+Add fixture submenu. A selected fixture's "…" menu offers **Move to file**
+for owned geometry and **Copy inside parent** for a link. Making a link independent
 copies its geometry into that placement and leaves the reusable declaration unchanged.
 
 Right-click a fixture row to edit it, change its name and description, or
@@ -97,10 +96,9 @@ an inline fixture removes its owned shape data. Copying an inline fixture create
 independent geometry. Referenced fixture data remains available after removing
 its placements, whether its declaration is in the same file or another file.
 Editing a shared fixture
-changes all instances referencing it. Fixtures in the current document open in a
-modal; fixtures in another document open in their editor tab. The fixture modal's
-Save and close button saves through the normal project save path before closing;
-a failed save leaves the editor open.
+changes all instances referencing it. A fixture opens full size in the editor, in place
+of the layout, with the breadcrumb leading back to the layout; one in another document opens in
+its editor tab.
 
 Each fixture is placed once, but a fixture or group may be a member of several
 groups, such as `roofs` and `left_side` both listing `left_roof`. The hierarchy

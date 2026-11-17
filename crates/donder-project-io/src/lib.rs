@@ -17,6 +17,8 @@ pub use address::{
 mod analysis;
 mod check_cache;
 pub use check_cache::ProjectCheckCache;
+mod clipboard;
+pub use clipboard::{holds_sequence_clipboard, read_sequence_clipboard, write_sequence_clipboard};
 mod diagnostics;
 mod document;
 mod errors;

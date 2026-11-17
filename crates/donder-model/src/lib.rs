@@ -31,14 +31,14 @@ mod validation;
 
 pub use clock::{sample_duration, sample_time};
 pub use console::{
-    Action, ClipUse, Console, ConsoleAutomationTarget, ConsoleClip, ConsoleClipId, InputEvent,
-    LengthSource, LiveMarks, MAX_COPIES, On, OnId, OwnedConsole, Play, PlayLength, PlayedQuantity,
-    PlayedValue,
+    Action, Always, ClipUse, Console, ConsoleAutomationTarget, ConsoleClip, ConsoleClipId,
+    InputEvent, LengthSource, LiveMarks, MAX_COPIES, On, OnId, OwnedConsole, Play, PlayLength,
+    PlayedQuantity, PlayedValue,
 };
 pub use controller::{
-    ArtNetConfig, ArtNetMode, Controller, ControllerPort, ControllerPortAddress, ControllerPortId,
-    ControllerProtocol, ControllerValidationError, DonderConfig, DonderDeviceId, E131Config,
-    E131Mode, OwnedController,
+    ArtNetConfig, ArtNetMode, ChannelPlace, Controller, ControllerOutput, ControllerPort,
+    ControllerPortId, ControllerProtocol, ControllerValidationError, DonderConfig, DonderDeviceId,
+    E131Config, E131Mode, OwnedController, UniverseChannel, Universes,
 };
 pub use effect::{
     Clip, ClipId, ClipScope, CurveDefinition, EffectDefinition, GradientDefinition, OwnedCurve,
@@ -71,7 +71,7 @@ pub use layout::{
 };
 pub use operator::{
     GraphOperatorNode, GraphValidationError, OperatorDefinition,
-    composition_graph_root_dependencies, param_matches_type, validate_composition_graph,
+    composition_graph_root_dependencies, param_matches, validate_composition_graph,
 };
 pub use ownership::edit::{
     OwnershipSite, add_console, add_sequence, duplicate_layout_fixture, make_independent,

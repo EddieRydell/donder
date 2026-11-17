@@ -29,7 +29,8 @@ type LayoutMenu = {
   onAddGroup: () => void;
 };
 
-export function SpatialCanvas({ plan, reference, documentKey, selection, items, onSelect, onMoveStart, onDelete, onDuplicate, layoutMenu, fixtureTools }: { plan: SpatialRenderPlan; reference: GuiObjectRef; documentKey: string; selection: number[]; items: SpatialItem[]; onSelect: (owners: number[]) => void; onMoveStart: (owners: number[], anchor: number) => Move | null; onDelete: () => void; onDuplicate: () => void; layoutMenu?: LayoutMenu; fixtureTools?: FixtureCanvasTools }) {
+/** `onOpen` opens the pixel owner under a double-click in its own editor. */
+export function SpatialCanvas({ plan, reference, documentKey, selection, items, onSelect, onOpen, onMoveStart, onDelete, onDuplicate, layoutMenu, fixtureTools }: { plan: SpatialRenderPlan; reference: GuiObjectRef; documentKey: string; selection: number[]; items: SpatialItem[]; onSelect: (owners: number[]) => void; onOpen?: (owner: number) => void; onMoveStart: (owners: number[], anchor: number) => Move | null; onDelete: () => void; onDuplicate: () => void; layoutMenu?: LayoutMenu; fixtureTools?: FixtureCanvasTools }) {
   const snapping = useAppStore((state) => state.snapshot?.settings.spatialSnap);
   if (snapping === undefined) throw new Error("Spatial editor settings are missing.");
   const guides = useSpatialGuides(reference);
@@ -99,7 +100,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
         const position = normalizePoint(pixel.position);
         if (displayOffset?.owners.includes(pixel.owner) === true) { position.x += displayOffset.x; position.y += displayOffset.y; }
         const point = project(position);
-        const radius = Math.max(THEME_METRICS.spatialPointRadius, pixel.diameterMeters * spatial.view.scale / 2);
+        const radius = Math.max(THEME_METRICS.previewMinimumRadiusPixels, pixel.diameterMeters * spatial.view.scale / 2);
         context.fillStyle = selectedOwners.includes(pixel.owner) ? THEME_COLORS.layoutSelected : THEME_COLORS.playhead;
         context.beginPath(); context.arc(point.x, point.y, radius, 0, Math.PI * 2); context.fill();
       });
@@ -154,6 +155,8 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
     }
   };
   const cancel = () => { setMarquee(null); setDragging(false); pointerActive.current = false; gesture.current = null; showPanCursor(); setOffset(null); fixture.cancel(); };
+  /** Escape: cancel the gesture and the shape being drawn, or leave the drawing tool when nothing is drawn. */
+  const backOut = () => { cancel(); fixture.key("Escape"); };
   // Snapping previews follow the modifier keys wherever focus is; Space outside text entry holds the pan.
   const onModifierKey = useEffectEvent((event: KeyboardEvent) => {
     if (event.key === "Shift" || event.key === "Alt") refreshModifiers(event);
@@ -188,7 +191,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
     "edit.delete": { run: () => { if (!fixture.key("Backspace") && idle() && editable) onDelete(); } },
     "edit.duplicate": { enabled: () => idle() && editable, run: onDuplicate },
     "edit.confirm": { enabled: () => fixture.active, run: () => { fixture.key("Enter"); } },
-    "edit.cancel": { run: () => { cancel(); fixture.key("Escape"); } },
+    "edit.cancel": { run: backOut },
     "edit.moveLeft": { enabled: idle, run: ({ shift }) => { nudge(-1, 0, shift); } },
     "edit.moveRight": { enabled: idle, run: ({ shift }) => { nudge(1, 0, shift); } },
     "edit.moveUp": { enabled: idle, run: ({ shift }) => { nudge(0, 1, shift); } },
@@ -268,7 +271,8 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onLostPointerCapture={() => { if (pointerActive.current) cancel(); }}
       onWheel={(event) => {
         event.preventDefault();
-        if (gesture.current !== null || fixture.active) return;
+        // Zoom and pan stay available while a shape is drawn; a pan, marquee or move holds the view.
+        if (gesture.current !== null) return;
         // The wheel scrolls, sideways with Shift; Ctrl or Command and trackpad pinches (ctrlKey) zoom.
         if (!event.ctrlKey && !event.metaKey) {
           if (event.shiftKey) spatial.panBy(-(event.deltaX !== 0 ? event.deltaX : event.deltaY), 0);
@@ -278,6 +282,20 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
         const rect = event.currentTarget.getBoundingClientRect();
         const zoomScale = isMac && event.ctrlKey ? THEME_METRICS.spatialPinchZoomScale : THEME_METRICS.spatialWheelZoomScale;
         spatial.zoomAt(Math.exp(-event.deltaY * zoomScale), event.clientX - rect.left, event.clientY - rect.top);
+      }}
+      onDoubleClick={(event) => {
+        if (onOpen === undefined) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const index = nearestPoint(points, unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), THEME_METRICS.spatialHitRadius / spatial.view.scale);
+        const owner = index === null ? null : plan.pixels[index]?.owner ?? null;
+        if (owner !== null) onOpen(owner);
+      }}
+      // Escape while drawing backs out of the drawing alone; nothing behind the canvas sees it.
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || (!fixture.active && (fixtureTools?.tool ?? null) === null)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        backOut();
       }}
       onContextMenu={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();
@@ -316,7 +334,6 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
     </ContextMenu.Root>}
     <SpatialSnapControls settings={snapping} guides={guides.guides} onGuides={guides.save} disabled={dragging || fixture.active || pending} />
     {fixture.measurement !== null ? <output className="spatial-measurement">{fixture.measurement}</output> : dragging && <MoveReadout store={offsetStore} unit={snapping.unit} />}
-    {guides.error !== null && <p className="spatial-measurement" role="alert">{guides.error}</p>}
     <SpatialControls view={spatial.view} reset={spatial.reset} zoomAt={spatial.zoomAt} />
   </div>;
 }

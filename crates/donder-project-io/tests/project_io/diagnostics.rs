@@ -305,7 +305,7 @@ fn invalid_data_syntax_reports_parser_range() {
 
 #[test]
 fn unclosed_bracket_inside_a_record_is_one_syntax_error() {
-    let text = "Project main {\n  format: 1,\n  setup: [\n  sequences: [],\n}\n";
+    let text = "Project main {\n  format: 2,\n  setup: [\n  sequences: [],\n}\n";
     let diagnostics = common::document_diagnostics(Utf8Path::new(PROJECT_ROOT_FILE), text);
     assert!(
         !diagnostics.is_empty()
@@ -667,7 +667,7 @@ fn root_format_is_validated() {
     let path = root.join(PROJECT_ROOT_FILE);
     let text = fs::read_to_string(&path)
         .unwrap()
-        .replacen("format: 1", "format: 7", 1);
+        .replacen("format: 2", "format: 7", 1);
     fs::write(&path, text).unwrap();
     let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.session.is_none());

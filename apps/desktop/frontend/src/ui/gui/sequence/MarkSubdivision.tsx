@@ -47,15 +47,15 @@ export function MarkSubdivision({
           type: "createMarkCollections",
           collections: [{ name, color: defaultMarkColor(document.markCollections.length), marksSeconds: timesSeconds }]
         } })
-      ).then(({ created }) => {
-        setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...created]));
+      ).then((result) => {
+        if (result !== null) setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...result.created]));
       });
       return;
     }
     // Inserting marks renumbers the target collection, so the selection's indices would go stale.
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: { type: "addMarks", collectionKey: targetCollection.key, timesSeconds } })
-    ).then(clearMarkSelection);
+    ).then((result) => { if (result !== null) clearMarkSelection(); });
   };
 
   return (

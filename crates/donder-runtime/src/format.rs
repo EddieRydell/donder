@@ -476,6 +476,8 @@ impl Default for Lookup {
 #[repr(C)]
 pub struct Output {
     pub controller_index: u32,
+    /// The Donder port it drives, or 0 for an E1.31 or Art-Net controller's
+    /// channels across all its universes.
     pub port: u32,
     /// Where its bytes start in the frame's output bytes, after every
     /// output before it.
@@ -524,8 +526,8 @@ pub(crate) const ACTION_TOGGLE: u32 = 3;
 pub(crate) const ACTION_MARK: u32 = 4;
 pub(crate) const ACTION_SET: u32 = 5;
 
-/// How long a played copy plays: `shortest`, or from `shortest` to `longest`
-/// by the velocity or an axis.
+/// How long a copy plays, or a held copy plays before it repeats:
+/// `shortest`, or from `shortest` to `longest` by the velocity or an axis.
 pub(crate) const LENGTH_FIXED: u32 = 0;
 pub(crate) const LENGTH_VELOCITY: u32 = 1;
 pub(crate) const LENGTH_AXIS: u32 = 2;
@@ -684,7 +686,8 @@ sections! {
     played_values: PlayedValue,
     console_clips: ConsoleClip,
     console_indices: u32,
-    console_always: u32,
+    // The `Start` action the session runs for each `always` clip.
+    console_always: ConsoleAction,
 }
 
 fn section<T: Pod>(payload: &[u8], entry: SectionEntry) -> &[T] {

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { commands } from "./api";
+import { commands, errorMessage } from "./api";
 import { flushDocumentSync, useAppStore } from "./store";
 import type { TransitionDecision, WorkspaceTransition } from "./types";
 import { flushViewStateSaves } from "./viewStatePersistence";
@@ -12,7 +12,7 @@ export function runWorkspaceTransition(transition: WorkspaceTransition): Promise
   if (activeTransition !== null) return activeTransition;
   useTransitionStore.setState({ inProgress: true });
   activeTransition = performTransition(transition).catch((error: unknown) => {
-    useAppStore.getState().setError(String(error));
+    useAppStore.getState().reportFailure("command", errorMessage(error));
     return false;
   }).finally(() => {
     activeTransition = null;

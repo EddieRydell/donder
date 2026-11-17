@@ -5,29 +5,29 @@ use specta::Type;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NewSequenceRequest {
-    pub storage: NewSequenceStorage,
+    /// The declaration's name, when `storage` declares one.
+    pub name: String,
+    pub storage: NewObjectStorage,
     pub initial_color: String,
     pub duration_seconds: f64,
     pub frame_rate: u32,
 }
 
+/// A created sequence and the project with it, or why it was refused.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum NewSequenceStorage {
-    Inline,
-    SameFile { name: String },
-    NewFile { name: String },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct NewSequenceResult {
-    pub snapshot: AppSnapshot,
-    pub source: GuiObjectRef,
+pub enum NewSequenceResult {
+    Created {
+        snapshot: Box<AppSnapshot>,
+        source: GuiObjectRef,
+    },
+    Refused {
+        problem: GuiProblem,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]

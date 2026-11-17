@@ -212,7 +212,8 @@ pub enum UnroutedReason {
     OutsideOutputs,
     /// Some channels are on a controller that is not imported, by name.
     UnsupportedController(String),
-    /// A pixel's channels continue from one output into the next.
+    /// A pixel's channels continue past its universe, into one that does
+    /// not follow it or is not sent.
     SplitPixel,
     /// A Vixen element's channels, by the element's name.
     Element {
@@ -254,6 +255,8 @@ pub enum ControllerSkip {
     RepeatedUniverse(i32),
     /// Its outputs send another protocol than the controller.
     MixedOutputs,
+    /// It sends no universes.
+    NoOutputs,
     /// An output with no channels.
     EmptyOutput,
     /// An output of more channels than a universe holds.
@@ -430,7 +433,10 @@ impl fmt::Display for UnroutedReason {
                 f,
                 "some of its channels are on controller {controller}, which is not imported"
             ),
-            Self::SplitPixel => write!(f, "a pixel's channels run on into the next universe"),
+            Self::SplitPixel => write!(
+                f,
+                "a pixel's channels run on past its universe into one the controller does not send next"
+            ),
             Self::Element { element, problem } => write!(f, "its element {element} {problem}"),
             Self::MixedEncodings => write!(f, "its elements are patched in different color orders"),
         }
@@ -453,6 +459,7 @@ impl fmt::Display for ControllerSkip {
             Self::Universe(universe) => write!(f, "universe {universe} is out of range"),
             Self::RepeatedUniverse(universe) => write!(f, "it sends universe {universe} twice"),
             Self::MixedOutputs => write!(f, "its outputs send another protocol than it does"),
+            Self::NoOutputs => write!(f, "it sends no universes"),
             Self::EmptyOutput => write!(f, "one of its outputs has no channels"),
             Self::LargeOutput(channels) => write!(
                 f,

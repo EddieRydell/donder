@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { commands, events } from "./api";
+import { commands, events, errorMessage } from "./api";
 import { editTarget } from "./platform";
 import { useAppStore } from "./store";
 import type { PerformSnapshot } from "./types";
@@ -20,8 +20,9 @@ export const usePerformStore = create<PerformStore>((set) => ({
 async function runPerformCommand(command: () => Promise<PerformSnapshot>) {
   try {
     usePerformStore.getState().setPerform(await command());
+    useAppStore.getState().reportFailure("command", null);
   } catch (error) {
-    useAppStore.getState().setError(String(error));
+    useAppStore.getState().reportFailure("command", errorMessage(error));
   }
 }
 

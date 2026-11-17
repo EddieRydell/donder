@@ -66,6 +66,8 @@ pub(crate) enum TokenKind {
     Slash,
     SlashSlash,
     Arrow,
+    /// `=>`, between a `match` arm's pattern and its value.
+    FatArrow,
     Percent,
     Eof,
     Error(LexError),
@@ -82,6 +84,7 @@ pub(crate) enum Keyword {
     Else,
     For,
     In,
+    Match,
     True,
     False,
     /// Data only, like `From` and `None`.
@@ -213,6 +216,7 @@ impl Lexer<'_> {
                 }
             }
             '>' => self.pair('=', TokenKind::GreaterEqual, TokenKind::Greater),
+            '=' if self.eat('>') => TokenKind::FatArrow,
             '=' => self.pair('=', TokenKind::EqualEqual, TokenKind::Equals),
             '!' => self.pair('=', TokenKind::BangEqual, TokenKind::Bang),
             '&' => self.pair(
@@ -358,6 +362,7 @@ impl Keyword {
             Self::Else => "else",
             Self::For => "for",
             Self::In => "in",
+            Self::Match => "match",
             Self::True => "true",
             Self::False => "false",
             Self::Import => "import",
@@ -444,6 +449,7 @@ impl LexMode {
                 Keyword::Else,
                 Keyword::For,
                 Keyword::In,
+                Keyword::Match,
                 Keyword::True,
                 Keyword::False,
             ],

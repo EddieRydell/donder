@@ -90,12 +90,13 @@ pub fn arm(
             let mut played: Vec<Vec<Vec<Bindings<'_>>>> = Vec::new();
             for clip in accepted.clips() {
                 let authored = clip.clip();
-                // A `Fixed` length is the same for every copy, so it is a program
-                // constant; otherwise each start sets it.
-                let (count, duration) = match clip.clip_use() {
-                    ClipUse::Played(count) => (count, fixed_length(console, authored.id)),
-                    ClipUse::Held => (1, None),
+                // A length every start gives is a program constant; otherwise
+                // each start sets it.
+                let count = match clip.clip_use() {
+                    ClipUse::Played(count) => count,
+                    ClipUse::Held => 1,
                 };
+                let duration = fixed_length(console, authored.id);
                 // A dropped clip keeps its voices, so commands still address
                 // them, but plays in no layer.
                 let dropped = clips.drops(&authored.layer_id, &authored.target);
@@ -239,9 +240,15 @@ pub fn arm(
                                     },
                                 },
                             },
-                            Action::Start { clip: id } => RoutedAction::Start { clip: clip(*id) },
+                            Action::Start { clip: id, length } => RoutedAction::Start {
+                                clip: clip(*id),
+                                length: sample_duration(length),
+                            },
                             Action::Stop { clip: id } => RoutedAction::Stop { clip: clip(*id) },
-                            Action::Toggle { clip: id } => RoutedAction::Toggle { clip: clip(*id) },
+                            Action::Toggle { clip: id, length } => RoutedAction::Toggle {
+                                clip: clip(*id),
+                                length: sample_duration(length),
+                            },
                             Action::Mark(key) => RoutedAction::Mark {
                                 collection: collections[key],
                             },
@@ -260,7 +267,11 @@ pub fn arm(
                 .collect();
             builder.console(ConsoleRouting {
                 controls: controls.len() as u16,
-                always: console.always.iter().map(|&id| clip(id)).collect(),
+                always: console
+                    .always
+                    .iter()
+                    .map(|always| (clip(always.clip), sample_duration(&always.length)))
+                    .collect(),
                 clips: armed_clips.into_values().collect(),
                 ons,
             });
@@ -291,16 +302,29 @@ fn automate_operators<'id>(
     }
 }
 
-/// The length every copy of a played clip plays, when all its `Play`
-/// actions give the same `Fixed` one.
+/// The length every copy of a clip plays, or a held copy plays before it
+/// repeats, when everything that starts it gives the same fixed one.
 fn fixed_length(
     console: &donder_model::Console,
     clip: ConsoleClipId,
 ) -> Option<donder_runtime_types::SampleDuration> {
-    let mut lengths = console.actions().filter_map(|action| match action {
-        donder_model::Action::Play(play) if play.clip == clip => Some(play.length.fixed()),
-        _ => None,
-    });
+    let always = console
+        .always
+        .iter()
+        .filter(|always| always.clip == clip)
+        .map(|always| Some(sample_duration(&always.length)));
+    let mut lengths = console
+        .actions()
+        .filter_map(|action| match action {
+            Action::Play(play) if play.clip == clip => Some(play.length.fixed()),
+            Action::Start { clip: id, length } | Action::Toggle { clip: id, length }
+                if *id == clip =>
+            {
+                Some(Some(sample_duration(length)))
+            }
+            _ => None,
+        })
+        .chain(always);
     let first = lengths.next()??;
     lengths.all(|length| length == Some(first)).then_some(first)
 }
